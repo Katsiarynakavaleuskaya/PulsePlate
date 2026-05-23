@@ -139,7 +139,7 @@ STALE_A8_REVERSED_RE = re.compile(
     re.I,
 )
 CONTRAST_SPLIT_RE = re.compile(
-    r"\b(?:but|however|though|although|yet|and|or|while|whereas|because|since|as|unless)\b|[;]",
+    r"\b(?:but|however|though|although|yet|and|or|while|whereas|because|since|as|unless|therefore)\b|[;]",
     re.I,
 )
 COMMA_SPLIT_RE = re.compile(r",\s*")
@@ -349,11 +349,24 @@ def _subclause_has_actionable_forbidden(
         return False
     if has_local_surface and POSITIVE_ACTION_RE.search(normalized):
         return True
-    if sentence_has_forbidden_surface and re.search(
-        r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
-        r"production[-\s]?ready|rollout[-\s]?ready|default[-\s]?on)\b",
-        normalized,
-        re.I,
+    if (
+        sentence_has_forbidden_surface
+        and not _activation_is_locally_negated(normalized)
+        and POSITIVE_ACTION_RE.search(normalized)
+        and re.search(
+            r"\b(?:production|runtime|live|traffic|default|enabled|active)\b", normalized, re.I
+        )
+    ):
+        return True
+    if (
+        sentence_has_forbidden_surface
+        and not _activation_is_locally_negated(normalized)
+        and re.search(
+            r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
+            r"production[-\s]?ready|rollout[-\s]?ready|default[-\s]?on)\b",
+            normalized,
+            re.I,
+        )
     ):
         return True
     if (
@@ -462,13 +475,45 @@ def _collect_param_only_call_keywords(node: ast.Call) -> set[str]:
     return {keyword.arg for keyword in node.keywords if keyword.arg in PARAM_ONLY_SYMBOLS}
 
 
+def _activation_is_locally_negated(text: str) -> bool:
+    return (
+        re.search(
+            r"\b(?:not|no|never|cannot|can't|does\s+not|do\s+not|must\s+not)\b"
+            r"[^,;.]{0,40}\b(?:active|live|enabled|opened|allowed|approved|selected)\b",
+            text,
+            re.I,
+        )
+        is not None
+    )
+
+
+def _empty_iterable_assignment_names(statements: list[ast.stmt]) -> set[str]:
+    names: set[str] = set()
+    for stmt in statements:
+        if isinstance(stmt, ast.Assign) and _iterable_is_definitely_empty(stmt.value):
+            for target in stmt.targets:
+                names.update(_assign_target_names(target))
+        elif (
+            isinstance(stmt, ast.AnnAssign)
+            and stmt.value is not None
+            and _iterable_is_definitely_empty(stmt.value)
+        ):
+            names.update(_assign_target_names(stmt.target))
+    return names
+
+
 def _iter_calls_in_expr(expr: ast.expr | None) -> list[ast.Call]:
     if expr is None:
         return []
     return [node for node in ast.walk(expr) if isinstance(node, ast.Call)]
 
 
-def _collect_param_only_wiring(statements: list[ast.stmt]) -> set[str]:
+def _collect_param_only_wiring(
+    statements: list[ast.stmt], empty_iterable_names: set[str] | None = None
+) -> set[str]:
+    empty_iterable_names = set(empty_iterable_names or set()) | _empty_iterable_assignment_names(
+        statements
+    )
     found: set[str] = set()
     for stmt in statements:
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -490,35 +535,35 @@ def _collect_param_only_wiring(statements: list[ast.stmt]) -> set[str]:
                 found.update(_collect_param_only_call_keywords(call))
         elif isinstance(stmt, ast.If):
             if _constant_is_false(stmt.test):
-                found.update(_collect_param_only_wiring(stmt.orelse))
+                found.update(_collect_param_only_wiring(stmt.orelse, empty_iterable_names))
                 continue
-            found.update(_collect_param_only_wiring(stmt.body))
-            found.update(_collect_param_only_wiring(stmt.orelse))
+            found.update(_collect_param_only_wiring(stmt.body, empty_iterable_names))
+            found.update(_collect_param_only_wiring(stmt.orelse, empty_iterable_names))
         elif isinstance(stmt, ast.While):
             if _constant_is_false(stmt.test):
-                found.update(_collect_param_only_wiring(stmt.orelse))
+                found.update(_collect_param_only_wiring(stmt.orelse, empty_iterable_names))
                 continue
-            found.update(_collect_param_only_wiring(stmt.body))
-            found.update(_collect_param_only_wiring(stmt.orelse))
+            found.update(_collect_param_only_wiring(stmt.body, empty_iterable_names))
+            found.update(_collect_param_only_wiring(stmt.orelse, empty_iterable_names))
         elif isinstance(stmt, ast.For):
             if _iterable_is_non_iterable_constant(stmt.iter):
                 continue
-            if _iterable_is_definitely_empty(stmt.iter):
-                found.update(_collect_param_only_wiring(stmt.orelse))
+            if _iterable_is_definitely_empty(stmt.iter, empty_iterable_names):
+                found.update(_collect_param_only_wiring(stmt.orelse, empty_iterable_names))
                 continue
-            found.update(_collect_param_only_wiring(stmt.body))
-            found.update(_collect_param_only_wiring(stmt.orelse))
+            found.update(_collect_param_only_wiring(stmt.body, empty_iterable_names))
+            found.update(_collect_param_only_wiring(stmt.orelse, empty_iterable_names))
         elif isinstance(stmt, ast.With):
-            found.update(_collect_param_only_wiring(stmt.body))
+            found.update(_collect_param_only_wiring(stmt.body, empty_iterable_names))
         elif isinstance(stmt, ast.Try):
-            found.update(_collect_param_only_wiring(stmt.body))
+            found.update(_collect_param_only_wiring(stmt.body, empty_iterable_names))
             for handler in stmt.handlers:
-                found.update(_collect_param_only_wiring(handler.body))
-            found.update(_collect_param_only_wiring(stmt.orelse))
-            found.update(_collect_param_only_wiring(stmt.finalbody))
+                found.update(_collect_param_only_wiring(handler.body, empty_iterable_names))
+            found.update(_collect_param_only_wiring(stmt.orelse, empty_iterable_names))
+            found.update(_collect_param_only_wiring(stmt.finalbody, empty_iterable_names))
         elif isinstance(stmt, ast.Match):
             for case in stmt.cases:
-                found.update(_collect_param_only_wiring(case.body))
+                found.update(_collect_param_only_wiring(case.body, empty_iterable_names))
     return found
 
 
@@ -530,6 +575,7 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
         return set()
 
     symbols: set[str] = set()
+    empty_iterable_names = _empty_iterable_assignment_names(tree.body)
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
             symbols.add(node.name)
@@ -541,42 +587,45 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
                     for param in _function_param_names(node):
                         if param in PARAM_ONLY_SYMBOLS:
                             symbols.add(param)
-                    symbols.update(_collect_param_only_wiring(node.body))
+                    symbols.update(_collect_param_only_wiring(node.body, empty_iterable_names))
         elif isinstance(node, ast.Assign):
             if not (isinstance(node.value, ast.Constant) and node.value.value is None):
                 for target in node.targets:
                     if isinstance(target, (ast.Name, ast.Tuple, ast.List)):
-                        symbols.update(_assign_target_names(target))
+                        symbols.update(_assign_target_names(target) - PARAM_ONLY_SYMBOLS)
         elif isinstance(node, ast.AnnAssign):
             if node.target is not None:
                 if not (isinstance(node.value, ast.Constant) and node.value.value is None):
                     if isinstance(node.target, (ast.Name, ast.Tuple, ast.List)):
-                        symbols.update(_assign_target_names(node.target))
+                        symbols.update(_assign_target_names(node.target) - PARAM_ONLY_SYMBOLS)
         elif hasattr(ast, "TypeAlias") and isinstance(node, ast.TypeAlias):
             if isinstance(node.name, ast.Name):
                 symbols.add(node.name.id)
     return symbols
 
 
-def _walk_executable_nodes(node: ast.AST) -> Iterator[ast.AST]:
+def _walk_executable_nodes(
+    node: ast.AST, empty_iterable_names: set[str] | None = None
+) -> Iterator[ast.AST]:
+    empty_iterable_names = empty_iterable_names or set()
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
         return
     if isinstance(node, ast.If):
         if _constant_is_false(node.test):
             for stmt in node.orelse:
-                yield from _walk_executable_nodes(stmt)
+                yield from _walk_executable_nodes(stmt, empty_iterable_names)
             return
     if isinstance(node, ast.While):
         if _constant_is_false(node.test):
             for stmt in node.orelse:
-                yield from _walk_executable_nodes(stmt)
+                yield from _walk_executable_nodes(stmt, empty_iterable_names)
             return
     if isinstance(node, ast.For):
         if _iterable_is_non_iterable_constant(node.iter):
             return
-        if _iterable_is_definitely_empty(node.iter):
+        if _iterable_is_definitely_empty(node.iter, empty_iterable_names):
             for stmt in node.orelse:
-                yield from _walk_executable_nodes(stmt)
+                yield from _walk_executable_nodes(stmt, empty_iterable_names)
             return
     for child in ast.iter_child_nodes(node):
         if isinstance(child, ast.arg):
@@ -584,14 +633,15 @@ def _walk_executable_nodes(node: ast.AST) -> Iterator[ast.AST]:
         if isinstance(child, ast.AnnAssign):
             yield child.target
             if child.value is not None:
-                yield from _walk_executable_nodes(child.value)
+                yield from _walk_executable_nodes(child.value, empty_iterable_names)
             continue
         yield child
-        yield from _walk_executable_nodes(child)
+        yield from _walk_executable_nodes(child, empty_iterable_names)
 
 
 def _collect_string_literals_from_function(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
+    empty_iterable_names: set[str] | None = None,
 ) -> set[str]:
     literals: set[str] = set()
     start_index = 0
@@ -603,7 +653,7 @@ def _collect_string_literals_from_function(
     ):
         start_index = 1
     for stmt in node.body[start_index:]:
-        for child in _walk_executable_nodes(stmt):
+        for child in _walk_executable_nodes(stmt, empty_iterable_names or set()):
             if isinstance(child, ast.Constant) and isinstance(child.value, str):
                 literals.add(child.value)
     return literals
@@ -617,7 +667,11 @@ def _constant_is_false(node: ast.expr) -> bool:
     )
 
 
-def _iterable_is_definitely_empty(node: ast.expr) -> bool:
+def _iterable_is_definitely_empty(
+    node: ast.expr, empty_iterable_names: set[str] | None = None
+) -> bool:
+    if isinstance(node, ast.Name) and node.id in (empty_iterable_names or set()):
+        return True
     if isinstance(node, ast.Constant):
         return node.value in ("", b"")
     return isinstance(node, (ast.Tuple, ast.List, ast.Set, ast.Dict)) and not getattr(
@@ -648,11 +702,14 @@ def _validate_recursive_retrieval_early_stop_literals(repo_root: Path, errors: l
 
     module_level_spoof: set[str] = set()
     function_literals: dict[str, set[str]] = {}
+    empty_iterable_names = _empty_iterable_assignment_names(tree.body)
 
     for node in tree.body:
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             if node.name in RECURSIVE_EARLY_STOP_LITERAL_FUNCTIONS:
-                function_literals[node.name] = _collect_string_literals_from_function(node)
+                function_literals[node.name] = _collect_string_literals_from_function(
+                    node, empty_iterable_names
+                )
         elif isinstance(node, ast.Assign):
             for target in node.targets:
                 module_level_spoof.update(
@@ -898,7 +955,7 @@ def _overclaim_match_is_negated(text: str, match: re.Match[str]) -> bool:
         return False
     between = scoped[neg_match.end(1) : neg_match.start() + len(neg_match.group(0)) - len(verb)]
     if re.search(
-        r"\b(because|unless|while|although|though|but|yet|whereas|however)\b|[,;]",
+        r"\b(because|unless|while|although|though|but|yet|whereas|however|therefore)\b|[,;]",
         between,
         re.I,
     ):
