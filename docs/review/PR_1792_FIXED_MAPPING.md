@@ -446,6 +446,26 @@ Disposition: FIXED
 Commit: d30045ec4
 Evidence: benchmark claim regex now detects comparator latency forms such as `< 200ms`. Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:108-114`, `tests/test_ai_recursive_speed_a8_closeout.py:1517-1535`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292174730 -> 4a5457f3a
+Disposition: FIXED
+Commit: 4a5457f3a
+Evidence: for-loop iterable checks now distinguish non-iterable constants from definitely-empty iterables, and nested functions/classes/lambdas are lexical boundaries for executable literal proof. Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:503-505`, `scripts/ci/check_ai_recursive_speed_a8_closeout.py:561-590`, `tests/test_ai_recursive_speed_a8_closeout.py:1221-1262`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4346681830 -> e2ba82c64
+Disposition: FIXED
+Commit: e2ba82c64
+Evidence: aggregate CodeRabbit review covered final checker hardening comments mapped above, including `discussion_r3291218789`, `discussion_r3291218793`, `discussion_r3291218795`, `discussion_r3291218798`, and `discussion_r3291218800`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4348836071 -> d30045ec4
+Disposition: FIXED
+Commit: d30045ec4
+Evidence: aggregate CodeRabbit review covered the follow-up checker hardening cycle mapped above and remained within A8 closeout checker/test scope.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4349885021 -> 4a5457f3a
+Disposition: FIXED
+Commit: 4a5457f3a
+Evidence: aggregate CodeRabbit review covered `discussion_r3292174730`; mapped above with direct code/test evidence.
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
