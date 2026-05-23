@@ -160,6 +160,21 @@ def test_inventory_rejects_embedded_reference_tool_canonical_authority(tmp_path:
     )
 
 
+
+
+def test_inventory_rejects_registry_component_id_non_string_without_crash(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inv_path = _write_repo_inputs(tmp_path, inventory)
+    registry_path = tmp_path / "docs/orchestration/contracts/design_component_registry.v1.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["components"][0]["component_id"] = ["button"]
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+    errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
+
+    assert any("components[0].component_id must be a string" in error for error in errors)
+
+
 def test_inventory_rejects_duplicate_vocabulary_ids(tmp_path: Path) -> None:
     inventory = _load_inventory()
     inv_path = _write_repo_inputs(tmp_path, inventory)

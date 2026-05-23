@@ -158,6 +158,12 @@ def _load_registry(repo_root: Path) -> list[dict[str, Any]]:
         raise InventoryError(f"{REGISTRY_PATH}: components must be a list")
     if not all(isinstance(item, dict) for item in components):
         raise InventoryError(f"{REGISTRY_PATH}: each component must be an object")
+    for index, component in enumerate(components):
+        component_id = component.get("component_id")
+        if not isinstance(component_id, str):
+            raise InventoryError(
+                f"{REGISTRY_PATH}: components[{index}].component_id must be a string"
+            )
     return components
 
 
