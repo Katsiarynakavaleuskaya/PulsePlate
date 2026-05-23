@@ -112,7 +112,11 @@ The bridge from Kimi evidence to implementation is:
 
 Screenshots, Kimi output, Storybook stories, Figma nodes, prompt review, or desktop previews are not substitutes for repo-reviewed visual or accessibility regression decisions.
 
-The first machine-readable registry gate is `docs/orchestration/contracts/design_component_registry.v1.json`, validated by `scripts/design/design_component_registry.py`. Kimi-derived candidates must map through this registry before any bridge coverage inventory, visual regression lane, accessibility regression lane, token/runtime parity boundary, or web/iOS implementation slice. Missing registry or bridge coverage is a blocker, not permission to copy from Kimi.
+The first machine-readable registry gate is `docs/orchestration/contracts/design_component_registry.v1.json`, validated by `scripts/design/design_component_registry.py`. The next machine-readable bridge gate is `docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json`, validated by `scripts/design/design_bridge_coverage_inventory.py`. Kimi-derived candidates must map through these repo-owned gates before any visual regression lane, accessibility regression lane, token/runtime parity boundary, or web/iOS implementation slice. Missing registry or bridge coverage is a blocker, not permission to copy from Kimi.
+
+Compatibility wording for the existing docs guard: Kimi-derived candidates must map through this registry before any bridge coverage inventory, visual regression lane, accessibility regression lane, token/runtime parity boundary, or web/iOS implementation slice.
+
+GPT-5.5 / OpenRouter remains the primary coding and governance model for repo changes in this lane. Kimi may provide bounded design review only; it must not own implementation or edit repo code.
 
 ## Security And External Tool Boundaries
 

@@ -905,6 +905,7 @@ def test_kimi_protocol_current_diff_stays_docs_only() -> None:
     registry_lane_paths = {
         "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
         "docs/orchestration/contracts/design_component_registry.v1.json",
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json",
     }
     registry_lane_is_active = any(path in registry_lane_paths for path in paths)
 
@@ -922,8 +923,11 @@ def test_kimi_protocol_current_diff_stays_docs_only() -> None:
                 "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
                 "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
                 "docs/orchestration/contracts/design_component_registry.v1.json",
+                "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json",
                 "scripts/design/design_component_registry.py",
+                "scripts/design/design_bridge_coverage_inventory.py",
                 "tests/test_design_component_registry.py",
+                "tests/test_design_bridge_coverage_inventory.py",
             }
         )
     allowed_review = re.compile(r"^docs/review/PR_\d+_FIXED_MAPPING\.md$")

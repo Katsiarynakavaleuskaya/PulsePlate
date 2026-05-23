@@ -1,0 +1,506 @@
+{
+  "schema_version": "design_bridge_coverage_inventory.v1",
+  "source_of_truth": "repo",
+  "source_registry": "docs/orchestration/contracts/design_component_registry.v1.json",
+  "source_vocabulary": "docs/design/ui_component_vocabulary.json",
+  "authority": {
+    "canonical": [
+      "repo code/docs/tests",
+      "docs/orchestration/contracts/design_component_registry.v1.json",
+      "docs/design/ui_component_vocabulary.json"
+    ],
+    "reference_only": [
+      "Kimi",
+      "Figma",
+      "Canva",
+      "Penpot",
+      "Storybook",
+      "Code Connect"
+    ]
+  },
+  "coverage_dimensions": [
+    "repo_vocabulary",
+    "web_runtime",
+    "ios_runtime",
+    "storybook_review",
+    "figma_reference",
+    "penpot_reference",
+    "code_connect",
+    "visual_regression",
+    "accessibility_regression"
+  ],
+  "records": [
+    {
+      "component_id": "button",
+      "canonical_name": "button",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:button",
+        "frontend/src/components/ui/Button.tsx"
+      ]
+    },
+    {
+      "component_id": "input",
+      "canonical_name": "input",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:input",
+        "frontend/src/components/ui/Input.tsx"
+      ]
+    },
+    {
+      "component_id": "select",
+      "canonical_name": "select",
+      "registry_status": "missing",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "missing",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:select"
+      ]
+    },
+    {
+      "component_id": "textarea",
+      "canonical_name": "textarea",
+      "registry_status": "missing",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "missing",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:textarea"
+      ]
+    },
+    {
+      "component_id": "checkbox",
+      "canonical_name": "checkbox",
+      "registry_status": "missing",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "missing",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:checkbox"
+      ]
+    },
+    {
+      "component_id": "radio_group",
+      "canonical_name": "radio-group",
+      "registry_status": "missing",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "missing",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:radio_group"
+      ]
+    },
+    {
+      "component_id": "card",
+      "canonical_name": "card",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:card",
+        "frontend/src/components/ui/Card.tsx"
+      ]
+    },
+    {
+      "component_id": "alert",
+      "canonical_name": "alert",
+      "registry_status": "missing",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "missing",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:alert"
+      ]
+    },
+    {
+      "component_id": "badge",
+      "canonical_name": "badge",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:badge",
+        "frontend/src/components/VipBadge.tsx"
+      ]
+    },
+    {
+      "component_id": "dialog",
+      "canonical_name": "dialog",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:dialog",
+        "frontend/src/components/ui/Dialog.tsx"
+      ]
+    },
+    {
+      "component_id": "dropdown_menu",
+      "canonical_name": "dropdown-menu",
+      "registry_status": "missing",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "missing",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:dropdown_menu"
+      ]
+    },
+    {
+      "component_id": "tabs",
+      "canonical_name": "tabs",
+      "registry_status": "missing",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "missing",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:tabs"
+      ]
+    },
+    {
+      "component_id": "progress",
+      "canonical_name": "progress",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:progress",
+        "frontend/src/features/progress/LiveProgressIndicator.tsx"
+      ]
+    },
+    {
+      "component_id": "tooltip",
+      "canonical_name": "tooltip",
+      "registry_status": "missing",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "missing",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:tooltip"
+      ]
+    },
+    {
+      "component_id": "empty_state",
+      "canonical_name": "empty-state",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:empty_state",
+        "frontend/src/components/ui/EmptyState.tsx"
+      ]
+    },
+    {
+      "component_id": "segmented_control",
+      "canonical_name": "segmented-control",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:segmented_control",
+        "frontend/src/components/ui/SegmentedControl.tsx"
+      ]
+    },
+    {
+      "component_id": "toggle",
+      "canonical_name": "toggle",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:toggle",
+        "frontend/src/components/ui/Toggle.tsx"
+      ]
+    },
+    {
+      "component_id": "skeleton",
+      "canonical_name": "skeleton",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:skeleton",
+        "frontend/src/components/ui/Skeleton.tsx"
+      ]
+    },
+    {
+      "component_id": "mobile_menu",
+      "canonical_name": "mobile-menu",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:mobile_menu",
+        "frontend/src/components/ui/MobileMenu.tsx"
+      ]
+    },
+    {
+      "component_id": "navigation_tab_bar",
+      "canonical_name": "navigation/tab-bar",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:navigation_tab_bar",
+        "frontend/src/components/TabBar.tsx"
+      ]
+    },
+    {
+      "component_id": "hero",
+      "canonical_name": "hero",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:hero",
+        "frontend/src/pages/Home.tsx"
+      ]
+    },
+    {
+      "component_id": "stats_card",
+      "canonical_name": "stats-card",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:stats_card",
+        "frontend/src/pages/NutritionSetup/MacroCards.tsx"
+      ]
+    },
+    {
+      "component_id": "form_field",
+      "canonical_name": "form-field",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:form_field",
+        "frontend/src/components/ui/FormField.tsx"
+      ]
+    },
+    {
+      "component_id": "stepper_progress_indicator",
+      "canonical_name": "stepper/progress-indicator",
+      "registry_status": "partial",
+      "repo_vocabulary_coverage": "covered",
+      "web_runtime_coverage": "partial",
+      "ios_runtime_coverage": "unspecified",
+      "storybook_review_coverage": "unspecified",
+      "figma_reference_coverage": "unspecified",
+      "penpot_reference_coverage": "unspecified",
+      "code_connect_coverage": "unspecified",
+      "visual_regression_decision": "missing",
+      "accessibility_regression_decision": "missing",
+      "implementation_blocked_reason": "Runtime implementation is blocked until visual regression, accessibility regression, and token/runtime parity gates pass.",
+      "next_required_gate": "visual regression decision gate",
+      "evidence_anchors": [
+        "docs/design/ui_component_vocabulary.json:stepper_progress_indicator",
+        "frontend/src/pages/NutritionSetup/SetupForm.tsx"
+      ]
+    }
+  ]
+}

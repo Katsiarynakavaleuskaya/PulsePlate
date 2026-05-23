@@ -37,6 +37,13 @@ The current repo-local validator is:
 .venv/bin/python scripts/design/design_component_registry.py summarize docs/orchestration/contracts/design_component_registry.v1.json
 ```
 
+The bridge coverage inventory is the next machine-readable gate:
+
+- `docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json`
+- `scripts/design/design_bridge_coverage_inventory.py`
+
+It reports coverage only. It does not authorize web runtime, iOS runtime, Storybook, Code Connect, Figma, Canva, Penpot, token, generated mirror, screenshot, or binary asset implementation work.
+
 The seed includes every component id currently present in `docs/design/ui_component_vocabulary.json`. It may use repo-confirmed web anchors from the vocabulary record, but every unconfirmed iOS, token, Storybook, Figma, Penpot, Code Connect, state, variant, accessibility, and visual-regression field remains exactly `unspecified`.
 
 The validator fails closed on malformed JSON, missing required fields, duplicate ids, ids outside the UI vocabulary, invalid status values, empty strings, missing vocabulary ids, and external evidence tools promoted into canonical authority.
@@ -100,4 +107,4 @@ The following remain `unspecified` unless a later implementation PR proves them 
 - accessibility regression tool and threshold,
 - per-component implementation order.
 
-The next design-line PR after this seed is the bridge coverage inventory. That lane may report coverage gaps; it must not treat missing coverage as permission to implement runtime UI.
+The bridge coverage inventory lane may report coverage gaps; it must not treat missing coverage as permission to implement runtime UI. Missing visual regression or accessibility regression decisions remain fail-closed blockers before token/runtime parity and later web/iOS implementation slices.
