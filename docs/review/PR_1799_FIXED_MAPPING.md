@@ -19,6 +19,10 @@ Reason: Review-level CodeRabbit summary only pointed to the inline type-annotati
 Disposition: FIXED
 Commit: 2fd318855
 Evidence: tests/test_no_bmi_math_outside_core.py:216, tests/test_no_bmi_math_outside_core.py:221; pre-commit run --all-files -> black/ruff/backend tests passed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1799#pullrequestreview-4351247872 -> 0b1146b50
+Disposition: FIXED
+Commit: 0b1146b50
+Evidence: tests/test_no_bmi_math_outside_core.py:75, tests/test_no_bmi_math_outside_core.py:225; .venv/bin/python -m pytest -q tests/test_no_bmi_math_outside_core.py -> 27 passed; pre-commit run --all-files -> passed
 
 ## Local Findings Resolved Before PR Open
 
