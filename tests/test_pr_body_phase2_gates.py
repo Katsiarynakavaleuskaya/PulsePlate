@@ -50,6 +50,48 @@ Starter: scripts/orchestration/start_pr_lane.sh
 """
 
 
+def _valid_experiment_result_payload(*, status: str = "accepted") -> dict[str, object]:
+    return {
+        "schema_version": "1.0",
+        "experiment_id": "exp-1800",
+        "runner_mode": "oracle_only_governance_reviewer",
+        "candidate_patch": "oracle_only_governance_reviewer",
+        "status": status,
+        "failure_class": None if status == "accepted" else "policy_violation",
+        "mutated_paths": [],
+        "oracle_results": [
+            {
+                "command": ".venv/bin/python -m pytest -q tests/test_pr_body_phase2_gates.py",
+                "returncode": 0,
+                "timed_out": False,
+                "truncated": False,
+                "stdout": "passed",
+                "stderr": "",
+                "cwd": ".",
+            }
+        ],
+        "budget_observations": {"wall_clock_seconds": 1},
+        "shared_tree_untouched": True,
+        "promotion_ready": False,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+        "coauthor_reason": "",
+    }
+
+
+def _write_experiment_result(
+    repo_root: Path,
+    relative_path: str,
+    payload: dict[str, object] | None = None,
+) -> None:
+    artifact = repo_root / relative_path
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_text(
+        json.dumps(payload or _valid_experiment_result_payload()),
+        encoding="utf-8",
+    )
+
+
 def test_phase2_guard_accepts_valid_mapping() -> None:
     errors = gates.check_pr_body_phase2_gates(body=VALID_BODY_WITH_MAPPING)
     assert errors == []
@@ -189,12 +231,105 @@ def test_experiment_runner_evidence_required_mode_fails_missing_block() -> None:
     assert any("Required: missing `## Experiment Runner Evidence`" in error for error in errors)
 
 
-def test_experiment_runner_evidence_required_mode_accepts_valid_artifact_path() -> None:
+def test_experiment_runner_evidence_required_mode_rejects_valid_but_missing_artifact_path() -> None:
     errors, warnings = gates.check_experiment_runner_evidence(
         """## Experiment Runner Evidence
 Artifact: artifacts/orchestration/experiments/results/exp-required.json
 """,
         mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+    )
+
+    assert warnings == []
+    assert any("unavailable locally" in error for error in errors)
+
+
+def test_experiment_runner_evidence_required_mode_rejects_nonexistent_artifact(
+    tmp_path: Path,
+) -> None:
+    errors, warnings = gates.check_experiment_runner_evidence(
+        """## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/missing.json
+""",
+        mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+    assert any("unavailable locally" in error for error in errors)
+
+
+def test_experiment_runner_evidence_required_mode_rejects_invalid_json(
+    tmp_path: Path,
+) -> None:
+    relative_path = "artifacts/orchestration/experiments/results/malformed.json"
+    artifact = tmp_path / relative_path
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("{", encoding="utf-8")
+
+    errors, warnings = gates.check_experiment_runner_evidence(
+        f"""## Experiment Runner Evidence
+Artifact: {relative_path}
+""",
+        mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+    assert any("cannot be parsed as JSON" in error for error in errors)
+
+
+def test_experiment_runner_evidence_required_mode_rejects_missing_metadata(
+    tmp_path: Path,
+) -> None:
+    relative_path = "artifacts/orchestration/experiments/results/missing-metadata.json"
+    _write_experiment_result(tmp_path, relative_path, {"schema_version": "1.0"})
+
+    errors, warnings = gates.check_experiment_runner_evidence(
+        f"""## Experiment Runner Evidence
+Artifact: {relative_path}
+""",
+        mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+    assert any("invalid result metadata" in error for error in errors)
+
+
+def test_experiment_runner_evidence_required_mode_rejects_rejected_artifact(
+    tmp_path: Path,
+) -> None:
+    relative_path = "artifacts/orchestration/experiments/results/rejected.json"
+    _write_experiment_result(
+        tmp_path,
+        relative_path,
+        _valid_experiment_result_payload(status="rejected"),
+    )
+
+    errors, warnings = gates.check_experiment_runner_evidence(
+        f"""## Experiment Runner Evidence
+Artifact: {relative_path}
+""",
+        mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+    assert any("not accepted evidence" in error for error in errors)
+
+
+def test_experiment_runner_evidence_required_mode_accepts_valid_local_artifact(
+    tmp_path: Path,
+) -> None:
+    relative_path = "artifacts/orchestration/experiments/results/accepted.json"
+    _write_experiment_result(tmp_path, relative_path)
+
+    errors, warnings = gates.check_experiment_runner_evidence(
+        f"""## Experiment Runner Evidence
+Artifact: {relative_path}
+""",
+        mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+        repo_root=tmp_path,
     )
 
     assert errors == []
@@ -1554,3 +1689,109 @@ Starter: scripts/orchestration/start_pr_lane.sh
     assert result.returncode == 1
     assert "PR body validation failed" in result.stdout
     assert "canonical mapping artifact validation failed" not in result.stdout
+
+
+def test_required_mode_promotes_unavailable_experiment_artifact_to_error() -> None:
+    warning = (
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/missing.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    )
+
+    promoted = gates._required_experiment_runner_artifact_warning_to_error(warning)
+
+    assert promoted is not None
+    assert promoted.startswith("Required: Experiment Runner artifact")
+
+
+def test_required_mode_does_not_promote_unrelated_advisory() -> None:
+    warning = "Advisory: unrelated governance note should remain advisory."
+
+    promoted = gates._required_experiment_runner_artifact_warning_to_error(warning)
+
+    assert promoted is None
+
+
+def test_phase2_cli_required_mode_fails_unavailable_experiment_runner_artifact() -> None:
+    body = VALID_BODY_WITH_MAPPING.replace(
+        "artifacts/orchestration/experiments/results/exp-719.json",
+        "artifacts/orchestration/experiments/results/does-not-exist.json",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(gates.__file__)),
+            "--body",
+            body,
+            "--experiment-runner-evidence-mode",
+            "required",
+            "--commit-range",
+            "HEAD..HEAD",
+        ],
+        cwd=gates.REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 1
+    assert "unavailable locally" in result.stdout
+
+
+def test_phase2_cli_advisory_mode_allows_unavailable_experiment_runner_artifact() -> None:
+    body = VALID_BODY_WITH_MAPPING.replace(
+        "artifacts/orchestration/experiments/results/exp-719.json",
+        "artifacts/orchestration/experiments/results/does-not-exist.json",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(gates.__file__)),
+            "--body",
+            body,
+            "--experiment-runner-evidence-mode",
+            "advisory",
+            "--commit-range",
+            "HEAD..HEAD",
+        ],
+        cwd=gates.REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 0
+    assert "WARNING:" in result.stdout
+    assert "unavailable locally" in result.stdout
+
+
+def test_phase2_cli_default_mode_allows_unavailable_experiment_runner_artifact() -> None:
+    body = VALID_BODY_WITH_MAPPING.replace(
+        "artifacts/orchestration/experiments/results/exp-719.json",
+        "artifacts/orchestration/experiments/results/does-not-exist.json",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(gates.__file__)),
+            "--body",
+            body,
+            "--commit-range",
+            "HEAD..HEAD",
+        ],
+        cwd=gates.REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 0
+    assert "WARNING:" in result.stdout
+    assert "unavailable locally" in result.stdout
