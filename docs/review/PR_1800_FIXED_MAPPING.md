@@ -21,6 +21,7 @@ Reason: Coverage report is informational/pass signal, not an actionable review c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1800#issuecomment-4526085730
 
 ## Agent Execution Log
+- Commit: 329b2d2ab
 - agent-coordinator: scope locked #1800 as first after #1799, security/governance PR only; requested `--pr-phase post_open` was unsupported by current tooling and rerun as `post_open_review`.
 - architecture-specialist: Phase2 gate remains the centralized enforcement point; `check_merge_ready.py` forwards required mode to Phase2 without duplicating validator logic.
 - security-auditor: fake/missing/unreadable/unparsable/invalid/rejected Experiment Runner artifacts fail closed in required mode; advisory/default behavior remains non-blocking.
@@ -36,6 +37,8 @@ Reason: Coverage report is informational/pass signal, not an actionable review c
 | PM-1800-004 | Default mode flips to required and blocks unrelated PRs. | Default CLI/env normalization remains `advisory`. | `test_phase2_cli_default_mode_allows_unavailable_experiment_runner_artifact`. | `.venv/bin/python -m pytest -q tests/test_pr_body_phase2_gates.py -k "experiment_runner or evidence or artifact"` | FIXED |
 | PM-1800-005 | Error wording is too broad and catches unrelated warnings. | Legacy warning promotion helper remains prefix-scoped to Experiment Runner artifact availability/metadata warnings; structured required validation handles real enforcement. | `test_required_mode_does_not_promote_unrelated_advisory`. | `.venv/bin/python -m pytest -q tests/test_pr_body_phase2_gates.py -k "experiment_runner or evidence or artifact"` | FIXED |
 | PM-1800-006 | Merge wrapper required mode does not inherit fail-closed behavior. | `check_merge_ready.py` forwards `--experiment-runner-evidence-mode required` into the centralized Phase2 gate; no duplicate wrapper logic needed. | `tests/test_orchestration_merge_ready.py` required-mode forwarding tests. | `.venv/bin/python -m pytest -q tests/test_orchestration_merge_ready.py -k "experiment_runner or evidence"` | NOT-A-BUG |
+
+Commit: 329b2d2ab
 
 ## Bounded Check Evidence
 - `python3 scripts/orchestration/check_preflight.py` — PASS: All required SoT files present; PASS: working tree clean.
