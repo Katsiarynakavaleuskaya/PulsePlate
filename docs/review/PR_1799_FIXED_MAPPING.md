@@ -23,6 +23,10 @@ Evidence: tests/test_no_bmi_math_outside_core.py:216, tests/test_no_bmi_math_out
 Disposition: FIXED
 Commit: 0b1146b50
 Evidence: tests/test_no_bmi_math_outside_core.py:75, tests/test_no_bmi_math_outside_core.py:225; .venv/bin/python -m pytest -q tests/test_no_bmi_math_outside_core.py -> 27 passed; pre-commit run --all-files -> passed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1799#discussion_r3293276694 -> 105d60e74
+Disposition: FIXED
+Commit: 105d60e74
+Evidence: tests/test_no_bmi_math_outside_core.py:225, tests/test_no_bmi_math_outside_core.py:230, tests/test_no_bmi_math_outside_core.py:274, tests/test_no_bmi_math_outside_core.py:495; .venv/bin/python -m pytest -q tests/test_no_bmi_math_outside_core.py -> 28 passed
 
 ## Local Findings Resolved Before PR Open
 
