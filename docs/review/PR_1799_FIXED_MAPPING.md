@@ -86,6 +86,13 @@ backend tests (pytest, changed files)....................................Passed
 ios syntax check (swift).................................................Passed
 ```
 
+## Full Verify Deferral
+
+Local `make verify` was not run for this CI hotfix after the operator-scoped narrow-gate plan.
+Bounded local gates passed and current-head CI parity passed on run `26339206445`, including
+`lint`, `test-pr (3.13)`, `OpenAPI sync`, `security`, `diff-coverage`, `PR Body Phase2 gates`,
+and `Merge readiness gate`.
+
 ## Experiment Runner Evidence
 
 Artifact: `artifacts/orchestration/experiments/results/exp-75a941efa308.json`
@@ -102,4 +109,11 @@ None.
 
 ## Merge Readiness
 
-Not merge-ready yet. Current-head CI, post-open role pass, review-thread disposition guard, PR body Phase2 gate, strict merge-readiness wrapper, bot review disposition, and wait-window remain required.
+Current-head CI and governance checks passed on latest evidence:
+
+```text
+GH_TOKEN=$(gh auth token) GITHUB_TOKEN=$(gh auth token) .venv/bin/python scripts/orchestration/check_merge_ready.py --pr-number 1799 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth
+orchestration-merge-check: passed.
+```
+
+Wait-window and final operator merge decision remain separate from this artifact; no merge was performed by this update.
