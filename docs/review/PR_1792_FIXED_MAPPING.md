@@ -506,6 +506,26 @@ Disposition: FIXED
 Commit: b64b8b215
 Evidence: `TYPE_CHECKING` branches are treated as non-runtime in executable literal and param-only wiring walkers; tests `test_checker_rejects_type_checking_early_stop_literals` and `test_checker_rejects_type_checking_param_only_symbol_wiring` cover both paths.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292457636 -> bcc995348
+Disposition: FIXED
+Commit: bcc995348
+Evidence: `CONTRAST_SPLIT_RE` includes `thus`; `test_checker_rejects_therefore_split_bypasses` covers `thus` forbidden/stale split bypasses.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292457644 -> bcc995348
+Disposition: FIXED
+Commit: bcc995348
+Evidence: `_test_is_non_runtime` recognizes qualified `typing.TYPE_CHECKING`; `test_checker_rejects_qualified_type_checking_early_stop_literals` covers non-runtime literal proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292457647 -> bcc995348
+Disposition: FIXED
+Commit: bcc995348
+Evidence: `_is_range_zero_call` handles empty bounded ranges such as `range(0, 0)`; `test_checker_rejects_empty_bounded_range_loop_early_stop_literals` covers literal proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292457648 -> bcc995348
+Disposition: FIXED
+Commit: bcc995348
+Evidence: availability wording is treated as runtime activation in semantic-cache direct activation checks; `test_checker_rejects_available_in_production_claim` covers `available in production`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296459 -> c1c0cb20c
 Disposition: FIXED
 Commit: c1c0cb20c
