@@ -79,8 +79,8 @@ PR-9 design-system automation opens the next docs-only web+iOS runtime parity la
 
 1. Component contract registry.
 2. Bridge coverage inventory.
-3. Visual regression lane.
-4. Accessibility regression lane.
+3. Visual regression decision gate.
+4. Accessibility regression decision gate.
 5. Token/runtime parity boundary.
 6. Later web+iOS implementation slices.
 

@@ -59,8 +59,8 @@ Future implementation must follow this order:
 
 1. Component contract registry.
 2. Bridge coverage inventory.
-3. Visual regression lane.
-4. Accessibility regression lane.
+3. Visual regression decision gate.
+4. Accessibility regression decision gate.
 5. Token/runtime parity boundary.
 6. Later web+iOS implementation slices.
 
@@ -131,12 +131,12 @@ Coverage inventory is evidence only. It does not grant external write authority 
 
 ## Visual And Accessibility Regression Decision
 
-Visual and accessibility regression lanes are mandatory fail-closed decisions before implementation PRs.
+Visual and accessibility regression decision gates are mandatory fail-closed decisions before implementation PRs.
 
 Fail-closed means:
 
-- if no visual regression lane exists for a component, future implementation must stop or record `DEFERRED` with backlog evidence;
-- if no accessibility regression lane exists for a component, future implementation must stop or record `DEFERRED` with backlog evidence;
+- if no visual regression decision gate exists for a component, future implementation must stop or record `DEFERRED` with backlog evidence;
+- if no accessibility regression decision gate exists for a component, future implementation must stop or record `DEFERRED` with backlog evidence;
 - a screenshot, Storybook story, Figma node, or prompt review is not a substitute for a repo-reviewed visual or accessibility regression decision.
 
 ## Token And Runtime Parity Boundary

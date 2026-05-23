@@ -44,6 +44,13 @@ The bridge coverage inventory is the next machine-readable gate:
 
 It reports coverage only. It does not authorize web runtime, iOS runtime, Storybook, Code Connect, Figma, Canva, Penpot, token, generated mirror, screenshot, or binary asset implementation work.
 
+The visual regression decision gate follows bridge coverage:
+
+- `docs/orchestration/contracts/design_visual_regression_decisions.v1.json`
+- `scripts/design/design_visual_regression_decisions.py`
+
+It records visual decisions only. It does not run screenshots, does not commit screenshots or binaries, and does not select a new visual regression service unless repo evidence already confirms that service. Missing visual baseline, threshold, or tooling evidence blocks runtime implementation. The next gate remains accessibility regression decision, followed by token/runtime parity.
+
 The seed includes every component id currently present in `docs/design/ui_component_vocabulary.json`. It may use repo-confirmed web anchors from the vocabulary record, but every unconfirmed iOS, token, Storybook, Figma, Penpot, Code Connect, state, variant, accessibility, and visual-regression field remains exactly `unspecified`.
 
 The validator fails closed on malformed JSON, missing required fields, duplicate ids, ids outside the UI vocabulary, invalid status values, empty strings, missing vocabulary ids, and external evidence tools promoted into canonical authority.
@@ -95,6 +102,8 @@ Every implementation-ready component must have:
 - an accessibility regression decision.
 
 If either is missing, the implementation PR must fail closed or record a `DEFERRED` disposition with a backlog anchor and PR-body follow-up.
+
+For the initial visual regression decision gate, each bridge inventory component must have exactly one visual decision record. Runtime implementation remains blocked until visual baseline, threshold, tooling, accessibility, and token/runtime parity evidence exists. Kimi, Figma, Canva, Penpot, Storybook, Code Connect, screenshots, and generated exports remain reference-only and cannot be canonical decision evidence.
 
 ## Unspecified Defaults
 

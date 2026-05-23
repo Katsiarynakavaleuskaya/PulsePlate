@@ -22,6 +22,10 @@ PR9_SPEC = REPO_ROOT / "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md"
 PR9_REGISTRY = REPO_ROOT / "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
 REGISTRY_SEED = REPO_ROOT / "docs/orchestration/contracts/design_component_registry.v1.json"
 REGISTRY_VALIDATOR = REPO_ROOT / "scripts/design/design_component_registry.py"
+VISUAL_DECISIONS = (
+    REPO_ROOT / "docs/orchestration/contracts/design_visual_regression_decisions.v1.json"
+)
+VISUAL_DECISIONS_VALIDATOR = REPO_ROOT / "scripts/design/design_visual_regression_decisions.py"
 KIMI_PROTOCOL = (
     REPO_ROOT / "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md"
 )
@@ -538,8 +542,8 @@ def test_pr9_design_system_automation_sequence_is_locked() -> None:
     sequence = [
         "Component contract registry",
         "Bridge coverage inventory",
-        "Visual regression lane",
-        "Accessibility regression lane",
+        "Visual regression decision gate",
+        "Accessibility regression decision gate",
         "Token/runtime parity boundary",
         "Later web+iOS implementation slices",
     ]
@@ -615,6 +619,30 @@ def test_design_component_registry_seed_is_current_first_gate() -> None:
     assert REGISTRY_VALIDATOR.exists()
 
 
+def test_visual_regression_decision_gate_is_current_next_gate() -> None:
+    """Require visual regression decisions to follow bridge coverage fail-closed."""
+    corpus = "\n".join([_read(PR9_REGISTRY), _read(PR9_SPEC), _read(KIMI_PROTOCOL), _read(LEDGER)])
+
+    required = [
+        "docs/orchestration/contracts/design_visual_regression_decisions.v1.json",
+        "scripts/design/design_visual_regression_decisions.py",
+        "The visual regression decision gate follows bridge coverage",
+        "It records visual decisions only.",
+        "does not run screenshots",
+        "does not commit screenshots or binaries",
+        "does not select a new visual regression service unless repo evidence already confirms that service",
+        "Missing visual baseline, threshold, or tooling evidence blocks runtime implementation.",
+        "next gate remains accessibility regression decision",
+        "P1: Design visual regression decision gate",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+    assert VISUAL_DECISIONS.exists()
+    assert VISUAL_DECISIONS_VALIDATOR.exists()
+
+
 def test_design_component_registry_seed_preserves_external_tool_boundaries() -> None:
     """Reject source-of-truth promotion in the machine-readable registry seed."""
     registry_seed = _read(REGISTRY_SEED)
@@ -653,10 +681,12 @@ def test_pr9_visual_and_accessibility_decisions_fail_closed() -> None:
 
     required = [
         "Visual and accessibility regression decisions are mandatory fail-closed gates",
-        "if no visual regression lane exists for a component, future implementation must stop",
-        "if no accessibility regression lane exists for a component, future implementation must stop",
+        "if no visual regression decision gate exists for a component, future implementation must stop",
+        "if no accessibility regression decision gate exists for a component, future implementation must stop",
         "a screenshot, Storybook story, Figma node, or prompt review is not a substitute",
         "If either is missing, the implementation PR must fail closed",
+        "Missing baseline, threshold, or tooling evidence blocks runtime implementation.",
+        "The current machine-readable artifact is `docs/orchestration/contracts/design_visual_regression_decisions.v1.json`, validated by `scripts/design/design_visual_regression_decisions.py`.",
     ]
 
     for phrase in required:
@@ -906,6 +936,7 @@ def test_kimi_protocol_current_diff_stays_docs_only() -> None:
         "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
         "docs/orchestration/contracts/design_component_registry.v1.json",
         "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json",
+        "docs/orchestration/contracts/design_visual_regression_decisions.v1.json",
     }
     registry_lane_is_active = any(path in registry_lane_paths for path in paths)
 
@@ -921,13 +952,17 @@ def test_kimi_protocol_current_diff_stays_docs_only() -> None:
         allowed_exact.update(
             {
                 "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+                "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md",
                 "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
                 "docs/orchestration/contracts/design_component_registry.v1.json",
                 "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json",
+                "docs/orchestration/contracts/design_visual_regression_decisions.v1.json",
                 "scripts/design/design_component_registry.py",
                 "scripts/design/design_bridge_coverage_inventory.py",
+                "scripts/design/design_visual_regression_decisions.py",
                 "tests/test_design_component_registry.py",
                 "tests/test_design_bridge_coverage_inventory.py",
+                "tests/test_design_visual_regression_decisions.py",
             }
         )
     allowed_review = re.compile(r"^docs/review/PR_\d+_FIXED_MAPPING\.md$")
@@ -991,7 +1026,8 @@ def test_kimi_modernization_bridge_sequence_stays_behind_pr9_gates() -> None:
         "Map only verified patterns into PulsePlate UI vocabulary.",
         "Map implementation candidates into the design component contract registry.",
         "Require bridge coverage inventory",
-        "Require fail-closed visual regression and accessibility regression decisions.",
+        "Require fail-closed visual regression decisions through `docs/orchestration/contracts/design_visual_regression_decisions.v1.json`",
+        "Require fail-closed accessibility regression decisions.",
         "Open later bounded web/iOS implementation slices only after the previous gates exist; missing prerequisite gates are blockers, not `DEFERRED` permission to proceed.",
         "Screenshots, Kimi output, Storybook stories, Figma nodes, prompt review, or desktop previews are not substitutes for repo-reviewed visual or accessibility regression decisions.",
     ]
@@ -1002,8 +1038,8 @@ def test_kimi_modernization_bridge_sequence_stays_behind_pr9_gates() -> None:
     sequence = [
         "Component contract registry",
         "Bridge coverage inventory",
-        "Visual regression lane",
-        "Accessibility regression lane",
+        "Visual regression decision gate",
+        "Accessibility regression decision gate",
         "Token/runtime parity boundary",
         "Later web+iOS implementation slices",
     ]
