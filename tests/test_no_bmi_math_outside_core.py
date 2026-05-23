@@ -222,9 +222,14 @@ def _path_has_excluded_scan_part(path: Path) -> bool:
     return any(part in EXCLUDED_SCAN_DIR_NAMES for part in path.parts)
 
 
+def _normalize_rel_path(rel_path: str) -> str:
+    """Normalize repo-relative paths for guard comparisons across platforms."""
+    return rel_path.replace("\\", "/")
+
+
 def _is_allowed_transient_read_error(rel_path: str) -> bool:
     """Return whether read-time disappearance is an expected xdist helper race."""
-    return rel_path == _GUARD_WHR_SKIP_TEMP_REL_PATH
+    return _normalize_rel_path(rel_path) == _GUARD_WHR_SKIP_TEMP_REL_PATH
 
 
 def _iter_repo_python_files(root: Path) -> Iterator[Path]:
@@ -269,7 +274,7 @@ def _scan(
     hits: list[str] = []
     for path in _iter_repo_python_files(repo_root):
         try:
-            rel = str(path.relative_to(repo_root))
+            rel = path.relative_to(repo_root).as_posix()
         except ValueError:
             # Path not relative to repo_root (shouldn't happen, but defensive)
             continue
@@ -490,6 +495,11 @@ def test_scan_allows_exact_temp_read_error(tmp_path: Path, monkeypatch: pytest.M
     assert _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path) == []
 
 
+def test_transient_read_error_path_match_is_separator_normalized() -> None:
+    """Windows-style separators must still match the exact transient helper path."""
+    assert _is_allowed_transient_read_error(r"app\test_guard_whr_skip_temp.py") is True
+
+
 def test_threshold_filter_temp_exception_is_path_scoped(tmp_path: Path) -> None:
     """Similarly named files outside app/ must not bypass threshold hits."""
     source_file = tmp_path / "core" / _GUARD_WHR_SKIP_TEMP_BASENAME
@@ -502,7 +512,7 @@ def test_threshold_filter_temp_exception_is_path_scoped(tmp_path: Path) -> None:
     hits = _scan(BMI_THRESHOLDS_RE, "BMI threshold violation", repo_root=tmp_path)
     filtered_hits: list[str] = []
     for hit in hits:
-        path_part = hit.split(":", 1)[0]
+        path_part = _normalize_rel_path(hit.split(":", 1)[0])
         if path_part == _GUARD_WHR_SKIP_TEMP_REL_PATH:
             continue
         filtered_hits.append(hit)
@@ -523,7 +533,7 @@ def test_no_bmi_thresholds_outside_core() -> None:
     hits = _scan(BMI_THRESHOLDS_RE, "BMI thresholds", skip_threshold_check=True)
     filtered_hits: list[str] = []
     for hit in hits:
-        path_part = hit.split(":", 1)[0]
+        path_part = _normalize_rel_path(hit.split(":", 1)[0])
         if path_part == _GUARD_WHR_SKIP_TEMP_REL_PATH:
             continue
         filtered_hits.append(hit)
