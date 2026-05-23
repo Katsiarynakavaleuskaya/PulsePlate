@@ -16,6 +16,7 @@ This artifact is the canonical Fixed in Commit Mapping source of truth for PR #1
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1798#discussion_r3293125952 -> dfa7a92ec5bc2b2a57f309b2cd448a9a4acf84cb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1798#pullrequestreview-4351091921 -> dfa7a92ec5bc2b2a57f309b2cd448a9a4acf84cb
 
 Disposition: FIXED
 Commit: dfa7a92ec5bc2b2a57f309b2cd448a9a4acf84cb
