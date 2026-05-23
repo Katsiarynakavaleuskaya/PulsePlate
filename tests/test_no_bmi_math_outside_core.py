@@ -70,6 +70,11 @@ EXCLUDED_SCAN_DIR_NAMES: Final[set[str]] = {
     ".turbo",
 }
 
+# Temp file created by test_skip_context_does_not_filter_whr_thresholds; exclude from
+# main guard to avoid xdist race (other worker may still have the file on disk).
+_GUARD_WHR_SKIP_TEMP_BASENAME = "test_guard_whr_skip_temp.py"
+_GUARD_WHR_SKIP_TEMP_REL_PATH = f"app/{_GUARD_WHR_SKIP_TEMP_BASENAME}"
+
 # Forbidden patterns (domain signatures for BMI math)
 # Pattern 1: BMI formula (weight / height^2) - must be in context of BMI calculation
 # More specific: look for BMI-related context (bmi =, calc_bmi, etc.)
@@ -505,12 +510,6 @@ def test_threshold_filter_temp_exception_is_path_scoped(tmp_path: Path) -> None:
     assert filtered_hits == [
         f"core/{_GUARD_WHR_SKIP_TEMP_BASENAME}:1: " "WHR_THRESHOLD: float = 0.90  # whr threshold"
     ]
-
-
-# Temp file created by test_skip_context_does_not_filter_whr_thresholds; exclude from
-# main guard to avoid xdist race (other worker may still have the file on disk).
-_GUARD_WHR_SKIP_TEMP_BASENAME = "test_guard_whr_skip_temp.py"
-_GUARD_WHR_SKIP_TEMP_REL_PATH = f"app/{_GUARD_WHR_SKIP_TEMP_BASENAME}"
 
 
 def test_no_bmi_thresholds_outside_core() -> None:
