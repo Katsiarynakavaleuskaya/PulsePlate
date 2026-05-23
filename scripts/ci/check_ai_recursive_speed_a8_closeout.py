@@ -141,7 +141,7 @@ STALE_A8_REVERSED_RE = re.compile(
     re.I,
 )
 CONTRAST_SPLIT_RE = re.compile(
-    r"\b(?:but|however|though|although|yet|and|or|while|whereas|because|since|as|unless|therefore|so|hence)\b|[;]",
+    r"\b(?:but|however|though|although|yet|and|or|while|whereas|because|since|as|unless|therefore|thus|so|hence)\b|[;]",
     re.I,
 )
 COMMA_SPLIT_RE = re.compile(r",\s*")
@@ -356,7 +356,9 @@ def _subclause_has_actionable_forbidden(
         and not _activation_is_locally_negated(normalized)
         and POSITIVE_ACTION_RE.search(normalized)
         and re.search(
-            r"\b(?:production|runtime|live|traffic|default|enabled|active)\b", normalized, re.I
+            r"\b(?:production|runtime|live|traffic|default|enabled|active|available)\b",
+            normalized,
+            re.I,
         )
     ):
         return True
@@ -364,7 +366,7 @@ def _subclause_has_actionable_forbidden(
         sentence_has_forbidden_surface
         and not _activation_is_locally_negated(normalized)
         and re.search(
-            r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
+            r"\b(?:active|live|enabled|opened|allowed|approved|selected|available|"
             r"production[-\s]?ready|rollout[-\s]?ready|default[-\s]?on)\b",
             normalized,
             re.I,
@@ -699,13 +701,29 @@ def _is_range_zero_call(node: ast.expr) -> bool:
         return False
     if node.keywords:
         return False
-    return (
-        len(node.args) == 1 and isinstance(node.args[0], ast.Constant) and node.args[0].value == 0
-    )
+    if len(node.args) == 1:
+        return isinstance(node.args[0], ast.Constant) and node.args[0].value == 0
+    if len(node.args) == 2:
+        start, stop = node.args
+        return (
+            isinstance(start, ast.Constant)
+            and isinstance(stop, ast.Constant)
+            and start.value == stop.value
+        )
+    return False
 
 
 def _test_is_non_runtime(node: ast.expr) -> bool:
-    return _constant_is_false(node) or (isinstance(node, ast.Name) and node.id == "TYPE_CHECKING")
+    return (
+        _constant_is_false(node)
+        or (isinstance(node, ast.Name) and node.id == "TYPE_CHECKING")
+        or (
+            isinstance(node, ast.Attribute)
+            and node.attr == "TYPE_CHECKING"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "typing"
+        )
+    )
 
 
 def _validate_recursive_retrieval_early_stop_literals(repo_root: Path, errors: list[str]) -> None:
@@ -848,7 +866,7 @@ def _validate_forbidden_claims(
                 errors.append(f"forbidden PR-A8 runtime expansion claim: {sentence}")
                 break
             if re.search(r"\bsemantic[-\s]?cache|semanticcache\b", normalized, re.I) and re.search(
-                r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
+                r"\b(?:active|live|enabled|opened|allowed|approved|selected|available|"
                 r"production[-\s]?ready|rollout[-\s]?ready)\b",
                 normalized,
                 re.I,

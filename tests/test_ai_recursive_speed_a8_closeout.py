@@ -364,7 +364,11 @@ def test_checker_rejects_unscoped_negation_with_positive_forbidden_claim(tmp_pat
 
     errors = _errors(tmp_path)
 
-    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+    assert any(
+        "forbidden PR-A8 runtime expansion claim" in error
+        or "semantic cache direct activation claim" in error
+        for error in errors
+    )
 
 
 def test_checker_rejects_unrelated_negation_with_positive_forbidden_claim(tmp_path: Path) -> None:
@@ -380,7 +384,11 @@ def test_checker_rejects_unrelated_negation_with_positive_forbidden_claim(tmp_pa
 
     errors = _errors(tmp_path)
 
-    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+    assert any(
+        "forbidden PR-A8 runtime expansion claim" in error
+        or "semantic cache direct activation claim" in error
+        for error in errors
+    )
 
 
 def test_checker_rejects_stale_pr_a8_active_writing(tmp_path: Path) -> None:
@@ -1286,6 +1294,27 @@ def test_checker_rejects_range_zero_loop_early_stop_literals(tmp_path: Path) -> 
     assert any("missing early-stop string literal" in error for error in errors)
 
 
+def test_checker_rejects_empty_bounded_range_loop_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        "def _make_optimization_stats() -> dict:\n"
+        "    for _ in range(0, 0):\n"
+        '        return {"early_stop_aggressive_short_circuit": False, '
+        '"early_stop_pragmatic_usefulness": False}\n'
+        "    return {}\n\n"
+        "def _should_short_circuit_from_hints() -> tuple:\n"
+        "    for _ in range(0, 0):\n"
+        '        return ("done", "early_stop_aggressive_short_circuit")\n'
+        '    return ("keep", None)\n',
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("missing early-stop string literal" in error for error in errors)
+
+
 def test_checker_rejects_type_checking_early_stop_literals(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "core/rag/recursive_retrieval.py"
@@ -1298,6 +1327,28 @@ def test_checker_rejects_type_checking_early_stop_literals(tmp_path: Path) -> No
         "    return {}\n\n"
         "def _should_short_circuit_from_hints() -> tuple:\n"
         "    if TYPE_CHECKING:\n"
+        '        return ("done", "early_stop_aggressive_short_circuit")\n'
+        '    return ("keep", None)\n',
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("missing early-stop string literal" in error for error in errors)
+
+
+def test_checker_rejects_qualified_type_checking_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        "import typing\n"
+        "def _make_optimization_stats() -> dict:\n"
+        "    if typing.TYPE_CHECKING:\n"
+        '        return {"early_stop_aggressive_short_circuit": False, '
+        '"early_stop_pragmatic_usefulness": False}\n'
+        "    return {}\n\n"
+        "def _should_short_circuit_from_hints() -> tuple:\n"
+        "    if typing.TYPE_CHECKING:\n"
         '        return ("done", "early_stop_aggressive_short_circuit")\n'
         '    return ("keep", None)\n',
         encoding="utf-8",
@@ -1399,6 +1450,23 @@ def test_checker_rejects_range_zero_loop_param_only_symbol_wiring(tmp_path: Path
     assert any("app/services/insight_runtime.py landed symbol" in error for error in errors)
 
 
+def test_checker_rejects_empty_bounded_range_loop_param_only_symbol_wiring(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "app/services/insight_runtime.py"
+    path.write_text(
+        "def _traced_retrieve_and_validate_rag() -> None:\n"
+        "    for _ in range(0, 0):\n"
+        "        helper(recursive_optimization_hints={})\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("app/services/insight_runtime.py landed symbol" in error for error in errors)
+
+
 def test_checker_rejects_type_checking_param_only_symbol_wiring(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "app/services/insight_runtime.py"
@@ -1406,6 +1474,24 @@ def test_checker_rejects_type_checking_param_only_symbol_wiring(tmp_path: Path) 
         "from typing import TYPE_CHECKING\n"
         "def _traced_retrieve_and_validate_rag() -> None:\n"
         "    if TYPE_CHECKING:\n"
+        "        helper(recursive_optimization_hints={})\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("app/services/insight_runtime.py landed symbol" in error for error in errors)
+
+
+def test_checker_rejects_qualified_type_checking_param_only_symbol_wiring(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "app/services/insight_runtime.py"
+    path.write_text(
+        "import typing\n"
+        "def _traced_retrieve_and_validate_rag() -> None:\n"
+        "    if typing.TYPE_CHECKING:\n"
         "        helper(recursive_optimization_hints={})\n",
         encoding="utf-8",
     )
@@ -1602,6 +1688,26 @@ def test_checker_rejects_exposes_runtime_expansion_claim(tmp_path: Path) -> None
     assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
 
 
+def test_checker_rejects_available_in_production_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 semantic cache now available in production.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any(
+        "forbidden PR-A8 runtime expansion claim" in error
+        or "semantic cache direct activation claim" in error
+        for error in errors
+    )
+
+
 def test_checker_rejects_split_forbidden_surface_tail_without_repeated_subject(
     tmp_path: Path,
 ) -> None:
@@ -1762,6 +1868,10 @@ def test_checker_rejects_non_percent_symbol_benchmark_overclaims(
         (
             "PR-A8 is not pending hence active implementation lane.",
             "stale PR-A8 active/pending wording",
+        ),
+        (
+            "PR-A8 does not open semantic cache thus Redis production-ready rollout.",
+            "forbidden PR-A8 runtime expansion claim",
         ),
     ),
 )
