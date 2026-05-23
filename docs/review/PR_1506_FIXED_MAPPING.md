@@ -9,9 +9,10 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-This artifact is created immediately after the draft PR is opened per repo
-governance. Record every actionable human/bot disposition here before resolving
-threads on GitHub.
+This artifact was created immediately after the original PR opened per repo
+governance. The checklist below is historical evidence for already-merged PR
+#1506; this A8 closeout does not re-run or reassert the original readiness
+state.
 
 ## Fixed in Commit Mapping
 
@@ -34,7 +35,27 @@ Evidence: `core/rag/orchestration.py` documents `recursive_optimization_hints`; 
 - `19537b47f` - `fix(ai-runtime): address recursive speed review`
 - `f9d8d1031` - `fix(ai-runtime): address CodeRabbit review`
 
-## Merge Readiness
+## Post-Merge Closeout
+
+- State: `MERGED`
+- Title: `feat(ai-runtime): add philosophical speed optimization to recursive stack`
+- PR #1506 merged at `2026-04-23T20:41:25Z`
+- Merge commit: `19fdbd3098a6aef780a71e94e94980cb3d0f61ee`
+- Original branch: `codex/ai-recursive-speed-optimization-w1`
+- Closeout scope: PR-A8 landed deterministic recursive optimization hints and
+  bounded early-stopping seams. This closeout records landed repo/GitHub truth
+  and does not duplicate runtime implementation.
+- Boundary: semantic cache remains closed. Redis/GPTCache, GraphRAG,
+  ContextManifest, DB persistence, public routes, OpenAPI, DTOs, recursive
+  learning, provider chain-of-thought, provider tree-of-thought, and default
+  activation remain out of scope.
+- Benchmark boundary: no fresh benchmark result is claimed here; latency and
+  quality numbers remain hypothesis targets that require benchmark validation.
+
+## Historical Merge Readiness
+
+This section is historical evidence only. PR #1506 is already merged, so this
+closeout does not re-run or reassert the original readiness checklist.
 
 Merge-readiness contract:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.

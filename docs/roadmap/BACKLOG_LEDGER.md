@@ -1994,6 +1994,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
     - Dependency upgrade/runbook docs link to the same compatibility gate source
 
+<a id="ledger-p1-starlette-fastapi-compatibility-pr"></a>
+- [ ] P1: Starlette/FastAPI dependency compatibility lane after A8 closeout rescope
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDENCY-STARLETTE-FASTAPI-COMPATIBILITY
+  - Status: 📋 Planned
+  - Area: dependencies / backend runtime compatibility / CI governance
+  - Finding Type: PR scope drift follow-up
+  - Reason (EN): PR #1792 must remain an A8 recursive-speed closeout-only lane. Starlette/FastAPI dependency upgrades and the related `app/bootstrap/food_search.py` lifecycle compatibility patch were removed from #1792 and need a separate dependency/runtime compatibility PR with focused tests and review.
+  - Links:
+    - `docs/review/PR_1792_FIXED_MAPPING.md`
+    - `app/bootstrap/food_search.py`
+    - `requirements.txt`
+    - `requirements-lock.txt`
+    - `requirements-ci-lite.txt`
+    - `requirements-docker-runtime.txt`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
+  - DoD:
+    - Dedicated PR updates all relevant dependency surfaces coherently or documents why no bump is needed
+    - Runtime compatibility patch, if still required, is implemented outside #1792 with focused lifecycle tests
+    - CI evidence includes current-head lint, tests, diff coverage, dependency/security checks, and fixed-mapping dispositions
+    - PR body explicitly scopes the dependency/security compatibility lane and does not mix A8 closeout governance changes
+
 <a id="ledger-p1-dependency-governance-pr-series"></a>
 - [ ] P1: Dependency governance PR series (cluster policy + coordinator-led lane)
   - Owner: @katsiaryna_kavaleuskaya
@@ -2846,7 +2869,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Dependencies:
     - [P0 Master checklist phase-fit triage](#ledger-p0-master-checklist-triage)
     - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
-  - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Hypothesized impact (to be benchmark-validated): reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization:** Philosophical principles also optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Гипотеза (с обязательной валидацией бенчмарками): снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Оптимизация скорости:** Философские принципы также оптимизируют скорость (снижение latency на 50-60%) через адаптивную глубину, раннее прекращение и классификацию запросов.)
+  - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Hypothesized impact (requires benchmark validation): reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization hypothesis target (requires benchmark validation):** philosophical principles may optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Гипотеза (с обязательной валидацией бенчмарками): снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Гипотеза оптимизации скорости (требует benchmark validation):** философские принципы могут снижать latency на 50-60% через адаптивную глубину, раннее прекращение и классификацию запросов.)
   - Links:
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration)
     - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (comprehensive design, code examples, implementation roadmap)
@@ -3074,13 +3097,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ LLM provider stable (`llm.py`)
     - ✅ Redis available in docker-compose (for caching optimization)
     - ⏳ Fact-checking system implemented (for recursive verification)
-    - ⏳ User feedback storage implemented (for recursive learning)
+    - ⏳ User feedback storage remains a future prerequisite for any separately reviewed recursive-learning lane
   - DoD:
     - Phase 1: Recursive RAG implemented (multi-hop retrieval, query refinement)
-    - Phase 2: Recursive reasoning implemented (decomposition, synthesis, tree-of-thought)
+    - Phase 2: Recursive reasoning remains a future target; provider chain-of-thought/tree-of-thought claims stay out of scope until a separate reviewed runtime PR
     - Phase 3: Recursive refinement implemented (self-critique, iterative improvement)
     - Phase 4: Recursive verification implemented (self-validation, claim checking)
-    - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
+    - Phase 5: Recursive learning remains out of scope until a separate reviewed runtime PR defines storage, consent, privacy, and verification boundaries
     - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
     - Hypothesis target (requires benchmark validation): Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
     - Hypothesis target (requires benchmark validation): retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
@@ -3095,6 +3118,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Scope (EN): Bounded W1 recursive RAG and bounded recursive verification rollout on existing product-AI insight seams, preserving recursive budgets, thin app/service handoff, and `VerificationBundle` truth without route/OpenAPI/DTO changes.
     - Closeout note (EN): This reconciliation records live GitHub/repo truth after the implementation PR had already merged. It keeps semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, public DTOs, provider-side tree-of-thought, and recursive learning out of scope.
     - (RU: Инкремент: bounded W1 рекурсивный RAG + bounded verification уже приземлен в PR #1499; родительский P1 по полному recursive-framework DoD не закрыт.)
+    - PR: [#1506](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506) — merge commit `19fdbd3098a6aef780a71e94e94980cb3d0f61ee` (2026-04-23T20:41:25Z) from branch `codex/ai-recursive-speed-optimization-w1`; title `feat(ai-runtime): add philosophical speed optimization to recursive stack`.
+    - Scope (EN): PR-A8 landed deterministic recursive optimization hints and bounded early-stopping seams on existing recursive/RAG runtime surfaces without public route, OpenAPI, DTO, DB, provider-side reasoning, recursive-learning, or semantic-cache changes.
+    - Evidence boundary (EN): This increment records landed code/review truth only. It does not claim fresh benchmark results; latency and quality numbers remain hypothesis targets that require benchmark validation.
+    - PR: [#1578](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1578) — merge commit `37995a6e8d4e9451b85e7e6284e9bd0cd5afff45` (2026-04-29T20:32:42Z) from branch `codex/wave6-a8-recursive-speed-optimization`; title `feat(ai-runtime): add philosophical speed optimization to recursive stack`.
+    - Scope (EN): Follow-up hardening for PR-A8 review findings, including null route-hint fallback and refined-query short-circuit behavior, while preserving the same no-public-contract and gate-closed boundaries.
+    - Closeout note (EN): Parent P1 checkbox stays open until the full recursive-methods DoD is separately proven. Semantic cache remains closed; Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs, recursive learning, provider chain-of-thought, provider tree-of-thought, and default activation remain out of scope.
 
 
 - [ ] Orchestration: implement AI multi-agent contracts (RAG/UQ/CV + safety) — runtime follow-up

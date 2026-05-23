@@ -464,6 +464,28 @@ For Experiment Runner PR evidence:
 
 ---
 
+## 21) Merged AI/RAG lanes become closeout, not duplicate runtime work
+
+### Problem
+Backlog or roadmap text can lag live GitHub truth. Reopening the same AI/RAG
+runtime scope from stale docs risks duplicate implementation, stale review
+mapping, and accidental semantic-cache/runtime widening.
+
+### Rule
+When a roadmap lane appears open but repo/GitHub evidence proves its runtime PR
+already merged:
+1. convert the next PR into closeout/reconciliation
+2. record PR number, title, merge timestamp, merge commit, and original branch
+3. add a guard/test that prevents stale active/pending wording from returning
+4. keep broader parent checklist items open unless the full DoD is separately proven
+
+### Use instead
+- landed-symbol evidence plus fixed mapping artifacts
+- explicit benchmark-boundary wording for hypothesis targets
+- semantic-cache gate markers as machine-checkable invariants
+
+---
+
 ## Repo Commands Reference
 
 ```bash

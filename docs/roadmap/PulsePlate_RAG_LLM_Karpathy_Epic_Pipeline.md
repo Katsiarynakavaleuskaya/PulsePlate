@@ -532,17 +532,34 @@ Use budgets, caching, early stopping, and deterministic depth control.
 #### Title
 `feat(ai-runtime): add philosophical speed optimization to recursive stack`
 
-#### Source basis
-Speech-act classification, language-game detection, early stopping, adaptive depth.
+#### Current status
+Landed via PR [#1506](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1506) on
+`2026-04-23T20:41:25Z` with merge commit
+`19fdbd3098a6aef780a71e94e94980cb3d0f61ee` from branch
+`codex/ai-recursive-speed-optimization-w1`; hardened by PR
+[#1578](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1578) on
+`2026-04-29T20:32:42Z` with merge commit
+`37995a6e8d4e9451b85e7e6284e9bd0cd5afff45` from branch
+`codex/wave6-a8-recursive-speed-optimization`.
 
-#### Goal
-Reduce recursive latency before broadening rollout.
+This closeout reconciles stale roadmap/backlog/review truth and does not
+duplicate runtime implementation.
 
-#### In scope
-- speech act classifier
-- language game depth mapping
-- verification-based early stopping
-- pragmatic early stopping
+#### Landed and hardened scope
+- deterministic recursive optimization hints from existing route truth
+- bounded aggressive and pragmatic early-stop diagnostics
+- thin app/service handoff without public contract changes
+
+#### Benchmark boundary
+Runtime evidence is limited to landed symbols, tests, and review artifacts.
+This closeout does not claim fresh benchmark results. Any latency or quality
+number remains a hypothesis target that requires benchmark validation.
+
+#### Out of scope
+Semantic cache remains closed. Redis/GPTCache, GraphRAG, ContextManifest, DB
+persistence, public routes, OpenAPI, DTOs, recursive learning, provider
+chain-of-thought, provider tree-of-thought, and default activation remain out
+of scope.
 
 ---
 
@@ -842,7 +859,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
 
 1. **Product AI runtime rail (canonical)**
    - PR-S0 docs/backlog umbrella
-   - PR-A1 insight fallback chain already landed on `main`; keep it as historical context, not as an active closure step
+   - PR-A1 insight fallback chain already landed on `main`; keep it as historical context, not as a current closure step
    - PR-A1b docs reconciliation for already-landed PRO quota truth
      (evidence: `docs/roadmap/BACKLOG_LEDGER.md:299-305`;
      `docs/review/PR_1379_FIXED_MAPPING.md:12-30`)
@@ -853,7 +870,7 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
    - PR-V1 verification registry and verify-before-write admission
    - PR-A6 philosophical rollout W1
    - PR-A7 recursive methods W1
-   - PR-A8 speed optimization for recursive stack
+   - Historical PR-A8 speed-optimization record: landed via PR #1506 and hardened by PR #1578; no active implementation lane remains in this closeout.
    - PR-A9 scientific reliability packet
 
 2. **Karpathy workforce rail (advisory only)**
