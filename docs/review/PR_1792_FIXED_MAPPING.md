@@ -426,6 +426,26 @@ Disposition: FIXED
 Commit: e2ba82c64
 Evidence: duplicate CodeRabbit finding for non-executable early-stop literal scopes; fixed by `_constant_is_false` branch pruning and covered by `tests/test_ai_recursive_speed_a8_closeout.py:1158-1197`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291669895 -> d30045ec4
+Disposition: FIXED
+Commit: d30045ec4
+Evidence: `_constant_is_false` now handles empty tuple/list/set/dict and dead-loop branches; `_walk_executable_nodes` skips `while 0` / `if ()` bodies. Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:542-560`, `tests/test_ai_recursive_speed_a8_closeout.py:1200-1218`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291669899 -> d30045ec4
+Disposition: FIXED
+Commit: d30045ec4
+Evidence: action-verb checks now require a local forbidden surface; split-clause context only triggers direct activation terms. Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:337-362`, `tests/test_ai_recursive_speed_a8_closeout.py:1437-1466`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291669901 -> d30045ec4
+Disposition: FIXED
+Commit: d30045ec4
+Evidence: `_collect_param_only_wiring` skips compile-time-dead `while 0` loops and param-only evidence is restricted to canonical seam functions. Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:463-490`, `tests/test_ai_recursive_speed_a8_closeout.py:1235-1247`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291669903 -> d30045ec4
+Disposition: FIXED
+Commit: d30045ec4
+Evidence: benchmark claim regex now detects comparator latency forms such as `< 200ms`. Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:108-114`, `tests/test_ai_recursive_speed_a8_closeout.py:1517-1535`.
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
