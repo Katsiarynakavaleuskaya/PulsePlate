@@ -476,6 +476,36 @@ Disposition: FIXED
 Commit: c1c0cb20c
 Evidence: aggregate CodeRabbit review covered the latest A8 checker hardening cycle; all actionable threads from that review are mapped above, including `discussion_r3292174730` and follow-up `discussion_r3292225638`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292398812 -> b64b8b215
+Disposition: FIXED
+Commit: b64b8b215
+Evidence: `CONTRAST_SPLIT_RE` now includes `so` and `hence`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_therefore_split_bypasses` covers causal forbidden/stale/benchmark bypasses.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292398814 -> b64b8b215
+Disposition: FIXED
+Commit: b64b8b215
+Evidence: `_iterable_is_definitely_empty` detects `range(0)` as empty for executable literal proof; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_range_zero_loop_early_stop_literals` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292398815 -> b64b8b215
+Disposition: FIXED
+Commit: b64b8b215
+Evidence: `BENCHMARK_CLAIM_RE` now includes response-time and p95 metric phrases; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_non_percent_symbol_benchmark_overclaims` covers `response time < 200ms` and `p95 under 200ms`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292398816 -> b64b8b215
+Disposition: FIXED
+Commit: b64b8b215
+Evidence: `_collect_param_only_wiring` treats `range(0)` as dead and does not accept param-only evidence from unreachable loop bodies; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_range_zero_loop_param_only_symbol_wiring` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292398817 -> b64b8b215
+Disposition: FIXED
+Commit: b64b8b215
+Evidence: `A8_REF_RE` now recognizes hyphenated PR references such as `PR-1506` / `PR-1578`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_hyphenated_pr_id_runtime_claim` covers `PR-1506 enables semantic cache by default`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292398818 -> b64b8b215
+Disposition: FIXED
+Commit: b64b8b215
+Evidence: `TYPE_CHECKING` branches are treated as non-runtime in executable literal and param-only wiring walkers; tests `test_checker_rejects_type_checking_early_stop_literals` and `test_checker_rejects_type_checking_param_only_symbol_wiring` cover both paths.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296459 -> c1c0cb20c
 Disposition: FIXED
 Commit: c1c0cb20c
