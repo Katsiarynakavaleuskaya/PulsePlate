@@ -626,7 +626,12 @@ def _iterable_is_definitely_empty(node: ast.expr) -> bool:
 
 
 def _iterable_is_non_iterable_constant(node: ast.expr) -> bool:
-    return isinstance(node, ast.Constant) and node.value in (False, 0, None)
+    if not isinstance(node, ast.Constant):
+        return False
+    value = node.value
+    if value is None or value is Ellipsis:
+        return True
+    return not isinstance(value, (str, bytes, bytearray, tuple, list, set, dict, range))
 
 
 def _validate_recursive_retrieval_early_stop_literals(repo_root: Path, errors: list[str]) -> None:
