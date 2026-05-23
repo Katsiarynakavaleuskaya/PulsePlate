@@ -106,7 +106,7 @@ LOCAL_NEGATED_CLAIM_RE = re.compile(
     re.I,
 )
 BENCHMARK_CLAIM_RE = re.compile(
-    r"(?=.*\b(?:latency|quality|reduction|maintained|accuracy)\b)"
+    r"(?=.*\b(?:latency|quality|reduction|maintained|accuracy|response\s+time|p95)\b)"
     r"(?=.*(?:\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?%|"
     r">=?\s*\d+(?:\.\d+)?%|<=?\s*\d+(?:\.\d+)?%|"
     r"\d+(?:\.\d+)?\s*percent|under\s+\d+(?:\.\d+)?\s*ms|"
@@ -126,7 +126,9 @@ POSITIVE_ACTION_RE = re.compile(
     r"default\s+activation|active|live)\b",
     re.I,
 )
-A8_REF_RE = re.compile(r"\b(?:pr[-\s]?a8|a8|pr\s*#?\s*(?:1506|1578)|#(?:1506|1578))\b", re.I)
+A8_REF_RE = re.compile(
+    r"\b(?:pr[-\s]?a8|a8|pr\s*#?\s*(?:1506|1578)|pr[-\s]*(?:1506|1578)|#(?:1506|1578))\b", re.I
+)
 _PENDING_LOOKAHEAD = (
     r"pending(?!\s+(?:review|approval|merge|verification|audit|validation|closeout))"
 )
@@ -139,7 +141,7 @@ STALE_A8_REVERSED_RE = re.compile(
     re.I,
 )
 CONTRAST_SPLIT_RE = re.compile(
-    r"\b(?:but|however|though|although|yet|and|or|while|whereas|because|since|as|unless|therefore)\b|[;]",
+    r"\b(?:but|however|though|although|yet|and|or|while|whereas|because|since|as|unless|therefore|so|hence)\b|[;]",
     re.I,
 )
 COMMA_SPLIT_RE = re.compile(r",\s*")
@@ -534,7 +536,7 @@ def _collect_param_only_wiring(
             for call in _iter_calls_in_expr(stmt.value):
                 found.update(_collect_param_only_call_keywords(call))
         elif isinstance(stmt, ast.If):
-            if _constant_is_false(stmt.test):
+            if _test_is_non_runtime(stmt.test):
                 found.update(_collect_param_only_wiring(stmt.orelse, empty_iterable_names))
                 continue
             found.update(_collect_param_only_wiring(stmt.body, empty_iterable_names))
@@ -611,7 +613,7 @@ def _walk_executable_nodes(
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
         return
     if isinstance(node, ast.If):
-        if _constant_is_false(node.test):
+        if _test_is_non_runtime(node.test):
             for stmt in node.orelse:
                 yield from _walk_executable_nodes(stmt, empty_iterable_names)
             return
@@ -672,6 +674,8 @@ def _iterable_is_definitely_empty(
 ) -> bool:
     if isinstance(node, ast.Name) and node.id in (empty_iterable_names or set()):
         return True
+    if _is_range_zero_call(node):
+        return True
     if isinstance(node, ast.Constant):
         return node.value in ("", b"")
     return isinstance(node, (ast.Tuple, ast.List, ast.Set, ast.Dict)) and not getattr(
@@ -686,6 +690,22 @@ def _iterable_is_non_iterable_constant(node: ast.expr) -> bool:
     if value is None or value is Ellipsis:
         return True
     return not isinstance(value, (str, bytes, bytearray, tuple, list, set, dict, range))
+
+
+def _is_range_zero_call(node: ast.expr) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if not isinstance(node.func, ast.Name) or node.func.id != "range":
+        return False
+    if node.keywords:
+        return False
+    return (
+        len(node.args) == 1 and isinstance(node.args[0], ast.Constant) and node.args[0].value == 0
+    )
+
+
+def _test_is_non_runtime(node: ast.expr) -> bool:
+    return _constant_is_false(node) or (isinstance(node, ast.Name) and node.id == "TYPE_CHECKING")
 
 
 def _validate_recursive_retrieval_early_stop_literals(repo_root: Path, errors: list[str]) -> None:
