@@ -7,7 +7,10 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1799#discussion_r3293190928
+Disposition: NOT-A-BUG
+Evidence: tests/test_no_bmi_math_outside_core.py:325, tests/test_no_bmi_math_outside_core.py:357, tests/test_no_bmi_math_outside_core.py:383, tests/test_no_bmi_math_outside_core.py:419, tests/test_no_bmi_math_outside_core.py:441, tests/test_no_bmi_math_outside_core.py:465, tests/test_no_bmi_math_outside_core.py:486; .venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null tests/test_no_bmi_math_outside_core.py -> Success: no issues found in 1 source file
+Reason: Current-head test functions already include explicit `-> None` return annotations; the CodeRabbit comment was stale against the updated head.
 
 ## Local Findings Resolved Before PR Open
 
@@ -21,11 +24,11 @@
   - Evidence: tests/test_no_bmi_math_outside_core.py:302, tests/test_no_bmi_math_outside_core.py:419
 - Bug-hunter pre-open false-green finding: transient helper exception must be path-scoped, not basename-only.
   - Disposition: FIXED
-  - Commit: ec532b4a9
+  - Commit: 9473538d7
   - Evidence: tests/test_no_bmi_math_outside_core.py:219, tests/test_no_bmi_math_outside_core.py:441, tests/test_no_bmi_math_outside_core.py:465, tests/test_no_bmi_math_outside_core.py:486
 - Premortem finding: generic basename pruning could hide future source under build/dist/coverage-like directories.
   - Disposition: FIXED
-  - Commit: ec532b4a9
+  - Commit: 9473538d7
   - Evidence: tests/test_no_bmi_math_outside_core.py:58, tests/test_no_bmi_math_outside_core.py:346
 
 ## Bounded Check Evidence
