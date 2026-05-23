@@ -471,6 +471,11 @@ Disposition: FIXED
 Commit: 8eeaff6f8
 Evidence: `_iterable_is_non_iterable_constant` now treats all non-iterable constants (including int, float, bool, None, Ellipsis) as raising before loop body/else; `tests/test_ai_recursive_speed_a8_closeout.py:1244-1265` covers `1`, `1.0`, `True`, and `...`. Code: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:628-634`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4349944618 -> c1c0cb20c
+Disposition: FIXED
+Commit: c1c0cb20c
+Evidence: aggregate CodeRabbit review covered the latest A8 checker hardening cycle; all actionable threads from that review are mapped above, including `discussion_r3292174730` and follow-up `discussion_r3292225638`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296459 -> c1c0cb20c
 Disposition: FIXED
 Commit: c1c0cb20c
