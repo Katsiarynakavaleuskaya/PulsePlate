@@ -33,9 +33,21 @@ REQUIRED_CANONICAL = {
 }
 REFERENCE_ONLY = {"Kimi", "Figma", "Canva", "Penpot", "Storybook", "Code Connect"}
 DENIED_CANONICAL = {item.lower() for item in REFERENCE_ONLY} | {
+    "google drive",
+    "google drive prototype folder",
+    "drive folder",
+    "prototype folder",
+    "screenshot",
     "screenshots",
+    "generated code",
+    "generated code bundle",
     "generated code bundles",
-    "google drive folders",
+    "generated brief",
+    "generated briefs",
+    "external design note",
+    "external design notes",
+    "desktop export",
+    "desktop exports",
 }
 COVERAGE_DIMENSIONS = [
     "repo_vocabulary",
@@ -155,7 +167,10 @@ def _load_vocabulary(repo_root: Path) -> dict[str, dict[str, Any]]:
     for index, item in enumerate(raw):
         if not isinstance(item, dict) or not isinstance(item.get("id"), str):
             raise InventoryError(f"{VOCABULARY_PATH}: item {index} requires string id")
-        vocabulary[item["id"]] = item
+        item_id = item["id"]
+        if item_id in vocabulary:
+            raise InventoryError(f"{VOCABULARY_PATH}: duplicate id {item_id!r} at item {index}")
+        vocabulary[item_id] = item
     return vocabulary
 
 
@@ -182,17 +197,36 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
     reference_set = set(reference_only)
     if not REFERENCE_ONLY.issubset(reference_set):
         errors.append("authority.reference_only: missing required reference-only tools")
-    promoted = sorted(
-        entry for entry in canonical if _normalize_authority(entry) in DENIED_CANONICAL
-    )
+    promoted = []
+    for entry in canonical:
+        normalized = _normalize_authority(entry)
+        if any(
+            re.search(rf"(?<![a-z0-9]){re.escape(denied)}(?![a-z0-9])", normalized)
+            for denied in DENIED_CANONICAL
+        ):
+            promoted.append(entry)
     if promoted:
         errors.append(
             "authority.canonical: reference tools must not be canonical: " + ", ".join(promoted)
         )
 
 
-def _expected_web_coverage(component: dict[str, Any]) -> str:
-    return "partial" if component.get("web_runtime_anchor") != "unspecified" else "missing"
+def _expected_web_coverage(component: dict[str, Any], *, prefix: str, errors: list[str]) -> str:
+    web_anchor = component.get("web_runtime_anchor")
+    if not isinstance(web_anchor, str) or not web_anchor:
+        errors.append(f"{prefix}.registry.web_runtime_anchor: expected non-empty string")
+        return "missing"
+    return "partial" if web_anchor != "unspecified" else "missing"
+
+
+def _repo_evidence_file_exists(anchor: str, repo_root: Path) -> bool:
+    path_text = anchor.split(":", 1)[0]
+    path = repo_root / path_text
+    try:
+        path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
+    except (OSError, ValueError):
+        return False
+    return path.is_file()
 
 
 def _validate_record(
@@ -201,6 +235,7 @@ def _validate_record(
     index: int,
     component: dict[str, Any],
     vocabulary: dict[str, dict[str, Any]],
+    repo_root: Path,
     errors: list[str],
 ) -> None:
     prefix = f"records[{index}]"
@@ -223,14 +258,19 @@ def _validate_record(
         errors.append(f"{prefix}.component_id: unknown vocabulary id {component_id!r}")
     if record["canonical_name"] != component.get("canonical_name"):
         errors.append(f"{prefix}.canonical_name: mismatch with registry")
-    if record["registry_status"] != component.get("status"):
+    registry_status = component.get("status")
+    if registry_status not in COVERAGE_STATUSES:
+        errors.append(f"{prefix}.registry_status: registry has invalid status {registry_status!r}")
+    if record["registry_status"] != registry_status:
         errors.append(f"{prefix}.registry_status: mismatch with registry")
     for field in STATUS_FIELDS:
-        if record[field] not in COVERAGE_STATUSES:
+        if not isinstance(record[field], str) or record[field] not in COVERAGE_STATUSES:
             errors.append(f"{prefix}.{field}: invalid coverage status {record[field]!r}")
     if record["repo_vocabulary_coverage"] != "covered":
         errors.append(f"{prefix}.repo_vocabulary_coverage: expected 'covered'")
-    if record["web_runtime_coverage"] != _expected_web_coverage(component):
+    if record["web_runtime_coverage"] != _expected_web_coverage(
+        component, prefix=prefix, errors=errors
+    ):
         errors.append(f"{prefix}.web_runtime_coverage: mismatch with registry web anchor")
     for field in (
         "ios_runtime_coverage",
@@ -251,7 +291,11 @@ def _validate_record(
         errors.append(
             f"{prefix}.accessibility_regression_decision: expected fail-closed missing/unspecified"
         )
-    reason = record["implementation_blocked_reason"].lower()
+    if not isinstance(record["implementation_blocked_reason"], str):
+        errors.append(f"{prefix}.implementation_blocked_reason: expected string")
+        reason = ""
+    else:
+        reason = record["implementation_blocked_reason"].lower()
     if "block" not in reason or "visual" not in reason or "accessibility" not in reason:
         errors.append(
             f"{prefix}.implementation_blocked_reason: must block implementation on visual/accessibility gates"
@@ -275,6 +319,10 @@ def _validate_record(
             )
         if not re.match(r"^(docs|scripts|tests|frontend|ios|tokens)/", anchor):
             errors.append(f"{prefix}.evidence_anchors: expected repo evidence anchor: {anchor!r}")
+        elif not _repo_evidence_file_exists(anchor, repo_root):
+            errors.append(
+                f"{prefix}.evidence_anchors: repo evidence file does not exist: {anchor!r}"
+            )
 
 
 def validate_inventory(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[str]:
@@ -332,6 +380,7 @@ def validate_inventory(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list
             index=index,
             component=registry_components[index],
             vocabulary=vocabulary,
+            repo_root=repo_root,
             errors=errors,
         )
     registry_ids = {component.get("component_id") for component in registry_components}
@@ -341,6 +390,13 @@ def validate_inventory(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list
     extra_ids = sorted(seen - {str(item) for item in registry_ids if item})
     if extra_ids:
         errors.append("records: inventory components not in registry: " + ", ".join(extra_ids))
+    vocabulary_ids = set(vocabulary)
+    registry_id_strings = {str(item) for item in registry_ids if item}
+    extra_vocabulary_ids = sorted(vocabulary_ids - registry_id_strings)
+    if extra_vocabulary_ids:
+        errors.append(
+            "records: vocabulary ids missing from registry: " + ", ".join(extra_vocabulary_ids)
+        )
     return errors
 
 

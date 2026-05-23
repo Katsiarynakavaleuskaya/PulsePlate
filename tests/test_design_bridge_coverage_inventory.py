@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+from typing import Any, Callable
 
 import pytest
 
@@ -12,10 +13,28 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 INVENTORY_PATH = REPO_ROOT / "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json"
 REGISTRY_PATH = REPO_ROOT / "docs/orchestration/contracts/design_component_registry.v1.json"
 VOCABULARY_PATH = REPO_ROOT / "docs/design/ui_component_vocabulary.json"
+InventoryMutator = Callable[[dict[str, Any]], object]
 
 
-def _load_inventory() -> dict[str, object]:
+def _load_inventory() -> dict[str, Any]:
     return json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
+
+
+def _write_repo_inputs(tmp_path: Path, inventory: dict[str, Any]) -> Path:
+    inv_path = tmp_path / "inventory.json"
+    inv_path.write_text(json.dumps(inventory), encoding="utf-8")
+    registry_path = tmp_path / "docs/orchestration/contracts/design_component_registry.v1.json"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text(REGISTRY_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    vocabulary_path = tmp_path / "docs/design/ui_component_vocabulary.json"
+    vocabulary_path.parent.mkdir(parents=True, exist_ok=True)
+    vocabulary_path.write_text(VOCABULARY_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    for record in inventory["records"]:
+        for anchor in record["evidence_anchors"]:
+            file_path = tmp_path / anchor.split(":", 1)[0]
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.touch()
+    return inv_path
 
 
 def _write_inventory(tmp_path: Path, inventory: object) -> Path:
@@ -86,7 +105,7 @@ def test_inventory_rejects_malformed_or_non_object_json(
     ],
 )
 def test_inventory_rejects_top_level_contract_errors(
-    tmp_path: Path, mutator, expected: str
+    tmp_path: Path, mutator: InventoryMutator, expected: str
 ) -> None:
     inventory = _load_inventory()
     mutator(inventory)
@@ -111,7 +130,9 @@ def test_inventory_rejects_top_level_contract_errors(
         (lambda d: d["records"][0].update({"ios_runtime_coverage": None}), "null is forbidden"),
     ],
 )
-def test_inventory_rejects_record_contract_errors(tmp_path: Path, mutator, expected: str) -> None:
+def test_inventory_rejects_record_contract_errors(
+    tmp_path: Path, mutator: InventoryMutator, expected: str
+) -> None:
     inventory = _load_inventory()
     mutator(inventory)
 
@@ -130,11 +151,66 @@ def test_inventory_rejects_reference_tools_as_canonical_authority(
     )
 
 
+def test_inventory_rejects_embedded_reference_tool_canonical_authority(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inventory["authority"]["canonical"].append("Figma nodes")
+
+    assert any(
+        "reference tools must not be canonical" in error for error in _errors(tmp_path, inventory)
+    )
+
+
+def test_inventory_rejects_duplicate_vocabulary_ids(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inv_path = _write_repo_inputs(tmp_path, inventory)
+    vocabulary_path = tmp_path / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    vocabulary.append(copy.deepcopy(vocabulary[0]))
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
+
+    assert any("duplicate id 'button'" in error for error in errors)
+
+
+def test_inventory_rejects_extra_vocabulary_id_not_in_registry(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inv_path = _write_repo_inputs(tmp_path, inventory)
+    vocabulary_path = tmp_path / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    extra = copy.deepcopy(vocabulary[0])
+    extra["id"] = "vendor_magic"
+    extra["canonical_name"] = "vendor-magic"
+    vocabulary.append(extra)
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
+
+    assert any("vocabulary ids missing from registry: vendor_magic" in error for error in errors)
+
+
 def test_inventory_rejects_missing_coverage_as_implementation_permission(tmp_path: Path) -> None:
     inventory = _load_inventory()
     inventory["records"][2]["implementation_blocked_reason"] = "Ready for runtime implementation."
 
     assert any("must block implementation" in error for error in _errors(tmp_path, inventory))
+
+
+def test_inventory_rejects_non_string_implementation_block_reason(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inventory["records"][0]["implementation_blocked_reason"] = 123
+
+    assert any(
+        "implementation_blocked_reason: expected string" in error
+        for error in _errors(tmp_path, inventory)
+    )
+
+
+def test_inventory_rejects_unhashable_coverage_status(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inventory["records"][0]["ios_runtime_coverage"] = []
+
+    assert any("invalid coverage status []" in error for error in _errors(tmp_path, inventory))
 
 
 @pytest.mark.parametrize(
@@ -172,6 +248,43 @@ def test_inventory_rejects_reference_tool_evidence_as_canonical_proof(tmp_path: 
 
     assert any("reference-tool evidence" in error for error in errors)
     assert any("repo evidence anchor" in error for error in errors)
+
+
+def test_inventory_rejects_nonexistent_repo_evidence_anchor(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inventory["records"][0]["evidence_anchors"] = ["docs/not_real.md:123"]
+
+    assert any(
+        "repo evidence file does not exist" in error for error in _errors(tmp_path, inventory)
+    )
+
+
+def test_inventory_rejects_invalid_registry_status(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inv_path = _write_repo_inputs(tmp_path, inventory)
+    registry_path = tmp_path / "docs/orchestration/contracts/design_component_registry.v1.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["components"][0]["status"] = "partail"
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+    errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
+
+    assert any("registry has invalid status 'partail'" in error for error in errors)
+
+
+def test_inventory_rejects_registry_missing_web_runtime_anchor(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inv_path = _write_repo_inputs(tmp_path, inventory)
+    registry_path = tmp_path / "docs/orchestration/contracts/design_component_registry.v1.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    del registry["components"][0]["web_runtime_anchor"]
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+    errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
+
+    assert any(
+        "registry.web_runtime_anchor: expected non-empty string" in error for error in errors
+    )
 
 
 def test_validator_has_no_runtime_network_or_subprocess_imports() -> None:
