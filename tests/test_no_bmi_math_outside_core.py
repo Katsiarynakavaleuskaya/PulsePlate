@@ -462,6 +462,27 @@ def test_scan_temp_read_error_exception_is_path_scoped(
         _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path)
 
 
+def test_scan_allows_exact_temp_read_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The xdist helper path remains the only tolerated read-time race."""
+    source_file = tmp_path / _GUARD_WHR_SKIP_TEMP_REL_PATH
+    source_file.parent.mkdir()
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def fake_read_text(
+        self: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if self == source_file:
+            raise FileNotFoundError(2, "source file disappeared", str(source_file))
+        return original_read_text(self, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    assert _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path) == []
+
+
 def test_threshold_filter_temp_exception_is_path_scoped(tmp_path: Path) -> None:
     """Similarly named files outside app/ must not bypass threshold hits."""
     source_file = tmp_path / "core" / _GUARD_WHR_SKIP_TEMP_BASENAME

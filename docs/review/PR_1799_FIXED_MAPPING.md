@@ -7,22 +7,22 @@
 
 ## Fixed in Commit Mapping
 
-No actionable review comments at PR open.
+- No actionable review comments
 
-### Local Findings Resolved Before PR Open
+## Local Findings Resolved Before PR Open
 
 - Security-auditor pre-open false-green finding: traversal errors outside excluded/generated paths must fail closed.
   - Disposition: FIXED
   - Commit: ec532b4a9
-  - Evidence: tests/test_no_bmi_math_outside_core.py:226, tests/test_no_bmi_math_outside_core.py:375
+  - Evidence: tests/test_no_bmi_math_outside_core.py:229, tests/test_no_bmi_math_outside_core.py:383
 - Bug-hunter pre-open false-green finding: read-time source errors must fail closed.
   - Disposition: FIXED
   - Commit: ec532b4a9
-  - Evidence: tests/test_no_bmi_math_outside_core.py:302, tests/test_no_bmi_math_outside_core.py:411
+  - Evidence: tests/test_no_bmi_math_outside_core.py:302, tests/test_no_bmi_math_outside_core.py:419
 - Bug-hunter pre-open false-green finding: transient helper exception must be path-scoped, not basename-only.
   - Disposition: FIXED
   - Commit: ec532b4a9
-  - Evidence: tests/test_no_bmi_math_outside_core.py:222, tests/test_no_bmi_math_outside_core.py:457
+  - Evidence: tests/test_no_bmi_math_outside_core.py:219, tests/test_no_bmi_math_outside_core.py:441, tests/test_no_bmi_math_outside_core.py:465, tests/test_no_bmi_math_outside_core.py:486
 - Premortem finding: generic basename pruning could hide future source under build/dist/coverage-like directories.
   - Disposition: FIXED
   - Commit: ec532b4a9
@@ -44,12 +44,12 @@ OK: agent docs and files are consistent.
 
 ```text
 .venv/bin/python -m pytest -q tests/test_no_bmi_math_outside_core.py
-..........................                                               [100%]
+...........................                                              [100%]
 ```
 
 ```text
 .venv/bin/python -m pytest -q tests/test_no_bmi_math_outside_core.py tests/test_repo_policy_guards.py
-........................................                                 [100%]
+.........................................                                [100%]
 ```
 
 ```text
