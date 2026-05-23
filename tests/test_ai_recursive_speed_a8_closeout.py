@@ -1197,12 +1197,48 @@ def test_checker_rejects_numeric_false_branch_early_stop_literals(tmp_path: Path
     assert any("missing early-stop string literal" in error for error in errors)
 
 
+def test_checker_rejects_dead_loop_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        "def _make_optimization_stats() -> dict:\n"
+        "    while 0:\n"
+        '        return {"early_stop_aggressive_short_circuit": False, '
+        '"early_stop_pragmatic_usefulness": False}\n'
+        "    return {}\n\n"
+        "def _should_short_circuit_from_hints() -> tuple:\n"
+        "    if ():\n"
+        '        return ("done", "early_stop_aggressive_short_circuit")\n'
+        '    return ("keep", None)\n',
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("missing early-stop string literal" in error for error in errors)
+
+
 def test_checker_rejects_unrelated_param_only_symbol_function(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "app/services/insight_runtime.py"
     path.write_text(
         "def unrelated(recursive_optimization_hints=None):\n"
         "    return recursive_optimization_hints\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("app/services/insight_runtime.py landed symbol" in error for error in errors)
+
+
+def test_checker_rejects_dead_loop_param_only_symbol_wiring(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "app/services/insight_runtime.py"
+    path.write_text(
+        "def _traced_retrieve_and_validate_rag() -> None:\n"
+        "    while 0:\n"
+        "        helper(recursive_optimization_hints={})\n",
         encoding="utf-8",
     )
 
@@ -1416,6 +1452,20 @@ def test_checker_rejects_split_forbidden_surface_tail_without_repeated_subject(
     assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
 
 
+def test_checker_allows_split_governance_tail_without_repeated_surface(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 semantic cache remains closed, and includes governance links.",
+        ),
+        encoding="utf-8",
+    )
+
+    assert _errors(tmp_path) == []
+
+
 def test_checker_rejects_hyphenated_in_progress_stale_a8(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
@@ -1469,6 +1519,7 @@ def test_checker_rejects_decimal_benchmark_overclaim(tmp_path: Path) -> None:
     (
         "PR-A8 proves latency reduction 50 percent average and quality maintained 95 percent.",
         "PR-A8 guarantees latency under 200ms.",
+        "PR-A8 guarantees latency < 200ms.",
     ),
 )
 def test_checker_rejects_non_percent_symbol_benchmark_overclaims(

@@ -109,7 +109,8 @@ BENCHMARK_CLAIM_RE = re.compile(
     r"(?=.*\b(?:latency|quality|reduction|maintained|accuracy)\b)"
     r"(?=.*(?:\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?%|"
     r">=?\s*\d+(?:\.\d+)?%|<=?\s*\d+(?:\.\d+)?%|"
-    r"\d+(?:\.\d+)?\s*percent|under\s+\d+(?:\.\d+)?\s*ms)).+",
+    r"\d+(?:\.\d+)?\s*percent|under\s+\d+(?:\.\d+)?\s*ms|"
+    r"[<>]=?\s*\d+(?:\.\d+)?\s*ms)).+",
     re.I,
 )
 FORBIDDEN_SURFACE_RE = re.compile(rf"\b({FORBIDDEN_SURFACE_PATTERN})\b", re.I)
@@ -346,7 +347,14 @@ def _subclause_has_actionable_forbidden(
         return False
     if has_local_surface and _surface_claim_is_negated(normalized):
         return False
-    if POSITIVE_ACTION_RE.search(normalized):
+    if has_local_surface and POSITIVE_ACTION_RE.search(normalized):
+        return True
+    if sentence_has_forbidden_surface and re.search(
+        r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
+        r"production[-\s]?ready|rollout[-\s]?ready|default[-\s]?on)\b",
+        normalized,
+        re.I,
+    ):
         return True
     if (
         (has_local_surface or sentence_has_forbidden_surface)
@@ -486,6 +494,18 @@ def _collect_param_only_wiring(statements: list[ast.stmt]) -> set[str]:
                 continue
             found.update(_collect_param_only_wiring(stmt.body))
             found.update(_collect_param_only_wiring(stmt.orelse))
+        elif isinstance(stmt, ast.While):
+            if _constant_is_false(stmt.test):
+                found.update(_collect_param_only_wiring(stmt.orelse))
+                continue
+            found.update(_collect_param_only_wiring(stmt.body))
+            found.update(_collect_param_only_wiring(stmt.orelse))
+        elif isinstance(stmt, ast.For):
+            if _constant_is_false(stmt.iter):
+                found.update(_collect_param_only_wiring(stmt.orelse))
+                continue
+            found.update(_collect_param_only_wiring(stmt.body))
+            found.update(_collect_param_only_wiring(stmt.orelse))
         elif isinstance(stmt, ast.With):
             found.update(_collect_param_only_wiring(stmt.body))
         elif isinstance(stmt, ast.Try):
@@ -494,9 +514,6 @@ def _collect_param_only_wiring(statements: list[ast.stmt]) -> set[str]:
                 found.update(_collect_param_only_wiring(handler.body))
             found.update(_collect_param_only_wiring(stmt.orelse))
             found.update(_collect_param_only_wiring(stmt.finalbody))
-        elif isinstance(stmt, (ast.For, ast.While)):
-            found.update(_collect_param_only_wiring(stmt.body))
-            found.update(_collect_param_only_wiring(stmt.orelse))
         elif isinstance(stmt, ast.Match):
             for case in stmt.cases:
                 found.update(_collect_param_only_wiring(case.body))
@@ -545,6 +562,16 @@ def _walk_executable_nodes(node: ast.AST) -> Iterator[ast.AST]:
             for stmt in node.orelse:
                 yield from _walk_executable_nodes(stmt)
             return
+    if isinstance(node, ast.While):
+        if _constant_is_false(node.test):
+            for stmt in node.orelse:
+                yield from _walk_executable_nodes(stmt)
+            return
+    if isinstance(node, ast.For):
+        if _constant_is_false(node.iter):
+            for stmt in node.orelse:
+                yield from _walk_executable_nodes(stmt)
+            return
     for child in ast.iter_child_nodes(node):
         if isinstance(child, ast.arg):
             continue
@@ -577,7 +604,11 @@ def _collect_string_literals_from_function(
 
 
 def _constant_is_false(node: ast.expr) -> bool:
-    return isinstance(node, ast.Constant) and node.value in (False, 0, "", None)
+    if isinstance(node, ast.Constant):
+        return node.value in (False, 0, "", None)
+    return isinstance(node, (ast.Tuple, ast.List, ast.Set, ast.Dict)) and not getattr(
+        node, "elts", getattr(node, "keys", [object()])
+    )
 
 
 def _validate_recursive_retrieval_early_stop_literals(repo_root: Path, errors: list[str]) -> None:
