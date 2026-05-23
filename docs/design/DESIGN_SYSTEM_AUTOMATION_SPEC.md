@@ -54,8 +54,8 @@ Future work must proceed in this order:
 
 1. Component contract registry.
 2. Bridge coverage inventory.
-3. Visual regression lane.
-4. Accessibility regression lane.
+3. Visual regression decision gate.
+4. Accessibility regression decision gate.
 5. Token/runtime parity boundary.
 6. Later web+iOS implementation slices.
 
@@ -96,7 +96,13 @@ The bridge coverage inventory reports coverage only. Missing coverage blocks run
 
 Visual and accessibility regression decisions are mandatory fail-closed gates for later implementation PRs.
 
-The visual regression decision lane follows the bridge coverage inventory. The accessibility regression lane follows visual regression. Token/runtime parity boundaries follow those visual and accessibility decisions.
+The visual regression decision gate follows the bridge coverage inventory. The current machine-readable artifact is `docs/orchestration/contracts/design_visual_regression_decisions.v1.json`, validated by `scripts/design/design_visual_regression_decisions.py`.
+
+The visual regression decision gate reports decisions only. It does not run screenshots, does not commit screenshots or binaries, and does not choose a new visual regression service unless that service is already repo-confirmed.
+
+Missing baseline, threshold, or tooling evidence blocks runtime implementation. Accessibility regression decision follows this visual decision gate, and token/runtime parity follows the visual and accessibility gates.
+
+Kimi, Figma, Canva, Penpot, Storybook, Code Connect, screenshots, and generated design exports remain reference-only evidence. GPT-5.5 is the primary coding and governance model for repo changes in this lane; Kimi may provide bounded design review only.
 
 Fail-closed means missing visual or accessibility regression coverage blocks implementation readiness unless the coordinator records a `DEFERRED` disposition with a backlog anchor and PR-body follow-up.
 

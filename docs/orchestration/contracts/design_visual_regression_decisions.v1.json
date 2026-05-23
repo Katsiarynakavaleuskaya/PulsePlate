@@ -1,0 +1,490 @@
+{
+  "schema_version": "design_visual_regression_decisions.v1",
+  "source_of_truth": "repo",
+  "source_bridge_inventory": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json",
+  "source_registry": "docs/orchestration/contracts/design_component_registry.v1.json",
+  "authority": {
+    "canonical": [
+      "repo code/docs/tests",
+      "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json",
+      "docs/orchestration/contracts/design_component_registry.v1.json",
+      "docs/design/ui_component_vocabulary.json"
+    ],
+    "reference_only": [
+      "Kimi",
+      "Figma",
+      "Canva",
+      "Penpot",
+      "Storybook",
+      "Code Connect",
+      "screenshots",
+      "generated design exports"
+    ]
+  },
+  "decision_dimensions": [
+    "visual_regression_decision",
+    "baseline_policy",
+    "threshold_policy",
+    "tooling_policy",
+    "artifact_policy",
+    "implementation_readiness"
+  ],
+  "records": [
+    {
+      "component_id": "button",
+      "canonical_name": "button",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:button",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:button",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "input",
+      "canonical_name": "input",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:input",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:input",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "select",
+      "canonical_name": "select",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:select",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:select",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "textarea",
+      "canonical_name": "textarea",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:textarea",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:textarea",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "checkbox",
+      "canonical_name": "checkbox",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:checkbox",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:checkbox",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "radio_group",
+      "canonical_name": "radio-group",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:radio_group",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:radio_group",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "card",
+      "canonical_name": "card",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:card",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:card",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "alert",
+      "canonical_name": "alert",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:alert",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:alert",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "badge",
+      "canonical_name": "badge",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:badge",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:badge",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "dialog",
+      "canonical_name": "dialog",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:dialog",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:dialog",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "dropdown_menu",
+      "canonical_name": "dropdown-menu",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:dropdown_menu",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:dropdown_menu",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "tabs",
+      "canonical_name": "tabs",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:tabs",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:tabs",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "progress",
+      "canonical_name": "progress",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:progress",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:progress",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "tooltip",
+      "canonical_name": "tooltip",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:tooltip",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:tooltip",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "empty_state",
+      "canonical_name": "empty-state",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:empty_state",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:empty_state",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "segmented_control",
+      "canonical_name": "segmented-control",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:segmented_control",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:segmented_control",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "toggle",
+      "canonical_name": "toggle",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:toggle",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:toggle",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "skeleton",
+      "canonical_name": "skeleton",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:skeleton",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:skeleton",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "mobile_menu",
+      "canonical_name": "mobile-menu",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:mobile_menu",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:mobile_menu",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "navigation_tab_bar",
+      "canonical_name": "navigation/tab-bar",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:navigation_tab_bar",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:navigation_tab_bar",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "hero",
+      "canonical_name": "hero",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:hero",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:hero",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "stats_card",
+      "canonical_name": "stats-card",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:stats_card",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:stats_card",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "form_field",
+      "canonical_name": "form-field",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:form_field",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:form_field",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    },
+    {
+      "component_id": "stepper_progress_indicator",
+      "canonical_name": "stepper/progress-indicator",
+      "bridge_inventory_anchor": "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:stepper_progress_indicator",
+      "bridge_visual_regression_decision": "missing",
+      "visual_regression_decision": "blocked",
+      "baseline_policy": "baseline_required_before_runtime",
+      "threshold_policy": "threshold_required_before_runtime",
+      "tooling_policy": "tool_selection_required",
+      "artifact_policy": "no_screenshots_committed",
+      "implementation_readiness": "blocked",
+      "implementation_blocked_reason": "Runtime implementation is blocked until repo visual baseline, threshold, tooling, accessibility, and token/runtime parity gates exist.",
+      "next_required_gate": "accessibility regression decision gate",
+      "evidence_anchors": [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:stepper_progress_indicator",
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+      ]
+    }
+  ]
+}
