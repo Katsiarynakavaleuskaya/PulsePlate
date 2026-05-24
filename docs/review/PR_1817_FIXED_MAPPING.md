@@ -9,7 +9,7 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- Review threads: 8 actionable CodeRabbit threads dispositioned as FIXED.
+- Review threads: 12 actionable CodeRabbit/Codex threads dispositioned as FIXED.
 - Bot comments: CodeRabbit actionables fixed; Sourcery skipped; Cubic had no
   actionable blocking finding.
 
@@ -35,6 +35,24 @@ Evidence: commit `1b218dc2d09f4edb74ec6eb799d90a48d4fceef6` fixes the reported r
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3294964272 -> 1b218dc2d09f4edb74ec6eb799d90a48d4fceef6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3294964274 -> 1b218dc2d09f4edb74ec6eb799d90a48d4fceef6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3294964275 -> 1b218dc2d09f4edb74ec6eb799d90a48d4fceef6
+
+Disposition: FIXED
+Commit: 1b218dc2d09f4edb74ec6eb799d90a48d4fceef6
+Evidence: CodeRabbit review summary `pullrequestreview-4353106248` reported the same Phase 2 wording issue as inline thread `discussion_r3294958918`; commit `1b218dc2d09f4edb74ec6eb799d90a48d4fceef6` changed `Phase2` to `Phase 2`, and Phase 2/mapping validation passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#pullrequestreview-4353106248
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: commit `ad6db3dd7b5481014c2962393e57c1b9fde66040` fixes the follow-up guard gaps for case-variant `Merge Readiness` headings, Setext-style stale readiness headings, runtime-scope expansion claims without an explicit A1b token inside the A1b section, and Unix absolute `/tmp/worktrees/...` local path leakage. Validation passed for the A1b closeout checker, focused pytest, and changed-file mypy.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024531
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024533
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024538
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024539
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024531 -> ad6db3dd7b5481014c2962393e57c1b9fde66040
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024533 -> ad6db3dd7b5481014c2962393e57c1b9fde66040
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024538 -> ad6db3dd7b5481014c2962393e57c1b9fde66040
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024539 -> ad6db3dd7b5481014c2962393e57c1b9fde66040
 
 ## Agent / Security Review Pass
 
