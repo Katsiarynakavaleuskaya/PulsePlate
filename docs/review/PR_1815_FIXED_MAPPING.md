@@ -31,6 +31,11 @@ Pre-open bootstrap packet:
 Post-open bootstrap packet:
 `artifacts/orchestration/task_packets/3a7bdb409c03.json`
 
+## Lane Start Provenance
+
+Packet: `docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_CLOSEOUT_PR20_PACKET_2026-05-24.md`
+Starter: `scripts/orchestration/start_pr_lane.sh`
+
 Coordinator-declared role order:
 `agent-coordinator -> architecture-specialist -> security-auditor -> data-scientist-agent -> backend-engineer -> qa-engineer-agent -> bug-hunter -> dev-operator`
 
@@ -102,6 +107,8 @@ Oracle-only packet:
 Oracle-only result:
 `artifacts/orchestration/experiments/results/exp-e6cb55072aa9.json`
 
+Artifact: `artifacts/orchestration/experiments/results/exp-e6cb55072aa9.json`
+
 Result summary: `accepted`, `runner_mode=oracle_only_governance_reviewer`,
 `mutated_paths=[]`, `promotion_ready=false`, `contribution_kind=none`,
 `coauthor_required=false`, oracle return codes `0,0,0`.
@@ -167,15 +174,19 @@ parity and strict review-governance checks before any readiness claim.
 
 ## Fixed in Commit Mapping
 
-- No actionable GitHub review comments recorded yet.
-- `agent-coordinator` process finding -> this mapping plus PR body mirror.
-- `architecture-specialist` packet raw-SHA finding -> follow-up governance
-  commit replacing raw SHA with non-secret PR merge marker.
-- `qa-engineer-agent` and `bug-hunter` mapping/body/packet governance findings
-  -> this mapping plus PR body mirror update.
-- `dev-operator` current-head governance blockers -> blocked until follow-up
-  commit, PR body mirror update, current-head checks, disposition guard, strict
-  readiness gate, and wait-window.
+- No actionable review comments
+
+## Role-Agent Finding Disposition
+
+- `agent-coordinator` process finding: `FIXED`; this mapping plus PR body
+  mirror.
+- `architecture-specialist` packet raw-SHA finding: `FIXED`; follow-up
+  governance commit replaces raw SHA with non-secret PR merge marker.
+- `qa-engineer-agent` and `bug-hunter` mapping/body/packet governance findings:
+  `FIXED`; this mapping plus PR body mirror update.
+- `dev-operator` current-head governance blockers: not a code finding; blocked
+  until follow-up commit, PR body mirror update, current-head checks,
+  disposition guard, strict readiness gate, and wait-window.
 
 ## Post-Open Governance Checklist
 
