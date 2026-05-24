@@ -11,7 +11,7 @@ hypothesis~=6.152.9
 faker~=40.19.1  # Test data generation (40.11.1 yanked / unavailable on PyPI)
 # coverage and diff-cover: use compatible release for stability
 coverage~=7.14.0
-diff-cover~=10.2.0
+diff-cover~=10.2.1
 # Code quality tools: use compatible release for stability
 flake8~=7.3.0
 bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
