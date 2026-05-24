@@ -25,7 +25,10 @@ def test_default_policy_validates() -> None:
         policy["git_attribution"]["co_author_trailer"]
         == "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>"
     )
-    assert policy["slack_identity"]["status"] == "deferred"
+    assert policy["slack_identity"]["status"] == "operator_notification_boundary_defined"
+    assert policy["slack_identity"]["default_enabled"] is False
+    assert policy["slack_identity"]["delivery_credential_source"] == "external"
+    assert policy["slack_identity"]["channel_allowlist_source"] == "runtime_env"
     assert policy["validator_mutation_boundary"]["status"] == "threat_model_only"
     assert policy["validator_mutation_boundary"]["active_mutation_access"] is False
     assert policy["contribution_attribution"]["basis"] == "material_evidence_contribution"
@@ -495,6 +498,46 @@ def test_rejects_slack_as_active_crypto_identity() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_rejects_slack_boundary_missing_required_controls() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["requires_rate_limit"] = False
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="requires_rate_limit"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_boundary_authority_drift() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["forbidden_authority"]["can_resolve_review_threads"] = True
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="Experiment Runner authority"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_policy_token_env_storage() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["bot_token_env"] = "EXPERIMENT_NOTIFICATION_SLACK_BOT_TOKEN"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_literal_token_or_webhook_values() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["operator_note"] = "xoxb-" + "a" * 20
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+    policy = _valid_policy()
+    policy["slack_identity"]["operator_note"] = (
+        "https://hooks.slack.com/services/" + "A" * 12 + "/" + "B" * 12 + "/" + "C" * 24
+    )
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_duplicate_slack_identity_boundary() -> None:
     policy = _valid_policy()
     policy["slack_identity_v2"] = {
@@ -568,7 +611,7 @@ def test_cli_json_success(capsys: pytest.CaptureFixture[str]) -> None:
         "co_author_trailer": "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>",
         "git_email": "pulseplate@pm.me",
         "identity_slug": "experiment-runner",
-        "slack_identity": "deferred",
+        "slack_identity": "operator_notification_boundary_defined",
         "status": "pass",
     }
 

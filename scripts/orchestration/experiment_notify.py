@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 from email.utils import parseaddr
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -20,7 +21,7 @@ import shlex
 import smtplib
 import ssl
 import sys
-from typing import Any
+from typing import Any, Protocol
 
 try:
     from scripts.orchestration.context_pack import (
@@ -55,6 +56,12 @@ SMTP_PORT_ENV = "EXPERIMENT_NOTIFICATION_SMTP_PORT"
 SMTP_USERNAME_ENV = "EXPERIMENT_NOTIFICATION_SMTP_USERNAME"
 SMTP_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SMTP_" + "".join(("P", "ASS", "W", "ORD"))
 SMTP_FROM_ENV = "EXPERIMENT_NOTIFICATION_EMAIL_FROM"
+SLACK_BOT_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SLACK_BOT_" + "".join(("TO", "KEN"))
+SLACK_CHANNEL_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"
+SLACK_TIMEOUT_ENV = "EXPERIMENT_NOTIFICATION_SLACK_TIMEOUT_SECONDS"
+SLACK_MIN_INTERVAL_ENV = "EXPERIMENT_NOTIFICATION_SLACK_MIN_INTERVAL_SECONDS"
+SLACK_API_HOST = "slack.com"
+SLACK_API_PATH = "/api/chat.postMessage"
 PROMOTION_DISPOSITIONS: tuple[str, ...] = ("promoted", "deferred")
 ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"guard_failure", "timeout", "oom"})
 PRE_ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"policy_violation", "unchanged_result"})
@@ -65,6 +72,7 @@ SENSITIVE_PATH_PART_RE = re.compile(
 )
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r'^(?:"?[A-Za-z]:|"?\\\\|"?//)')
 SHELL_ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+SLACK_CHANNEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$")
 FILE_LIKE_SURFACE_SUFFIXES = {
     ".cfg",
     ".conf",
@@ -87,6 +95,24 @@ class ExperimentNotificationError(RuntimeError):
 
 class ExperimentEmailDeliveryError(ExperimentNotificationError):
     """Email delivery failed without exposing provider details."""
+
+
+class ExperimentSlackDeliveryError(ExperimentNotificationError):
+    """Slack delivery failed without exposing workspace or token details."""
+
+
+class SlackTransport(Protocol):
+    """Transport seam for Slack delivery so tests never call the network."""
+
+    def __call__(
+        self,
+        *,
+        token: str,
+        channel: str,
+        text: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Send a redacted Slack notification."""
 
 
 def _resolve_input_path(raw_path: str, *, label: str) -> Path:
@@ -155,6 +181,24 @@ def _resolve_email_audit_path(experiment_id: str) -> Path:
         return audit_path
     except ValueError as exc:
         raise ExperimentEmailDeliveryError("Email audit artifact path is invalid.") from exc
+
+
+def _resolve_slack_audit_path(experiment_id: str) -> Path:
+    """Resolve the canonical Slack audit artifact for an experiment."""
+
+    try:
+        safe_experiment_id = str(
+            validate_experiment_id(experiment_id, label="Experiment notification")
+        )
+        notification_dir = Path(NOTIFICATION_ARTIFACT_DIR)
+        audit_path = notification_dir / f"{safe_experiment_id}.slack-audit.json"
+        _reject_symlinked_output_components(
+            audit_path.absolute(),
+            artifact_dir=notification_dir.absolute(),
+        )
+        return audit_path
+    except ValueError as exc:
+        raise ExperimentSlackDeliveryError("Slack audit artifact path is invalid.") from exc
 
 
 def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
@@ -622,7 +666,8 @@ def render_notification_markdown(
         f"{chr(10).join(_oracle_lines(result))}\n\n"
         "## Delivery Boundary\n\n"
         "- Local artifact summary is always written; SMTP email delivery requires explicit `--email`.\n"
-        "- Slack, PR comment, and other external delivery sinks are intentionally out of scope.\n"
+        "- Slack delivery requires explicit `--slack`, runtime token secrets, and channel allowlists.\n"
+        "- PR comments and other external delivery sinks are intentionally out of scope.\n"
         "- Raw patch text, oracle stdout/stderr, cwd, and local absolute paths are intentionally omitted.\n"
     )
 
@@ -710,6 +755,13 @@ def _recipient_hash(recipient: str) -> str:
     """Return a stable short hash for audit without publishing the full mailbox."""
 
     digest = hashlib.sha256(recipient.lower().encode("utf-8")).hexdigest()
+    return digest[:16]
+
+
+def _channel_hash(channel: str) -> str:
+    """Return a stable short hash for audit without publishing the channel."""
+
+    digest = hashlib.sha256(channel.lower().encode("utf-8")).hexdigest()
     return digest[:16]
 
 
@@ -950,6 +1002,322 @@ def _deliver_email_notification(
     return audit_path
 
 
+def _normalize_slack_channel(raw_channel: str) -> str:
+    """Validate a Slack channel identifier without exposing workspace details."""
+
+    channel = raw_channel.strip()
+    if (
+        not channel
+        or CONTROL_CHAR_RE.search(channel)
+        or "`" in channel
+        or any(char.isspace() for char in channel)
+        or channel.startswith("#")
+        or not SLACK_CHANNEL_RE.fullmatch(channel)
+    ):
+        raise ExperimentSlackDeliveryError("Slack channel is not an allowed channel.")
+    return channel
+
+
+def _slack_channel_allowlist() -> set[str]:
+    """Return normalized Slack channels allowed for explicit delivery."""
+
+    raw_allowlist = os.environ.get(SLACK_CHANNEL_ALLOWLIST_ENV, "")
+    allowlist: set[str] = set()
+    for candidate in raw_allowlist.split(","):
+        candidate = candidate.strip()
+        if not candidate:
+            continue
+        try:
+            allowlist.add(_normalize_slack_channel(candidate))
+        except ExperimentSlackDeliveryError as exc:
+            raise ExperimentSlackDeliveryError("Slack channel allowlist is invalid.") from exc
+    return allowlist
+
+
+def _require_allowed_slack_channel(raw_channel: str | None) -> str:
+    """Require an explicit Slack channel listed in the runtime allowlist."""
+
+    if raw_channel is None or not raw_channel.strip():
+        raise ExperimentSlackDeliveryError("--slack requires --slack-channel.")
+    channel = _normalize_slack_channel(raw_channel)
+    if channel not in _slack_channel_allowlist():
+        raise ExperimentSlackDeliveryError("Slack channel is not an allowed channel.")
+    return channel
+
+
+def _slack_config() -> dict[str, str | int]:
+    """Read Slack runtime settings without returning raw secrets in errors."""
+
+    token = os.environ.get(SLACK_BOT_AUTH_ENV, "").strip()
+    if not token or CONTROL_CHAR_RE.search(token) or "`" in token:
+        raise ExperimentSlackDeliveryError("Slack configuration is incomplete.")
+    timeout_raw = os.environ.get(SLACK_TIMEOUT_ENV, "10").strip()
+    min_interval_raw = os.environ.get(SLACK_MIN_INTERVAL_ENV, "60").strip()
+    try:
+        timeout_seconds = int(timeout_raw)
+        min_interval_seconds = int(min_interval_raw)
+    except ValueError as exc:
+        raise ExperimentSlackDeliveryError("Slack configuration is invalid.") from exc
+    if timeout_seconds <= 0 or timeout_seconds > 30 or min_interval_seconds < 0:
+        raise ExperimentSlackDeliveryError("Slack configuration is invalid.")
+    return {
+        "token": token,
+        "timeout_seconds": timeout_seconds,
+        "min_interval_seconds": min_interval_seconds,
+    }
+
+
+def _read_existing_slack_audit(audit_path: Path) -> dict[str, Any] | None:
+    """Read an existing Slack audit artifact when present."""
+
+    if not audit_path.exists():
+        return None
+    try:
+        payload = json.loads(audit_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ExperimentSlackDeliveryError("Existing Slack audit artifact is invalid.") from exc
+    if not isinstance(payload, dict):
+        raise ExperimentSlackDeliveryError("Existing Slack audit artifact is invalid.")
+    return payload
+
+
+def _slack_audit_payload(
+    *,
+    experiment_id: str,
+    channel: str,
+    status: str,
+    failure_class: str | None,
+    markdown: str,
+    output_path: Path,
+    source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
+) -> dict[str, Any]:
+    """Build a local, secret-free Slack delivery audit payload."""
+
+    resolved_source_sha256 = (
+        source_sha256
+        if source_sha256 is not None
+        else {key: _sha256_file(path) for key, path in sorted(source_paths.items())}
+    )
+    return {
+        "channel_hash": _channel_hash(channel),
+        "experiment_id": experiment_id,
+        "failure_class": _safe_inline(failure_class or "none"),
+        "notification_sha256": _sha256_text(markdown),
+        "output_path": normalize_repo_path(output_path),
+        "provider_type": "slack",
+        "source_sha256": resolved_source_sha256,
+        "status": status,
+        "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+    }
+
+
+def _write_slack_audit(
+    *,
+    audit_path: Path,
+    experiment_id: str,
+    channel: str,
+    status: str,
+    failure_class: str | None,
+    markdown: str,
+    output_path: Path,
+    source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
+) -> None:
+    """Write a local, secret-free Slack delivery audit artifact."""
+
+    payload = _slack_audit_payload(
+        experiment_id=experiment_id,
+        channel=channel,
+        status=status,
+        failure_class=failure_class,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+        source_sha256=source_sha256,
+    )
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    audit_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _claim_slack_send(
+    *,
+    audit_path: Path,
+    experiment_id: str,
+    channel: str,
+    markdown: str,
+    output_path: Path,
+    source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
+) -> None:
+    """Atomically claim a Slack send before the side effect."""
+
+    payload = _slack_audit_payload(
+        experiment_id=experiment_id,
+        channel=channel,
+        status="send_in_progress",
+        failure_class=None,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+        source_sha256=source_sha256,
+    )
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with audit_path.open("x", encoding="utf-8") as audit_file:
+            audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        return
+    except FileExistsError:
+        existing = _read_existing_slack_audit(audit_path)
+
+    if existing is None:
+        raise ExperimentSlackDeliveryError("Existing Slack audit artifact is invalid.")
+    existing_status = existing.get("status")
+    if existing_status in {"sent", "send_in_progress"}:
+        raise ExperimentSlackDeliveryError("Slack notification was already sent.")
+    if existing_status == "failed":
+        raise ExperimentSlackDeliveryError("Existing Slack delivery audit blocks retry.")
+    raise ExperimentSlackDeliveryError("Existing Slack audit artifact is invalid.")
+
+
+def _check_slack_audit_allows_artifact_write(experiment_id: str) -> None:
+    """Fail before rewriting notification markdown when a Slack audit already exists."""
+
+    audit_path = _resolve_slack_audit_path(experiment_id)
+    existing = _read_existing_slack_audit(audit_path)
+    if existing is None:
+        return
+    existing_status = existing.get("status")
+    if existing_status in {"sent", "send_in_progress"}:
+        raise ExperimentSlackDeliveryError("Slack notification was already sent.")
+    if existing_status == "failed":
+        raise ExperimentSlackDeliveryError("Existing Slack delivery audit blocks retry.")
+    raise ExperimentSlackDeliveryError("Existing Slack audit artifact is invalid.")
+
+
+def _check_slack_rate_limit(notification_dir: Path, *, min_interval_seconds: int) -> None:
+    """Fail closed when a recent Slack delivery audit is inside the local rate window."""
+
+    if min_interval_seconds <= 0 or not notification_dir.exists():
+        return
+    now = datetime.now(timezone.utc)
+    try:
+        audit_paths = sorted(notification_dir.glob("*.slack-audit.json"))
+    except OSError as exc:
+        raise ExperimentSlackDeliveryError("Unable to inspect Slack audit artifacts.") from exc
+    for audit_path in audit_paths:
+        existing = _read_existing_slack_audit(audit_path)
+        if existing is None or existing.get("status") not in {"sent", "send_in_progress"}:
+            continue
+        timestamp_raw = existing.get("timestamp")
+        if not isinstance(timestamp_raw, str):
+            raise ExperimentSlackDeliveryError("Existing Slack audit artifact is invalid.")
+        try:
+            timestamp = datetime.fromisoformat(timestamp_raw)
+        except ValueError as exc:
+            raise ExperimentSlackDeliveryError("Existing Slack audit artifact is invalid.") from exc
+        if timestamp.tzinfo is None:
+            raise ExperimentSlackDeliveryError("Existing Slack audit artifact is invalid.")
+        age_seconds = (now - timestamp.astimezone(timezone.utc)).total_seconds()
+        if 0 <= age_seconds < min_interval_seconds:
+            raise ExperimentSlackDeliveryError("Slack notification rate limit is active.")
+
+
+def _send_slack_api_message(
+    *,
+    token: str,
+    channel: str,
+    text: str,
+    timeout_seconds: int,
+) -> None:
+    """Send the already-redacted markdown notification through Slack Web API."""
+
+    payload = json.dumps({"channel": channel, "text": text, "mrkdwn": True}).encode("utf-8")
+    connection: http.client.HTTPSConnection | None = None
+    try:
+        connection = http.client.HTTPSConnection(SLACK_API_HOST, timeout=timeout_seconds)
+        connection.request(
+            "POST",
+            SLACK_API_PATH,
+            body=payload,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+        )
+        response = connection.getresponse()
+        response_payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, ValueError, http.client.HTTPException, json.JSONDecodeError) as exc:
+        raise ExperimentSlackDeliveryError("Slack delivery failed.") from exc
+    finally:
+        if connection is not None:
+            connection.close()
+    if not isinstance(response_payload, dict) or response_payload.get("ok") is not True:
+        raise ExperimentSlackDeliveryError("Slack delivery failed.")
+
+
+def _deliver_slack_notification(
+    *,
+    output_path: Path,
+    experiment_id: str,
+    channel: str,
+    markdown: str,
+    source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None],
+    transport: SlackTransport | None = None,
+) -> Path:
+    """Send an explicit Slack notification and record a local audit artifact."""
+
+    config = _slack_config()
+    audit_path = _resolve_slack_audit_path(experiment_id)
+    _check_slack_rate_limit(
+        audit_path.parent,
+        min_interval_seconds=int(config["min_interval_seconds"]),
+    )
+    _claim_slack_send(
+        audit_path=audit_path,
+        experiment_id=experiment_id,
+        channel=channel,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+        source_sha256=source_sha256,
+    )
+    resolved_transport = transport or _send_slack_api_message
+    try:
+        resolved_transport(
+            token=str(config["token"]),
+            channel=channel,
+            text=markdown,
+            timeout_seconds=int(config["timeout_seconds"]),
+        )
+    except Exception as exc:
+        _write_slack_audit(
+            audit_path=audit_path,
+            experiment_id=experiment_id,
+            channel=channel,
+            status="failed",
+            failure_class="slack_delivery_failed",
+            markdown=markdown,
+            output_path=output_path,
+            source_paths=source_paths,
+            source_sha256=source_sha256,
+        )
+        raise ExperimentSlackDeliveryError("Slack delivery failed.") from exc
+    _write_slack_audit(
+        audit_path=audit_path,
+        experiment_id=experiment_id,
+        channel=channel,
+        status="sent",
+        failure_class=None,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+        source_sha256=source_sha256,
+    )
+    return audit_path
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI flags for notification rendering."""
 
@@ -987,6 +1355,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Explicit email recipient; must be present in EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST.",
     )
+    parser.add_argument(
+        "--slack",
+        action="store_true",
+        help="Explicitly send the redacted notification markdown to Slack.",
+    )
+    parser.add_argument(
+        "--slack-channel",
+        default=None,
+        help="Explicit Slack channel; must be present in EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST.",
+    )
     return parser.parse_args(argv)
 
 
@@ -995,6 +1373,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = _parse_args(argv)
     email_recipient = None
+    slack_channel = None
 
     try:
         packet_path = _resolve_input_path(args.packet, label="experiment packet")
@@ -1003,6 +1382,10 @@ def main(argv: list[str] | None = None) -> int:
             email_recipient = _require_allowed_email_recipient(args.email_to)
         elif args.email_to:
             raise ExperimentEmailDeliveryError("--email-to requires --email.")
+        if args.slack:
+            slack_channel = _require_allowed_slack_channel(args.slack_channel)
+        elif args.slack_channel:
+            raise ExperimentSlackDeliveryError("--slack-channel requires --slack.")
         packet_payload, packet_sha256 = _read_json_object_with_sha256(
             packet_path, label="experiment packet"
         )
@@ -1033,6 +1416,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     email_audit_path = None
+    slack_audit_path = None
     try:
         source_paths = {
             "packet": packet_path,
@@ -1046,6 +1430,8 @@ def main(argv: list[str] | None = None) -> int:
         }
         if args.email and email_recipient is not None:
             _check_email_audit_allows_artifact_write(packet["experiment_id"])
+        if args.slack and slack_channel is not None:
+            _check_slack_audit_allows_artifact_write(packet["experiment_id"])
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(markdown, encoding="utf-8")
         if args.github_step_summary:
@@ -1055,6 +1441,15 @@ def main(argv: list[str] | None = None) -> int:
                 output_path=output_path,
                 experiment_id=packet["experiment_id"],
                 recipient=email_recipient,
+                markdown=markdown,
+                source_paths=source_paths,
+                source_sha256=source_sha256,
+            )
+        if args.slack and slack_channel is not None:
+            slack_audit_path = _deliver_slack_notification(
+                output_path=output_path,
+                experiment_id=packet["experiment_id"],
+                channel=slack_channel,
                 markdown=markdown,
                 source_paths=source_paths,
                 source_sha256=source_sha256,
@@ -1079,6 +1474,10 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "output": normalize_repo_path(output_path),
                 "github_step_summary": bool(args.github_step_summary),
+                "slack": bool(args.slack),
+                "slack_audit": (
+                    normalize_repo_path(slack_audit_path) if slack_audit_path is not None else None
+                ),
             },
             ensure_ascii=False,
             indent=2,
