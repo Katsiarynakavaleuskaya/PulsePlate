@@ -118,6 +118,17 @@ After the ready-for-review PR opens, run:
 Fix real docs/code/tests first. Only then update
 `docs/review/PR_<N>_FIXED_MAPPING.md` and the PR body mirror.
 
+Post-open execution evidence for PR #1822:
+
+- Post-open task packet: `artifacts/orchestration/task_packets/e1615fc0a12d.json`
+- Dispatch manifest:
+  `qoder_dispatch_bridge.py --packet artifacts/orchestration/task_packets/e1615fc0a12d.json --pretty`
+- Mandatory post-open sequence returned by dispatch:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`
+- Coordinator disposition: post-open route is correct and PR #1822 is
+  ready-for-review, not draft; the first post-open fix is governance-only
+  mapping/body synchronization after the CodeRabbit capacity-skip comment.
+
 ## Research Basis
 
 External sources are rationale-only and do not override repo truth:
@@ -179,6 +190,12 @@ The oracle proves:
 `pulseplate-premortem-risk-review` is mandatory before readiness. Every finding
 must close as `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
+Premortem frame:
+
+> It is 6 months from now. PR-5 failed because the source corpus looked
+> canonical but either leaked evidence, weakened semantic-cache closure, or let
+> arbitrary research references masquerade as repo truth.
+
 Initial premortem findings:
 
 - `FIXED`: PDF intake could leak local paths or credential-like extraction
@@ -198,6 +215,51 @@ Initial premortem findings:
 - `FIXED`: schema drift could weaken runtime false flags without changing the
   index. Evidence: schema exact-shape checks require every runtime flag property
   to remain `const: false`.
+- `FIXED`: raw PDF fingerprints could be mistaken for secrets by pre-commit and
+  CI scanners. Evidence: source fingerprints use grouped SHA-256 form, and
+  `detect-secrets` passes without adding new high-entropy findings for the
+  source-corpus artifacts.
+
+Decision: `proceed with changes`. The changes above are implemented in the
+guard, schema, CI routing, tests, packet, and fixed-mapping artifact. This is
+not a runtime/gate-open PR.
+
+Pre-merge checklist:
+
+1. Source corpus oracle passes on all PR-5 touched files.
+2. Docs Phase1 gates pass on corpus, packet, ledger, and roadmap changes.
+3. Semantic-cache gate and PR-4 precondition report remain closed/false.
+4. `pre-commit run --all-files` passes without new secret findings.
+5. Post-open QA, bug-hunter, security-auditor, and codex-security-style scan
+   have no unresolved actionables.
+
+## Oracle Recommendation Closure
+
+The web-research, architecture, QA, security, and bug-hunter review wave
+produced the following oracle-hardening recommendations. Each is closed in real
+code, docs, tests, or CI routing:
+
+- `FIXED`: credibility/stability of external research basis was documented but
+  not guarded. Evidence: `research_basis` is now an exact allowlisted register
+  with stable ids, labels, URLs, rails, source kind, access date, verification
+  status, boundary note, and rationale-only use.
+- `FIXED`: PubMed CBT evidence could be read as product efficacy or therapy
+  authority. Evidence: its boundary note is clinical-context caution only and
+  explicitly excludes product efficacy, therapy, diagnosis, treatment, and
+  runtime authority.
+- `FIXED`: CI could miss PR-5 oracle checks. Evidence: `.github/workflows/ci.yml`
+  sets `PR5_SOURCE_CORPUS_CHANGED=1` for PR-5 corpus, packet, ledger, roadmap,
+  guard, and test surfaces, then runs `check_philosophy_source_corpus_index.py`
+  against all touched files.
+- `FIXED`: schema drift could produce a false green. Evidence: the checker
+  validates exact top-level schema keys, source fields, source-policy fields,
+  runtime flag `const: false` properties, semantic-cache marker properties, and
+  research-basis fields.
+- `FIXED`: artifact leakage could hide outside JSON/schema. Evidence:
+  `validate_file_contents()` scans every existing file passed via `--files`.
+- `FIXED`: type and assertion issues could be missed. Evidence: the checker no
+  longer relies on `assert` in validation paths, and pre-push mypy changed-file
+  hooks passed.
 
 ## Experiment Runner
 

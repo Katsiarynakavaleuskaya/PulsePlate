@@ -686,6 +686,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     else:
         if research_basis.get("minItems") != len(EXPECTED_RESEARCH_BASIS):
             errors.append(f"schema research_basis.minItems must be {len(EXPECTED_RESEARCH_BASIS)}")
+        if research_basis.get("maxItems") != len(EXPECTED_RESEARCH_BASIS):
+            errors.append(f"schema research_basis.maxItems must be {len(EXPECTED_RESEARCH_BASIS)}")
     research_item = _schema_object_at(schema, ("properties", "research_basis", "items"))
     if research_item is None:
         errors.append("schema research_basis.items must be an object")

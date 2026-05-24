@@ -306,6 +306,19 @@ def test_philosophy_source_corpus_index_rejects_schema_runtime_flag_const_drift(
     )
 
 
+def test_philosophy_source_corpus_index_rejects_schema_research_basis_cardinality_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    research_basis = properties["research_basis"]
+    assert isinstance(research_basis, dict)
+    del research_basis["maxItems"]
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema research_basis.maxItems must be 6" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_rejects_roadmap_marker_drift() -> None:
     roadmap_text = _read(DEFAULT_ROADMAP).replace(
         "SEMANTIC_CACHE_ALLOWED_RUNTIME: false",
