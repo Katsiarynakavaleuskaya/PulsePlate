@@ -23,6 +23,16 @@ flags, cache behavior, providers, clients, DB, OpenAPI, frontend, iOS,
 - Operator owns live `main` monitoring for this lane; merge-readiness still
   requires current-head PR evidence before any merge claim.
 
+## Reconciliation Update Rule
+
+This packet is the PR-4.1 source of truth for PR #1789/#1791 closeout evidence
+and the oracle command set. Future status-only reconciliations must update this
+packet first, then mirror only the minimal status sentence into
+`docs/roadmap/BACKLOG_LEDGER.md`,
+`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, and the PR body.
+Do not duplicate the full oracle command list outside this packet; the PR body
+should link this packet and record only pass/fail evidence from the latest run.
+
 ## Scope
 
 In scope:
