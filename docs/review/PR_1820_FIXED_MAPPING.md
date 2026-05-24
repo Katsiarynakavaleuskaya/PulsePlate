@@ -122,6 +122,36 @@ Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
 Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:58`, `scripts/orchestration/experiment_slack_socket_bridge.py:548`, `scripts/orchestration/experiment_slack_socket_bridge.py:816`, and `scripts/orchestration/experiment_slack_socket_bridge.py:664` fix Codex review summary actionables; regressions live in `tests/test_experiment_slack_socket_bridge.py`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295232426 -> c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Disposition: FIXED
+Commit: c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:628` wraps event-claim audit write failures in `SlackSocketAuditError`; `tests/test_experiment_slack_socket_bridge.py:990` covers the sanitized failure.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295232428 -> c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Disposition: FIXED
+Commit: c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:551` wraps rewrite audit `mkdir`/write failures in `SlackSocketAuditError`; `tests/test_experiment_slack_socket_bridge.py:928` covers the sanitized failure.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295232429 -> c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Disposition: FIXED
+Commit: c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:723` wraps rate-limit lock creation failures in `SlackSocketAuditError`; `tests/test_experiment_slack_socket_bridge.py:729` covers the sanitized failure.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295232431 -> c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Disposition: FIXED
+Commit: c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:730` treats a lock directory without `claim.json` as stale and recreates the claim; `tests/test_experiment_slack_socket_bridge.py:704` covers recovery.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295232432 -> c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Disposition: FIXED
+Commit: c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:597` wraps exclusive audit open/write failures in `SlackSocketAuditError`; `tests/test_experiment_slack_socket_bridge.py:959` covers the sanitized failure.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#pullrequestreview-4353338563 -> c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Disposition: FIXED
+Commit: c2db81b66c3e088ff4d896c4dfef929d430d5e50
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:551`, `scripts/orchestration/experiment_slack_socket_bridge.py:597`, `scripts/orchestration/experiment_slack_socket_bridge.py:628`, and `scripts/orchestration/experiment_slack_socket_bridge.py:723` fix the Codex review summary actionables; regressions live in `tests/test_experiment_slack_socket_bridge.py:704`, `tests/test_experiment_slack_socket_bridge.py:729`, `tests/test_experiment_slack_socket_bridge.py:928`, `tests/test_experiment_slack_socket_bridge.py:959`, and `tests/test_experiment_slack_socket_bridge.py:990`.
+
 ## Split Justification
 
 This PR exceeds the size-warning threshold because the operator bridge, workflow
