@@ -100,6 +100,26 @@ Disposition: FIXED
 Commit: 975f1c6ac
 Evidence: each source record now validates scalar string fields and nested string arrays, with regressions for non-string drift.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295323147 -> 16cb37399
+Disposition: FIXED
+Commit: 16cb37399
+Evidence: source metadata arrays now reject non-string `theme_families`, `discipline_rails`, and `linked_repo_anchors` entries with dedicated regressions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295323148 -> 16cb37399
+Disposition: FIXED
+Commit: 16cb37399
+Evidence: the schema guard now validates source-array `items.type`, `minItems`, and discipline enum constraints for source metadata arrays.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295323149 -> 16cb37399
+Disposition: FIXED
+Commit: 16cb37399
+Evidence: the schema guard now validates research-basis nested field types plus URI/date formats for URL and access-date metadata.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295323151 -> 16cb37399
+Disposition: FIXED
+Commit: 16cb37399
+Evidence: touched-file leakage scanning now decodes UTF-16/UTF-32 text artifacts before falling back to binary skip, with UTF-16 leak regression coverage.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -128,6 +148,10 @@ Evidence: each source record now validates scalar string fields and nested strin
   false-greens. Evidence: commit `975f1c6ac` enforces exact scope-link schema
   constraints, source-policy constants, source scalar string fields, and nested
   source string arrays.
+- FIXED: post-open review found remaining schema nested-array, research-basis
+  schema, and UTF-16 leakage-scan gaps. Evidence: commit `16cb37399` validates
+  source metadata array schema constraints, research metadata types/formats, and
+  scans UTF-16/UTF-32 text artifacts.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -163,6 +187,9 @@ Evidence: each source record now validates scalar string fields and nested strin
 - FIXED: Codex review found schema scope-link, source-policy, and source scalar
   type gaps. Evidence: commit `975f1c6ac` closes those with validators and
   regression tests.
+- FIXED: Codex review found source metadata array, research-basis schema, and
+  UTF-16 leakage-scan gaps. Evidence: commit `16cb37399` closes those with
+  validators and regression tests.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
