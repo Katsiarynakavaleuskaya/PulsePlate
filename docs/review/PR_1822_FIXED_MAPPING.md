@@ -38,11 +38,36 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
 - [x] Fixed in commit mapping completed
 
 CodeRabbit reported a review-capacity skip and did not provide actionable
-findings. No human or bot actionable review comments are open at this time.
+findings. GitHub review threads opened after PR #1822 initial post-open pass
+are mapped below. They remain unresolved until the fix commit is pushed,
+CI/gates are rerun, and the PR body mirror is updated.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258830 -> cee47cad2
+  - Disposition: `FIXED`
+  - Commit: `cee47cad2`
+  - Evidence: `.github/workflows/ci.yml` limits
+    `PR5_SOURCE_CORPUS_CHANGED` to source-corpus-specific contract, packet,
+    guard, docs-gate, and test surfaces so unrelated backlog/runtime PRs do not
+    trigger the PR-5 oracle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258831 -> cee47cad2
+  - Disposition: `FIXED`
+  - Commit: `cee47cad2`
+  - Evidence: `scripts/ci/check_philosophy_source_corpus_index.py` validates
+    source-specific `source_family` and `language`, with regression tests for
+    taxonomy and locale drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258832 -> cee47cad2
+  - Disposition: `FIXED`
+  - Commit: `cee47cad2`
+  - Evidence: `validate_file_contents()` skips binary/non-UTF-8 artifacts and
+    continues scanning UTF-8 PR-5 files for local path or credential-like leaks,
+    with binary fixture coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258833 -> cee47cad2
+  - Disposition: `FIXED`
+  - Commit: `cee47cad2`
+  - Evidence: `repo_truth_links` and `out_of_scope_paths` are exact deterministic
+    arrays in the source-corpus checker, with regression coverage for drift.
 
 ## Premortem And Oracle Closure
 
@@ -78,8 +103,13 @@ findings. No human or bot actionable review comments are open at this time.
   excludes product efficacy, therapy, diagnosis, treatment, and runtime
   authority.
 - FIXED: CI could miss PR-5 guard execution. Evidence: `.github/workflows/ci.yml`
-  routes PR-5 corpus, packet, ledger, roadmap, guard, and test changes into
+  routes source-corpus-specific contract, packet, guard, docs-gate, and test
+  changes into
   `check_philosophy_source_corpus_index.py --check --files "${ALL_CHANGED_FILES[@]}"`.
+- FIXED: PR-5 CI routing could trigger on unrelated backlog/runtime PRs.
+  Evidence: the PR-5 changed-path switch intentionally excludes generic
+  `BACKLOG_LEDGER.md` and semantic-cache roadmap edits while direct docs Phase1
+  validation still covers those files when they are touched.
 - FIXED: schema drift could weaken false runtime flags. Evidence: the checker
   validates exact schema shape and every runtime flag property remains
   `const: false`.
