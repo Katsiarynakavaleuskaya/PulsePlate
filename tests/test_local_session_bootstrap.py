@@ -91,6 +91,8 @@ def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
     assert "No finding may be ignored as advisory." in result.stdout
     assert "VENV_PYTHON" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "$VENV_PYTHON scripts/orchestration/experiment_runner.py" in result.stdout
+    assert "artifact load/write failures are infra blockers" in result.stdout
     assert "automatically start" not in result.stdout.lower()
 
 
@@ -110,6 +112,8 @@ def test_local_session_bootstrap_legacy_no_arg_prompt_is_explicit(tmp_path: Path
     assert "Requested role order seed: agent-coordinator" in result.stdout
     assert "VENV_PYTHON" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "$VENV_PYTHON scripts/orchestration/experiment_runner.py" in result.stdout
+    assert "artifact load/write failures are infra blockers" in result.stdout
     assert "automatically start" not in result.stdout.lower()
     assert "auto-start" not in result.stdout.lower()
 
@@ -268,6 +272,7 @@ def test_local_session_bootstrap_accepts_absolute_venv_python() -> None:
     assert f"Repo Python: {sys.executable}" in result.stdout
     assert "$PWD/.venv/bin/python" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "$VENV_PYTHON scripts/orchestration/experiment_runner.py" in result.stdout
     assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
 
 

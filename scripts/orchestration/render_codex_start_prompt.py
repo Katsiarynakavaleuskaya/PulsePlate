@@ -25,6 +25,13 @@ PYTHON_ENV_GUIDANCE = (
     "use bare `python3 -m pytest` or relative `.venv/bin/python` when the repo "
     "`.venv` exists, because it can miss FastAPI and other locked deps."
 )
+EXPERIMENT_RUNNER_ENV_GUIDANCE = (
+    "For Experiment Runner evidence, use repo Python as "
+    "`$VENV_PYTHON scripts/orchestration/experiment_runner.py ...`; if a "
+    "non-trivial lane cannot load or write the runner artifact because the "
+    "environment misses FastAPI/runtime deps, artifact load/write failures are "
+    "infra blockers, not `Not applicable`."
+)
 
 
 class PromptError(ValueError):
@@ -169,6 +176,7 @@ def render_packet_prompt(
             "Lane start provenance: record `## Lane Start Provenance` with `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow documented cleanup/emergency `Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` is supplemental and cannot be used alone.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
             PYTHON_ENV_GUIDANCE,
+            EXPERIMENT_RUNNER_ENV_GUIDANCE,
             "Then run only the scoped validation bundle required by the lane before any readiness claim.",
         ]
     )
@@ -220,6 +228,7 @@ def render_recipe_prompt(
             "Record `## Lane Start Provenance` with `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow documented cleanup/emergency `Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` is supplemental and cannot be used alone.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
             PYTHON_ENV_GUIDANCE,
+            EXPERIMENT_RUNNER_ENV_GUIDANCE,
         ]
     )
     return "\n".join(lines)

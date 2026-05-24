@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 from typing import Any, cast
 
@@ -147,6 +148,188 @@ def _validate_packet(packet: dict[str, object]) -> dict[str, object]:
     validated = experiment_contract.validate_experiment_packet(packet)
     assert validated["experiment_id"]
     return validated
+
+
+def _run_python_with_fastapi_blocked(
+    tmp_path: Path,
+    *args: str,
+) -> subprocess.CompletedProcess[str]:
+    """Run Python with an import hook that fails if FastAPI is imported."""
+
+    blocker_dir = tmp_path / "fastapi-blocker"
+    blocker_dir.mkdir()
+    (blocker_dir / "sitecustomize.py").write_text(
+        "import importlib.abc\n"
+        "\n"
+        "class _BlockFastAPI(importlib.abc.MetaPathFinder):\n"
+        "    def find_spec(self, fullname, path=None, target=None):\n"
+        "        if fullname == 'fastapi' or fullname.startswith('fastapi.'):\n"
+        "            raise ImportError('blocked fastapi import')\n"
+        "        return None\n"
+        "\n"
+        "import sys\n"
+        "sys.meta_path.insert(0, _BlockFastAPI())\n",
+        encoding="utf-8",
+    )
+    python_path_entries = [
+        str(blocker_dir),
+        str(context_pack.REPO_ROOT),
+        os.environ.get("PYTHONPATH", ""),
+    ]
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(python_path_entries),
+    }
+    return subprocess.run(
+        [sys.executable, *args],
+        cwd=str(context_pack.REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+
+
+def test_experiment_runner_import_does_not_require_fastapi(tmp_path: Path) -> None:
+    """Runner import must stay lightweight enough for tooling-only environments."""
+
+    result = _run_python_with_fastapi_blocked(
+        tmp_path,
+        "-c",
+        "import scripts.orchestration.experiment_runner as runner; "
+        "print(runner.RESULT_SCHEMA_VERSION)",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == experiment_runner.RESULT_SCHEMA_VERSION
+
+
+def test_experiment_runner_help_does_not_require_fastapi(tmp_path: Path) -> None:
+    """The CLI help path should not fail before artifact/result handling can run."""
+
+    result = _run_python_with_fastapi_blocked(
+        tmp_path,
+        "scripts/orchestration/experiment_runner.py",
+        "--help",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Evaluate a governed candidate patch" in result.stdout
+
+
+def test_security_sandbox_import_does_not_require_fastapi(tmp_path: Path) -> None:
+    """Sandbox-only tooling imports must not pull FastAPI-bound package exports."""
+
+    result = _run_python_with_fastapi_blocked(
+        tmp_path,
+        "-c",
+        "from app.security.execution_sandbox import SandboxRequest; "
+        "print(SandboxRequest(binary='python3').binary)",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "python3"
+
+
+def test_security_package_dir_does_not_require_fastapi(tmp_path: Path) -> None:
+    """Package introspection must not load FastAPI-bound lazy exports."""
+
+    result = _run_python_with_fastapi_blocked(
+        tmp_path,
+        "-c",
+        "import app.security as security; "
+        "names = dir(security); "
+        "print('RATE_LIMIT_INSIGHT' in names); "
+        "print('SandboxRequest' in names)",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["True", "True"]
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "from app.security import RATE_LIMIT_INSIGHT",
+        "from app.security import rate_limit",
+    ],
+)
+def test_security_fastapi_bound_exports_have_repo_python_diagnostic(
+    tmp_path: Path,
+    statement: str,
+) -> None:
+    """Explicit FastAPI-bound exports should fail with an actionable env hint."""
+
+    result = _run_python_with_fastapi_blocked(tmp_path, "-c", statement)
+
+    assert result.returncode != 0
+    assert "requires FastAPI/runtime dependencies" in result.stderr
+    assert "VENV_PYTHON" in result.stderr
+    assert ".venv" in result.stderr
+    assert sys.executable in result.stderr
+
+
+def test_oracle_only_main_writes_result_artifact_without_fastapi(
+    tmp_path: Path,
+) -> None:
+    """Oracle-only result artifact writing must work in tooling-only environments."""
+
+    repo = _init_repo(tmp_path)
+    packet_path = repo / "packet.json"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="scripts/orchestration/experiment_runner.py",
+                oracle_command='python -c "print(42)"',
+                experiment_id="exp-no-fastapi",
+                runner_mode="oracle_only_governance_reviewer",
+            )
+        ),
+        encoding="utf-8",
+    )
+    code = (
+        "from pathlib import Path\n"
+        "import json\n"
+        "import scripts.orchestration.context_pack as context_pack\n"
+        "import scripts.orchestration.experiment_contract as experiment_contract\n"
+        "import scripts.orchestration.experiment_runner as runner\n"
+        f"repo = Path({str(repo)!r}).resolve()\n"
+        "result_dir = repo / 'artifacts' / 'orchestration' / 'experiments' / 'results'\n"
+        "context_pack.REPO_ROOT = repo\n"
+        "experiment_contract.REPO_ROOT = repo\n"
+        "runner.REPO_ROOT = repo\n"
+        "runner.RESULT_ARTIFACT_DIR = result_dir\n"
+        f"exit_code = runner.main(['--packet', {str(packet_path)!r}])\n"
+        "output = result_dir / 'exp-no-fastapi.json'\n"
+        "payload = json.loads(output.read_text(encoding='utf-8'))\n"
+        "print(exit_code)\n"
+        "print(output.is_file())\n"
+        "print(payload['mutated_paths'])\n"
+        "print(payload['promotion_ready'])\n"
+        "print(payload['runner_mode'])\n"
+    )
+
+    result = _run_python_with_fastapi_blocked(tmp_path, "-c", code)
+
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert lines[-5:] == [
+        "0",
+        "True",
+        "[]",
+        "False",
+        "oracle_only_governance_reviewer",
+    ]
+
+
+def test_security_package_fastapi_bound_exports_still_resolve() -> None:
+    """Lazy package exports must preserve the runtime FastAPI-facing API."""
+
+    from app.security import RATE_LIMIT_INSIGHT, rate_limit_client_key
+
+    assert RATE_LIMIT_INSIGHT
+    assert callable(rate_limit_client_key)
 
 
 def test_absolute_path_env_resolves_relative_entries(tmp_path: Path) -> None:

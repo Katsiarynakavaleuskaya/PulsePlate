@@ -73,6 +73,12 @@ fails closed when the block is missing or lacks a valid artifact/not-applicable
 reason. Malformed evidence is rejected in every mode because it can
 misrepresent runner participation.
 
+For non-trivial lanes, failure to load or write the local result artifact
+because the active Python interpreter lacks FastAPI/runtime dependencies is an
+environment parity problem, not evidence that the runner is inapplicable. Use
+repo Python (`VENV_PYTHON` or the repo `.venv`) for runner evidence commands
+and treat persistent artifact load/write failure as an infrastructure blocker.
+
 The Experiment Runner is never the lane-start authority. It joins after the
 repo coordinator bootstrap (`check_preflight.py` -> `task_bootstrap.py` ->
 `agent-coordinator`) as oracle/review/design-of-experiment evidence. A runner

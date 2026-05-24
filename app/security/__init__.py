@@ -1,79 +1,98 @@
 """Security module exports.
 
-RU: Экспорты модуля безопасности.
-EN: Security module exports.
+RU: Ленивые экспорты модуля безопасности.
+EN: Lazy security module exports.
+
+The orchestration tooling imports sandbox/control-plane helpers from this
+package in lightweight Python environments. Keep FastAPI-bound exports lazy so
+tooling imports do not pull runtime web dependencies unless explicitly used.
 """
 
 from __future__ import annotations
 
-from app.security.agent_input_guard import (
-    UNSAFE_AI_INPUT_DETAIL,
-    AgentInputScanResult,
-    AgentInputThreat,
-    require_safe_ai_agent_input,
-    scan_ai_agent_input,
-)
-from app.security.agent_control_plane import (
-    ALLOWLIST_ENV,
-    AUDIT_SIGNING_KEY_ENV,
-    AUDIT_LOG_PATH_ENV,
-    BROKER_HMAC_KEY_ENV,
-    DEFAULT_SCOPED_TOKEN_TTL_SECONDS,
-    EXECUTION_MODE_AUTO_SAFE,
-    EXECUTION_MODE_BLOCKED,
-    EXECUTION_MODE_ENV,
-    EXECUTION_MODE_REVIEW_REQUIRED,
-    ExecutionModeDecision,
-    SCOPED_TTL_ENV,
-    IssuedScopedToken,
-    PolicyDecision,
-    SignedAuditEnvelope,
-    evaluate_policy,
-    issue_scoped_token,
-    load_allowlist_from_env,
-    normalize_execution_mode,
-    parse_allowlist,
-    persist_audit_envelope,
-    require_audit_secret,
-    require_execution_mode,
-    require_policy_allow,
-    require_scoped_token_ttl_seconds,
-    require_secrets_hmac_key,
-    sign_audit_envelope,
-    verify_audit_envelope,
-)
-from app.security.execution_sandbox import (
-    DEFAULT_ALLOWED_BINARIES,
-    DEFAULT_SANDBOX_MAX_OUTPUT_BYTES,
-    DEFAULT_SANDBOX_TIMEOUT_SECONDS,
-    SANDBOX_ALLOWED_BINARIES_ENV,
-    SANDBOX_ENABLED_ENV,
-    SANDBOX_MAX_OUTPUT_ENV,
-    SANDBOX_ROOT_ENV,
-    SANDBOX_TIMEOUT_ENV,
-    SandboxRequest,
-    SandboxResult,
-    load_allowed_binaries,
-    parse_allowed_binaries,
-    require_sandbox_enabled,
-    require_sandbox_max_output_bytes,
-    require_sandbox_timeout_seconds,
-    resolve_allowed_binary,
-    resolve_sandbox_cwd,
-    resolve_sandbox_root,
-    run_local_sandbox,
-    sanitize_sandbox_env,
-    sandbox_enabled,
-)
-from app.security.rate_limit import (
-    RATE_LIMIT_429_RESPONSES,
-    RATE_LIMIT_EXPORTS,
-    RATE_LIMIT_INSIGHT,
-    limit_if_available,
-    limiter,
-    rate_limit_client_key,
-    wire_rate_limiting,
-)
+from importlib import import_module
+import sys
+from typing import Any
+
+_SUBMODULES = {
+    "agent_control_plane": "app.security.agent_control_plane",
+    "agent_input_guard": "app.security.agent_input_guard",
+    "execution_sandbox": "app.security.execution_sandbox",
+    "goplus_agentguard_bridge": "app.security.goplus_agentguard_bridge",
+    "llm_monthly_quota": "app.security.llm_monthly_quota",
+    "rate_limit": "app.security.rate_limit",
+    "server_salt": "app.security.server_salt",
+    "web_session": "app.security.web_session",
+}
+
+_EXPORT_MODULES = {
+    "UNSAFE_AI_INPUT_DETAIL": "app.security.agent_input_guard",
+    "AgentInputScanResult": "app.security.agent_input_guard",
+    "AgentInputThreat": "app.security.agent_input_guard",
+    "require_safe_ai_agent_input": "app.security.agent_input_guard",
+    "scan_ai_agent_input": "app.security.agent_input_guard",
+    "ALLOWLIST_ENV": "app.security.agent_control_plane",
+    "AUDIT_SIGNING_KEY_ENV": "app.security.agent_control_plane",
+    "AUDIT_LOG_PATH_ENV": "app.security.agent_control_plane",
+    "BROKER_HMAC_KEY_ENV": "app.security.agent_control_plane",
+    "DEFAULT_SCOPED_TOKEN_TTL_SECONDS": "app.security.agent_control_plane",
+    "EXECUTION_MODE_AUTO_SAFE": "app.security.agent_control_plane",
+    "EXECUTION_MODE_BLOCKED": "app.security.agent_control_plane",
+    "EXECUTION_MODE_ENV": "app.security.agent_control_plane",
+    "EXECUTION_MODE_REVIEW_REQUIRED": "app.security.agent_control_plane",
+    "ExecutionModeDecision": "app.security.agent_control_plane",
+    "SCOPED_TTL_ENV": "app.security.agent_control_plane",
+    "IssuedScopedToken": "app.security.agent_control_plane",
+    "PolicyDecision": "app.security.agent_control_plane",
+    "SignedAuditEnvelope": "app.security.agent_control_plane",
+    "evaluate_policy": "app.security.agent_control_plane",
+    "issue_scoped_token": "app.security.agent_control_plane",
+    "load_allowlist_from_env": "app.security.agent_control_plane",
+    "normalize_execution_mode": "app.security.agent_control_plane",
+    "parse_allowlist": "app.security.agent_control_plane",
+    "persist_audit_envelope": "app.security.agent_control_plane",
+    "require_audit_secret": "app.security.agent_control_plane",  # pragma: allowlist secret
+    "require_execution_mode": "app.security.agent_control_plane",
+    "require_policy_allow": "app.security.agent_control_plane",
+    "require_scoped_token_ttl_seconds": "app.security.agent_control_plane",
+    "require_secrets_hmac_key": "app.security.agent_control_plane",  # pragma: allowlist secret
+    "sign_audit_envelope": "app.security.agent_control_plane",
+    "verify_audit_envelope": "app.security.agent_control_plane",
+    "DEFAULT_ALLOWED_BINARIES": "app.security.execution_sandbox",
+    "DEFAULT_SANDBOX_MAX_OUTPUT_BYTES": "app.security.execution_sandbox",
+    "DEFAULT_SANDBOX_TIMEOUT_SECONDS": "app.security.execution_sandbox",
+    "SANDBOX_ALLOWED_BINARIES_ENV": "app.security.execution_sandbox",
+    "SANDBOX_ENABLED_ENV": "app.security.execution_sandbox",
+    "SANDBOX_MAX_OUTPUT_ENV": "app.security.execution_sandbox",
+    "SANDBOX_ROOT_ENV": "app.security.execution_sandbox",
+    "SANDBOX_TIMEOUT_ENV": "app.security.execution_sandbox",
+    "SandboxRequest": "app.security.execution_sandbox",
+    "SandboxResult": "app.security.execution_sandbox",
+    "load_allowed_binaries": "app.security.execution_sandbox",
+    "parse_allowed_binaries": "app.security.execution_sandbox",
+    "require_sandbox_enabled": "app.security.execution_sandbox",
+    "require_sandbox_max_output_bytes": "app.security.execution_sandbox",
+    "require_sandbox_timeout_seconds": "app.security.execution_sandbox",
+    "resolve_allowed_binary": "app.security.execution_sandbox",
+    "resolve_sandbox_cwd": "app.security.execution_sandbox",
+    "resolve_sandbox_root": "app.security.execution_sandbox",
+    "run_local_sandbox": "app.security.execution_sandbox",
+    "sanitize_sandbox_env": "app.security.execution_sandbox",
+    "sandbox_enabled": "app.security.execution_sandbox",
+    "RATE_LIMIT_429_RESPONSES": "app.security.rate_limit",
+    "RATE_LIMIT_EXPORTS": "app.security.rate_limit",
+    "RATE_LIMIT_INSIGHT": "app.security.rate_limit",
+    "limit_if_available": "app.security.rate_limit",
+    "limiter": "app.security.rate_limit",
+    "rate_limit_client_key": "app.security.rate_limit",  # pragma: allowlist secret
+    "wire_rate_limiting": "app.security.rate_limit",
+}
+
+_FASTAPI_BOUND_MODULES = {
+    "app.security.agent_input_guard",
+    "app.security.rate_limit",
+    "app.security.web_session",
+}
 
 __all__ = [
     "limiter",
@@ -137,3 +156,42 @@ __all__ = [
     "sanitize_sandbox_env",
     "run_local_sandbox",
 ]
+
+
+def _import_security_module(module_path: str) -> Any:
+    try:
+        return import_module(module_path)
+    except ImportError as exc:
+        exc_name = getattr(exc, "name", "")
+        if module_path in _FASTAPI_BOUND_MODULES and (
+            exc_name == "fastapi" or "fastapi" in str(exc).lower()
+        ):
+            raise ImportError(
+                f"{module_path} requires FastAPI/runtime dependencies, but FastAPI is "
+                f"not importable with interpreter {sys.executable!r}. Use repo Python "
+                "via an absolute VENV_PYTHON or the repo .venv before importing "
+                "FastAPI-bound security exports."
+            ) from exc
+        raise
+
+
+def __getattr__(name: str) -> Any:
+    """Load security submodules and public symbols only when requested."""
+
+    if name in _SUBMODULES:
+        module = _import_security_module(_SUBMODULES[name])
+        globals()[name] = module
+        return module
+
+    module_path = _EXPORT_MODULES.get(name)
+    if module_path is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(_import_security_module(module_path), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    """Return stable completion output without importing FastAPI-bound modules."""
+
+    return sorted({*globals(), *_SUBMODULES, *_EXPORT_MODULES, *__all__})
