@@ -548,22 +548,25 @@ def _write_audit(
     _reject_symlinked_output_components(
         path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            _audit_payload(
-                event=event,
-                command=command,
-                config=config,
-                status=status,
-                failure_class=failure_class,
-            ),
-            indent=2,
-            sort_keys=True,
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                _audit_payload(
+                    event=event,
+                    command=command,
+                    config=config,
+                    status=status,
+                    failure_class=failure_class,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
         )
-        + "\n",
-        encoding="utf-8",
-    )
+    except OSError as exc:
+        raise SlackSocketAuditError("Unable to write Slack operator audit artifact.") from exc
 
 
 def _write_audit_exclusive(
@@ -578,7 +581,12 @@ def _write_audit_exclusive(
     _reject_symlinked_output_components(
         path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SlackSocketAuditError(
+            "Unable to prepare Slack operator audit artifact path."
+        ) from exc
     payload = _audit_payload(
         event=event,
         command=command,
@@ -594,6 +602,8 @@ def _write_audit_exclusive(
         if existing is None:
             raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
         raise SlackSocketAuditError("Slack operator event was already processed.")
+    except OSError as exc:
+        raise SlackSocketAuditError("Unable to write Slack operator audit artifact.") from exc
 
 
 def _claim_event(
@@ -609,13 +619,20 @@ def _claim_event(
         status="claimed",
         failure_class=None,
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SlackSocketAuditError(
+            "Unable to prepare Slack operator audit artifact path."
+        ) from exc
     try:
         with path.open("x", encoding="utf-8") as audit_file:
             audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
         return
     except FileExistsError:
         existing = _read_audit(path)
+    except OSError as exc:
+        raise SlackSocketAuditError("Unable to claim Slack operator event audit artifact.") from exc
     if existing is None or existing.get("status") not in {
         "claimed",
         "dry_run",
@@ -654,6 +671,13 @@ def _read_rate_limit_claim(lock_dir: Path) -> datetime:
 def _remove_stale_rate_limit_claim(lock_dir: Path) -> None:
     try:
         (lock_dir / "claim.json").unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise SlackSocketAuditError(
+            "Unable to clear stale Slack operator rate-limit claim."
+        ) from exc
+    try:
         lock_dir.rmdir()
     except OSError as exc:
         raise SlackSocketAuditError(
@@ -689,17 +713,33 @@ def _claim_rate_limit(config: BridgeConfig, event: OperatorEvent) -> None:
         (lock_dir / "claim.json").absolute(),
         artifact_dir=Path(config.audit_dir).absolute(),
     )
-    config.audit_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        config.audit_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SlackSocketAuditError(
+            "Unable to prepare Slack operator rate-limit claim path."
+        ) from exc
     for _ in range(RATE_LIMIT_CLAIM_MAX_ATTEMPTS):
         try:
             lock_dir.mkdir()
         except FileExistsError:
+            _reject_symlinked_output_components(
+                (lock_dir / "claim.json").absolute(),
+                artifact_dir=Path(config.audit_dir).absolute(),
+            )
+            if not (lock_dir / "claim.json").exists():
+                _remove_stale_rate_limit_claim(lock_dir)
+                continue
             timestamp = _read_rate_limit_claim(lock_dir)
             age_seconds = (_utcnow() - timestamp).total_seconds()
             if 0 <= age_seconds < config.min_interval_seconds:
                 raise SlackSocketAuditError("Slack operator bridge rate limit is active.")
             _remove_stale_rate_limit_claim(lock_dir)
             continue
+        except OSError as exc:
+            raise SlackSocketAuditError(
+                "Unable to create Slack operator rate-limit claim."
+            ) from exc
         claim = {
             "event_hash": _sha256_text(event.event_id),
             "provider_type": "slack_socket_mode",

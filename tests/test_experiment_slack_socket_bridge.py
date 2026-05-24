@@ -701,6 +701,60 @@ def test_rate_limit_claim_retry_loop_is_bounded(
     assert attempts == bridge.RATE_LIMIT_CLAIM_MAX_ATTEMPTS
 
 
+def test_rate_limit_claim_recovers_empty_stale_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+    lock_dir = audit_dir / bridge.RATE_LIMIT_LOCK_DIR
+    lock_dir.mkdir(parents=True)
+
+    bridge._claim_rate_limit(
+        config,
+        bridge.OperatorEvent(
+            event_id="Ev0STALELOCK",
+            channel_id="C0ALERTS",
+            user_id="U0OPERATOR",
+            team_id="T0TEAM",
+            text="status",
+        ),
+    )
+
+    claim = json.loads((lock_dir / "claim.json").read_text(encoding="utf-8"))
+    assert claim["event_hash"] == bridge._sha256_text("Ev0STALELOCK")
+
+
+def test_rate_limit_claim_wraps_lock_creation_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+    original_mkdir = Path.mkdir
+
+    def fail_lock_mkdir(path: Path, *args: Any, **kwargs: Any) -> None:
+        if path.name == bridge.RATE_LIMIT_LOCK_DIR:
+            raise OSError("permission denied")
+        original_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", fail_lock_mkdir)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="Unable to create"):
+        bridge._claim_rate_limit(
+            config,
+            bridge.OperatorEvent(
+                event_id="Ev0LOCKFAIL",
+                channel_id="C0ALERTS",
+                user_id="U0OPERATOR",
+                team_id="T0TEAM",
+                text="status",
+            ),
+        )
+
+
 def test_rate_limit_claim_cleans_partial_lock_on_write_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -869,6 +923,98 @@ def test_audit_write_rejects_parent_traversal_output_file(
         )
 
     assert not (audit_dir.parent / "outside.json").exists()
+
+
+def test_audit_write_wraps_io_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    original_write_text = Path.write_text
+
+    def fail_audit_write(path: Path, *args: Any, **kwargs: Any) -> int:
+        if path.name == "audit.json":
+            raise OSError("disk full")
+        return original_write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_audit_write)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="Unable to write"):
+        bridge._write_audit(
+            path=audit_dir / "audit.json",
+            event=bridge.OperatorEvent(
+                event_id="Ev0AUDITWRITE",
+                channel_id="C0ALERTS",
+                user_id="U0OPERATOR",
+                team_id="T0TEAM",
+                text="status",
+            ),
+            command=bridge.OperatorCommand(kind="status"),
+            config=_config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir),
+            status="dry_run",
+        )
+
+
+def test_audit_exclusive_write_wraps_io_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    original_open = Path.open
+
+    def fail_audit_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path.name == "audit.json":
+            raise OSError("disk full")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", fail_audit_open)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="Unable to write"):
+        bridge._write_audit_exclusive(
+            path=audit_dir / "audit.json",
+            event=bridge.OperatorEvent(
+                event_id="Ev0AUDITEXCLUSIVE",
+                channel_id="C0ALERTS",
+                user_id="U0OPERATOR",
+                team_id="T0TEAM",
+                text="status",
+            ),
+            command=bridge.OperatorCommand(kind="status"),
+            config=_config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir),
+            status="dry_run",
+        )
+
+
+def test_event_claim_wraps_io_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    original_open = Path.open
+
+    def fail_claim_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path.name == "audit.json":
+            raise OSError("disk full")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", fail_claim_open)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="Unable to claim"):
+        bridge._claim_event(
+            audit_dir / "audit.json",
+            event=bridge.OperatorEvent(
+                event_id="Ev0CLAIMWRITE",
+                channel_id="C0ALERTS",
+                user_id="U0OPERATOR",
+                team_id="T0TEAM",
+                text="status",
+            ),
+            command=bridge.OperatorCommand(kind="status"),
+            config=_config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir),
+        )
 
 
 def test_event_claim_rejects_parent_traversal_before_mkdir(
