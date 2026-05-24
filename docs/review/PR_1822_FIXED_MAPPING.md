@@ -120,6 +120,26 @@ Disposition: FIXED
 Commit: 16cb37399
 Evidence: touched-file leakage scanning now decodes UTF-16/UTF-32 text artifacts before falling back to binary skip, with UTF-16 leak regression coverage.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295342438 -> 79823c296
+Disposition: FIXED
+Commit: 79823c296
+Evidence: the schema guard now enforces source scalar schema types, including `title.type == string`, with focused regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295342439 -> 79823c296
+Disposition: FIXED
+Commit: 79823c296
+Evidence: the schema guard now requires `runtime_flags.type == object`, with focused regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295342441 -> 79823c296
+Disposition: FIXED
+Commit: 79823c296
+Evidence: the schema guard now enforces top-level `sources.type == array` and `sources.items.type == object`, with focused regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295342442 -> 79823c296
+Disposition: FIXED
+Commit: 79823c296
+Evidence: runtime flag schema properties now require `type: boolean` plus `const: false`, with focused regression coverage.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -152,6 +172,10 @@ Evidence: touched-file leakage scanning now decodes UTF-16/UTF-32 text artifacts
   schema, and UTF-16 leakage-scan gaps. Evidence: commit `16cb37399` validates
   source metadata array schema constraints, research metadata types/formats, and
   scans UTF-16/UTF-32 text artifacts.
+- FIXED: post-open review found final schema-type false-greens for source
+  arrays, source scalar fields, runtime flag object shape, and runtime flag
+  boolean properties. Evidence: commit `79823c296` closes these with schema
+  validation and regression tests.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -190,6 +214,10 @@ Evidence: touched-file leakage scanning now decodes UTF-16/UTF-32 text artifacts
 - FIXED: Codex review found source metadata array, research-basis schema, and
   UTF-16 leakage-scan gaps. Evidence: commit `16cb37399` closes those with
   validators and regression tests.
+- FIXED: QA and bug-hunter final pass found four remaining schema-type
+  false-greens. Evidence: commit `79823c296` enforces `sources.type`,
+  `sources.items.type`, source scalar property types, `runtime_flags.type`, and
+  runtime flag `type: boolean` declarations with targeted tests.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.

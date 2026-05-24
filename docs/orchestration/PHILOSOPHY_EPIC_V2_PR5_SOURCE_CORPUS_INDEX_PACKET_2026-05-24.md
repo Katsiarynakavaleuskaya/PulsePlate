@@ -271,6 +271,11 @@ code, docs, tests, or CI routing:
 - `FIXED`: repo truth and no-runtime scope arrays could drift. Evidence:
   `repo_truth_links` and `out_of_scope_paths` now have exact deterministic
   checks and regression coverage.
+- `FIXED`: final QA/bug-hunter refresh found schema-type false-greens for
+  source arrays, source scalar fields, runtime flag object shape, and runtime
+  flag boolean properties. Evidence: `check_philosophy_source_corpus_index.py`
+  now validates those schema types and `tests/test_philosophy_source_corpus_index.py`
+  carries targeted regressions.
 
 ## Experiment Runner
 
