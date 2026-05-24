@@ -162,6 +162,10 @@ execution.
   tests, full-repo Bandit, and docker build test.
 - Post-open `python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR20 regional catalog source-specific terms closeout post-open review for PR #1815" --task-class Orchestration --pr-phase post_open_review ...`: PASS; packet `3a7bdb409c03`.
 - Post-open role-agent pass: completed in declared order.
+- CodeRabbit status: PASS. Evidence: current PR status context `CodeRabbit`
+  returned `SUCCESS`.
+- Codex Security diff-scoped scan: PASS / no reportable findings. Evidence:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/d8dd09b3bc97_20260524T153139Z/report.md`.
 
 Full local `make verify` is intentionally deferred by operator instruction for
 this governance-only lane. Merge readiness still requires PR current-head CI
@@ -194,8 +198,8 @@ parity and strict review-governance checks before any readiness claim.
 - [x] Post-open bootstrap completed.
 - [x] Post-open role agents completed.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` completed.
-- [ ] CodeRabbit reviewed with no actionables.
-- [ ] Codex Security diff-scoped scan completed.
+- [x] CodeRabbit reviewed with no actionables.
+- [x] Codex Security diff-scoped scan completed.
 - [x] Security-auditor post-open pass completed.
 - [ ] Current-head PR checks terminal green.
 - [ ] Review-thread disposition guard passed.
