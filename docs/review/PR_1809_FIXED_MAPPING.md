@@ -123,6 +123,7 @@ eagerly importing FastAPI-bound `app.security` exports.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1809#pullrequestreview-4352020621 -> 13fb0025d3da6e0fe92fdabcfb33a4501824ae02
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1809#discussion_r3294121875 -> 13fb0025d3da6e0fe92fdabcfb33a4501824ae02
 Disposition: FIXED
 Commit: 13fb0025d3da6e0fe92fdabcfb33a4501824ae02
