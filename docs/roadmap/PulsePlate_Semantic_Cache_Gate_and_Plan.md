@@ -90,7 +90,9 @@ schema prerequisite landed on 2026-05-21 with merge commit
 `651c56bb510125b4df011a6d48de6f82a8f6e0b7`. PR-4.1 is a status
 reconciliation only: it does not change the closed machine markers above and
 does not permit semantic-cache runtime admission, cache reads, cache writes, or
-serving. Future PR-4 status reconciliation updates must use the PR-4.1 packet
+serving. PR-4.2 reconciles the separate alignment-rule ledger row as completed
+against PR #1789 only; it does not change the closed machine markers above.
+Future PR-4 status reconciliation updates must use the PR-4.1 packet
 source-truth section as the update checklist and keep this roadmap to the
 minimal status mirror.
 
@@ -99,8 +101,8 @@ Current `main` already contains:
 - landed PRO/VIP tier-aware monthly quota machinery
 - deterministic orchestration confidence recomputation
 
-The remaining runtime prerequisites are tracked by canonical PR/backlog anchors:
-1. `PR-A1b` and [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation)
+The runtime prerequisite train is tracked by canonical PR/backlog anchors:
+1. `PR-A1b` is reconciled via [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation), PR #1461, and PR #1466
 2. `PR-A2` and [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough)
 3. `PR-A3` and [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet)
 4. `PR-A4` and [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
@@ -112,7 +114,7 @@ Semantic cache can be considered only **after** those runtime rails are closed.
 
 Do **not** start semantic cache work before all the following are true:
 
-1. `PR-A1b` is reconciled in docs/backlog via [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation)
+1. `PR-A1b` is reconciled in docs/backlog via [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation), PR #1461, and PR #1466
 2. `PR-A2` is closed via [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough)
 3. `PR-A3` is closed via [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet)
 4. `PR-A4` is closed via [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)

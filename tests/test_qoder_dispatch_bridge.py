@@ -145,7 +145,7 @@ def test_parse_task_bootstrap_json_packet_places_reviewer_tail(
 def test_parse_task_bootstrap_json_packet_preserves_repeated_roles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """JSON packets may intentionally reuse a role in distinct positions."""
+    """JSON packets may intentionally reuse the same role in distinct positions."""
     monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
     packet = {
         "native_subagent_bridge": {
@@ -168,7 +168,7 @@ def test_parse_task_bootstrap_json_packet_preserves_repeated_roles(
 def test_parse_task_bootstrap_json_packet_preserves_adjacent_repeated_roles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Adjacent duplicate JSON bindings still represent distinct packet slots."""
+    """Adjacent duplicate JSON bindings represent distinct packet slots."""
     monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
     packet = {
         "native_subagent_bridge": {
@@ -328,13 +328,133 @@ def test_parse_task_bootstrap_json_packet_preserves_requested_role_order(
         "security-auditor",
         "qa-engineer-agent",
         "bug-hunter",
+        "cursor-specialist-agent",
     ]
 
 
-def test_parse_task_bootstrap_json_packet_preserves_duplicate_requested_roles(
+def test_manifest_preserves_requested_order_from_json_packet(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Repeated requested agents represent intentional repeated role passes."""
+    """Explicit requested order must survive final dispatch manifest generation."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    required_slugs = [
+        "agent-coordinator",
+        "architecture-specialist",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "cursor-specialist-agent",
+    ]
+    tmp_agents_dir = tmp_path / ".cursor" / "agents"
+    tmp_agents_dir.mkdir(parents=True)
+    for slug in required_slugs:
+        qoder_type = "Verify" if slug in {"qa-engineer-agent", "bug-hunter"} else "Research"
+        (tmp_agents_dir / f"{slug}.md").write_text(
+            f"---\nslug: {slug}\nqoder_type: {qoder_type}\n---\n# {slug}\n",
+            encoding="utf-8",
+        )
+    packet = {
+        "requested_agents": [
+            "agent-coordinator",
+            "architecture-specialist",
+            "security-auditor",
+            "qa-engineer-agent",
+            "bug-hunter",
+        ],
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [
+                {"repo_agent_slug": "bug-hunter"},
+                {"repo_agent_slug": "cursor-specialist-agent"},
+                {"repo_agent_slug": "security-auditor"},
+                {"repo_agent_slug": "architecture-specialist"},
+            ],
+            "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
+            "advisory": [],
+        },
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    roles = qoder_dispatch_bridge._parse_packet_roles(packet_path)
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=roles,
+        mode="analysis",
+        packet_source="packet.json",
+        enforce_mandatory_post_open_tail=not (
+            qoder_dispatch_bridge._json_packet_requested_order_preserves_mandatory_tail(packet_path)
+        ),
+    )
+
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == [
+        "agent-coordinator",
+        "architecture-specialist",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "cursor-specialist-agent",
+    ]
+
+
+def test_manifest_enforces_mandatory_tail_for_partial_requested_order_from_json_packet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Partial requested order must not disable the canonical QA -> bug tail."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    required_slugs = [
+        "agent-coordinator",
+        "frontend-engineer",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+    ]
+    tmp_agents_dir = tmp_path / ".cursor" / "agents"
+    tmp_agents_dir.mkdir(parents=True)
+    for slug in required_slugs:
+        qoder_type = "Verify" if slug in {"qa-engineer-agent", "bug-hunter"} else "Research"
+        (tmp_agents_dir / f"{slug}.md").write_text(
+            f"---\nslug: {slug}\nqoder_type: {qoder_type}\n---\n# {slug}\n",
+            encoding="utf-8",
+        )
+    packet = {
+        "requested_agents": ["frontend-engineer"],
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [
+                {"repo_agent_slug": "bug-hunter"},
+                {"repo_agent_slug": "frontend-engineer"},
+                {"repo_agent_slug": "security-auditor"},
+            ],
+            "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
+            "advisory": [],
+        },
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    roles = qoder_dispatch_bridge._parse_packet_roles(packet_path)
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=roles,
+        mode="analysis",
+        packet_source="packet.json",
+        enforce_mandatory_post_open_tail=not (
+            qoder_dispatch_bridge._json_packet_requested_order_preserves_mandatory_tail(packet_path)
+        ),
+    )
+
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == [
+        "agent-coordinator",
+        "frontend-engineer",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+    ]
+
+
+def test_parse_task_bootstrap_json_packet_limits_duplicate_requested_roles_to_spawnable_slots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Requested duplicates must not synthesize extra passes beyond bridge slots."""
     monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
     packet = {
         "requested_agents": [
@@ -354,7 +474,34 @@ def test_parse_task_bootstrap_json_packet_preserves_duplicate_requested_roles(
     assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
         "agent-coordinator",
         "security-auditor",
+    ]
+
+
+def test_parse_task_bootstrap_json_packet_requested_roles_keep_required_non_requested_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Requested role ordering must not drop required bridge roles."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "requested_agents": ["frontend-engineer"],
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [
+                {"repo_agent_slug": "frontend-engineer"},
+                {"repo_agent_slug": "security-auditor"},
+            ],
+            "reviewer": {"repo_agent_slug": "architecture-specialist"},
+            "advisory": [],
+        },
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
         "agent-coordinator",
+        "frontend-engineer",
+        "security-auditor",
+        "architecture-specialist",
     ]
 
 
@@ -812,7 +959,7 @@ def test_packet_chain_successors_depend_on_previous() -> None:
 
 
 def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
-    """Bracket groups stay parallel while qa-engineer-agent -> bug-hunter stays sequential."""
+    """Bracket groups stay parallel while qa -> bug -> security stays sequential."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"
     slugs = [
         "agent-coordinator",
@@ -820,6 +967,7 @@ def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
         "philosophy-agent",
         "qa-engineer-agent",
         "bug-hunter",
+        "security-auditor",
     ]
     for s in slugs:
         if not (agents_dir / f"{s}.md").is_file():
@@ -840,6 +988,44 @@ def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
     assert by_slug["qa-engineer-agent"]["depends_on_previous"] is False
     assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
     assert by_slug["bug-hunter"]["depends_on_previous"] is True
+    assert by_slug["security-auditor"]["depends_on_previous"] is True
+    assert all("security-auditor" not in group for group in manifest["parallelizable_groups"])
+
+
+def test_mandatory_post_open_order_moves_all_bug_hunter_entries() -> None:
+    """Duplicate bug-hunter entries must stay in the QA-led sequential block."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = [
+        "agent-coordinator",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+        "bug-hunter",
+    ]
+    for s in set(slugs):
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+    dispatch = manifest["dispatch_sequence"]
+    manifest_order = [item["role_slug"] for item in dispatch]
+
+    assert manifest_order == [
+        "agent-coordinator",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    assert dispatch[2]["depends_on_previous"] is True
+    assert dispatch[3]["depends_on_previous"] is True
+    assert dispatch[4]["depends_on_previous"] is True
+    assert all("bug-hunter" not in group for group in manifest["parallelizable_groups"])
+    assert all("security-auditor" not in group for group in manifest["parallelizable_groups"])
 
 
 def test_verify_agents_are_readonly_when_frontmatter_omits_readonly(
@@ -1107,7 +1293,7 @@ def test_mandatory_post_open_bug_hunter_depends_on_qa() -> None:
 
 
 def test_mandatory_post_open_pass_is_ordered_last() -> None:
-    """Generated manifests must not run bug-hunter before QA in post-open lanes."""
+    """Generated manifests keep the full QA -> bug -> security lane together."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"
     slugs = [
         "agent-coordinator",
@@ -1128,10 +1314,41 @@ def test_mandatory_post_open_pass_is_ordered_last() -> None:
 
     assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == [
         "agent-coordinator",
-        "security-auditor",
         "qa-engineer-agent",
         "bug-hunter",
         "bug-hunter",
+        "security-auditor",
+    ]
+
+
+def test_coordinator_order_keeps_mandatory_qa_bug_pass_adjacent() -> None:
+    """The bridge preserves order except for the mandatory QA -> bug handoff."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = [
+        "agent-coordinator",
+        "philosophy-agent",
+        "architecture-specialist",
+        "qa-engineer-agent",
+        "security-auditor",
+        "bug-hunter",
+    ]
+    for slug in slugs:
+        if not (agents_dir / f"{slug}.md").is_file():
+            require_feature(f"agent_definition:{slug}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == [
+        "agent-coordinator",
+        "philosophy-agent",
+        "architecture-specialist",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
     ]
 
 

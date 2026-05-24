@@ -106,6 +106,7 @@ NATIVE_BRIDGE_TRANSPORTS: tuple[str, ...] = (*BRIDGE_TRANSPORTS,)
 POST_OPEN_REVIEW_LANE: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
+ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/qoder_dispatch_bridge.py"
 MESSAGE_ENVELOPE_PROTOCOL_VERSION = "1.0"
 MESSAGE_ENVELOPE_DERIVED_VIEW = "TASK_PACKET_V1"
 ENVELOPE_ONLY_RESULT_REQUIREMENT = "AGENT_RESULT_V1 envelope only (no preamble)"
@@ -355,6 +356,20 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
         "merge_readiness_entrypoint": (
             MERGE_READINESS_ENTRYPOINT if pr_phase == PR_PHASE_MERGE_READY else ""
         ),
+    }
+
+
+def _build_role_agent_dispatch_contract() -> dict[str, Any]:
+    """Return deterministic metadata for the post-bootstrap role dispatch step."""
+
+    return {
+        "packet_creation_executes_roles": False,
+        "role_agent_dispatch_required": True,
+        "dispatch_manifest_entrypoint": ROLE_DISPATCH_MANIFEST_ENTRYPOINT,
+        "dispatch_manifest_command": (
+            f"{ROLE_DISPATCH_MANIFEST_ENTRYPOINT} --packet <packet> --pretty"
+        ),
+        "must_execute_dispatch_sequence_in_order": True,
     }
 
 
@@ -976,6 +991,7 @@ def build_task_packet(
             "pr_lifecycle_enabled": normalized_pr_phase != PR_PHASE_NONE,
             "design_lane_enabled": design_lane_enabled,
         },
+        "role_agent_dispatch_contract": _build_role_agent_dispatch_contract(),
         "pr_phase": normalized_pr_phase,
         "pr_lifecycle_contract": pr_lifecycle_contract,
         "design_lane_mode": design_lane_mode,
@@ -1115,6 +1131,9 @@ def main(argv: list[str] | None = None) -> int:
         output_ref = str(out_path.relative_to(REPO_ROOT))
     except ValueError:
         output_ref = str(out_path)
+    role_dispatch_contract = packet.get("role_agent_dispatch_contract")
+    if not isinstance(role_dispatch_contract, dict):
+        role_dispatch_contract = _build_role_agent_dispatch_contract()
     print(
         json.dumps(
             {
@@ -1130,6 +1149,15 @@ def main(argv: list[str] | None = None) -> int:
                 ],
                 "reviewer_native_agent_type": packet["native_subagent_bridge"]["reviewer"][
                     "native_agent_type"
+                ],
+                "packet_creation_executes_roles": role_dispatch_contract[
+                    "packet_creation_executes_roles"
+                ],
+                "role_agent_dispatch_required": role_dispatch_contract[
+                    "role_agent_dispatch_required"
+                ],
+                "dispatch_manifest_entrypoint": role_dispatch_contract[
+                    "dispatch_manifest_entrypoint"
                 ],
                 "output": output_ref,
             },

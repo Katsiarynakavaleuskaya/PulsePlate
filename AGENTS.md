@@ -479,6 +479,15 @@ Operational procedure lives in `RUNBOOK_AGENT.md` and `docs/orchestration/COORDI
 
 **Agent docs consistency:** Agent docs MUST stay consistent: routing ⊆ inventory ⊆ capability. Run `python scripts/orchestration/check_agent_consistency.py` (must PASS before merge readiness).
 
+**Durable agent lessons:** When a PR exposes a repeatable role-agent failure mode,
+architecture lesson, or workflow insight that changes how future agents should act,
+update the smallest authoritative instruction surface in the same PR when in scope:
+the relevant `.cursor/agents/*.md` role instruction, nearest scoped `AGENTS.md`,
+root `AGENTS.md`, or `docs/ENGINEERING_LESSONS.md`. Do not store transient PR
+notes, local memory summaries, or evidence-only research as instructions. If the
+lesson is real but out of scope, add a tracked follow-up in `docs/roadmap/BACKLOG_LEDGER.md`
+instead of silently dropping it.
+
 **Templates:**
 - Task Analysis: `docs/orchestration/task_analysis.template.md`
 - Work Review: `docs/orchestration/work_review.template.md`

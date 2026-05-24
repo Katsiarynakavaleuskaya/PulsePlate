@@ -25,6 +25,9 @@ description: Cursor/Codex workflow specialist for PulsePlate. Owns coordinator b
 - Make coordinator-first behavior executable and low-friction.
 - Keep context loading and task packets deterministic.
 - Reduce orchestration drift between docs, scripts, and actual agent usage.
+- Ensure bootstrap prompts distinguish packet creation from role-agent
+  execution, and surface the required `qoder_dispatch_bridge.py --packet
+  <packet> --pretty` manifest step before implementation.
 
 ## When Invoked
 
@@ -38,4 +41,5 @@ description: Cursor/Codex workflow specialist for PulsePlate. Owns coordinator b
 - Workflow recommendation or patch scope
 - Task packet contract
 - Context-pack definition
+- Role-agent dispatch manifest guidance when bootstrap or prompt surfaces change
 - Operational caveats

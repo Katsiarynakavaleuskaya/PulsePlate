@@ -162,6 +162,52 @@ FORBIDDEN_CLAIM_PATTERNS = (
         ),
     ),
     (
+        "semantic cache serving opened",
+        re.compile(
+            r"\b(?:semantic\s+cache|semantic-cache)\s+serving\s+"
+            r"(?:(?:is|was|has\s+been)\s+)?(?:opens?|opened)\b"
+        ),
+    ),
+    (
+        "PR opens semantic-cache serving",
+        re.compile(
+            r"\b(?:pr[-\s]?(?:#?\d+|[a-z]{1,6}[-\s]?\d+[a-z]?)|#[0-9]+)\b"
+            r"[^.!?\n]{0,140}\b(?:opens?|opened|has\s+opened)\b"
+            r"[^.!?\n]{0,140}\bsemantic[-\s]cache\s+serving\b"
+            r"|\b(?:semantic\s+cache|semantic-cache)\s+serving\s+"
+            r"(?:(?:is|was|has\s+been)\s+)?opened\s+by\s+"
+            r"(?:pr[-\s]?(?:#?\d+|[a-z]{1,6}[-\s]?\d+[a-z]?)|#[0-9]+)\b"
+        ),
+    ),
+    (
+        "Redis semantic-cache serving approved",
+        re.compile(
+            r"\bredis\s+(?:semantic[-\s]cache\s+)?serving\s+"
+            r"(?:(?:is|has\s+been)\s+)?(?:approved|enabled|active|ready|production-ready)\b"
+            r"|\bredis\s+rollout\s+(?:is\s+)?"
+            r"(?:approved|enabled|active|ready|production-ready)\b"
+            r"|\bredis\s+(?:is\s+)?"
+            r"(?:approved|enabled|active|ready|production-ready)\s+"
+            r"for\s+(?:semantic[-\s]cache\s+)?(?:serving|rollout)\b"
+            r"|\bredis\s+(?:(?:is|was|has\s+been)\s+)?(?:the\s+)?approved\s+"
+            r"(?:semantic[-\s]cache\s+)?serving\s+backend\b"
+        ),
+    ),
+    (
+        "GPTCache semantic-cache serving approved",
+        re.compile(
+            r"\bgpt[-\s]?cache\s+(?:semantic[-\s]cache\s+)?serving\s+"
+            r"(?:(?:is|has\s+been)\s+)?(?:approved|enabled|active|ready|production-ready)\b"
+            r"|\bgpt[-\s]?cache\s+rollout\s+(?:is\s+)?"
+            r"(?:approved|enabled|active|ready|production-ready)\b"
+            r"|\bgpt[-\s]?cache\s+(?:is\s+)?"
+            r"(?:approved|enabled|active|ready|production-ready)\s+"
+            r"for\s+(?:semantic[-\s]cache\s+)?(?:serving|rollout)\b"
+            r"|\bgpt[-\s]?cache\s+(?:(?:is|was|has\s+been)\s+)?(?:the\s+)?approved\s+"
+            r"(?:semantic[-\s]cache\s+)?serving\s+backend\b"
+        ),
+    ),
+    (
         "semantic cache production ready",
         re.compile(r"\bsemantic\s+cache\s+(?:is\s+)?production-ready\b"),
     ),

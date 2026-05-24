@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
 
 import pytest
@@ -55,7 +56,10 @@ def test_packet_prompt_forces_agent_coordinator_first_when_packet_primary_differ
     prompt = render_packet_prompt(packet, packet_path="packet.json")
 
     assert "Start with agent-coordinator as the mandatory first role." in prompt
-    assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in prompt
+    assert (
+        "Role order: agent-coordinator, backend-engineer, security-auditor, qa-engineer-agent"
+        in prompt
+    )
 
 
 def test_packet_prompt_fallback_role_order_without_bridge() -> None:
@@ -108,7 +112,62 @@ def test_packet_prompt_tolerates_null_native_bridge_role_lists() -> None:
     prompt = render_packet_prompt(packet, packet_path="packet.json")
 
     assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in prompt
-    assert "Advisory/no-spawn roles still require closure input: <none>" in prompt
+    assert "Executable advisory role passes: <none>" in prompt
+    assert "Closure-only/no-spawn advisory roles still require disposition input: <none>" in prompt
+
+
+def test_packet_prompt_renders_manifest_dispatch_order_for_executable_advisory_roles() -> None:
+    """Prompt role order must match qoder dispatch bridge ordering semantics."""
+
+    packet = _packet()
+    packet["native_subagent_bridge"] = {
+        "primary": {"repo_agent_slug": "agent-coordinator"},
+        "reviewer": {"repo_agent_slug": "architecture-specialist"},
+        "secondary": [],
+        "advisory": [
+            {
+                "repo_agent_slug": "ml-engineer-agent",
+                "dispatch_contract": {
+                    "advisory_only": False,
+                    "spawn_with_native_subagent": True,
+                    "required_role_pass": True,
+                },
+            },
+            {"repo_agent_slug": "qa-engineer-agent"},
+        ],
+    }
+
+    prompt = render_packet_prompt(packet, packet_path="packet.json")
+
+    assert "Role order: agent-coordinator, ml-engineer-agent, architecture-specialist" in prompt
+    assert "Executable advisory role passes: ml-engineer-agent" in prompt
+    assert (
+        "Closure-only/no-spawn advisory roles still require disposition input: qa-engineer-agent"
+        in prompt
+    )
+
+
+def test_packet_prompt_enforces_mandatory_tail_for_partial_requested_order() -> None:
+    """Prompt order must match manifest tail enforcement for partial requests."""
+
+    packet = _packet()
+    packet["requested_agents"] = ["security-auditor"]
+    packet["native_subagent_bridge"] = {
+        "primary": {"repo_agent_slug": "agent-coordinator"},
+        "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
+        "secondary": [
+            {"repo_agent_slug": "bug-hunter"},
+            {"repo_agent_slug": "security-auditor"},
+        ],
+        "advisory": [],
+    }
+
+    prompt = render_packet_prompt(packet, packet_path="packet.json")
+
+    assert (
+        "Role order: agent-coordinator, security-auditor, qa-engineer-agent, bug-hunter" in prompt
+    )
+    assert "Role order: agent-coordinator, security-auditor, bug-hunter" not in prompt
 
 
 def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -> None:
@@ -130,19 +189,28 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
     assert "Branch: codex/fix-codex-coordinator-start-bridge" in prompt
     assert "Worktree: worktrees/fix-codex-coordinator-start-bridge" in prompt
     assert "scripts/orchestration/start_pr_lane.sh" in prompt
+    assert ("Role order: agent-coordinator, security-auditor, architecture-specialist") in prompt
+    assert "Executable advisory role passes: <none>" in prompt
     assert (
-        "Role order: agent-coordinator, architecture-specialist, security-auditor, "
-        "qa-engineer-agent, bug-hunter"
-    ) in prompt
-    assert (
-        "Advisory/no-spawn roles still require closure input: qa-engineer-agent, bug-hunter"
-        in prompt
+        "Closure-only/no-spawn advisory roles still require disposition input: "
+        "qa-engineer-agent, bug-hunter" in prompt
     )
     assert "Skills are passive/discovery-only" in prompt
     assert "Host/Codex preflight is not authoritative lane provenance" in prompt
     assert "check_preflight.py -> task_bootstrap.py -> agent-coordinator" in prompt
     assert "Experiment Runner joins after coordinator bootstrap" in prompt
     assert "must not replace agent-coordinator" in prompt
+    assert (
+        "Packet role dispatch contract: packet_creation_executes_roles=false; "
+        "role_agent_dispatch_required=true."
+    ) in prompt
+    assert (
+        "Next role-agent dispatch command: $VENV_PYTHON "
+        "scripts/orchestration/qoder_dispatch_bridge.py --packet "
+        "artifacts/orchestration/task_packets/demo.json --pretty"
+    ) in prompt
+    assert "Role-agent dispatch is a required post-bootstrap step" in prompt
+    assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt
     assert "for every non-trivial PR, create oracle-only evidence by default" in prompt
     assert "Artifact: artifacts/orchestration/experiments/results/<id>.json" in prompt
     assert "Not applicable: <reason>" in prompt
@@ -165,6 +233,19 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
     assert "auto-start" not in prompt.lower()
 
 
+def test_packet_prompt_shell_quotes_dispatch_packet_path() -> None:
+    """The rendered dispatch command must be safe to copy for shell paths."""
+
+    packet_path = "artifacts/orchestration/task packets/demo's.json"
+
+    prompt = render_packet_prompt(_packet(), packet_path=packet_path)
+
+    assert (
+        "$VENV_PYTHON scripts/orchestration/qoder_dispatch_bridge.py --packet "
+        f"{shlex.quote(packet_path)} --pretty"
+    ) in prompt
+
+
 def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     """The local helper prompt must not masquerade as task_bootstrap output."""
 
@@ -185,6 +266,11 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "Requested role order seed: agent-coordinator, qa-engineer-agent" in prompt
     assert "Next required repo command: run task_bootstrap.py" in prompt
     assert "Host/Codex preflight is not authoritative lane provenance" in prompt
+    assert "After task_bootstrap.py returns a packet, run `$VENV_PYTHON" in prompt
+    assert "qoder_dispatch_bridge.py --packet <packet> --pretty" in prompt
+    assert "execute the manifest `dispatch_sequence` in order" in prompt
+    assert "Role-agent dispatch is a required post-bootstrap step" in prompt
+    assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt
     assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in prompt
     assert "runner joins the lane and must not replace agent-coordinator" in prompt
     assert "Artifact: artifacts/orchestration/experiments/results/<id>.json" in prompt
