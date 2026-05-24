@@ -94,6 +94,11 @@ Evidence: `.github/workflows/ci.yml` excludes `scripts/ci/check_docs_phase1_gate
 - FIXED: arbitrary external research links could pass. Evidence:
   `research_basis` is an exact allowlisted rationale-only register with access
   dates, verification status, and boundary notes.
+- FIXED: object-array and exact string-array false-greens could hide malformed
+  source, research, repo-truth, or no-runtime boundary entries. Evidence:
+  `scripts/ci/check_philosophy_source_corpus_index.py` rejects non-object
+  `sources`/`research_basis` entries and non-string `repo_truth_links` /
+  `out_of_scope_paths` entries in commit `056409bde`, with regression coverage.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -120,7 +125,12 @@ Evidence: `.github/workflows/ci.yml` excludes `scripts/ci/check_docs_phase1_gate
   validates exact schema shape and every runtime flag property remains
   `const: false`.
 - FIXED: leakage scan could miss non-JSON artifacts. Evidence:
-  `validate_file_contents()` scans every passed PR-5 artifact path.
+  `validate_file_contents()` scans every passed PR-5 UTF-8 text artifact path
+  and intentionally treats binary/non-UTF-8 artifacts as out of text-scan scope.
+- FIXED: bug-hunter found array filtering false-greens after post-open review.
+  Evidence: commit `056409bde` adds strict array validators and tests that reject
+  non-object source / research entries and non-string repo-truth / out-of-scope
+  boundary entries.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
