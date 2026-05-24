@@ -79,6 +79,23 @@ Disposition: NOT-A-BUG
 Evidence: Both actionable CodeRabbit review comments are mapped as FIXED in `discussion_r3294159463` and `discussion_r3294159464`.
 Reason: Aggregate review record; no separate code finding beyond the mapped discussion threads.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3294764638 -> 6b3201ef2
+Disposition: FIXED
+Commit: 6b3201ef2
+Evidence: `scripts/orchestration/experiment_runner.py` now preserves the selected repo `.venv/bin` path for Python oracle PATH prefixes instead of resolving symlinked venv interpreters to host Python directories; `tests/test_experiment_runner.py` covers symlinked `.venv/bin/python`.
+Reason: CodeRabbit found that resolving symlinked venv interpreters could defeat the repo Python boundary.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3294764640 -> 6b3201ef2
+Disposition: FIXED
+Commit: 6b3201ef2
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` preserves duplicate requested role passes when the slug is spawnable; `tests/test_qoder_dispatch_bridge.py` covers duplicate requested `agent-coordinator` passes.
+Reason: CodeRabbit found requested-agent ordering still deduped intentional repeated passes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#pullrequestreview-4352937393
+Disposition: NOT-A-BUG
+Evidence: Both actionable CodeRabbit review comments are mapped as FIXED in `discussion_r3294764638` and `discussion_r3294764640`.
+Reason: Aggregate review record; no separate code finding beyond the mapped discussion threads.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#issuecomment-4526058312
 Disposition: NOT-A-BUG
 Evidence: The prior transport-only summary is superseded by this expanded mapping and the upgraded PR body.
