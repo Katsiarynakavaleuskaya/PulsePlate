@@ -207,6 +207,25 @@ the commit must include:
 
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
+PR-5 Experiment Runner readiness evidence:
+
+- Result artifact: `artifacts/orchestration/experiments/results/exp-16755634fdf6.json`
+- Mode: `oracle_only_governance_reviewer`
+- Status: `accepted`
+- Contribution kind: `oracle_review`
+- Co-author required: `true`
+- Source diff applied: `false` because the implementation was already committed
+  before the oracle review, keeping the runner within its `max_changed_files`
+  policy while validating committed repo truth.
+- Oracle commands executed: 3 / 3, all return code `0`
+  - `check_philosophy_source_corpus_index.py --check`
+  - `check_docs_phase1_gates.py --files ...`
+  - focused pytest for source-corpus, docs Phase1, and CI workflow routing tests
+
+Earlier local artifact `exp-c195db826c77` was rejected because the oracle-only
+context surface omitted several PR-5 changed files. It is not readiness
+evidence; the accepted artifact above is the canonical PR-5 runner evidence.
+
 ## Validation
 
 Focused gates:
