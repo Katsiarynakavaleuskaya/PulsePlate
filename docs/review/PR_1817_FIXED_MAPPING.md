@@ -17,15 +17,7 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: commit `1b218dc2d09f4edb74ec6eb799d90a48d4fceef6` fixes the
-reported repo-root path-resolution false green, strengthens the fixture test,
-keeps and extends clause splitting for conjunction/contrast bypasses, rejects
-stale `Merge Readiness` headings at any markdown level, scans the full
-historical PR #1461 mapping for forbidden semantic-cache/runtime claims, narrows
-the semantic-cache PR-token regex to real PR references, and normalizes the
-`Phase 2` wording. Validation passed for the A1b closeout checker,
-semantic-cache gate checker, focused pytest, changed-file mypy,
-`make validate-changed`, and full `pre-commit run --all-files`.
+Evidence: commit `1b218dc2d09f4edb74ec6eb799d90a48d4fceef6` fixes the reported repo-root path-resolution false green, strengthens the fixture test, keeps and extends clause splitting for conjunction/contrast bypasses, rejects stale `Merge Readiness` headings at any markdown level, scans the full historical PR #1461 mapping for forbidden semantic-cache/runtime claims, narrows the semantic-cache PR-token regex to real PR references, and normalizes the `Phase 2` wording. Validation passed for the A1b closeout checker, semantic-cache gate checker, focused pytest, changed-file mypy, `make validate-changed`, and full `pre-commit run --all-files`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3294883122
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3294883124
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3294883125
