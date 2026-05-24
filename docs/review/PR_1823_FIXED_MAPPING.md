@@ -8,7 +8,7 @@ Replacement for: Dependabot PR #1807 (`diff-cover` 10.2.0 -> 10.2.1)
 
 ## Lane Start Provenance
 
-- Pre-open packet: `artifacts/orchestration/task_packets/241888f27a4c.json`
+- Packet: `artifacts/orchestration/task_packets/241888f27a4c.json`
 - Post-open packet: `artifacts/orchestration/task_packets/710566d1fae2.json`
 - Dispatch manifest command:
   `python3 scripts/orchestration/qoder_dispatch_bridge.py --packet artifacts/orchestration/task_packets/710566d1fae2.json --pretty`
@@ -143,6 +143,15 @@ Phases:
   - Disposition: NOT-A-BUG.
   - Evidence: Codecov issue comment says all modified and coverable lines are
     covered.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
 
 ## Deferred / Follow-Ups
 
