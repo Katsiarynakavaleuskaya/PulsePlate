@@ -62,6 +62,61 @@ Disposition: FIXED
 Commit: b1cec07bd2e91fa178647d04253066f9c666e73b
 Evidence: CodeRabbit review-summary prompt for normalized audit containment fixed by the same commit and tests.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163434 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: audit path validation now rejects symlinked ancestors before `mkdir`/write; `tests/test_experiment_slack_socket_bridge.py::test_audit_dir_rejects_symlinked_artifact_ancestor` asserts no outside bridge directory is created.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163436 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: duplicate event checks now run before global rate-limit claims; `tests/test_experiment_slack_socket_bridge.py::test_duplicate_event_is_checked_before_global_rate_limit_claim` covers the ordering.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163437 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: Slack app and bot runtime token envs now require `xapp-` and `xoxb-` classes respectively; `tests/test_experiment_slack_socket_bridge.py::test_slack_runtime_tokens_must_match_expected_token_class` covers mismatches.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163438 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: GitHub dispatch auth now accepts only GitHub token classes; `tests/test_experiment_slack_socket_bridge.py::test_execute_runtime_rejects_non_github_token_classes` rejects Slack/OpenAI-shaped tokens.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175393 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: `_write_audit` and `_write_audit_exclusive` now validate containment/symlink ancestry before creating audit directories; parent traversal and symlink tests cover the no-write boundary.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175398 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: command parsing now happens before rate-limit acquisition; `tests/test_experiment_slack_socket_bridge.py::test_invalid_command_does_not_acquire_global_rate_limit_claim` covers malformed commands without lock creation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175400 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: `_reject_symlinked_output_components` now checks repo/artifact ancestors before candidate containment; `test_audit_dir_rejects_symlinked_artifact_ancestor` and `test_rate_limit_claim_rejects_symlinked_artifact_ancestor_before_write` cover the boundary.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175401 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: partial rate-limit lock directories are cleaned after claim write failure; `tests/test_experiment_slack_socket_bridge.py::test_rate_limit_claim_cleans_partial_lock_on_write_failure` covers cleanup.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175402 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: `_claim_event` now validates candidate containment before `mkdir`; `tests/test_experiment_slack_socket_bridge.py::test_event_claim_rejects_parent_traversal_before_mkdir` proves no outside directory is created.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175403 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: duplicate/idempotency checks now precede rate-limit acquisition; `test_duplicate_event_is_checked_before_global_rate_limit_claim` covers already-processed events while a global rate lock exists.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#pullrequestreview-4353290172 -> 414740d876d875b25197650702f1928136988367
+Disposition: FIXED
+Commit: 414740d876d875b25197650702f1928136988367
+Evidence: Codex review summary actionables were fixed by token-class validation, audit path preflight, idempotency-before-rate, malformed-command no-lock, and partial-lock cleanup regressions in `tests/test_experiment_slack_socket_bridge.py`.
+
 ## Split Justification
 
 This PR exceeds the size-warning threshold because the operator bridge, workflow
