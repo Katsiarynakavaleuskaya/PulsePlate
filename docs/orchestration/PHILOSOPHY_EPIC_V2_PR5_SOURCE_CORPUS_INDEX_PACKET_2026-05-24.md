@@ -248,9 +248,9 @@ code, docs, tests, or CI routing:
   explicitly excludes product efficacy, therapy, diagnosis, treatment, and
   runtime authority.
 - `FIXED`: CI could miss PR-5 oracle checks. Evidence: `.github/workflows/ci.yml`
-  sets `PR5_SOURCE_CORPUS_CHANGED=1` for PR-5 corpus, packet, ledger, roadmap,
-  guard, and test surfaces, then runs `check_philosophy_source_corpus_index.py`
-  against all touched files.
+  sets `PR5_SOURCE_CORPUS_CHANGED=1` for source-corpus-specific contract,
+  packet, guard, docs-gate, and test surfaces, then runs
+  `check_philosophy_source_corpus_index.py` against all touched files.
 - `FIXED`: schema drift could produce a false green. Evidence: the checker
   validates exact top-level schema keys, source fields, source-policy fields,
   runtime flag `const: false` properties, semantic-cache marker properties, and
@@ -260,6 +260,17 @@ code, docs, tests, or CI routing:
 - `FIXED`: type and assertion issues could be missed. Evidence: the checker no
   longer relies on `assert` in validation paths, and pre-push mypy changed-file
   hooks passed.
+- `FIXED`: PR-5 CI routing could trigger on unrelated backlog/runtime PRs.
+  Evidence: `PR5_SOURCE_CORPUS_CHANGED` is limited to source-corpus-specific
+  contract, packet, guard, docs-gate, and test surfaces.
+- `FIXED`: source taxonomy and locale drift could pass. Evidence: the checker
+  validates per-source `source_family` and `language` values.
+- `FIXED`: binary docs artifacts could make leakage scanning brittle. Evidence:
+  the touched-file scanner skips binary/non-UTF-8 files while continuing to scan
+  text artifacts.
+- `FIXED`: repo truth and no-runtime scope arrays could drift. Evidence:
+  `repo_truth_links` and `out_of_scope_paths` now have exact deterministic
+  checks and regression coverage.
 
 ## Experiment Runner
 

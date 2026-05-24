@@ -188,6 +188,45 @@ EXPECTED_SOURCES: dict[str, tuple[int, str]] = {
     ),
 }
 
+EXPECTED_SOURCE_METADATA: dict[str, dict[str, str]] = {
+    "analytic_linguistic_audit": {
+        "source_family": "analytic_linguistic_audit",
+        "language": "ru",
+    },
+    "leibniz_information_theory": {
+        "source_family": "leibniz_information_theory",
+        "language": "ru",
+    },
+    "philosophy_cbt_correlation_matrix": {
+        "source_family": "philosophy_cbt_correlation",
+        "language": "ru",
+    },
+    "philosophy_cbt_plan_adaptation_epic": {
+        "source_family": "philosophy_cbt_plan_adaptation",
+        "language": "ru",
+    },
+    "philosophy_full_roadmap": {
+        "source_family": "full_philosophy_roadmap",
+        "language": "ru",
+    },
+    "socratic_method_rag_llm_semantic_cache_cbt": {
+        "source_family": "socratic_cbt_semantic_cache",
+        "language": "ru",
+    },
+}
+
+EXPECTED_REPO_TRUTH_LINKS = (
+    "AGENTS.md",
+    "RUNBOOK_AGENT.md",
+    "docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md",
+    "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md",
+    "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json",
+    "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json",
+    "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
+    "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+    "docs/roadmap/BACKLOG_LEDGER.md",
+)
+
 REQUIRED_THEMES_BY_SOURCE: dict[str, set[str]] = {
     "analytic_linguistic_audit": {
         "analytic_falsification",
@@ -737,10 +776,12 @@ def validate_file_contents(paths: list[str]) -> list[str]:
         candidate = REPO_ROOT / path
         if not candidate.exists() or not candidate.is_file():
             continue
+        data = candidate.read_bytes()
+        if b"\0" in data:
+            continue
         try:
-            text = candidate.read_text(encoding="utf-8")
+            text = data.decode("utf-8")
         except UnicodeDecodeError:
-            errors.append(f"{path}: PR-5 file must be UTF-8 text for leakage scan")
             continue
         errors.extend(_validate_no_secret_or_local_paths(text, label=path))
     return errors
@@ -826,10 +867,14 @@ def _validate_sources(index: dict[str, object]) -> list[str]:
             errors.append(f"unexpected source_id: {source_id}")
             continue
         expected_pages, expected_sha = EXPECTED_SOURCES[source_id]
+        expected_metadata = EXPECTED_SOURCE_METADATA[source_id]
         if source.get("page_count") != expected_pages:
             errors.append(f"{source_id}.page_count must be {expected_pages}")
         if source.get("sha256") != expected_sha:
             errors.append(f"{source_id}.sha256 must match verified PDF hash")
+        for key, expected_value in expected_metadata.items():
+            if source.get(key) != expected_value:
+                errors.append(f"{source_id}.{key} must be {expected_value}")
         page_count = source.get("page_count")
         if isinstance(page_count, int):
             total_pages += page_count
@@ -862,6 +907,10 @@ def _validate_sources(index: dict[str, object]) -> list[str]:
         errors.append(f"source_count must be {len(EXPECTED_SOURCES)}")
     if index.get("total_pages") != EXPECTED_TOTAL_PAGES:
         errors.append(f"total_pages must be {EXPECTED_TOTAL_PAGES}")
+    if _string_items(index.get("repo_truth_links")) != list(EXPECTED_REPO_TRUTH_LINKS):
+        errors.append("repo_truth_links must match the PR-5 canonical repo truth list")
+    if _string_items(index.get("out_of_scope_paths")) != list(FORBIDDEN_RUNTIME_PATHS):
+        errors.append("out_of_scope_paths must match the PR-5 no-runtime path boundary")
     if total_pages != EXPECTED_TOTAL_PAGES:
         errors.append(f"sources page_count sum must be {EXPECTED_TOTAL_PAGES}")
     missing_global_themes = sorted(REQUIRED_GLOBAL_THEMES - global_themes)

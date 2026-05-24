@@ -137,6 +137,35 @@ def test_philosophy_source_corpus_index_rejects_sha256_drift() -> None:
     )
 
 
+def test_philosophy_source_corpus_index_rejects_source_family_drift() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    first = dict(sources[0])
+    first["source_family"] = "generic_philosophy"
+    sources[0] = first
+
+    errors = _validate(index)
+
+    assert any(
+        "analytic_linguistic_audit.source_family must be analytic_linguistic_audit" in error
+        for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_language_drift() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    first = dict(sources[0])
+    first["language"] = "en"
+    sources[0] = first
+
+    errors = _validate(index)
+
+    assert any("analytic_linguistic_audit.language must be ru" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_rejects_generic_theme_collapse() -> None:
     index = _index()
     sources = index["sources"]
@@ -352,6 +381,32 @@ def test_philosophy_source_corpus_index_accepts_pr5_governance_paths() -> None:
     assert errors == []
 
 
+def test_philosophy_source_corpus_index_rejects_repo_truth_link_drift() -> None:
+    index = _index()
+    index["repo_truth_links"] = ["docs/roadmap/BACKLOG_LEDGER.md"]
+
+    errors = _validate(index)
+
+    assert any(
+        "repo_truth_links must match the PR-5 canonical repo truth list" in error
+        for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_out_of_scope_path_drift() -> None:
+    index = _index()
+    paths = list(corpus.FORBIDDEN_RUNTIME_PATHS)
+    paths.remove("providers/**")
+    index["out_of_scope_paths"] = paths
+
+    errors = _validate(index)
+
+    assert any(
+        "out_of_scope_paths must match the PR-5 no-runtime path boundary" in error
+        for error in errors
+    )
+
+
 def test_philosophy_source_corpus_index_scans_touched_artifact_contents(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -363,6 +418,19 @@ def test_philosophy_source_corpus_index_scans_touched_artifact_contents(
     errors = validate_file_contents([REL_INDEX])
 
     assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_skips_binary_touched_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / "docs" / "evidence" / "figure.png"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b"\x89PNG\r\n\x1a\n\x00binary")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents(["docs/evidence/figure.png"])
+
+    assert errors == []
 
 
 def test_philosophy_source_corpus_index_phase1_docs_gate_rejects_page_count_drift(
