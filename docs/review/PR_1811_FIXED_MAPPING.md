@@ -14,21 +14,34 @@ It does not open the semantic-cache gate and does not change Redis/GPTCache,
 embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
 `/insight`, cache read/write, serving, or runtime activation behavior.
 
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/91ce3064b623.json`
+- Packet: `artifacts/orchestration/task_packets/442d61624f27.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Role order preserved: `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> security-auditor -> bug-hunter`
+
+## Experiment Runner Evidence
+
+- Artifact: `artifacts/orchestration/experiments/results/philosophy_pr4_1_ledger_closeout_oracle_result.json`
+- Status: accepted
+- Mode: `oracle_only_governance_reviewer`
+- Contribution: `oracle_review`
+- Co-author: required; commits that used this oracle evidence include the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
+
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 Sourcery high-level review feedback was received and dispositioned below. No
 additional actionable review comments are open in this mapping at this time.
 
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1811#pullrequestreview-4352060228 -> 46e28582a
-  - Disposition: FIXED
-  - Evidence:
-    `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_1_LEDGER_CLOSEOUT_PACKET_2026-05-24.md`
-    now defines the packet as the PR-4.1 source of truth for PR #1789/#1791
-    closeout evidence and oracle command set, while the ledger and roadmap
-    point future reconciliations back to that source-truth section to avoid
-    packet/body/status drift.
+Disposition: FIXED
+Commit: 46e28582a
+Evidence: `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_1_LEDGER_CLOSEOUT_PACKET_2026-05-24.md` now defines the packet as the PR-4.1 source of truth for PR #1789/#1791 closeout evidence and oracle command set. `docs/roadmap/BACKLOG_LEDGER.md` and `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` point future reconciliations back to that source-truth section to avoid packet/body/status drift.
 
 ## Premortem And Oracle Closure
 
