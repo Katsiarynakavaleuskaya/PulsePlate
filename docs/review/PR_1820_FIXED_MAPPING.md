@@ -52,6 +52,16 @@ Disposition: FIXED
 Commit: 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
 Evidence: CodeRabbit review-summary nitpick on rate-limit retry loop fixed by bounded `RATE_LIMIT_CLAIM_MAX_ATTEMPTS`; `tests/test_experiment_slack_socket_bridge.py::test_rate_limit_claim_retry_loop_is_bounded` covers the retry bound.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295158105 -> b1cec07bd2e91fa178647d04253066f9c666e73b
+Disposition: FIXED
+Commit: b1cec07bd2e91fa178647d04253066f9c666e73b
+Evidence: audit containment now normalizes absolute paths before `relative_to` checks; `tests/test_experiment_slack_socket_bridge.py::test_config_rejects_parent_traversal_audit_dir_escape` and `test_audit_write_rejects_parent_traversal_output_file` cover parent traversal rejection.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#pullrequestreview-4353276139 -> b1cec07bd2e91fa178647d04253066f9c666e73b
+Disposition: FIXED
+Commit: b1cec07bd2e91fa178647d04253066f9c666e73b
+Evidence: CodeRabbit review-summary prompt for normalized audit containment fixed by the same commit and tests.
+
 ## Split Justification
 
 This PR exceeds the size-warning threshold because the operator bridge, workflow
