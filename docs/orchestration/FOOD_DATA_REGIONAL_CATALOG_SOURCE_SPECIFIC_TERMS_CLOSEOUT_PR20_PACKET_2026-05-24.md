@@ -75,7 +75,7 @@ PR20 validates:
 - PR19 artifact path:
   `docs/architecture/FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_REVIEW_PR19_2026-05-21.json`
 - PR19 merged PR: `#1793`
-- PR19 merge commit: `cfb92da7372280f558540bd6f0928709712710d4`
+- PR19 merge marker: `PR #1793 merged before PR20 scope lock`
 - PR19 handoff:
   `next_recommended_lane == regional_catalog_source_specific_terms_closeout`
 - PR19 final gate:
