@@ -29,7 +29,11 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
 - Pre-open `qa-engineer-agent`: FIXED by new checker plus regression tests.
 - Pre-open `dev-operator`: FIXED by repo `.venv` validation, post-rebase reruns,
   and no tracked local artifacts.
-- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor`: pending.
+- Post-open `qa-engineer-agent`: FIXED by commit
+  `4beabfcbe` (canonical mapping artifact added, Phase2 shape corrected,
+  checker false-green gaps closed, and local path leakage removed from
+  public validation commands).
+- Post-open `bug-hunter -> security-auditor`: pending.
 - Codex Security `threat-model -> security-scan -> validation`: pending.
 
 ## Experiment Runner Evidence
