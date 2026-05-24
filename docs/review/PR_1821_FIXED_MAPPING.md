@@ -40,7 +40,7 @@ Packet: artifacts/orchestration/task_packets/b14c45845078.json
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/artifacts/orchestration/experiments/pr1804-quality-tooling-oracle-packet.json`
-- Result: `artifacts/orchestration/experiments/results/pr1804-quality-tooling-oracle-result.json`
+- Artifact: `artifacts/orchestration/experiments/results/pr1804-quality-tooling-oracle-result.json`
 - Status: accepted
 - Mode: `oracle_only_governance_reviewer`
 - Oracle commands executed: 7
