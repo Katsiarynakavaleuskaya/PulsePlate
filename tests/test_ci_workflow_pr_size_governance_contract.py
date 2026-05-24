@@ -319,7 +319,6 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
         "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
         "scripts/ci/check_philosophy_source_corpus_index.py",
-        "scripts/ci/check_docs_phase1_gates.py",
         "tests/test_philosophy_source_corpus_index.py",
     ):
         assert pr5_companion_input in docs_phase1_section
@@ -331,6 +330,7 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     for unrelated_pr5_trigger in (
         "docs/roadmap/BACKLOG_LEDGER.md",
         "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+        "scripts/ci/check_docs_phase1_gates.py",
     ):
         assert unrelated_pr5_trigger not in pr5_case
     assert (

@@ -249,7 +249,7 @@ code, docs, tests, or CI routing:
   runtime authority.
 - `FIXED`: CI could miss PR-5 oracle checks. Evidence: `.github/workflows/ci.yml`
   sets `PR5_SOURCE_CORPUS_CHANGED=1` for source-corpus-specific contract,
-  packet, guard, docs-gate, and test surfaces, then runs
+  packet, guard, and test surfaces, then runs
   `check_philosophy_source_corpus_index.py` against all touched files.
 - `FIXED`: schema drift could produce a false green. Evidence: the checker
   validates exact top-level schema keys, source fields, source-policy fields,
@@ -262,7 +262,7 @@ code, docs, tests, or CI routing:
   hooks passed.
 - `FIXED`: PR-5 CI routing could trigger on unrelated backlog/runtime PRs.
   Evidence: `PR5_SOURCE_CORPUS_CHANGED` is limited to source-corpus-specific
-  contract, packet, guard, docs-gate, and test surfaces.
+  contract, packet, guard, and test surfaces.
 - `FIXED`: source taxonomy and locale drift could pass. Evidence: the checker
   validates per-source `source_family` and `language` values.
 - `FIXED`: binary docs artifacts could make leakage scanning brittle. Evidence:
