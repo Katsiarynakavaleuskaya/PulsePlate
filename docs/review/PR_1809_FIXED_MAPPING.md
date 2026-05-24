@@ -137,9 +137,9 @@ eagerly importing FastAPI-bound `app.security` exports.
 
 ## Merge Readiness
 
-- [x] PR body mirror refreshed from canonical mapping artifact.
-- [x] Local PR-scoped gates passed: preflight, agent consistency, Experiment Runner identity, focused pytest, `make validate-changed`, and `pre-commit run --all-files`.
-- [x] Compensating review completed for skipped/rate-limited bots: `pulseplate-pr-review`, `bug-triage`, Codex Security diff scan, and CodeRabbit CLI review.
+- [ ] PR body mirror refreshed from canonical mapping artifact.
+- [ ] Local PR-scoped gates passed: preflight, agent consistency, Experiment Runner identity, focused pytest, `make validate-changed`, and `pre-commit run --all-files`.
+- [ ] Compensating review completed for skipped/rate-limited bots: `pulseplate-pr-review`, `bug-triage`, Codex Security diff scan, and CodeRabbit CLI review.
 - [ ] Current-head CI passing with all required checks green and no pending jobs.
 - [ ] Review-thread disposition guard with auth passed after latest bot/human activity.
 - [ ] Strict merge-readiness wrapper with auth passed after latest bot/human activity.
