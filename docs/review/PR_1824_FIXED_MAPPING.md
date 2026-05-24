@@ -9,6 +9,8 @@
 
 ## Lane Start Provenance
 
+- Packet: `artifacts/orchestration/task_packets/9498199b884d.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
 - Main failure run classified: `26372552018`
 - Experiment Runner oracle: `exp-0fc34adf981f`
 - Final requested role order: `agent-coordinator -> dev-operator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter`
@@ -16,12 +18,12 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed after bot/human comments
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No bot or human review threads have been resolved yet.
+- No actionable review comments
 
 ## Main Failure Evidence
 
@@ -48,7 +50,9 @@ No bot or human review threads have been resolved yet.
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/exp-0fc34adf981f.json` (local, gitignored)
+Artifact: `artifacts/orchestration/experiments/results/exp-0fc34adf981f.json`
+
+- Artifact class: local, gitignored
 - Status: accepted
 - Contribution kind: `oracle_review`
 - Co-author trailer required and included in `008f7aa503d0d4002224b0ab36317a7cd4bf4a18`.
