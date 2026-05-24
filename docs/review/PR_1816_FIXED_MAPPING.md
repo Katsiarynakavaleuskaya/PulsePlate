@@ -30,6 +30,22 @@ Disposition: FIXED
 Commit: `b1298cd72`
 Evidence: `scripts/ci/check_philosophy_alignment_ledger_closeout.py` rejects duplicate semantic-cache roadmap markers and duplicate JSON report keys; `tests/test_philosophy_alignment_ledger_closeout.py` covers those false-green regressions.
 
+## Post-Open Role-Agent Finding Closure
+
+- QA findings -> `85a9d45d`
+Disposition: FIXED
+Commit: `85a9d45d`
+Evidence: `docs/review/PR_1816_FIXED_MAPPING.md` uses canonical Phase2 checkboxes, `- No actionable review comments`, `Artifact: ...`, and `Packet: ...`; the PR body mirror was updated from the same artifact and `check_pr_body_phase2_gates.py` passed.
+
+- Bug-hunter findings -> `85a9d45d`
+Disposition: FIXED
+Commit: `85a9d45d`
+Evidence: `docs/review/PR_1816_FIXED_MAPPING.md` is tracked/staged in final form, PR body base truth was refreshed to `origin/main` `7951431d1`, and role-finding commit references point to `b1298cd72`.
+
+- Security-auditor / codex-security-style diff scan
+Disposition: NOT-A-BUG
+Evidence: Review found the PR remains docs/governance/test-only with no runtime/cache/provider/DB/network/subprocess/secrets/path-traversal/write-sink drift and no merge-readiness claim in the staged mapping.
+
 ## Experiment Runner Evidence
 
 Artifact: `artifacts/orchestration/experiments/results/pr4_2_alignment_ledger_closeout_oracle_result_rebased_v2.json`
@@ -62,7 +78,7 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 ## Merge Readiness
 
 - [ ] Current-head CI completed for this PR.
-- [ ] Post-open QA / bug-hunter / security-auditor pass completed.
+- [x] Post-open QA / bug-hunter / security-auditor pass completed.
 - [ ] Phase2 PR body gate passed for this PR.
 - [ ] Strict merge-readiness wrapper passed for this PR after latest bot/review activity.
 - [ ] No actionable bot comments remain.
