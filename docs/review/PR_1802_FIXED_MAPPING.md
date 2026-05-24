@@ -62,6 +62,23 @@ Disposition: NOT-A-BUG
 Evidence: The sole actionable CodeRabbit review comment is mapped as FIXED in `discussion_r3293225158`.
 Reason: Aggregate review record; no separate code finding beyond the mapped discussion thread.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3294159463 -> 603b3d1b6
+Disposition: FIXED
+Commit: 603b3d1b6
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` preserves duplicate mandatory post-open role passes while still ordering `qa-engineer-agent` before `bug-hunter`; `tests/test_qoder_dispatch_bridge.py` asserts duplicate bug-hunter preservation.
+Reason: CodeRabbit found that `_enforce_mandatory_post_open_order` collapsed duplicate mandatory passes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3294159464 -> 603b3d1b6
+Disposition: FIXED
+Commit: 603b3d1b6
+Evidence: `tests/test_qoder_dispatch_bridge.py` now uses `require_feature(f"agent_definition:{slug}")` for the flagged optional agent-definition skip path.
+Reason: CodeRabbit requested repo-standard optional-feature skip reasons.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#pullrequestreview-4352052891
+Disposition: NOT-A-BUG
+Evidence: Both actionable CodeRabbit review comments are mapped as FIXED in `discussion_r3294159463` and `discussion_r3294159464`.
+Reason: Aggregate review record; no separate code finding beyond the mapped discussion threads.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#issuecomment-4526058312
 Disposition: NOT-A-BUG
 Evidence: The prior transport-only summary is superseded by this expanded mapping and the upgraded PR body.
