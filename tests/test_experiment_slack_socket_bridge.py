@@ -222,6 +222,22 @@ def test_config_rejects_non_main_workflow_ref(
         )
 
 
+def test_config_rejects_parent_traversal_audit_dir_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    escaped = audit_dir / ".." / ".." / ".." / "outside"
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="artifacts/orchestration"):
+        bridge.build_config(
+            dispatch_mode="dry-run",
+            audit_dir=str(escaped),
+            repo="Katsiarynakavaleuskaya/PulsePlate",
+        )
+
+
 def test_dry_run_processes_allowlisted_operator_without_dispatch_or_raw_audit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -709,3 +725,30 @@ def test_audit_write_rejects_symlinked_output_file(
             config=_config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir),
             status="dry_run",
         )
+
+
+def test_audit_write_rejects_parent_traversal_output_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+    escaped = audit_dir / ".." / "outside.json"
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="artifacts/orchestration"):
+        bridge._write_audit(
+            path=escaped,
+            event=bridge.OperatorEvent(
+                event_id="Ev0TRAVERSAL",
+                channel_id="C0ALERTS",
+                user_id="U0OPERATOR",
+                team_id="T0TEAM",
+                text="status",
+            ),
+            command=bridge.OperatorCommand(kind="status"),
+            config=config,
+            status="dry_run",
+        )
+
+    assert not (audit_dir.parent / "outside.json").exists()

@@ -242,10 +242,17 @@ def _positive_int_from_env(env_name: str, default: int, *, maximum: int) -> int:
     return value
 
 
+def _normalized_absolute_path(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path)))
+
+
 def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
-    artifact_root = (Path(REPO_ROOT) / "artifacts" / "orchestration").absolute()
+    artifact_root = _normalized_absolute_path(Path(REPO_ROOT) / "artifacts" / "orchestration")
+    artifact_dir = _normalized_absolute_path(artifact_dir)
+    candidate = _normalized_absolute_path(candidate)
     try:
         artifact_dir.relative_to(artifact_root)
+        candidate.relative_to(artifact_dir)
     except ValueError as exc:
         raise SlackSocketAuditError(
             "Slack operator audit directory must stay under artifacts/orchestration."
@@ -267,14 +274,14 @@ def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) 
 
 
 def _resolve_audit_dir(raw_audit_dir: str | None) -> Path:
-    base_dir = Path(AUDIT_ARTIFACT_DIR).absolute()
+    base_dir = _normalized_absolute_path(Path(AUDIT_ARTIFACT_DIR))
     candidate: Path = Path(raw_audit_dir).expanduser() if raw_audit_dir else base_dir
     if not candidate.is_absolute():
-        candidate = (REPO_ROOT / candidate).absolute()
+        candidate = _normalized_absolute_path(REPO_ROOT / candidate)
     else:
-        candidate = candidate.absolute()
+        candidate = _normalized_absolute_path(candidate)
     try:
-        candidate.relative_to((REPO_ROOT / "artifacts" / "orchestration").absolute())
+        candidate.relative_to(_normalized_absolute_path(REPO_ROOT / "artifacts" / "orchestration"))
     except ValueError as exc:
         raise SlackSocketAuditError(
             "Slack operator bridge audit directory must stay under artifacts/orchestration."
