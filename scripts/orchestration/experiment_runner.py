@@ -285,9 +285,34 @@ def _select_repo_python() -> Path | None:
         if selected is not None:
             return selected
 
-    repo_python = Path(REPO_ROOT) / ".venv" / "bin" / "python"
-    if repo_python.is_file() and os.access(repo_python, os.X_OK):
-        return repo_python
+    candidates = [
+        Path(REPO_ROOT) / ".venv" / "bin" / "python",
+        Path(REPO_ROOT) / ".venv" / "Scripts" / "python.exe",
+    ]
+    parent_dir = Path(REPO_ROOT).resolve().parent
+    if parent_dir.name == "worktrees":
+        shared_root = parent_dir.parent
+        try:
+            git_common_dir = Path(
+                _run_git(
+                    ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+                    cwd=Path(REPO_ROOT),
+                ).stdout.strip()
+            ).resolve()
+            git_common_dir.relative_to(shared_root / ".git")
+        except (InfraFlakeError, OSError, ValueError):
+            pass
+        else:
+            candidates.extend(
+                [
+                    shared_root / ".venv" / "bin" / "python",
+                    shared_root / ".venv" / "Scripts" / "python.exe",
+                ]
+            )
+
+    for repo_python in candidates:
+        if repo_python.is_file() and os.access(repo_python, os.X_OK):
+            return repo_python
     return None
 
 

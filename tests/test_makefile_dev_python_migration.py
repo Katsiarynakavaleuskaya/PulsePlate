@@ -249,6 +249,29 @@ def test_verify_env_uses_venv_python() -> None:
     assert "$(VENV_PYTHON)" in body, "verify-env must use VENV_PYTHON (it validates venv health)"
 
 
+def test_makefile_installs_pre_commit_through_repo_python() -> None:
+    """Hook installation must not capture whichever pre-commit is first on PATH."""
+    text = _makefile_text()
+
+    assert "$(VENV_PYTHON) -m pre_commit install" in text
+    assert "$(VENV_PYTHON) -m pre_commit install --hook-type pre-push" in text
+    assert '$$($(HOOK_REPO_PYTHON))" -m pre_commit install' in text
+    assert '$$($(HOOK_REPO_PYTHON))" -m pre_commit install --hook-type pre-push' in text
+    assert "\tpre-commit install" not in text
+
+
+def test_makefile_pre_commit_target_uses_dev_python() -> None:
+    """Manual pre-commit runs should use the same repo-aware Python path."""
+    text = _makefile_text()
+
+    pattern = re.compile(r"(?m)^pre-commit:.*\n(?P<body>(?:\t[^\n]*\n)+)")
+    match = pattern.search(text)
+    assert match, "pre-commit target must exist"
+    body = match.group("body")
+    assert '"$$($(HOOK_REPO_PYTHON))" -m pre_commit run --all-files' in body
+    assert "\tpre-commit run --all-files" not in body
+
+
 # ---------------------------------------------------------------------------
 # openapi target uses DEV_PYTHON
 # ---------------------------------------------------------------------------

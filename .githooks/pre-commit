@@ -15,6 +15,13 @@ fi
 # Enhanced pre-commit hook with comprehensive checks
 echo "🔍 Running pre-commit checks..."
 
+ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# shellcheck source=scripts/hooks/repo_python.sh
+source "$ROOT_DIR/scripts/hooks/repo_python.sh"
+REPO_PYTHON_BIN="$(resolve_repo_python "$ROOT_DIR")"
+export VENV_PYTHON="$REPO_PYTHON_BIN"
+export PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
+
 # 1. Clean Python cache files
 echo "🧹 Cleaning cache files..."
 # Use Homebrew bash explicitly to support nameref (requires Bash 4.3+)
@@ -143,7 +150,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
 
     # Auto-format with Black (project standard)
     echo "🎨 Auto-formatting Python code with Black..."
-    if command -v black > /dev/null 2>&1; then
+    if "$REPO_PYTHON_BIN" -m black --version > /dev/null 2>&1; then
         # Filter to only existing files
         EXISTING_PY_FILES=()
         while IFS= read -r f; do
@@ -151,10 +158,10 @@ if [ -n "$PYTHON_CHANGES" ]; then
         done <<< "$PYTHON_CHANGES"
         if [ ${#EXISTING_PY_FILES[@]} -gt 0 ]; then
             # Use --check with --diff to show what will be changed
-            if ! black --check --diff "${EXISTING_PY_FILES[@]}" 2>/dev/null; then
+            if ! "$REPO_PYTHON_BIN" -m black --check --diff "${EXISTING_PY_FILES[@]}" 2>/dev/null; then
                 echo "⚠️  Black would reformat the following files (diff shown above)"
                 # Apply formatting
-                if black "${EXISTING_PY_FILES[@]}"; then
+                if "$REPO_PYTHON_BIN" -m black "${EXISTING_PY_FILES[@]}"; then
                     echo "✅ Black formatting applied. Files re-staged."
                     git add "${EXISTING_PY_FILES[@]}"
                     echo "⚠️  Black reformatted files. Review changes and re-commit."
@@ -167,15 +174,15 @@ if [ -n "$PYTHON_CHANGES" ]; then
             fi
         fi
     else
-        echo "⚠️  Warning: Black not found, skipping auto-formatting"
-        echo "   Install with: pip install black"
+        echo "❌ Black not available through repo Python: $REPO_PYTHON_BIN"
+        exit 1
     fi
 
     # Check Python syntax
     while IFS= read -r file; do
         if [ -f "$file" ]; then
             echo "Checking syntax: $file"
-            if ! python -m py_compile "$file"; then
+            if ! "$REPO_PYTHON_BIN" -m py_compile "$file"; then
                 echo "❌ Python syntax error in $file"
                 exit 1
             fi
@@ -186,7 +193,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
     echo "🧪 Running backend tests for changed files..."
     if [ "${SKIP_TESTS:-0}" = "1" ]; then
         echo "⏩ SKIP_TESTS=1 set, skipping backend tests"
-    elif command -v pytest > /dev/null 2>&1; then
+    elif "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
         while IFS= read -r file; do
@@ -236,7 +243,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
             # Deduplicate test files to avoid running the same test multiple times
             mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
             echo "Running tests: ${TEST_FILES[*]}"
-            if ! pytest -q "${TEST_FILES[@]}" --tb=short -x; then
+            if ! "$REPO_PYTHON_BIN" -m pytest -q "${TEST_FILES[@]}" --tb=short -x; then
                 echo "❌ Backend tests failed. Please fix failing tests before committing."
                 exit 1
             fi
@@ -245,13 +252,14 @@ if [ -n "$PYTHON_CHANGES" ]; then
             echo "ℹ️  No corresponding test files found for changed Python files"
         fi
     else
-        echo "⚠️  Warning: pytest not found, skipping backend tests"
+        echo "❌ pytest not available through repo Python: $REPO_PYTHON_BIN"
+        exit 1
     fi
 fi
 
 # 5. Run pre-commit framework hooks (MyPy, Bandit, etc.)
 echo "🔧 Running pre-commit framework checks..."
-if command -v pre-commit > /dev/null 2>&1; then
+if "$REPO_PYTHON_BIN" -m pre_commit --version > /dev/null 2>&1; then
     # Temporarily unset hooksPath to prevent recursion
     ORIGINAL_HOOKS_PATH=""
     ORIGINAL_HOOKS_PATH_SET=0
@@ -265,15 +273,16 @@ if command -v pre-commit > /dev/null 2>&1; then
     # Safely handle filenames with spaces by using array
     mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACM)
     if [ ${#STAGED_FILES[@]} -gt 0 ]; then
-        if ! pre-commit run --files "${STAGED_FILES[@]}" 2>&1; then
+        if ! "$REPO_PYTHON_BIN" -m pre_commit run --files "${STAGED_FILES[@]}" 2>&1; then
             echo "❌ Pre-commit checks failed (see above)"
             echo "ℹ️  If only formatting was fixed, re-add files and commit again."
             exit 1
         fi
     fi
 else
-    echo "⚠️  Warning: pre-commit not installed"
-    echo "   Install with: pip install pre-commit && pre-commit install"
+    echo "❌ pre-commit not available through repo Python: $REPO_PYTHON_BIN"
+    echo "   Run make venv or set absolute VENV_PYTHON to the repo environment."
+    exit 1
 fi
 
 echo "✅ All pre-commit checks completed!"
