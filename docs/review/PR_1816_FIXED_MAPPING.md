@@ -13,22 +13,22 @@
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294972836 -> 7b35be2b7
 Disposition: FIXED
-Commit: `7b35be2b7`
+Commit: 7b35be2b7
 Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` keeps the mandatory `qa-engineer-agent -> bug-hunter` handoff adjacent even when another role appears between them in the input; `tests/test_qoder_dispatch_bridge.py` covers the corrected manifest order.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294972837 -> 7b35be2b7
 Disposition: FIXED
-Commit: `7b35be2b7`
+Commit: 7b35be2b7
 Evidence: `scripts/ci/check_philosophy_alignment_ledger_closeout.py` now rejects duplicate packet role entries; `tests/test_philosophy_alignment_ledger_closeout.py` covers duplicate role-order drift.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294972838 -> 7b35be2b7
 Disposition: FIXED
-Commit: `7b35be2b7`
+Commit: 7b35be2b7
 Evidence: `scripts/ci/check_philosophy_alignment_ledger_closeout.py` now fails role-order sections that contain headings but no numbered role entries; `tests/test_philosophy_alignment_ledger_closeout.py` covers empty section drift.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294972839 -> 7b35be2b7
 Disposition: FIXED
-Commit: `7b35be2b7`
+Commit: 7b35be2b7
 Evidence: `tests/test_philosophy_alignment_ledger_closeout.py` now asserts the generated dispatch manifest keeps `qa-engineer-agent -> bug-hunter` adjacent instead of comparing constants only.
 
 ## Pre-Open Role-Agent Finding Closure
