@@ -11,7 +11,10 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1812#discussion_r3294183794 -> 01d6c16db
+Disposition: FIXED
+Commit: 01d6c16db
+Evidence: `docs/review/PR_1812_FIXED_MAPPING.md` validation section now records both PR #1809 replay and PR #1812 Phase2/review-governance checks.
 
 ## Experiment Runner Evidence
 
