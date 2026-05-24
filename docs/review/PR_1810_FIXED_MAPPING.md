@@ -24,10 +24,10 @@
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#discussion_r3294156243
 Disposition: FIXED
-Commit: see mapping entries below
+Commit: 72c34775e8ac46faa0d265fb1ee1862c9fcee8b9
 Evidence: docs/review/PR_1810_FIXED_MAPPING.md now records validation-scope evidence without an invalid DEFERRED/Backlog-not-applicable disposition.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#discussion_r3294156243 -> PLACEHOLDER_FIX_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#discussion_r3294156243 -> 72c34775e8ac46faa0d265fb1ee1862c9fcee8b9
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#issuecomment-4527871977
 Disposition: NOT-A-BUG
