@@ -4,7 +4,7 @@
 # Feature-flagged via FEATURE_RAG_VECTOR; keep opt-in only.
 # Pin the currently proven runtime closure so this profile split does not widen
 # the fallback/index lane into an unrelated dependency-upgrade PR.
-sentence-transformers==5.5.0
+sentence-transformers==5.5.1
 transformers==5.8.1
 torch==2.11.0
 pgvector==0.4.2
