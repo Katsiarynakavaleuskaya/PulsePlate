@@ -51,9 +51,9 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3293225158 -> 983c675555
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3293225158 -> b2d265e8a
 Disposition: FIXED
-Commit: 983c675555
+Commit: b2d265e8a
 Evidence: `tests/test_task_bootstrap.py` annotates `test_main_passes_native_bridge_transport_flag` fixtures with `pytest.MonkeyPatch` and `pytest.CaptureFixture[str]`.
 Reason: CodeRabbit requested complete type hints for the test fixtures.
 
@@ -76,23 +76,23 @@ Reason: No actionable failure was reported.
 
 - Finding: Requested agents classified as advisory could be emitted as no-spawn and skipped.
   - Disposition: FIXED
-  - Commit: 983c675555
+  - Commit: b2d265e8a
   - Evidence: `scripts/orchestration/native_subagent_bridge.py` emits `execution_mode: advisory_review`, `spawn_with_native_subagent: True`, `advisory_only: False`, and `required_role_pass: True`.
 - Finding: Requested reviewers displaced by post-open QA routing could be absent from executable bridge output.
   - Disposition: FIXED
-  - Commit: 983c675555
+  - Commit: b2d265e8a
   - Evidence: `scripts/orchestration/task_bootstrap.py` appends missing known requested role passes after secondary partitioning.
 - Finding: Dispatch bridge did not preserve the coordinator-required requested role order.
   - Disposition: FIXED
-  - Commit: 983c675555
+  - Commit: b2d265e8a
   - Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` preserves requested role order and keeps `qa-engineer-agent -> bug-hunter` as mandatory post-open order.
 - Finding: Experiment Runner bare `python` oracle commands could resolve through host Python.
   - Disposition: FIXED
-  - Commit: 983c675555, 6aa57c5a37
+  - Commit: b2d265e8a, d4fe3aaff
   - Evidence: `scripts/orchestration/experiment_runner.py` selects repo-approved Python from absolute executable `VENV_PYTHON`, absolute executable `DEV_PYTHON`, or repo `.venv/bin/python`, then prepends its parent directory to sandbox `PATH`.
 - Finding: Pre-push mypy hook flagged changed-file type issues not caught by the earlier explicit-package-bases command.
   - Disposition: FIXED
-  - Commit: 6aa57c5a37
+  - Commit: d4fe3aaff
   - Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` imports optional PyYAML through `importlib.import_module`; `scripts/orchestration/experiment_runner.py` normalizes `REPO_ROOT` through `Path(...)` before resolving repo `.venv`.
 
 ## Premortem Risk Fix Matrix
