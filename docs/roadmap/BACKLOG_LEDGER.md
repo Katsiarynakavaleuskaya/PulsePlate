@@ -3032,11 +3032,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
 <a id="ledger-p1-philosophy-epic-v2-alignment-rule-trust-schema"></a>
-- [ ] P1: Philosophy Epic V2 alignment-rule trust schema
+- [x] P1: Philosophy Epic V2 alignment-rule trust schema
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/philosophy-alignment-rule-trust-schema`
-  - Status: 🟡 Active branch
+  - Target PR: PR #1789 (`codex/philosophy-alignment-rule-trust-schema`)
+  - Status: Completed. PR #1789 merged on 2026-05-21T22:14:53Z with merge commit `651c56bb510125b4df011a6d48de6f82a8f6e0b7`. PR #1811 / PR-4.1 reconciled the PR-4 ledger closeout on 2026-05-24T09:39:30Z with merge commit `0b324f516b5ba33dfc5e65d068cd5aaca742b5f8`; PR-4.2 closes this separate alignment-rule ledger row only. Semantic-cache runtime handoff remains blocked: all gate markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before any runtime semantic-cache work can begin.
   - Area: AI / RAG / philosophy / semantic-cache governance / trust schema
   - Finding Type: provenance, schema-hash, and future admission-rule auditability
   - Reason (EN): PR #1784 connected the admission oracle to verification-bundle dry-run truth while keeping cache read, cache write, and serving disabled. The next safe slice defines a machine-readable alignment-rule record shape and deterministic validator so future admission-rule artifacts can carry stable provenance, executable assertion hints, schema version, and schema hash before any later release-manifest or runtime semantic-cache linkage is considered.

@@ -90,7 +90,9 @@ schema prerequisite landed on 2026-05-21 with merge commit
 `651c56bb510125b4df011a6d48de6f82a8f6e0b7`. PR-4.1 is a status
 reconciliation only: it does not change the closed machine markers above and
 does not permit semantic-cache runtime admission, cache reads, cache writes, or
-serving. Future PR-4 status reconciliation updates must use the PR-4.1 packet
+serving. PR-4.2 reconciles the separate alignment-rule ledger row as completed
+against PR #1789 only; it does not change the closed machine markers above.
+Future PR-4 status reconciliation updates must use the PR-4.1 packet
 source-truth section as the update checklist and keep this roadmap to the
 minimal status mirror.
 
