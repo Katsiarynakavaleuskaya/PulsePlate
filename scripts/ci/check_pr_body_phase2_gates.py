@@ -19,7 +19,10 @@ from scripts.orchestration.review_mapping_artifact import (
     validate_mapping_artifact_text,
 )
 from scripts.orchestration.check_experiment_runner_identity import EXPECTED_CO_AUTHOR_TRAILER
-from scripts.orchestration.experiment_contract import validate_contribution_attribution
+from scripts.orchestration.experiment_contract import (
+    validate_contribution_attribution,
+    validate_experiment_result,
+)
 
 # Phase2 contract: headings and checkbox labels (single source for parser and docs).
 # Changing template wording requires updating these constants and re-running tests.
@@ -420,11 +423,80 @@ def _experiment_runner_artifact_paths(text: str) -> list[str]:
     return list(dict.fromkeys(paths))
 
 
+def _required_experiment_runner_artifact_errors(
+    artifact_paths: list[str],
+    *,
+    repo_root: Path,
+) -> list[str]:
+    """Return fail-closed required-mode errors for unverifiable runner artifacts."""
+
+    errors: list[str] = []
+    resolved_repo_root = repo_root.resolve()
+    for artifact_path in artifact_paths:
+        absolute_path = repo_root / artifact_path
+        try:
+            resolved_path = absolute_path.resolve(strict=True)
+            resolved_path.relative_to(resolved_repo_root)
+        except (OSError, RuntimeError, ValueError):
+            errors.append(
+                "Required: Experiment Runner artifact "
+                f"`{artifact_path}` is referenced but unavailable locally."
+            )
+            continue
+        if not resolved_path.is_file():
+            errors.append(
+                "Required: Experiment Runner artifact "
+                f"`{artifact_path}` is referenced but unavailable locally."
+            )
+            continue
+        try:
+            payload = json.loads(resolved_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            errors.append(
+                "Required: Experiment Runner artifact "
+                f"`{artifact_path}` is referenced but cannot be read."
+            )
+            continue
+        except json.JSONDecodeError:
+            errors.append(
+                "Required: Experiment Runner artifact "
+                f"`{artifact_path}` is referenced but cannot be parsed as JSON."
+            )
+            continue
+        if not isinstance(payload, dict):
+            errors.append(
+                "Required: Experiment Runner artifact "
+                f"`{artifact_path}` must be a JSON object result artifact."
+            )
+            continue
+        try:
+            result = validate_experiment_result(payload)
+        except ValueError as exc:
+            errors.append(
+                "Required: Experiment Runner artifact "
+                f"`{artifact_path}` has invalid result metadata: {exc}"
+            )
+            continue
+        if result["status"] != "accepted":
+            errors.append(
+                "Required: Experiment Runner artifact "
+                f"`{artifact_path}` is not accepted evidence: status={result['status']}."
+            )
+            continue
+        if not result["oracle_results"]:
+            errors.append(
+                "Required: Experiment Runner artifact "
+                f"`{artifact_path}` is not accepted evidence: oracle_results is empty."
+            )
+    return errors
+
+
 def check_experiment_runner_evidence(
     text: str,
     *,
     mode: ExperimentRunnerEvidenceMode = ExperimentRunnerEvidenceMode.ADVISORY,
     missing_section_is_warning: bool = False,
+    repo_root: Path = REPO_ROOT,
 ) -> tuple[list[str], list[str]]:
     """Validate Experiment Runner evidence.
 
@@ -454,16 +526,20 @@ def check_experiment_runner_evidence(
         )
 
     if artifact_matches:
+        artifact_paths = [match.group("path") for match in artifact_matches]
         invalid_paths = [
-            match.group("path")
-            for match in artifact_matches
-            if not _valid_experiment_runner_artifact_path(match.group("path"))
+            path for path in artifact_paths if not _valid_experiment_runner_artifact_path(path)
         ]
         if invalid_paths:
             errors.append(
                 "Experiment Runner artifact path must stay under "
                 f"`{EXPERIMENT_RUNNER_ARTIFACT_PREFIX}` and end with `.json`: "
                 + ", ".join(invalid_paths)
+            )
+        if mode is ExperimentRunnerEvidenceMode.REQUIRED:
+            required_paths = [path for path in artifact_paths if path not in invalid_paths]
+            errors.extend(
+                _required_experiment_runner_artifact_errors(required_paths, repo_root=repo_root)
             )
 
     if na_matches:
@@ -625,6 +701,16 @@ def check_experiment_runner_coauthor_advisory(
                 warning = f"{warning} Reason: {reason}"
             warnings.append(warning)
     return warnings
+
+
+def _required_experiment_runner_artifact_warning_to_error(warning: str) -> str | None:
+    """Promote artifact-unverifiable advisories to required-mode hard errors."""
+
+    if not warning.startswith("Advisory: Experiment Runner artifact `"):
+        return None
+    if " unavailable locally" in warning or " invalid co-author metadata" in warning:
+        return warning.replace("Advisory:", "Required:", 1)
+    return None
 
 
 def _select_body_validation_mode(*, artifact_checked: bool) -> BodyValidationMode:
@@ -851,6 +937,20 @@ def main() -> int:
                 )
             )
         advisory_warnings = list(dict.fromkeys(advisory_warnings))
+        if args.experiment_runner_evidence_mode is ExperimentRunnerEvidenceMode.REQUIRED:
+            promoted_artifact_errors = [
+                promoted
+                for warning in advisory_warnings
+                if (promoted := _required_experiment_runner_artifact_warning_to_error(warning))
+                is not None
+            ]
+            if promoted_artifact_errors:
+                artifact_errors.extend(promoted_artifact_errors)
+                advisory_warnings = [
+                    warning
+                    for warning in advisory_warnings
+                    if _required_experiment_runner_artifact_warning_to_error(warning) is None
+                ]
     if not lane_start_seen:
         advisory_warnings.extend(dict.fromkeys(lane_start_warning_candidates))
     advisory_warnings = list(dict.fromkeys(advisory_warnings))

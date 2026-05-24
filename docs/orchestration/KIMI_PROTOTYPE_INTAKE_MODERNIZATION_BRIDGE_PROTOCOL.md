@@ -106,13 +106,14 @@ The bridge from Kimi evidence to implementation is:
 3. Map only verified patterns into PulsePlate UI vocabulary.
 4. Map implementation candidates into the design component contract registry.
 5. Require bridge coverage inventory for repo vocabulary, web runtime, iOS runtime, Storybook review, Figma reference, Penpot reference, and Code Connect traceability.
-6. Require fail-closed visual regression and accessibility regression decisions.
-7. Define token/runtime parity boundary before any web or iOS implementation.
-8. Open later bounded web/iOS implementation slices only after the previous gates exist; missing prerequisite gates are blockers, not `DEFERRED` permission to proceed.
+6. Require fail-closed visual regression decisions through `docs/orchestration/contracts/design_visual_regression_decisions.v1.json` and `scripts/design/design_visual_regression_decisions.py`; this gate reports decisions only and does not run screenshots, commit screenshots or binaries, or choose a new visual regression service unless repo-confirmed.
+7. Require fail-closed accessibility regression decisions.
+8. Define token/runtime parity boundary before any web or iOS implementation.
+9. Open later bounded web/iOS implementation slices only after the previous gates exist; missing prerequisite gates are blockers, not `DEFERRED` permission to proceed.
 
 Screenshots, Kimi output, Storybook stories, Figma nodes, prompt review, or desktop previews are not substitutes for repo-reviewed visual or accessibility regression decisions.
 
-The first machine-readable registry gate is `docs/orchestration/contracts/design_component_registry.v1.json`, validated by `scripts/design/design_component_registry.py`. The next machine-readable bridge gate is `docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json`, validated by `scripts/design/design_bridge_coverage_inventory.py`. Kimi-derived candidates must map through these repo-owned gates before any visual regression lane, accessibility regression lane, token/runtime parity boundary, or web/iOS implementation slice. Missing registry or bridge coverage is a blocker, not permission to copy from Kimi.
+The first machine-readable registry gate is `docs/orchestration/contracts/design_component_registry.v1.json`, validated by `scripts/design/design_component_registry.py`. The next machine-readable bridge gate is `docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json`, validated by `scripts/design/design_bridge_coverage_inventory.py`. The visual regression decision gate is `docs/orchestration/contracts/design_visual_regression_decisions.v1.json`, validated by `scripts/design/design_visual_regression_decisions.py`. Kimi-derived candidates must map through these repo-owned gates before any accessibility regression decision gate, token/runtime parity boundary, or web/iOS implementation slice. Missing registry, bridge coverage, visual baseline, visual threshold, or visual tooling evidence is a blocker, not permission to copy from Kimi.
 
 Compatibility wording for the existing docs guard: Kimi-derived candidates must map through this registry before any bridge coverage inventory, visual regression lane, accessibility regression lane, token/runtime parity boundary, or web/iOS implementation slice.
 
@@ -183,8 +184,8 @@ Future web/iOS modernization work must proceed in this order:
 
 1. Component contract registry.
 2. Bridge coverage inventory.
-3. Visual regression lane.
-4. Accessibility regression lane.
+3. Visual regression decision gate.
+4. Accessibility regression decision gate.
 5. Token/runtime parity boundary.
 6. Later web+iOS implementation slices.
 

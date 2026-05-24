@@ -1270,7 +1270,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Priority: P1
     - Target PR: `docs(design): open PR-9 design system automation lane for web+iOS runtime parity`, branch `codex/design-runtime-pr9-design-system-automation-docs`
     - Reason: The completed PR-0 through PR-8 design runtime train has strong governance, Storybook parity, token discipline, and evidence automation, but future web+iOS implementation needs machine-readable design infrastructure before runtime slices can safely start.
-    - Required sequence: component contract registry -> bridge coverage inventory -> visual regression lane -> accessibility regression lane -> token/runtime parity boundary -> later web+iOS implementation slices.
+    - Required sequence: component contract registry -> bridge coverage inventory -> visual regression decision gate -> accessibility regression decision gate -> token/runtime parity boundary -> later web+iOS implementation slices.
     - Links: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md`, `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
     - DoD: PR-9 packet, design-system automation spec, component contract registry contract, workflow/template pointers, deterministic docs guards, fixed-mapping governance, and any narrow orchestration preflight bugfix discovered by required agents exist; the lane remains governance/tests only and does not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma/Canva/Penpot writes, screenshots, Code Connect activation, backend, OpenAPI, auth, billing, StoreKit, or HealthKit behavior.
   - Kimi prototype intake modernization bridge tracking:
@@ -1292,11 +1292,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - [ ] Design bridge coverage inventory:
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1
-    - Status: active
-    - Target PR: `codex/design-bridge-coverage-inventory-v1` (`feat(design): add design bridge coverage inventory`)
+    - Status: complete in PR #1797; follow-up lane active for visual regression decision gate
+    - Target PR: #1797 `codex/design-bridge-coverage-inventory-v1` (`feat(design): add design bridge coverage inventory`)
     - Reason: The seeded component registry must be followed by a repo-owned coverage inventory before modern Kimi-derived direction can be scheduled into bounded web/iOS implementation slices.
     - Links: `docs/orchestration/contracts/design_component_registry.v1.json`, `docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json`, `scripts/design/design_component_registry.py`, `scripts/design/design_bridge_coverage_inventory.py`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/design/ui_component_vocabulary.json`
     - DoD: Inventory maps registry component ids across repo vocabulary, web runtime, iOS runtime, Storybook review, Figma reference, Penpot reference, and Code Connect anchors; validator exists and fails closed; tests exist; unconfirmed values remain `unspecified`; missing coverage blocks runtime implementation; external evidence remains non-authoritative; no runtime, token, generated mirror, Storybook config, screenshot, binary asset, or external write changes are made.
+  - [ ] P1: Design visual regression decision gate:
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P1
+    - Status: active
+    - Target PR: `codex/design-visual-regression-decision-gate-v1` (`feat(design): add visual regression decision gate`)
+    - Reason: The bridge coverage inventory must be followed by a repo-owned fail-closed visual QA decision contract before any web/iOS implementation planning can treat visual evidence as implementation-eligible.
+    - Links: `docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json`, `docs/orchestration/contracts/design_visual_regression_decisions.v1.json`, `scripts/design/design_bridge_coverage_inventory.py`, `scripts/design/design_visual_regression_decisions.py`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`
+    - DoD: Machine-readable visual decision artifact exists; validator exists; tests exist; every bridge inventory component has exactly one visual decision record; no screenshots or binaries are committed; missing visual baseline, tool, or threshold blocks runtime implementation; Kimi/Figma/Canva/Penpot/Storybook/Code Connect remain reference-only; next gate is accessibility regression decision gate.
   - Deferred design automation lane: `design-automation-deferred-launch-copy-linter`
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1

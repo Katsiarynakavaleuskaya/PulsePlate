@@ -13,7 +13,7 @@ import re
 import os
 import sys
 from pathlib import Path
-from typing import Final
+from typing import Final, Iterator
 
 import pytest
 
@@ -54,6 +54,26 @@ WHITELIST_PARTS = [
     # Vendor submodule: Anthropic cybersecurity skills use 80 for risk scores (0-100), not waist cm
     "tools/cybersecurity_skills/",
 ]
+
+EXCLUDED_SCAN_DIR_NAMES: Final[set[str]] = {
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    ".venv-ci",
+    "__pycache__",
+    "node_modules",
+    ".next",
+    ".turbo",
+}
+
+# Temp file created by test_skip_context_does_not_filter_whr_thresholds; exclude from
+# main guard to avoid xdist race (other worker may still have the file on disk).
+_GUARD_WHR_SKIP_TEMP_BASENAME = "test_guard_whr_skip_temp.py"
+_GUARD_WHR_SKIP_TEMP_REL_PATH = f"app/{_GUARD_WHR_SKIP_TEMP_BASENAME}"
 
 # Forbidden patterns (domain signatures for BMI math)
 # Pattern 1: BMI formula (weight / height^2) - must be in context of BMI calculation
@@ -197,8 +217,46 @@ def _should_skip_threshold_check(rel_path: str) -> bool:
     return _is_whitelisted(rel_path)
 
 
+def _path_has_excluded_scan_part(path: Path) -> bool:
+    """Return whether a path is inside a generated/transient scan directory."""
+    return any(part in EXCLUDED_SCAN_DIR_NAMES for part in path.parts)
+
+
+def _normalize_rel_path(rel_path: str) -> str:
+    """Normalize repo-relative paths for guard comparisons across platforms."""
+    return rel_path.replace("\\", "/")
+
+
+def _is_allowed_transient_read_error(rel_path: str) -> bool:
+    """Return whether read-time disappearance is an expected xdist helper race."""
+    return _normalize_rel_path(rel_path) == _GUARD_WHR_SKIP_TEMP_REL_PATH
+
+
+def _iter_repo_python_files(root: Path) -> Iterator[Path]:
+    """Yield repo Python files while pruning generated/transient directories."""
+
+    def _handle_walk_error(error: OSError) -> None:
+        error_path = Path(os.fspath(error.filename)) if error.filename is not None else None
+        if error_path is None or not _path_has_excluded_scan_part(error_path):
+            raise error
+        if _DEBUG_GUARD:
+            print(
+                f"REPO_POLICY_GUARD_DEBUG: skip traversal error {error.filename}: {error!r}",
+                file=sys.stderr,
+            )
+
+    for dirpath, dirnames, filenames in os.walk(root, topdown=True, onerror=_handle_walk_error):
+        dirnames[:] = [name for name in dirnames if name not in EXCLUDED_SCAN_DIR_NAMES]
+        for filename in filenames:
+            if filename.endswith(".py"):
+                yield Path(dirpath) / filename
+
+
 def _scan(
-    pattern: re.Pattern[str], description: str, skip_threshold_check: bool = False
+    pattern: re.Pattern[str],
+    description: str,
+    skip_threshold_check: bool = False,
+    repo_root: Path = REPO_ROOT,
 ) -> list[str]:
     """
     Scan repository for forbidden patterns.
@@ -208,16 +266,17 @@ def _scan(
         description: Description for error messages
         skip_threshold_check: If True, use special logic for threshold checks
             (core/bmi_extras must still be checked even if whitelisted)
+        repo_root: Repository root to scan. Defaults to the real repository root.
 
     Returns:
         List of hits in format "file:line: content"
     """
     hits: list[str] = []
-    for path in REPO_ROOT.rglob("*.py"):
+    for path in _iter_repo_python_files(repo_root):
         try:
-            rel = str(path.relative_to(REPO_ROOT))
+            rel = path.relative_to(repo_root).as_posix()
         except ValueError:
-            # Path not relative to REPO_ROOT (shouldn't happen, but defensive)
+            # Path not relative to repo_root (shouldn't happen, but defensive)
             continue
         # For threshold checks, use special logic (core/bmi_extras must be checked)
         if skip_threshold_check:
@@ -250,7 +309,9 @@ def _scan(
                 if pattern.search(line):
                     hits.append(f"{rel}:{idx}: {line.strip()}")
         except (OSError, UnicodeDecodeError) as e:
-            # Skip files that can't be read (permissions, etc.).
+            if not _is_allowed_transient_read_error(rel):
+                raise
+            # Skip explicitly transient helper files that disappear under xdist.
             if _DEBUG_GUARD:
                 print(
                     f"REPO_POLICY_GUARD_DEBUG: skip unreadable file {rel}: {e!r}", file=sys.stderr
@@ -273,9 +334,192 @@ def test_no_bmi_formula_outside_core() -> None:
     )
 
 
-# Temp file created by test_skip_context_does_not_filter_whr_thresholds; exclude from
-# main guard to avoid xdist race (other worker may still have the file on disk).
-_GUARD_WHR_SKIP_TEMP_BASENAME = "test_guard_whr_skip_temp.py"
+def test_iter_repo_python_files_skips_node_modules(tmp_path: Path) -> None:
+    """Generated dependency trees must be pruned before file scanning."""
+    dependency_dir = tmp_path / "frontend" / "node_modules" / "fsevents"
+    dependency_dir.mkdir(parents=True)
+    dependency_file = dependency_dir / "forbidden.py"
+    dependency_file.write_text(
+        "bmi_value = weight_kg / (height_m ** 2)\n",
+        encoding="utf-8",
+    )
+
+    source_dir = tmp_path / "app"
+    source_dir.mkdir()
+    source_file = source_dir / "real_source.py"
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+
+    yielded = {path.relative_to(tmp_path).as_posix() for path in _iter_repo_python_files(tmp_path)}
+
+    assert "app/real_source.py" in yielded
+    assert "frontend/node_modules/fsevents/forbidden.py" not in yielded
+
+
+def test_iter_repo_python_files_does_not_skip_generic_build_dirs(tmp_path: Path) -> None:
+    """Generic source-looking dirs stay scanned unless explicitly transient."""
+    source_file = tmp_path / "app" / "build" / "real_source.py"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+
+    yielded = {path.relative_to(tmp_path).as_posix() for path in _iter_repo_python_files(tmp_path)}
+
+    assert "app/build/real_source.py" in yielded
+
+
+def test_iter_repo_python_files_ignores_walk_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Transient optional dependency paths must not crash traversal."""
+    source_file = tmp_path / "app" / "real_source.py"
+    source_file.parent.mkdir()
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+
+    def fake_walk(
+        top: Path,
+        topdown: bool = True,
+        onerror: object | None = None,
+    ) -> Iterator[tuple[str, list[str], list[str]]]:
+        assert top == tmp_path
+        assert topdown is True
+        if callable(onerror):
+            onerror(FileNotFoundError(2, "No such file", "frontend/node_modules/fsevents"))
+        yield str(source_file.parent), [], [source_file.name]
+
+    monkeypatch.setattr(os, "walk", fake_walk)
+
+    yielded = {path.relative_to(tmp_path).as_posix() for path in _iter_repo_python_files(tmp_path)}
+
+    assert yielded == {"app/real_source.py"}
+
+
+def test_iter_repo_python_files_reraises_source_walk_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Traversal failures outside excluded generated trees must fail closed."""
+
+    def fake_walk(
+        top: Path,
+        topdown: bool = True,
+        onerror: object | None = None,
+    ) -> Iterator[tuple[str, list[str], list[str]]]:
+        assert top == tmp_path
+        assert topdown is True
+        if callable(onerror):
+            onerror(FileNotFoundError(2, "source tree disappeared", "app"))
+        yield str(tmp_path), [], []
+
+    monkeypatch.setattr(os, "walk", fake_walk)
+
+    with pytest.raises(FileNotFoundError, match="source tree disappeared"):
+        list(_iter_repo_python_files(tmp_path))
+
+
+def test_scan_still_detects_real_source_files(tmp_path: Path) -> None:
+    """The traversal hardening must not weaken BMI source invariant checks."""
+    source_file = tmp_path / "app" / "violation.py"
+    source_file.parent.mkdir()
+    source_file.write_text(
+        "bmi_value = weight_kg / (height_m ** 2)\n",
+        encoding="utf-8",
+    )
+
+    hits = _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path)
+
+    assert hits == ["app/violation.py:1: bmi_value = weight_kg / (height_m ** 2)"]
+
+
+def test_scan_reraises_source_read_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read-time failures for real source files must not produce false green."""
+    source_file = tmp_path / "app" / "unreadable.py"
+    source_file.parent.mkdir()
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def fake_read_text(
+        self: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if self == source_file:
+            raise FileNotFoundError(2, "source file disappeared", str(source_file))
+        return original_read_text(self, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    with pytest.raises(FileNotFoundError, match="source file disappeared"):
+        _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path)
+
+
+def test_scan_temp_read_error_exception_is_path_scoped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the exact xdist helper path may tolerate read-time disappearance."""
+    source_file = tmp_path / "core" / _GUARD_WHR_SKIP_TEMP_BASENAME
+    source_file.parent.mkdir()
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def fake_read_text(
+        self: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if self == source_file:
+            raise FileNotFoundError(2, "source file disappeared", str(source_file))
+        return original_read_text(self, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    with pytest.raises(FileNotFoundError, match="source file disappeared"):
+        _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path)
+
+
+def test_scan_allows_exact_temp_read_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The xdist helper path remains the only tolerated read-time race."""
+    source_file = tmp_path / _GUARD_WHR_SKIP_TEMP_REL_PATH
+    source_file.parent.mkdir()
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def fake_read_text(
+        self: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if self == source_file:
+            raise FileNotFoundError(2, "source file disappeared", str(source_file))
+        return original_read_text(self, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    assert _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path) == []
+
+
+def test_transient_read_error_path_match_is_separator_normalized() -> None:
+    """Windows-style separators must still match the exact transient helper path."""
+    assert _is_allowed_transient_read_error(r"app\test_guard_whr_skip_temp.py") is True
+
+
+def test_threshold_filter_temp_exception_is_path_scoped(tmp_path: Path) -> None:
+    """Similarly named files outside app/ must not bypass threshold hits."""
+    source_file = tmp_path / "core" / _GUARD_WHR_SKIP_TEMP_BASENAME
+    source_file.parent.mkdir()
+    source_file.write_text(
+        "WHR_THRESHOLD: float = 0.90  # whr threshold\n",
+        encoding="utf-8",
+    )
+
+    hits = _scan(BMI_THRESHOLDS_RE, "BMI threshold violation", repo_root=tmp_path)
+    filtered_hits: list[str] = []
+    for hit in hits:
+        path_part = _normalize_rel_path(hit.split(":", 1)[0])
+        if path_part == _GUARD_WHR_SKIP_TEMP_REL_PATH:
+            continue
+        filtered_hits.append(hit)
+
+    assert filtered_hits == [
+        f"core/{_GUARD_WHR_SKIP_TEMP_BASENAME}:1: " "WHR_THRESHOLD: float = 0.90  # whr threshold"
+    ]
 
 
 def test_no_bmi_thresholds_outside_core() -> None:
@@ -289,8 +533,8 @@ def test_no_bmi_thresholds_outside_core() -> None:
     hits = _scan(BMI_THRESHOLDS_RE, "BMI thresholds", skip_threshold_check=True)
     filtered_hits: list[str] = []
     for hit in hits:
-        path_part = hit.split(":", 1)[0]
-        if os.path.basename(path_part) == _GUARD_WHR_SKIP_TEMP_BASENAME:
+        path_part = _normalize_rel_path(hit.split(":", 1)[0])
+        if path_part == _GUARD_WHR_SKIP_TEMP_REL_PATH:
             continue
         filtered_hits.append(hit)
     hits = filtered_hits
