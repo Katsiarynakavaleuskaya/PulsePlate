@@ -251,7 +251,7 @@ Operator path today (repo companion, **not** a guarantee of raw-session auto-sta
 
 1. `scripts/orchestration/start_pr_lane.sh --goal "<goal>" --task-class "<class>" --branch "codex/<slug>" --worktree "worktrees/<slug>" --path "<scope>"` from a clean checkout synced with `origin/main` — creates the isolated PR worktree, runs analyze preflight, invokes `task_bootstrap.py`, and prints the plugin/runtime checklist, packet summary, and `Paste into Codex now` block.
 2. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe + Codex-ready next-step block. It does not execute `task_bootstrap.py` or create the authoritative packet. For flag-specific option handling, use the script's `--help` output.
-3. For Kimi Code CLI sessions, the same `start_pr_lane.sh` and `local_session_bootstrap.sh` entrypoints apply. The generated packet carries `transport: "kimi-native-subagents"` when the runtime signals Kimi support. Agent instructions are loaded from `.cursor/agents/*.md` and skills from `.agents/skills/` regardless of transport.
+3. For Kimi Code CLI sessions, the same `start_pr_lane.sh` and `local_session_bootstrap.sh` entrypoints apply. The generated packet carries `transport: "kimi-native-subagents"` only when the operator explicitly selects that native bridge transport. Agent instructions are loaded from `.cursor/agents/*.md` and skills from `.agents/skills/` regardless of transport.
 4. `python3 scripts/orchestration/task_bootstrap.py ...` — deterministic packet + routing metadata once invoked.
 
 In:

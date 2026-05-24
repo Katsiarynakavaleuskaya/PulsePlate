@@ -20,6 +20,10 @@ AGENTS_DIR = REPO_ROOT / ".cursor" / "agents"
 BRIDGE_PROTOCOL_VERSION = "1.0"
 BRIDGE_TRANSPORT = "codex-native-subagents"
 KIMI_BRIDGE_TRANSPORT = "kimi-native-subagents"
+BRIDGE_TRANSPORTS: tuple[str, ...] = (
+    BRIDGE_TRANSPORT,
+    KIMI_BRIDGE_TRANSPORT,
+)
 
 
 @dataclass(frozen=True)
@@ -180,6 +184,12 @@ def build_native_subagent_bridge(
     profiles.
     """
 
+    if transport not in BRIDGE_TRANSPORTS:
+        supported = ", ".join(BRIDGE_TRANSPORTS)
+        raise ValueError(
+            f"Unsupported native subagent bridge transport: {transport}. Supported: {supported}"
+        )
+
     validate_native_subagent_bridge_profiles()
     normalized_advisory_agents = advisory_agents or []
     advisory_bindings: list[dict[str, Any]] = []
@@ -191,11 +201,14 @@ def build_native_subagent_bridge(
         advisory_bindings.append(
             {
                 **advisory_binding,
-                "execution_mode": "advisory_no_spawn",
+                "native_agent_type": "explorer",
+                "execution_mode": "advisory_review",
                 "dispatch_contract": {
                     **advisory_binding["dispatch_contract"],
-                    "spawn_with_native_subagent": False,
-                    "advisory_only": True,
+                    "spawn_with_native_subagent": True,
+                    "advisory_only": False,
+                    "required_role_pass": True,
+                    "write_capability": "disabled_for_advisory_review",
                 },
             }
         )

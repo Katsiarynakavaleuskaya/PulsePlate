@@ -52,6 +52,7 @@ OOM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\boom\b", re.IGNORECASE),
     re.compile(r"\bcannot allocate memory\b", re.IGNORECASE),
 )
+PYTHON_ORACLE_BINARIES = {"python", "python3"}
 
 
 class ExperimentRunnerError(RuntimeError):
@@ -262,6 +263,68 @@ def _absolute_path_env(raw_path: str | None) -> str:
     return os.pathsep.join(absolute_entries)
 
 
+def _repo_python_from_env(env_name: str) -> Path | None:
+    """Return a validated repo-approved Python executable from an env override."""
+
+    raw_value = os.environ.get(env_name)
+    if raw_value is None or raw_value.strip() == "":
+        return None
+    candidate = Path(raw_value).expanduser()
+    if not candidate.is_absolute():
+        raise InfraFlakeError(f"{env_name} must be an absolute executable path.")
+    resolved = candidate.resolve()
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        raise InfraFlakeError(f"{env_name} is set but is not executable: {resolved}")
+    return resolved
+
+
+def _select_repo_python() -> Path | None:
+    """Select the repo-approved Python interpreter for Python oracle commands."""
+
+    for env_name in ("VENV_PYTHON", "DEV_PYTHON"):
+        selected = _repo_python_from_env(env_name)
+        if selected is not None:
+            return selected
+
+    repo_python = REPO_ROOT / ".venv" / "bin" / "python"
+    if repo_python.is_file() and os.access(repo_python, os.X_OK):
+        return repo_python.resolve()
+    return None
+
+
+def _python_oracle_path_prefix(requests: list[SandboxRequest]) -> str | None:
+    """Return PATH prefix required for Python oracles, or fail closed."""
+
+    python_binaries = sorted(
+        {request.binary for request in requests if request.binary in PYTHON_ORACLE_BINARIES}
+    )
+    if not python_binaries:
+        return None
+
+    selected_python = _select_repo_python()
+    if selected_python is None:
+        binaries = ", ".join(python_binaries)
+        raise InfraFlakeError(
+            "Python oracle command requires repo-approved Python, but no executable "
+            f"VENV_PYTHON, DEV_PYTHON, or repo .venv/bin/python was found for: {binaries}"
+        )
+
+    python_bin_dir = selected_python.parent.resolve()
+    for binary in python_binaries:
+        resolved_binary = shutil.which(binary, path=str(python_bin_dir))
+        if resolved_binary is None:
+            raise InfraFlakeError(
+                f"Python oracle binary {binary!r} was not found in repo-approved "
+                f"Python bin dir: {python_bin_dir}"
+            )
+        if Path(resolved_binary).resolve().parent != python_bin_dir:
+            raise InfraFlakeError(
+                f"Python oracle binary {binary!r} did not resolve through "
+                f"repo-approved Python bin dir: {python_bin_dir}"
+            )
+    return str(python_bin_dir)
+
+
 def _shared_tree_status(root: Path) -> str:
     """Capture tracked/untracked status to prove the shared tree stayed untouched."""
 
@@ -327,16 +390,20 @@ def _temporary_sandbox_env(
     sandbox_root: Path,
     allowed_binaries: tuple[str, ...],
     timeout_seconds: int,
+    path_prefix: str | None = None,
 ) -> Iterator[None]:
     """Temporarily configure sandbox env without leaking state across runs."""
 
+    normalized_path = _absolute_path_env(os.environ.get("PATH") or os.defpath)
+    if path_prefix:
+        normalized_path = os.pathsep.join([path_prefix, normalized_path])
     overrides = {
         sandbox.SANDBOX_ENABLED_ENV: "true",
         sandbox.SANDBOX_ROOT_ENV: str(sandbox_root),
         sandbox.SANDBOX_TIMEOUT_ENV: str(timeout_seconds),
         sandbox.SANDBOX_ALLOWED_BINARIES_ENV: ",".join(allowed_binaries),
         cp.EXECUTION_MODE_ENV: cp.EXECUTION_MODE_AUTO_SAFE,
-        "PATH": _absolute_path_env(os.environ.get("PATH") or os.defpath),
+        "PATH": normalized_path,
     }
     previous = {key: os.environ.get(key) for key in overrides}
     try:
@@ -417,6 +484,7 @@ def _run_oracles(
     failure_class: str | None = None
     requests = [_command_to_request(oracle["command"]) for oracle in packet["immutable_oracles"]]
     allowed_binaries = tuple(sorted({request.binary for request in requests}))
+    path_prefix = _python_oracle_path_prefix(requests)
     total_wall_clock_seconds = int(packet["budgets"]["wall_clock_seconds"])
     started_at = time.monotonic()
 
@@ -442,6 +510,7 @@ def _run_oracles(
             sandbox_root=checkout_root,
             allowed_binaries=allowed_binaries,
             timeout_seconds=timeout_seconds,
+            path_prefix=path_prefix,
         ):
             try:
                 result = sandbox.run_local_sandbox(

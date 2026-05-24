@@ -63,7 +63,7 @@ from scripts.orchestration.design_lane_contract import (
 )
 from scripts.orchestration.native_subagent_bridge import (
     BRIDGE_TRANSPORT,
-    KIMI_BRIDGE_TRANSPORT,
+    BRIDGE_TRANSPORTS,
     build_native_subagent_bridge,
 )
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
@@ -102,10 +102,7 @@ PR_PHASES: tuple[str, ...] = (
     PR_PHASE_POST_OPEN_REVIEW,
     PR_PHASE_MERGE_READY,
 )
-NATIVE_BRIDGE_TRANSPORTS: tuple[str, ...] = (
-    BRIDGE_TRANSPORT,
-    KIMI_BRIDGE_TRANSPORT,
-)
+NATIVE_BRIDGE_TRANSPORTS: tuple[str, ...] = (*BRIDGE_TRANSPORTS,)
 POST_OPEN_REVIEW_LANE: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
@@ -463,12 +460,12 @@ def _partition_native_secondaries(
     requested_agent_disposition: list[dict[str, str]],
     forced_executable_agents: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Split executable secondaries from advisory-only collaborators.
+    """Split secondaries from required advisory role-pass collaborators.
 
-    RU: advisory specialists stay in the task packet but must not be promoted to
-    runnable native subagents.
-    EN: advisory specialists remain in the task packet but must not be promoted
-    into runnable native subagents.
+    RU: advisory describes contribution type, not permission to skip a requested
+    role pass.
+    EN: advisory describes contribution type, not permission to skip a requested
+    role pass.
     """
 
     advisory_statuses = {
@@ -525,6 +522,33 @@ def _promote_forced_secondary_dispositions(
             )
         disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_SECONDARY
         disposition["reason"] = reason
+
+
+def _append_missing_requested_role_passes(
+    *,
+    requested_agent_disposition: list[dict[str, str]],
+    primary_agent: str,
+    secondary_agents: list[str],
+    reviewer: str,
+) -> list[str]:
+    """Ensure every known requested role is present in the executable plan."""
+
+    ordered_secondary_agents = list(secondary_agents)
+    planned_agents = {primary_agent, reviewer, *ordered_secondary_agents}
+    for disposition in requested_agent_disposition:
+        agent_slug = disposition["agent"]
+        if disposition["status"] == REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN:
+            continue
+        if agent_slug in planned_agents:
+            continue
+        ordered_secondary_agents.append(agent_slug)
+        planned_agents.add(agent_slug)
+        if disposition["status"] == REQUESTED_AGENT_STATUS_HONORED_REVIEWER:
+            disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_SECONDARY
+            disposition["reason"] = (
+                "Requested reviewer remains a required role pass after PR lifecycle synthesis."
+            )
+    return ordered_secondary_agents
 
 
 def _apply_requested_agent_overrides(
@@ -713,6 +737,12 @@ def build_task_packet(
     normalized_paths = repo_relative_paths(
         [path.strip() for path in candidate_paths if path.strip()]
     )
+    if native_bridge_transport not in NATIVE_BRIDGE_TRANSPORTS:
+        supported = ", ".join(NATIVE_BRIDGE_TRANSPORTS)
+        raise ValueError(
+            "Unsupported native_bridge_transport: "
+            f"{native_bridge_transport}. Supported: {supported}"
+        )
     normalized_requested_agents = normalize_requested_agents(requested_agents)
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
     design_lane_mode, design_lane_contract, design_lane_enabled = _build_design_lane_contract(
@@ -792,6 +822,12 @@ def build_task_packet(
         reviewer=lifecycle_reviewer,
     )
     requested_agent_resolution["reviewer"] = lifecycle_reviewer
+    requested_agent_resolution["secondary_agents"] = _append_missing_requested_role_passes(
+        requested_agent_disposition=requested_agent_resolution["requested_agent_disposition"],
+        primary_agent=requested_agent_resolution["primary_agent"],
+        secondary_agents=requested_agent_resolution["secondary_agents"],
+        reviewer=requested_agent_resolution["reviewer"],
+    )
     skill_routing = route_skills(
         goal=goal,
         task_class=task_class,

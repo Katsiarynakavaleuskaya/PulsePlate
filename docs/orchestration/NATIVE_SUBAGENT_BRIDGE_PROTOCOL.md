@@ -67,9 +67,9 @@ Each role binding includes:
 - `transport_rationale`
 - `dispatch_contract`
 
-Advisory collaborators are visible in the packet for transparency, but they are
-**not runnable native subagents** unless a later contract explicitly promotes
-them.
+Advisory collaborators are visible in the packet for transparency and are
+required role passes when explicitly requested. Advisory describes the
+contribution profile, not permission to skip execution.
 
 This makes the adapter explicit and testable without changing the canonical
 repo-agent routing contract.
@@ -84,9 +84,10 @@ When a runtime supports native subagents:
 2. Use `primary_agent` / `secondary_agents` / `reviewer` as the canonical role
    identities.
 3. Read `native_subagent_bridge` only to choose the host runtime transport type.
-4. Spawn only `primary`, executable `secondary`, and `reviewer` bindings.
-5. Keep `advisory` bindings non-runnable unless a future promoted contract says
-   otherwise.
+4. Spawn `primary`, executable `secondary`, `reviewer`, and any `advisory`
+   binding whose dispatch contract sets `required_role_pass: true`.
+5. Treat advisory role passes as read-only / analysis-first unless their
+   explicit profile grants broader authority.
 6. Load the instruction path listed in the bridge entry.
 7. Load `required_context` and `recommended_skills` from the same task packet.
 8. In updates, describe the work using the repo-agent slug.
