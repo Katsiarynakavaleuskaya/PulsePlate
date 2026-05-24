@@ -157,6 +157,34 @@ def test_live_socket_validation_reports_missing_sdk_without_import_time_failure(
     assert "xoxb-" not in stdout
 
 
+@pytest.mark.parametrize(
+    ("env_name", "token"),
+    [
+        ("SLACK_APP_TOKEN", "xoxb-" + "a" * 24),
+        ("SLACK_BOT_TOKEN", "xapp-" + "b" * 24),
+    ],
+)
+def test_slack_runtime_tokens_must_match_expected_token_class(
+    env_name: str,
+    token: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv(env_name, token)
+
+    assert bridge.main(["--validate-runtime", "--run-socket", "--audit-dir", str(audit_dir)]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "configuration is invalid" in stdout
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+
+
 def test_execute_runtime_validation_requires_github_auth(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -173,6 +201,30 @@ def test_execute_runtime_validation_requires_github_auth(
     assert "GitHub dispatch configuration is incomplete" in stdout
     assert "GH_TOKEN" not in stdout
     assert "GITHUB_TOKEN" not in stdout
+
+
+@pytest.mark.parametrize("token", ["xapp-" + "a" * 24, "sk-" + "b" * 24])
+def test_execute_runtime_rejects_non_github_token_classes(
+    token: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", token)
+
+    assert (
+        bridge.main(
+            ["--validate-runtime", "--dispatch-mode", "execute", "--audit-dir", str(audit_dir)]
+        )
+        == 1
+    )
+    stdout = capsys.readouterr().out
+
+    assert "GitHub dispatch configuration is invalid" in stdout
+    assert "xapp-" not in stdout
+    assert "sk-" not in stdout
 
 
 def test_live_socket_validation_requires_channel_and_user_allowlists(
@@ -450,6 +502,20 @@ def test_duplicate_event_is_blocked_before_second_dispatch(
     assert len(calls) == 1
 
 
+def test_duplicate_event_is_checked_before_global_rate_limit_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+
+    bridge.process_payload(_event(), config)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="already processed"):
+        bridge.process_payload(_event(), config)
+
+
 def test_rejected_duplicate_event_cannot_overwrite_successful_audit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -485,6 +551,24 @@ def test_duplicate_rejected_event_is_blocked_without_overwriting_audit(
         bridge.process_payload(rejected, config)
 
     assert audit_path.read_text(encoding="utf-8") == original_audit
+
+
+def test_invalid_command_does_not_acquire_global_rate_limit_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+    rejected = _event(text="run-experiment feature/test bad; rm -rf repo")
+
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.process_payload(rejected, config)
+
+    audit_path = audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json"
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    assert audit["status"] == "rejected"
+    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
 
 
 def test_recent_audit_rate_limit_blocks_before_dispatch(
@@ -617,6 +701,37 @@ def test_rate_limit_claim_retry_loop_is_bounded(
     assert attempts == bridge.RATE_LIMIT_CLAIM_MAX_ATTEMPTS
 
 
+def test_rate_limit_claim_cleans_partial_lock_on_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+    original_write_text = Path.write_text
+
+    def fail_claim_write(path: Path, *args: Any, **kwargs: Any) -> int:
+        if path.name == "claim.json":
+            raise OSError("disk full")
+        return original_write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_claim_write)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="Unable to record"):
+        bridge._claim_rate_limit(
+            config,
+            bridge.OperatorEvent(
+                event_id="Ev0PARTIAL",
+                channel_id="C0ALERTS",
+                user_id="U0OPERATOR",
+                team_id="T0TEAM",
+                text="status",
+            ),
+        )
+
+    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+
+
 def test_malformed_existing_audit_blocks_before_dispatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -699,6 +814,8 @@ def test_audit_dir_rejects_symlinked_artifact_ancestor(
             status="dry_run",
         )
 
+    assert not (outside / "slack_socket_bridge").exists()
+
 
 def test_audit_write_rejects_symlinked_output_file(
     tmp_path: Path,
@@ -752,3 +869,29 @@ def test_audit_write_rejects_parent_traversal_output_file(
         )
 
     assert not (audit_dir.parent / "outside.json").exists()
+
+
+def test_event_claim_rejects_parent_traversal_before_mkdir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+    escaped = audit_dir / ".." / "outside" / "audit.json"
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="artifacts/orchestration"):
+        bridge._claim_event(
+            escaped,
+            event=bridge.OperatorEvent(
+                event_id="Ev0TRAVERSAL",
+                channel_id="C0ALERTS",
+                user_id="U0OPERATOR",
+                team_id="T0TEAM",
+                text="status",
+            ),
+            command=bridge.OperatorCommand(kind="status"),
+            config=config,
+        )
+
+    assert not (audit_dir.parent / "outside").exists()

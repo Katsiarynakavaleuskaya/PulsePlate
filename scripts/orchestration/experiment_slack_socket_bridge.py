@@ -55,6 +55,9 @@ SECRET_SHAPED_RE = re.compile(
     r"https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,}|sk-[A-Za-z0-9_-]{12,})",
     re.IGNORECASE,
 )
+SLACK_APP_TOKEN_RE = re.compile(r"^xapp-[A-Za-z0-9-]{10,}$")
+SLACK_BOT_TOKEN_RE = re.compile(r"^xoxb-[A-Za-z0-9-]{10,}$")
+GITHUB_TOKEN_RE = re.compile(r"^(gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})$")
 ALLOWED_COMMANDS = {"help", "status", "run-experiment"}
 ALLOWED_WORKFLOWS = {DEFAULT_WORKFLOW_FILE}
 RATE_LIMIT_LOCK_DIR = "rate_limit_claim"
@@ -217,7 +220,13 @@ def _optional_token(env_name: str) -> str | None:
     token = os.environ.get(env_name, "").strip()
     if not token:
         return None
-    if CONTROL_CHAR_RE.search(token) or "`" in token or SECRET_SHAPED_RE.search(token) is None:
+    token_pattern = {
+        SLACK_APP_AUTH_ENV: SLACK_APP_TOKEN_RE,
+        SLACK_BOT_AUTH_ENV: SLACK_BOT_TOKEN_RE,
+    }.get(env_name)
+    if token_pattern is None:
+        raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
+    if CONTROL_CHAR_RE.search(token) or "`" in token or token_pattern.fullmatch(token) is None:
         raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
     return token
 
@@ -226,7 +235,7 @@ def _github_token() -> str | None:
     token = os.environ.get("GH_TOKEN", "").strip() or os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
         return None
-    if CONTROL_CHAR_RE.search(token) or "`" in token or SECRET_SHAPED_RE.search(token) is None:
+    if CONTROL_CHAR_RE.search(token) or "`" in token or GITHUB_TOKEN_RE.fullmatch(token) is None:
         raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
     return token
 
@@ -246,31 +255,54 @@ def _normalized_absolute_path(path: Path) -> Path:
     return Path(os.path.abspath(os.fspath(path)))
 
 
+def _reject_symlinked_existing_path(root: Path, candidate: Path, *, message: str) -> None:
+    current = root
+    if current.is_symlink():
+        raise SlackSocketAuditError(message)
+    for part in candidate.relative_to(root).parts:
+        current = current / part
+        if current.is_symlink():
+            raise SlackSocketAuditError(message)
+
+
 def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
-    artifact_root = _normalized_absolute_path(Path(REPO_ROOT) / "artifacts" / "orchestration")
+    repo_root = _normalized_absolute_path(Path(REPO_ROOT))
+    artifact_root = _normalized_absolute_path(repo_root / "artifacts" / "orchestration")
     artifact_dir = _normalized_absolute_path(artifact_dir)
     candidate = _normalized_absolute_path(candidate)
     try:
+        artifact_root.relative_to(repo_root)
+    except ValueError as exc:
+        raise SlackSocketAuditError(
+            "Slack operator audit directory must stay under artifacts/orchestration."
+        ) from exc
+    _reject_symlinked_existing_path(
+        repo_root,
+        artifact_root,
+        message="Slack operator audit ancestors must not be symlinks.",
+    )
+    try:
         artifact_dir.relative_to(artifact_root)
+    except ValueError as exc:
+        raise SlackSocketAuditError(
+            "Slack operator audit directory must stay under artifacts/orchestration."
+        ) from exc
+    _reject_symlinked_existing_path(
+        artifact_root,
+        artifact_dir,
+        message="Slack operator audit ancestors must not be symlinks.",
+    )
+    try:
         candidate.relative_to(artifact_dir)
     except ValueError as exc:
         raise SlackSocketAuditError(
             "Slack operator audit directory must stay under artifacts/orchestration."
         ) from exc
-    current = artifact_root
-    if current.is_symlink():
-        raise SlackSocketAuditError("Slack operator audit ancestors must not be symlinks.")
-    for part in artifact_dir.relative_to(artifact_root).parts:
-        current = current / part
-        if current.is_symlink():
-            raise SlackSocketAuditError("Slack operator audit ancestors must not be symlinks.")
-    if artifact_dir.is_symlink():
-        raise SlackSocketAuditError("Slack operator audit directory must not be a symlink.")
-    current = artifact_dir
-    for part in candidate.relative_to(artifact_dir).parts:
-        current = current / part
-        if current.is_symlink():
-            raise SlackSocketAuditError("Slack operator audit path must not traverse a symlink.")
+    _reject_symlinked_existing_path(
+        artifact_dir,
+        candidate,
+        message="Slack operator audit path must not traverse a symlink.",
+    )
 
 
 def _resolve_audit_dir(raw_audit_dir: str | None) -> Path:
@@ -467,6 +499,18 @@ def _read_audit(path: Path) -> dict[str, Any] | None:
     return payload
 
 
+def _ensure_event_not_processed(path: Path, *, config: BridgeConfig) -> None:
+    _reject_symlinked_output_components(
+        path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
+    )
+    existing = _read_audit(path)
+    if existing is None:
+        return
+    if existing.get("status") in {"claimed", "dry_run", "dispatched", "failed", "rejected"}:
+        raise SlackSocketAuditError("Slack operator event was already processed.")
+    raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
+
+
 def _audit_payload(
     *,
     event: OperatorEvent,
@@ -501,10 +545,10 @@ def _write_audit(
     status: str,
     failure_class: str | None = None,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     _reject_symlinked_output_components(
         path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
     )
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
             _audit_payload(
@@ -531,10 +575,10 @@ def _write_audit_exclusive(
     status: str,
     failure_class: str | None = None,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     _reject_symlinked_output_components(
         path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
     )
+    path.parent.mkdir(parents=True, exist_ok=True)
     payload = _audit_payload(
         event=event,
         command=command,
@@ -555,6 +599,9 @@ def _write_audit_exclusive(
 def _claim_event(
     path: Path, *, event: OperatorEvent, command: OperatorCommand, config: BridgeConfig
 ) -> None:
+    _reject_symlinked_output_components(
+        path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
+    )
     payload = _audit_payload(
         event=event,
         command=command,
@@ -563,9 +610,6 @@ def _claim_event(
         failure_class=None,
     )
     path.parent.mkdir(parents=True, exist_ok=True)
-    _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
-    )
     try:
         with path.open("x", encoding="utf-8") as audit_file:
             audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
@@ -577,6 +621,7 @@ def _claim_event(
         "dry_run",
         "dispatched",
         "failed",
+        "rejected",
     }:
         raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
     raise SlackSocketAuditError("Slack operator event was already processed.")
@@ -616,6 +661,26 @@ def _remove_stale_rate_limit_claim(lock_dir: Path) -> None:
         ) from exc
 
 
+def _cleanup_partial_rate_limit_claim(lock_dir: Path) -> None:
+    claim_path = lock_dir / "claim.json"
+    try:
+        claim_path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise SlackSocketAuditError(
+            "Unable to clean up partial Slack operator rate-limit claim."
+        ) from exc
+    try:
+        lock_dir.rmdir()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise SlackSocketAuditError(
+            "Unable to clean up partial Slack operator rate-limit claim."
+        ) from exc
+
+
 def _claim_rate_limit(config: BridgeConfig, event: OperatorEvent) -> None:
     if config.min_interval_seconds <= 0:
         return
@@ -647,6 +712,7 @@ def _claim_rate_limit(config: BridgeConfig, event: OperatorEvent) -> None:
                 encoding="utf-8",
             )
         except OSError as exc:
+            _cleanup_partial_rate_limit_claim(lock_dir)
             raise SlackSocketAuditError(
                 "Unable to record Slack operator rate-limit claim."
             ) from exc
@@ -664,7 +730,7 @@ def _check_rate_limit(config: BridgeConfig) -> None:
         raise SlackSocketAuditError("Unable to inspect Slack operator audit artifacts.") from exc
     for audit_path in audit_paths:
         audit = _read_audit(audit_path)
-        if audit is None or audit.get("status") not in {"claimed", "dry_run", "dispatched"}:
+        if audit is None or audit.get("status") not in {"dry_run", "dispatched"}:
             continue
         if config.min_interval_seconds <= 0:
             continue
@@ -747,8 +813,7 @@ def process_operator_event(
     audit_path = _audit_path(config, event)
     try:
         _require_authorized_event(event, config)
-        _check_rate_limit(config)
-        _claim_rate_limit(config, event)
+        _ensure_event_not_processed(audit_path, config=config)
         command = parse_operator_command(event.text, command_hint=event.command_hint)
     except SlackSocketCommandError:
         command = OperatorCommand(kind="rejected")
@@ -762,6 +827,19 @@ def process_operator_event(
         )
         raise
     _claim_event(audit_path, event=event, command=command, config=config)
+    try:
+        _check_rate_limit(config)
+        _claim_rate_limit(config, event)
+    except SlackSocketAuditError:
+        _write_audit(
+            path=audit_path,
+            event=event,
+            command=command,
+            config=config,
+            status="failed",
+            failure_class="rate_limited",
+        )
+        raise
     status = "dry_run"
     failure_class: str | None = None
     try:
