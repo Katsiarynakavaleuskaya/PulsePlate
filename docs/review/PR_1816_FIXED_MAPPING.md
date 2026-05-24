@@ -31,6 +31,21 @@ Disposition: FIXED
 Commit: 7b35be2b7
 Evidence: `tests/test_philosophy_alignment_ledger_closeout.py` now asserts the generated dispatch manifest keeps `qa-engineer-agent -> bug-hunter` adjacent instead of comparing constants only.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294999904 -> eb003debe
+Disposition: FIXED
+Commit: eb003debe
+Evidence: `scripts/ci/check_philosophy_alignment_ledger_closeout.py` now rejects unexpected numbered startup steps instead of filtering them out; `tests/test_philosophy_alignment_ledger_closeout.py` covers the bypass with an unexpected numbered startup command.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294999906 -> eb003debe
+Disposition: FIXED
+Commit: eb003debe
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now normalizes the full `qa-engineer-agent -> bug-hunter -> security-auditor` block and chains duplicate bug/security passes; `tests/test_qoder_dispatch_bridge.py` covers duplicate `bug-hunter` entries and prevents `security-auditor` from being parallelized.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3295000159 -> eb003debe
+Disposition: FIXED
+Commit: eb003debe
+Evidence: `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_2_ALIGNMENT_LEDGER_CLOSEOUT_PACKET_2026-05-24.md` now uses portable `.venv/bin/python` and `PATH=.venv/bin:$PATH` validation snippets instead of user-specific absolute paths.
+
 ## Pre-Open Role-Agent Finding Closure
 
 - Coordinator finding -> `b1298cd72`
@@ -74,6 +89,11 @@ Disposition: FIXED
 Commit: `f1190e26`
 Evidence: PR body mirror now includes `scripts/orchestration/qoder_dispatch_bridge.py`, `tests/test_qoder_dispatch_bridge.py`, current-head role-dispatch evidence, and `## Split Justification`; lane provenance records task packet `artifacts/orchestration/task_packets/62f8bb889bac.json`.
 
+- Coordinator / QA / bug-hunter / security-auditor post-open rerun findings -> `eb003debe`
+Disposition: FIXED
+Commit: `eb003debe`
+Evidence: The post-open rerun used `artifacts/orchestration/task_packets/eb488aa98c44.json` and explicit sequence `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor`. Fixes close unexpected startup-step false-greens, duplicate bug-hunter handoff bypass, security-auditor parallelization, and user-specific validation path drift in code/docs/tests.
+
 ## Experiment Runner Evidence
 
 Artifact: `artifacts/orchestration/experiments/results/pr4_2_alignment_ledger_closeout_oracle_result_rebased_v2.json`
@@ -100,13 +120,13 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - `python3 scripts/ci/check_philosophy_alignment_rules.py` -> PASS
 - `python3 scripts/ci/check_philosophy_gate_open_preconditions.py --check --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` -> PASS
 - `python3 scripts/ci/check_philosophy_alignment_ledger_closeout.py --check` -> PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_philosophy_alignment_rules.py tests/test_philosophy_gate_open_preconditions.py` -> PASS, 56 tests
-- `PYTHONDONTWRITEBYTECODE=1 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_qoder_dispatch_bridge.py` -> PASS
-- `PYTHONDONTWRITEBYTECODE=1 MYPYPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --explicit-package-bases --cache-dir=/dev/null --no-incremental scripts/ci/check_philosophy_alignment_ledger_closeout.py scripts/orchestration/qoder_dispatch_bridge.py tests/test_philosophy_alignment_ledger_closeout.py tests/test_qoder_dispatch_bridge.py` -> PASS
+- `repo-root .venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_philosophy_alignment_rules.py tests/test_philosophy_gate_open_preconditions.py` -> PASS, 56 tests
+- `PYTHONDONTWRITEBYTECODE=1 repo-root .venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_qoder_dispatch_bridge.py` -> PASS
+- `PYTHONDONTWRITEBYTECODE=1 MYPYPATH=. repo-root .venv/bin/python -m mypy --explicit-package-bases --cache-dir=/dev/null --no-incremental scripts/ci/check_philosophy_alignment_ledger_closeout.py scripts/orchestration/qoder_dispatch_bridge.py tests/test_philosophy_alignment_ledger_closeout.py tests/test_qoder_dispatch_bridge.py` -> PASS
 - `python3 scripts/orchestration/qoder_dispatch_bridge.py --packet docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_2_ALIGNMENT_LEDGER_CLOSEOUT_PACKET_2026-05-24.md --pretty` -> dispatch order `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> bug-hunter -> security-auditor`
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
-- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` -> PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files` -> PASS
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` -> PASS
+- `PATH=.venv/bin:$PATH pre-commit run --all-files` -> PASS
 - Pre-push hooks -> PASS
 - PR size governance local reproduction after `4dad9fcdd`: `FAIL (>800 LoC without explicit split justification)`; fixed by adding `## Split Justification` to the PR body mirror/live body.
 
