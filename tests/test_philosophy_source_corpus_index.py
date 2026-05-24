@@ -141,7 +141,7 @@ def test_philosophy_source_corpus_index_rejects_non_object_source_item() -> None
     index = _index()
     sources = index["sources"]
     assert isinstance(sources, list)
-    sources.append("not-a-source")
+    sources.append(42)
 
     errors = _validate(index)
 
@@ -176,6 +176,37 @@ def test_philosophy_source_corpus_index_rejects_language_drift() -> None:
     errors = _validate(index)
 
     assert any("analytic_linguistic_audit.language must be ru" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_source_scalar_type_drift() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    first = dict(sources[0])
+    first["title"] = 123
+    sources[0] = first
+
+    errors = _validate(index)
+
+    assert any("analytic_linguistic_audit.title must be a string" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_source_array_type_drift() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    first = dict(sources[0])
+    rails = list(first["discipline_rails"])
+    rails.append(123)
+    first["discipline_rails"] = rails
+    sources[0] = first
+
+    errors = _validate(index)
+
+    assert any(
+        "analytic_linguistic_audit.discipline_rails must contain only strings" in error
+        for error in errors
+    )
 
 
 def test_philosophy_source_corpus_index_rejects_generic_theme_collapse() -> None:
@@ -360,6 +391,34 @@ def test_philosophy_source_corpus_index_rejects_schema_research_basis_cardinalit
     assert any("schema research_basis.maxItems must be 6" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_schema_repo_truth_link_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    repo_truth_links = properties["repo_truth_links"]
+    assert isinstance(repo_truth_links, dict)
+    items = repo_truth_links["items"]
+    assert isinstance(items, dict)
+    items["type"] = "number"
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema repo_truth_links.items.type must be string" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_schema_out_of_scope_cardinality_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    out_of_scope_paths = properties["out_of_scope_paths"]
+    assert isinstance(out_of_scope_paths, dict)
+    out_of_scope_paths["minItems"] = 8
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema out_of_scope_paths.minItems must be 14" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_rejects_roadmap_marker_drift() -> None:
     roadmap_text = _read(DEFAULT_ROADMAP).replace(
         "SEMANTIC_CACHE_ALLOWED_RUNTIME: false",
@@ -409,7 +468,7 @@ def test_philosophy_source_corpus_index_rejects_non_string_repo_truth_link() -> 
     index = _index()
     links = index["repo_truth_links"]
     assert isinstance(links, list)
-    links.append({"unexpected": "non-string"})
+    links.append(42)
 
     errors = _validate(index)
 
@@ -434,7 +493,7 @@ def test_philosophy_source_corpus_index_rejects_non_string_out_of_scope_path() -
     index = _index()
     paths = index["out_of_scope_paths"]
     assert isinstance(paths, list)
-    paths.append({"unexpected": "non-string"})
+    paths.append(42)
 
     errors = _validate(index)
 
@@ -445,12 +504,26 @@ def test_philosophy_source_corpus_index_rejects_non_object_research_basis_item()
     index = _index()
     basis = index["research_basis"]
     assert isinstance(basis, list)
-    basis.append("not-a-research-anchor")
+    basis.append(42)
 
     errors = _validate(index)
 
     assert any("research_basis[6] must be an object" in error for error in errors)
     assert any("research_basis must contain 6 sources" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_source_policy_constant_drift() -> None:
+    index = _index()
+    policy = index["source_policy"]
+    assert isinstance(policy, dict)
+    policy["authority"] = "pdf_is_runtime_truth"
+
+    errors = _validate(index)
+
+    assert any(
+        "source_policy.authority must be operator_pdf_design_evidence_repo_truth_wins" in error
+        for error in errors
+    )
 
 
 def test_philosophy_source_corpus_index_scans_touched_artifact_contents(

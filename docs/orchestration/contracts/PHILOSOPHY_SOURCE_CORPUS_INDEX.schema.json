@@ -294,14 +294,16 @@
     },
     "repo_truth_links": {
       "type": "array",
-      "minItems": 4,
+      "minItems": 9,
+      "maxItems": 9,
       "items": {
         "type": "string"
       }
     },
     "out_of_scope_paths": {
       "type": "array",
-      "minItems": 8,
+      "minItems": 14,
+      "maxItems": 14,
       "items": {
         "type": "string"
       }

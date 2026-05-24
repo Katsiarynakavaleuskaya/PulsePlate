@@ -79,6 +79,22 @@ EXPECTED_SOURCE_KEYS = (
     "future_handoff",
     "runtime_flags",
 )
+SOURCE_STRING_FIELDS = (
+    "source_id",
+    "title",
+    "sanitized_filename",
+    "language",
+    "sha256",
+    "source_family",
+    "extraction_status",
+    "summary",
+    "future_handoff",
+)
+SOURCE_STRING_ARRAY_FIELDS = (
+    "theme_families",
+    "discipline_rails",
+    "linked_repo_anchors",
+)
 EXPECTED_SOURCE_FAMILIES = (
     "socratic_cbt_semantic_cache",
     "leibniz_information_theory",
@@ -397,6 +413,14 @@ FORBIDDEN_WELLNESS_CLAIMS = (
 ALLOWED_WELLNESS_BOUNDARY = (
     "cbt_inspired_reflective_wellness_coaching_not_medical_diagnosis_treatment_or_therapy"
 )
+EXPECTED_SOURCE_POLICY_VALUES = {
+    "authority": "operator_pdf_design_evidence_repo_truth_wins",
+    "local_path_policy": "no_absolute_local_paths_committed",
+    "text_policy": "metadata_and_paraphrase_only_no_full_pdf_text",
+    "promotion_policy": "not_runtime_truth_without_reviewed_contract",
+    "credential_policy": "credential_like_urls_forbidden",
+    "wellness_boundary": ALLOWED_WELLNESS_BOUNDARY,
+}
 
 
 def _load_json_no_duplicate_keys(
@@ -464,6 +488,14 @@ def _validate_exact_string_array(
         return [f"{label} must contain only strings"]
     if list(value) != list(expected):
         return [mismatch_message]
+    return []
+
+
+def _validate_string_array(value: object, *, label: str) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{label} must be an array"]
+    if not all(isinstance(item, str) for item in value):
+        return [f"{label} must contain only strings"]
     return []
 
 
@@ -775,6 +807,25 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
                 "rationale_only_not_runtime_truth",
             )
         )
+    for key, expected_count in (
+        ("repo_truth_links", len(EXPECTED_REPO_TRUTH_LINKS)),
+        ("out_of_scope_paths", len(FORBIDDEN_RUNTIME_PATHS)),
+    ):
+        array_schema = _schema_object_at(schema, ("properties", key))
+        if array_schema is None:
+            errors.append(f"schema {key} must be an object")
+            continue
+        if array_schema.get("type") != "array":
+            errors.append(f"schema {key}.type must be array")
+        if array_schema.get("minItems") != expected_count:
+            errors.append(f"schema {key}.minItems must be {expected_count}")
+        if array_schema.get("maxItems") != expected_count:
+            errors.append(f"schema {key}.maxItems must be {expected_count}")
+        items = _schema_object_at(schema, ("properties", key, "items"))
+        if items is None:
+            errors.append(f"schema {key}.items must be an object")
+        elif items.get("type") != "string":
+            errors.append(f"schema {key}.items.type must be string")
     return errors
 
 
@@ -893,6 +944,16 @@ def _validate_sources(index: dict[str, object]) -> list[str]:
             )
         )
         source_id = str(source.get("source_id", ""))
+        for field in SOURCE_STRING_FIELDS:
+            if not isinstance(source.get(field), str):
+                errors.append(f"{source_id or '<unknown>'}.{field} must be a string")
+        for field in SOURCE_STRING_ARRAY_FIELDS:
+            errors.extend(
+                _validate_string_array(
+                    source.get(field),
+                    label=f"{source_id or '<unknown>'}.{field}",
+                )
+            )
         if source_id not in EXPECTED_SOURCES:
             errors.append(f"unexpected source_id: {source_id}")
             continue
@@ -977,8 +1038,9 @@ def _validate_wellness_boundary(index: dict[str, object]) -> list[str]:
             expected_keys=EXPECTED_SOURCE_POLICY_KEYS,
         )
     )
-    if policy.get("wellness_boundary") != ALLOWED_WELLNESS_BOUNDARY:
-        errors.append(f"source_policy.wellness_boundary must be {ALLOWED_WELLNESS_BOUNDARY}")
+    for key, expected_value in EXPECTED_SOURCE_POLICY_VALUES.items():
+        if policy.get(key) != expected_value:
+            errors.append(f"source_policy.{key} must be {expected_value}")
 
     for source in _object_items(index.get("sources")):
         source_id = str(source.get("source_id", "<unknown>"))
