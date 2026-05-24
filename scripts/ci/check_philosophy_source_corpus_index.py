@@ -441,6 +441,32 @@ def _string_items(value: object) -> list[str]:
     return [item for item in value if isinstance(item, str)]
 
 
+def _validate_object_array(value: object, *, label: str) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{label} must be an array"]
+    errors: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            errors.append(f"{label}[{index}] must be an object")
+    return errors
+
+
+def _validate_exact_string_array(
+    value: object,
+    *,
+    label: str,
+    expected: tuple[str, ...],
+    mismatch_message: str,
+) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{label} must be an array"]
+    if not all(isinstance(item, str) for item in value):
+        return [f"{label} must contain only strings"]
+    if list(value) != list(expected):
+        return [mismatch_message]
+    return []
+
+
 def _validate_exact_keys(
     value: object,
     *,
@@ -841,7 +867,11 @@ def _validate_runtime_flags(index: dict[str, object]) -> list[str]:
 
 def _validate_sources(index: dict[str, object]) -> list[str]:
     errors: list[str] = []
-    sources = _object_items(index.get("sources"))
+    raw_sources = index.get("sources")
+    errors.extend(_validate_object_array(raw_sources, label="sources"))
+    if isinstance(raw_sources, list) and len(raw_sources) != len(EXPECTED_SOURCES):
+        errors.append(f"sources must contain {len(EXPECTED_SOURCES)} entries")
+    sources = _object_items(raw_sources)
     if len(sources) != len(EXPECTED_SOURCES):
         errors.append(f"sources must contain {len(EXPECTED_SOURCES)} entries")
 
@@ -907,10 +937,22 @@ def _validate_sources(index: dict[str, object]) -> list[str]:
         errors.append(f"source_count must be {len(EXPECTED_SOURCES)}")
     if index.get("total_pages") != EXPECTED_TOTAL_PAGES:
         errors.append(f"total_pages must be {EXPECTED_TOTAL_PAGES}")
-    if _string_items(index.get("repo_truth_links")) != list(EXPECTED_REPO_TRUTH_LINKS):
-        errors.append("repo_truth_links must match the PR-5 canonical repo truth list")
-    if _string_items(index.get("out_of_scope_paths")) != list(FORBIDDEN_RUNTIME_PATHS):
-        errors.append("out_of_scope_paths must match the PR-5 no-runtime path boundary")
+    errors.extend(
+        _validate_exact_string_array(
+            index.get("repo_truth_links"),
+            label="repo_truth_links",
+            expected=EXPECTED_REPO_TRUTH_LINKS,
+            mismatch_message="repo_truth_links must match the PR-5 canonical repo truth list",
+        )
+    )
+    errors.extend(
+        _validate_exact_string_array(
+            index.get("out_of_scope_paths"),
+            label="out_of_scope_paths",
+            expected=FORBIDDEN_RUNTIME_PATHS,
+            mismatch_message="out_of_scope_paths must match the PR-5 no-runtime path boundary",
+        )
+    )
     if total_pages != EXPECTED_TOTAL_PAGES:
         errors.append(f"sources page_count sum must be {EXPECTED_TOTAL_PAGES}")
     missing_global_themes = sorted(REQUIRED_GLOBAL_THEMES - global_themes)
@@ -955,7 +997,11 @@ def _validate_wellness_boundary(index: dict[str, object]) -> list[str]:
 
 def _validate_research_basis(index: dict[str, object]) -> list[str]:
     errors: list[str] = []
-    basis = _object_items(index.get("research_basis"))
+    raw_basis = index.get("research_basis")
+    errors.extend(_validate_object_array(raw_basis, label="research_basis"))
+    if isinstance(raw_basis, list) and len(raw_basis) != len(EXPECTED_RESEARCH_BASIS):
+        errors.append(f"research_basis must contain {len(EXPECTED_RESEARCH_BASIS)} sources")
+    basis = _object_items(raw_basis)
     if len(basis) != len(EXPECTED_RESEARCH_BASIS):
         errors.append(f"research_basis must contain {len(EXPECTED_RESEARCH_BASIS)} sources")
     ids = [str(item.get("id", "")) for item in basis]

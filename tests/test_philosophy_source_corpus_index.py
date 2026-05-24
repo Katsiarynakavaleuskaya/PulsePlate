@@ -137,6 +137,18 @@ def test_philosophy_source_corpus_index_rejects_sha256_drift() -> None:
     )
 
 
+def test_philosophy_source_corpus_index_rejects_non_object_source_item() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    sources.append("not-a-source")
+
+    errors = _validate(index)
+
+    assert any("sources[6] must be an object" in error for error in errors)
+    assert any("sources must contain 6 entries" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_rejects_source_family_drift() -> None:
     index = _index()
     sources = index["sources"]
@@ -393,6 +405,17 @@ def test_philosophy_source_corpus_index_rejects_repo_truth_link_drift() -> None:
     )
 
 
+def test_philosophy_source_corpus_index_rejects_non_string_repo_truth_link() -> None:
+    index = _index()
+    links = index["repo_truth_links"]
+    assert isinstance(links, list)
+    links.append({"unexpected": "non-string"})
+
+    errors = _validate(index)
+
+    assert any("repo_truth_links must contain only strings" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_rejects_out_of_scope_path_drift() -> None:
     index = _index()
     paths = list(corpus.FORBIDDEN_RUNTIME_PATHS)
@@ -405,6 +428,29 @@ def test_philosophy_source_corpus_index_rejects_out_of_scope_path_drift() -> Non
         "out_of_scope_paths must match the PR-5 no-runtime path boundary" in error
         for error in errors
     )
+
+
+def test_philosophy_source_corpus_index_rejects_non_string_out_of_scope_path() -> None:
+    index = _index()
+    paths = index["out_of_scope_paths"]
+    assert isinstance(paths, list)
+    paths.append({"unexpected": "non-string"})
+
+    errors = _validate(index)
+
+    assert any("out_of_scope_paths must contain only strings" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_non_object_research_basis_item() -> None:
+    index = _index()
+    basis = index["research_basis"]
+    assert isinstance(basis, list)
+    basis.append("not-a-research-anchor")
+
+    errors = _validate(index)
+
+    assert any("research_basis[6] must be an object" in error for error in errors)
+    assert any("research_basis must contain 6 sources" in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_scans_touched_artifact_contents(
