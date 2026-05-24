@@ -123,7 +123,10 @@ eagerly importing FastAPI-bound `app.security` exports.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1809#discussion_r3294121875 -> 13fb0025d3da6e0fe92fdabcfb33a4501824ae02
+Disposition: FIXED
+Commit: 13fb0025d3da6e0fe92fdabcfb33a4501824ae02
+Evidence: `## Merge Readiness` checklist items are unchecked until final merge readiness; `## Discussion Thread Pass` remains checked separately.
 
 ## Commit Evidence
 
