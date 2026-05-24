@@ -118,6 +118,10 @@ Rules:
 - `Not applicable` is narrow. It is intended for trivial docs cleanup, main
   cleanup, cache cleanup, or operator-declared emergency infrastructure repair
   where the runner result is genuinely unused or inapplicable.
+- Failure to load or write a runner result artifact because the local Python
+  environment missed FastAPI/runtime dependencies is an infrastructure blocker
+  for non-trivial lanes, not a valid `Not applicable` reason. Use repo Python
+  (`VENV_PYTHON` or the repo `.venv`) for runner evidence commands.
 - Oracle-only result artifacts may require the canonical co-author trailer when
   the artifact materially shapes the plan, validation approach, admission
   decision, fixed mapping, review disposition, or commit decision. The artifact

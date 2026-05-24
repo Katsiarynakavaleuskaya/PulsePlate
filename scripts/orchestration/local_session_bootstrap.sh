@@ -199,6 +199,7 @@ echo "OK: preflight passed (analyze). Coordinator routing and skill selection ar
 echo "    deterministic only after you invoke task_bootstrap (and follow the packet)."
 echo "Repo Python: ${REPO_PYTHON}"
 echo "Python gate rule: use VENV_PYTHON or repo .venv python; avoid bare python3 -m pytest when .venv exists."
+echo "Experiment Runner Python rule: run evidence with VENV_PYTHON/repo Python; artifact load/write failures are infra blockers, not Not applicable."
 echo ""
 if [[ "${BOOTSTRAP_OPTION_SEEN}" -eq 1 ]]; then
     echo "Generate the selected task packet:"

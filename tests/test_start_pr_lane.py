@@ -139,6 +139,8 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "No finding may be ignored as advisory." in result.stdout
     assert "VENV_PYTHON" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "$VENV_PYTHON scripts/orchestration/experiment_runner.py" in result.stdout
+    assert "artifact load/write failures are infra blockers" in result.stdout
     assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
     assert "Lane authority: check_preflight.py -> task_bootstrap.py -> agent-coordinator." in (
@@ -261,6 +263,8 @@ esac
     assert "Passive skills from packet: pulseplate-premortem-risk-review" in result.stdout
     assert "VENV_PYTHON" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "$VENV_PYTHON scripts/orchestration/experiment_runner.py" in result.stdout
+    assert "artifact load/write failures are infra blockers" in result.stdout
     assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
     assert "Experiment Runner evidence" in result.stdout

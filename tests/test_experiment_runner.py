@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 from typing import Any, cast
 
@@ -149,6 +150,200 @@ def _validate_packet(packet: dict[str, object]) -> dict[str, object]:
     return validated
 
 
+def _packet_budgets(packet: dict[str, object]) -> dict[str, object]:
+    budgets = packet["budgets"]
+    assert isinstance(budgets, dict)
+    return cast(dict[str, object], budgets)
+
+
+def _packet_metrics(packet: dict[str, object]) -> dict[str, object]:
+    metrics = packet["metrics"]
+    assert isinstance(metrics, dict)
+    return cast(dict[str, object], metrics)
+
+
+def _run_python_with_fastapi_blocked(
+    tmp_path: Path,
+    *args: str,
+) -> subprocess.CompletedProcess[str]:
+    """Run Python with an import hook that fails if FastAPI is imported."""
+
+    blocker_dir = tmp_path / "fastapi-blocker"
+    blocker_dir.mkdir()
+    (blocker_dir / "sitecustomize.py").write_text(
+        "import importlib.abc\n"
+        "\n"
+        "class _BlockFastAPI(importlib.abc.MetaPathFinder):\n"
+        "    def find_spec(self, fullname, path=None, target=None):\n"
+        "        if fullname == 'fastapi' or fullname.startswith('fastapi.'):\n"
+        "            raise ImportError('blocked fastapi import')\n"
+        "        return None\n"
+        "\n"
+        "import sys\n"
+        "sys.meta_path.insert(0, _BlockFastAPI())\n",
+        encoding="utf-8",
+    )
+    python_path_entries = [
+        str(blocker_dir),
+        str(context_pack.REPO_ROOT),
+        os.environ.get("PYTHONPATH", ""),
+    ]
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(python_path_entries),
+    }
+    return subprocess.run(
+        [sys.executable, *args],
+        cwd=str(context_pack.REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+
+
+def test_experiment_runner_import_does_not_require_fastapi(tmp_path: Path) -> None:
+    """Runner import must stay lightweight enough for tooling-only environments."""
+
+    result = _run_python_with_fastapi_blocked(
+        tmp_path,
+        "-c",
+        "import scripts.orchestration.experiment_runner as runner; "
+        "print(runner.RESULT_SCHEMA_VERSION)",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == experiment_runner.RESULT_SCHEMA_VERSION
+
+
+def test_experiment_runner_help_does_not_require_fastapi(tmp_path: Path) -> None:
+    """The CLI help path should not fail before artifact/result handling can run."""
+
+    result = _run_python_with_fastapi_blocked(
+        tmp_path,
+        "scripts/orchestration/experiment_runner.py",
+        "--help",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Evaluate a governed candidate patch" in result.stdout
+
+
+def test_security_sandbox_import_does_not_require_fastapi(tmp_path: Path) -> None:
+    """Sandbox-only tooling imports must not pull FastAPI-bound package exports."""
+
+    result = _run_python_with_fastapi_blocked(
+        tmp_path,
+        "-c",
+        "from app.security.execution_sandbox import SandboxRequest; "
+        "print(SandboxRequest(binary='python3').binary)",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "python3"
+
+
+def test_security_package_dir_does_not_require_fastapi(tmp_path: Path) -> None:
+    """Package introspection must not load FastAPI-bound lazy exports."""
+
+    result = _run_python_with_fastapi_blocked(
+        tmp_path,
+        "-c",
+        "import app.security as security; "
+        "names = dir(security); "
+        "print('RATE_LIMIT_INSIGHT' in names); "
+        "print('SandboxRequest' in names)",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["True", "True"]
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "from app.security import RATE_LIMIT_INSIGHT",
+        "from app.security import rate_limit",
+    ],
+)
+def test_security_fastapi_bound_exports_have_repo_python_diagnostic(
+    tmp_path: Path,
+    statement: str,
+) -> None:
+    """Explicit FastAPI-bound exports should fail with an actionable env hint."""
+
+    result = _run_python_with_fastapi_blocked(tmp_path, "-c", statement)
+
+    assert result.returncode != 0
+    assert "requires FastAPI/runtime dependencies" in result.stderr
+    assert "VENV_PYTHON" in result.stderr
+    assert ".venv" in result.stderr
+    assert sys.executable in result.stderr
+
+
+def test_oracle_only_main_writes_result_artifact_without_fastapi(
+    tmp_path: Path,
+) -> None:
+    """Oracle-only result artifact writing must work in tooling-only environments."""
+
+    repo = _init_repo(tmp_path)
+    packet_path = repo / "packet.json"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="scripts/orchestration/experiment_runner.py",
+                oracle_command='python -c "print(42)"',
+                experiment_id="exp-no-fastapi",
+                runner_mode="oracle_only_governance_reviewer",
+            )
+        ),
+        encoding="utf-8",
+    )
+    code = (
+        "from pathlib import Path\n"
+        "import json\n"
+        "import scripts.orchestration.context_pack as context_pack\n"
+        "import scripts.orchestration.experiment_contract as experiment_contract\n"
+        "import scripts.orchestration.experiment_runner as runner\n"
+        f"repo = Path({str(repo)!r}).resolve()\n"
+        "result_dir = repo / 'artifacts' / 'orchestration' / 'experiments' / 'results'\n"
+        "context_pack.REPO_ROOT = repo\n"
+        "experiment_contract.REPO_ROOT = repo\n"
+        "runner.REPO_ROOT = repo\n"
+        "runner.RESULT_ARTIFACT_DIR = result_dir\n"
+        f"exit_code = runner.main(['--packet', {str(packet_path)!r}])\n"
+        "output = result_dir / 'exp-no-fastapi.json'\n"
+        "payload = json.loads(output.read_text(encoding='utf-8'))\n"
+        "print(exit_code)\n"
+        "print(output.is_file())\n"
+        "print(payload['mutated_paths'])\n"
+        "print(payload['promotion_ready'])\n"
+        "print(payload['runner_mode'])\n"
+    )
+
+    result = _run_python_with_fastapi_blocked(tmp_path, "-c", code)
+
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert lines[-5:] == [
+        "0",
+        "True",
+        "[]",
+        "False",
+        "oracle_only_governance_reviewer",
+    ]
+
+
+def test_security_package_fastapi_bound_exports_still_resolve() -> None:
+    """Lazy package exports must preserve the runtime FastAPI-facing API."""
+
+    from app.security import RATE_LIMIT_INSIGHT, rate_limit_client_key
+
+    assert RATE_LIMIT_INSIGHT
+    assert callable(rate_limit_client_key)
+
+
 def test_absolute_path_env_resolves_relative_entries(tmp_path: Path) -> None:
     relative_bin = tmp_path / "relative-bin"
     relative_bin.mkdir()
@@ -211,7 +406,7 @@ def test_validate_packet_rejects_empty_primary_metric() -> None:
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["metrics"] = {
-        **packet["metrics"],
+        **_packet_metrics(packet),
         "primary": "",
         "secondary": ["latency_p95_ms"],
     }
@@ -228,7 +423,7 @@ def test_validate_packet_rejects_unknown_budget_keys() -> None:
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "gpu_budget": 1,
     }
 
@@ -686,7 +881,7 @@ def test_evaluate_candidate_maps_timeout_oracle_to_timeout(
         oracle_command='python3 -c "import time; time.sleep(2)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "wall_clock_seconds": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -756,7 +951,7 @@ def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "wall_clock_seconds": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -846,7 +1041,7 @@ def test_evaluate_candidate_retries_infra_flake_within_retry_budget(
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "retry_budget": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -900,7 +1095,7 @@ def test_evaluate_candidate_retries_cleanup_infra_flake(
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "retry_budget": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -919,7 +1114,7 @@ def test_evaluate_candidate_retries_cleanup_infra_flake(
 
     def _checkout_with_flaky_cleanup(
         root: Path,
-    ) -> tuple[tempfile.TemporaryDirectory[str], Path]:
+    ) -> tuple[Any, Path]:
         temp_dir, checkout_root = real_create_temp_checkout(root)
         if cleanup_failures["count"] == 0:
             cleanup_failures["count"] += 1
@@ -959,7 +1154,7 @@ def test_evaluate_candidate_retries_temp_checkout_infra_flake(
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "retry_budget": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -1010,7 +1205,7 @@ def test_evaluate_candidate_enforces_total_wall_clock_budget_across_oracles(
         {"command": 'python3 -c "import sys; sys.exit(0)"', "expected_signal": "must pass"},
     ]
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "wall_clock_seconds": 1,
     }
     validated_packet = _validate_packet(packet)
