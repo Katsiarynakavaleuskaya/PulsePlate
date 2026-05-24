@@ -435,14 +435,25 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         return []
     requested_agents = payload.get("requested_agents")
     if isinstance(requested_agents, list):
-        spawnable_roles = set(ordered)
+        available_counts: Dict[str, int] = {}
+        for slug in ordered:
+            available_counts[slug] = available_counts.get(slug, 0) + 1
+
         requested_ordered: List[str] = []
         for value in requested_agents:
             slug = str(value).strip()
-            if slug in spawnable_roles:
+            if available_counts.get(slug, 0) > 0:
                 requested_ordered.append(slug)
+                available_counts[slug] -= 1
+
         if requested_ordered:
-            ordered = requested_ordered
+            remaining_counts = dict(available_counts)
+            remaining_ordered: List[str] = []
+            for slug in ordered:
+                if remaining_counts.get(slug, 0) > 0:
+                    remaining_ordered.append(slug)
+                    remaining_counts[slug] -= 1
+            ordered = [*requested_ordered, *remaining_ordered]
     if ordered[0] != "agent-coordinator":
         return ["agent-coordinator", *ordered]
     return ordered
