@@ -62,11 +62,16 @@
 - `PATH=.venv/bin:$PATH make validate-changed` - PASS
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 
+## Post-Open Role-Agent Pass
+
+- `qa-engineer-agent`: PASS after Phase2 mapping syntax fix.
+- `security-auditor`: PASS; no surviving reportable security finding.
+- `bug-hunter`: PASS; no dependency/regression blocker found.
+
 ## Merge Readiness
 
 Not merge-ready at mapping creation time. Remaining blockers:
 
-- Post-open role-agent rerun: `qa-engineer-agent -> security-auditor -> bug-hunter`
 - Current-head PR CI terminal green
 - No actionable bot comments or unresolved review threads
 - Review-thread disposition guard with auth
