@@ -110,22 +110,28 @@ Disposition: NOT-A-BUG
 Evidence: current head `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:24-33` already presents the preconditions as acceptable governance prose, and the review itself labels the suggested wording change as an optional style improvement rather than a correctness or scope defect.
 Reason: this CodeRabbit review is style-only and does not identify a merge-blocking defect in the current packet revision.
 
-## Merge Readiness
+## Post-Merge Closeout
 
-Merge-readiness contract:
-`AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
-`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
+- State: `MERGED`
+- PR #1461 title: `docs(roadmap): reconcile landed PRO quota truth for Wave 6 A1b`
+- PR #1461 merged at `2026-04-19T11:34:45Z`
+- PR #1461 merge commit: `cd01d9c6db89813202f85b8b9f4c8378e72380ea`
+- PR #1461 original branch: `codex/wave6-a1b-pro-quota-reconciliation`
+- PR #1466 title: `Codex/pr1461 mapping fix`
+- PR #1466 merged at `2026-04-19T11:34:46Z`
+- PR #1466 merge commit: `fa0979e734b88575e01e3eca9ddd4d57ade86c05`
+- PR #1466 original branch: `codex/pr1461-mapping-fix`
+- PR #1466 did not create a separate fixed-mapping artifact; it corrected this PR #1461 artifact and is recorded here as post-merge closeout evidence.
+- Runtime anchor: PR #1379 merged at `2026-04-10T12:08:46Z` with merge commit `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba` from branch `feat/insight-fallback-chain`.
+- Current closeout boundary: A1b is docs/governance closeout only; PR-A1b does not reopen runtime quota logic and does not change semantic-cache markers.
+- Operator-approved validation boundary for the new closeout PR: no full `make verify`; use bounded local gates, `make validate-changed`, pre-commit, current-head CI, and strict merge-readiness evidence.
 
-- [ ] Current-head CI is green for PR branch head
-  Evidence: `AGENTS.md:42-49`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:95-112`.
-- [ ] Required checks complete (no pending jobs)
-  Evidence: `AGENTS.md:46-49`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:155-163`.
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: GitHub GraphQL `pullRequest.reviewThreads.nodes=[]`; current actionable review remains listed under `## Discussion Thread Pass`.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: current actionable CodeRabbit review and inline comments remain listed under `## Discussion Thread Pass` and `## Fixed in Commit Mapping` until the final merge cycle.
-- [ ] Pre-commit green on latest pushed head
-  Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
-- [ ] `make verify` green on latest pushed head
-  Evidence: `AGENTS.md:1-16`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
+## Historical Merge Readiness
+
+This section is historical evidence only. PR #1461 is already merged, so this
+closeout does not re-run or reassert the original readiness checklist. Current
+readiness evidence belongs to the new closeout PR after it opens, including its
+own `docs/review/PR_<N>_FIXED_MAPPING.md`, PR body mirror, review-thread
+dispositions, current-head CI, CodeRabbit/Sourcery/Cubic disposition, Codex
+Security disposition, and strict merge-readiness wrapper.
 <!-- markdownlint-enable MD034 -->

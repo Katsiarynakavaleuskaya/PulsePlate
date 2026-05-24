@@ -2907,30 +2907,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Integration tests pass (end-to-end philosophical validation + speed optimization pipeline)
 
 <a id="ledger-p1-pro-monthly-quota-ledger-reconciliation"></a>
-- [ ] P1: Reconcile PRO monthly quota ledger with live runtime truth
+- [x] P1: Reconcile PRO monthly quota ledger with live runtime truth
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
-  - Target PR: PR-A1b (`docs(roadmap): reconcile landed PRO quota truth for Wave 6 A1b`)
-  - Status: 🟡 In progress (A1b docs/governance reconciliation lane is the next canonical slice; any draft PR must late-rebase onto fresh `origin/main` before merge-ready because merged `PR #1440` and `PR #1441` already landed nearby `docs/roadmap/BACKLOG_LEDGER.md` edits on trunk)
-  - Reason (EN): Live `main` already contains tier-aware LLM monthly quota machinery for both `PRO` and `VIP` (`app/security/llm_monthly_quota.py:25-41`, `app/security/llm_monthly_quota.py:52-77`, `app/security/llm_monthly_quota.py:123-158`), startup validation for both envs (`app/bootstrap/startup_guards.py:44-56`), quota-before-provider enforcement on the PRO CBT path (`app/services/fitchef_runtime.py:711-835`, `tests/test_cbt_insight_api.py:921-952`), and the merged A1 runtime spine from `PR #1379` (`docs/roadmap/BACKLOG_LEDGER.md:296-300`). The backlog wording is stale because it still points at an older docs lane instead of the explicit A1b reconciliation slice. This item exists so Wave 6 does not reopen a runtime-from-scratch quota PR that the codebase already materially passed.
+  - Target PR: PR-A1b (`docs(ai-runtime): reconcile A1b PRO quota closeout`)
+  - Status: Closed. PR #1461 merged on 2026-04-19T11:34:45Z with merge commit `cd01d9c6db89813202f85b8b9f4c8378e72380ea` from branch `codex/wave6-a1b-pro-quota-reconciliation`; follow-up PR #1466 merged on 2026-04-19T11:34:46Z with merge commit `fa0979e734b88575e01e3eca9ddd4d57ade86c05` from branch `codex/pr1461-mapping-fix`.
+  - Reason (EN): PR-A1b is docs/governance closeout only. Runtime truth remains the already-merged A1 runtime spine from PR #1379, merged on 2026-04-10T12:08:46Z with merge commit `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba` from branch `feat/insight-fallback-chain`. Live `main` contains tier-aware LLM monthly quota machinery for both `PRO` and `VIP` (`app/security/llm_monthly_quota.py:26-45`, `app/security/llm_monthly_quota.py:56-93`, `app/security/llm_monthly_quota.py:200-244`), startup validation for both envs (`app/bootstrap/startup_guards.py:44-56`), PRO route tier gating (`app/routers/cbt_insight.py:144-150`), and quota-before-provider enforcement on the PRO CBT path (`app/services/fitchef_runtime.py:854-866`). PR-A1b does not reopen runtime quota logic.
+  - Gate boundary: semantic-cache markers remain `closed / false / false / true`; Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs, provider/auth/billing changes, and default activation remain out of scope.
   - Links:
-    - `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:68-83`
+    - `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md`
     - `docs/review/PR_1379_FIXED_MAPPING.md:12-18`
-    - `app/security/llm_monthly_quota.py:25-41`
-    - `app/security/llm_monthly_quota.py:52-77`
-    - `app/security/llm_monthly_quota.py:123-158`
+    - `docs/review/PR_1461_FIXED_MAPPING.md`
+    - `app/security/llm_monthly_quota.py:26-45`
+    - `app/security/llm_monthly_quota.py:56-93`
+    - `app/security/llm_monthly_quota.py:200-244`
     - `app/bootstrap/startup_guards.py:44-56`
-    - `app/routers/cbt_insight.py:129-150`
-    - `app/services/fitchef_runtime.py:711-835`
-    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:206-244`
-    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:27-33`
-    - `tests/test_cbt_insight_api.py:921-952`
+    - `app/routers/cbt_insight.py:144-150`
+    - `app/services/fitchef_runtime.py:854-866`
+    - `tests/test_cbt_insight_api.py:109-115`
+    - `tests/test_cbt_insight_api.py:356-370`
+    - `tests/test_cbt_insight_api.py:1049-1072`
+    - `tests/test_cbt_insight_api.py:1074-1108`
+    - `tests/test_cbt_insight_api.py:1110-1134`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
   - DoD:
-    - Ledger and epic wording no longer describe PRO quota as VIP-only or missing functionality
-    - This backlog item points to the canonical `PR-A1b` docs/governance lane instead of the obsolete `PR #1388` target
-    - Live code/test evidence for already-landed PRO quota parity is linked from the backlog item and anchored to merged `PR #1379`
-    - Evidence bundle format is explicit: `PR #1379` + merge SHA, `file:line` pointers to runtime/test truth, and optional runtime/test artifact links when available
-    - Any true residual quota debt is captured as a separate narrow follow-up instead of reopening a full parity lane
+    - Ledger and epic wording no longer describe PRO quota as VIP-only, missing, or active implementation work
+    - This backlog item points to closed PR-A1b governance truth via PR #1461 and PR #1466, not a fresh runtime-from-scratch quota PR
+    - Live code/test evidence for already-landed PRO quota parity is linked from the backlog item and anchored to merged PR #1379
+    - Evidence bundle format is explicit: PR #1379 + PR #1461 + PR #1466, merge SHAs, and file:line pointers to runtime/test truth
+    - Any true residual quota debt remains a separate narrow follow-up instead of reopening A1b
 
 <a id="ledger-p1-philosophy-epic-v2-pr0-packet"></a>
 - [x] P1: Philosophy Epic V2 PR-0 governance packet
