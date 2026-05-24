@@ -22,6 +22,16 @@ on:
         required: true
         type: string
         default: "0000000000000000000000000000000000000000000000000000000000000000"
+      channel_allowlist:
+        description: "Comma-separated runtime Slack channel allowlist"
+        required: true
+        type: string
+        default: ""
+      user_allowlist:
+        description: "Comma-separated runtime Slack user allowlist"
+        required: true
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -57,6 +67,8 @@ jobs:
         env:
           SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
         run: |
           set -euo pipefail
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
