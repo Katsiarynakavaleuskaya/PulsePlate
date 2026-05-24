@@ -51,9 +51,9 @@ Disposition: FIXED
 Commit: `4dad9fcdd`
 Evidence: `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_2_ALIGNMENT_LEDGER_CLOSEOUT_PACKET_2026-05-24.md` now records `check_preflight -> agent-coordinator -> start_pr_lane -> task_bootstrap -> explicit role-agent dispatch`; `scripts/ci/check_philosophy_alignment_ledger_closeout.py` validates startup, coordinator role, and post-open role order; `scripts/orchestration/qoder_dispatch_bridge.py` preserves a valid coordinator-declared order instead of moving `qa-engineer-agent -> bug-hunter` to the tail over `security-auditor`; `tests/test_philosophy_alignment_ledger_closeout.py` and `tests/test_qoder_dispatch_bridge.py` cover the regression.
 
-- Current-head post-open QA findings -> `4dad9fcdd` plus mapping/body refresh
+- Current-head post-open QA findings -> `f1190e26`
 Disposition: FIXED
-Commit: `4dad9fcdd`
+Commit: `f1190e26`
 Evidence: PR body mirror now includes `scripts/orchestration/qoder_dispatch_bridge.py`, `tests/test_qoder_dispatch_bridge.py`, current-head role-dispatch evidence, and `## Split Justification`; lane provenance records task packet `artifacts/orchestration/task_packets/62f8bb889bac.json`.
 
 ## Experiment Runner Evidence
@@ -72,6 +72,7 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - Preflight: `python3 scripts/orchestration/check_preflight.py --mode analyze` -> PASS
 - Pre-open packet: `artifacts/orchestration/task_packets/a9edaf7b0a78.json`
 - Current-head post-open packet: `artifacts/orchestration/task_packets/62f8bb889bac.json`
+- Final post-open rerun packet: `artifacts/orchestration/task_packets/359550a4899b.json`
 - Role order: `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> security-auditor -> bug-hunter`
 - Dispatch manifest current order: `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> security-auditor -> bug-hunter`
 
