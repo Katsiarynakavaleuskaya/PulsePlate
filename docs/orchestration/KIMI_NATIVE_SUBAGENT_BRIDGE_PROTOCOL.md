@@ -80,6 +80,12 @@ Each role binding includes:
 Reviewer bindings always receive `native_agent_type: "explorer"` and
 `execution_mode: "review_read_only"` regardless of the base role.
 
+Advisory bindings that are explicitly requested role agents remain required
+role passes. They use `execution_mode: "advisory_review"`,
+`spawn_with_native_subagent: true`, and `required_role_pass: true`; advisory
+means analysis/review contribution type, not permission for the runtime to skip
+the agent.
+
 ---
 
 ## 4. Dispatch rules
@@ -93,6 +99,7 @@ When the runtime is Kimi Code CLI:
 4. Load the instruction path listed in the bridge entry (from `.cursor/agents/`).
 5. Load `required_context` and `recommended_skills` from the same task packet.
 6. In updates, describe the work using the repo-agent slug.
+7. Execute required advisory role passes when `required_role_pass: true`.
 
 ---
 

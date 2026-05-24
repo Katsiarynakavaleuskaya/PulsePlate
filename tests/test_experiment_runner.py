@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -13,7 +14,7 @@ from typing import Any, cast
 
 import pytest
 
-from app.security.execution_sandbox import SandboxResult
+from app.security.execution_sandbox import SandboxRequest, SandboxResult
 import scripts.orchestration.context_pack as context_pack
 import scripts.orchestration.experiment_contract as experiment_contract
 import scripts.orchestration.experiment_runner as experiment_runner
@@ -77,6 +78,14 @@ def _init_repo(tmp_path: Path) -> Path:
         "def test_oracle() -> None:\n" "    assert True\n",
         encoding="utf-8",
     )
+    (repo / ".venv" / "bin").mkdir(parents=True)
+    for python_name in ("python", "python3"):
+        python_path = repo / ".venv" / "bin" / python_name
+        python_path.write_text(
+            f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n',
+            encoding="utf-8",
+        )
+        python_path.chmod(0o755)
 
     _git(tmp_path, "init", "--quiet", str(repo))
     _git(repo, "config", "user.email", "pulseplate@pm.me")
@@ -102,7 +111,7 @@ def _base_packet(
     oracle_command: str,
     experiment_id: str = "exp-test",
     runner_mode: str = "candidate_patch",
-) -> dict[str, object]:
+) -> dict[str, Any]:
     return {
         "schema_version": "1.0",
         "experiment_id": experiment_id,
@@ -144,7 +153,7 @@ def _configure_runner_repo(
     return result_dir
 
 
-def _validate_packet(packet: dict[str, object]) -> dict[str, object]:
+def _validate_packet(packet: dict[str, Any]) -> dict[str, Any]:
     validated = experiment_contract.validate_experiment_packet(packet)
     assert validated["experiment_id"]
     return validated
@@ -371,6 +380,169 @@ def test_absolute_path_env_uses_default_path_when_unset(
         timeout_seconds=1,
     ):
         assert os.environ["PATH"] == experiment_runner._absolute_path_env(os.defpath)
+
+
+def _write_executable(path: Path) -> None:
+    path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    path.chmod(0o755)
+
+
+def _fake_python_bin(tmp_path: Path, name: str) -> Path:
+    bin_dir = tmp_path / name
+    bin_dir.mkdir()
+    python = bin_dir / "python"
+    python3 = bin_dir / "python3"
+    _write_executable(python)
+    _write_executable(python3)
+    return python
+
+
+def test_python_oracle_path_prefix_prefers_venv_python(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    venv_python = _fake_python_bin(tmp_path, "venv-bin")
+    dev_python = _fake_python_bin(tmp_path, "dev-bin")
+    monkeypatch.setenv("VENV_PYTHON", str(venv_python))
+    monkeypatch.setenv("DEV_PYTHON", str(dev_python))
+
+    prefix = experiment_runner._python_oracle_path_prefix(
+        [SandboxRequest(binary="python", args=("-c", "pass"), cwd=".")]
+    )
+
+    assert prefix == str(venv_python.parent)
+
+
+def test_python_oracle_path_prefix_preserves_symlinked_venv_bin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_python3 = real_bin / "python3"
+    _write_executable(real_python3)
+    venv_bin = tmp_path / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    (venv_bin / "python3").symlink_to(real_python3)
+    venv_python = venv_bin / "python"
+    venv_python.symlink_to("python3")
+    monkeypatch.setenv("VENV_PYTHON", str(venv_python))
+    monkeypatch.delenv("DEV_PYTHON", raising=False)
+
+    prefix = experiment_runner._python_oracle_path_prefix(
+        [SandboxRequest(binary="python3", args=("-c", "pass"), cwd=".")]
+    )
+
+    assert prefix == str(venv_bin)
+
+
+def test_python_oracle_path_prefix_uses_dev_python_without_venv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dev_python = _fake_python_bin(tmp_path, "dev-bin")
+    monkeypatch.delenv("VENV_PYTHON", raising=False)
+    monkeypatch.setenv("DEV_PYTHON", str(dev_python))
+
+    prefix = experiment_runner._python_oracle_path_prefix(
+        [SandboxRequest(binary="python3", args=("-c", "pass"), cwd=".")]
+    )
+
+    assert prefix == str(dev_python.parent)
+
+
+def test_python_oracle_path_prefix_uses_repo_venv_python(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_python = tmp_path / ".venv" / "bin" / "python"
+    repo_python.parent.mkdir(parents=True)
+    _write_executable(repo_python)
+    _write_executable(repo_python.parent / "python3")
+    monkeypatch.delenv("VENV_PYTHON", raising=False)
+    monkeypatch.delenv("DEV_PYTHON", raising=False)
+    monkeypatch.setattr(experiment_runner, "REPO_ROOT", tmp_path)
+
+    prefix = experiment_runner._python_oracle_path_prefix(
+        [SandboxRequest(binary="python", args=("-c", "pass"), cwd=".")]
+    )
+
+    assert prefix == str(repo_python.parent)
+
+
+def test_python_oracle_path_prefix_rejects_relative_venv_python(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VENV_PYTHON", ".venv/bin/python")
+
+    with pytest.raises(experiment_runner.InfraFlakeError, match="absolute executable path"):
+        experiment_runner._python_oracle_path_prefix(
+            [SandboxRequest(binary="python", args=("-c", "pass"), cwd=".")]
+        )
+
+
+def test_python_oracle_path_prefix_rejects_non_executable_venv_python(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    python = tmp_path / "python"
+    python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    monkeypatch.setenv("VENV_PYTHON", str(python))
+
+    with pytest.raises(experiment_runner.InfraFlakeError, match="not executable"):
+        experiment_runner._python_oracle_path_prefix(
+            [SandboxRequest(binary="python", args=("-c", "pass"), cwd=".")]
+        )
+
+
+def test_python_oracle_path_prefix_fails_closed_without_repo_python(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("VENV_PYTHON", raising=False)
+    monkeypatch.delenv("DEV_PYTHON", raising=False)
+    monkeypatch.setattr(experiment_runner, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(experiment_runner.InfraFlakeError, match="repo-approved Python"):
+        experiment_runner._python_oracle_path_prefix(
+            [SandboxRequest(binary="python3", args=("-c", "pass"), cwd=".")]
+        )
+
+
+def test_non_python_oracle_path_prefix_does_not_validate_python_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VENV_PYTHON", ".venv/bin/python")
+
+    assert (
+        experiment_runner._python_oracle_path_prefix(
+            [SandboxRequest(binary="git", args=("--version",), cwd=".")]
+        )
+        is None
+    )
+
+
+def test_temporary_sandbox_env_prepends_python_path_and_restores_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_path = "/usr/bin"
+    python_bin = tmp_path / "repo-python-bin"
+    python_bin.mkdir()
+    monkeypatch.setenv("PATH", original_path)
+    monkeypatch.setenv("VENV_PYTHON", "keep-me")
+
+    with experiment_runner._temporary_sandbox_env(
+        sandbox_root=Path.cwd(),
+        allowed_binaries=("python",),
+        timeout_seconds=1,
+        path_prefix=str(python_bin),
+    ):
+        assert os.environ["PATH"].split(os.pathsep)[0] == str(python_bin)
+        assert os.environ["VENV_PYTHON"] == "keep-me"
+
+    assert os.environ["PATH"] == original_path
+    assert os.environ["VENV_PYTHON"] == "keep-me"
 
 
 def test_validate_packet_rejects_wrong_schema_version() -> None:

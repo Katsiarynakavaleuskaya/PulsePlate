@@ -25,6 +25,7 @@ import json
 import re
 import sys
 from datetime import datetime, timezone
+from importlib import import_module
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -220,11 +221,10 @@ def _parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
     raw_fm = text[3:end_idx].strip()
     body = text[end_idx + 3 :].strip()
 
-    # Try yaml first
+    # Try PyYAML first without creating a hard typed dependency.
     try:
-        import yaml  # type: ignore[import-untyped]
-
-        meta = yaml.safe_load(raw_fm)
+        yaml_module = import_module("yaml")
+        meta = yaml_module.safe_load(raw_fm)
         if isinstance(meta, dict):
             return meta, body
     except Exception:
@@ -426,9 +426,23 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     if isinstance(secondary_items, list):
         for item in secondary_items:
             add_slug(item)
+    advisory_items = bridge.get("advisory")
+    if isinstance(advisory_items, list):
+        for item in advisory_items:
+            add_slug(item, default_when_unspecified=False)
     add_slug(bridge.get("reviewer"))
     if not ordered:
         return []
+    requested_agents = payload.get("requested_agents")
+    if isinstance(requested_agents, list):
+        spawnable_roles = set(ordered)
+        requested_ordered: List[str] = []
+        for value in requested_agents:
+            slug = str(value).strip()
+            if slug in spawnable_roles:
+                requested_ordered.append(slug)
+        if requested_ordered:
+            ordered = requested_ordered
     if ordered[0] != "agent-coordinator":
         return ["agent-coordinator", *ordered]
     return ordered
@@ -717,6 +731,17 @@ def _recommend_skills(slug: str) -> List[str]:
 # Manifest builder
 # ---------------------------------------------------------------------------
 
+MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
+
+
+def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
+    """Keep the canonical post-open QA -> bug-hunter pass last when present."""
+
+    ordered = [slug for slug in role_slugs if slug not in MANDATORY_POST_OPEN_ORDER]
+    for slug in MANDATORY_POST_OPEN_ORDER:
+        ordered.extend([slug] * role_slugs.count(slug))
+    return ordered
+
 
 def build_dispatch_manifest(
     *,
@@ -735,6 +760,7 @@ def build_dispatch_manifest(
     dispatch_sequence: List[Dict[str, Any]] = []
     missing_agents: List[str] = []
     loaded_agents: List[Tuple[str, Dict[str, Any]]] = []
+    role_slugs = _enforce_mandatory_post_open_order(role_slugs)
 
     for slug in role_slugs:
         agent_def = _load_agent_definition(slug)
@@ -806,7 +832,7 @@ def build_dispatch_manifest(
         "mode": mode,
         "dispatch_sequence": dispatch_sequence,
         "parallelizable_groups": parallel_groups,
-        "mandatory_post_open": ["qa-engineer-agent", "bug-hunter"],
+        "mandatory_post_open": list(MANDATORY_POST_OPEN_ORDER),
         "missing_agents": missing_agents,
     }
 

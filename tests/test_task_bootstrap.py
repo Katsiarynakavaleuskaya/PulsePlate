@@ -484,7 +484,7 @@ def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane()
 
 
 def test_task_bootstrap_keeps_non_routable_requested_agent_advisory_in_post_open_lane() -> None:
-    """Lifecycle reconciliation must not upgrade advisory-only agents to executable roles."""
+    """Lifecycle reconciliation must keep advisory agents as required role passes."""
 
     packet = build_task_packet(
         goal="Prepare ML post-open review packet with advisory collaborator",
@@ -495,9 +495,11 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_advisory_in_post_open
     )
 
     assert "ml-engineer-agent" in packet["secondary_agents"]
-    assert [
-        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
-    ] == ["ml-engineer-agent"]
+    advisory_bindings = packet["native_subagent_bridge"]["advisory"]
+    assert [binding["repo_agent_slug"] for binding in advisory_bindings] == ["ml-engineer-agent"]
+    assert advisory_bindings[0]["execution_mode"] == "advisory_review"
+    assert advisory_bindings[0]["dispatch_contract"]["spawn_with_native_subagent"] is True
+    assert advisory_bindings[0]["dispatch_contract"]["required_role_pass"] is True
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "ml-engineer-agent",
@@ -533,7 +535,7 @@ def test_task_bootstrap_keeps_unknown_requested_agent_rejected_in_post_open_lane
 
 
 def test_task_bootstrap_keeps_domain_mismatch_requested_agent_advisory_in_post_open_lane() -> None:
-    """Post-open synthesis must preserve domain-mismatched requests as advisory only."""
+    """Post-open synthesis must preserve domain-mismatched requests as required advisory."""
 
     packet = build_task_packet(
         goal="Prepare post-open review packet with frontend collaborator request",
@@ -544,9 +546,11 @@ def test_task_bootstrap_keeps_domain_mismatch_requested_agent_advisory_in_post_o
     )
 
     assert "frontend-engineer" in packet["secondary_agents"]
-    assert [
-        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
-    ] == ["frontend-engineer"]
+    advisory_bindings = packet["native_subagent_bridge"]["advisory"]
+    assert [binding["repo_agent_slug"] for binding in advisory_bindings] == ["frontend-engineer"]
+    assert advisory_bindings[0]["execution_mode"] == "advisory_review"
+    assert advisory_bindings[0]["dispatch_contract"]["spawn_with_native_subagent"] is True
+    assert advisory_bindings[0]["dispatch_contract"]["required_role_pass"] is True
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "frontend-engineer",
@@ -815,7 +819,7 @@ def test_task_bootstrap_promotes_requested_routable_agent() -> None:
 
 
 def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None:
-    """Non-routable specialists should be preserved as advisory collaborators."""
+    """Non-routable specialists should be preserved as required advisory passes."""
 
     packet = build_task_packet(
         goal="Design AI reliability experiment packet",
@@ -830,9 +834,11 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None
     assert {
         binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
     } == {"rag-systems-agent", "security-auditor"}
-    assert [
-        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
-    ] == ["ml-engineer-agent"]
+    advisory_bindings = packet["native_subagent_bridge"]["advisory"]
+    assert [binding["repo_agent_slug"] for binding in advisory_bindings] == ["ml-engineer-agent"]
+    assert advisory_bindings[0]["execution_mode"] == "advisory_review"
+    assert advisory_bindings[0]["dispatch_contract"]["advisory_only"] is False
+    assert advisory_bindings[0]["dispatch_contract"]["required_role_pass"] is True
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "ml-engineer-agent",
@@ -867,7 +873,7 @@ def test_task_bootstrap_rejects_unknown_requested_agent_with_explicit_rationale(
 
 
 def test_task_bootstrap_keeps_domain_mismatch_requested_agent_as_advisory() -> None:
-    """Routable-but-mismatched requested agents should remain advisory with explicit rationale."""
+    """Routable-but-mismatched requested agents stay required advisory passes."""
 
     packet = build_task_packet(
         goal="Implement backend entitlement routing",
@@ -888,9 +894,11 @@ def test_task_bootstrap_keeps_domain_mismatch_requested_agent_as_advisory() -> N
     assert {
         binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
     } == {"architecture-specialist"}
-    assert [
-        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]
-    ] == ["frontend-engineer"]
+    advisory_bindings = packet["native_subagent_bridge"]["advisory"]
+    assert [binding["repo_agent_slug"] for binding in advisory_bindings] == ["frontend-engineer"]
+    assert advisory_bindings[0]["execution_mode"] == "advisory_review"
+    assert advisory_bindings[0]["dispatch_contract"]["spawn_with_native_subagent"] is True
+    assert advisory_bindings[0]["dispatch_contract"]["required_role_pass"] is True
 
 
 def test_task_bootstrap_requested_agents_change_packet_id() -> None:
@@ -1024,6 +1032,39 @@ def test_task_bootstrap_preserves_coordinator_primary_for_requested_orchestratio
             "reason": (
                 "Coordinator-owned lane keeps `agent-coordinator` as primary; "
                 "requested reviewer stays honored in reviewer."
+            ),
+        },
+    ]
+
+
+def test_task_bootstrap_keeps_displaced_requested_reviewer_required_post_open() -> None:
+    """Post-open QA synthesis must not drop a requested reviewer role pass."""
+
+    packet = build_task_packet(
+        goal="Update privileged orchestration workflow",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["agent-coordinator", "architecture-specialist"],
+        pr_phase="post_open_review",
+    )
+
+    assert packet["primary_agent"] == "agent-coordinator"
+    assert packet["reviewer"] == "qa-engineer-agent"
+    assert "architecture-specialist" in packet["secondary_agents"]
+    assert "architecture-specialist" in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    }
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "agent-coordinator",
+            "status": "honored_primary",
+            "reason": "Requested agent already matches the routed primary.",
+        },
+        {
+            "agent": "architecture-specialist",
+            "status": "honored_secondary",
+            "reason": (
+                "Requested reviewer remains a required role pass after PR lifecycle synthesis."
             ),
         },
     ]
@@ -1683,6 +1724,120 @@ def test_main_passes_pr_phase_flag(monkeypatch, capsys) -> None:
     assert json.loads(captured.out)["task_packet_id"] == "pr-phase-packet"
 
 
+def test_main_passes_native_bridge_transport_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI should propagate --native-bridge-transport into the packet builder."""
+
+    observed: dict[str, object] = {}
+
+    def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
+        observed.update(kwargs)
+        return {
+            "schema_version": "2.0",
+            "task_packet_id": "bridge-transport-packet",
+            "goal": "Use kimi native transport",
+            "task_class": "Orchestration",
+            "domain": "orchestration",
+            "cluster": "ops",
+            "candidate_paths": ["scripts/orchestration/task_bootstrap.py"],
+            "primary_agent": "agent-coordinator",
+            "secondary_agents": ["bug-hunter"],
+            "reviewer": "qa-engineer-agent",
+            "requested_agents": [],
+            "requested_agent_disposition": [],
+            "required_context": ["AGENTS.md"],
+            "recommended_skills": ["pulseplate-workflow"],
+            "skill_routing": {
+                "policy_version": "2026-03-27",
+                "selection_mode": "deterministic-weighted",
+                "requested_agents": [],
+                "task_classification": {
+                    "label": "implementation",
+                    "score": 0,
+                    "reasons": ["fallback:default-implementation"],
+                },
+                "required": [
+                    {
+                        "skill": "pulseplate-workflow",
+                        "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+                        "reasons": ["always-on"],
+                    }
+                ],
+                "recommended": [],
+                "conditional": [],
+                "blocked": [],
+            },
+            "native_subagent_bridge": {
+                "protocol_version": "1.0",
+                "transport": "kimi-native-subagents",
+                "primary": {"native_agent_type": "default"},
+                "secondary": [{"native_agent_type": "worker"}],
+                "reviewer": {"native_agent_type": "explorer"},
+            },
+            "routing_rationale": {"source": "canonical_only"},
+        }
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.build_task_packet",
+        _fake_build_task_packet,
+    )
+
+    exit_code = main(
+        [
+            "--goal",
+            "Use Kimi bridge transport",
+            "--task-class",
+            "Orchestration",
+            "--native-bridge-transport",
+            "kimi-native-subagents",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert observed["native_bridge_transport"] == "kimi-native-subagents"
+    assert json.loads(captured.out)["task_packet_id"] == "bridge-transport-packet"
+
+
+def test_build_task_packet_defaults_native_bridge_transport_to_codex() -> None:
+    """Direct packet builder calls should preserve Codex as the default transport."""
+
+    packet = build_task_packet(
+        goal="Harden orchestration bootstrap",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+    )
+
+    assert packet["native_subagent_bridge"]["transport"] == "codex-native-subagents"
+
+
+def test_build_task_packet_passes_explicit_kimi_native_bridge_transport() -> None:
+    """Direct packet builder calls should propagate explicit Kimi transport."""
+
+    packet = build_task_packet(
+        goal="Harden orchestration bootstrap",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        native_bridge_transport="kimi-native-subagents",
+    )
+
+    assert packet["native_subagent_bridge"]["transport"] == "kimi-native-subagents"
+
+
+def test_build_task_packet_rejects_unknown_native_bridge_transport() -> None:
+    """Direct packet builder calls must reject unsupported transport labels."""
+
+    with pytest.raises(ValueError, match="Unsupported native_bridge_transport"):
+        build_task_packet(
+            goal="Harden orchestration bootstrap",
+            task_class="Orchestration",
+            candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+            native_bridge_transport="unknown-native-subagents",
+        )
+
+
 def test_main_passes_design_lane_flags(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1858,7 +2013,7 @@ def test_build_task_packet_rejects_unknown_requested_agent() -> None:
 
 
 def test_build_task_packet_non_routable_requested_agent_stays_advisory() -> None:
-    """Non-routable specialists outside domain slots stay advisory with disposition."""
+    """Non-routable specialists outside domain slots stay required advisory passes."""
 
     packet = build_task_packet(
         goal="Harden task bootstrap",
@@ -1874,6 +2029,10 @@ def test_build_task_packet_non_routable_requested_agent_stays_advisory() -> None
     assert "ml-engineer-agent" not in secondary_slugs
     advisory_slugs = {b["repo_agent_slug"] for b in packet["native_subagent_bridge"]["advisory"]}
     assert "ml-engineer-agent" in advisory_slugs
+    advisory_binding = packet["native_subagent_bridge"]["advisory"][0]
+    assert advisory_binding["execution_mode"] == "advisory_review"
+    assert advisory_binding["dispatch_contract"]["spawn_with_native_subagent"] is True
+    assert advisory_binding["dispatch_contract"]["required_role_pass"] is True
 
 
 def test_build_task_packet_promotes_requested_agent_in_domain_slot_set() -> None:
@@ -1893,7 +2052,7 @@ def test_build_task_packet_promotes_requested_agent_in_domain_slot_set() -> None
 
 
 def test_build_task_packet_routable_agent_domain_mismatch_stays_advisory() -> None:
-    """Routable agent outside routed domain slots becomes advisory_domain_mismatch."""
+    """Routable agent outside routed domain slots becomes a required advisory pass."""
 
     packet = build_task_packet(
         goal="Docs routing only",
@@ -1905,6 +2064,11 @@ def test_build_task_packet_routable_agent_domain_mismatch_stays_advisory() -> No
     assert dm["backend-engineer"]["status"] == REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH
     assert "slot" in dm["backend-engineer"]["reason"].lower()
     assert packet["primary_agent"] == "agent-coordinator"
+    advisory_binding = packet["native_subagent_bridge"]["advisory"][0]
+    assert advisory_binding["repo_agent_slug"] == "backend-engineer"
+    assert advisory_binding["execution_mode"] == "advisory_review"
+    assert advisory_binding["dispatch_contract"]["spawn_with_native_subagent"] is True
+    assert advisory_binding["dispatch_contract"]["required_role_pass"] is True
 
 
 def test_build_task_packet_graph_slot_precedes_non_routable_specialist_list() -> None:

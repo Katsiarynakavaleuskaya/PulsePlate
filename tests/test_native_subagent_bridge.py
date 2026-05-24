@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from scripts.orchestration.agent_consistency_loader import load_inventory_agents
 from scripts.orchestration.native_subagent_bridge import (
     BRIDGE_PROTOCOL_VERSION,
@@ -62,8 +64,8 @@ def test_build_native_subagent_bridge_shapes_primary_secondary_and_reviewer() ->
     assert bridge["reviewer"]["execution_mode"] == "review_read_only"
 
 
-def test_build_native_subagent_bridge_keeps_advisory_collaborators_non_runnable() -> None:
-    """Advisory specialists must stay visible but not spawnable."""
+def test_build_native_subagent_bridge_requires_advisory_role_passes() -> None:
+    """Advisory specialists must stay visible and required to run."""
 
     bridge = build_native_subagent_bridge(
         primary_agent="ai-innovation-specialist",
@@ -75,8 +77,27 @@ def test_build_native_subagent_bridge_keeps_advisory_collaborators_non_runnable(
     assert [binding["repo_agent_slug"] for binding in bridge["secondary"]] == ["rag-systems-agent"]
     assert [binding["repo_agent_slug"] for binding in bridge["advisory"]] == ["ml-engineer-agent"]
     assert bridge["advisory"][0]["role"] == "advisory"
-    assert bridge["advisory"][0]["execution_mode"] == "advisory_no_spawn"
-    assert bridge["advisory"][0]["dispatch_contract"]["spawn_with_native_subagent"] is False
+    assert bridge["advisory"][0]["native_agent_type"] == "explorer"
+    assert bridge["advisory"][0]["execution_mode"] == "advisory_review"
+    assert bridge["advisory"][0]["dispatch_contract"]["spawn_with_native_subagent"] is True
+    assert bridge["advisory"][0]["dispatch_contract"]["advisory_only"] is False
+    assert bridge["advisory"][0]["dispatch_contract"]["required_role_pass"] is True
+    assert (
+        bridge["advisory"][0]["dispatch_contract"]["write_capability"]
+        == "disabled_for_advisory_review"
+    )
+
+
+def test_build_native_subagent_bridge_rejects_unknown_transport() -> None:
+    """Direct bridge builders must reject unsupported transport labels."""
+
+    with pytest.raises(ValueError, match="Unsupported native subagent bridge transport"):
+        build_native_subagent_bridge(
+            primary_agent="agent-coordinator",
+            secondary_agents=["bug-hunter"],
+            reviewer="architecture-specialist",
+            transport="unknown-native-subagents",
+        )
 
 
 def test_build_kimi_native_subagent_bridge_uses_kimi_transport() -> None:
