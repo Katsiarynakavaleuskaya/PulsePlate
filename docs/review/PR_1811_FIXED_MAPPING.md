@@ -16,11 +16,19 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
 
 ## Discussion Thread Pass
 
-No actionable review comments yet.
+Sourcery high-level review feedback was received and dispositioned below. No
+additional actionable review comments are open in this mapping at this time.
 
 ## Fixed in Commit Mapping
 
-No actionable review comments yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1811#pullrequestreview-4352060228 -> 46e28582a
+  - Disposition: FIXED
+  - Evidence:
+    `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_1_LEDGER_CLOSEOUT_PACKET_2026-05-24.md`
+    now defines the packet as the PR-4.1 source of truth for PR #1789/#1791
+    closeout evidence and oracle command set, while the ledger and roadmap
+    point future reconciliations back to that source-truth section to avoid
+    packet/body/status drift.
 
 ## Premortem And Oracle Closure
 
