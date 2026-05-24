@@ -1135,6 +1135,30 @@ def test_mandatory_post_open_pass_is_ordered_last() -> None:
     ]
 
 
+def test_valid_coordinator_declared_order_is_preserved() -> None:
+    """The bridge must not rewrite an already-valid coordinator role order."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = [
+        "agent-coordinator",
+        "philosophy-agent",
+        "architecture-specialist",
+        "qa-engineer-agent",
+        "security-auditor",
+        "bug-hunter",
+    ]
+    for slug in slugs:
+        if not (agents_dir / f"{slug}.md").is_file():
+            require_feature(f"agent_definition:{slug}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == slugs
+
+
 # ---------------------------------------------------------------------------
 # 11. test_graph_reviewer_slot_infers_code_review
 # ---------------------------------------------------------------------------

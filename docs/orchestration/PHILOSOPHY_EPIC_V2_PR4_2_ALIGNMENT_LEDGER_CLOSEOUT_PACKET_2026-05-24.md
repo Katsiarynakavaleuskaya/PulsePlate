@@ -10,17 +10,32 @@
 Startup must run coordinator-first through repo canon:
 
 1. `check_preflight.py --mode analyze`
-2. `start_pr_lane.sh`
-3. `task_bootstrap.py --pr-phase pre_open`
-4. `agent-coordinator`
+2. `agent-coordinator`
+3. `start_pr_lane.sh`
+4. `task_bootstrap.py --pr-phase pre_open`
+5. explicit role-agent dispatch in the coordinator-declared order below
 
-Mandatory role order:
+## Coordinator Role Order
 
-`agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> security-auditor -> bug-hunter`
+The packet must expose the full coordinator-declared role order as a numbered
+list so orchestration dispatch can parse it. Agents provide read-only review,
+routing, and findings; they do not replace coordinator-owned implementation.
 
-Post-open role order:
+1. `agent-coordinator` - scope lock, role assignment, synthesis, and DoD.
+2. `philosophy-agent` - epistemic and philosophy-lane boundary review.
+3. `architecture-specialist` - ownership, layering, and handoff-contract review.
+4. `qa-engineer-agent` - deterministic guard, test, and evidence review.
+5. `security-auditor` - no-runtime/no-cache/security drift review.
+6. `bug-hunter` - false-green, stale-ledger, and regression-risk review.
 
-`qa-engineer-agent -> bug-hunter -> security-auditor`
+## Post-Open Role Order
+
+After the ready-for-review PR opens, run the mandatory post-open review pass in
+this order:
+
+1. `qa-engineer-agent` - PR body, fixed mapping, and gate evidence review.
+2. `bug-hunter` - stale mapping, review-loop, and false-green review.
+3. `security-auditor` - codex-security-style diff scan for runtime/cache drift.
 
 ## Source Truth
 

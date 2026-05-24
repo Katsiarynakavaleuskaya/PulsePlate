@@ -19,6 +19,12 @@ DEFAULT_PRECONDITION_REPORT = (
     / "contracts"
     / "PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json"
 )
+DEFAULT_PACKET = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "PHILOSOPHY_EPIC_V2_PR4_2_ALIGNMENT_LEDGER_CLOSEOUT_PACKET_2026-05-24.md"
+)
 
 ALIGNMENT_LEDGER_ANCHOR = '<a id="ledger-p1-philosophy-epic-v2-alignment-rule-trust-schema"></a>'
 ALIGNMENT_LEDGER_TITLE = "- [x] P1: Philosophy Epic V2 alignment-rule trust schema"
@@ -41,6 +47,28 @@ REPORT_FALSE_FLAGS = (
     "cache_write_allowed",
     "serving_allowed",
 )
+EXPECTED_COORDINATOR_ROLE_ORDER = (
+    "agent-coordinator",
+    "philosophy-agent",
+    "architecture-specialist",
+    "qa-engineer-agent",
+    "security-auditor",
+    "bug-hunter",
+)
+EXPECTED_POST_OPEN_ROLE_ORDER = (
+    "qa-engineer-agent",
+    "bug-hunter",
+    "security-auditor",
+)
+EXPECTED_STARTUP_ORDER = (
+    "check_preflight",
+    "agent-coordinator",
+    "start_pr_lane",
+    "task_bootstrap",
+    "role-agent-dispatch",
+)
+
+ROLE_SLUG_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 
 
 def _roadmap_markers(roadmap_text: str) -> tuple[dict[str, str], list[str]]:
@@ -153,11 +181,99 @@ def _validate_precondition_report(report_text: str) -> list[str]:
     return errors
 
 
+def _section_after_heading(packet_text: str, heading: str) -> tuple[str, list[str]]:
+    heading_pattern = re.compile(rf"^##\s+{re.escape(heading)}\s*$", re.MULTILINE)
+    match = heading_pattern.search(packet_text)
+    if not match:
+        return "", [f"PR-4.2 packet missing section: ## {heading}"]
+
+    tail = packet_text[match.end() :]
+    next_heading = re.search(r"^##\s+", tail, re.MULTILINE)
+    return tail[: next_heading.start()] if next_heading else tail, []
+
+
+def _numbered_role_order(packet_text: str, heading: str) -> tuple[list[str], list[str]]:
+    section, errors = _section_after_heading(packet_text, heading)
+    if errors:
+        return [], errors
+    roles: list[str] = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not re.match(r"^\d+\.\s+", stripped):
+            continue
+        for candidate in ROLE_SLUG_RE.findall(stripped):
+            if candidate not in roles:
+                roles.append(candidate)
+                break
+    return roles, []
+
+
+def _startup_step_key(line: str) -> str | None:
+    if "check_preflight.py" in line:
+        return "check_preflight"
+    if "agent-coordinator" in line:
+        return "agent-coordinator"
+    if "start_pr_lane.sh" in line:
+        return "start_pr_lane"
+    if "task_bootstrap.py" in line:
+        return "task_bootstrap"
+    if "role-agent dispatch" in line:
+        return "role-agent-dispatch"
+    return None
+
+
+def _validate_packet_startup_order(packet_text: str) -> list[str]:
+    section, errors = _section_after_heading(packet_text, "Coordinator Start")
+    if errors:
+        return errors
+
+    observed: list[str] = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not re.match(r"^\d+\.\s+", stripped):
+            continue
+        step = _startup_step_key(stripped)
+        if step:
+            observed.append(step)
+
+    if tuple(observed) != EXPECTED_STARTUP_ORDER:
+        return [
+            "PR-4.2 packet coordinator startup order drifted: "
+            f"expected {list(EXPECTED_STARTUP_ORDER)!r}, got {observed!r}"
+        ]
+    return []
+
+
+def _validate_packet_role_order(packet_text: str) -> list[str]:
+    errors: list[str] = []
+    errors.extend(_validate_packet_startup_order(packet_text))
+    coordinator_roles, section_errors = _numbered_role_order(
+        packet_text,
+        "Coordinator Role Order",
+    )
+    errors.extend(section_errors)
+    if coordinator_roles and tuple(coordinator_roles) != EXPECTED_COORDINATOR_ROLE_ORDER:
+        errors.append(
+            "PR-4.2 packet coordinator role order drifted: "
+            f"expected {list(EXPECTED_COORDINATOR_ROLE_ORDER)!r}, got {coordinator_roles!r}"
+        )
+
+    post_open_roles, section_errors = _numbered_role_order(packet_text, "Post-Open Role Order")
+    errors.extend(section_errors)
+    if post_open_roles and tuple(post_open_roles) != EXPECTED_POST_OPEN_ROLE_ORDER:
+        errors.append(
+            "PR-4.2 packet post-open role order drifted: "
+            f"expected {list(EXPECTED_POST_OPEN_ROLE_ORDER)!r}, got {post_open_roles!r}"
+        )
+    return errors
+
+
 def validate_philosophy_alignment_ledger_closeout(
     *,
     ledger_text: str,
     roadmap_text: str,
     precondition_report_text: str,
+    packet_text: str,
 ) -> list[str]:
     """Validate that PR #1789 is closed in the ledger without opening the gate."""
     errors: list[str] = []
@@ -167,6 +283,7 @@ def validate_philosophy_alignment_ledger_closeout(
         errors.extend(_validate_alignment_ledger_block(block))
     errors.extend(_validate_roadmap_markers(roadmap_text))
     errors.extend(_validate_precondition_report(precondition_report_text))
+    errors.extend(_validate_packet_role_order(packet_text))
     return errors
 
 
@@ -181,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=DEFAULT_PRECONDITION_REPORT,
     )
+    parser.add_argument("--packet", type=Path, default=DEFAULT_PACKET)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
 
@@ -188,6 +306,7 @@ def main(argv: list[str] | None = None) -> int:
         (args.ledger, "backlog ledger"),
         (args.roadmap, "semantic-cache roadmap"),
         (args.precondition_report, "philosophy gate-open precondition report"),
+        (args.packet, "PR-4.2 orchestration packet"),
     ):
         if not path.exists():
             print(f"ERROR: {label} missing: {path}", file=sys.stderr)
@@ -197,6 +316,7 @@ def main(argv: list[str] | None = None) -> int:
         ledger_text=args.ledger.read_text(encoding="utf-8"),
         roadmap_text=args.roadmap.read_text(encoding="utf-8"),
         precondition_report_text=args.precondition_report.read_text(encoding="utf-8"),
+        packet_text=args.packet.read_text(encoding="utf-8"),
     )
     if errors:
         print("ERROR: philosophy alignment-ledger closeout validation failed:", file=sys.stderr)
