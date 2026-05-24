@@ -729,6 +729,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     if sources is None:
         errors.append("schema sources must be an object")
     else:
+        if sources.get("type") != "array":
+            errors.append("schema sources.type must be array")
         if sources.get("minItems") != len(EXPECTED_SOURCES):
             errors.append(f"schema sources.minItems must be {len(EXPECTED_SOURCES)}")
         if sources.get("maxItems") != len(EXPECTED_SOURCES):
@@ -737,6 +739,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     if source_item is None:
         errors.append("schema sources.items must be an object")
     else:
+        if source_item.get("type") != "object":
+            errors.append("schema sources.items.type must be object")
         if source_item.get("additionalProperties") is not False:
             errors.append("schema sources.items must be closed")
         if source_item.get("required") != list(EXPECTED_SOURCE_KEYS):
@@ -748,6 +752,23 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
                 expected_keys=EXPECTED_SOURCE_KEYS,
             )
         )
+        for key, expected_type in (
+            ("source_id", "string"),
+            ("title", "string"),
+            ("sanitized_filename", "string"),
+            ("page_count", "integer"),
+            ("sha256", "string"),
+            ("source_family", "string"),
+            ("summary", "string"),
+            ("future_handoff", "string"),
+        ):
+            errors.extend(
+                _schema_type_at(
+                    schema,
+                    ("properties", "sources", "items", "properties", key),
+                    expected_type,
+                )
+            )
         errors.extend(
             _schema_const_at(
                 schema, ("properties", "sources", "items", "properties", "language"), "ru"
@@ -800,6 +821,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     if runtime_flags is None:
         errors.append("schema runtime_flags must be an object")
     else:
+        if runtime_flags.get("type") != "object":
+            errors.append("schema runtime_flags.type must be object")
         if runtime_flags.get("additionalProperties") is not False:
             errors.append("schema runtime_flags must be closed")
         if runtime_flags.get("required") != list(RUNTIME_FLAG_KEYS):
@@ -812,18 +835,20 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
             )
         )
         for key in RUNTIME_FLAG_KEYS:
+            flag_schema_path = (
+                "properties",
+                "sources",
+                "items",
+                "properties",
+                "runtime_flags",
+                "properties",
+                key,
+            )
+            errors.extend(_schema_type_at(schema, flag_schema_path, "boolean"))
             errors.extend(
                 _schema_const_at(
                     schema,
-                    (
-                        "properties",
-                        "sources",
-                        "items",
-                        "properties",
-                        "runtime_flags",
-                        "properties",
-                        key,
-                    ),
+                    flag_schema_path,
                     False,
                 )
             )

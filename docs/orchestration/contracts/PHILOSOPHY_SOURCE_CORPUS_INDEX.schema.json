@@ -221,21 +221,27 @@
             ],
             "properties": {
               "cache_read_allowed": {
+                "type": "boolean",
                 "const": false
               },
               "cache_write_allowed": {
+                "type": "boolean",
                 "const": false
               },
               "serving_allowed": {
+                "type": "boolean",
                 "const": false
               },
               "runtime_activation_allowed": {
+                "type": "boolean",
                 "const": false
               },
               "provider_call_allowed": {
+                "type": "boolean",
                 "const": false
               },
               "insight_route_change_allowed": {
+                "type": "boolean",
                 "const": false
               }
             }

@@ -281,7 +281,9 @@ def test_philosophy_source_corpus_index_rejects_missing_interdisciplinary_rail()
 
 def test_philosophy_source_corpus_index_rejects_missing_wellness_boundary() -> None:
     index = _index()
-    policy = dict(index["source_policy"])
+    source_policy = index["source_policy"]
+    assert isinstance(source_policy, dict)
+    policy = dict(source_policy)
     del policy["wellness_boundary"]
     index["source_policy"] = policy
 
@@ -410,6 +412,87 @@ def test_philosophy_source_corpus_index_rejects_schema_runtime_flag_const_drift(
     assert any(
         "schema properties.sources.items.properties.runtime_flags.properties."
         "cache_read_allowed.const must be False" in error
+        for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_sources_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    sources["type"] = "integer"
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema sources.type must be array" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_schema_source_scalar_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    items = sources["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    title = item_properties["title"]
+    assert isinstance(title, dict)
+    title["type"] = "integer"
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema properties.sources.items.properties.title.type must be string" in error
+        for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_runtime_flags_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    items = sources["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    runtime_flags = item_properties["runtime_flags"]
+    assert isinstance(runtime_flags, dict)
+    runtime_flags["type"] = "integer"
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema runtime_flags.type must be object" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_schema_runtime_flag_boolean_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    items = sources["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    runtime_flags = item_properties["runtime_flags"]
+    assert isinstance(runtime_flags, dict)
+    runtime_properties = runtime_flags["properties"]
+    assert isinstance(runtime_properties, dict)
+    cache_read = runtime_properties["cache_read_allowed"]
+    assert isinstance(cache_read, dict)
+    cache_read["type"] = "string"
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema properties.sources.items.properties.runtime_flags.properties."
+        "cache_read_allowed.type must be boolean" in error
         for error in errors
     )
 
