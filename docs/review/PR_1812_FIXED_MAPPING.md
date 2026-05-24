@@ -24,10 +24,12 @@ Starter: direct repo startup (`check_preflight.py -> task_bootstrap.py -> agent-
 
 ## Validation
 
-- `python3 scripts/orchestration/check_preflight.py --path docs/review/PR_1809_FIXED_MAPPING.md` -> PASS
+- `python3 scripts/orchestration/check_preflight.py --path docs/review/PR_1809_FIXED_MAPPING.md --path docs/review/PR_1812_FIXED_MAPPING.md` -> PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
 - `python3 scripts/orchestration/check_experiment_runner_identity.py` -> PASS
 - `GITHUB_TOKEN=$(gh auth token) python3 scripts/ci/check_pr_merge_readiness.py --pr-number 1809 --repo Katsiarynakavaleuskaya/PulsePlate` -> PASS (`review governance only`)
+- `GITHUB_TOKEN=$(gh auth token) python3 scripts/ci/check_pr_merge_readiness.py --pr-number 1812 --repo Katsiarynakavaleuskaya/PulsePlate` -> PASS (`review governance only`)
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(gh pr view 1812 --json body --jq .body)" --pr-number 1812 --commit-range origin/main..HEAD --experiment-runner-evidence-mode advisory` -> PASS
 - `make validate-changed` -> PASS (`No Python files changed`)
 - `pre-commit run --all-files` -> PASS
 - Pre-push hooks -> PASS
