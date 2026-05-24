@@ -33,7 +33,11 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
   `4beabfcbe` (canonical mapping artifact added, Phase2 shape corrected,
   checker false-green gaps closed, and local path leakage removed from
   public validation commands).
-- Post-open `bug-hunter -> security-auditor`: pending.
+- Post-open `bug-hunter -> security-auditor`: FIXED by commit `dbd964edd`.
+  Evidence: `check_semantic_cache_gate.py` rejects active/opened semantic-cache
+  serving and Redis/GPTCache approved-backend claims; `test_semantic_cache_gate.py`
+  covers the reported false-green grammar variants; this mapping records only
+  experiment ID/status and no local artifact path.
 - Codex Security `threat-model -> security-scan -> validation`: pending.
 
 ## Experiment Runner Evidence
