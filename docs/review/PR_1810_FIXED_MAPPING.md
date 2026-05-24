@@ -55,9 +55,15 @@
 
 - Finding: bug-hunter flagged that changing matrix labels to `3.13.6` would break required check identity.
   - Disposition: `FIXED`
-  - Commit: `45e60478db829c4cecd2af06d04f946638f380c5`
-  - Evidence: `.github/workflows/ci.yml` preserves `3.13` matrix labels and uses `runtime-python-version: '3.13.6'` for exact runtime setup.
+  - Commit: `1e6020cd0187b25e978e030b264c5e3a45a6a867`
+  - Evidence: `.github/workflows/ci.yml` preserves `3.13` matrix labels and uses the `PYTHON_VERSION` env only in the Python setup expression for the exact `3.13.6` runtime.
   - Validation: `tests/test_current_head_pr_checks.py::test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs` PASS
+
+- Finding: post-open QA agent found that `runtime-python-version` leaked into the live GitHub check name as `test-main (3.13, 3.13.6, 90)`.
+  - Disposition: `FIXED`
+  - Commit: `1e6020cd0187b25e978e030b264c5e3a45a6a867`
+  - Evidence: `.github/workflows/ci.yml` no longer has `runtime-python-version`; `tests/test_ci_workflow_pr_size_governance_contract.py` asserts the setup expression while preserving matrix labels.
+  - Validation: `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_current_head_pr_checks.py::test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs -o cache_dir=/tmp/pulseplate-pytest-cache-dependency-pin-final` PASS
 
 - Finding: `npm audit --audit-level=moderate` reports two dev-only vulnerabilities.
   - Disposition: `NOT-A-BUG`
@@ -69,9 +75,33 @@
   - Evidence: operator explicitly constrained this lane to changed-scope validation only.
   - Backlog: not applicable; this is an operator-approved lane-level validation constraint, with current-head CI required before merge.
 
+### Bot Review Comments
+
+- Comment: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#issuecomment-4527871977
+  - Source: CodeRabbit
+  - Disposition: `NOT-A-BUG`
+  - Evidence: comment reports review quota/usage limit and contains no actionable code finding.
+
+- Comment: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#issuecomment-4527872086
+  - Source: Sourcery reviewer guide
+  - Disposition: `NOT-A-BUG`
+  - Evidence: generated guide summarized the PR and included no actionable review finding beyond the separate Sourcery review comment mapped below.
+
+- Review: Sourcery high-level feedback, submitted 2026-05-24T08:44:43Z
+  - Finding: repeated Lottie `4.5.2` literals across SwiftPM manifest, helper scripts, and setup docs could be centralized later.
+  - Disposition: `NOT-A-BUG`
+  - Evidence: this PR aligns existing duplicated repo surfaces without changing their architecture; SwiftPM manifest syntax and user-facing install docs still require explicit version text.
+  - Reason: introducing a new Lottie single-source generator/config would widen this dependency-pin alignment PR beyond the declared scope.
+
+- Review: Sourcery high-level feedback, submitted 2026-05-24T08:44:43Z
+  - Finding: `COVERAGE_PY` conflated canonical Python runtime naming with coverage artifact naming.
+  - Disposition: `FIXED`
+  - Commit: `1e6020cd0187b25e978e030b264c5e3a45a6a867`
+  - Evidence: `.github/workflows/ci.yml` now uses `PYTHON_VERSION: "3.13.6"` consistently; `tests/test_ci_workflow_pr_size_governance_contract.py` was updated accordingly.
+
 ## Experiment Runner Evidence
 
-- Accepted oracle-only evidence: `artifacts/orchestration/experiments/results/exp-622036dbb694.json`
+- Accepted oracle-only evidence: `artifacts/orchestration/experiments/results/exp-b4f8bf88ca30.json`
   - Status: accepted
   - Oracle return codes: `0, 0, 0`
   - Mutated paths: `[]`
@@ -79,6 +109,7 @@
 - Diagnostic rejected evidence:
   - `artifacts/orchestration/experiments/results/exp-604ee9b449cd.json`: rejected before refreshed scope packet.
   - `artifacts/orchestration/experiments/results/exp-12a0bc35ab9b.json`: rejected due oracle shell quoting, not due diff failure.
+  - `artifacts/orchestration/experiments/results/exp-ac0b9a7cb4ae.json`: rejected due oracle shell quoting, not due diff failure.
 
 ## Local Validation
 
@@ -93,6 +124,7 @@
 - `git diff --check` PASS
 - `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q tests/test_ci_workflow_pr_size_governance_contract.py -o cache_dir=/tmp/pulseplate-pytest-cache-dependency-pin-workflow` PASS (`18 passed`)
 - `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q tests/test_current_head_pr_checks.py::test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs tests/test_ci_workflow_pr_size_governance_contract.py::test_main_branch_python_sharded_runner_preserves_required_check_policy tests/test_ci_workflow_pr_size_governance_contract.py::test_node24_artifact_migration_preserves_download_contracts -o cache_dir=/tmp/pulseplate-pytest-cache-dependency-pin-bughunter` PASS
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_current_head_pr_checks.py::test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs -o cache_dir=/tmp/pulseplate-pytest-cache-dependency-pin-final` PASS (`19 passed`)
 - `make validate-changed` PASS
 - `pre-commit run --all-files` PASS
 - Commit hooks PASS
