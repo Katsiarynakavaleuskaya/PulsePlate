@@ -161,8 +161,6 @@ requests==2.33.0
     # via
     #   -r requirements.in
     #   opentelemetry-exporter-otlp-proto-http
-ruff==0.15.13
-    # via -r requirements-dev.in
 six==1.17.0
     # via python-dateutil
 slowapi==0.1.9
