@@ -270,9 +270,10 @@ def test_local_session_bootstrap_accepts_absolute_venv_python() -> None:
 
     assert result.returncode == 0, result.stderr
     assert f"Repo Python: {sys.executable}" in result.stdout
-    assert "$PWD/.venv/bin/python" in result.stdout
+    assert "interpreter path printed by the starter/bootstrap scripts" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
     assert "$VENV_PYTHON scripts/orchestration/experiment_runner.py" in result.stdout
+    assert "$PWD/.venv/bin/python` in isolated worktrees" in result.stdout
     assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
 
 

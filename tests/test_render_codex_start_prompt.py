@@ -156,9 +156,10 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
     assert "$VENV_PYTHON -m pytest" in prompt
     assert "$VENV_PYTHON scripts/orchestration/experiment_runner.py" in prompt
     assert "artifact load/write failures are infra blockers" in prompt
-    assert "$PWD/.venv/bin/python" in prompt
+    assert "interpreter path printed by the starter/bootstrap scripts" in prompt
     assert "relative `.venv/bin/python`" in prompt
-    assert "do not use bare `python3 -m pytest` or relative `.venv/bin/python`" in prompt
+    assert "or `$PWD/.venv/bin/python` in isolated worktrees" in prompt
+    assert "do not use bare `python3 -m pytest`, relative `.venv/bin/python`" in prompt
     assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in prompt
     assert "automatically start" not in prompt.lower()
     assert "auto-start" not in prompt.lower()
@@ -196,7 +197,8 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "$VENV_PYTHON -m pytest" in prompt
     assert "$VENV_PYTHON scripts/orchestration/experiment_runner.py" in prompt
     assert "artifact load/write failures are infra blockers" in prompt
-    assert "$PWD/.venv/bin/python" in prompt
+    assert "interpreter path printed by the starter/bootstrap scripts" in prompt
+    assert "or `$PWD/.venv/bin/python` in isolated worktrees" in prompt
     assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in prompt
 
 

@@ -20,10 +20,11 @@ DEFAULT_PR_REVIEW_CHECKLIST = (
 )
 PYTHON_ENV_GUIDANCE = (
     "For local Python gates in the worktree, set `VENV_PYTHON` to an absolute "
-    "interpreter path, normally `$PWD/.venv/bin/python` after `cd` into the "
-    "worktree, and run Make targets or `$VENV_PYTHON -m pytest ...`; do not "
-    "use bare `python3 -m pytest` or relative `.venv/bin/python` when the repo "
-    "`.venv` exists, because it can miss FastAPI and other locked deps."
+    "interpreter path printed by the starter/bootstrap scripts or to another "
+    "explicit repo Python, then run Make targets or `$VENV_PYTHON -m pytest ...`; "
+    "do not use bare `python3 -m pytest`, relative `.venv/bin/python`, or "
+    "`$PWD/.venv/bin/python` in isolated worktrees, because those paths can "
+    "miss FastAPI and other locked deps."
 )
 EXPERIMENT_RUNNER_ENV_GUIDANCE = (
     "For Experiment Runner evidence, use repo Python as "
