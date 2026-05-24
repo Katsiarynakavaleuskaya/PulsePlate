@@ -46,6 +46,16 @@ Evidence: `docs/review/PR_1816_FIXED_MAPPING.md` is tracked/staged in final form
 Disposition: NOT-A-BUG
 Evidence: Review found the PR remains docs/governance/test-only with no runtime/cache/provider/DB/network/subprocess/secrets/path-traversal/write-sink drift and no merge-readiness claim in the staged mapping.
 
+- Coordinator-order / dispatch bridge findings -> `4dad9fcdd`
+Disposition: FIXED
+Commit: `4dad9fcdd`
+Evidence: `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_2_ALIGNMENT_LEDGER_CLOSEOUT_PACKET_2026-05-24.md` now records `check_preflight -> agent-coordinator -> start_pr_lane -> task_bootstrap -> explicit role-agent dispatch`; `scripts/ci/check_philosophy_alignment_ledger_closeout.py` validates startup, coordinator role, and post-open role order; `scripts/orchestration/qoder_dispatch_bridge.py` preserves a valid coordinator-declared order instead of moving `qa-engineer-agent -> bug-hunter` to the tail over `security-auditor`; `tests/test_philosophy_alignment_ledger_closeout.py` and `tests/test_qoder_dispatch_bridge.py` cover the regression.
+
+- Current-head post-open QA findings -> `4dad9fcdd` plus mapping/body refresh
+Disposition: FIXED
+Commit: `4dad9fcdd`
+Evidence: PR body mirror now includes `scripts/orchestration/qoder_dispatch_bridge.py`, `tests/test_qoder_dispatch_bridge.py`, current-head role-dispatch evidence, and `## Split Justification`; lane provenance records task packet `artifacts/orchestration/task_packets/62f8bb889bac.json`.
+
 ## Experiment Runner Evidence
 
 Artifact: `artifacts/orchestration/experiments/results/pr4_2_alignment_ledger_closeout_oracle_result_rebased_v2.json`
@@ -61,7 +71,9 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 
 - Preflight: `python3 scripts/orchestration/check_preflight.py --mode analyze` -> PASS
 - Pre-open packet: `artifacts/orchestration/task_packets/a9edaf7b0a78.json`
+- Current-head post-open packet: `artifacts/orchestration/task_packets/62f8bb889bac.json`
 - Role order: `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> security-auditor -> bug-hunter`
+- Dispatch manifest current order: `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> security-auditor -> bug-hunter`
 
 ## Validation
 
@@ -70,16 +82,19 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - `python3 scripts/ci/check_philosophy_gate_open_preconditions.py --check --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` -> PASS
 - `python3 scripts/ci/check_philosophy_alignment_ledger_closeout.py --check` -> PASS
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_philosophy_alignment_rules.py tests/test_philosophy_gate_open_preconditions.py` -> PASS, 56 tests
+- `PYTHONDONTWRITEBYTECODE=1 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_qoder_dispatch_bridge.py` -> PASS
+- `PYTHONDONTWRITEBYTECODE=1 MYPYPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --explicit-package-bases --cache-dir=/dev/null --no-incremental scripts/ci/check_philosophy_alignment_ledger_closeout.py scripts/orchestration/qoder_dispatch_bridge.py tests/test_philosophy_alignment_ledger_closeout.py tests/test_qoder_dispatch_bridge.py` -> PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
 - `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` -> PASS
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files` -> PASS
 - Pre-push hooks -> PASS
+- PR size governance local reproduction after `4dad9fcdd`: `FAIL (>800 LoC without explicit split justification)`; fixed by adding `## Split Justification` to the PR body mirror/live body.
 
 ## Merge Readiness
 
-- [ ] Current-head CI completed for this PR.
+- [ ] Current-head CI completed for this PR after mapping/body refresh.
 - [x] Post-open QA / bug-hunter / security-auditor pass completed.
-- [ ] Phase2 PR body gate passed for this PR.
+- [x] Phase2 PR body gate passed for current head `4dad9fcdd` before mapping/body refresh.
 - [ ] Strict merge-readiness wrapper passed for this PR after latest bot/review activity.
 - [ ] No actionable bot comments remain.
 - [ ] Mandatory wait window elapsed after latest bot/review activity.
