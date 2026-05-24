@@ -93,7 +93,9 @@ was eliminated.
 
 ### Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1821#discussion_r3295188970 -> 1141ca059
+Disposition: FIXED
+Evidence: PM-DEPS matrix now includes `Fix commit SHA` and `Evidence (file:line)` columns for every `FIXED` row (`docs/review/PR_1821_FIXED_MAPPING.md:54`).
 
 ## Deferred / Follow-ups
 
