@@ -282,6 +282,18 @@ class FailingSlackTransport(FakeSlackTransport):
         )
 
 
+class OSErrorSlackTransport(FakeSlackTransport):
+    def __call__(
+        self,
+        *,
+        token: str,
+        channel: str,
+        text: str,
+        timeout_seconds: int,
+    ) -> None:
+        raise OSError("/Users/alice/.ssh/id_rsa and xoxb-secret")
+
+
 def _configure_smtp_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST", "pulseplate@pm.me")
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_HOST", "smtp.example.test")
@@ -792,6 +804,52 @@ def test_slack_delivery_failure_is_sanitized_and_audited(
     audit = json.loads(audit_text)
     assert audit["status"] == "failed"
     assert audit["failure_class"] == "slack_delivery_failed"
+    assert "C0ALERTS" not in audit_text
+    assert "xoxb-test-token" not in audit_text
+
+
+def test_slack_unexpected_transport_failure_marks_failed_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", OSErrorSlackTransport())
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Slack delivery failed" in stdout
+    assert "/Users/alice" not in stdout
+    assert "xoxb-secret" not in stdout
+    audit_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "notifications"
+        / "exp-notify.slack-audit.json"
+    )
+    audit_text = audit_path.read_text(encoding="utf-8")
+    audit = json.loads(audit_text)
+    assert audit["status"] == "failed"
+    assert audit["failure_class"] == "slack_delivery_failed"
+    assert "send_in_progress" not in audit_text
     assert "C0ALERTS" not in audit_text
     assert "xoxb-test-token" not in audit_text
 

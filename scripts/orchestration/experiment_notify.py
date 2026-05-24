@@ -1291,7 +1291,7 @@ def _deliver_slack_notification(
             text=markdown,
             timeout_seconds=int(config["timeout_seconds"]),
         )
-    except ExperimentSlackDeliveryError as exc:
+    except Exception as exc:
         _write_slack_audit(
             audit_path=audit_path,
             experiment_id=experiment_id,
