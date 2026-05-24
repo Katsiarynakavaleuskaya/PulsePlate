@@ -205,6 +205,9 @@ def _numbered_role_order(packet_text: str, heading: str) -> tuple[list[str], lis
             if candidate not in roles:
                 roles.append(candidate)
                 break
+            return roles, [f"PR-4.2 packet {heading} duplicates role: {candidate}"]
+    if not roles:
+        return [], [f"PR-4.2 packet {heading} has no numbered role entries"]
     return roles, []
 
 

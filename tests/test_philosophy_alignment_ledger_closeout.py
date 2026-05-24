@@ -200,6 +200,33 @@ def test_alignment_ledger_closeout_rejects_missing_post_open_role_order() -> Non
     assert "PR-4.2 packet missing section: ## Post-Open Role Order" in errors
 
 
+def test_alignment_ledger_closeout_rejects_empty_role_order_section() -> None:
+    packet = _read(PACKET).replace(
+        "1. `agent-coordinator` - scope lock, role assignment, synthesis, and DoD.\n"
+        "2. `philosophy-agent` - epistemic and philosophy-lane boundary review.\n"
+        "3. `architecture-specialist` - ownership, layering, and handoff-contract review.\n"
+        "4. `qa-engineer-agent` - deterministic guard, test, and evidence review.\n"
+        "5. `security-auditor` - no-runtime/no-cache/security drift review.\n"
+        "6. `bug-hunter` - false-green, stale-ledger, and regression-risk review.\n",
+        "",
+    )
+
+    errors = _validate(packet_text=packet)
+
+    assert "PR-4.2 packet Coordinator Role Order has no numbered role entries" in errors
+
+
+def test_alignment_ledger_closeout_rejects_duplicate_role_order_entry() -> None:
+    packet = _read(PACKET).replace(
+        "6. `bug-hunter` - false-green, stale-ledger, and regression-risk review.",
+        "6. `qa-engineer-agent` - duplicate role entry.",
+    )
+
+    errors = _validate(packet_text=packet)
+
+    assert "PR-4.2 packet Coordinator Role Order duplicates role: qa-engineer-agent" in errors
+
+
 def test_alignment_packet_dispatch_parser_sees_full_role_order() -> None:
     assert (
         tuple(qoder_dispatch_bridge._parse_packet_roles(PACKET)) == EXPECTED_COORDINATOR_ROLE_ORDER
@@ -209,14 +236,10 @@ def test_alignment_packet_dispatch_parser_sees_full_role_order() -> None:
         mode="analysis",
         packet_source=str(PACKET),
     )
-    assert tuple(item["role_slug"] for item in manifest["dispatch_sequence"]) == (
-        EXPECTED_COORDINATOR_ROLE_ORDER
-    )
-    assert EXPECTED_POST_OPEN_ROLE_ORDER == (
-        "qa-engineer-agent",
-        "bug-hunter",
-        "security-auditor",
-    )
+    manifest_order = [item["role_slug"] for item in manifest["dispatch_sequence"]]
+    qa_index = manifest_order.index("qa-engineer-agent")
+    assert manifest_order[qa_index : qa_index + 2] == ["qa-engineer-agent", "bug-hunter"]
+    assert manifest["mandatory_post_open"] == list(EXPECTED_POST_OPEN_ROLE_ORDER[:2])
 
 
 def test_alignment_ledger_closeout_cli_passes(capsys: CaptureFixture[str]) -> None:

@@ -735,20 +735,19 @@ MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
 
 
 def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
-    """Keep QA before bug-hunter without rewriting a valid coordinator order."""
+    """Keep the canonical post-open QA -> bug-hunter pass adjacent when present."""
 
     try:
         qa_index = role_slugs.index("qa-engineer-agent")
         bug_index = role_slugs.index("bug-hunter")
     except ValueError:
-        qa_index = -1
-        bug_index = -1
-    if qa_index != -1 and qa_index < bug_index:
+        return role_slugs
+    if bug_index == qa_index + 1:
         return role_slugs
 
-    ordered = [slug for slug in role_slugs if slug not in MANDATORY_POST_OPEN_ORDER]
-    for slug in MANDATORY_POST_OPEN_ORDER:
-        ordered.extend([slug] * role_slugs.count(slug))
+    ordered = [slug for slug in role_slugs if slug != "bug-hunter"]
+    insert_at = ordered.index("qa-engineer-agent") + 1
+    ordered[insert_at:insert_at] = ["bug-hunter"] * role_slugs.count("bug-hunter")
     return ordered
 
 

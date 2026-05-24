@@ -1135,8 +1135,8 @@ def test_mandatory_post_open_pass_is_ordered_last() -> None:
     ]
 
 
-def test_valid_coordinator_declared_order_is_preserved() -> None:
-    """The bridge must not rewrite an already-valid coordinator role order."""
+def test_coordinator_order_keeps_mandatory_qa_bug_pass_adjacent() -> None:
+    """The bridge preserves order except for the mandatory QA -> bug handoff."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"
     slugs = [
         "agent-coordinator",
@@ -1156,7 +1156,14 @@ def test_valid_coordinator_declared_order_is_preserved() -> None:
         packet_source="test",
     )
 
-    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == slugs
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == [
+        "agent-coordinator",
+        "philosophy-agent",
+        "architecture-specialist",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
 
 
 # ---------------------------------------------------------------------------
