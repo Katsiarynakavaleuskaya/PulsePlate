@@ -137,8 +137,8 @@ python3 scripts/ci/check_philosophy_gate_open_preconditions.py --check --files d
 python3 scripts/ci/check_philosophy_alignment_ledger_closeout.py --check
 python3 -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_philosophy_alignment_rules.py tests/test_philosophy_gate_open_preconditions.py
 python3 scripts/orchestration/check_agent_consistency.py
-DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed
-pre-commit run --all-files
+DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed
+PATH=.venv/bin:$PATH pre-commit run --all-files
 ```
 
 Root `AGENTS.md` remains the merge-readiness authority. This lane uses the

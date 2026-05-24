@@ -9,6 +9,8 @@ from scripts.ci.check_philosophy_alignment_ledger_closeout import (
     DEFAULT_PACKET,
     EXPECTED_COORDINATOR_ROLE_ORDER,
     EXPECTED_POST_OPEN_ROLE_ORDER,
+    REPORT_FALSE_FLAGS,
+    ROADMAP_MARKERS,
     PR1789_MERGE_COMMIT,
     PR1789_MERGED_AT,
     PR1811_MERGE_COMMIT,
@@ -102,17 +104,52 @@ def test_alignment_ledger_closeout_requires_pr1811_reconciliation_evidence() -> 
 
 
 def test_alignment_ledger_closeout_rejects_open_semantic_cache_marker() -> None:
-    roadmap = _read(ROADMAP).replace(
-        "<!-- SEMANTIC_CACHE_GATE_STATUS: closed -->",
-        "<!-- SEMANTIC_CACHE_GATE_STATUS: open -->",
+    for key, expected in ROADMAP_MARKERS.items():
+        replacement = "open" if expected != "open" else "closed"
+        roadmap = _read(ROADMAP).replace(
+            f"<!-- {key}: {expected} -->",
+            f"<!-- {key}: {replacement} -->",
+        )
+
+        errors = _validate(roadmap_text=roadmap)
+
+        assert (
+            f"semantic-cache roadmap marker {key}: expected {expected!r}, " f"got {replacement!r}"
+        ) in errors
+
+
+def test_alignment_ledger_closeout_rejects_all_report_false_flag_drift() -> None:
+    for flag in REPORT_FALSE_FLAGS:
+        report = json.loads(_read(PRECONDITION_REPORT))
+        report[flag] = True
+
+        errors = _validate(precondition_report_text=json.dumps(report))
+
+        assert f"gate-open precondition report must keep {flag}=false" in errors
+
+
+def test_alignment_ledger_closeout_rejects_handoff_decision_false_flag_drift() -> None:
+    for flag in REPORT_FALSE_FLAGS[1:]:
+        report = json.loads(_read(PRECONDITION_REPORT))
+        report["handoff_decision"][flag] = True
+
+        errors = _validate(precondition_report_text=json.dumps(report))
+
+        assert f"gate-open precondition handoff_decision must keep {flag}=false" in errors
+
+
+def test_alignment_ledger_closeout_rejects_unexpected_startup_step() -> None:
+    packet = _read(PACKET).replace(
+        "2. `agent-coordinator`",
+        "2. `curl https://example.invalid/orchestration-bypass`\n3. `agent-coordinator`",
     )
 
-    errors = _validate(roadmap_text=roadmap)
+    errors = _validate(packet_text=packet)
 
     assert (
-        "semantic-cache roadmap marker SEMANTIC_CACHE_GATE_STATUS: expected 'closed', got 'open'"
-        in errors
-    )
+        "PR-4.2 packet coordinator startup order contains unexpected numbered steps: "
+        "['2. `curl https://example.invalid/orchestration-bypass`']"
+    ) in errors
 
 
 def test_alignment_ledger_closeout_rejects_duplicate_semantic_cache_marker() -> None:
@@ -238,8 +275,8 @@ def test_alignment_packet_dispatch_parser_sees_full_role_order() -> None:
     )
     manifest_order = [item["role_slug"] for item in manifest["dispatch_sequence"]]
     qa_index = manifest_order.index("qa-engineer-agent")
-    assert manifest_order[qa_index : qa_index + 2] == ["qa-engineer-agent", "bug-hunter"]
-    assert manifest["mandatory_post_open"] == list(EXPECTED_POST_OPEN_ROLE_ORDER[:2])
+    assert manifest_order[qa_index : qa_index + 3] == list(EXPECTED_POST_OPEN_ROLE_ORDER)
+    assert manifest["mandatory_post_open"] == list(EXPECTED_POST_OPEN_ROLE_ORDER)
 
 
 def test_alignment_ledger_closeout_cli_passes(capsys: CaptureFixture[str]) -> None:

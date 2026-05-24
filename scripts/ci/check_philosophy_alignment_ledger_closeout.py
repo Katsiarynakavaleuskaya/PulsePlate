@@ -231,13 +231,22 @@ def _validate_packet_startup_order(packet_text: str) -> list[str]:
         return errors
 
     observed: list[str] = []
+    unexpected: list[str] = []
     for line in section.splitlines():
         stripped = line.strip()
         if not re.match(r"^\d+\.\s+", stripped):
             continue
         step = _startup_step_key(stripped)
-        if step:
-            observed.append(step)
+        if step is None:
+            unexpected.append(stripped)
+            continue
+        observed.append(step)
+
+    if unexpected:
+        return [
+            "PR-4.2 packet coordinator startup order contains unexpected numbered steps: "
+            f"{unexpected!r}"
+        ]
 
     if tuple(observed) != EXPECTED_STARTUP_ORDER:
         return [
