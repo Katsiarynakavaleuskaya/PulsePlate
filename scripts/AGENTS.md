@@ -43,6 +43,15 @@
   absolute local paths, or user data. Slack delivery must remain channel
   allowlisted, runtime-secret backed, timeout/rate/idempotency bounded, and
   audit-backed.
+- `experiment_slack_socket_bridge.py` is an operator-only Socket Mode command
+  boundary, not a lane-start authority. It must keep Slack SDK/Bolt imports
+  optional and lazy, run `--help` and dry-run validation without optional Slack
+  packages, require runtime Socket Mode/bot credentials only for live use, and
+  require channel plus user allowlists before handling operator input. Default
+  dispatch mode must stay dry-run; execute mode may dispatch only fixed
+  allowlisted workflows with explicit GitHub runtime auth. Audit artifacts must
+  stay local and hash-only, with no raw Slack payloads, tokens, channel/user
+  IDs, local absolute paths, oracle output, patch text, or raw hypotheses.
 - `experiment_pipeline.py` is the governed completion wrapper for
   runner -> promotion -> notification sequencing. Email reports are automatic
   only inside that wrapper when `--email-reports` is explicitly present; the

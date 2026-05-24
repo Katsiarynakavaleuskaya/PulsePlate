@@ -72,22 +72,40 @@
   },
   "slack_identity": {
     "status": "operator_notification_boundary_defined",
-    "purpose": "ops_notification_display_identity_only",
+    "purpose": "ops_notification_and_operator_command_boundary_only",
     "not_cryptographic_identity": true,
     "security_pr_status": "implemented_in_this_pr",
     "delivery_credential_source": "external",
     "channel_allowlist_source": "runtime_env",
     "default_enabled": false,
+    "requires_socket_auth_boundary": true,
     "requires_bot_token_secret_boundary": true,
     "requires_channel_allowlist": true,
+    "requires_user_allowlist": true,
+    "requires_fixed_workflow_dispatch": true,
+    "requires_explicit_dispatch_opt_in": true,
+    "requires_hash_only_audit": true,
     "requires_audit_artifact": true,
     "requires_redacted_messages": true,
     "requires_rate_limit": true,
     "requires_timeout": true,
     "requires_idempotency": true,
     "allowed_sinks": [
-      "experiment_notify_slack_explicit_sink"
+      "experiment_notify_slack_explicit_sink",
+      "experiment_slack_socket_operator_bridge"
     ],
+    "operator_bridge_sink": "experiment_slack_socket_operator_bridge",
+    "operator_command_boundary": {
+      "status": "socket_mode_dry_run_bridge",
+      "default_dispatch_mode": "dry_run",
+      "live_socket_default_enabled": false,
+      "requires_github_runtime_auth": true,
+      "github_runtime_auth_source": "runtime_env",
+      "can_dispatch_arbitrary_workflow": false,
+      "can_dispatch_without_operator_opt_in": false,
+      "can_create_pull_requests": false,
+      "can_run_shell_commands": false
+    },
     "forbidden_authority": {
       "public_git_identity": false,
       "merge_rights": "none",

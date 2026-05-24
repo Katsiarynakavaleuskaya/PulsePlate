@@ -29,6 +29,24 @@ def test_default_policy_validates() -> None:
     assert policy["slack_identity"]["default_enabled"] is False
     assert policy["slack_identity"]["delivery_credential_source"] == "external"
     assert policy["slack_identity"]["channel_allowlist_source"] == "runtime_env"
+    assert policy["slack_identity"]["requires_user_allowlist"] is True
+    assert policy["slack_identity"]["requires_explicit_dispatch_opt_in"] is True
+    assert policy["slack_identity"]["requires_hash_only_audit"] is True
+    assert policy["slack_identity"]["allowed_sinks"] == [
+        "experiment_notify_slack_explicit_sink",
+        "experiment_slack_socket_operator_bridge",
+    ]
+    assert policy["slack_identity"]["operator_command_boundary"] == {
+        "status": "socket_mode_dry_run_bridge",
+        "default_dispatch_mode": "dry_run",
+        "live_socket_default_enabled": False,
+        "requires_github_runtime_auth": True,
+        "github_runtime_auth_source": "runtime_env",
+        "can_dispatch_arbitrary_workflow": False,
+        "can_dispatch_without_operator_opt_in": False,
+        "can_create_pull_requests": False,
+        "can_run_shell_commands": False,
+    }
     assert policy["validator_mutation_boundary"]["status"] == "threat_model_only"
     assert policy["validator_mutation_boundary"]["active_mutation_access"] is False
     assert policy["contribution_attribution"]["basis"] == "material_evidence_contribution"
@@ -503,6 +521,56 @@ def test_rejects_slack_boundary_missing_required_controls() -> None:
     policy["slack_identity"]["requires_rate_limit"] = False
 
     with pytest.raises(identity_check.IdentityPolicyError, match="requires_rate_limit"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_boundary_missing_user_allowlist() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["requires_user_allowlist"] = False
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="requires_user_allowlist"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_bridge_sink_drift() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["allowed_sinks"] = ["experiment_notify_slack_explicit_sink"]
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="allowed_sinks"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_bridge_without_dry_run_default() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["operator_command_boundary"]["default_dispatch_mode"] = "execute"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="default_dispatch_mode"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_bridge_without_github_runtime_auth_source() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["operator_command_boundary"][
+        "github_runtime_auth_source"
+    ] = "repo_policy"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="github_runtime_auth_source"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_bridge_arbitrary_workflow_dispatch() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["operator_command_boundary"]["can_dispatch_arbitrary_workflow"] = True
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="can_dispatch_arbitrary_workflow"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_bridge_pull_request_authority() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["operator_command_boundary"]["can_create_pull_requests"] = True
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="can_create_pull_requests"):
         identity_check.validate_identity_policy(policy)
 
 

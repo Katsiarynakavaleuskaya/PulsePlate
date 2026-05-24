@@ -33,6 +33,10 @@ GUIDANCE_PATHS = (
     REPO_ROOT / "docs" / "orchestration" / "GOVERNED_NON_HUMAN_IDENTITY_POLICY.md",
 )
 ALLOWED_SIGNING_METHODS = frozenset({"ssh", "gpg", "github_app_verified_signature"})
+ALLOWED_SLACK_SINKS = [
+    "experiment_notify_slack_explicit_sink",
+    "experiment_slack_socket_operator_bridge",
+]
 SENSITIVE_FIELD_RE = re.compile(
     r"(access[\s_-]*key|api[\s_-]*key|private[\s_-]*key|pass[\s_-]*phrase|password|secret|token|credential|signing[\s_-]*key)",
     re.IGNORECASE,
@@ -443,17 +447,22 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
         raise IdentityPolicyError(
             "slack_identity.status must be operator_notification_boundary_defined."
         )
-    if slack_identity.get("purpose") != "ops_notification_display_identity_only":
+    if slack_identity.get("purpose") != "ops_notification_and_operator_command_boundary_only":
         raise IdentityPolicyError(
-            "slack_identity.purpose must be ops_notification_display_identity_only."
+            "slack_identity.purpose must be " "ops_notification_and_operator_command_boundary_only."
         )
     _require_bool(slack_identity, "not_cryptographic_identity", True)
     if slack_identity.get("security_pr_status") != "implemented_in_this_pr":
         raise IdentityPolicyError(
             "slack_identity.security_pr_status must be implemented_in_this_pr."
         )
+    _require_bool(slack_identity, "requires_socket_auth_boundary", True)
     _require_bool(slack_identity, "requires_bot_token_secret_boundary", True)
     _require_bool(slack_identity, "requires_channel_allowlist", True)
+    _require_bool(slack_identity, "requires_user_allowlist", True)
+    _require_bool(slack_identity, "requires_fixed_workflow_dispatch", True)
+    _require_bool(slack_identity, "requires_explicit_dispatch_opt_in", True)
+    _require_bool(slack_identity, "requires_hash_only_audit", True)
     _require_bool(slack_identity, "requires_audit_artifact", True)
     _require_bool(slack_identity, "requires_redacted_messages", True)
     _require_bool(slack_identity, "requires_rate_limit", True)
@@ -464,10 +473,34 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
         raise IdentityPolicyError("slack_identity.delivery_credential_source must be external.")
     if slack_identity.get("channel_allowlist_source") != "runtime_env":
         raise IdentityPolicyError("slack_identity.channel_allowlist_source must be runtime_env.")
-    if slack_identity.get("allowed_sinks") != ["experiment_notify_slack_explicit_sink"]:
+    if slack_identity.get("allowed_sinks") != ALLOWED_SLACK_SINKS:
         raise IdentityPolicyError(
-            "slack_identity.allowed_sinks must be experiment_notify_slack_explicit_sink."
+            "slack_identity.allowed_sinks must list only governed Slack sinks."
         )
+    if slack_identity.get("operator_bridge_sink") != "experiment_slack_socket_operator_bridge":
+        raise IdentityPolicyError(
+            "slack_identity.operator_bridge_sink must be "
+            "experiment_slack_socket_operator_bridge."
+        )
+    operator_command_boundary = _require_mapping(slack_identity, "operator_command_boundary")
+    if operator_command_boundary.get("status") != "socket_mode_dry_run_bridge":
+        raise IdentityPolicyError(
+            "slack_identity.operator_command_boundary.status must be " "socket_mode_dry_run_bridge."
+        )
+    if operator_command_boundary.get("default_dispatch_mode") != "dry_run":
+        raise IdentityPolicyError(
+            "slack_identity.operator_command_boundary.default_dispatch_mode must be dry_run."
+        )
+    _require_bool(operator_command_boundary, "live_socket_default_enabled", False)
+    _require_bool(operator_command_boundary, "requires_github_runtime_auth", True)
+    if operator_command_boundary.get("github_runtime_auth_source") != "runtime_env":
+        raise IdentityPolicyError(
+            "slack_identity.operator_command_boundary.github_runtime_auth_source must be runtime_env."
+        )
+    _require_bool(operator_command_boundary, "can_dispatch_arbitrary_workflow", False)
+    _require_bool(operator_command_boundary, "can_dispatch_without_operator_opt_in", False)
+    _require_bool(operator_command_boundary, "can_create_pull_requests", False)
+    _require_bool(operator_command_boundary, "can_run_shell_commands", False)
     forbidden_authority = _require_mapping(slack_identity, "forbidden_authority")
     _require_bool(forbidden_authority, "public_git_identity", False)
     if forbidden_authority.get("merge_rights") != "none":
