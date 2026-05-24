@@ -255,6 +255,17 @@ def test_checker_fails_if_doc_approves_semantic_cache_serving_or_backend(
     assert f"forbidden semantic-cache claim: {expected}" in result.stderr
 
 
+def test_checker_does_not_treat_product_as_pr_reference(tmp_path: Path) -> None:
+    doc = _write_doc(
+        tmp_path,
+        _valid_doc() + "\nProduct governance does not open semantic-cache serving for Redis.\n",
+    )
+
+    result = _run_checker(doc)
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_checker_fails_if_e1_e5_automatically_unlock_semantic_cache(tmp_path: Path) -> None:
     doc = _write_doc(tmp_path, _valid_doc() + "\nE1–E5 unlock semantic cache.\n")
 

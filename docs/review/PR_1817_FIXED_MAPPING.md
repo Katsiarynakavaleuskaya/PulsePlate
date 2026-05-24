@@ -30,7 +30,7 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
 - Pre-open `dev-operator`: FIXED by repo `.venv` validation, post-rebase reruns,
   and no tracked local artifacts.
 - Post-open `qa-engineer-agent`: FIXED by commit
-  `4beabfcbe` (canonical mapping artifact added, Phase2 shape corrected,
+  `4beabfcbe` (canonical mapping artifact added, Phase 2 shape corrected,
   checker false-green gaps closed, and local path leakage removed from
   public validation commands).
 - Post-open `bug-hunter -> security-auditor`: FIXED / NOT-A-BUG.

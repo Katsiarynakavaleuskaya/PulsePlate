@@ -171,12 +171,12 @@ FORBIDDEN_CLAIM_PATTERNS = (
     (
         "PR opens semantic-cache serving",
         re.compile(
-            r"\b(?:pr[-\s]?[a-z0-9]+|pr\s+#?\d+|#[0-9]+)\b"
+            r"\b(?:pr[-\s]?(?:#?\d+|[a-z]{1,6}[-\s]?\d+[a-z]?)|#[0-9]+)\b"
             r"[^.!?\n]{0,140}\b(?:opens?|opened|has\s+opened)\b"
             r"[^.!?\n]{0,140}\bsemantic[-\s]cache\s+serving\b"
             r"|\b(?:semantic\s+cache|semantic-cache)\s+serving\s+"
             r"(?:(?:is|was|has\s+been)\s+)?opened\s+by\s+"
-            r"(?:pr[-\s]?[a-z0-9]+|pr\s+#?\d+|#[0-9]+)\b"
+            r"(?:pr[-\s]?(?:#?\d+|[a-z]{1,6}[-\s]?\d+[a-z]?)|#[0-9]+)\b"
         ),
     ),
     (

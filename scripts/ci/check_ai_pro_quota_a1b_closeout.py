@@ -96,7 +96,7 @@ PR_A1B_TOKEN_RE = re.compile(
 )
 CLAUSE_SPLIT_RE = re.compile(
     r"\b(?:but|however|though|although|yet|while|whereas|therefore|thus|so|hence|"
-    r"and|also|plus)\b|[;]",
+    r"and|also|plus|despite|notwithstanding|nevertheless)\b|[;]",
     re.I,
 )
 SOFT_SPLIT_RE = re.compile(r"[,()]")
@@ -120,13 +120,14 @@ SEMANTIC_ACTION_RE = re.compile(
     re.I,
 )
 RUNTIME_SURFACE_RE = re.compile(
-    r"\b(runtime|quota\s+(?:logic|runtime|implementation|enforcement)|"
+    r"\b(runtime(?![-/\s]*(?:truth|test|evidence|anchor))|"
+    r"quota\s+(?:logic|runtime|implementation|enforcement)|"
     r"pro\s+quota|provider|auth|billing|entitlement|openapi|dtos?|"
     r"public\s+(?:route|routes|api|endpoint|endpoints)|db|database)\b",
     re.I,
 )
 RUNTIME_ACTION_RE = re.compile(
-    r"\b(implements?|implemented|adds?|added|changes?|changed|reopens?|reopened|"
+    r"\b(implements?|implemented|adds?|added|changes?|changed|changing|reopens?|reopened|"
     r"wires?|wired|rolls?\s+out|enforces?|enforced|introduces?|introduced|"
     r"activates?|activated|ships?|shipped)\b",
     re.I,
@@ -195,17 +196,6 @@ def _slice(text: str, start: str, end_pattern: str, *, label: str, errors: list[
     match = re.search(end_pattern, text[start_index + len(start) :])
     if not match:
         errors.append(f"{label}: missing end anchor {end_pattern!r}")
-        return text[start_index:]
-    end_index = start_index + len(start) + match.start()
-    return text[start_index:end_index]
-
-
-def _optional_slice(text: str, start: str, end_pattern: str) -> str:
-    start_index = text.find(start)
-    if start_index == -1:
-        return ""
-    match = re.search(end_pattern, text[start_index + len(start) :])
-    if not match:
         return text[start_index:]
     end_index = start_index + len(start) + match.start()
     return text[start_index:end_index]
@@ -318,8 +308,8 @@ def _check_mapping(mapping: str, errors: list[str]) -> None:
         ),
         errors,
     )
-    if re.search(r"^## Merge Readiness\b", mapping, re.M):
-        errors.append("PR_1461_FIXED_MAPPING: stale active ## Merge Readiness section remains")
+    if re.search(r"^#{2,6}\s+Merge Readiness\b", mapping, re.M):
+        errors.append("PR_1461_FIXED_MAPPING: stale active Merge Readiness section remains")
     if re.search(r"^\s*[-*+]\s+\[\s\]", mapping, re.M):
         errors.append("PR_1461_FIXED_MAPPING: unchecked historical readiness checklist remains")
 
@@ -382,15 +372,7 @@ def validate_closeout(
         ("semantic-cache gate", gate_text),
     ):
         _check_stale_wording(text, label, errors)
-        if label == "PR_1461_FIXED_MAPPING":
-            post_merge = _optional_slice(
-                text,
-                "## Post-Merge Closeout",
-                r"\n## Historical Merge Readiness",
-            )
-            _check_forbidden_claims(post_merge, f"{label} post-merge closeout", errors)
-        else:
-            _check_forbidden_claims(text, label, errors)
+        _check_forbidden_claims(text, label, errors)
         _check_local_path_leakage(text, label, errors)
 
     _require_tokens(
@@ -459,11 +441,11 @@ def validate_closeout(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
-    parser.add_argument("--roadmap", type=Path, default=DEFAULT_ROADMAP)
-    parser.add_argument("--packet", type=Path, default=DEFAULT_PACKET)
-    parser.add_argument("--mapping-1461", type=Path, default=DEFAULT_MAPPING_1461)
-    parser.add_argument("--semantic-cache-gate", type=Path, default=DEFAULT_SEMANTIC_CACHE_GATE)
+    parser.add_argument("--ledger", type=Path, default=None)
+    parser.add_argument("--roadmap", type=Path, default=None)
+    parser.add_argument("--packet", type=Path, default=None)
+    parser.add_argument("--mapping-1461", type=Path, default=None)
+    parser.add_argument("--semantic-cache-gate", type=Path, default=None)
     return parser
 
 

@@ -243,6 +243,19 @@ def test_checker_resolves_default_docs_relative_to_repo_root(tmp_path: Path) -> 
     assert _errors_with_repo_root_only(tmp_path) == []
 
 
+def test_checker_rejects_invalid_default_docs_relative_to_repo_root(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(PR_1461_COMMIT, "not-a-real-pr1461-merge-commit"),
+        encoding="utf-8",
+    )
+
+    errors = _errors_with_repo_root_only(tmp_path)
+
+    assert any("PR #1461" in error for error in errors)
+
+
 @pytest.mark.parametrize(
     ("replacement", "expected"),
     [
@@ -343,6 +356,10 @@ def test_checker_rejects_semantic_cache_gate_overclaim_even_when_markers_closed(
         ),
         ("Semantic cache remains closed plus GPTCache is enabled.", "semantic-cache"),
         ("A1b opens semantic-cache serving.", "semantic-cache"),
+        (
+            "PR-A1b does not reopen runtime quota logic despite changing provider/auth/billing behavior.",
+            "runtime-scope",
+        ),
     ],
 )
 def test_checker_rejects_runtime_or_semantic_cache_contrast_bypass(
@@ -373,7 +390,24 @@ def test_checker_rejects_forbidden_claim_in_pr1461_post_merge_mapping(tmp_path: 
 
     errors = _errors(tmp_path)
 
-    assert any("PR_1461_FIXED_MAPPING post-merge closeout" in error for error in errors)
+    assert any("PR_1461_FIXED_MAPPING" in error and "semantic-cache" in error for error in errors)
+
+
+def test_checker_rejects_forbidden_claim_anywhere_in_pr1461_mapping(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1461_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping().replace(
+            "- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r1 -> abc123",
+            "- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1461#discussion_r1 -> abc123\n"
+            "Evidence: PR-A1b opens semantic-cache serving for Redis.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("PR_1461_FIXED_MAPPING" in error and "semantic-cache" in error for error in errors)
 
 
 def test_checker_rejects_local_path_leakage_in_mapping(tmp_path: Path) -> None:
@@ -409,6 +443,19 @@ def test_checker_rejects_stale_mapping_readiness_checklist(tmp_path: Path) -> No
     errors = _errors(tmp_path)
 
     assert any("Merge Readiness" in error or "unchecked" in error for error in errors)
+
+
+def test_checker_rejects_stale_mapping_readiness_heading_at_any_level(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1461_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\n### Merge Readiness\n\n- [x] Current-head CI is green\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("Merge Readiness" in error for error in errors)
 
 
 def test_checker_rejects_missing_landed_runtime_marker(tmp_path: Path) -> None:
