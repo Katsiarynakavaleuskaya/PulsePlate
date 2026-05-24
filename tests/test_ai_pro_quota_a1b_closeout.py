@@ -422,6 +422,16 @@ def test_checker_rejects_local_path_leakage_in_mapping(tmp_path: Path) -> None:
     assert any("local artifact/worktree path" in error for error in errors)
 
 
+def test_checker_rejects_unix_absolute_worktree_path_leakage(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1461_FIXED_MAPPING.md"
+    mapping.write_text(_valid_mapping() + "\nEvidence: /tmp/worktrees/a1b/foo\n", encoding="utf-8")
+
+    errors = _errors(tmp_path)
+
+    assert any("local artifact/worktree path" in error for error in errors)
+
+
 def test_current_pr_mapping_uses_only_phase2_safe_artifact_path() -> None:
     mapping = (REPO_ROOT / "docs/review/PR_1817_FIXED_MAPPING.md").read_text(encoding="utf-8")
 
@@ -456,6 +466,49 @@ def test_checker_rejects_stale_mapping_readiness_heading_at_any_level(tmp_path: 
     errors = _errors(tmp_path)
 
     assert any("Merge Readiness" in error for error in errors)
+
+
+def test_checker_rejects_stale_mapping_readiness_heading_case_variant(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1461_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\n### merge readiness\n\n- [x] Current-head CI is green\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("Merge Readiness" in error for error in errors)
+
+
+def test_checker_rejects_stale_mapping_readiness_setext_heading(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1461_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\nMerge Readiness\n---\n\n- [x] Current-head CI is green\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("Merge Readiness" in error for error in errors)
+
+
+def test_checker_rejects_runtime_expansion_without_explicit_a1b_token(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "#### Out of scope",
+            "Closeout review: This closeout changes provider/auth/billing behavior.\n\n"
+            "#### Out of scope",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("runtime-scope expansion" in error for error in errors)
 
 
 def test_checker_rejects_missing_landed_runtime_marker(tmp_path: Path) -> None:

@@ -132,7 +132,14 @@ RUNTIME_ACTION_RE = re.compile(
     r"activates?|activated|ships?|shipped)\b",
     re.I,
 )
-LOCAL_PATH_RE = re.compile(r"(/Users/|(?:^|[\s`])worktrees/|artifacts/orchestration)")
+LOCAL_PATH_RE = re.compile(r"(/Users/|(?:^|[\s`/])worktrees/|artifacts/orchestration)")
+SAFE_RUNTIME_EVIDENCE_RE = re.compile(
+    r"\b(already\s+landed|landed|merged|merge\s+commit|anchored|evidence|"
+    r"runtime\s+(?:truth|test|evidence|anchor)|historical|closed\s+via|"
+    r"via\s+PR\s+#?(?:1379|1461|1466)|PR\s+#?(?:1379|1461|1466)|"
+    r"out\s+of\s+scope|without)\b",
+    re.I,
+)
 
 STALE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("A1b in-progress status", re.compile(r"\bA1b\b[^.\n]{0,120}\bin\s+progress\b", re.I)),
@@ -272,8 +279,19 @@ def _check_forbidden_claims(text: str, label: str, errors: list[str]) -> None:
                             f"{label}: semantic-cache/runtime-expansion claim is not fail-closed: {compacted}"
                         )
                 has_a1b_context = sentence_has_a1b or bool(PR_A1B_TOKEN_RE.search(compacted))
-                if has_a1b_context and RUNTIME_SURFACE_RE.search(compacted):
-                    if RUNTIME_ACTION_RE.search(compacted) and not _has_local_negation(compacted):
+                has_runtime_expansion = bool(
+                    RUNTIME_SURFACE_RE.search(compacted)
+                    and RUNTIME_ACTION_RE.search(compacted)
+                    and not _has_local_negation(compacted)
+                )
+                has_safe_runtime_evidence = bool(
+                    SAFE_RUNTIME_EVIDENCE_RE.search(sentence)
+                    or SAFE_RUNTIME_EVIDENCE_RE.search(compacted)
+                )
+                if has_runtime_expansion:
+                    if has_a1b_context or (
+                        label != "semantic-cache gate" and not has_safe_runtime_evidence
+                    ):
                         errors.append(
                             f"{label}: A1b runtime-scope expansion claim is not fail-closed: {compacted}"
                         )
@@ -308,7 +326,9 @@ def _check_mapping(mapping: str, errors: list[str]) -> None:
         ),
         errors,
     )
-    if re.search(r"^#{2,6}\s+Merge Readiness\b", mapping, re.M):
+    if re.search(r"^#{1,6}\s+Merge Readiness\b", mapping, re.I | re.M):
+        errors.append("PR_1461_FIXED_MAPPING: stale active Merge Readiness section remains")
+    if re.search(r"^Merge Readiness\s*\n[-=]{3,}\s*$", mapping, re.I | re.M):
         errors.append("PR_1461_FIXED_MAPPING: stale active Merge Readiness section remains")
     if re.search(r"^\s*[-*+]\s+\[\s\]", mapping, re.M):
         errors.append("PR_1461_FIXED_MAPPING: unchecked historical readiness checklist remains")
