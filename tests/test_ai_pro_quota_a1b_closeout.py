@@ -322,6 +322,11 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("A1b does not reopen runtime, but implements quota enforcement.", "runtime-scope"),
         ("PR-A1b changes provider/auth/billing behavior.", "runtime-scope"),
         ("Semantic cache remains closed, but Redis is approved.", "semantic-cache"),
+        (
+            "Semantic cache remains closed and Redis is approved for production-ready rollout.",
+            "semantic-cache",
+        ),
+        ("Semantic cache remains closed plus GPTCache is enabled.", "semantic-cache"),
         ("A1b opens semantic-cache serving.", "semantic-cache"),
     ],
 )
@@ -338,6 +343,22 @@ def test_checker_rejects_runtime_or_semantic_cache_contrast_bypass(
     errors = _errors(tmp_path)
 
     assert any(expected in error for error in errors)
+
+
+def test_checker_rejects_forbidden_claim_in_pr1461_post_merge_mapping(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1461_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping().replace(
+            "## Historical Merge Readiness",
+            "Evidence: PR-A1b opens semantic-cache serving for Redis.\n\n## Historical Merge Readiness",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("PR_1461_FIXED_MAPPING post-merge closeout" in error for error in errors)
 
 
 def test_checker_rejects_local_path_leakage_in_mapping(tmp_path: Path) -> None:

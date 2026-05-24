@@ -95,7 +95,8 @@ PR_A1B_TOKEN_RE = re.compile(
     r"\b(?:pr[-\s]?a1b|a1b|pr\s*#?\s*(?:1461|1466)|#(?:1461|1466))\b", re.I
 )
 CLAUSE_SPLIT_RE = re.compile(
-    r"\b(?:but|however|though|although|yet|while|whereas|therefore|thus|so|hence)\b|[;]",
+    r"\b(?:but|however|though|although|yet|while|whereas|therefore|thus|so|hence|"
+    r"and|also|plus)\b|[;]",
     re.I,
 )
 SOFT_SPLIT_RE = re.compile(r"[,()]")
@@ -194,6 +195,17 @@ def _slice(text: str, start: str, end_pattern: str, *, label: str, errors: list[
     match = re.search(end_pattern, text[start_index + len(start) :])
     if not match:
         errors.append(f"{label}: missing end anchor {end_pattern!r}")
+        return text[start_index:]
+    end_index = start_index + len(start) + match.start()
+    return text[start_index:end_index]
+
+
+def _optional_slice(text: str, start: str, end_pattern: str) -> str:
+    start_index = text.find(start)
+    if start_index == -1:
+        return ""
+    match = re.search(end_pattern, text[start_index + len(start) :])
+    if not match:
         return text[start_index:]
     end_index = start_index + len(start) + match.start()
     return text[start_index:end_index]
@@ -369,7 +381,14 @@ def validate_closeout(
         ("PR_1461_FIXED_MAPPING", mapping_text),
     ):
         _check_stale_wording(text, label, errors)
-        if label != "PR_1461_FIXED_MAPPING":
+        if label == "PR_1461_FIXED_MAPPING":
+            post_merge = _optional_slice(
+                text,
+                "## Post-Merge Closeout",
+                r"\n## Historical Merge Readiness",
+            )
+            _check_forbidden_claims(post_merge, f"{label} post-merge closeout", errors)
+        else:
             _check_forbidden_claims(text, label, errors)
         _check_local_path_leakage(text, label, errors)
 
