@@ -4951,15 +4951,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 ### P2
 
 <a id="ledger-p2-experiment-runner-slack-identity-boundary"></a>
-- [ ] P2: Experiment Runner Slack identity boundary
+- [x] P2: Experiment Runner Slack identity boundary
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: future security-governed notification identity PR
-  - Status: Open
+  - Target PR: `codex/experiment-runner-slack-identity-boundary`
+  - Status: Completed as an operator-notification-only boundary; Slack remains non-cryptographic, non-Git-attribution, non-review, and non-merge authority.
   - Area: orchestration / security / notifications
   - Reason (EN): The Experiment Runner may later need a Slack display or bot identity for operator-facing notifications, but Slack is not a cryptographic Git identity and must not be introduced as part of Git attribution governance. A Slack identity requires a separate security-reviewed secret, channel, audit, and rate-limit boundary.
   - Links: `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md`, `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-  - DoD: A separate PR defines Slack App or bot lifecycle, bot token secret storage outside the repo, channel allowlist, redacted message body contract, local audit artifact, rate/timeout behavior, and deterministic tests proving no secrets, raw patch text, oracle stdout/stderr, or user data are posted.
+  - DoD: The governed Slack boundary defines runtime-only bot credentials, channel allowlist, redacted message body contract, local audit artifact, rate/timeout/idempotency behavior, and deterministic tests proving no secrets, raw patch text, oracle stdout/stderr, or user data are posted.
 
 <a id="ledger-p2-pulseplate-pr-review-context-collector"></a>
 - [x] P2: Add read-only context collector for PulsePlate PR review skill
@@ -10135,19 +10135,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runner outputs candidate result artifacts, not autonomous merge-ready commits
 
 <a id="ledger-p2-experiment-runner-pr-evidence-hard-gate"></a>
-- [ ] P2: Promote Experiment Runner PR evidence from advisory to hard gate
+- [x] P2: Promote Experiment Runner PR evidence from advisory to hard gate
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (review-governance hardening after advisory signal proves stable)
-  - Target PR: `codex/experiment-runner-evidence-hard-gate-switch`
-  - Status: 🛠️ In progress: configurable fail-closed mode is being added with advisory as the default rollback-safe mode
+  - Target PR: PR #1800 (`codex/experiment-runner-evidence-hard-gate-switch`)
+  - Status: Mechanics completed in PR #1800 with advisory as the default rollback-safe mode; required-mode default activation remains deferred to a later rollout PR.
   - Dependencies:
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
   - Reason (EN): PR #1775 introduces Phase2 advisory Experiment Runner evidence for non-trivial PR lanes. A later PR should promote that evidence to a hard merge gate only after the advisory signal is stable and false-positive behavior is understood.
+  - Rollout Packet: `docs/orchestration/EXPERIMENT_RUNNER_EVIDENCE_REQUIRED_MODE_ROLLOUT_PACKET_2026-05-24.md`
   - DoD:
     - `check_pr_body_phase2_gates.py` exposes advisory/required Experiment Runner evidence modes with required mode failing closed on missing evidence
     - `check_merge_ready.py` forwards the configured Experiment Runner evidence mode to Phase2 and documents advisory rollback
     - PR-body and fixed-mapping validators share one parser contract for artifact paths and not-applicable reasons
     - Rollback notes document how to return the gate to advisory mode if review throughput regresses
+
+<a id="ledger-p2-experiment-runner-evidence-required-mode-activation"></a>
+- [ ] P2: Activate Experiment Runner evidence required mode for non-trivial lanes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (controlled rollout after hard-gate mechanics)
+  - Target PR: future required-mode activation PR
+  - Status: Deferred until the rollout packet is reviewed and current-head CI/review governance remains stable.
+  - Dependencies:
+    - [P2: Promote Experiment Runner PR evidence from advisory to hard gate](#ledger-p2-experiment-runner-pr-evidence-hard-gate)
+  - Reason (EN): Required-mode mechanics exist, but the repo default should flip only in a separate controlled PR that can isolate false positives, rollback behavior, and non-trivial lane classification.
+  - DoD:
+    - Default required-mode activation is scoped to non-trivial PR lanes
+    - Rollback path to advisory mode is documented and tested
+    - Current-head CI and strict review governance remain stable after activation
 
 <a id="ledger-p2-experiment-runner-validator-mutation-threat-model"></a>
 - [ ] P2: Threat-model controlled Experiment Runner validator-script mutation access

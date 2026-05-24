@@ -98,19 +98,27 @@ configuration remains runtime-secret backed.
 
 ## Slack Boundary
 
-A Slack identity can be useful later as a notification display identity or operator-facing bot, but it is not a cryptographic Git identity and should not be introduced in this PR.
+Slack is now defined only as an operator-facing notification display identity
+for Experiment Runner result notifications. It is not a cryptographic Git
+identity, a Git attribution identity, a review-thread actor, a merge-readiness
+authority, or a generic project bot.
 
-Slack integration requires a separate security-governed PR with:
+Slack delivery is available only through explicit `experiment_notify.py`
+operator intent:
 
-- a Slack App or bot identity lifecycle,
-- bot token secret storage outside the repo,
-- channel allowlists,
-- rate and timeout behavior,
-- redacted message bodies,
-- local audit artifacts,
-- tests proving no secrets, raw patch text, oracle stdout/stderr, or user data are posted.
+- `--slack` and `--slack-channel` must both be provided;
+- bot credentials are runtime secrets outside the repo;
+- channel delivery is fail-closed behind a runtime allowlist;
+- messages use the governed redacted experiment notification body;
+- local Slack audit artifacts record hashes/status only;
+- delivery is idempotent, timeout-bounded, and rate-limited before send;
+- tests prove no secrets, raw patch text, oracle stdout/stderr, cwd, local
+  absolute paths, or user data are posted or written into audits.
 
-Tracked follow-up: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-experiment-runner-slack-identity-boundary`.
+The Slack workspace inspection for this boundary found no dedicated
+Experiment Runner/operator channel in the accessible workspace search results,
+so repository policy defines the allowlist mechanism only. Concrete channel
+selection remains operator runtime configuration, not checked-in repo truth.
 
 ## Validation
 

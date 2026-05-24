@@ -439,17 +439,42 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
         )
 
     slack_identity = _require_mapping(payload, "slack_identity")
-    if slack_identity.get("status") != "deferred":
-        raise IdentityPolicyError("slack_identity.status must remain deferred in this policy PR.")
+    if slack_identity.get("status") != "operator_notification_boundary_defined":
+        raise IdentityPolicyError(
+            "slack_identity.status must be operator_notification_boundary_defined."
+        )
     if slack_identity.get("purpose") != "ops_notification_display_identity_only":
         raise IdentityPolicyError(
             "slack_identity.purpose must be ops_notification_display_identity_only."
         )
     _require_bool(slack_identity, "not_cryptographic_identity", True)
-    _require_bool(slack_identity, "requires_separate_security_pr", True)
+    if slack_identity.get("security_pr_status") != "implemented_in_this_pr":
+        raise IdentityPolicyError(
+            "slack_identity.security_pr_status must be implemented_in_this_pr."
+        )
     _require_bool(slack_identity, "requires_bot_token_secret_boundary", True)
     _require_bool(slack_identity, "requires_channel_allowlist", True)
     _require_bool(slack_identity, "requires_audit_artifact", True)
+    _require_bool(slack_identity, "requires_redacted_messages", True)
+    _require_bool(slack_identity, "requires_rate_limit", True)
+    _require_bool(slack_identity, "requires_timeout", True)
+    _require_bool(slack_identity, "requires_idempotency", True)
+    _require_bool(slack_identity, "default_enabled", False)
+    if slack_identity.get("delivery_credential_source") != "external":
+        raise IdentityPolicyError("slack_identity.delivery_credential_source must be external.")
+    if slack_identity.get("channel_allowlist_source") != "runtime_env":
+        raise IdentityPolicyError("slack_identity.channel_allowlist_source must be runtime_env.")
+    if slack_identity.get("allowed_sinks") != ["experiment_notify_slack_explicit_sink"]:
+        raise IdentityPolicyError(
+            "slack_identity.allowed_sinks must be experiment_notify_slack_explicit_sink."
+        )
+    forbidden_authority = _require_mapping(slack_identity, "forbidden_authority")
+    _require_bool(forbidden_authority, "public_git_identity", False)
+    if forbidden_authority.get("merge_rights") != "none":
+        raise IdentityPolicyError("slack_identity.forbidden_authority.merge_rights must be none.")
+    _require_bool(forbidden_authority, "can_claim_merge_readiness", False)
+    _require_bool(forbidden_authority, "can_resolve_review_threads", False)
+    _require_bool(forbidden_authority, "can_push_without_human_review", False)
 
     _reject_private_key_material(payload)
     return payload

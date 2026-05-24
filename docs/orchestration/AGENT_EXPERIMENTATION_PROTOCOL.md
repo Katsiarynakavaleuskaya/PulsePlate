@@ -341,6 +341,10 @@ candidate or change merge readiness.
   must never be committed.
 - Email bodies may contain only the redacted notification markdown: no raw patch
   text, oracle stdout/stderr, secrets, absolute local paths, or user data.
+- Slack delivery is explicit opt-in only. A notifier must require an explicit
+  Slack flag, an explicit allowlisted channel, runtime bot credentials outside
+  the repo, timeout/rate/idempotency controls, and a secret-free local audit
+  artifact before sending.
 - Git attribution email, including `PulsePlate Experiment Runner
   <pulseplate@pm.me>`, is not a result delivery channel.
 
@@ -464,8 +468,10 @@ Rules:
   explicit STARTTLS,
 - v1 SMTP delivery is limited to `pulseplate@pm.me` when that address is present
   in `EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST`,
-- Slack messages, GitHub comments, and other external delivery sinks remain out
-  of scope,
+- Slack delivery requires an explicit CLI flag, an explicit allowlisted channel,
+  runtime Slack credentials outside the repo, timeout/rate/idempotency controls,
+  and a local audit artifact that stores hashes/status only,
+- GitHub comments and other external delivery sinks remain out of scope,
 - summaries must omit raw patch text, oracle stdout/stderr, cwd, secrets, and
   local absolute paths,
 - optional `GITHUB_STEP_SUMMARY` writes require an explicit CLI flag.

@@ -7,7 +7,9 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-from typing import Any
+from datetime import datetime, timezone
+from email.message import EmailMessage
+from typing import Any, cast
 
 import pytest
 
@@ -108,7 +110,7 @@ def _result(
     }
 
 
-def _promotion_ready_result(**overrides: object) -> dict[str, object]:
+def _promotion_ready_result(**overrides: Any) -> dict[str, object]:
     result = _result(**overrides)
     result["promotion_ready"] = True
     return result
@@ -185,13 +187,14 @@ EXPECTED_NOTIFICATION = """# Experiment Result Notification: exp-notify
 ## Delivery Boundary
 
 - Local artifact summary is always written; SMTP email delivery requires explicit `--email`.
-- Slack, PR comment, and other external delivery sinks are intentionally out of scope.
+- Slack delivery requires explicit `--slack`, runtime token secrets, and channel allowlists.
+- PR comments and other external delivery sinks are intentionally out of scope.
 - Raw patch text, oracle stdout/stderr, cwd, and local absolute paths are intentionally omitted.
 """
 
 
 class FakeSMTP:
-    sent_messages: list[object] = []
+    sent_messages: list[EmailMessage] = []
     started_tls = False
     login_args: tuple[str, str] | None = None
     quit_called = False
@@ -214,7 +217,7 @@ class FakeSMTP:
     def login(self, username: str, password: str) -> None:
         FakeSMTP.login_args = (username, password)
 
-    def send_message(self, message: object) -> None:
+    def send_message(self, message: EmailMessage) -> None:
         FakeSMTP.sent_messages.append(message)
 
     def quit(self) -> None:
@@ -222,7 +225,7 @@ class FakeSMTP:
 
 
 class FailingSMTP(FakeSMTP):
-    def send_message(self, message: object) -> None:
+    def send_message(self, message: EmailMessage) -> None:
         raise OSError("/Users/alice/.ssh/id_rsa smtp failure")
 
 
@@ -244,6 +247,41 @@ class QuitFailingSMTP(FakeSMTP):
         raise OSError("smtp quit failed after accepted message")
 
 
+class FakeSlackTransport:
+    calls: list[dict[str, object]] = []
+
+    def __call__(
+        self,
+        *,
+        token: str,
+        channel: str,
+        text: str,
+        timeout_seconds: int,
+    ) -> None:
+        FakeSlackTransport.calls.append(
+            {
+                "channel": channel,
+                "text": text,
+                "timeout_seconds": timeout_seconds,
+                "token_seen": bool(token),
+            }
+        )
+
+
+class FailingSlackTransport(FakeSlackTransport):
+    def __call__(
+        self,
+        *,
+        token: str,
+        channel: str,
+        text: str,
+        timeout_seconds: int,
+    ) -> None:
+        raise experiment_notify.ExperimentSlackDeliveryError(
+            "Slack delivery failed for /Users/alice/.ssh/id_rsa and xoxb-secret"
+        )
+
+
 def _configure_smtp_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST", "pulseplate@pm.me")
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_HOST", "smtp.example.test")
@@ -259,6 +297,17 @@ def _reset_fake_smtp() -> None:
     FakeSMTP.login_args = None
     FakeSMTP.quit_called = False
     FakeSMTPSSL.used = False
+
+
+def _configure_slack_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_BOT_TOKEN", "xoxb-test-token")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_TIMEOUT_SECONDS", "7")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_MIN_INTERVAL_SECONDS", "0")
+
+
+def _reset_fake_slack() -> None:
+    FakeSlackTransport.calls = []
 
 
 def test_main_writes_deterministic_notification(
@@ -286,6 +335,8 @@ def test_main_writes_deterministic_notification(
         "experiment_id": "exp-notify",
         "github_step_summary": False,
         "output": "artifacts/orchestration/experiments/notifications/exp-notify.md",
+        "slack": False,
+        "slack_audit": None,
     }
     second_exit_code = experiment_notify.main(
         ["--packet", str(packet_path), "--result", str(result_path)]
@@ -454,6 +505,295 @@ def test_email_delivery_accepts_pulseplate_recipient_and_writes_audit(
     assert payload["email_audit"] == (
         "artifacts/orchestration/experiments/notifications/exp-notify.email-audit.json"
     )
+
+
+def test_slack_delivery_accepts_allowlisted_channel_and_writes_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    _reset_fake_slack()
+    fake_slack = FakeSlackTransport()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", fake_slack)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert len(FakeSlackTransport.calls) == 1
+    call = FakeSlackTransport.calls[0]
+    assert call["channel"] == "C0ALERTS"
+    assert call["timeout_seconds"] == 7
+    assert call["token_seen"] is True
+    text = str(call["text"])
+    assert text == EXPECTED_NOTIFICATION
+    assert "secret stdout" not in text
+    assert "secret stderr" not in text
+    assert "/Users/example" not in text
+    assert "candidate.patch" not in text
+
+    audit_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "notifications"
+        / "exp-notify.slack-audit.json"
+    )
+    audit_text = audit_path.read_text(encoding="utf-8")
+    audit = json.loads(audit_text)
+    assert audit["experiment_id"] == "exp-notify"
+    assert audit["notification_sha256"] == experiment_notify._sha256_text(EXPECTED_NOTIFICATION)
+    assert audit["provider_type"] == "slack"
+    assert audit["status"] == "sent"
+    assert audit["failure_class"] == "none"
+    assert audit["channel_hash"] == experiment_notify._channel_hash("C0ALERTS")
+    assert set(audit["source_sha256"]) == {"packet", "promotion", "result"}
+    assert "C0ALERTS" not in audit_text
+    assert "xoxb-test-token" not in audit_text
+    assert "secret stdout" not in audit_text
+
+    payload = json.loads(stdout)
+    assert payload["slack"] is True
+    assert payload["slack_audit"] == (
+        "artifacts/orchestration/experiments/notifications/exp-notify.slack-audit.json"
+    )
+
+
+def test_slack_delivery_requires_explicit_allowlisted_channel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    _reset_fake_slack()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", FakeSlackTransport())
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    missing_channel = experiment_notify.main(
+        ["--packet", str(packet_path), "--result", str(result_path), "--slack"]
+    )
+    missing_output = capsys.readouterr().out
+    outside_allowlist = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0OTHER",
+        ]
+    )
+    outside_output = capsys.readouterr().out
+    channel_without_flag = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+    channel_without_flag_output = capsys.readouterr().out
+    malformed = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS\nC0OTHER",
+        ]
+    )
+    malformed_output = capsys.readouterr().out
+
+    assert missing_channel == 1
+    assert "--slack requires --slack-channel" in missing_output
+    assert outside_allowlist == 1
+    assert "not an allowed channel" in outside_output
+    assert "C0OTHER" not in outside_output
+    assert channel_without_flag == 1
+    assert "--slack-channel requires --slack" in channel_without_flag_output
+    assert malformed == 1
+    assert "not an allowed channel" in malformed_output
+    assert "C0OTHER" not in malformed_output
+    assert FakeSlackTransport.calls == []
+
+
+def test_slack_delivery_requires_runtime_token_without_leaking_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_BOT_TOKEN")
+    _reset_fake_slack()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", FakeSlackTransport())
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Slack configuration is incomplete" in stdout
+    assert "C0ALERTS" not in stdout
+    assert "xox" not in stdout
+    assert FakeSlackTransport.calls == []
+
+
+def test_slack_delivery_is_idempotent_and_rate_limited_before_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    _reset_fake_slack()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", FakeSlackTransport())
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+    argv = [
+        "--packet",
+        str(packet_path),
+        "--result",
+        str(result_path),
+        "--slack",
+        "--slack-channel",
+        "C0ALERTS",
+    ]
+
+    assert experiment_notify.main(argv) == 0
+    capsys.readouterr()
+    assert experiment_notify.main(argv) == 1
+    second_stdout = capsys.readouterr().out
+    assert "Slack notification was already sent" in second_stdout
+    assert len(FakeSlackTransport.calls) == 1
+
+    rate_repo = _init_repo(tmp_path / "rate")
+    rate_notification_dir = _configure_repo(monkeypatch, rate_repo)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_MIN_INTERVAL_SECONDS", "3600")
+    old_audit = rate_notification_dir / "previous.slack-audit.json"
+    old_audit.parent.mkdir(parents=True, exist_ok=True)
+    old_audit.write_text(
+        json.dumps(
+            {
+                "channel_hash": experiment_notify._channel_hash("C0ALERTS"),
+                "experiment_id": "previous",
+                "failure_class": "none",
+                "notification_sha256": "abc",
+                "output_path": "artifacts/orchestration/experiments/notifications/previous.md",
+                "provider_type": "slack",
+                "source_sha256": {"packet": "abc", "promotion": None, "result": "def"},
+                "status": "sent",
+                "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    packet_path = _write_json(tmp_path / "rate-packet.json", _packet(experiment_id="rate-exp"))
+    result_path = _write_json(
+        tmp_path / "rate-result.json",
+        _promotion_ready_result(experiment_id="rate-exp"),
+    )
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+    rate_stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Slack notification rate limit is active" in rate_stdout
+    assert len(FakeSlackTransport.calls) == 1
+
+
+def test_slack_delivery_failure_is_sanitized_and_audited(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", FailingSlackTransport())
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Slack delivery failed" in stdout
+    assert "/Users/alice" not in stdout
+    assert "xoxb-secret" not in stdout
+    audit_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "notifications"
+        / "exp-notify.slack-audit.json"
+    )
+    audit_text = audit_path.read_text(encoding="utf-8")
+    audit = json.loads(audit_text)
+    assert audit["status"] == "failed"
+    assert audit["failure_class"] == "slack_delivery_failed"
+    assert "C0ALERTS" not in audit_text
+    assert "xoxb-test-token" not in audit_text
 
 
 def test_missing_smtp_config_fails_closed_without_leaking_values(
@@ -2116,7 +2456,8 @@ def test_cli_validation_failure_redacts_validator_values(
     _configure_repo(monkeypatch, repo)
     packet_path = _write_json(tmp_path / "packet.json", _packet())
     result = _result()
-    result["oracle_results"][0]["returncode"] = "API_TOKEN=super-secret"
+    oracle_results = cast(list[dict[str, object]], result["oracle_results"])
+    oracle_results[0]["returncode"] = "API_TOKEN=super-secret"
     result_path = _write_json(tmp_path / "result.json", result)
 
     exit_code = experiment_notify.main(["--packet", str(packet_path), "--result", str(result_path)])
