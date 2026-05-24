@@ -435,17 +435,35 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         return []
     requested_agents = payload.get("requested_agents")
     if isinstance(requested_agents, list):
-        spawnable_roles = set(ordered)
+        available_counts: Dict[str, int] = {}
+        for slug in ordered:
+            available_counts[slug] = available_counts.get(slug, 0) + 1
+
         requested_ordered: List[str] = []
         for value in requested_agents:
             slug = str(value).strip()
-            if slug in spawnable_roles:
+            if available_counts.get(slug, 0) > 0:
                 requested_ordered.append(slug)
+                available_counts[slug] -= 1
+
         if requested_ordered:
-            ordered = requested_ordered
-    if ordered[0] != "agent-coordinator":
-        return ["agent-coordinator", *ordered]
-    return ordered
+            remaining_counts = dict(available_counts)
+            remaining_ordered: List[str] = []
+            for slug in ordered:
+                if remaining_counts.get(slug, 0) > 0:
+                    remaining_ordered.append(slug)
+                    remaining_counts[slug] -= 1
+            ordered = [*requested_ordered, *remaining_ordered]
+    if ordered[0] == "agent-coordinator":
+        return ordered
+    if "agent-coordinator" in ordered:
+        coordinator_index = ordered.index("agent-coordinator")
+        return [
+            "agent-coordinator",
+            *ordered[:coordinator_index],
+            *ordered[coordinator_index + 1 :],
+        ]
+    return ["agent-coordinator", *ordered]
 
 
 def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
@@ -457,6 +475,52 @@ def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
     if not isinstance(payload, dict):
         return None
     return payload
+
+
+def _json_packet_has_requested_order(packet_path: Path) -> bool:
+    """Return whether a JSON packet carries an explicit requested role order."""
+
+    try:
+        resolved_packet_path = packet_path.resolve(strict=True)
+        resolved_packet_path.relative_to(REPO_ROOT.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    payload = _load_json_packet(resolved_packet_path)
+    if payload is None:
+        return False
+    requested_agents = payload.get("requested_agents")
+    if not isinstance(requested_agents, list):
+        return False
+    return any(str(agent).strip() for agent in requested_agents)
+
+
+def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, Any]) -> bool:
+    """Return whether requested_agents explicitly keeps QA before bug-hunter."""
+
+    requested_agents = payload.get("requested_agents")
+    if not isinstance(requested_agents, list):
+        return False
+    requested_order = [str(agent).strip() for agent in requested_agents if str(agent).strip()]
+    try:
+        qa_index = requested_order.index("qa-engineer-agent")
+        bug_index = requested_order.index("bug-hunter")
+    except ValueError:
+        return False
+    return qa_index < bug_index
+
+
+def _json_packet_requested_order_preserves_mandatory_tail(packet_path: Path) -> bool:
+    """Return whether a JSON packet can safely override mandatory tail normalization."""
+
+    try:
+        resolved_packet_path = packet_path.resolve(strict=True)
+        resolved_packet_path.relative_to(REPO_ROOT.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    payload = _load_json_packet(resolved_packet_path)
+    if payload is None:
+        return False
+    return _json_payload_requested_order_preserves_mandatory_tail(payload)
 
 
 def _parse_packet_roles(packet_path: Path) -> List[str]:
@@ -750,6 +814,7 @@ def build_dispatch_manifest(
     packet_source: Optional[str] = None,
     bracket_groups: Optional[List[List[str]]] = None,
     chained_successors: Optional[set[str]] = None,
+    enforce_mandatory_post_open_tail: bool = True,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
     context_map = _parse_context_map()
@@ -760,7 +825,8 @@ def build_dispatch_manifest(
     dispatch_sequence: List[Dict[str, Any]] = []
     missing_agents: List[str] = []
     loaded_agents: List[Tuple[str, Dict[str, Any]]] = []
-    role_slugs = _enforce_mandatory_post_open_order(role_slugs)
+    if enforce_mandatory_post_open_tail:
+        role_slugs = _enforce_mandatory_post_open_order(role_slugs)
 
     for slug in role_slugs:
         agent_def = _load_agent_definition(slug)
@@ -898,10 +964,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     packet_source: Optional[str] = None
     packet_bracket_groups: Optional[List[List[str]]] = None
     packet_chained_successors: Optional[set[str]] = None
+    enforce_mandatory_post_open_tail = True
     if args.packet:
         packet_path = Path(args.packet)
         if not packet_path.is_absolute():
             packet_path = (REPO_ROOT / packet_path).resolve()
+        enforce_mandatory_post_open_tail = not (
+            _json_packet_requested_order_preserves_mandatory_tail(packet_path)
+        )
         role_slugs = _parse_packet_roles(packet_path)
         # Extract bracket-notation parallelizable groups from packet
         packet_lines = packet_path.read_text(encoding="utf-8").splitlines()
@@ -931,6 +1001,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         packet_source=packet_source,
         bracket_groups=packet_bracket_groups,
         chained_successors=packet_chained_successors,
+        enforce_mandatory_post_open_tail=enforce_mandatory_post_open_tail,
     )
     if manifest.get("missing_agents"):
         print(

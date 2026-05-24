@@ -87,6 +87,9 @@ def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
     assert "Path scope: scripts/orchestration/local_session_bootstrap.sh" in result.stdout
     assert "Requested role order seed: agent-coordinator, qa-engineer-agent" in result.stdout
     assert "Skills are passive/discovery-only" in result.stdout
+    assert "After task_bootstrap.py returns a packet, run `$VENV_PYTHON" in result.stdout
+    assert "qoder_dispatch_bridge.py --packet <packet> --pretty" in result.stdout
+    assert "execute the manifest `dispatch_sequence` in order" in result.stdout
     assert "Premortem closure rule: every premortem finding must be fixed" in result.stdout
     assert "No finding may be ignored as advisory." in result.stdout
     assert "VENV_PYTHON" in result.stdout

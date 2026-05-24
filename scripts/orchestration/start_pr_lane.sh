@@ -421,11 +421,13 @@ PY
         --packet "${BOOTSTRAP_PACKET_PATH}" \
         --branch "${BRANCH}" \
         --worktree "${WORKTREE_REL}"
-)
 
-echo ""
-echo "Next steps:"
-echo "  1. cd ${WORKTREE_REL}"
-echo "  2. Follow the generated task packet before implementation."
-echo "  3. Create Experiment Runner oracle-only evidence after coordinator bootstrap when the lane is non-trivial."
-echo "  4. Open the PR non-draft after local validation and initial PR body/mapping are ready."
+    echo ""
+    echo "Next steps:"
+    echo "  1. cd ${WORKTREE_REL}"
+    echo "  2. Generate the role-agent dispatch manifest:"
+    printf "     %q scripts/orchestration/qoder_dispatch_bridge.py --packet %q --pretty\n" "${REPO_PYTHON}" "${BOOTSTRAP_PACKET_PATH}"
+    echo "  3. Run the dispatch_sequence roles in order before implementation."
+    echo "  4. Create Experiment Runner oracle-only evidence after coordinator bootstrap when the lane is non-trivial."
+    echo "  5. Open the PR non-draft after local validation and initial PR body/mapping are ready."
+)
