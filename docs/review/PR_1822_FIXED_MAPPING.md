@@ -39,35 +39,41 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
 
 CodeRabbit reported a review-capacity skip and did not provide actionable
 findings. GitHub review threads opened after PR #1822 initial post-open pass
-are mapped below. They remain unresolved until the fix commit is pushed,
-CI/gates are rerun, and the PR body mirror is updated.
+are mapped below. They remain unresolved until the fix commits are pushed,
+CI/gates are rerun, the PR body mirror is updated, and strict disposition
+checks pass.
 
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258830 -> cee47cad2
-  - Disposition: `FIXED`
-  - Commit: `cee47cad2`
-  - Evidence: `.github/workflows/ci.yml` limits
-    `PR5_SOURCE_CORPUS_CHANGED` to source-corpus-specific contract, packet,
-    guard, docs-gate, and test surfaces so unrelated backlog/runtime PRs do not
-    trigger the PR-5 oracle.
+Disposition: FIXED
+Commit: cee47cad2
+Evidence: `.github/workflows/ci.yml` limits `PR5_SOURCE_CORPUS_CHANGED` to source-corpus-specific contract, packet, guard, and test surfaces.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258831 -> cee47cad2
-  - Disposition: `FIXED`
-  - Commit: `cee47cad2`
-  - Evidence: `scripts/ci/check_philosophy_source_corpus_index.py` validates
-    source-specific `source_family` and `language`, with regression tests for
-    taxonomy and locale drift.
+Disposition: FIXED
+Commit: cee47cad2
+Evidence: `scripts/ci/check_philosophy_source_corpus_index.py` validates per-source `source_family` and `language` with regression tests.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258832 -> cee47cad2
-  - Disposition: `FIXED`
-  - Commit: `cee47cad2`
-  - Evidence: `validate_file_contents()` skips binary/non-UTF-8 artifacts and
-    continues scanning UTF-8 PR-5 files for local path or credential-like leaks,
-    with binary fixture coverage.
+Disposition: FIXED
+Commit: cee47cad2
+Evidence: `validate_file_contents()` skips binary and non-UTF-8 artifacts while continuing to scan text PR-5 files for local path or credential-like leaks.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258833 -> cee47cad2
-  - Disposition: `FIXED`
-  - Commit: `cee47cad2`
-  - Evidence: `repo_truth_links` and `out_of_scope_paths` are exact deterministic
-    arrays in the source-corpus checker, with regression coverage for drift.
+Disposition: FIXED
+Commit: cee47cad2
+Evidence: `repo_truth_links` and `out_of_scope_paths` are exact deterministic arrays in the source-corpus checker with regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295275874 -> cee47cad2
+Disposition: FIXED
+Commit: cee47cad2
+Evidence: `.github/workflows/ci.yml` excludes generic `BACKLOG_LEDGER.md` and semantic-cache roadmap edits from the PR-5 changed-path switch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295275875 -> 412dba126
+Disposition: FIXED
+Commit: 412dba126
+Evidence: `.github/workflows/ci.yml` excludes `scripts/ci/check_docs_phase1_gates.py` from the PR-5 changed-path switch.
 
 ## Premortem And Oracle Closure
 
@@ -103,7 +109,7 @@ CI/gates are rerun, and the PR body mirror is updated.
   excludes product efficacy, therapy, diagnosis, treatment, and runtime
   authority.
 - FIXED: CI could miss PR-5 guard execution. Evidence: `.github/workflows/ci.yml`
-  routes source-corpus-specific contract, packet, guard, docs-gate, and test
+  routes source-corpus-specific contract, packet, guard, and test
   changes into
   `check_philosophy_source_corpus_index.py --check --files "${ALL_CHANGED_FILES[@]}"`.
 - FIXED: PR-5 CI routing could trigger on unrelated backlog/runtime PRs.
