@@ -62,6 +62,11 @@ Disposition: FIXED
 Commit: b1cec07bd2e91fa178647d04253066f9c666e73b
 Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:254` and `scripts/orchestration/experiment_slack_socket_bridge.py:268` fix the CodeRabbit normalized containment prompt; parent-traversal tests cover the same boundary.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#pullrequestreview-4353281047 -> dec5151bfb8af0e8787104c525dcca595a2ed03a
+Disposition: FIXED
+Commit: dec5151bfb8af0e8787104c525dcca595a2ed03a
+Evidence: `docs/review/PR_1820_FIXED_MAPPING.md:13` and `docs/review/PR_1820_FIXED_MAPPING.md:18` add implementation file-line evidence to FIXED dispositions while preserving test evidence.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163434 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
