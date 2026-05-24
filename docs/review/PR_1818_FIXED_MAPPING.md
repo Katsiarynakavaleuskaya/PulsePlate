@@ -62,6 +62,20 @@ Evidence: `tests/test_qoder_dispatch_bridge.py:297` updates the requested-order 
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1818#discussion_r3294942615 -> 4b81482f4629e540a780e8e161c864b671425565
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1818#discussion_r3295019396
+Disposition: FIXED
+Commit: daa4cc30f72264be9c27fb447a90a32a011f6c57
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py:497` requires requested JSON order to explicitly keep `qa-engineer-agent` before `bug-hunter` before disabling mandatory tail normalization; `scripts/orchestration/qoder_dispatch_bridge.py:972` keeps tail enforcement enabled for partial requested orders; `tests/test_qoder_dispatch_bridge.py:399` covers partial requested order preserving the canonical QA -> bug tail.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1818#discussion_r3295019396 -> daa4cc30f72264be9c27fb447a90a32a011f6c57
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1818#discussion_r3295019397
+Disposition: FIXED
+Commit: daa4cc30f72264be9c27fb447a90a32a011f6c57
+Evidence: `scripts/orchestration/render_codex_start_prompt.py:111` applies the same mandatory tail normalization used by the dispatch manifest for JSON packets that do not explicitly request QA before bug; `tests/test_render_codex_start_prompt.py:150` verifies the prompt order matches the manifest order for partial requested packets.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1818#discussion_r3295019397 -> daa4cc30f72264be9c27fb447a90a32a011f6c57
+
 ## Post-Open Agent Findings
 
 | Role | Finding | Disposition | Evidence |
@@ -70,15 +84,17 @@ Evidence: `tests/test_qoder_dispatch_bridge.py:297` updates the requested-order 
 | architecture-specialist | Bootstrap packet creation must not be treated as role-agent execution; add a machine-readable role dispatch contract and prompt guidance. | FIXED | `scripts/orchestration/task_bootstrap.py:362`; `scripts/orchestration/render_codex_start_prompt.py:185`; `tests/test_task_bootstrap.py`; `tests/test_render_codex_start_prompt.py`. |
 | cursor-specialist-agent | `start_pr_lane.sh` printed next steps outside the subshell and did not print the exact dispatch-manifest command. | FIXED | `scripts/orchestration/start_pr_lane.sh:425`; `scripts/orchestration/start_pr_lane.sh:429`; `tests/test_start_pr_lane.py`. |
 | security-auditor | Avoid collapsing legitimate repeated coordinator packet slots; quote packet paths in copy-paste commands. | FIXED | `scripts/orchestration/qoder_dispatch_bridge.py:457`; `scripts/orchestration/render_codex_start_prompt.py:92`; `scripts/orchestration/start_pr_lane.sh:429`; focused pytest and `bash -n` passed. |
-| qa-engineer-agent | Final manifest could move QA/bug-hunter behind explicit requested order; engineering lesson numbering duplicated. | FIXED | `scripts/orchestration/qoder_dispatch_bridge.py:943` disables tail normalization when JSON packet has explicit requested order; `tests/test_qoder_dispatch_bridge.py:335`; `docs/ENGINEERING_LESSONS.md` numbering corrected. |
-| bug-hunter | Prompt role order and advisory labels could contradict the dispatch manifest; shell quoting needed unsafe-path coverage. | FIXED | `scripts/orchestration/render_codex_start_prompt.py:104`; `scripts/orchestration/render_codex_start_prompt.py:185`; `tests/test_render_codex_start_prompt.py:119`; `tests/test_render_codex_start_prompt.py:213`. |
+| qa-engineer-agent | Final manifest could move QA/bug-hunter behind explicit requested order; engineering lesson numbering duplicated. | FIXED | `scripts/orchestration/qoder_dispatch_bridge.py:972` disables tail normalization only when JSON `requested_agents` explicitly keeps QA before bug; `tests/test_qoder_dispatch_bridge.py:335`; `tests/test_qoder_dispatch_bridge.py:399`; `docs/ENGINEERING_LESSONS.md` numbering corrected. |
+| bug-hunter | Prompt role order and advisory labels could contradict the dispatch manifest; shell quoting needed unsafe-path coverage. | FIXED | `scripts/orchestration/render_codex_start_prompt.py:104`; `scripts/orchestration/render_codex_start_prompt.py:111`; `scripts/orchestration/render_codex_start_prompt.py:185`; `tests/test_render_codex_start_prompt.py:119`; `tests/test_render_codex_start_prompt.py:150`; `tests/test_render_codex_start_prompt.py:213`. |
+| Codex review 2026-05-24T17:11:24Z | Partial `requested_agents` disabled mandatory QA -> bug tail. | FIXED | Commit `daa4cc30f72264be9c27fb447a90a32a011f6c57`; `scripts/orchestration/qoder_dispatch_bridge.py:497`; `tests/test_qoder_dispatch_bridge.py:399`. |
+| Codex review 2026-05-24T17:11:24Z | Prompt role order could diverge from final manifest tail enforcement. | FIXED | Commit `daa4cc30f72264be9c27fb447a90a32a011f6c57`; `scripts/orchestration/render_codex_start_prompt.py:111`; `tests/test_render_codex_start_prompt.py:150`. |
 
 ## Premortem Risk Fix Matrix
 
 | Risk ID | Failure mode | Disposition | Evidence |
 | --- | --- | --- | --- |
 | PM-1818-001 | Agents stop after `task_bootstrap.py`, leaving requested role passes unrun. | FIXED | `role_agent_dispatch_contract` in `scripts/orchestration/task_bootstrap.py:362`; prompt/launcher dispatch guidance in `scripts/orchestration/render_codex_start_prompt.py:185` and `scripts/orchestration/start_pr_lane.sh:429`. |
-| PM-1818-002 | Requested-agent order is correct at parser level but false-green at final manifest level. | FIXED | `scripts/orchestration/qoder_dispatch_bridge.py:943`; `tests/test_qoder_dispatch_bridge.py:335`. |
+| PM-1818-002 | Requested-agent order is correct at parser level but false-green at final manifest level. | FIXED | `scripts/orchestration/qoder_dispatch_bridge.py:497`; `scripts/orchestration/qoder_dispatch_bridge.py:972`; `tests/test_qoder_dispatch_bridge.py:335`; `tests/test_qoder_dispatch_bridge.py:399`. |
 | PM-1818-003 | Role-agent lesson is lost after this PR and future agents repeat the same bootstrap mistake. | FIXED | `AGENTS.md`; `.cursor/agents/agent-coordinator.md`; `.cursor/agents/cursor-specialist-agent.md`; `docs/ENGINEERING_LESSONS.md`. |
 | PM-1818-004 | Packet paths with spaces or quotes generate unsafe copy-paste dispatch commands. | FIXED | `scripts/orchestration/render_codex_start_prompt.py:92`; `scripts/orchestration/start_pr_lane.sh:429`; `tests/test_render_codex_start_prompt.py:213`; `tests/test_start_pr_lane.py`. |
 | PM-1818-005 | Mapping/body are updated before code fixes, creating invalid review disposition evidence. | FIXED | Code/test commit `4b81482f4629e540a780e8e161c864b671425565` exists before this mapping artifact. |
@@ -117,6 +133,7 @@ Evidence: `tests/test_qoder_dispatch_bridge.py:297` updates the requested-order 
 - `make validate-changed` -> PASS
 - `pre-commit run --all-files` -> PASS after Black reformatted `tests/test_render_codex_start_prompt.py`; rerun passed.
 - Commit hooks -> PASS with `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH`.
+- Post-Codex-review focused gates -> PASS: `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_render_codex_start_prompt.py`; `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH flake8 scripts/orchestration/qoder_dispatch_bridge.py scripts/orchestration/render_codex_start_prompt.py tests/test_qoder_dispatch_bridge.py tests/test_render_codex_start_prompt.py`; `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m mypy --explicit-package-bases scripts/orchestration/qoder_dispatch_bridge.py scripts/orchestration/render_codex_start_prompt.py`.
 - Full local `make verify`: deferred by operator-approved machine-heavy governance exception; use current-head CI parity before merge.
 
 ## Deferred / Follow-ups
