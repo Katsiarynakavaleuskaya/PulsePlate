@@ -51,9 +51,9 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3293225158 -> c2d9255ea
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3293225158 -> ce9c404b4
 Disposition: FIXED
-Commit: c2d9255ea
+Commit: ce9c404b4
 Evidence: `tests/test_task_bootstrap.py` annotates `test_main_passes_native_bridge_transport_flag` fixtures with `pytest.MonkeyPatch` and `pytest.CaptureFixture[str]`.
 Reason: CodeRabbit requested complete type hints for the test fixtures.
 
@@ -62,15 +62,15 @@ Disposition: NOT-A-BUG
 Evidence: The sole actionable CodeRabbit review comment is mapped as FIXED in `discussion_r3293225158`.
 Reason: Aggregate review record; no separate code finding beyond the mapped discussion thread.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3294159463 -> 72309fbed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3294159463 -> 8b5cb5e47
 Disposition: FIXED
-Commit: 72309fbed
+Commit: 8b5cb5e47
 Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` preserves duplicate mandatory post-open role passes while still ordering `qa-engineer-agent` before `bug-hunter`; `tests/test_qoder_dispatch_bridge.py` asserts duplicate bug-hunter preservation.
 Reason: CodeRabbit found that `_enforce_mandatory_post_open_order` collapsed duplicate mandatory passes.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3294159464 -> 72309fbed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3294159464 -> 8b5cb5e47
 Disposition: FIXED
-Commit: 72309fbed
+Commit: 8b5cb5e47
 Evidence: `tests/test_qoder_dispatch_bridge.py` now uses `require_feature(f"agent_definition:{slug}")` for the flagged optional agent-definition skip path.
 Reason: CodeRabbit requested repo-standard optional-feature skip reasons.
 
@@ -93,23 +93,23 @@ Reason: No actionable failure was reported.
 
 - Finding: Requested agents classified as advisory could be emitted as no-spawn and skipped.
   - Disposition: FIXED
-  - Commit: c2d9255ea
+  - Commit: ce9c404b4
   - Evidence: `scripts/orchestration/native_subagent_bridge.py` emits `execution_mode: advisory_review`, `spawn_with_native_subagent: True`, `advisory_only: False`, and `required_role_pass: True`.
 - Finding: Requested reviewers displaced by post-open QA routing could be absent from executable bridge output.
   - Disposition: FIXED
-  - Commit: c2d9255ea
+  - Commit: ce9c404b4
   - Evidence: `scripts/orchestration/task_bootstrap.py` appends missing known requested role passes after secondary partitioning.
 - Finding: Dispatch bridge did not preserve the coordinator-required requested role order.
   - Disposition: FIXED
-  - Commit: c2d9255ea
+  - Commit: ce9c404b4
   - Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` preserves requested role order and keeps `qa-engineer-agent -> bug-hunter` as mandatory post-open order.
 - Finding: Experiment Runner bare `python` oracle commands could resolve through host Python.
   - Disposition: FIXED
-  - Commit: c2d9255ea, f5038d083
+  - Commit: ce9c404b4, 5dc11038f
   - Evidence: `scripts/orchestration/experiment_runner.py` selects repo-approved Python from absolute executable `VENV_PYTHON`, absolute executable `DEV_PYTHON`, or repo `.venv/bin/python`, then prepends its parent directory to sandbox `PATH`.
 - Finding: Pre-push mypy hook flagged changed-file type issues not caught by the earlier explicit-package-bases command.
   - Disposition: FIXED
-  - Commit: f5038d083
+  - Commit: 5dc11038f
   - Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` imports optional PyYAML through `importlib.import_module`; `scripts/orchestration/experiment_runner.py` normalizes `REPO_ROOT` through `Path(...)` before resolving repo `.venv`.
 
 ## Premortem Risk Fix Matrix
