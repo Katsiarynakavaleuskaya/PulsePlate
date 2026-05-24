@@ -165,6 +165,18 @@ def test_hook_entrypoints_use_repo_python_for_python_tools() -> None:
         assert "not available through repo Python" in text
 
 
+def test_backend_hook_honors_skip_tests_before_python_resolution() -> None:
+    hook_text = (REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh").read_text(
+        encoding="utf-8"
+    )
+
+    skip_index = hook_text.index('if [ "${SKIP_TESTS:-0}" = "1" ]; then')
+    resolver_index = hook_text.index('source "$ROOT_DIR/scripts/hooks/repo_python.sh"')
+    pytest_index = hook_text.index('"$REPO_PYTHON_BIN" -m pytest --version')
+
+    assert skip_index < resolver_index < pytest_index
+
+
 def test_makefile_hook_targets_use_shared_python_resolver() -> None:
     makefile_text = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
 

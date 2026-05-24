@@ -18,6 +18,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if [ "${SKIP_TESTS:-0}" = "1" ]; then
+    echo "⏩ SKIP_TESTS=1 set, skipping backend tests"
+    exit 0
+fi
+
 # Resolve Python through the repo/worktree-aware hook resolver before running
 # syntax or pytest checks. This prevents local hooks from falling back to an
 # ambient PATH interpreter that lacks locked deps such as FastAPI.
@@ -33,6 +38,8 @@ if ! "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
     exit 1
 fi
 
+declare -a PYTEST_COMMAND=("$REPO_PYTHON_BIN" -m pytest)
+
 # Debug mode: set PREPUSH_DEBUG=1 to see detailed information
 DEBUG="${PREPUSH_DEBUG:-0}"
 log_debug() {
@@ -41,12 +48,6 @@ log_debug() {
     fi
 }
 
-if [ "${SKIP_TESTS:-0}" = "1" ]; then
-    echo "⏩ SKIP_TESTS=1 set, skipping backend tests"
-    exit 0
-fi
-
-declare -a PYTEST_COMMAND=("$REPO_PYTHON_BIN" -m pytest)
 log_debug "Using repo Python pytest via: ${PYTEST_COMMAND[*]}"
 
 # Get changed Python files
