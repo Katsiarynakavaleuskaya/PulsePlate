@@ -23,7 +23,10 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1824#discussion_r3295362610 -> 94dccc287fe159efe4d6d28f55134d736dd13586
+Disposition: FIXED
+Commit: 94dccc287fe159efe4d6d28f55134d736dd13586
+Evidence: `scripts/run-backend-tests-pre-commit.sh` checks `SKIP_TESTS=1` before resolving repo Python or validating pytest availability; `tests/test_pre_commit_hook_python_resolver.py` covers the ordering contract.
 
 ## Main Failure Evidence
 
