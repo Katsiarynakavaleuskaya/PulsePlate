@@ -286,7 +286,7 @@ def _select_repo_python() -> Path | None:
         if selected is not None:
             return selected
 
-    repo_python = REPO_ROOT / ".venv" / "bin" / "python"
+    repo_python = Path(REPO_ROOT) / ".venv" / "bin" / "python"
     if repo_python.is_file() and os.access(repo_python, os.X_OK):
         return repo_python.resolve()
     return None

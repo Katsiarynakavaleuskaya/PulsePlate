@@ -25,6 +25,7 @@ import json
 import re
 import sys
 from datetime import datetime, timezone
+from importlib import import_module
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -220,11 +221,10 @@ def _parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
     raw_fm = text[3:end_idx].strip()
     body = text[end_idx + 3 :].strip()
 
-    # Try yaml first
+    # Try PyYAML first without creating a hard typed dependency.
     try:
-        import yaml
-
-        meta = yaml.safe_load(raw_fm)
+        yaml_module = import_module("yaml")
+        meta = yaml_module.safe_load(raw_fm)
         if isinstance(meta, dict):
             return meta, body
     except Exception:
