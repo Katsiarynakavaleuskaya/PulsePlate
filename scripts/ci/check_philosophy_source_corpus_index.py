@@ -95,6 +95,15 @@ SOURCE_STRING_ARRAY_FIELDS = (
     "discipline_rails",
     "linked_repo_anchors",
 )
+EXPECTED_DISCIPLINE_RAILS = (
+    "philosophy",
+    "linguistics",
+    "cbt_coaching",
+    "information_theory",
+    "mathematics",
+    "ai_governance",
+    "wellness_product",
+)
 EXPECTED_SOURCE_FAMILIES = (
     "socratic_cbt_semantic_cache",
     "leibniz_information_theory",
@@ -542,6 +551,20 @@ def _schema_const_at(
     return []
 
 
+def _schema_type_at(
+    schema: dict[str, object],
+    path: tuple[str, ...],
+    expected: str,
+) -> list[str]:
+    target = _schema_object_at(schema, path)
+    dotted = ".".join(path)
+    if target is None:
+        return [f"schema {dotted} must be an object with type {expected}"]
+    if target.get("type") != expected:
+        return [f"schema {dotted}.type must be {expected}"]
+    return []
+
+
 def _roadmap_markers(roadmap_text: str) -> dict[str, str]:
     markers: dict[str, str] = {}
     for match in re.finditer(r"<!--\s*([A-Z0-9_]+):\s*([^>]+?)\s*-->", roadmap_text):
@@ -742,6 +765,34 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
         )
         if source_family is None or source_family.get("enum") != list(EXPECTED_SOURCE_FAMILIES):
             errors.append("schema source_family enum drifted")
+        for key, expected_min_items in (
+            ("theme_families", 2),
+            ("discipline_rails", 2),
+            ("linked_repo_anchors", 1),
+        ):
+            field_schema = _schema_object_at(
+                schema, ("properties", "sources", "items", "properties", key)
+            )
+            if field_schema is None:
+                errors.append(f"schema sources.items.properties.{key} must be an object")
+                continue
+            if field_schema.get("type") != "array":
+                errors.append(f"schema sources.items.properties.{key}.type must be array")
+            if field_schema.get("minItems") != expected_min_items:
+                errors.append(
+                    f"schema sources.items.properties.{key}.minItems must be {expected_min_items}"
+                )
+            items = _schema_object_at(
+                schema, ("properties", "sources", "items", "properties", key, "items")
+            )
+            if items is None:
+                errors.append(f"schema sources.items.properties.{key}.items must be an object")
+            elif items.get("type") != "string":
+                errors.append(f"schema sources.items.properties.{key}.items.type must be string")
+            if key == "discipline_rails" and (
+                items is None or items.get("enum") != list(EXPECTED_DISCIPLINE_RAILS)
+            ):
+                errors.append("schema discipline_rails enum drifted")
 
     runtime_flags = _schema_object_at(
         schema, ("properties", "sources", "items", "properties", "runtime_flags")
@@ -807,6 +858,26 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
                 "rationale_only_not_runtime_truth",
             )
         )
+        for key in EXPECTED_RESEARCH_BASIS_KEYS:
+            if key == "use":
+                continue
+            errors.extend(
+                _schema_type_at(
+                    schema,
+                    ("properties", "research_basis", "items", "properties", key),
+                    "string",
+                )
+            )
+        url_schema = _schema_object_at(
+            schema, ("properties", "research_basis", "items", "properties", "url")
+        )
+        if url_schema is not None and url_schema.get("format") != "uri":
+            errors.append("schema research_basis.items.properties.url.format must be uri")
+        accessed_on_schema = _schema_object_at(
+            schema, ("properties", "research_basis", "items", "properties", "accessed_on")
+        )
+        if accessed_on_schema is not None and accessed_on_schema.get("format") != "date":
+            errors.append("schema research_basis.items.properties.accessed_on.format must be date")
     for key, expected_count in (
         ("repo_truth_links", len(EXPECTED_REPO_TRUTH_LINKS)),
         ("out_of_scope_paths", len(FORBIDDEN_RUNTIME_PATHS)),
@@ -840,6 +911,15 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
     return errors
 
 
+def _decode_text_artifact(data: bytes) -> str | None:
+    for encoding in ("utf-8", "utf-8-sig", "utf-16", "utf-32"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return None
+
+
 def validate_file_contents(paths: list[str]) -> list[str]:
     errors: list[str] = []
     for raw_path in paths:
@@ -853,12 +933,8 @@ def validate_file_contents(paths: list[str]) -> list[str]:
         candidate = REPO_ROOT / path
         if not candidate.exists() or not candidate.is_file():
             continue
-        data = candidate.read_bytes()
-        if b"\0" in data:
-            continue
-        try:
-            text = data.decode("utf-8")
-        except UnicodeDecodeError:
+        text = _decode_text_artifact(candidate.read_bytes())
+        if text is None:
             continue
         errors.extend(_validate_no_secret_or_local_paths(text, label=path))
     return errors

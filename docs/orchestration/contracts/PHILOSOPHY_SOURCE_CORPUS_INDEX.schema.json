@@ -269,7 +269,8 @@
             "type": "string"
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "format": "uri"
           },
           "rail": {
             "type": "string"
@@ -278,7 +279,8 @@
             "type": "string"
           },
           "accessed_on": {
-            "type": "string"
+            "type": "string",
+            "format": "date"
           },
           "verification_status": {
             "type": "string"

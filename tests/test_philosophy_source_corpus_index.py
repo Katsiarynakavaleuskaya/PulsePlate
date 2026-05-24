@@ -209,6 +209,42 @@ def test_philosophy_source_corpus_index_rejects_source_array_type_drift() -> Non
     )
 
 
+def test_philosophy_source_corpus_index_rejects_theme_array_type_drift() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    first = dict(sources[0])
+    themes = list(first["theme_families"])
+    themes.append(123)
+    first["theme_families"] = themes
+    sources[0] = first
+
+    errors = _validate(index)
+
+    assert any(
+        "analytic_linguistic_audit.theme_families must contain only strings" in error
+        for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_linked_anchor_array_type_drift() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    first = dict(sources[0])
+    anchors = list(first["linked_repo_anchors"])
+    anchors.append({"unexpected": "anchor"})
+    first["linked_repo_anchors"] = anchors
+    sources[0] = first
+
+    errors = _validate(index)
+
+    assert any(
+        "analytic_linguistic_audit.linked_repo_anchors must contain only strings" in error
+        for error in errors
+    )
+
+
 def test_philosophy_source_corpus_index_rejects_generic_theme_collapse() -> None:
     index = _index()
     sources = index["sources"]
@@ -406,6 +442,73 @@ def test_philosophy_source_corpus_index_rejects_schema_repo_truth_link_type_drif
     assert any("schema repo_truth_links.items.type must be string" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_schema_source_array_item_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    items = sources["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    theme_families = item_properties["theme_families"]
+    assert isinstance(theme_families, dict)
+    theme_items = theme_families["items"]
+    assert isinstance(theme_items, dict)
+    theme_items["type"] = "integer"
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema sources.items.properties.theme_families.items.type must be string" in error
+        for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_research_url_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    research_basis = properties["research_basis"]
+    assert isinstance(research_basis, dict)
+    items = research_basis["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    url = item_properties["url"]
+    assert isinstance(url, dict)
+    url["type"] = "integer"
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema properties.research_basis.items.properties.url.type must be string" in error
+        for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_research_url_format_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    research_basis = properties["research_basis"]
+    assert isinstance(research_basis, dict)
+    items = research_basis["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    url = item_properties["url"]
+    assert isinstance(url, dict)
+    del url["format"]
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema research_basis.items.properties.url.format must be uri" in error for error in errors
+    )
+
+
 def test_philosophy_source_corpus_index_rejects_schema_out_of_scope_cardinality_drift() -> None:
     schema = _schema()
     properties = schema["properties"]
@@ -550,6 +653,19 @@ def test_philosophy_source_corpus_index_skips_binary_touched_files(
     errors = validate_file_contents(["docs/evidence/figure.png"])
 
     assert errors == []
+
+
+def test_philosophy_source_corpus_index_scans_utf16_text_artifact_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(("leak=" + "/" + "tmp/source.pdf\n").encode("utf-16"))
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_phase1_docs_gate_rejects_page_count_drift(
