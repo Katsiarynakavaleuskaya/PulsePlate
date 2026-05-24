@@ -59,6 +59,9 @@ eagerly importing FastAPI-bound `app.security` exports.
 | post-open bug-hunter | Canonical mapping artifact was missing; CodeRabbit status is pass but review was skipped and must not be counted as completed review evidence. | FIXED | This artifact records the CodeRabbit rate-limit comment as NOT-A-BUG and preserves it as incomplete bot-review evidence. |
 | post-open bug-hunter | Prompt wording incorrectly implied `$PWD/.venv/bin/python` is normal inside an isolated worktree; this recreates the env drift being fixed. | FIXED | This mapping commit; `scripts/orchestration/render_codex_start_prompt.py`; `tests/test_render_codex_start_prompt.py`; `tests/test_local_session_bootstrap.py`. |
 | post-open security-auditor | No issues found in final committed diff; merge state remained unstable, so security pass is not a merge-readiness claim. | FIXED | Subagent PASS; `app/security/__init__.py:17`; `app/security/__init__.py:161`; `tests/test_experiment_runner.py:194`; `tests/test_experiment_runner.py:235`; `tests/test_experiment_runner.py:273`. |
+| CodeRabbit CLI review | Mapping artifact had `## Merge Readiness Notes` but lacked an explicit canonical `## Merge Readiness` checklist. | FIXED | This mapping update adds the checklist with unchecked pre-merge items while preserving that this artifact is not a merge-ready claim. |
+| Codex Security diff scan | No reportable security findings in lazy export map, diagnostics, sandbox/control-plane boundary, or runner mutation boundary. | FIXED | Local report `/tmp/codex-security-scans/BMI-App_2025_clean/pr1809-6f5f916b8-20260524T0735Z/report.md`; focused security smoke and pytest passed. |
+| pulseplate-pr-review / bug-triage | Advisory large-diff risk and env-drift regression were reviewed; env-drift prompt issue was fixed, large-diff risk covered by split rationale and targeted gates. | FIXED | `/tmp/pulseplate_pr1809_review_report.md`; `make validate-changed`; focused pytest; this mapping artifact. |
 
 ## Post-Open Agent Launch Evidence
 
@@ -125,3 +128,14 @@ eagerly importing FastAPI-bound `app.security` exports.
 
 - This artifact is not a merge-ready claim.
 - Required before merge readiness: PR body mirror refresh, current-head CI, review-thread disposition guard with auth, strict merge-readiness wrapper with auth, no actionable bot comments, and mandatory wait window.
+
+## Merge Readiness
+
+- [x] PR body mirror refreshed from canonical mapping artifact.
+- [x] Local PR-scoped gates passed: preflight, agent consistency, Experiment Runner identity, focused pytest, `make validate-changed`, and `pre-commit run --all-files`.
+- [x] Compensating review completed for skipped/rate-limited bots: `pulseplate-pr-review`, `bug-triage`, Codex Security diff scan, and CodeRabbit CLI review.
+- [ ] Current-head CI passing with all required checks green and no pending jobs.
+- [ ] Review-thread disposition guard with auth passed after latest bot/human activity.
+- [ ] Strict merge-readiness wrapper with auth passed after latest bot/human activity.
+- [ ] No actionable bot comments remain.
+- [ ] Mandatory wait window elapsed after latest bot/review activity.
