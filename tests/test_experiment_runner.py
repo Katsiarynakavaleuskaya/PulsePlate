@@ -150,6 +150,18 @@ def _validate_packet(packet: dict[str, object]) -> dict[str, object]:
     return validated
 
 
+def _packet_budgets(packet: dict[str, object]) -> dict[str, object]:
+    budgets = packet["budgets"]
+    assert isinstance(budgets, dict)
+    return cast(dict[str, object], budgets)
+
+
+def _packet_metrics(packet: dict[str, object]) -> dict[str, object]:
+    metrics = packet["metrics"]
+    assert isinstance(metrics, dict)
+    return cast(dict[str, object], metrics)
+
+
 def _run_python_with_fastapi_blocked(
     tmp_path: Path,
     *args: str,
@@ -394,7 +406,7 @@ def test_validate_packet_rejects_empty_primary_metric() -> None:
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["metrics"] = {
-        **packet["metrics"],
+        **_packet_metrics(packet),
         "primary": "",
         "secondary": ["latency_p95_ms"],
     }
@@ -411,7 +423,7 @@ def test_validate_packet_rejects_unknown_budget_keys() -> None:
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "gpu_budget": 1,
     }
 
@@ -869,7 +881,7 @@ def test_evaluate_candidate_maps_timeout_oracle_to_timeout(
         oracle_command='python3 -c "import time; time.sleep(2)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "wall_clock_seconds": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -939,7 +951,7 @@ def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "wall_clock_seconds": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -1029,7 +1041,7 @@ def test_evaluate_candidate_retries_infra_flake_within_retry_budget(
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "retry_budget": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -1083,7 +1095,7 @@ def test_evaluate_candidate_retries_cleanup_infra_flake(
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "retry_budget": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -1102,7 +1114,7 @@ def test_evaluate_candidate_retries_cleanup_infra_flake(
 
     def _checkout_with_flaky_cleanup(
         root: Path,
-    ) -> tuple[tempfile.TemporaryDirectory[str], Path]:
+    ) -> tuple[Any, Path]:
         temp_dir, checkout_root = real_create_temp_checkout(root)
         if cleanup_failures["count"] == 0:
             cleanup_failures["count"] += 1
@@ -1142,7 +1154,7 @@ def test_evaluate_candidate_retries_temp_checkout_infra_flake(
         oracle_command='python3 -c "import sys; sys.exit(0)"',
     )
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "retry_budget": 1,
     }
     validated_packet = _validate_packet(packet)
@@ -1193,7 +1205,7 @@ def test_evaluate_candidate_enforces_total_wall_clock_budget_across_oracles(
         {"command": 'python3 -c "import sys; sys.exit(0)"', "expected_signal": "must pass"},
     ]
     packet["budgets"] = {
-        **packet["budgets"],
+        **_packet_budgets(packet),
         "wall_clock_seconds": 1,
     }
     validated_packet = _validate_packet(packet)

@@ -62,6 +62,7 @@ eagerly importing FastAPI-bound `app.security` exports.
 | CodeRabbit CLI review | Mapping artifact had `## Merge Readiness Notes` but lacked an explicit canonical `## Merge Readiness` checklist. | FIXED | This mapping update adds the checklist with unchecked pre-merge items while preserving that this artifact is not a merge-ready claim. |
 | Codex Security diff scan | No reportable security findings in lazy export map, diagnostics, sandbox/control-plane boundary, or runner mutation boundary. | FIXED | Local report `/tmp/codex-security-scans/BMI-App_2025_clean/pr1809-6f5f916b8-20260524T0735Z/report.md`; focused security smoke and pytest passed. |
 | pulseplate-pr-review / bug-triage | Advisory large-diff risk and env-drift regression were reviewed; env-drift prompt issue was fixed, large-diff risk covered by split rationale and targeted gates. | FIXED | `/tmp/pulseplate_pr1809_review_report.md`; `make validate-changed`; focused pytest; this mapping artifact. |
+| repeat type-focused QA | Direct mypy with `--explicit-package-bases` found test helper typing gaps around packet `metrics`/`budgets` dict unpacking and cleanup wrapper return type. | FIXED | Typed helper accessors added in `tests/test_experiment_runner.py`; direct mypy now reports `Success: no issues found in 6 source files`; focused pytest passed. |
 
 ## Post-Open Agent Launch Evidence
 
@@ -95,6 +96,7 @@ eagerly importing FastAPI-bound `app.security` exports.
 | PM-1809-005 | Startup prompts regress by treating Experiment Runner as lane-start authority or using bare host Python. | Starter/local bootstrap/rendered prompts keep coordinator-first authority and add repo Python / `VENV_PYTHON` runner guidance. | Starter/bootstrap prompt tests. | Focused pytest suite -> PASS. | FIXED |
 | PM-1809-006 | Lazy export hardening weakens normal FastAPI-facing runtime exports. | Runtime symbols still resolve when repo environment has FastAPI installed. | `test_security_package_fastapi_bound_exports_still_resolve`. | Focused pytest suite -> PASS. | FIXED |
 | PM-1809-007 | Isolated worktree prompts point agents at `$PWD/.venv/bin/python`, which may not exist and can recreate env drift. | Prompt guidance now requires an absolute `VENV_PYTHON` printed by starter/bootstrap or another explicit repo Python, and warns against `$PWD/.venv/bin/python` in isolated worktrees. | Prompt/bootstrap tests assert the safer wording. | Focused pytest suite -> PASS after this fix. | FIXED |
+| PM-1809-008 | Test helper typing gaps surface only under stricter direct mypy invocation, not normal runtime pytest. | Packet `metrics`/`budgets` overrides now use typed helper accessors and the cleanup wrapper monkeypatch uses an explicit broad return type. | Direct mypy over changed Python/test files. | `mypy --explicit-package-bases ...` -> PASS. | FIXED |
 
 ## Bounded Check Evidence
 
@@ -109,6 +111,7 @@ eagerly importing FastAPI-bound `app.security` exports.
 | `make validate-changed` | PASS |
 | `pre-commit run --all-files` | PASS |
 | Pre-push hooks | PASS: detect-secrets, mypy changed files, pip-audit, backend tests, full-repo Bandit, docker build test |
+| Direct mypy on touched Python/test files | PASS: `Success: no issues found in 6 source files` after type-focused repeat review |
 
 ## Fixed in Commit Mapping
 
