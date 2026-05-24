@@ -260,6 +260,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
+        "'docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json'" in docs_phase1_section
+    )
+    assert (
         "':(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json'"
         in docs_phase1_section
     )
@@ -275,7 +278,7 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
-        'if [ "${PR4_PRECONDITION_CHANGED}" -eq 0 ] && [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
+        'if [ "${PR4_PRECONDITION_CHANGED}" -eq 0 ] && [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 0 ] && [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
         in docs_phase1_section
     )
     assert (
@@ -287,6 +290,7 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert "PR4_PRECONDITION_CHANGED=0" in docs_phase1_section
+    assert "PR5_SOURCE_CORPUS_CHANGED=0" in docs_phase1_section
     assert 'git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD' in (
         docs_phase1_section
     )
@@ -310,9 +314,23 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         "tests/test_philosophy_gate_open_preconditions.py",
     ):
         assert pr4_companion_input in docs_phase1_section
-    assert "docs/roadmap/BACKLOG_LEDGER.md|\\" not in docs_phase1_section
+    for pr5_companion_input in (
+        "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json",
+        "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
+        "docs/roadmap/BACKLOG_LEDGER.md",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+        "scripts/ci/check_philosophy_source_corpus_index.py",
+        "scripts/ci/check_docs_phase1_gates.py",
+        "tests/test_philosophy_source_corpus_index.py",
+    ):
+        assert pr5_companion_input in docs_phase1_section
     assert (
         "python scripts/ci/check_philosophy_gate_open_preconditions.py --check --files"
+        in docs_phase1_section
+    )
+    assert (
+        "python scripts/ci/check_philosophy_source_corpus_index.py --check --files"
         in docs_phase1_section
     )
     assert (
