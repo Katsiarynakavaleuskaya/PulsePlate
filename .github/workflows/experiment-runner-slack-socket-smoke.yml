@@ -62,6 +62,12 @@ jobs:
             --validate-runtime \
             --dispatch-mode dry-run
 
+      - name: Install optional Slack Socket Mode runtime
+        if: inputs.dry_run == 'false'
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check "slack-bolt==1.28.0"
+
       - name: Validate live Socket Mode prerequisites
         if: inputs.dry_run == 'false'
         env:

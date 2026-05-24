@@ -40,6 +40,8 @@ def test_default_policy_validates() -> None:
         "status": "socket_mode_dry_run_bridge",
         "default_dispatch_mode": "dry_run",
         "live_socket_default_enabled": False,
+        "requires_github_runtime_auth": True,
+        "github_runtime_auth_source": "runtime_env",
         "can_dispatch_arbitrary_workflow": False,
         "can_dispatch_without_operator_opt_in": False,
         "can_create_pull_requests": False,
@@ -543,6 +545,16 @@ def test_rejects_slack_socket_bridge_without_dry_run_default() -> None:
     policy["slack_identity"]["operator_command_boundary"]["default_dispatch_mode"] = "execute"
 
     with pytest.raises(identity_check.IdentityPolicyError, match="default_dispatch_mode"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_bridge_without_github_runtime_auth_source() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["operator_command_boundary"][
+        "github_runtime_auth_source"
+    ] = "repo_policy"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="github_runtime_auth_source"):
         identity_check.validate_identity_policy(policy)
 
 

@@ -119,8 +119,8 @@ The Slack Socket Mode operator bridge is allowed only as a dry-run-first
 operator command boundary. It may parse a narrow `/run-experiment <branch>
 <hypothesis>` style request and report what would be dispatched. Any real
 workflow dispatch must be explicitly selected by an operator, use a fixed
-workflow allowlist, require GitHub runtime auth, and remain idempotent and
-audit-backed.
+workflow allowlist, require machine-readable GitHub runtime auth sourced from
+runtime environment only, and remain idempotent and audit-backed.
 
 Socket Mode uses runtime credentials outside the repository. Operators configure
 the app-level Socket Mode credential as `SLACK_APP_TOKEN` and the bot credential

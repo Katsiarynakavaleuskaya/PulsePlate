@@ -157,6 +157,24 @@ def test_live_socket_validation_reports_missing_sdk_without_import_time_failure(
     assert "xoxb-" not in stdout
 
 
+def test_execute_runtime_validation_requires_github_auth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    assert bridge.main(["--validate-runtime", "--dispatch-mode", "execute"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "GitHub dispatch configuration is incomplete" in stdout
+    assert "GH_TOKEN" not in stdout
+    assert "GITHUB_TOKEN" not in stdout
+
+
 def test_live_socket_validation_requires_channel_and_user_allowlists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -528,6 +546,61 @@ def test_atomic_rate_limit_claim_blocks_concurrent_unique_events(
     assert any(isinstance(error, bridge.SlackSocketAuditError) for error in errors)
 
 
+def test_rate_limit_claim_rejects_symlinked_artifact_ancestor_before_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    outside = tmp_path / "outside"
+    experiments = repo / "artifacts" / "orchestration" / "experiments"
+    experiments.parent.mkdir(parents=True)
+    outside.mkdir()
+    experiments.symlink_to(outside, target_is_directory=True)
+    config = _config(audit_dir=experiments / "slack_socket_bridge")
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="symlink"):
+        bridge.process_payload(_event(event_id="Ev0SYMLINKRATE"), config)
+
+    assert not (outside / "slack_socket_bridge" / bridge.RATE_LIMIT_LOCK_DIR).exists()
+
+
+def test_rate_limit_claim_retry_loop_is_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "1")
+    config = _config(dispatch_mode="execute", audit_dir=audit_dir)
+    lock_dir = audit_dir / bridge.RATE_LIMIT_LOCK_DIR
+    lock_dir.mkdir(parents=True)
+    (lock_dir / "claim.json").write_text(
+        json.dumps(
+            {
+                "event_hash": "b" * 64,
+                "provider_type": "slack_socket_mode",
+                "status": "claimed",
+                "timestamp": datetime.fromtimestamp(0, tz=timezone.utc).isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    attempts = 0
+
+    def no_op_stale_cleanup(_lock_dir: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+
+    monkeypatch.setattr(bridge, "_remove_stale_rate_limit_claim", no_op_stale_cleanup)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="Unable to acquire"):
+        bridge.process_payload(_event(event_id="Ev0BOUNDED"), config)
+
+    assert attempts == bridge.RATE_LIMIT_CLAIM_MAX_ATTEMPTS
+
+
 def test_malformed_existing_audit_blocks_before_dispatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -570,6 +643,7 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
     assert inputs["dry_run"]["default"] == "true"
     assert "${{ secrets.SLACK_APP_TOKEN }}" in workflow_text
     assert "${{ secrets.SLACK_BOT_TOKEN }}" in workflow_text
+    assert "slack-bolt==1.28.0" in workflow_text
     assert "SLACK_SIGNING_SECRET" not in workflow_text
     assert "continue-on-error" not in workflow_text
     assert "|| true" not in workflow_text
@@ -591,7 +665,7 @@ def test_audit_dir_rejects_symlinked_artifact_ancestor(
     outside.mkdir()
     experiments.symlink_to(outside, target_is_directory=True)
 
-    with pytest.raises(ValueError, match="symlink"):
+    with pytest.raises(bridge.SlackSocketAuditError, match="symlink"):
         bridge._write_audit_exclusive(
             path=experiments / "slack_socket_bridge" / "audit.json",
             event=bridge.OperatorEvent(
@@ -621,7 +695,7 @@ def test_audit_write_rejects_symlinked_output_file(
     output = audit_dir / "audit.json"
     output.symlink_to(outside)
 
-    with pytest.raises(ValueError, match="symlink"):
+    with pytest.raises(bridge.SlackSocketAuditError, match="symlink"):
         bridge._write_audit(
             path=output,
             event=bridge.OperatorEvent(

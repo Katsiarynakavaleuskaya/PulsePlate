@@ -99,6 +99,8 @@
       "status": "socket_mode_dry_run_bridge",
       "default_dispatch_mode": "dry_run",
       "live_socket_default_enabled": false,
+      "requires_github_runtime_auth": true,
+      "github_runtime_auth_source": "runtime_env",
       "can_dispatch_arbitrary_workflow": false,
       "can_dispatch_without_operator_opt_in": false,
       "can_create_pull_requests": false,

@@ -492,6 +492,11 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
             "slack_identity.operator_command_boundary.default_dispatch_mode must be dry_run."
         )
     _require_bool(operator_command_boundary, "live_socket_default_enabled", False)
+    _require_bool(operator_command_boundary, "requires_github_runtime_auth", True)
+    if operator_command_boundary.get("github_runtime_auth_source") != "runtime_env":
+        raise IdentityPolicyError(
+            "slack_identity.operator_command_boundary.github_runtime_auth_source must be runtime_env."
+        )
     _require_bool(operator_command_boundary, "can_dispatch_arbitrary_workflow", False)
     _require_bool(operator_command_boundary, "can_dispatch_without_operator_opt_in", False)
     _require_bool(operator_command_boundary, "can_create_pull_requests", False)

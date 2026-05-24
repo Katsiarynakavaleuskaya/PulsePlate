@@ -58,6 +58,7 @@ SECRET_SHAPED_RE = re.compile(
 ALLOWED_COMMANDS = {"help", "status", "run-experiment"}
 ALLOWED_WORKFLOWS = {DEFAULT_WORKFLOW_FILE}
 RATE_LIMIT_LOCK_DIR = "rate_limit_claim"
+RATE_LIMIT_CLAIM_MAX_ATTEMPTS = 10
 
 
 class SlackSocketBridgeError(RuntimeError):
@@ -243,21 +244,26 @@ def _positive_int_from_env(env_name: str, default: int, *, maximum: int) -> int:
 
 def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
     artifact_root = (Path(REPO_ROOT) / "artifacts" / "orchestration").absolute()
-    artifact_dir.relative_to(artifact_root)
+    try:
+        artifact_dir.relative_to(artifact_root)
+    except ValueError as exc:
+        raise SlackSocketAuditError(
+            "Slack operator audit directory must stay under artifacts/orchestration."
+        ) from exc
     current = artifact_root
     if current.is_symlink():
-        raise ValueError("Slack operator audit ancestors must not be symlinks.")
+        raise SlackSocketAuditError("Slack operator audit ancestors must not be symlinks.")
     for part in artifact_dir.relative_to(artifact_root).parts:
         current = current / part
         if current.is_symlink():
-            raise ValueError("Slack operator audit ancestors must not be symlinks.")
+            raise SlackSocketAuditError("Slack operator audit ancestors must not be symlinks.")
     if artifact_dir.is_symlink():
-        raise ValueError("Slack operator audit directory must not be a symlink.")
+        raise SlackSocketAuditError("Slack operator audit directory must not be a symlink.")
     current = artifact_dir
     for part in candidate.relative_to(artifact_dir).parts:
         current = current / part
         if current.is_symlink():
-            raise ValueError("Slack operator audit path must not traverse a symlink.")
+            raise SlackSocketAuditError("Slack operator audit path must not traverse a symlink.")
 
 
 def _resolve_audit_dir(raw_audit_dir: str | None) -> Path:
@@ -606,9 +612,13 @@ def _remove_stale_rate_limit_claim(lock_dir: Path) -> None:
 def _claim_rate_limit(config: BridgeConfig, event: OperatorEvent) -> None:
     if config.min_interval_seconds <= 0:
         return
-    config.audit_dir.mkdir(parents=True, exist_ok=True)
     lock_dir = _rate_limit_claim_dir(config)
-    while True:
+    _reject_symlinked_output_components(
+        (lock_dir / "claim.json").absolute(),
+        artifact_dir=Path(config.audit_dir).absolute(),
+    )
+    config.audit_dir.mkdir(parents=True, exist_ok=True)
+    for _ in range(RATE_LIMIT_CLAIM_MAX_ATTEMPTS):
         try:
             lock_dir.mkdir()
         except FileExistsError:
@@ -634,6 +644,7 @@ def _claim_rate_limit(config: BridgeConfig, event: OperatorEvent) -> None:
                 "Unable to record Slack operator rate-limit claim."
             ) from exc
         return
+    raise SlackSocketAuditError("Unable to acquire Slack operator rate-limit claim.")
 
 
 def _check_rate_limit(config: BridgeConfig) -> None:
@@ -887,6 +898,8 @@ def main(argv: list[str] | None = None) -> int:
             workflow_ref=args.workflow_ref,
         )
         if args.validate_runtime:
+            if config.dispatch_mode == "execute":
+                _require_execute_config(config)
             if args.run_socket:
                 _require_live_socket_runtime(config)
             print(
