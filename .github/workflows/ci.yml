@@ -5,7 +5,7 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
-  COVERAGE_PY: "3.13"
+  PYTHON_VERSION: "3.13.6"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
   PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
   PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
@@ -195,7 +195,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: ${{ env.COVERAGE_PY }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Guard temporary Pygments exception seam
         env:
@@ -224,7 +224,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: ${{ env.COVERAGE_PY }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -371,7 +371,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: ${{ env.COVERAGE_PY }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Run Phase2 PR body gates
         run: |
@@ -393,7 +393,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: ${{ env.COVERAGE_PY }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Enforce merge readiness policy
         env:
@@ -413,7 +413,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ env.COVERAGE_PY }}
+          python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
@@ -436,7 +436,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ env.COVERAGE_PY }}
+          python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
@@ -531,7 +531,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ env.COVERAGE_PY }}
+          python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
@@ -577,7 +577,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-test
           install-mode: direct-proxy
 
@@ -789,7 +789,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: coverage-xml-${{ env.COVERAGE_PY }}
+          name: coverage-xml-${{ env.PYTHON_VERSION }}
           path: coverage.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -798,7 +798,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: junit-${{ env.COVERAGE_PY }}
+          name: junit-${{ env.PYTHON_VERSION }}
           path: |
             tests/smoke-results.xml
             tests/contract-results.xml
@@ -834,7 +834,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-test
           install-mode: direct-proxy
 
@@ -1048,7 +1048,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: coverage-xml-${{ env.COVERAGE_PY }}
+          name: coverage-xml-${{ env.PYTHON_VERSION }}
           path: coverage.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -1057,7 +1057,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: junit-${{ env.COVERAGE_PY }}
+          name: junit-${{ env.PYTHON_VERSION }}
           path: |
             tests/smoke-results.xml
             tests/contract-results.xml
@@ -1107,7 +1107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: feature-feedback-budget-${{ env.COVERAGE_PY }}
+          name: feature-feedback-budget-${{ env.PYTHON_VERSION }}
           path: feature-feedback-budget.json
           if-no-files-found: error
           retention-days: 7
@@ -1141,7 +1141,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || matrix.python-version }}
           requirements-profile: ci-test
           install-mode: direct-proxy
 
@@ -1301,10 +1301,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
+      - name: Download coverage artifact (Python ${{ env.PYTHON_VERSION }})
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 / Node 24
         with:
-          name: coverage-xml-${{ env.COVERAGE_PY }}
+          name: coverage-xml-${{ env.PYTHON_VERSION }}
           path: ./coverage-artifacts
         continue-on-error: true
 
@@ -1335,14 +1335,14 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ env.COVERAGE_PY }}
+          python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
-      - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
+      - name: Download coverage artifact (Python ${{ env.PYTHON_VERSION }})
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 / Node 24
         with:
-          name: coverage-xml-${{ env.COVERAGE_PY }}
+          name: coverage-xml-${{ env.PYTHON_VERSION }}
           path: ./coverage-artifacts
 
       - name: Fetch base branch
@@ -1389,10 +1389,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download coverage artifact (Python ${{ env.COVERAGE_PY }})
+      - name: Download coverage artifact (Python ${{ env.PYTHON_VERSION }})
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 / Node 24
         with:
-          name: coverage-xml-${{ env.COVERAGE_PY }}
+          name: coverage-xml-${{ env.PYTHON_VERSION }}
           path: ./coverage-artifacts
         continue-on-error: true
 

@@ -3,7 +3,7 @@ import XcodeKit
 
 // Этот скрипт будет выполнен в Xcode для добавления Lottie пакета
 let packageURL = "https://github.com/airbnb/lottie-ios.git"
-let packageVersion = "4.4.0"
+let packageVersion = "4.5.2"
 
 print("📦 Добавляем Lottie пакет...")
 print("URL: \(packageURL)")

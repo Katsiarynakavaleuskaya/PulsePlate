@@ -423,22 +423,22 @@ def test_node24_artifact_migration_preserves_download_contracts() -> None:
         (
             ".github/workflows/ci.yml",
             "coverage-pr",
-            "Download coverage artifact (Python ${{ env.COVERAGE_PY }})",
-            {"name": "coverage-xml-${{ env.COVERAGE_PY }}", "path": "./coverage-artifacts"},
+            "Download coverage artifact (Python ${{ env.PYTHON_VERSION }})",
+            {"name": "coverage-xml-${{ env.PYTHON_VERSION }}", "path": "./coverage-artifacts"},
             True,
         ),
         (
             ".github/workflows/ci.yml",
             "diff-coverage",
-            "Download coverage artifact (Python ${{ env.COVERAGE_PY }})",
-            {"name": "coverage-xml-${{ env.COVERAGE_PY }}", "path": "./coverage-artifacts"},
+            "Download coverage artifact (Python ${{ env.PYTHON_VERSION }})",
+            {"name": "coverage-xml-${{ env.PYTHON_VERSION }}", "path": "./coverage-artifacts"},
             None,
         ),
         (
             ".github/workflows/ci.yml",
             "coverage-feature",
-            "Download coverage artifact (Python ${{ env.COVERAGE_PY }})",
-            {"name": "coverage-xml-${{ env.COVERAGE_PY }}", "path": "./coverage-artifacts"},
+            "Download coverage artifact (Python ${{ env.PYTHON_VERSION }})",
+            {"name": "coverage-xml-${{ env.PYTHON_VERSION }}", "path": "./coverage-artifacts"},
             True,
         ),
         (
@@ -612,7 +612,8 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
     assert "needs.changes.outputs.run_backend_blocking == 'true'" in coverage_feature_if
     coverage_feature_step_names = [step.get("name") for step in coverage_feature["steps"]]
     assert (
-        "Download coverage artifact (Python ${{ env.COVERAGE_PY }})" in coverage_feature_step_names
+        "Download coverage artifact (Python ${{ env.PYTHON_VERSION }})"
+        in coverage_feature_step_names
     )
     assert "Upload to Codecov" in coverage_feature_step_names
 
@@ -628,7 +629,7 @@ def test_feature_push_fast_feedback_budget_is_warning_only_evidence() -> None:
     assert "elapsed_seconds=-1" in test_feature_section
     assert "FEATURE_FEEDBACK_STARTED_AT:-$(date +%s)" not in test_feature_section
     assert "feature-feedback-budget.json" in test_feature_section
-    assert "feature-feedback-budget-${{ env.COVERAGE_PY }}" in test_feature_section
+    assert "feature-feedback-budget-${{ env.PYTHON_VERSION }}" in test_feature_section
     assert "if-no-files-found: error" in test_feature_section
 
 
@@ -738,6 +739,10 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
+    assert (
+        "python-version: ${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || "
+        "matrix.python-version }}"
+    ) in test_main_section
 
     py311_block = _extract_shell_conditional_block(
         test_main_section,
