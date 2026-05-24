@@ -50,6 +50,7 @@ Packet: `artifacts/orchestration/task_packets/4cf028281a2c.json`
 ## Discussion Threads And Bot Comments
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1813#discussion_r3294816600 -> d19ee18de1d6d751dc150e1ed35e1346fd770e41
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1813#pullrequestreview-4352982294 -> d19ee18de1d6d751dc150e1ed35e1346fd770e41
 Disposition: FIXED
 Commit: d19ee18de1d6d751dc150e1ed35e1346fd770e41
 Evidence: `scripts/orchestration/experiment_notify.py:1294` now catches
@@ -127,6 +128,7 @@ artifact update.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1813#discussion_r3294816600 -> d19ee18de1d6d751dc150e1ed35e1346fd770e41
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1813#pullrequestreview-4352982294 -> d19ee18de1d6d751dc150e1ed35e1346fd770e41
 Disposition: FIXED
 Commit: d19ee18de1d6d751dc150e1ed35e1346fd770e41
 Evidence: `scripts/orchestration/experiment_notify.py:1294`; `tests/test_experiment_notify.py:811`; focused pytest passed.
