@@ -98,10 +98,10 @@ configuration remains runtime-secret backed.
 
 ## Slack Boundary
 
-Slack is now defined only as an operator-facing notification display identity
-for Experiment Runner result notifications. It is not a cryptographic Git
-identity, a Git attribution identity, a review-thread actor, a merge-readiness
-authority, or a generic project bot.
+Slack is now defined only as an operator-facing notification and bounded
+operator-command display identity for Experiment Runner work. It is not a
+cryptographic Git identity, a Git attribution identity, a review-thread actor,
+a merge-readiness authority, or a generic project bot.
 
 Slack delivery is available only through explicit `experiment_notify.py`
 operator intent:
@@ -115,10 +115,25 @@ operator intent:
 - tests prove no secrets, raw patch text, oracle stdout/stderr, cwd, local
   absolute paths, or user data are posted or written into audits.
 
-The Slack workspace inspection for this boundary found no dedicated
-Experiment Runner/operator channel in the accessible workspace search results,
-so repository policy defines the allowlist mechanism only. Concrete channel
-selection remains operator runtime configuration, not checked-in repo truth.
+The Slack Socket Mode operator bridge is allowed only as a dry-run-first
+operator command boundary. It may parse a narrow `/run-experiment <branch>
+<hypothesis>` style request and report what would be dispatched. Any real
+workflow dispatch must be explicitly selected by an operator, use a fixed
+workflow allowlist, require GitHub runtime auth, and remain idempotent and
+audit-backed.
+
+Socket Mode uses runtime credentials outside the repository. Operators configure
+the app-level Socket Mode credential as `SLACK_APP_TOKEN` and the bot credential
+as `SLACK_BOT_TOKEN` in their secret store; the repository may reference those
+runtime secret names in workflow wiring, but must never commit token values.
+HTTP Events and `SLACK_SIGNING_SECRET` are out of scope for this boundary.
+
+The operator-selected `#experiment-runner` channel remains runtime
+configuration, not checked-in repo truth. The bridge must require channel and
+user allowlists before parsing operator intent. Audit artifacts are local and
+hash-only: no raw Slack payload, channel or user identifier, token, local
+absolute path, oracle stdout/stderr, patch text, or raw hypothesis may be
+written.
 
 ## Validation
 

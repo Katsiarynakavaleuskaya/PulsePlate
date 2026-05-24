@@ -115,6 +115,11 @@ Rules:
 - Experiment Runner participation joins after repo coordinator bootstrap. The
   runner must not replace `check_preflight.py`, `task_bootstrap.py`, or
   `agent-coordinator` as lane-start authority.
+- Slack Socket Mode operator wiring is allowed only as a bounded
+  dry-run-first command/display bridge inside this coordinator-owned lane. It
+  must not auto-run experiments by default, create PRs, resolve review threads,
+  claim merge readiness, or replace the local Experiment Runner evidence
+  artifact.
 - `Not applicable` is narrow. It is intended for trivial docs cleanup, main
   cleanup, cache cleanup, or operator-declared emergency infrastructure repair
   where the runner result is genuinely unused or inapplicable.

@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Experiment Runner Slack Socket Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Keep true for config-only smoke; false validates live Socket Mode prerequisites"
+        required: true
+        type: choice
+        default: "true"
+        options:
+          - "true"
+          - "false"
+      branch_ref:
+        description: "Operator target branch reference; used only as typed smoke input"
+        required: true
+        type: string
+        default: "main"
+      hypothesis_sha256:
+        description: "SHA256 of the operator hypothesis; never pass raw Slack text"
+        required: true
+        type: string
+        default: "0000000000000000000000000000000000000000000000000000000000000000"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  slack-socket-bridge-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Validate dry-run bridge config without Slack network
+        run: |
+          set -euo pipefail
+          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --validate-runtime \
+            --dispatch-mode dry-run
+
+      - name: Validate live Socket Mode prerequisites
+        if: inputs.dry_run == 'false'
+        env:
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --validate-runtime \
+            --run-socket \
+            --dispatch-mode dry-run
