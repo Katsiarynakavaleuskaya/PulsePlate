@@ -28,6 +28,9 @@ Packet: artifacts/orchestration/task_packets/b14c45845078.json
 - `qa-engineer-agent`: conditional accept after guard update for retired ruff fallback.
 - `bug-hunter`: conditional go after false-green checks for `pip==`, `requirements.txt`, ruff fallback, and lock parity.
 - `dev-operator`: isolated worktree, local gates, PR-open, and merge-readiness plan.
+- Post-open `qa-engineer-agent`: PASS at rebased head `fcd881c4d`; no rebase QA issue, no production lock drift, bounded root `.venv` checks sufficient pending CI.
+- Post-open `security-auditor`: PASS at rebased head `fcd881c4d`; no supply-chain blocker, no public fallback, no new secret-bearing value, no inline review comments.
+- Post-open `bug-hunter`: BLOCK until this mapping and PR body are refreshed for the rebased head and current-head CI is terminal.
 
 ## Skill Execution Log
 
@@ -79,6 +82,9 @@ was eliminated.
 - `.venv/bin/python -m pip check` PASS
 - `make validate-changed` PASS
 - `pre-commit run --all-files` PASS
+- Post-rebase root `.venv` focused guards PASS:
+  `pytest -q tests/test_install_locked_python_requirements.py::test_repo_ruff_private_proxy_pin_is_not_stale_emergency_fallback tests/test_install_locked_python_requirements.py::test_repo_quality_tooling_profile_matches_dependabot_replacement_contract tests/test_dependency_security_guard.py::test_repo_managed_lock_surfaces_do_not_pin_pip`
+- Post-rebase root `.venv` `black`, `ruff`, `pip check`, Phase2 body gate, and review-thread disposition guard PASS.
 
 ## Discussion Thread Pass
 
@@ -95,6 +101,8 @@ None.
 
 ## Merge Readiness
 
-Not merge-ready yet. Pending post-open `qa-engineer-agent -> security-auditor
--> bug-hunter` rerun, current-head CI, bot comment disposition, strict review
-thread guard, strict merge-readiness wrapper, and final wait-window.
+Not merge-ready yet. Post-open QA and security passes are complete at rebased
+head `fcd881c4d`; bug-hunter requested this mapping/PR body refresh. Pending
+current-head CI terminal status, final bug-hunter refresh after this governance
+commit, strict review-thread guard, strict merge-readiness wrapper, and final
+wait-window.
