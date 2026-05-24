@@ -18,7 +18,14 @@ resolve_repo_python() {
 
     if [[ -n "${raw_python_override}" ]]; then
         case "${raw_python_override}" in
-            /*) candidates+=("${raw_python_override}") ;;
+            /*)
+                if [[ -x "${raw_python_override}" ]]; then
+                    printf '%s\n' "${raw_python_override}"
+                    return 0
+                fi
+                echo "ERROR: VENV_PYTHON/DEV_PYTHON is set but is not executable: ${raw_python_override}" >&2
+                return 1
+                ;;
             *)
                 echo "ERROR: VENV_PYTHON/DEV_PYTHON must be an absolute executable path for hooks: ${raw_python_override}" >&2
                 return 1

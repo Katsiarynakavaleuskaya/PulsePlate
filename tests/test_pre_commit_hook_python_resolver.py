@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,7 @@ HOOK_FILES = [
     REPO_ROOT / ".githooks" / "pre-commit",
     REPO_ROOT / ".githooks" / "pre-commit-unified",
 ]
+RESOLVE_COMMAND = f'source {shlex.quote(str(HOOK_RESOLVER))}; resolve_repo_python "$PWD"'
 
 
 def _write_executable(path: Path) -> None:
@@ -87,7 +89,7 @@ def test_hook_resolver_prefers_shared_root_venv_from_worktree(tmp_path: Path) ->
     _git(repo, "worktree", "add", "--quiet", str(worktree), "HEAD")
 
     resolved = _bash(
-        f'source {HOOK_RESOLVER}; resolve_repo_python "$PWD"',
+        RESOLVE_COMMAND,
         cwd=worktree,
     )
 
@@ -115,7 +117,7 @@ def test_hook_resolver_ignores_commit_hook_git_env_for_worktree_lookup(
     env["GIT_INDEX_FILE"] = str(repo / ".git" / "index")
 
     resolved = _bash(
-        f'source {HOOK_RESOLVER}; resolve_repo_python "$PWD"',
+        RESOLVE_COMMAND,
         cwd=worktree,
         env=env,
     )
@@ -130,7 +132,7 @@ def test_hook_resolver_rejects_relative_python_override(tmp_path: Path) -> None:
     env["VENV_PYTHON"] = ".venv/bin/python"
 
     completed = _bash_failure(
-        f'source {HOOK_RESOLVER}; resolve_repo_python "$PWD"',
+        RESOLVE_COMMAND,
         cwd=repo,
         env=env,
     )
@@ -139,13 +141,38 @@ def test_hook_resolver_rejects_relative_python_override(tmp_path: Path) -> None:
     assert "must be an absolute executable path" in completed.stderr
 
 
+def test_hook_resolver_rejects_non_executable_absolute_python_override(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    bad_override = tmp_path / "not-python"
+    bad_override.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    bad_override.chmod(0o644)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(bad_override)
+
+    completed = _bash_failure(
+        RESOLVE_COMMAND,
+        cwd=repo,
+        env=env,
+    )
+
+    assert completed.returncode == 1
+    assert "is set but is not executable" in completed.stderr
+    assert str(shared_python) not in completed.stdout
+
+
 def test_hook_resolver_fails_closed_without_repo_python(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     env = _clean_hook_env()
 
     completed = _bash_failure(
-        f'source {HOOK_RESOLVER}; resolve_repo_python "$PWD"',
+        RESOLVE_COMMAND,
         cwd=repo,
         env=env,
     )
