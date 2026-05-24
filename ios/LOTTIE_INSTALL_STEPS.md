@@ -17,7 +17,7 @@ open PulsePlate.xcodeproj
 
 3. **Выберите версию:**
    - Version: Up to Next Major
-   - From: 4.4.0
+   - From: 4.5.2
 
 4. **Добавьте в Target:**
    - Выберите Target "PulsePlate"

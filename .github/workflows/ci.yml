@@ -5,7 +5,7 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
-  COVERAGE_PY: "3.13"
+  COVERAGE_PY: "3.13.6"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
   PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
   PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
@@ -577,7 +577,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ env.COVERAGE_PY }}
           requirements-profile: ci-test
           install-mode: direct-proxy
 
@@ -834,7 +834,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ env.COVERAGE_PY }}
           requirements-profile: ci-test
           install-mode: direct-proxy
 
@@ -1126,10 +1126,13 @@ jobs:
       matrix:
         include:
           - python-version: '3.11'
+            runtime-python-version: '3.11'
             timeout-minutes: 60
           - python-version: '3.12'
+            runtime-python-version: '3.12'
             timeout-minutes: 90
           - python-version: '3.13'
+            runtime-python-version: '3.13.6'
             timeout-minutes: 90
 
     steps:
@@ -1141,7 +1144,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.runtime-python-version }}
           requirements-profile: ci-test
           install-mode: direct-proxy
 
