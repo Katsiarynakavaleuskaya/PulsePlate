@@ -1,6 +1,6 @@
 # PulsePlate Semantic Cache Gate and Plan
 
-**Last reconciled:** 6 May 2026
+**Last reconciled:** 24 May 2026
 **Rail:** Product AI runtime rail only
 **Status:** Gate-closed deferred optimization, not active execution scope
 
@@ -83,6 +83,16 @@ machine markers, and runtime prerequisite anchors while keeping
 `serving_allowed=false`. Ledger anchor presence does not verify prerequisite
 closure; a later reviewed gate-open PR must still change the machine-checkable
 markers before runtime semantic-cache work can begin.
+
+Philosophy Epic V2 PR-4 landed in PR #1791 on 2026-05-22 with merge commit
+`b16175721933012ae53162b8268888c960458d46`, after the PR #1789 alignment-rule
+schema prerequisite landed on 2026-05-21 with merge commit
+`651c56bb510125b4df011a6d48de6f82a8f6e0b7`. PR-4.1 is a status
+reconciliation only: it does not change the closed machine markers above and
+does not permit semantic-cache runtime admission, cache reads, cache writes, or
+serving. Future PR-4 status reconciliation updates must use the PR-4.1 packet
+source-truth section as the update checklist and keep this roadmap to the
+minimal status mirror.
 
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
