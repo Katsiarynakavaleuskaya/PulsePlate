@@ -206,13 +206,6 @@
       "sha256": "75313fdcc2397ec4b58297c25d6187fcca5a6b2aeb09570a72eff5a3223d8d58"
     },
     {
-      "package": "ruff",
-      "version": "0.15.13",
-      "filename": "ruff-0.15.13-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-      "url": "https://files.pythonhosted.org/packages/e8/31/bf1a0803d077e679cfeee5f2f67290a0fa79c7385b5d9a8c17b9db2c48f0/ruff-0.15.13-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-      "sha256": "cc411dfebe5eebe55ce041c6ae080eb7668955e866daa2fbb16692a784f1c4ca"
-    },
-    {
       "package": "types-pyyaml",
       "version": "6.0.12.20260408",
       "filename": "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
