@@ -51,11 +51,16 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#pullrequestreview-4343659344 -> 983c675555
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#discussion_r3293225158 -> 983c675555
 Disposition: FIXED
 Commit: 983c675555
 Evidence: `tests/test_task_bootstrap.py` annotates `test_main_passes_native_bridge_transport_flag` fixtures with `pytest.MonkeyPatch` and `pytest.CaptureFixture[str]`.
 Reason: CodeRabbit requested complete type hints for the test fixtures.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#pullrequestreview-4351193876
+Disposition: NOT-A-BUG
+Evidence: The sole actionable CodeRabbit review comment is mapped as FIXED in `discussion_r3293225158`.
+Reason: Aggregate review record; no separate code finding beyond the mapped discussion thread.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#issuecomment-4526058312
 Disposition: NOT-A-BUG
