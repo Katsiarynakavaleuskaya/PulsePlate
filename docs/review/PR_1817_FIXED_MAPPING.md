@@ -38,7 +38,11 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
   serving and Redis/GPTCache approved-backend claims; `test_semantic_cache_gate.py`
   covers the reported false-green grammar variants; this mapping records only
   experiment ID/status and no local artifact path.
-- Codex Security `threat-model -> security-scan -> validation`: pending.
+- Codex Security `threat-model -> security-scan -> validation`: PASS.
+  Evidence: repository AGENTS/security policy used as threat model; diff-scoped
+  scan found no provider/network/secret/runtime-write surface in the changed
+  checker/docs/tests; `bandit -q scripts/ci/check_ai_pro_quota_a1b_closeout.py
+  scripts/ci/check_semantic_cache_gate.py` passed; validation gates passed.
 
 ## Experiment Runner Evidence
 
