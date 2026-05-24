@@ -42,6 +42,10 @@ eagerly importing FastAPI-bound `app.security` exports.
 - Sourcery review comment at `2026-05-24T07:13:58Z`
   - Disposition: NOT-A-BUG
   - Evidence: Sourcery weekly diff-character rate-limit notice only; no code finding or requested action.
+- CodeRabbit review comment at `2026-05-24T08:22:35Z`
+  - Disposition: FIXED
+  - Commit: `13fb0025d3da6e0fe92fdabcfb33a4501824ae02`
+  - Evidence: `## Merge Readiness` checklist items are all unchecked; `## Discussion Thread Pass` remains checked separately.
 - Cubic generated an informational PR summary. No action requested at artifact creation time.
 
 ## Role-Agent Findings
@@ -60,6 +64,7 @@ eagerly importing FastAPI-bound `app.security` exports.
 | post-open bug-hunter | Prompt wording incorrectly implied `$PWD/.venv/bin/python` is normal inside an isolated worktree; this recreates the env drift being fixed. | FIXED | This mapping commit; `scripts/orchestration/render_codex_start_prompt.py`; `tests/test_render_codex_start_prompt.py`; `tests/test_local_session_bootstrap.py`. |
 | post-open security-auditor | No issues found in final committed diff; merge state remained unstable, so security pass is not a merge-readiness claim. | FIXED | Subagent PASS; `app/security/__init__.py:17`; `app/security/__init__.py:161`; `tests/test_experiment_runner.py:194`; `tests/test_experiment_runner.py:235`; `tests/test_experiment_runner.py:273`. |
 | CodeRabbit CLI review | Mapping artifact had `## Merge Readiness Notes` but lacked an explicit canonical `## Merge Readiness` checklist. Repeat committed review raised 0 findings after the code/type fixes. | FIXED | This mapping update adds the checklist with unchecked pre-merge items while preserving that this artifact is not a merge-ready claim; `coderabbit review --agent -t committed` after the type-focused fix -> 0 findings. Later changes are review-artifact text only. |
+| CodeRabbit hosted review | Latest hosted CodeRabbit actionable asked for unchecked pre-merge readiness boxes while preserving discussion-thread pass boxes. | FIXED | Commit `13fb0025d3da6e0fe92fdabcfb33a4501824ae02`; `## Merge Readiness` checklist is unchecked; `## Discussion Thread Pass` remains checked. |
 | Codex Security diff scan | No reportable security findings in lazy export map, diagnostics, sandbox/control-plane boundary, or runner mutation boundary. | FIXED | Local diff scan report covered the code-changing head; later changes are review-artifact text only. Focused security smoke and pytest passed. |
 | pulseplate-pr-review / bug-triage | Advisory large-diff risk and env-drift regression were reviewed; env-drift prompt issue was fixed, large-diff risk covered by split rationale and targeted gates. | FIXED | `/tmp/pulseplate_pr1809_review_report.md`; `make validate-changed`; focused pytest; this mapping artifact. |
 | repeat type-focused QA | Direct mypy with `--explicit-package-bases` found test helper typing gaps around packet `metrics`/`budgets` dict unpacking and cleanup wrapper return type. | FIXED | Typed helper accessors added in `tests/test_experiment_runner.py`; direct mypy now reports `Success: no issues found in 6 source files`; focused pytest passed. |
