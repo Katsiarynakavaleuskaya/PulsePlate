@@ -17,6 +17,13 @@ git config core.hooksPath .githooks
 .githooks/pre-commit
 ```
 
+Checked-in hooks resolve Python through `scripts/hooks/repo_python.sh`.
+The resolver prefers the current checkout `.venv`, then the shared root
+`.venv` when running from `worktrees/...`. Local hook execution fails closed
+when no repo/shared `.venv` exists; CI may fall back to system Python. Keep
+Python tools behind the resolved interpreter (`python -m ...`) so local commits
+do not drift into an ambient environment missing locked deps such as FastAPI.
+
 **Преимущества:**
 - 🎯 Все проверки в одном месте
 - 🚀 Работает автоматически
@@ -42,6 +49,13 @@ git config core.hooksPath .githooks
 # Run the hook directly for a quick check
 .githooks/pre-commit
 ```
+
+Checked-in hooks resolve Python through `scripts/hooks/repo_python.sh`.
+The resolver prefers the current checkout `.venv`, then the shared root
+`.venv` when running from `worktrees/...`. Local hook execution fails closed
+when no repo/shared `.venv` exists; CI may fall back to system Python. Keep
+Python tools behind the resolved interpreter (`python -m ...`) so local commits
+do not drift into an ambient environment missing locked deps such as FastAPI.
 
 **Advantages:**
 - 🎯 All checks in a single place

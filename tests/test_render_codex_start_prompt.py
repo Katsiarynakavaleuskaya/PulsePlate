@@ -165,9 +165,37 @@ def test_packet_prompt_enforces_mandatory_tail_for_partial_requested_order() -> 
     prompt = render_packet_prompt(packet, packet_path="packet.json")
 
     assert (
-        "Role order: agent-coordinator, security-auditor, qa-engineer-agent, bug-hunter" in prompt
+        "Role order: agent-coordinator, qa-engineer-agent, bug-hunter, security-auditor" in prompt
     )
     assert "Role order: agent-coordinator, security-auditor, bug-hunter" not in prompt
+
+
+def test_packet_prompt_normalizes_requested_order_when_security_precedes_bug_hunter() -> None:
+    """Prompt order must not let explicit requests invert bug-hunter and security."""
+
+    packet = _packet()
+    packet["requested_agents"] = [
+        "agent-coordinator",
+        "qa-engineer-agent",
+        "security-auditor",
+        "bug-hunter",
+    ]
+    packet["native_subagent_bridge"] = {
+        "primary": {"repo_agent_slug": "agent-coordinator"},
+        "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
+        "secondary": [
+            {"repo_agent_slug": "security-auditor"},
+            {"repo_agent_slug": "bug-hunter"},
+        ],
+        "advisory": [],
+    }
+
+    prompt = render_packet_prompt(packet, packet_path="packet.json")
+
+    assert (
+        "Role order: agent-coordinator, qa-engineer-agent, bug-hunter, security-auditor" in prompt
+    )
+    assert "Role order: agent-coordinator, qa-engineer-agent, security-auditor" not in prompt
 
 
 def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -> None:

@@ -16,9 +16,16 @@ fi
 
 echo "🔍 Running unified pre-commit checks..."
 
+ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# shellcheck source=scripts/hooks/repo_python.sh
+source "$ROOT_DIR/scripts/hooks/repo_python.sh"
+REPO_PYTHON_BIN="$(resolve_repo_python "$ROOT_DIR")"
+export VENV_PYTHON="$REPO_PYTHON_BIN"
+export PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
+
 # 1. Run pre-commit framework checks (Black, Bandit, etc.)
 echo "📋 Step 1/2: Pre-commit framework (Black, Bandit, yaml, etc.)"
-if command -v pre-commit > /dev/null 2>&1; then
+if "$REPO_PYTHON_BIN" -m pre_commit --version > /dev/null 2>&1; then
     # Temporarily unset hooksPath to allow pre-commit to run
     ORIGINAL_HOOKS_PATH=""
     ORIGINAL_HOOKS_PATH_SET=0
@@ -42,7 +49,7 @@ if command -v pre-commit > /dev/null 2>&1; then
     # Capture staged files and avoid GNU-only xargs -r for macOS compatibility
     mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACM)
     if [ ${#STAGED_FILES[@]} -gt 0 ]; then
-        if ! pre-commit run --files "${STAGED_FILES[@]}"; then
+        if ! "$REPO_PYTHON_BIN" -m pre_commit run --files "${STAGED_FILES[@]}"; then
             echo "❌ Pre-commit checks failed (Black, Bandit, etc.)"
             echo "ℹ️  Fix the issues above, then re-stage and commit"
             exit 1
@@ -50,8 +57,9 @@ if command -v pre-commit > /dev/null 2>&1; then
     fi
     # Trap will handle restoration on exit
 else
-    echo "⚠️  Warning: pre-commit not installed"
-    echo "   Install with: pip install pre-commit"
+    echo "❌ pre-commit not available through repo Python: $REPO_PYTHON_BIN"
+    echo "   Run make venv or set absolute VENV_PYTHON to the repo environment."
+    exit 1
 fi
 
 # 2. Run custom checks from original .githooks/pre-commit
@@ -66,7 +74,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
     echo "🐍 Checking Python syntax..."
     while IFS= read -r file; do
         if [ -f "$file" ]; then
-            if ! python -m py_compile "$file" 2>&1; then
+            if ! "$REPO_PYTHON_BIN" -m py_compile "$file" 2>&1; then
                 echo "❌ Python syntax error in $file"
                 exit 1
             fi
@@ -79,7 +87,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
     echo "🧪 Running backend tests for changed files..."
     if [ "${SKIP_TESTS:-0}" = "1" ]; then
         echo "⏩ SKIP_TESTS=1 set, skipping backend tests"
-    elif command -v pytest > /dev/null 2>&1; then
+    elif "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
         while IFS= read -r file; do
@@ -123,7 +131,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
             mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
             echo "Running tests: ${TEST_FILES[*]}"
             # Fail fast on first error (-x flag)
-            if ! pytest -q --tb=short -x -- "${TEST_FILES[@]}"; then
+            if ! "$REPO_PYTHON_BIN" -m pytest -q --tb=short -x -- "${TEST_FILES[@]}"; then
                 echo "❌ Backend tests failed"
                 echo "ℹ️  Fix failing tests or commit with --no-verify to skip"
                 exit 1
@@ -133,7 +141,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
             echo "ℹ️  No corresponding test files found"
         fi
     else
-        echo "⚠️  Warning: pytest not found, skipping tests"
+        echo "❌ pytest not available through repo Python: $REPO_PYTHON_BIN"
+        exit 1
     fi
 fi
 
