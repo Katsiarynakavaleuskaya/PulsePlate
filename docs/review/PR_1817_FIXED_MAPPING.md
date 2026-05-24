@@ -43,7 +43,7 @@ Evidence: CodeRabbit review summary `pullrequestreview-4353106248` reported the 
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: commit `ad6db3dd7b5481014c2962393e57c1b9fde66040` fixes the follow-up guard gaps for case-variant `Merge Readiness` headings, Setext-style stale readiness headings, runtime-scope expansion claims without an explicit A1b token inside the A1b section, and Unix absolute `/tmp/worktrees/...` local path leakage. Validation passed for the A1b closeout checker, focused pytest, and changed-file mypy.
+Evidence: commit `ad6db3dd7b5481014c2962393e57c1b9fde66040` fixes the follow-up guard gaps for case-variant `Merge Readiness` headings, Setext-style stale readiness headings, runtime-scope expansion claims without an explicit A1b token inside the A1b section, and Unix absolute local worktree-path leakage. Validation passed for the A1b closeout checker, focused pytest, and changed-file mypy.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024531
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024533
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1817#discussion_r3295024538
