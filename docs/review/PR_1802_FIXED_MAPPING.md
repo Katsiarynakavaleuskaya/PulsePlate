@@ -11,7 +11,7 @@
 
 ## Lane Start Provenance
 
-- Task packet: `artifacts/orchestration/task_packets/b5504bcb1893.json`
+- Packet: `artifacts/orchestration/task_packets/b5504bcb1893.json`
 - Preflight: `python3 scripts/orchestration/check_preflight.py` passed.
 - Agent consistency: `python3 scripts/orchestration/check_agent_consistency.py` passed.
 - Dispatch bridge: `python3 scripts/orchestration/qoder_dispatch_bridge.py --packet artifacts/orchestration/task_packets/b5504bcb1893.json --pretty`
@@ -52,20 +52,20 @@
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#pullrequestreview-4343659344 -> 983c675555
-  - Disposition: FIXED
-  - Commit: 983c675555
-  - Evidence: `tests/test_task_bootstrap.py` annotates `test_main_passes_native_bridge_transport_flag` fixtures with `pytest.MonkeyPatch` and `pytest.CaptureFixture[str]`.
-  - Reason: CodeRabbit requested complete type hints for the test fixtures.
+Disposition: FIXED
+Commit: 983c675555
+Evidence: `tests/test_task_bootstrap.py` annotates `test_main_passes_native_bridge_transport_flag` fixtures with `pytest.MonkeyPatch` and `pytest.CaptureFixture[str]`.
+Reason: CodeRabbit requested complete type hints for the test fixtures.
 
-- CodeRabbit PR walkthrough comment: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#issuecomment-4526058312
-  - Disposition: NOT-A-BUG
-  - Evidence: The prior transport-only summary is superseded by this expanded mapping and the upgraded PR body.
-  - Reason: The comment is an aggregate walkthrough, not a separate actionable code finding.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#issuecomment-4526058312
+Disposition: NOT-A-BUG
+Evidence: The prior transport-only summary is superseded by this expanded mapping and the upgraded PR body.
+Reason: The comment is an aggregate walkthrough, not a separate actionable code finding.
 
-- Codecov report: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#issuecomment-4526073390
-  - Disposition: NOT-A-BUG
-  - Evidence: Codecov reported all modified coverable lines covered on the original diff; expanded local tests cover the new scope.
-  - Reason: No actionable failure was reported.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1802#issuecomment-4526073390
+Disposition: NOT-A-BUG
+Evidence: Codecov reported all modified coverable lines covered on the original diff; expanded local tests cover the new scope.
+Reason: No actionable failure was reported.
 
 ## Role-Agent Findings
 
@@ -108,7 +108,7 @@
 
 ## Experiment Runner Evidence
 
-- Accepted artifact: `artifacts/orchestration/experiments/results/pr1802-oracle-result-v3.json`
+- Artifact: `artifacts/orchestration/experiments/results/pr1802-oracle-result-v3.json`
 - Packet: `artifacts/orchestration/experiments/pr1802-oracle-packet-v3.json`
 - Mode: `oracle_only_governance_reviewer`
 - Result: `accepted`
