@@ -331,6 +331,33 @@ def test_parse_task_bootstrap_json_packet_preserves_requested_role_order(
     ]
 
 
+def test_parse_task_bootstrap_json_packet_preserves_duplicate_requested_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repeated requested agents represent intentional repeated role passes."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "requested_agents": [
+            "agent-coordinator",
+            "security-auditor",
+            "agent-coordinator",
+        ],
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [{"repo_agent_slug": "security-auditor"}],
+            "advisory": [],
+        },
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
+        "agent-coordinator",
+        "security-auditor",
+        "agent-coordinator",
+    ]
+
+
 def test_parse_task_bootstrap_json_packet_empty_bridge_returns_no_roles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

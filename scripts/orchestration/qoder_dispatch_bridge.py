@@ -439,7 +439,7 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         requested_ordered: List[str] = []
         for value in requested_agents:
             slug = str(value).strip()
-            if slug in spawnable_roles and slug not in requested_ordered:
+            if slug in spawnable_roles:
                 requested_ordered.append(slug)
         if requested_ordered:
             ordered = requested_ordered

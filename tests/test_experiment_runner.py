@@ -413,6 +413,29 @@ def test_python_oracle_path_prefix_prefers_venv_python(
     assert prefix == str(venv_python.parent)
 
 
+def test_python_oracle_path_prefix_preserves_symlinked_venv_bin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_python3 = real_bin / "python3"
+    _write_executable(real_python3)
+    venv_bin = tmp_path / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    (venv_bin / "python3").symlink_to(real_python3)
+    venv_python = venv_bin / "python"
+    venv_python.symlink_to("python3")
+    monkeypatch.setenv("VENV_PYTHON", str(venv_python))
+    monkeypatch.delenv("DEV_PYTHON", raising=False)
+
+    prefix = experiment_runner._python_oracle_path_prefix(
+        [SandboxRequest(binary="python3", args=("-c", "pass"), cwd=".")]
+    )
+
+    assert prefix == str(venv_bin)
+
+
 def test_python_oracle_path_prefix_uses_dev_python_without_venv(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -272,10 +272,9 @@ def _repo_python_from_env(env_name: str) -> Path | None:
     candidate = Path(raw_value).expanduser()
     if not candidate.is_absolute():
         raise InfraFlakeError(f"{env_name} must be an absolute executable path.")
-    resolved = candidate.resolve()
-    if not resolved.is_file() or not os.access(resolved, os.X_OK):
-        raise InfraFlakeError(f"{env_name} is set but is not executable: {resolved}")
-    return resolved
+    if not candidate.is_file() or not os.access(candidate, os.X_OK):
+        raise InfraFlakeError(f"{env_name} is set but is not executable: {candidate}")
+    return candidate
 
 
 def _select_repo_python() -> Path | None:
@@ -288,7 +287,7 @@ def _select_repo_python() -> Path | None:
 
     repo_python = Path(REPO_ROOT) / ".venv" / "bin" / "python"
     if repo_python.is_file() and os.access(repo_python, os.X_OK):
-        return repo_python.resolve()
+        return repo_python
     return None
 
 
@@ -309,7 +308,7 @@ def _python_oracle_path_prefix(requests: list[SandboxRequest]) -> str | None:
             f"VENV_PYTHON, DEV_PYTHON, or repo .venv/bin/python was found for: {binaries}"
         )
 
-    python_bin_dir = selected_python.parent.resolve()
+    python_bin_dir = selected_python.parent
     for binary in python_binaries:
         resolved_binary = shutil.which(binary, path=str(python_bin_dir))
         if resolved_binary is None:
@@ -317,7 +316,7 @@ def _python_oracle_path_prefix(requests: list[SandboxRequest]) -> str | None:
                 f"Python oracle binary {binary!r} was not found in repo-approved "
                 f"Python bin dir: {python_bin_dir}"
             )
-        if Path(resolved_binary).resolve().parent != python_bin_dir:
+        if Path(resolved_binary).parent != python_bin_dir:
             raise InfraFlakeError(
                 f"Python oracle binary {binary!r} did not resolve through "
                 f"repo-approved Python bin dir: {python_bin_dir}"
