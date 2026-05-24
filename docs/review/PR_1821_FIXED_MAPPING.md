@@ -51,17 +51,17 @@ Packet: artifacts/orchestration/task_packets/b14c45845078.json
 
 ## Premortem Risk Fix Matrix
 
-| Risk ID | Failure mode | Fix | Regression test | Evidence command | Disposition |
-| --- | --- | --- | --- | --- | --- |
-| `PM-DEPS-001` | Source constraints and compiled locks drift. | Updated source and exact pins for Black/Ruff only. | Quality tooling guard. | `pytest -q tests/test_install_locked_python_requirements.py` | FIXED |
-| `PM-DEPS-002` | Private Python index cannot serve the new pinned wheel. | Verified private proxy serves both exact wheels. | Installer preflight/full profile. | `pip download --isolated --index-url $PULSEPLATE_PYTHON_INDEX_URL ...` | FIXED |
-| `PM-DEPS-003` | Emergency wheel manifest becomes stale. | Retired stale `ruff==0.15.13`; no expansion. | Ruff private-proxy guard. | `test_repo_ruff_private_proxy_pin_is_not_stale_emergency_fallback` | FIXED |
-| `PM-DEPS-004` | PR silently widens profile surface. | Human replacement excludes `requirements.txt` and CI YAML. | Diff audit. | `git diff --name-only origin/main...HEAD` | FIXED |
-| `PM-DEPS-005` | Local `.venv` and CI diverge. | Ran installer and gates with repo `.venv`. | pip check and pre-commit. | `.venv/bin/python -m pip check` | FIXED |
-| `PM-DEPS-006` | Dependency update breaks import/runtime smoke. | Ran Black and Ruff checks. | Tool CLI smoke. | `.venv/bin/python -m black --check .`; `.venv/bin/python -m ruff check .` | FIXED |
-| `PM-DEPS-007` | Dependabot PR conflicts after another dependency PR lands. | Replaced stale Dependabot branch from current main. | PR metadata/diff audit. | `gh pr view 1804 ...` | FIXED |
-| `PM-DEPS-008` | Unsafe package pin appears unintentionally. | Removed generated `pip==26.1.1`; guard proves no repo-managed pip pin. | Pip-pin guard. | `pytest -q tests/test_dependency_security_guard.py::test_repo_managed_lock_surfaces_do_not_pin_pip` | FIXED |
-| `PM-DEPS-009` | Full `make verify` deferred without sufficient bounded evidence. | Ran bounded dependency, supply-chain, tooling, installer, validate-changed, and pre-commit gates. | Current-head CI required before merge. | `make validate-changed`; `pre-commit run --all-files` | FIXED |
+| Risk ID | Failure mode | Fix | Regression test | Evidence command | Fix commit SHA | Evidence (file:line) | Disposition |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `PM-DEPS-001` | Source constraints and compiled locks drift. | Updated source and exact pins for Black/Ruff only. | Quality tooling guard. | `pytest -q tests/test_install_locked_python_requirements.py` | `d10f454c9` | `requirements-dev.in:33`; `requirements-dev.txt:15`; `requirements-lock.txt:164` | FIXED |
+| `PM-DEPS-002` | Private Python index cannot serve the new pinned wheel. | Verified private proxy serves both exact wheels. | Installer preflight/full profile. | `pip download --isolated --index-url $PULSEPLATE_PYTHON_INDEX_URL ...` | `d10f454c9` | `requirements-dev.txt:15`; `requirements-dev.txt:227`; `constraints.txt:15`; `constraints.txt:19` | FIXED |
+| `PM-DEPS-003` | Emergency wheel manifest becomes stale. | Retired stale `ruff==0.15.13`; no expansion. | Ruff private-proxy guard. | `test_repo_ruff_private_proxy_pin_is_not_stale_emergency_fallback` | `d10f454c9` | `scripts/ci/emergency_python_wheels.json:6`; `tests/test_install_locked_python_requirements.py:419` | FIXED |
+| `PM-DEPS-004` | PR silently widens profile surface. | Human replacement excludes `requirements.txt` and CI YAML. | Diff audit. | `git diff --name-only origin/main...HEAD` | `d10f454c9` | `requirements-dev.in:33`; `requirements-lock.txt:164`; `requirements.txt` no diff | FIXED |
+| `PM-DEPS-005` | Local `.venv` and CI diverge. | Ran installer and gates with repo `.venv`. | pip check and pre-commit. | `.venv/bin/python -m pip check` | `d10f454c9` | `requirements-dev.txt:15`; `requirements-dev.txt:227`; `tests/test_install_locked_python_requirements.py:441` | FIXED |
+| `PM-DEPS-006` | Dependency update breaks import/runtime smoke. | Ran Black and Ruff checks. | Tool CLI smoke. | `.venv/bin/python -m black --check .`; `.venv/bin/python -m ruff check .` | `d10f454c9` | `requirements-dev.txt:15`; `requirements-dev.txt:227`; `tests/test_install_locked_python_requirements.py:456` | FIXED |
+| `PM-DEPS-007` | Dependabot PR conflicts after another dependency PR lands. | Replaced stale Dependabot branch from current main and rebased after main advanced. | PR metadata/diff audit. | `gh pr view 1804 ...`; `git rev-list --left-right --count HEAD...origin/main` | `89401c210` | `docs/review/PR_1821_FIXED_MAPPING.md:25`; `docs/review/PR_1821_FIXED_MAPPING.md:104` | FIXED |
+| `PM-DEPS-008` | Unsafe package pin appears unintentionally. | Removed generated `pip==26.1.1`; guard proves no repo-managed pip pin. | Pip-pin guard. | `pytest -q tests/test_dependency_security_guard.py::test_repo_managed_lock_surfaces_do_not_pin_pip` | `d10f454c9` | `requirements-dev.txt:261`; `tests/test_dependency_security_guard.py:584` | FIXED |
+| `PM-DEPS-009` | Full `make verify` deferred without sufficient bounded evidence. | Ran bounded dependency, supply-chain, tooling, installer, validate-changed, and pre-commit gates. | Current-head CI required before merge. | `make validate-changed`; `pre-commit run --all-files` | `89401c210` | `docs/review/PR_1821_FIXED_MAPPING.md:75`; `docs/review/PR_1821_FIXED_MAPPING.md:104` | FIXED |
 
 ## Security Review
 
