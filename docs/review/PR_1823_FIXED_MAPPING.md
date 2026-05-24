@@ -130,6 +130,8 @@ Phases:
 
 - Sourcery review guide:
   - Disposition: NOT-A-BUG.
+  - Review URL:
+    https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1823#pullrequestreview-4353390857
   - Evidence: no inline review comment was returned by
     `gh api repos/Katsiarynakavaleuskaya/PulsePlate/pulls/1823/comments`;
     the issue comment is a reviewer guide, not an actionable change request.
@@ -151,7 +153,9 @@ Phases:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1823#pullrequestreview-4353390857
+Disposition: NOT-A-BUG
+Evidence: `gh api repos/Katsiarynakavaleuskaya/PulsePlate/pulls/1823/comments` returned no inline review comments; Sourcery's review guide describes the implemented dependency bump and does not request a code change. The flexible `constraints.txt:28` floor is intentional repo policy for this constraints surface.
 
 ## Deferred / Follow-Ups
 
