@@ -360,13 +360,17 @@ def validate_inventory(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list
     try:
         registry_components = _load_registry(repo_root)
         vocabulary = _load_vocabulary(repo_root)
+        dependency_load_failed = False
     except InventoryError as exc:
         errors.append(str(exc))
         registry_components = []
         vocabulary = {}
+        dependency_load_failed = True
     records = inventory.get("records")
     if not isinstance(records, list) or not records:
         errors.append("records: expected non-empty list")
+        return errors
+    if dependency_load_failed:
         return errors
     seen: set[str] = set()
     for index, record in enumerate(records):

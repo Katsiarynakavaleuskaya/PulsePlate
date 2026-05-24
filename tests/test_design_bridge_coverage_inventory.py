@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import pytest
 
@@ -17,7 +17,7 @@ InventoryMutator = Callable[[dict[str, Any]], object]
 
 
 def _load_inventory() -> dict[str, Any]:
-    return json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(INVENTORY_PATH.read_text(encoding="utf-8")))
 
 
 def _write_repo_inputs(tmp_path: Path, inventory: dict[str, Any]) -> Path:
@@ -160,19 +160,23 @@ def test_inventory_rejects_embedded_reference_tool_canonical_authority(tmp_path:
     )
 
 
-
-
-def test_inventory_rejects_registry_component_id_non_string_without_crash(tmp_path: Path) -> None:
+@pytest.mark.parametrize("component_id", [["button"], {"id": "button"}, None, 123])
+def test_inventory_rejects_registry_component_id_non_string_without_crash(
+    tmp_path: Path, component_id: object
+) -> None:
     inventory = _load_inventory()
     inv_path = _write_repo_inputs(tmp_path, inventory)
     registry_path = tmp_path / "docs/orchestration/contracts/design_component_registry.v1.json"
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
-    registry["components"][0]["component_id"] = ["button"]
+    registry["components"][0]["component_id"] = component_id
     registry_path.write_text(json.dumps(registry), encoding="utf-8")
 
     errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
 
-    assert any("components[0].component_id must be a string" in error for error in errors)
+    assert errors == [
+        "docs/orchestration/contracts/design_component_registry.v1.json: "
+        "components[0].component_id must be a string"
+    ]
 
 
 def test_inventory_rejects_duplicate_vocabulary_ids(tmp_path: Path) -> None:
