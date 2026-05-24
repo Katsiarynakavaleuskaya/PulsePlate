@@ -38,6 +38,11 @@ Disposition: FIXED
 Commit: 8e788421892cd895301b37fa43c4d0af7fd60435
 Evidence: `tests/test_pre_commit_hook_python_resolver.py` quotes the resolver path with `shlex.quote(...)` before passing it to `bash -lc`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1824#pullrequestreview-4353462449 -> 8e788421892cd895301b37fa43c4d0af7fd60435
+Disposition: FIXED
+Commit: 8e788421892cd895301b37fa43c4d0af7fd60435
+Evidence: CodeRabbit's review-level actionable was the aggregate wrapper for `discussion_r3295372251` and `discussion_r3295372256`; both findings are fixed and mapped above.
+
 ## Main Failure Evidence
 
 - `main` run `26372552018` at `2b34747eed264efd60e56502d8094521d1c0828e` failed `test-main (3.11, 60)` with:
