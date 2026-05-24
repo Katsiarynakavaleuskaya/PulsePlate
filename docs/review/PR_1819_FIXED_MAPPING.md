@@ -7,7 +7,7 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at mapping creation time.
+- No actionable review comments
 
 ## Superseded Dependabot PR
 
@@ -18,8 +18,8 @@
 
 ## Lane Start Provenance
 
-- Queue packet: `artifacts/orchestration/task_packets/96e522edd8df.json`
-- Lane packet: `artifacts/orchestration/task_packets/cf5de4eb299b.json`
+- Packet: `artifacts/orchestration/task_packets/96e522edd8df.json`
+- Packet: `artifacts/orchestration/task_packets/cf5de4eb299b.json`
 - Operator authorization: dependency work allowed while post-#1814 main CI
   test jobs were still running; merge readiness still requires current-head CI.
 
