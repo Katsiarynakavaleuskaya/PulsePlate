@@ -388,12 +388,14 @@ def test_checker_rejects_local_path_leakage_in_mapping(tmp_path: Path) -> None:
     assert any("local artifact/worktree path" in error for error in errors)
 
 
-def test_current_pr_mapping_does_not_leak_local_artifact_paths() -> None:
+def test_current_pr_mapping_uses_only_phase2_safe_artifact_path() -> None:
     mapping = (REPO_ROOT / "docs/review/PR_1817_FIXED_MAPPING.md").read_text(encoding="utf-8")
 
     assert "/Users/" not in mapping
-    assert "artifacts/orchestration" not in mapping
     assert "worktrees/" not in mapping
+    assert (
+        "Artifact: `artifacts/orchestration/experiments/results/exp-236fcd2ee840.json`" in mapping
+    )
 
 
 def test_checker_rejects_stale_mapping_readiness_checklist(tmp_path: Path) -> None:

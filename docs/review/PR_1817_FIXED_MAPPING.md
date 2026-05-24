@@ -33,11 +33,14 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
   `4beabfcbe` (canonical mapping artifact added, Phase2 shape corrected,
   checker false-green gaps closed, and local path leakage removed from
   public validation commands).
-- Post-open `bug-hunter -> security-auditor`: FIXED by commit `dbd964edd`.
+- Post-open `bug-hunter -> security-auditor`: FIXED / NOT-A-BUG.
   Evidence: `check_semantic_cache_gate.py` rejects active/opened semantic-cache
   serving and Redis/GPTCache approved-backend claims; `test_semantic_cache_gate.py`
-  covers the reported false-green grammar variants; this mapping records only
-  experiment ID/status and no local artifact path.
+  covers the reported false-green grammar variants; PR-size body split
+  justification is present. The Experiment Runner artifact reference is
+  NOT-A-BUG because `check_pr_body_phase2_gates.py` requires canonical relative
+  `Artifact: artifacts/orchestration/experiments/results/<id>.json` evidence;
+  this mapping does not contain absolute local checkout paths.
 - Codex Security `threat-model -> security-scan -> validation`: PASS.
   Evidence: repository AGENTS/security policy used as threat model; diff-scoped
   scan found no provider/network/secret/runtime-write surface in the changed
@@ -46,7 +49,7 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
 
 ## Experiment Runner Evidence
 
-- Experiment ID: `exp-236fcd2ee840`
+- Artifact: `artifacts/orchestration/experiments/results/exp-236fcd2ee840.json`
 - Mode: `oracle_only_governance_reviewer`
 - Status: `accepted`
 - Oracles:
