@@ -30,7 +30,7 @@ Packet: artifacts/orchestration/task_packets/b14c45845078.json
 - `dev-operator`: isolated worktree, local gates, PR-open, and merge-readiness plan.
 - Post-open `qa-engineer-agent`: PASS at rebased head `fcd881c4d`; no rebase QA issue, no production lock drift, bounded root `.venv` checks sufficient pending CI.
 - Post-open `security-auditor`: PASS at rebased head `fcd881c4d`; no supply-chain blocker, no public fallback, no new secret-bearing value, no inline review comments.
-- Post-open `bug-hunter`: BLOCK until this mapping and PR body are refreshed for the rebased head and current-head CI is terminal.
+- Post-open `bug-hunter`: final refresh recorded in this mapping; no dependency/profile regression, branch current, no inline comments, Phase2 and review-thread guard passed. Remaining blocker is current-head CI/strict readiness only.
 
 ## Skill Execution Log
 
@@ -101,8 +101,7 @@ None.
 
 ## Merge Readiness
 
-Not merge-ready yet. Post-open QA and security passes are complete at rebased
-head `fcd881c4d`; bug-hunter requested this mapping/PR body refresh. Pending
-current-head CI terminal status, final bug-hunter refresh after this governance
-commit, strict review-thread guard, strict merge-readiness wrapper, and final
-wait-window.
+Not merge-ready yet. Post-open QA, security, and bug-hunter passes are recorded
+for the rebased lane, with no dependency/profile regression found. Pending
+current-head CI terminal status, strict review-thread guard, strict
+merge-readiness wrapper, and final wait-window.
