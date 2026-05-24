@@ -5,11 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 from typing import Any, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 DEFAULT_PR_REVIEW_CHECKLIST = (
     "agent-coordinator",
     "architecture-specialist",
@@ -32,6 +35,12 @@ EXPERIMENT_RUNNER_ENV_GUIDANCE = (
     "non-trivial lane cannot load or write the runner artifact because the "
     "environment misses FastAPI/runtime deps, artifact load/write failures are "
     "infra blockers, not `Not applicable`."
+)
+ROLE_DISPATCH_GUIDANCE = (
+    "Role-agent dispatch is a required post-bootstrap step: generate the "
+    "`qoder_dispatch_bridge.py --packet <packet> --pretty` manifest, then run "
+    "each `dispatch_sequence` role in order. Do not treat task_bootstrap.py "
+    "packet creation as role-agent execution."
 )
 
 
@@ -82,12 +91,24 @@ def _prompt_text(value: object, fallback: str = "") -> str:
     return text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
 
 
+def _shell_quote(value: object, fallback: str = "") -> str:
+    """Render user/packet data safely for copy-paste shell commands."""
+
+    return shlex.quote(str(value if value not in (None, "") else fallback))
+
+
 def _prompt_list(items: list[str], fallback: str) -> str:
     return ", ".join(_prompt_text(item) for item in items) if items else fallback
 
 
 def _packet_role_order(packet: dict[str, Any]) -> list[str]:
     bridge = packet.get("native_subagent_bridge")
+    if isinstance(bridge, dict):
+        from scripts.orchestration import qoder_dispatch_bridge
+
+        parsed_roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+        if parsed_roles:
+            return parsed_roles
     role_order: list[str] = []
     if isinstance(bridge, dict):
         primary = bridge.get("primary")
@@ -111,13 +132,30 @@ def _packet_role_order(packet: dict[str, Any]) -> list[str]:
     return _unique(["agent-coordinator", *role_order])
 
 
-def _packet_advisory_roles(packet: dict[str, Any]) -> list[str]:
+def _advisory_binding_is_executable(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    slug = str(value.get("repo_agent_slug", "")).strip()
+    if not slug:
+        return False
+    dispatch_contract = value.get("dispatch_contract")
+    if not isinstance(dispatch_contract, dict):
+        return False
+    return not (
+        dispatch_contract.get("advisory_only")
+        or dispatch_contract.get("spawn_with_native_subagent") is False
+    )
+
+
+def _packet_advisory_roles(packet: dict[str, Any], *, executable: bool) -> list[str]:
     bridge = packet.get("native_subagent_bridge")
     advisory_roles: list[str] = []
     if isinstance(bridge, dict):
         for advisory in bridge.get("advisory") or []:
             if isinstance(advisory, dict):
-                advisory_roles.extend(_as_string_list([advisory.get("repo_agent_slug")]))
+                is_executable = _advisory_binding_is_executable(advisory)
+                if executable == is_executable:
+                    advisory_roles.extend(_as_string_list([advisory.get("repo_agent_slug")]))
     return _unique(advisory_roles)
 
 
@@ -146,8 +184,18 @@ def render_packet_prompt(
     pr_phase = str(packet.get("pr_phase") or "none")
     candidate_paths = _as_string_list(packet.get("candidate_paths"))
     role_order = _packet_role_order(packet)
-    advisory_roles = _packet_advisory_roles(packet)
+    executable_advisory_roles = _packet_advisory_roles(packet, executable=True)
+    closure_only_advisory_roles = _packet_advisory_roles(packet, executable=False)
     recommended_skills = _as_string_list(packet.get("recommended_skills"))
+    role_dispatch_contract = packet.get("role_agent_dispatch_contract")
+    if not isinstance(role_dispatch_contract, dict):
+        role_dispatch_contract = {}
+    packet_creation_executes_roles = str(
+        role_dispatch_contract.get("packet_creation_executes_roles", False)
+    ).lower()
+    role_agent_dispatch_required = str(
+        role_dispatch_contract.get("role_agent_dispatch_required", True)
+    ).lower()
 
     lines = _common_prompt_lines(
         mode_note=(
@@ -166,13 +214,17 @@ def render_packet_prompt(
             f"Path scope: {_prompt_list(candidate_paths, '<no explicit paths>')}",
             f"Role order: {_prompt_list(role_order, 'agent-coordinator')}",
             f"Default PR review checklist: {_prompt_list(list(DEFAULT_PR_REVIEW_CHECKLIST), 'agent-coordinator')}",
-            f"Advisory/no-spawn roles still require closure input: {_prompt_list(advisory_roles, '<none>')}",
+            f"Executable advisory role passes: {_prompt_list(executable_advisory_roles, '<none>')}",
+            f"Closure-only/no-spawn advisory roles still require disposition input: {_prompt_list(closure_only_advisory_roles, '<none>')}",
             f"Passive skills from packet: {_prompt_list(recommended_skills, '<none>')}",
             "",
             "Open the PR non-draft by default so GitHub, CodeRabbit, Cubic, Sourcery, and current-head checks can run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
             "Experiment Runner joins after coordinator bootstrap as oracle-only evidence; it must not replace agent-coordinator or become the lane-start authority.",
+            f"Packet role dispatch contract: packet_creation_executes_roles={packet_creation_executes_roles}; role_agent_dispatch_required={role_agent_dispatch_required}.",
+            f"Next role-agent dispatch command: $VENV_PYTHON scripts/orchestration/qoder_dispatch_bridge.py --packet {_shell_quote(packet_path)} --pretty",
+            ROLE_DISPATCH_GUIDANCE,
             "Experiment Runner evidence: for every non-trivial PR, create oracle-only evidence by default and record `## Experiment Runner Evidence` as `Artifact: artifacts/orchestration/experiments/results/<id>.json`; use `Not applicable: <reason>` only when the runner result is genuinely unused or inapplicable.",
             "Lane start provenance: record `## Lane Start Provenance` with `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow documented cleanup/emergency `Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` is supplemental and cannot be used alone.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
@@ -224,6 +276,8 @@ def render_recipe_prompt(
             "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
+            "After task_bootstrap.py returns a packet, run `$VENV_PYTHON scripts/orchestration/qoder_dispatch_bridge.py --packet <packet> --pretty` and execute the manifest `dispatch_sequence` in order.",
+            ROLE_DISPATCH_GUIDANCE,
             "After coordinator bootstrap, create oracle-only Experiment Runner evidence by default for non-trivial PRs; the runner joins the lane and must not replace agent-coordinator.",
             "Record `## Experiment Runner Evidence` as `Artifact: artifacts/orchestration/experiments/results/<id>.json`; use `Not applicable: <reason>` only when the runner result is genuinely unused or inapplicable.",
             "Record `## Lane Start Provenance` with `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow documented cleanup/emergency `Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` is supplemental and cannot be used alone.",

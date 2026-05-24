@@ -119,6 +119,15 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "current_head_truth": "not-applicable",
         "merge_readiness_entrypoint": "",
     }
+    assert packet["role_agent_dispatch_contract"] == {
+        "packet_creation_executes_roles": False,
+        "role_agent_dispatch_required": True,
+        "dispatch_manifest_entrypoint": "scripts/orchestration/qoder_dispatch_bridge.py",
+        "dispatch_manifest_command": (
+            "scripts/orchestration/qoder_dispatch_bridge.py --packet <packet> --pretty"
+        ),
+        "must_execute_dispatch_sequence_in_order": True,
+    }
     assert packet["design_lane_mode"] == "disabled"
     assert packet["design_lane_contract"] == {
         "design_source": "",
@@ -1465,8 +1474,15 @@ def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
         assert written["decision_contract"]["claim_taxonomy"] == list(CLAIM_TYPES)
         assert written["result_adjudication"]["support_statuses"] == list(SUPPORT_STATUSES)
         assert written["result_adjudication"]["evidence_modes"] == list(EVIDENCE_MODES)
-        assert json.loads(captured.out)["output"] == relative_output.as_posix()
-        assert json.loads(captured.out)["primary_native_agent_type"] == "default"
+        stdout_payload = json.loads(captured.out)
+        assert stdout_payload["output"] == relative_output.as_posix()
+        assert stdout_payload["primary_native_agent_type"] == "default"
+        assert stdout_payload["packet_creation_executes_roles"] is False
+        assert stdout_payload["role_agent_dispatch_required"] is True
+        assert (
+            stdout_payload["dispatch_manifest_entrypoint"]
+            == "scripts/orchestration/qoder_dispatch_bridge.py"
+        )
     finally:
         if repo_output.exists():
             repo_output.unlink()

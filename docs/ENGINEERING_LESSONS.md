@@ -220,7 +220,39 @@ Also replace `os.environ` mutation in `setup_method()` with an autouse
 
 ---
 
-## 12) Merged AI/RAG ledger items need closeout, not duplicate implementation
+## 12) Bootstrap packets do not execute role agents
+
+### Problem
+
+`task_bootstrap.py` creates the coordinator packet and role metadata, but it does
+not launch the role agents. Treating packet creation as execution can leave
+requested reviewers, QA, bug-hunter, or security roles skipped while the PR looks
+formally bootstrapped.
+
+### Rule
+
+After every non-trivial bootstrap packet is created, generate the dispatch
+manifest and execute its `dispatch_sequence` in order:
+
+```bash
+python scripts/orchestration/qoder_dispatch_bridge.py --packet <packet> --pretty
+```
+
+Assigned role agents are mandatory lane steps unless the coordinator updates the
+packet/runbook with an explicit disposition. Do not replace this with skills,
+host preflight, Experiment Runner evidence, or PR-body prose.
+
+### Fix pattern
+
+- Packet schemas should expose a machine-readable role dispatch contract.
+- Startup prompts should say that packet creation does not execute roles.
+- Lane starter output should print the exact dispatch-manifest command.
+- Tests should cover requested role order, coordinator-first behavior, and the
+  required post-bootstrap dispatch guidance.
+
+---
+
+## 13) Merged AI/RAG ledger items need closeout, not duplicate implementation
 
 ### Problem
 
@@ -245,7 +277,7 @@ landed code.
 
 ---
 
-## 13) Feature-flag backend routing must have explicit priority + lock-safe lazy init
+## 14) Feature-flag backend routing must have explicit priority + lock-safe lazy init
 
 ### Problem
 
@@ -284,7 +316,7 @@ git grep -n '@patch("app.services.food_store' -- tests/
 
 If any matches remain, convert them to `monkeypatch.setattr()`.
 
-## 14) API schema types must match persisted row types (barcode hit contract)
+## 15) API schema types must match persisted row types (barcode hit contract)
 
 ### Problem
 Endpoint handlers that construct `FoodItem(**row)` can fail at runtime if DB columns store

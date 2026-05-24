@@ -151,6 +151,9 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Experiment Runner: joins after coordinator bootstrap as oracle-only evidence." in (
         result.stdout
     )
+    assert "qoder_dispatch_bridge.py --packet <packet> --pretty" in result.stdout
+    assert "execute the manifest `dispatch_sequence` in order" in result.stdout
+    assert "Role-agent dispatch is a required post-bootstrap step" in result.stdout
     assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in (
         result.stdout
     )
@@ -171,7 +174,7 @@ def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None
 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    packet_path = tmp_path / "packet.json"
+    packet_path = tmp_path / "packet with space.json"
     packet_payload = {
         "goal": "Start governed PR lane",
         "task_class": "pr_governance",
@@ -259,7 +262,15 @@ esac
     assert result.returncode == 0, result.stderr
     assert "Authoritative bootstrap already ran" in result.stdout
     assert f"Task packet: {packet_path}" in result.stdout
-    assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in result.stdout
+    assert "packet_creation_executes_roles=false" in result.stdout
+    assert "role_agent_dispatch_required=true" in result.stdout
+    assert "qoder_dispatch_bridge.py --packet" in result.stdout
+    assert "packet\\ with\\ space.json" in result.stdout
+    assert "Run the dispatch_sequence roles in order before implementation." in result.stdout
+    assert (
+        "Role order: agent-coordinator, backend-engineer, security-auditor, qa-engineer-agent"
+        in result.stdout
+    )
     assert "Passive skills from packet: pulseplate-premortem-risk-review" in result.stdout
     assert "VENV_PYTHON" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
