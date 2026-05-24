@@ -158,6 +158,12 @@ def _load_registry(repo_root: Path) -> list[dict[str, Any]]:
         raise InventoryError(f"{REGISTRY_PATH}: components must be a list")
     if not all(isinstance(item, dict) for item in components):
         raise InventoryError(f"{REGISTRY_PATH}: each component must be an object")
+    for index, component in enumerate(components):
+        component_id = component.get("component_id")
+        if not isinstance(component_id, str):
+            raise InventoryError(
+                f"{REGISTRY_PATH}: components[{index}].component_id must be a string"
+            )
     return components
 
 
@@ -354,13 +360,17 @@ def validate_inventory(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list
     try:
         registry_components = _load_registry(repo_root)
         vocabulary = _load_vocabulary(repo_root)
+        dependency_load_failed = False
     except InventoryError as exc:
         errors.append(str(exc))
         registry_components = []
         vocabulary = {}
+        dependency_load_failed = True
     records = inventory.get("records")
     if not isinstance(records, list) or not records:
         errors.append("records: expected non-empty list")
+        return errors
+    if dependency_load_failed:
         return errors
     seen: set[str] = set()
     for index, record in enumerate(records):
