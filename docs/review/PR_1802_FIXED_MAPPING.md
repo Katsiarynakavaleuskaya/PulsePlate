@@ -83,8 +83,12 @@
   - Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` preserves requested role order and keeps `qa-engineer-agent -> bug-hunter` as mandatory post-open order.
 - Finding: Experiment Runner bare `python` oracle commands could resolve through host Python.
   - Disposition: FIXED
-  - Commit: 983c675555
+  - Commit: 983c675555, 6aa57c5a37
   - Evidence: `scripts/orchestration/experiment_runner.py` selects repo-approved Python from absolute executable `VENV_PYTHON`, absolute executable `DEV_PYTHON`, or repo `.venv/bin/python`, then prepends its parent directory to sandbox `PATH`.
+- Finding: Pre-push mypy hook flagged changed-file type issues not caught by the earlier explicit-package-bases command.
+  - Disposition: FIXED
+  - Commit: 6aa57c5a37
+  - Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` imports optional PyYAML through `importlib.import_module`; `scripts/orchestration/experiment_runner.py` normalizes `REPO_ROOT` through `Path(...)` before resolving repo `.venv`.
 
 ## Premortem Risk Fix Matrix
 
@@ -133,6 +137,10 @@
 - First `pre-commit run --all-files` reformatted Python files with `black`.
 - Second `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python pre-commit run --all-files` -> PASS.
 - `pulseplate-pr-review` dry-run on current rebased diff -> one advisory large-diff-risk note, dispositioned as NOT-A-BUG for split rationale because all changed files are in the coherent orchestration scope and bounded gates passed.
+- Initial pre-push attempt failed in `mypy (type-check, changed files)`:
+  - `scripts/orchestration/qoder_dispatch_bridge.py:225: error: Library stubs not installed for "yaml" [import-untyped]`
+  - `scripts/orchestration/experiment_runner.py:291: error: Returning Any from function declared to return "Path | None" [no-any-return]`
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python pre-commit run mypy --hook-stage pre-push --files scripts/orchestration/qoder_dispatch_bridge.py scripts/orchestration/experiment_runner.py` -> PASS.
 
 ## Scope Guard
 
