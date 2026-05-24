@@ -29,6 +29,20 @@ Evidence: docs/review/PR_1810_FIXED_MAPPING.md now records validation-scope evid
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#discussion_r3294156243 -> 72c34775e8ac46faa0d265fb1ee1862c9fcee8b9
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#discussion_r3294163609
+Disposition: FIXED
+Commit: 72c34775e8ac46faa0d265fb1ee1862c9fcee8b9
+Evidence: docs/review/PR_1810_FIXED_MAPPING.md was rewritten into parser-safe URL/disposition/proof blocks with commit evidence for FIXED findings.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#discussion_r3294163609 -> 72c34775e8ac46faa0d265fb1ee1862c9fcee8b9
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#discussion_r3294163610
+Disposition: FIXED
+Commit: 72c34775e8ac46faa0d265fb1ee1862c9fcee8b9
+Evidence: docs/review/PR_1810_FIXED_MAPPING.md no longer uses DEFERRED with Backlog-not-applicable for the operator-scoped make-verify note.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#discussion_r3294163610 -> 72c34775e8ac46faa0d265fb1ee1862c9fcee8b9
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1810#issuecomment-4527871977
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported review quota/usage limits and did not provide a code finding.
