@@ -75,6 +75,31 @@ Disposition: FIXED
 Commit: 412dba126
 Evidence: `.github/workflows/ci.yml` excludes `scripts/ci/check_docs_phase1_gates.py` from the PR-5 changed-path switch.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313833 -> 975f1c6ac
+Disposition: FIXED
+Commit: 975f1c6ac
+Evidence: `sources` and `research_basis` now reject non-object rows before filtered projections can hide malformed corpus entries.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313836 -> 975f1c6ac
+Disposition: FIXED
+Commit: 975f1c6ac
+Evidence: `repo_truth_links` and `out_of_scope_paths` now reject non-string entries before exact canonical-list comparison.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313837 -> 975f1c6ac
+Disposition: FIXED
+Commit: 975f1c6ac
+Evidence: the schema guard now validates exact `repo_truth_links` and `out_of_scope_paths` array type, item type, and cardinality constraints.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313838 -> 975f1c6ac
+Disposition: FIXED
+Commit: 975f1c6ac
+Evidence: `source_policy` index validation now enforces every expected governance-policy constant, not only the wellness boundary.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313840 -> 975f1c6ac
+Disposition: FIXED
+Commit: 975f1c6ac
+Evidence: each source record now validates scalar string fields and nested string arrays, with regressions for non-string drift.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -99,6 +124,10 @@ Evidence: `.github/workflows/ci.yml` excludes `scripts/ci/check_docs_phase1_gate
   `scripts/ci/check_philosophy_source_corpus_index.py` rejects non-object
   `sources`/`research_basis` entries and non-string `repo_truth_links` /
   `out_of_scope_paths` entries in commit `056409bde`, with regression coverage.
+- FIXED: post-open review found broader schema/source-policy/scalar type drift
+  false-greens. Evidence: commit `975f1c6ac` enforces exact scope-link schema
+  constraints, source-policy constants, source scalar string fields, and nested
+  source string arrays.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -131,6 +160,9 @@ Evidence: `.github/workflows/ci.yml` excludes `scripts/ci/check_docs_phase1_gate
   Evidence: commit `056409bde` adds strict array validators and tests that reject
   non-object source / research entries and non-string repo-truth / out-of-scope
   boundary entries.
+- FIXED: Codex review found schema scope-link, source-policy, and source scalar
+  type gaps. Evidence: commit `975f1c6ac` closes those with validators and
+  regression tests.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
