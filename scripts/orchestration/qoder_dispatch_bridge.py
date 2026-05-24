@@ -143,8 +143,13 @@ def _depends_on_previous(
         return True
     if agent_def.get("depends_on_previous"):
         return True
-    # The mandatory post-open review pass is sequential: qa-engineer-agent -> bug-hunter.
-    return slug == "bug-hunter" and previous_slug == "qa-engineer-agent"
+    # The mandatory post-open review pass is sequential:
+    # qa-engineer-agent -> bug-hunter -> security-auditor.
+    if slug == "bug-hunter":
+        return previous_slug in {"qa-engineer-agent", "bug-hunter"}
+    if slug == "security-auditor":
+        return previous_slug in {"bug-hunter", "security-auditor"}
+    return False
 
 
 def _parse_routing_graph_fallback() -> Dict[str, Any]:
@@ -795,15 +800,26 @@ def _recommend_skills(slug: str) -> List[str]:
 # Manifest builder
 # ---------------------------------------------------------------------------
 
-MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
+MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = (
+    "qa-engineer-agent",
+    "bug-hunter",
+    "security-auditor",
+)
 
 
 def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
-    """Keep the canonical post-open QA -> bug-hunter pass last when present."""
+    """Keep the canonical post-open QA -> bug-hunter -> security pass adjacent."""
 
-    ordered = [slug for slug in role_slugs if slug not in MANDATORY_POST_OPEN_ORDER]
-    for slug in MANDATORY_POST_OPEN_ORDER:
-        ordered.extend([slug] * role_slugs.count(slug))
+    if "qa-engineer-agent" not in role_slugs or "bug-hunter" not in role_slugs:
+        return role_slugs
+
+    mandatory_tail = ("bug-hunter", "security-auditor")
+    ordered = [slug for slug in role_slugs if slug not in mandatory_tail]
+    insert_at = ordered.index("qa-engineer-agent") + 1
+    ordered[insert_at:insert_at] = [
+        *["bug-hunter"] * role_slugs.count("bug-hunter"),
+        *["security-auditor"] * role_slugs.count("security-auditor"),
+    ]
     return ordered
 
 

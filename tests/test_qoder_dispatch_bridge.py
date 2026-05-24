@@ -959,7 +959,7 @@ def test_packet_chain_successors_depend_on_previous() -> None:
 
 
 def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
-    """Bracket groups stay parallel while qa-engineer-agent -> bug-hunter stays sequential."""
+    """Bracket groups stay parallel while qa -> bug -> security stays sequential."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"
     slugs = [
         "agent-coordinator",
@@ -967,6 +967,7 @@ def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
         "philosophy-agent",
         "qa-engineer-agent",
         "bug-hunter",
+        "security-auditor",
     ]
     for s in slugs:
         if not (agents_dir / f"{s}.md").is_file():
@@ -987,6 +988,44 @@ def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
     assert by_slug["qa-engineer-agent"]["depends_on_previous"] is False
     assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
     assert by_slug["bug-hunter"]["depends_on_previous"] is True
+    assert by_slug["security-auditor"]["depends_on_previous"] is True
+    assert all("security-auditor" not in group for group in manifest["parallelizable_groups"])
+
+
+def test_mandatory_post_open_order_moves_all_bug_hunter_entries() -> None:
+    """Duplicate bug-hunter entries must stay in the QA-led sequential block."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = [
+        "agent-coordinator",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+        "bug-hunter",
+    ]
+    for s in set(slugs):
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+    dispatch = manifest["dispatch_sequence"]
+    manifest_order = [item["role_slug"] for item in dispatch]
+
+    assert manifest_order == [
+        "agent-coordinator",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    assert dispatch[2]["depends_on_previous"] is True
+    assert dispatch[3]["depends_on_previous"] is True
+    assert dispatch[4]["depends_on_previous"] is True
+    assert all("bug-hunter" not in group for group in manifest["parallelizable_groups"])
+    assert all("security-auditor" not in group for group in manifest["parallelizable_groups"])
 
 
 def test_verify_agents_are_readonly_when_frontmatter_omits_readonly(
@@ -1254,7 +1293,7 @@ def test_mandatory_post_open_bug_hunter_depends_on_qa() -> None:
 
 
 def test_mandatory_post_open_pass_is_ordered_last() -> None:
-    """Generated manifests must not run bug-hunter before QA in post-open lanes."""
+    """Generated manifests keep the full QA -> bug -> security lane together."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"
     slugs = [
         "agent-coordinator",
@@ -1275,10 +1314,41 @@ def test_mandatory_post_open_pass_is_ordered_last() -> None:
 
     assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == [
         "agent-coordinator",
-        "security-auditor",
         "qa-engineer-agent",
         "bug-hunter",
         "bug-hunter",
+        "security-auditor",
+    ]
+
+
+def test_coordinator_order_keeps_mandatory_qa_bug_pass_adjacent() -> None:
+    """The bridge preserves order except for the mandatory QA -> bug handoff."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = [
+        "agent-coordinator",
+        "philosophy-agent",
+        "architecture-specialist",
+        "qa-engineer-agent",
+        "security-auditor",
+        "bug-hunter",
+    ]
+    for slug in slugs:
+        if not (agents_dir / f"{slug}.md").is_file():
+            require_feature(f"agent_definition:{slug}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == [
+        "agent-coordinator",
+        "philosophy-agent",
+        "architecture-specialist",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
     ]
 
 
