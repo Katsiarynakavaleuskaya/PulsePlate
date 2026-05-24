@@ -10,112 +10,112 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295018546 -> a7ddbd7010e1a0d07528eb7960a57b0458ed06d6
 Disposition: FIXED
 Commit: a7ddbd7010e1a0d07528eb7960a57b0458ed06d6
-Evidence: `tests/test_experiment_slack_socket_bridge.py::test_socket_mode_outer_envelope_id_is_preserved_for_inner_payload` covers Socket envelope parsing.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:447` preserves the outer Socket Mode envelope id; `tests/test_experiment_slack_socket_bridge.py::test_socket_mode_envelope_uses_outer_envelope_id` covers Socket envelope parsing.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295018547 -> a7ddbd7010e1a0d07528eb7960a57b0458ed06d6
 Disposition: FIXED
 Commit: a7ddbd7010e1a0d07528eb7960a57b0458ed06d6
-Evidence: `tests/test_experiment_slack_socket_bridge.py::test_dispatch_inputs_match_manual_workflow_contract` and `test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs` cover workflow input parity.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:759` constrains dispatch inputs to the manual workflow contract; `tests/test_experiment_slack_socket_bridge.py::test_dispatch_inputs_match_manual_workflow_contract` and `test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs` cover workflow input parity.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295039209 -> 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
 Disposition: FIXED
 Commit: 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
-Evidence: `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.json` now records `requires_github_runtime_auth: true` plus `github_runtime_auth_source: runtime_env`; `tests/test_experiment_runner_identity_policy.py::test_rejects_slack_socket_bridge_without_github_runtime_auth_source` covers drift.
+Evidence: `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.json:102` records `requires_github_runtime_auth: true` plus `github_runtime_auth_source: runtime_env`; `tests/test_experiment_runner_identity_policy.py::test_rejects_slack_socket_bridge_without_github_runtime_auth_source` covers drift.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295044546 -> 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
 Disposition: FIXED
 Commit: 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
-Evidence: `tests/test_experiment_slack_socket_bridge.py::test_execute_runtime_validation_requires_github_auth` covers execute validation fail-fast behavior.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:753` requires execute-mode GitHub auth before dispatch; `tests/test_experiment_slack_socket_bridge.py::test_execute_runtime_validation_requires_github_auth` covers fail-fast behavior.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295044552 -> 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
 Disposition: FIXED
 Commit: 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
-Evidence: duplicate execute-validation thread fixed by the same regression test.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:753` fixes the duplicate execute-validation thread; `tests/test_experiment_slack_socket_bridge.py::test_execute_runtime_validation_requires_github_auth` covers the same path.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295044548 -> 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
 Disposition: FIXED
 Commit: 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
-Evidence: symlink guard failures now raise `SlackSocketAuditError`; `tests/test_experiment_slack_socket_bridge.py::test_audit_dir_rejects_symlinked_artifact_ancestor` and `test_audit_write_rejects_symlinked_output_file` cover sanitized failures.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:268` routes symlink guard failures through `SlackSocketAuditError`; `tests/test_experiment_slack_socket_bridge.py::test_audit_dir_rejects_symlinked_artifact_ancestor` and `test_audit_write_rejects_symlinked_output_file` cover sanitized failures.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295044553 -> 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
 Disposition: FIXED
 Commit: 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
-Evidence: `_claim_rate_limit` validates the audit path before writes; `tests/test_experiment_slack_socket_bridge.py::test_rate_limit_claim_rejects_symlinked_artifact_ancestor_before_write` covers no outside lock write.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:688` validates the rate-limit claim path before writes; `tests/test_experiment_slack_socket_bridge.py::test_rate_limit_claim_rejects_symlinked_artifact_ancestor_before_write` covers no outside lock write.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295044549 -> 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
 Disposition: FIXED
 Commit: 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
-Evidence: `.github/workflows/experiment-runner-slack-socket-smoke.yml` installs pinned optional `slack-bolt==1.28.0` only for live manual validation; `tests/test_experiment_slack_socket_bridge.py::test_workflow_is_manual_only_and_secret_safe` covers the contract.
+Evidence: `.github/workflows/experiment-runner-slack-socket-smoke.yml:65` installs pinned optional `slack-bolt==1.28.0` only for live manual validation; `tests/test_experiment_slack_socket_bridge.py::test_workflow_is_manual_only_and_secret_safe` covers the contract.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#pullrequestreview-4353173178 -> 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
 Disposition: FIXED
 Commit: 08d9dd7c3edf5078fc5dcf8f6d3e1d41298b000e
-Evidence: CodeRabbit review-summary nitpick on rate-limit retry loop fixed by bounded `RATE_LIMIT_CLAIM_MAX_ATTEMPTS`; `tests/test_experiment_slack_socket_bridge.py::test_rate_limit_claim_retry_loop_is_bounded` covers the retry bound.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:693` bounds the rate-limit retry loop with `RATE_LIMIT_CLAIM_MAX_ATTEMPTS`; `tests/test_experiment_slack_socket_bridge.py::test_rate_limit_claim_retry_loop_is_bounded` covers the retry bound.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295158105 -> b1cec07bd2e91fa178647d04253066f9c666e73b
 Disposition: FIXED
 Commit: b1cec07bd2e91fa178647d04253066f9c666e73b
-Evidence: audit containment now normalizes absolute paths before `relative_to` checks; `tests/test_experiment_slack_socket_bridge.py::test_config_rejects_parent_traversal_audit_dir_escape` and `test_audit_write_rejects_parent_traversal_output_file` cover parent traversal rejection.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:254` normalizes absolute paths before `relative_to` checks; `tests/test_experiment_slack_socket_bridge.py::test_config_rejects_parent_traversal_audit_dir_escape` and `test_audit_write_rejects_parent_traversal_output_file` cover parent traversal rejection.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#pullrequestreview-4353276139 -> b1cec07bd2e91fa178647d04253066f9c666e73b
 Disposition: FIXED
 Commit: b1cec07bd2e91fa178647d04253066f9c666e73b
-Evidence: CodeRabbit review-summary prompt for normalized audit containment fixed by the same commit and tests.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:254` and `scripts/orchestration/experiment_slack_socket_bridge.py:268` fix the CodeRabbit normalized containment prompt; parent-traversal tests cover the same boundary.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163434 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: audit path validation now rejects symlinked ancestors before `mkdir`/write; `tests/test_experiment_slack_socket_bridge.py::test_audit_dir_rejects_symlinked_artifact_ancestor` asserts no outside bridge directory is created.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:258` rejects symlinked ancestors before `mkdir`/write; `tests/test_experiment_slack_socket_bridge.py::test_audit_dir_rejects_symlinked_artifact_ancestor` asserts no outside bridge directory is created.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163436 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: duplicate event checks now run before global rate-limit claims; `tests/test_experiment_slack_socket_bridge.py::test_duplicate_event_is_checked_before_global_rate_limit_claim` covers the ordering.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:502` checks duplicate events before global rate-limit claims; `tests/test_experiment_slack_socket_bridge.py::test_duplicate_event_is_checked_before_global_rate_limit_claim` covers the ordering.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163437 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: Slack app and bot runtime token envs now require `xapp-` and `xoxb-` classes respectively; `tests/test_experiment_slack_socket_bridge.py::test_slack_runtime_tokens_must_match_expected_token_class` covers mismatches.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:58` and `scripts/orchestration/experiment_slack_socket_bridge.py:219` require `xapp-` and `xoxb-` classes respectively; `tests/test_experiment_slack_socket_bridge.py::test_slack_runtime_tokens_must_match_expected_token_class` covers mismatches.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295163438 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: GitHub dispatch auth now accepts only GitHub token classes; `tests/test_experiment_slack_socket_bridge.py::test_execute_runtime_rejects_non_github_token_classes` rejects Slack/OpenAI-shaped tokens.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:60` and `scripts/orchestration/experiment_slack_socket_bridge.py:234` accept only GitHub token classes; `tests/test_experiment_slack_socket_bridge.py::test_execute_runtime_rejects_non_github_token_classes` rejects Slack/OpenAI-shaped tokens.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175393 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: `_write_audit` and `_write_audit_exclusive` now validate containment/symlink ancestry before creating audit directories; parent traversal and symlink tests cover the no-write boundary.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:548` and `scripts/orchestration/experiment_slack_socket_bridge.py:578` validate containment/symlink ancestry before creating audit directories; parent traversal and symlink tests cover the no-write boundary.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175398 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: command parsing now happens before rate-limit acquisition; `tests/test_experiment_slack_socket_bridge.py::test_invalid_command_does_not_acquire_global_rate_limit_claim` covers malformed commands without lock creation.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:817` parses commands before rate-limit acquisition; `tests/test_experiment_slack_socket_bridge.py::test_invalid_command_does_not_acquire_global_rate_limit_claim` covers malformed commands without lock creation.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175400 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: `_reject_symlinked_output_components` now checks repo/artifact ancestors before candidate containment; `test_audit_dir_rejects_symlinked_artifact_ancestor` and `test_rate_limit_claim_rejects_symlinked_artifact_ancestor_before_write` cover the boundary.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:279` and `scripts/orchestration/experiment_slack_socket_bridge.py:290` check repo/artifact ancestors before candidate containment; `test_audit_dir_rejects_symlinked_artifact_ancestor` and `test_rate_limit_claim_rejects_symlinked_artifact_ancestor_before_write` cover the boundary.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175401 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: partial rate-limit lock directories are cleaned after claim write failure; `tests/test_experiment_slack_socket_bridge.py::test_rate_limit_claim_cleans_partial_lock_on_write_failure` covers cleanup.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:664` and `scripts/orchestration/experiment_slack_socket_bridge.py:715` clean partial rate-limit lock directories after claim write failure; `tests/test_experiment_slack_socket_bridge.py::test_rate_limit_claim_cleans_partial_lock_on_write_failure` covers cleanup.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175402 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: `_claim_event` now validates candidate containment before `mkdir`; `tests/test_experiment_slack_socket_bridge.py::test_event_claim_rejects_parent_traversal_before_mkdir` proves no outside directory is created.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:602` validates candidate containment before `_claim_event` calls `mkdir`; `tests/test_experiment_slack_socket_bridge.py::test_event_claim_rejects_parent_traversal_before_mkdir` proves no outside directory is created.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#discussion_r3295175403 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: duplicate/idempotency checks now precede rate-limit acquisition; `test_duplicate_event_is_checked_before_global_rate_limit_claim` covers already-processed events while a global rate lock exists.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:816` runs idempotency checks before rate-limit acquisition; `test_duplicate_event_is_checked_before_global_rate_limit_claim` covers already-processed events while a global rate lock exists.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1820#pullrequestreview-4353290172 -> 414740d876d875b25197650702f1928136988367
 Disposition: FIXED
 Commit: 414740d876d875b25197650702f1928136988367
-Evidence: Codex review summary actionables were fixed by token-class validation, audit path preflight, idempotency-before-rate, malformed-command no-lock, and partial-lock cleanup regressions in `tests/test_experiment_slack_socket_bridge.py`.
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:58`, `scripts/orchestration/experiment_slack_socket_bridge.py:548`, `scripts/orchestration/experiment_slack_socket_bridge.py:816`, and `scripts/orchestration/experiment_slack_socket_bridge.py:664` fix Codex review summary actionables; regressions live in `tests/test_experiment_slack_socket_bridge.py`.
 
 ## Split Justification
 
