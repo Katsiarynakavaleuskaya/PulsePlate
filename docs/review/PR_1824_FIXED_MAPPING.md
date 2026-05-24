@@ -5,7 +5,7 @@
 - PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1824
 - Branch: `codex/main-coverage-scripts-ci-omit`
 - Initial implementation commit: `008f7aa503d0d4002224b0ab36317a7cd4bf4a18`
-- Mapping artifact commit: `27e0d6734b9b3b9d2700ab3aaaa93c7ae4703d5e`
+- Mapping artifact commit: `96957c48572f44c3337ce08790df9a47c5e046af`
 
 ## Lane Start Provenance
 
