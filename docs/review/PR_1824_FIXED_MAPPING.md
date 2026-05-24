@@ -28,6 +28,16 @@ Disposition: FIXED
 Commit: 94dccc287fe159efe4d6d28f55134d736dd13586
 Evidence: `scripts/run-backend-tests-pre-commit.sh` checks `SKIP_TESTS=1` before resolving repo Python or validating pytest availability; `tests/test_pre_commit_hook_python_resolver.py` covers the ordering contract.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1824#discussion_r3295372251 -> 8e788421892cd895301b37fa43c4d0af7fd60435
+Disposition: FIXED
+Commit: 8e788421892cd895301b37fa43c4d0af7fd60435
+Evidence: `scripts/hooks/repo_python.sh` now immediately fails when an explicit absolute `VENV_PYTHON` or `DEV_PYTHON` override is not executable; `tests/test_pre_commit_hook_python_resolver.py` covers the fail-closed override behavior.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1824#discussion_r3295372256 -> 8e788421892cd895301b37fa43c4d0af7fd60435
+Disposition: FIXED
+Commit: 8e788421892cd895301b37fa43c4d0af7fd60435
+Evidence: `tests/test_pre_commit_hook_python_resolver.py` quotes the resolver path with `shlex.quote(...)` before passing it to `bash -lc`.
+
 ## Main Failure Evidence
 
 - `main` run `26372552018` at `2b34747eed264efd60e56502d8094521d1c0828e` failed `test-main (3.11, 60)` with:
