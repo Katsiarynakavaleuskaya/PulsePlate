@@ -43,6 +43,12 @@ REQUIRED_ENTRY_KEYS = {
 }
 
 
+def require_feature(feature_key: str) -> None:
+    """Skip with the repo-standard optional-feature reason prefix."""
+
+    pytest.skip(f"feature_disabled:{feature_key}")
+
+
 # ---------------------------------------------------------------------------
 # 1. test_manifest_generation_from_packet
 # ---------------------------------------------------------------------------
@@ -1058,7 +1064,7 @@ def test_mandatory_post_open_bug_hunter_depends_on_qa() -> None:
     slugs = ["qa-engineer-agent", "bug-hunter"]
     for s in slugs:
         if not (agents_dir / f"{s}.md").is_file():
-            pytest.skip(f"Agent definition not found: {s}")
+            require_feature(f"agent_definition:{s}")
 
     manifest = qoder_dispatch_bridge.build_dispatch_manifest(
         role_slugs=slugs,
@@ -1076,10 +1082,16 @@ def test_mandatory_post_open_bug_hunter_depends_on_qa() -> None:
 def test_mandatory_post_open_pass_is_ordered_last() -> None:
     """Generated manifests must not run bug-hunter before QA in post-open lanes."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"
-    slugs = ["agent-coordinator", "bug-hunter", "security-auditor", "qa-engineer-agent"]
+    slugs = [
+        "agent-coordinator",
+        "bug-hunter",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+    ]
     for slug in slugs:
         if not (agents_dir / f"{slug}.md").is_file():
-            pytest.skip(f"Agent definition not found: {slug}")
+            require_feature(f"agent_definition:{slug}")
 
     manifest = qoder_dispatch_bridge.build_dispatch_manifest(
         role_slugs=slugs,
@@ -1091,6 +1103,7 @@ def test_mandatory_post_open_pass_is_ordered_last() -> None:
         "agent-coordinator",
         "security-auditor",
         "qa-engineer-agent",
+        "bug-hunter",
         "bug-hunter",
     ]
 

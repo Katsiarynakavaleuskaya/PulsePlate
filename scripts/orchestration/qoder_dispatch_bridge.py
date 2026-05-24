@@ -738,7 +738,8 @@ def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
     """Keep the canonical post-open QA -> bug-hunter pass last when present."""
 
     ordered = [slug for slug in role_slugs if slug not in MANDATORY_POST_OPEN_ORDER]
-    ordered.extend(slug for slug in MANDATORY_POST_OPEN_ORDER if slug in role_slugs)
+    for slug in MANDATORY_POST_OPEN_ORDER:
+        ordered.extend([slug] * role_slugs.count(slug))
     return ordered
 
 
