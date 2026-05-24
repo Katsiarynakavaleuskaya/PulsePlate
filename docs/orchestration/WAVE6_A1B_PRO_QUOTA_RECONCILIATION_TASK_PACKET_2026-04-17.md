@@ -2,35 +2,34 @@
 
 **Date:** 17 April 2026
 **Scope:** docs/backlog/governance only
-**Mode:** pre-open packet for the next canonical Wave 6 slice
+**Mode:** historical packet retained for closeout evidence
+
+## Historical Closeout Status
+
+This packet is historical. PR #1461 merged on 2026-04-19T11:34:45Z with merge
+commit `cd01d9c6db89813202f85b8b9f4c8378e72380ea` from branch
+`codex/wave6-a1b-pro-quota-reconciliation`, and PR #1466 merged on
+2026-04-19T11:34:46Z with merge commit
+`fa0979e734b88575e01e3eca9ddd4d57ade86c05` from branch
+`codex/pr1461-mapping-fix`. Current A1b reconciliation uses a
+ready-for-review closeout, not this older active-lane packet.
+
+Runtime truth remains PR #1379, merged on 2026-04-10T12:08:46Z with merge
+commit `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba` from branch
+`feat/insight-fallback-chain`.
 
 ## Purpose
 
-Freeze `PR-A1b` as the next user-owned Wave 6 lane after merged `PR-S0`
-(`PR #1433`) and merged `A1` (`PR #1379`).
+The original purpose was to freeze PR-A1b as a docs/backlog governance
+reconciliation for already-landed PRO/VIP quota truth on live `main`.
 
-This packet exists to:
+This closeout keeps the useful boundaries:
 
-- reconcile the roadmap/backlog wording with already-landed PRO/VIP quota truth
-  on live `main`;
-- keep `A1b` docs-only and governance-only;
-- preserve the canonical `A1b -> A5` runtime sequence;
+- reconcile the roadmap/backlog wording with already-landed PRO/VIP quota truth;
+- keep A1b docs-only and governance-only;
+- preserve the canonical A1b -> A5 runtime sequence;
 - prevent semantic-cache or plugin/control-plane work from widening this lane;
-- encode the mandatory late-rebase rule because merged `PR #1440` and `PR #1441`
-  already landed nearby `docs/roadmap/BACKLOG_LEDGER.md` edits on `main`.
-
-## Current-Head Preconditions
-
-- `PR #1388` is merged and no longer blocks the next Wave 6 lane.
-- `PR #1433` is merged and `PR-S0` is already closed.
-- `PR #1379` is merged and is the canonical already-landed runtime evidence for
-  the `A1` fallback/readiness spine.
-- `origin/main` is green on current-head `CI`.
-- Merged `PR #1440` and `PR #1441` already changed
-  `docs/roadmap/BACKLOG_LEDGER.md` on `main`, so this lane may open in draft
-  but may not claim merge-readiness before a late rebase onto fresh
-  `origin/main` and a final check that the `A1b`-owned ledger anchors still
-  match current trunk truth.
+- preserve the role-agent order that reviewed the historical lane.
 
 ## Hard Boundaries
 
@@ -41,8 +40,8 @@ This packet exists to:
 - No provider/auth/billing behavior changes
 - No plugin/control-plane implementation work for GitHub / Cloudflare / Figma /
   Hugging Face / Linear / Computer Use / Remotion / Life Science Research
-- No widening into `A2-A5`
-- No review artifact creation before the PR actually exists
+- No widening into A2-A5
+- No review artifact creation before the current PR number exists
 
 ## Canonical Scope
 
@@ -50,10 +49,11 @@ This packet exists to:
 
 - `docs/roadmap/BACKLOG_LEDGER.md`
 - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
-- this packet
-- `docs/review/PR_<N>_FIXED_MAPPING.md` only after PR open
+- this packet as historical evidence
+- `docs/review/PR_<N>_FIXED_MAPPING.md` only after current PR open
 - optional cross-link-only touch to
   `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+- a closeout guard and regression tests
 
 ### Out of scope
 
@@ -67,44 +67,36 @@ This packet exists to:
 - Rail B1 workforce/wiki implementation
 - Rail B2 plugin/control-plane implementation
 
-## Required Content Changes
+## Required Closeout Content
 
 ### `docs/roadmap/BACKLOG_LEDGER.md`
 
-- update `ledger-p1-pro-monthly-quota-ledger-reconciliation`
-- move the item from the stale `PR #1388` target to canonical `PR-A1b`
-- anchor already-landed evidence to merged `PR #1379` using a minimum evidence
-  bundle:
-  - merge truth: `PR #1379` plus merge commit
-    `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba`
-  - runtime truth: `file:line` pointers to tier-aware quota enforcement and
-    startup validation
-  - verification truth: `file:line` pointers to deterministic tests and
-    optional runtime/test artifact links when available
-  - acceptance floor: PR + merge SHA and `file:line` pointers are mandatory;
-    runtime/test artifact links are optional
-- keep the item as reconciliation-only, not runtime reimplementation
+- mark `ledger-p1-pro-monthly-quota-ledger-reconciliation` closed;
+- record PR #1461 and PR #1466 merge truth;
+- anchor runtime truth to merged PR #1379 using merge SHA and file:line runtime
+  evidence;
+- keep the item as docs/governance closeout only;
 - if real residual debt is found, create a narrow follow-up item instead of
-  widening `A1b`
+  widening A1b;
 - do not close or mutate:
   - `ledger-p1-rag-hardening-followthrough`
   - `ledger-p1-ai-bounded-context-packet`
   - `ledger-p1-ai-bounded-context-extraction`
   - `ledger-p1-llm-reliability-security-gates`
-- do not create or reopen any semantic-cache item
+- do not create or reopen any semantic-cache item.
 
 ### `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
 
-- preserve `PR-A1b` as a docs reconciliation slice
-- strengthen the evidence wording so `A1b` clearly follows already-landed
-  `PR #1379`
-- preserve sequence `A1b -> A2 -> A3 -> A4 -> A5`
-- keep semantic cache deferred and outside `A1b`
+- present PR-A1b as closed by PR #1461 / PR #1466;
+- strengthen evidence wording so A1b follows already-landed PR #1379 runtime
+  truth;
+- preserve sequence A1b -> A2 -> A3 -> A4 -> A5;
+- keep semantic cache deferred and outside A1b.
 
 ### `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 
-- optional backlink only if needed for evidence symmetry
-- hard gate must remain unchanged
+- optional backlink only if needed for evidence symmetry;
+- hard-gate machine markers must remain unchanged.
 
 ## Required Role-Agent Order
 
@@ -113,27 +105,26 @@ This packet exists to:
 3. `bug-hunter`
 4. `architecture-specialist`
 5. `qa-engineer-agent`
-6. `backend-engineer` — conditional, only for explicit non-user-ingest widening
-7. `dev-operator` — required execution helper for local validation / evidence capture
+6. `backend-engineer` - conditional, only for explicit non-user-ingest widening
+7. `dev-operator` - required execution helper for local validation/evidence
 
 Rules:
 
-- this order is the lane SoT even if `task_bootstrap.py` suggests a different
-  routed primary;
+- this order remains the lane source of truth even if a routing helper suggests a
+  different primary;
 - no assigned role agent may be skipped without an explicit packet update;
-- `dev-operator` cannot be omitted from the executable lane because this packet
-  relies on command-level validation evidence rather than implementation-only
-  review;
+- `dev-operator` cannot be omitted because this packet relies on command-level
+  validation evidence;
 - `backend-engineer` remains out of roster unless the lane is explicitly widened
   beyond docs/governance into a non-user-ingest runtime ticket;
 - the canonical post-open `qa-engineer-agent -> bug-hunter` pass remains
   mandatory.
 
-## PR Lifecycle Contract
+## Current PR Lifecycle Contract
 
 ### PR title
 
-`docs(roadmap): reconcile landed PRO quota truth for Wave 6 A1b`
+`docs(ai-runtime): reconcile A1b PRO quota closeout`
 
 ### Required PR body sections
 
@@ -152,73 +143,24 @@ Rules:
 3. iterate on current-head checks and actionable review comments
 4. refresh the PR body mirror whenever the canonical review artifact changes
 
-## Mandatory Late-Rebase Rule
-
-Because merged `PR #1440` and `PR #1441` already changed
-`docs/roadmap/BACKLOG_LEDGER.md` on `main`, this lane follows a strict
-overlap policy:
-
-- the PR may open in draft immediately;
-- merge-readiness is forbidden before a late rebase onto fresh `origin/main`;
-- during that rebase, resolve only the `A1b`-owned ledger lines;
-- if the rebase reveals true overlap on the same anchors against the merged
-  `#1440` / `#1441` ledger edits already on `main`, stop the lane and replan
-  instead of force-resolving or silently rewriting another lane's scope.
-
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
-- `pre-commit run --all-files`
-- `make verify`
-- grep verification that:
-  - `PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` preserves `A1b -> A5`
-    ```bash
-    rg -n '^- `PR-A1b`|^- `PR-A2`|^- `PR-A3`|^- `PR-A4`|^- `PR-A5`' \
-      docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md
-    ```
-  - semantic cache remains deferred-only
-    ```bash
-    rg -n -A 2 -B 1 'semantic cache' \
-      docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md \
-      docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md | \
-      rg -i 'deferred|blocked until|outside active implementation scope|do \*\*not\*\* start semantic cache work before'
-    ```
-  - `ledger-p1-pro-monthly-quota-ledger-reconciliation` points to already-landed
-    `PR #1379` evidence rather than a new runtime implementation claim
-    ```bash
-    rg -n -A 6 -B 1 'ledger-p1-pro-monthly-quota-ledger-reconciliation' \
-      docs/roadmap/BACKLOG_LEDGER.md | \
-      rg 'PR #1379|1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba'
-    ```
-  - Rail B2 families do not become runtime truth
-    ```bash
-    rg -n 'Rail B2|advisory only|product runtime truth|semantic cache' \
-      docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md
-    ```
+- `python scripts/ci/check_ai_pro_quota_a1b_closeout.py`
+- `python scripts/ci/check_semantic_cache_gate.py`
+- focused pytest for the closeout guard and related governance tests
+- `make validate-changed`
+- `PATH=.venv/bin:$PATH pre-commit run --all-files`
 
-## Merge-Ready Gate
-
-Before calling this lane merge-ready:
-
-1. late rebase onto fresh `origin/main`
-2. rerun `pre-commit run --all-files`
-3. rerun `make verify`
-4. refresh `docs/review/PR_<N>_FIXED_MAPPING.md` against reachable head commits
-5. confirm current-head PR checks are green
-6. run the strict wrapper:
-
-```bash
-python3 scripts/orchestration/check_merge_ready.py \
-  --pr-number <N> \
-  --repo Katsiarynakavaleuskaya/PulsePlate \
-  --require-auth
-```
+Full `make verify` is intentionally not part of this machine-heavy closeout lane
+unless the operator separately requests it. The current PR body and fixed mapping
+must document that deferral and list the bounded local gates that did run.
 
 ## Next Lane After Merge
 
 After merge and safe cleanup, the next canonical slice is:
 
-- `PR-A2` — RAG hardening follow-through
+- `PR-A2` - RAG hardening follow-through
 
-It is explicitly **not** semantic cache.
+It is explicitly not semantic cache.

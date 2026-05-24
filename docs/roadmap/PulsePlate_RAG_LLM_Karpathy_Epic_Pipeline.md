@@ -214,49 +214,65 @@ Make provider fallback deterministic and expose fallback / echo mode in readines
 
 ## PR-A1b — PRO monthly quota ledger reconciliation
 #### Title
-`docs(roadmap): reconcile landed PRO quota truth before deeper runtime rollout`
+`docs(ai-runtime): reconcile A1b PRO quota closeout`
 
 #### Backlog target
 `ledger-p1-pro-monthly-quota-ledger-reconciliation`
 
-#### Goal
-Reconcile the execution spine with live `main`, where tier-aware PRO/VIP quota
-machinery is already materially landed (evidence:
-`app/security/llm_monthly_quota.py:25-41`;
-`app/security/llm_monthly_quota.py:52-77`;
-`app/security/llm_monthly_quota.py:123-158`;
-`app/bootstrap/startup_guards.py:44-56`;
-`app/routers/cbt_insight.py:129-150`;
-`app/services/fitchef_runtime.py:711-835`;
-`tests/test_cbt_insight_api.py:921-952`;
-merged `PR #1379` / `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba`
-as recorded in `docs/roadmap/BACKLOG_LEDGER.md:296-300`).
+#### Current status
+Closed via PR #1461 on 2026-04-19T11:34:45Z with merge commit
+`cd01d9c6db89813202f85b8b9f4c8378e72380ea` from branch
+`codex/wave6-a1b-pro-quota-reconciliation`; follow-up PR #1466 merged on
+2026-04-19T11:34:46Z with merge commit
+`fa0979e734b88575e01e3eca9ddd4d57ade86c05` from branch
+`codex/pr1461-mapping-fix`.
 
-#### In scope
-- docs/backlog correction after merged `A1`
-- live-runtime evidence links for landed PRO quota machinery
-- explicit handoff from historical `A1` runtime implementation to the new docs-only `A1b` reconciliation lane
-- isolate any true residual quota debt into a separate narrow follow-up if discovered
+#### Runtime anchor
+Runtime truth remains PR #1379, merged on 2026-04-10T12:08:46Z with merge
+commit `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba` from branch
+`feat/insight-fallback-chain`. Live `main` contains tier-aware PRO/VIP quota
+machinery (`app/security/llm_monthly_quota.py:26-45`,
+`app/security/llm_monthly_quota.py:56-93`,
+`app/security/llm_monthly_quota.py:200-244`), startup validation
+(`app/bootstrap/startup_guards.py:44-56`), PRO route tier gating
+(`app/routers/cbt_insight.py:144-150`), quota-before-provider enforcement
+(`app/services/fitchef_runtime.py:854-866`), and deterministic tests
+(`tests/test_cbt_insight_api.py:109-115`,
+`tests/test_cbt_insight_api.py:356-370`,
+`tests/test_cbt_insight_api.py:1049-1072`,
+`tests/test_cbt_insight_api.py:1074-1108`,
+`tests/test_cbt_insight_api.py:1110-1134`). PR-A1b does not reopen runtime
+quota logic.
+
+#### Landed closeout scope
+- docs/governance closeout for stale A1b roadmap and backlog wording
+- live-runtime evidence links for already-landed PRO quota machinery
+- explicit handoff from historical PR #1379 runtime implementation to PR #1461
+  / PR #1466 governance reconciliation
+- guard coverage that prevents A1b from being treated as active runtime quota
+  work again
 
 #### Reason for placement
-Recursive / philosophy rollout still depends on quota parity, but `main` already implements the core parity seam. `A1b` therefore exists as a docs/governance reconciliation slice over already-merged quota truth, not as a fresh runtime-from-scratch quota implementation PR.
+Recursive / philosophy rollout still depends on quota parity, but `main`
+already implements the core parity seam. `A1b` is therefore a docs/governance
+closeout over merged quota truth, not a runtime-from-scratch quota PR.
 
-#### Lane governance note
-This slice owns a dedicated lane packet
-`docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:131-179`
-and must maintain its own canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
-artifact-first review loop.
-Because merged `PR #1440` and `PR #1441` already changed
-`docs/roadmap/BACKLOG_LEDGER.md` on `main`, `A1b` must late-rebase onto fresh
-`origin/main` before merge-readiness and stop instead of force-resolving if the
-same ledger anchors remain in conflict with trunk
-(`docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:138-148`).
+#### Historical lane note
+The dedicated packet
+`docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md`
+is retained as historical orchestration evidence. Current A1b truth is closed
+by PR #1461 and PR #1466, with current closeout proof owned by the newer
+ready-for-review reconciliation PR and its `docs/review/PR_<N>_FIXED_MAPPING.md`
+artifact after open.
 
 #### Deferred optimization note
-Any semantic-cache work remains governed by
-`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:27-33`
-and remains blocked until the `A1b -> A5` runtime sequence is closed
-(`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:135-142`).
+Semantic cache remains closed by
+`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`. Its machine markers
+remain `closed / false / false / true`; Redis/GPTCache, GraphRAG,
+ContextManifest, DB persistence, public routes, OpenAPI, DTOs, provider/auth/
+billing changes, and default activation remain out of scope. The broader
+runtime sequence still requires PR-A2 through PR-A5 and a later reviewed
+gate-open PR before semantic-cache work can begin.
 
 ---
 
