@@ -11,7 +11,25 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294972836 -> 7b35be2b7
+Disposition: FIXED
+Commit: `7b35be2b7`
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` keeps the mandatory `qa-engineer-agent -> bug-hunter` handoff adjacent even when another role appears between them in the input; `tests/test_qoder_dispatch_bridge.py` covers the corrected manifest order.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294972837 -> 7b35be2b7
+Disposition: FIXED
+Commit: `7b35be2b7`
+Evidence: `scripts/ci/check_philosophy_alignment_ledger_closeout.py` now rejects duplicate packet role entries; `tests/test_philosophy_alignment_ledger_closeout.py` covers duplicate role-order drift.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294972838 -> 7b35be2b7
+Disposition: FIXED
+Commit: `7b35be2b7`
+Evidence: `scripts/ci/check_philosophy_alignment_ledger_closeout.py` now fails role-order sections that contain headings but no numbered role entries; `tests/test_philosophy_alignment_ledger_closeout.py` covers empty section drift.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1816#discussion_r3294972839 -> 7b35be2b7
+Disposition: FIXED
+Commit: `7b35be2b7`
+Evidence: `tests/test_philosophy_alignment_ledger_closeout.py` now asserts the generated dispatch manifest keeps `qa-engineer-agent -> bug-hunter` adjacent instead of comparing constants only.
 
 ## Pre-Open Role-Agent Finding Closure
 
@@ -74,7 +92,7 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - Current-head post-open packet: `artifacts/orchestration/task_packets/62f8bb889bac.json`
 - Final post-open rerun packet: `artifacts/orchestration/task_packets/359550a4899b.json`
 - Role order: `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> security-auditor -> bug-hunter`
-- Dispatch manifest current order: `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> security-auditor -> bug-hunter`
+- Dispatch manifest current order: `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> bug-hunter -> security-auditor`
 
 ## Validation
 
@@ -85,6 +103,7 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_philosophy_alignment_rules.py tests/test_philosophy_gate_open_preconditions.py` -> PASS, 56 tests
 - `PYTHONDONTWRITEBYTECODE=1 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_qoder_dispatch_bridge.py` -> PASS
 - `PYTHONDONTWRITEBYTECODE=1 MYPYPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --explicit-package-bases --cache-dir=/dev/null --no-incremental scripts/ci/check_philosophy_alignment_ledger_closeout.py scripts/orchestration/qoder_dispatch_bridge.py tests/test_philosophy_alignment_ledger_closeout.py tests/test_qoder_dispatch_bridge.py` -> PASS
+- `python3 scripts/orchestration/qoder_dispatch_bridge.py --packet docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_2_ALIGNMENT_LEDGER_CLOSEOUT_PACKET_2026-05-24.md --pretty` -> dispatch order `agent-coordinator -> philosophy-agent -> architecture-specialist -> qa-engineer-agent -> bug-hunter -> security-auditor`
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
 - `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` -> PASS
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files` -> PASS
