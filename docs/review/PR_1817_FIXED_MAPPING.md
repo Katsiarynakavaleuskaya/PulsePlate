@@ -38,7 +38,7 @@ anchored to PR #1379; closeout truth is recorded through PR #1461 and PR #1466.
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/exp-236fcd2ee840.json`
+- Experiment ID: `exp-236fcd2ee840`
 - Mode: `oracle_only_governance_reviewer`
 - Status: `accepted`
 - Oracles:

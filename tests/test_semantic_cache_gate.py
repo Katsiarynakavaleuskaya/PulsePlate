@@ -211,6 +211,50 @@ def test_checker_fails_if_doc_says_semantic_cache_is_active_or_enabled(
     assert "forbidden semantic-cache claim" in result.stderr
 
 
+@pytest.mark.parametrize(
+    ("claim", "expected"),
+    [
+        (
+            "PR-A1b opens semantic-cache serving for Redis.",
+            "PR opens semantic-cache serving",
+        ),
+        (
+            "PR-A1b opened semantic-cache serving for Redis.",
+            "PR opens semantic-cache serving",
+        ),
+        (
+            "Semantic-cache serving is opened by PR-A1b.",
+            "semantic cache serving opened",
+        ),
+        (
+            "Redis semantic-cache serving is approved for production-ready rollout.",
+            "Redis semantic-cache serving approved",
+        ),
+        (
+            "Redis is the approved semantic-cache serving backend.",
+            "Redis semantic-cache serving approved",
+        ),
+        (
+            "GPTCache semantic-cache serving is enabled.",
+            "GPTCache semantic-cache serving approved",
+        ),
+        (
+            "GPTCache is the approved semantic-cache serving backend.",
+            "GPTCache semantic-cache serving approved",
+        ),
+    ],
+)
+def test_checker_fails_if_doc_approves_semantic_cache_serving_or_backend(
+    tmp_path: Path, claim: str, expected: str
+) -> None:
+    doc = _write_doc(tmp_path, _valid_doc() + f"\n{claim}\n")
+
+    result = _run_checker(doc)
+
+    assert result.returncode == 1
+    assert f"forbidden semantic-cache claim: {expected}" in result.stderr
+
+
 def test_checker_fails_if_e1_e5_automatically_unlock_semantic_cache(tmp_path: Path) -> None:
     doc = _write_doc(tmp_path, _valid_doc() + "\nE1–E5 unlock semantic cache.\n")
 

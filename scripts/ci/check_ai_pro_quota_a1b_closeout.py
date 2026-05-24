@@ -379,6 +379,7 @@ def validate_closeout(
         ("A1b roadmap section", roadmap_section),
         ("A1b packet", packet_text),
         ("PR_1461_FIXED_MAPPING", mapping_text),
+        ("semantic-cache gate", gate_text),
     ):
         _check_stale_wording(text, label, errors)
         if label == "PR_1461_FIXED_MAPPING":

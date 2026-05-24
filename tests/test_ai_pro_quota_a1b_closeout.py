@@ -316,6 +316,21 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
     assert any("SEMANTIC_CACHE_GATE_STATUS" in error for error in errors)
 
 
+def test_checker_rejects_semantic_cache_gate_overclaim_even_when_markers_closed(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    gate = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    gate.write_text(
+        _valid_gate() + "\nPR-A1b opens semantic-cache serving for Redis.\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("semantic-cache gate" in error and "semantic-cache" in error for error in errors)
+
+
 @pytest.mark.parametrize(
     ("claim", "expected"),
     [
@@ -371,6 +386,14 @@ def test_checker_rejects_local_path_leakage_in_mapping(tmp_path: Path) -> None:
     errors = _errors(tmp_path)
 
     assert any("local artifact/worktree path" in error for error in errors)
+
+
+def test_current_pr_mapping_does_not_leak_local_artifact_paths() -> None:
+    mapping = (REPO_ROOT / "docs/review/PR_1817_FIXED_MAPPING.md").read_text(encoding="utf-8")
+
+    assert "/Users/" not in mapping
+    assert "artifacts/orchestration" not in mapping
+    assert "worktrees/" not in mapping
 
 
 def test_checker_rejects_stale_mapping_readiness_checklist(tmp_path: Path) -> None:
