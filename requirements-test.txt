@@ -10,9 +10,9 @@ coverage[toml]==7.14.0
     #   pytest-cov
 execnet==2.1.2
     # via pytest-xdist
-faker==40.18.0
+faker==40.19.1
     # via -r requirements-test.in
-hypothesis==6.152.7
+hypothesis==6.152.9
     # via -r requirements-test.in
 iniconfig==2.3.0
     # via pytest
