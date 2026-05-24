@@ -63,7 +63,7 @@ distlib==0.4.0
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
-faker==40.18.0
+faker==40.19.1
     # via -r requirements-dev.in
 filelock==3.24.3
     # via
@@ -71,7 +71,7 @@ filelock==3.24.3
     #   virtualenv
 flake8==7.3.0
     # via -r requirements-dev.in
-hypothesis==6.152.7
+hypothesis==6.152.9
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
@@ -258,6 +258,10 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
+pip==26.1.1
+    # via
+    #   pip-api
+    #   pip-tools
 setuptools==78.1.1
     # via
     #   -c requirements.txt
