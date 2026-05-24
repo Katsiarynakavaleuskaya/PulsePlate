@@ -381,8 +381,8 @@ def test_manifest_preserves_requested_order_from_json_packet(
         role_slugs=roles,
         mode="analysis",
         packet_source="packet.json",
-        enforce_mandatory_post_open_tail=not qoder_dispatch_bridge._json_packet_has_requested_order(
-            packet_path
+        enforce_mandatory_post_open_tail=not (
+            qoder_dispatch_bridge._json_packet_requested_order_preserves_mandatory_tail(packet_path)
         ),
     )
 
@@ -393,6 +393,61 @@ def test_manifest_preserves_requested_order_from_json_packet(
         "qa-engineer-agent",
         "bug-hunter",
         "cursor-specialist-agent",
+    ]
+
+
+def test_manifest_enforces_mandatory_tail_for_partial_requested_order_from_json_packet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Partial requested order must not disable the canonical QA -> bug tail."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    required_slugs = [
+        "agent-coordinator",
+        "frontend-engineer",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+    ]
+    tmp_agents_dir = tmp_path / ".cursor" / "agents"
+    tmp_agents_dir.mkdir(parents=True)
+    for slug in required_slugs:
+        qoder_type = "Verify" if slug in {"qa-engineer-agent", "bug-hunter"} else "Research"
+        (tmp_agents_dir / f"{slug}.md").write_text(
+            f"---\nslug: {slug}\nqoder_type: {qoder_type}\n---\n# {slug}\n",
+            encoding="utf-8",
+        )
+    packet = {
+        "requested_agents": ["frontend-engineer"],
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [
+                {"repo_agent_slug": "bug-hunter"},
+                {"repo_agent_slug": "frontend-engineer"},
+                {"repo_agent_slug": "security-auditor"},
+            ],
+            "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
+            "advisory": [],
+        },
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    roles = qoder_dispatch_bridge._parse_packet_roles(packet_path)
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=roles,
+        mode="analysis",
+        packet_source="packet.json",
+        enforce_mandatory_post_open_tail=not (
+            qoder_dispatch_bridge._json_packet_requested_order_preserves_mandatory_tail(packet_path)
+        ),
+    )
+
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == [
+        "agent-coordinator",
+        "frontend-engineer",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
     ]
 
 

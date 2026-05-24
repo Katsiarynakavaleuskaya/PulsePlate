@@ -494,6 +494,35 @@ def _json_packet_has_requested_order(packet_path: Path) -> bool:
     return any(str(agent).strip() for agent in requested_agents)
 
 
+def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, Any]) -> bool:
+    """Return whether requested_agents explicitly keeps QA before bug-hunter."""
+
+    requested_agents = payload.get("requested_agents")
+    if not isinstance(requested_agents, list):
+        return False
+    requested_order = [str(agent).strip() for agent in requested_agents if str(agent).strip()]
+    try:
+        qa_index = requested_order.index("qa-engineer-agent")
+        bug_index = requested_order.index("bug-hunter")
+    except ValueError:
+        return False
+    return qa_index < bug_index
+
+
+def _json_packet_requested_order_preserves_mandatory_tail(packet_path: Path) -> bool:
+    """Return whether a JSON packet can safely override mandatory tail normalization."""
+
+    try:
+        resolved_packet_path = packet_path.resolve(strict=True)
+        resolved_packet_path.relative_to(REPO_ROOT.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    payload = _load_json_packet(resolved_packet_path)
+    if payload is None:
+        return False
+    return _json_payload_requested_order_preserves_mandatory_tail(payload)
+
+
 def _parse_packet_roles(packet_path: Path) -> List[str]:
     """Extract ordered role slugs from a governance packet.
 
@@ -940,7 +969,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         packet_path = Path(args.packet)
         if not packet_path.is_absolute():
             packet_path = (REPO_ROOT / packet_path).resolve()
-        enforce_mandatory_post_open_tail = not _json_packet_has_requested_order(packet_path)
+        enforce_mandatory_post_open_tail = not (
+            _json_packet_requested_order_preserves_mandatory_tail(packet_path)
+        )
         role_slugs = _parse_packet_roles(packet_path)
         # Extract bracket-notation parallelizable groups from packet
         packet_lines = packet_path.read_text(encoding="utf-8").splitlines()

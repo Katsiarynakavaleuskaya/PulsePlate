@@ -147,6 +147,29 @@ def test_packet_prompt_renders_manifest_dispatch_order_for_executable_advisory_r
     )
 
 
+def test_packet_prompt_enforces_mandatory_tail_for_partial_requested_order() -> None:
+    """Prompt order must match manifest tail enforcement for partial requests."""
+
+    packet = _packet()
+    packet["requested_agents"] = ["security-auditor"]
+    packet["native_subagent_bridge"] = {
+        "primary": {"repo_agent_slug": "agent-coordinator"},
+        "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
+        "secondary": [
+            {"repo_agent_slug": "bug-hunter"},
+            {"repo_agent_slug": "security-auditor"},
+        ],
+        "advisory": [],
+    }
+
+    prompt = render_packet_prompt(packet, packet_path="packet.json")
+
+    assert (
+        "Role order: agent-coordinator, security-auditor, qa-engineer-agent, bug-hunter" in prompt
+    )
+    assert "Role order: agent-coordinator, security-auditor, bug-hunter" not in prompt
+
+
 def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -> None:
     """Packet mode should render the copy-paste guardrails Codex needs."""
 

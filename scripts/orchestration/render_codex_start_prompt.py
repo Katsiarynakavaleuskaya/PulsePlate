@@ -108,6 +108,12 @@ def _packet_role_order(packet: dict[str, Any]) -> list[str]:
 
         parsed_roles: list[str] = qoder_dispatch_bridge._parse_json_packet_roles(packet)
         if parsed_roles:
+            if not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+                packet
+            ):
+                parsed_roles = qoder_dispatch_bridge._enforce_mandatory_post_open_order(
+                    parsed_roles
+                )
             return parsed_roles
     role_order: list[str] = []
     if isinstance(bridge, dict):
