@@ -49,111 +49,133 @@ checks pass.
 Disposition: FIXED
 Commit: cee47cad2
 Evidence: `.github/workflows/ci.yml` limits `PR5_SOURCE_CORPUS_CHANGED` to source-corpus-specific contract, packet, guard, and test surfaces.
+Evidence anchors: `.github/workflows/ci.yml:285`, `.github/workflows/ci.yml:350`, `tests/test_ci_workflow_pr_size_governance_contract.py:318`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258831 -> cee47cad2
 Disposition: FIXED
 Commit: cee47cad2
 Evidence: `scripts/ci/check_philosophy_source_corpus_index.py` validates per-source `source_family` and `language` with regression tests.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:818`, `scripts/ci/check_philosophy_source_corpus_index.py:796`, `tests/test_philosophy_source_corpus_index.py:152`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258832 -> cee47cad2
 Disposition: FIXED
 Commit: cee47cad2
 Evidence: `validate_file_contents()` skips binary and non-UTF-8 artifacts while continuing to scan text PR-5 files for local path or credential-like leaks.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:984`, `scripts/ci/check_philosophy_source_corpus_index.py:993`, `tests/test_philosophy_source_corpus_index.py:860`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295258833 -> cee47cad2
 Disposition: FIXED
 Commit: cee47cad2
 Evidence: `repo_truth_links` and `out_of_scope_paths` are exact deterministic arrays in the source-corpus checker with regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1148`, `scripts/ci/check_philosophy_source_corpus_index.py:1156`, `tests/test_philosophy_source_corpus_index.py:773`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295275874 -> cee47cad2
 Disposition: FIXED
 Commit: cee47cad2
 Evidence: `.github/workflows/ci.yml` excludes generic `BACKLOG_LEDGER.md` and semantic-cache roadmap edits from the PR-5 changed-path switch.
+Evidence anchors: `.github/workflows/ci.yml:285`, `.github/workflows/ci.yml:350`, `tests/test_ci_workflow_pr_size_governance_contract.py:318`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295275875 -> 412dba126
 Disposition: FIXED
 Commit: 412dba126
 Evidence: `.github/workflows/ci.yml` excludes `scripts/ci/check_docs_phase1_gates.py` from the PR-5 changed-path switch.
+Evidence anchors: `.github/workflows/ci.yml:285`, `.github/workflows/ci.yml:350`, `tests/test_ci_workflow_pr_size_governance_contract.py:327`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313833 -> 975f1c6ac
 Disposition: FIXED
 Commit: 975f1c6ac
 Evidence: `sources` and `research_basis` now reject non-object rows before filtered projections can hide malformed corpus entries.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:477`, `scripts/ci/check_philosophy_source_corpus_index.py:1068`, `scripts/ci/check_philosophy_source_corpus_index.py:1209`, `tests/test_philosophy_source_corpus_index.py:140`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313836 -> 975f1c6ac
 Disposition: FIXED
 Commit: 975f1c6ac
 Evidence: `repo_truth_links` and `out_of_scope_paths` now reject non-string entries before exact canonical-list comparison.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:487`, `scripts/ci/check_philosophy_source_corpus_index.py:1148`, `scripts/ci/check_philosophy_source_corpus_index.py:1156`, `tests/test_philosophy_source_corpus_index.py:785`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313837 -> 975f1c6ac
 Disposition: FIXED
 Commit: 975f1c6ac
 Evidence: the schema guard now validates exact `repo_truth_links` and `out_of_scope_paths` array type, item type, and cardinality constraints.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:952`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:326`, `tests/test_philosophy_source_corpus_index.py:645`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313838 -> 975f1c6ac
 Disposition: FIXED
 Commit: 975f1c6ac
 Evidence: `source_policy` index validation now enforces every expected governance-policy constant, not only the wellness boundary.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1178`, `scripts/ci/check_philosophy_source_corpus_index.py:1187`, `tests/test_philosophy_source_corpus_index.py:833`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295313840 -> 975f1c6ac
 Disposition: FIXED
 Commit: 975f1c6ac
 Evidence: each source record now validates scalar string fields and nested string arrays, with regressions for non-string drift.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1093`, `scripts/ci/check_philosophy_source_corpus_index.py:1096`, `tests/test_philosophy_source_corpus_index.py:181`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295323147 -> 16cb37399
 Disposition: FIXED
 Commit: 16cb37399
 Evidence: source metadata arrays now reject non-string `theme_families`, `discipline_rails`, and `linked_repo_anchors` entries with dedicated regressions.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1096`, `tests/test_philosophy_source_corpus_index.py:194`, `tests/test_philosophy_source_corpus_index.py:248`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295323148 -> 16cb37399
 Disposition: FIXED
 Commit: 16cb37399
 Evidence: the schema guard now validates source-array `items.type`, `minItems`, and discipline enum constraints for source metadata arrays.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:823`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:199`, `tests/test_philosophy_source_corpus_index.py:660`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295323149 -> 16cb37399
 Disposition: FIXED
 Commit: 16cb37399
 Evidence: the schema guard now validates research-basis nested field types plus URI/date formats for URL and access-date metadata.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:937`, `scripts/ci/check_philosophy_source_corpus_index.py:942`, `scripts/ci/check_philosophy_source_corpus_index.py:947`, `tests/test_philosophy_source_corpus_index.py:684`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295323151 -> 16cb37399
 Disposition: FIXED
 Commit: 16cb37399
 Evidence: touched-file leakage scanning now decodes UTF-16/UTF-32 text artifacts before falling back to binary skip, with UTF-16 leak regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:984`, `scripts/ci/check_philosophy_source_corpus_index.py:1006`, `tests/test_philosophy_source_corpus_index.py:873`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295342438 -> 79823c296
 Disposition: FIXED
 Commit: 79823c296
 Evidence: the schema guard now enforces source scalar schema types, including `title.type == string`, with focused regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:777`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:160`, `tests/test_philosophy_source_corpus_index.py:432`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295342439 -> 79823c296
 Disposition: FIXED
 Commit: 79823c296
 Evidence: the schema guard now requires `runtime_flags.type == object`, with focused regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:852`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:233`, `tests/test_philosophy_source_corpus_index.py:454`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295342441 -> 79823c296
 Disposition: FIXED
 Commit: 79823c296
 Evidence: the schema guard now enforces top-level `sources.type == array` and `sources.items.type == object`, with focused regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:750`, `scripts/ci/check_philosophy_source_corpus_index.py:760`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:132`, `tests/test_philosophy_source_corpus_index.py:419`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295342442 -> 79823c296
 Disposition: FIXED
 Commit: 79823c296
 Evidence: runtime flag schema properties now require `type: boolean` plus `const: false`, with focused regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:871`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:245`, `tests/test_philosophy_source_corpus_index.py:473`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295432296 -> c37adb4ec
 Disposition: FIXED
 Commit: c37adb4ec
 Evidence: `research_basis` now requires `type: array`, `items.type == object`, and `use.type == string`, with focused regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:890`, `scripts/ci/check_philosophy_source_corpus_index.py:900`, `scripts/ci/check_philosophy_source_corpus_index.py:920`, `tests/test_philosophy_source_corpus_index.py:582`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295432297 -> c37adb4ec
 Disposition: FIXED
 Commit: c37adb4ec
 Evidence: `source_policy` now requires `type: object` and string-typed policy constants, with focused regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:721`, `scripts/ci/check_philosophy_source_corpus_index.py:746`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:86`, `tests/test_philosophy_source_corpus_index.py:549`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295432300 -> c37adb4ec
 Disposition: FIXED
 Commit: c37adb4ec
 Evidence: `semantic_cache_markers` now requires `type: object` and boolean-typed marker constants, with focused regression coverage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:688`, `scripts/ci/check_philosophy_source_corpus_index.py:705`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:58`, `tests/test_philosophy_source_corpus_index.py:515`.
 
 ## Premortem And Oracle Closure
 
