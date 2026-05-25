@@ -796,6 +796,51 @@ def test_atomic_rate_limit_claim_blocks_concurrent_unique_events(
     assert any(isinstance(error, bridge.SlackSocketAuditError) for error in errors)
 
 
+def test_duplicate_event_during_rate_limit_does_not_drop_winning_handler(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(dispatch_mode="dry_run", audit_dir=audit_dir)
+    event = _event(event_id="Ev0RACE01", text="status")
+    pause = threading.Event()
+    resume = threading.Event()
+    observed: dict[str, str] = {}
+    errors: dict[str, BaseException] = {}
+    original_claim_rate_limit = bridge._claim_rate_limit
+
+    def pause_first_claim(claim_config: bridge.BridgeConfig, claim_event: bridge.OperatorEvent) -> None:
+        original_claim_rate_limit(claim_config, claim_event)
+        if not pause.is_set():
+            pause.set()
+            assert resume.wait(timeout=5)
+
+    monkeypatch.setattr(bridge, "_claim_rate_limit", pause_first_claim)
+
+    def first_worker() -> None:
+        try:
+            decision = bridge.process_payload(event, config)
+            observed["first"] = decision.status
+        except BaseException as exc:  # noqa: BLE001 - collect thread exceptions.
+            errors["first"] = exc
+            resume.set()
+
+    first_thread = threading.Thread(target=first_worker)
+    first_thread.start()
+    assert pause.wait(timeout=5)
+    with pytest.raises(bridge.SlackSocketAuditError, match="already processed"):
+        bridge.process_payload(event, config)
+    resume.set()
+    first_thread.join(timeout=5)
+
+    assert not first_thread.is_alive()
+    assert errors == {}
+    assert observed["first"] == "dry_run"
+    audit_path = audit_dir / f"{bridge._sha256_text(event['event_id'])}.json"
+    assert json.loads(audit_path.read_text(encoding="utf-8"))["status"] == "dry_run"
+
+
 def test_rate_limit_claim_rejects_symlinked_artifact_ancestor_before_write(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

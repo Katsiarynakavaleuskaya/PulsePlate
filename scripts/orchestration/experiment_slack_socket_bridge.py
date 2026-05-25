@@ -985,11 +985,12 @@ def process_operator_event(
             failure_class="command_rejected",
         )
         raise
+    _claim_event(audit_path, event=event, command=command, config=config)
     try:
         _check_rate_limit(config)
         _claim_rate_limit(config, event)
     except SlackSocketAuditError:
-        _write_audit_exclusive(
+        _write_audit(
             path=audit_path,
             event=event,
             command=command,
@@ -998,7 +999,6 @@ def process_operator_event(
             failure_class="rate_limited",
         )
         raise
-    _claim_event(audit_path, event=event, command=command, config=config)
     status = "dry_run"
     failure_class: str | None = None
     try:
