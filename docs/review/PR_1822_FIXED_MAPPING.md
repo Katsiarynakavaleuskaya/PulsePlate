@@ -183,6 +183,24 @@ Commit: adcfe6c03
 Evidence: every Fixed in Commit Mapping entry now keeps its explicit commit binding and adds concrete file:line evidence anchors.
 Evidence anchors: `docs/review/PR_1822_FIXED_MAPPING.md:49`, `docs/review/PR_1822_FIXED_MAPPING.md:112`, `docs/review/PR_1822_FIXED_MAPPING.md:175`, `docs/review/PR_1822_FIXED_MAPPING.md:180`, `docs/review/PR_1822_FIXED_MAPPING.md:182`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297399786 -> 5f3142b14
+Disposition: FIXED
+Commit: 5f3142b14
+Evidence: aggregate counts now require exact JSON integer values, so `6.0`, `102.0`, and boolean/numeric drift cannot pass by Python equality.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:531`, `scripts/ci/check_philosophy_source_corpus_index.py:1154`, `scripts/ci/check_philosophy_source_corpus_index.py:1157`, `tests/test_philosophy_source_corpus_index.py:125`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297399789 -> 5f3142b14
+Disposition: FIXED
+Commit: 5f3142b14
+Evidence: touched-artifact text scanning now attempts UTF-32 before UTF-16 and has a UTF-32 regression that detects local-path leakage.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:994`, `scripts/ci/check_philosophy_source_corpus_index.py:1016`, `tests/test_philosophy_source_corpus_index.py:923`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297399794 -> 5f3142b14
+Disposition: FIXED
+Commit: 5f3142b14
+Evidence: schema `const` comparisons are type-aware, so boolean-to-numeric and integer-to-float drift cannot pass by Python equality.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:535`, `scripts/ci/check_philosophy_source_corpus_index.py:558`, `tests/test_philosophy_source_corpus_index.py:430`, `tests/test_philosophy_source_corpus_index.py:443`.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -223,6 +241,10 @@ Evidence anchors: `docs/review/PR_1822_FIXED_MAPPING.md:49`, `docs/review/PR_182
   for `research_basis`, `source_policy`, and `semantic_cache_markers`. Evidence:
   commit `c37adb4ec` generalizes the type contract across top-level constants,
   section objects/arrays, section constants, and focused regressions.
+- FIXED: current-head review found numeric/boolean equality false-greens and
+  UTF decoding order leakage risk. Evidence: commit `5f3142b14` adds exact
+  JSON-integer checks, type-aware schema `const` comparison, UTF-32-before-UTF-16
+  scanning, and focused regressions.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -269,6 +291,10 @@ Evidence anchors: `docs/review/PR_1822_FIXED_MAPPING.md:49`, `docs/review/PR_182
   `research_basis`, `source_policy`, and `semantic_cache_markers`. Evidence:
   commit `c37adb4ec` enforces these section types plus string/boolean typed
   constants across the source-corpus schema oracle.
+- FIXED: the current-head Codex review found aggregate count type drift,
+  UTF-32 leakage-scan ordering, and Python equality false-greens in schema
+  `const` checks. Evidence: commit `5f3142b14` closes all three classes in the
+  checker and regression suite.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
