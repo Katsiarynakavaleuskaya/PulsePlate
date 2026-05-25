@@ -59,8 +59,8 @@ governing packet/backlog context.
   still required full `make verify` after operator clarification. Disposition:
   FIXED. Evidence: current packet/artifact/validator/tests now require focused
   local gates, `pre-commit`, `make validate-changed`, and current-head CI parity.
-- CodeRabbit finding: validation evidence used an absolute local
-  `/Users/.../.venv` path instead of a portable repo invocation. Disposition:
+- CodeRabbit finding: validation evidence used a machine-local venv path instead
+  of a portable repo invocation. Disposition:
   FIXED. Evidence: commit `a123dcaf5`; this mapping and the PR body now use
   `make validate-changed VENV_PYTHON=.venv/bin/python`.
 - CodeRabbit finding: CLI subprocess tests lacked explicit timeouts.
