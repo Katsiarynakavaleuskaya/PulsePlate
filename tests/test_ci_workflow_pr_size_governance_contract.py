@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 import re
+from typing import cast
 
 import yaml
 
@@ -318,19 +319,27 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json",
         "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
         "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
-        "scripts/ci/check_docs_phase1_gates.py",
         "scripts/ci/check_philosophy_source_corpus_index.py",
         "tests/test_philosophy_source_corpus_index.py",
     ):
         assert pr5_companion_input in docs_phase1_section
     pr5_case = _extract_section(
         docs_phase1_section,
-        "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json",
+        '              case "$path" in\n'
+        "                docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json",
         "                  PR5_SOURCE_CORPUS_CHANGED=1",
     )
+    for pr5_companion_input in (
+        "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
+        "scripts/ci/check_philosophy_source_corpus_index.py",
+        "tests/test_philosophy_source_corpus_index.py",
+    ):
+        assert pr5_companion_input in pr5_case
     for unrelated_pr5_trigger in (
         "docs/roadmap/BACKLOG_LEDGER.md",
         "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+        "scripts/ci/check_docs_phase1_gates.py",
     ):
         assert unrelated_pr5_trigger not in pr5_case
     assert (
@@ -585,7 +594,7 @@ def test_feature_push_branches_include_feature_prefix() -> None:
     workflow = _load_ci_workflow()
     on_section = workflow.get("on")
     if on_section is None:
-        on_section = workflow.get(True)
+        on_section = cast(dict[object, object], workflow).get(True)
     assert isinstance(on_section, dict)
     push_section = on_section["push"]
     assert isinstance(push_section, dict)
