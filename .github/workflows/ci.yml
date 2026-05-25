@@ -234,8 +234,8 @@ jobs:
       - name: Run Phase1 docs gates
         run: |
           set -euo pipefail
-          if BASE_REF="$(git rev-parse HEAD^1 2>/dev/null)"; then
-            :
+          if git rev-parse HEAD^2 >/dev/null 2>&1; then
+            BASE_REF="$(git rev-parse HEAD^1)"
           else
             BASE_REF=""
           fi

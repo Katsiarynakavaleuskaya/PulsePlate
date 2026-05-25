@@ -417,6 +417,8 @@ SECRET_OR_LOCAL_PATTERNS = (
     re.compile(r"(?i)(?:token|signature|credential)=[A-Za-z0-9_%./+=-]{12,}"),
     re.compile(r"(?i)(?<![A-Za-z0-9])" + "sk" + r"-[A-Za-z0-9_-]{16,}"),
 )
+WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
+FALLBACK_TEXT_ENCODINGS = ("cp1251", "windows-1252")
 
 FORBIDDEN_WELLNESS_CLAIMS = (
     re.compile(r"(?i)\bclinical\b"),
@@ -613,9 +615,11 @@ def _matches_forbidden_runtime_path(path: str) -> str | None:
 
 
 def _normalize_touched_path(raw_path: str) -> tuple[str | None, str | None]:
-    path = raw_path.strip().replace("\\", "/")
+    path = raw_path.strip()
     if not path:
         return None, "empty changed path is not allowed"
+    if WINDOWS_DRIVE_PATH_RE.match(path):
+        return None, f"changed path is outside repo: {raw_path}"
     candidate = Path(path)
     if candidate.is_absolute():
         try:
@@ -1086,11 +1090,31 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
 
 
 def _decode_text_artifact(data: bytes) -> str | None:
-    encodings: tuple[str, ...] = ("utf-8", "utf-8-sig", "utf-32", "utf-16")
+    encodings: tuple[str, ...] = (
+        "utf-8",
+        "utf-8-sig",
+        "utf-32",
+        "utf-16",
+        *FALLBACK_TEXT_ENCODINGS,
+    )
     if data.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
-        encodings = ("utf-32", "utf-32-be", "utf-32-le", "utf-8", "utf-8-sig")
+        encodings = (
+            "utf-32",
+            "utf-32-be",
+            "utf-32-le",
+            "utf-8",
+            "utf-8-sig",
+            *FALLBACK_TEXT_ENCODINGS,
+        )
     elif data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        encodings = ("utf-16", "utf-16-be", "utf-16-le", "utf-8", "utf-8-sig")
+        encodings = (
+            "utf-16",
+            "utf-16-be",
+            "utf-16-le",
+            "utf-8",
+            "utf-8-sig",
+            *FALLBACK_TEXT_ENCODINGS,
+        )
     elif b"\x00" in data[:256]:
         encodings = (
             "utf-32-be",
@@ -1101,6 +1125,7 @@ def _decode_text_artifact(data: bytes) -> str | None:
             "utf-16",
             "utf-8",
             "utf-8-sig",
+            *FALLBACK_TEXT_ENCODINGS,
         )
     candidates: list[str] = []
     for encoding in encodings:

@@ -1120,6 +1120,20 @@ def test_philosophy_source_corpus_index_scans_touched_artifact_contents(
     assert any("forbidden local path" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_preserves_backslash_touched_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rel_path = "docs/evidence/leak\\artifact.txt"
+    artifact = tmp_path / rel_path
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("leak=" + "/" + "tmp/source.pdf\n", encoding="utf-8")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([rel_path])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_skips_binary_touched_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1131,6 +1145,34 @@ def test_philosophy_source_corpus_index_skips_binary_touched_files(
     errors = validate_file_contents(["docs/evidence/figure.png"])
 
     assert errors == []
+
+
+def test_philosophy_source_corpus_index_scans_cp1251_text_artifact_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(
+        ("\u0443\u0442\u0435\u0447\u043a\u0430=" + "/" + "tmp/source.pdf\n").encode("cp1251")
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_scans_windows1252_text_artifact_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(("leak=\u201c" + "/" + "tmp/source.pdf\n").encode("cp1252"))
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_scans_utf16_text_artifact_contents(
