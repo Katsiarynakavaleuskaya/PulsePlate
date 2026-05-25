@@ -183,6 +183,12 @@ Commit: adcfe6c03
 Evidence: every Fixed in Commit Mapping entry now keeps its explicit commit binding and adds concrete file:line evidence anchors.
 Evidence: Anchors: `docs/review/PR_1822_FIXED_MAPPING.md:49`, `docs/review/PR_1822_FIXED_MAPPING.md:112`, `docs/review/PR_1822_FIXED_MAPPING.md:175`, `docs/review/PR_1822_FIXED_MAPPING.md:180`, `docs/review/PR_1822_FIXED_MAPPING.md:182`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#pullrequestreview-4355582770 -> 8af44cc69
+Disposition: FIXED
+Commit: 8af44cc69
+Evidence: the CodeRabbit review-level request for file:line anchors is covered by parser-valid `Evidence: Anchors:` lines across every FIXED disposition.
+Evidence: Anchors: `docs/review/PR_1822_FIXED_MAPPING.md:52`, `docs/review/PR_1822_FIXED_MAPPING.md:112`, `docs/review/PR_1822_FIXED_MAPPING.md:184`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297399786 -> 5f3142b14
 Disposition: FIXED
 Commit: 5f3142b14
