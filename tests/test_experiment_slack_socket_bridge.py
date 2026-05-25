@@ -655,7 +655,7 @@ def test_duplicate_rejected_event_is_blocked_without_overwriting_audit(
     assert audit_path.read_text(encoding="utf-8") == original_audit
 
 
-def test_invalid_command_acquires_global_rate_limit_claim(
+def test_invalid_command_does_not_acquire_global_rate_limit_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -670,7 +670,55 @@ def test_invalid_command_acquires_global_rate_limit_claim(
     audit_path = audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json"
     audit = json.loads(audit_path.read_text(encoding="utf-8"))
     assert audit["status"] == "rejected"
+    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+    assert (audit_dir / bridge.REJECTED_RATE_LIMIT_LOCK_DIR).exists()
+
+
+def test_unauthorized_event_does_not_block_later_authorized_operator(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.process_payload(_event(channel="C0DENIED"), config)
+
+    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+    assert (audit_dir / bridge.REJECTED_RATE_LIMIT_LOCK_DIR).exists()
+
+    decision = bridge.process_payload(_event(event_id="Ev0AUTHORIZED2"), config)
+
+    assert decision.status == "dry_run"
     assert (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+
+
+def test_rejected_event_flood_is_bounded_by_separate_audit_throttle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.process_payload(
+            _event(event_id="Ev0REJECTED1", text="run-experiment feature/test bad; rm -rf repo"),
+            config,
+        )
+    with pytest.raises(bridge.SlackSocketAuditError, match="rate limit"):
+        bridge.process_payload(
+            _event(event_id="Ev0REJECTED2", text="run-experiment feature/test bad; rm -rf repo"),
+            config,
+        )
+
+    first_audit = audit_dir / f"{bridge._sha256_text('Ev0REJECTED1')}.json"
+    second_audit = audit_dir / f"{bridge._sha256_text('Ev0REJECTED2')}.json"
+    assert json.loads(first_audit.read_text(encoding="utf-8"))["status"] == "rejected"
+    assert not second_audit.exists()
+    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+    assert (audit_dir / bridge.REJECTED_RATE_LIMIT_LOCK_DIR).exists()
 
 
 def test_recent_audit_rate_limit_blocks_before_dispatch(
@@ -885,7 +933,34 @@ def test_rate_limit_claim_cleans_partial_lock_on_write_failure(
             ),
         )
 
-    assert (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+
+
+def test_rejected_rate_limit_claim_cleans_partial_lock_on_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+    original_write_text = Path.write_text
+
+    def fail_claim_write(path: Path, *args: Any, **kwargs: Any) -> int:
+        if path.name == "claim.json":
+            raise OSError("disk full")
+        return original_write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_claim_write)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="Unable to record"):
+        bridge.process_payload(
+            _event(text="run-experiment feature/test bad; rm -rf repo"),
+            config,
+        )
+
+    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+    assert not (audit_dir / bridge.REJECTED_RATE_LIMIT_LOCK_DIR).exists()
+    assert not (audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json").exists()
 
 
 def test_malformed_existing_audit_blocks_before_dispatch(

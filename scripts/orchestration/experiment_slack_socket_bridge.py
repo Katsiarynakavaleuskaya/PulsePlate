@@ -62,6 +62,7 @@ GITHUB_TOKEN_RE = re.compile(r"^(gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0
 ALLOWED_COMMANDS = {"help", "status", "run-experiment"}
 ALLOWED_WORKFLOWS = {DEFAULT_WORKFLOW_FILE}
 RATE_LIMIT_LOCK_DIR = "rate_limit_claim"
+REJECTED_RATE_LIMIT_LOCK_DIR = "rejected_rate_limit_claim"
 RATE_LIMIT_CLAIM_MAX_ATTEMPTS = 10
 DEFAULT_AUDIT_RETENTION_DAYS = 14
 MAX_AUDIT_RETENTION_DAYS = 366
@@ -748,8 +749,10 @@ def _claim_event(
     raise SlackSocketAuditError("Slack operator event was already processed.")
 
 
-def _rate_limit_claim_dir(config: BridgeConfig) -> Path:
-    return config.audit_dir / RATE_LIMIT_LOCK_DIR
+def _rate_limit_claim_dir(
+    config: BridgeConfig, *, lock_dir_name: str = RATE_LIMIT_LOCK_DIR
+) -> Path:
+    return config.audit_dir / lock_dir_name
 
 
 def _read_rate_limit_claim(lock_dir: Path) -> datetime:
@@ -809,10 +812,15 @@ def _cleanup_partial_rate_limit_claim(lock_dir: Path) -> None:
         ) from exc
 
 
-def _claim_rate_limit(config: BridgeConfig, event: OperatorEvent) -> None:
+def _claim_rate_limit(
+    config: BridgeConfig,
+    event: OperatorEvent,
+    *,
+    lock_dir_name: str = RATE_LIMIT_LOCK_DIR,
+) -> None:
     if config.min_interval_seconds <= 0:
         return
-    lock_dir = _rate_limit_claim_dir(config)
+    lock_dir = _rate_limit_claim_dir(config, lock_dir_name=lock_dir_name)
     _reject_symlinked_output_components(
         (lock_dir / "claim.json").absolute(),
         artifact_dir=Path(config.audit_dir).absolute(),
@@ -862,6 +870,12 @@ def _claim_rate_limit(config: BridgeConfig, event: OperatorEvent) -> None:
             ) from exc
         return
     raise SlackSocketAuditError("Unable to acquire Slack operator rate-limit claim.")
+
+
+def _claim_rejected_event_audit_throttle(config: BridgeConfig, event: OperatorEvent) -> None:
+    """Bound rejected audit writes without consuming the main operator throttle."""
+
+    _claim_rate_limit(config, event, lock_dir_name=REJECTED_RATE_LIMIT_LOCK_DIR)
 
 
 def _check_rate_limit(config: BridgeConfig) -> None:
@@ -957,23 +971,11 @@ def process_operator_event(
     audit_path = _audit_path(config, event)
     _ensure_event_not_processed(audit_path, config=config)
     try:
-        _check_rate_limit(config)
-        _claim_rate_limit(config, event)
-    except SlackSocketAuditError:
-        _write_audit_exclusive(
-            path=audit_path,
-            event=event,
-            command=OperatorCommand(kind="rejected"),
-            config=config,
-            status="failed",
-            failure_class="rate_limited",
-        )
-        raise
-    try:
         _require_authorized_event(event, config)
         command = parse_operator_command(event.text, command_hint=event.command_hint)
     except SlackSocketCommandError:
         command = OperatorCommand(kind="rejected")
+        _claim_rejected_event_audit_throttle(config, event)
         _write_audit_exclusive(
             path=audit_path,
             event=event,
@@ -981,6 +983,19 @@ def process_operator_event(
             config=config,
             status="rejected",
             failure_class="command_rejected",
+        )
+        raise
+    try:
+        _check_rate_limit(config)
+        _claim_rate_limit(config, event)
+    except SlackSocketAuditError:
+        _write_audit_exclusive(
+            path=audit_path,
+            event=event,
+            command=command,
+            config=config,
+            status="failed",
+            failure_class="rate_limited",
         )
         raise
     _claim_event(audit_path, event=event, command=command, config=config)
