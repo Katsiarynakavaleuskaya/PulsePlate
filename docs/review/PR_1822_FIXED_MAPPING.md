@@ -297,6 +297,18 @@ Commit: 21fef7eac
 Evidence: scope-link arrays now use the exact JSON-integer schema keyword helper for `repo_truth_links` and `out_of_scope_paths` bounds, with regression coverage for float drift.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:584`, `scripts/ci/check_philosophy_source_corpus_index.py:1052`, `scripts/ci/check_philosophy_source_corpus_index.py:1060`, `tests/test_philosophy_source_corpus_index.py:940`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297736953 -> 3b16c3e11
+Disposition: FIXED
+Commit: 3b16c3e11
+Evidence: PR-5 docs Phase1 routing now treats `scripts/ci/check_docs_phase1_gates.py` as a source-corpus companion trigger, so source-corpus oracle checks run when docs Phase1 routing behavior changes.
+Evidence: Anchors: `.github/workflows/ci.yml:284`, `.github/workflows/ci.yml:288`, `tests/test_ci_workflow_pr_size_governance_contract.py:317`, `tests/test_ci_workflow_pr_size_governance_contract.py:321`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297736959 -> 3b16c3e11
+Disposition: FIXED
+Commit: 3b16c3e11
+Evidence: leakage detection errors now redact the matched value while preserving the fail-closed signal, with regressions proving local-path and credential-like payloads are not echoed.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1076`, `scripts/ci/check_philosophy_source_corpus_index.py:1082`, `tests/test_philosophy_source_corpus_index.py:341`, `tests/test_philosophy_source_corpus_index.py:356`.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -365,6 +377,9 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:584`, `sc
   Evidence: commit `21fef7eac` scans all valid wide-text decoding candidates
   and uses exact JSON-integer keyword checks for source, research, source
   metadata, and scope-link cardinality.
+- FIXED: latest current-head review found PR-5 CI trigger and leakage error
+  hygiene gaps. Evidence: commit `3b16c3e11` runs PR-5 oracle when docs Phase1
+  routing changes and redacts matched leakage values in error output.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -436,6 +451,10 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:584`, `sc
   float cardinality false-greens for `sources`, `research_basis`, and scope-link
   schema bounds. Evidence: commit `21fef7eac` closes these classes with exact
   integer keyword checks and multi-candidate wide-text scanning regressions.
+- FIXED: latest Codex review found source-corpus oracle could be skipped when
+  docs Phase1 routing changed and that leakage errors echoed matched values.
+  Evidence: commit `3b16c3e11` closes both with workflow routing coverage and
+  redacted leakage error regressions.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
