@@ -671,11 +671,26 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
         ("total_pages", EXPECTED_TOTAL_PAGES),
     ):
         errors.extend(_schema_const_at(schema, ("properties", key), expected))
+    for key, expected_type in (
+        ("contract_id", "string"),
+        ("contract_version", "string"),
+        ("generated_at", "string"),
+        ("rollout_phase", "string"),
+        ("gate_status", "string"),
+        ("runtime_allowed", "boolean"),
+        ("implementation_allowed", "boolean"),
+        ("requires_dedicated_gate", "boolean"),
+        ("source_count", "integer"),
+        ("total_pages", "integer"),
+    ):
+        errors.extend(_schema_type_at(schema, ("properties", key), expected_type))
 
     semantic_markers = _schema_object_at(schema, ("properties", "semantic_cache_markers"))
     if semantic_markers is None:
         errors.append("schema semantic_cache_markers must be an object")
     else:
+        if semantic_markers.get("type") != "object":
+            errors.append("schema semantic_cache_markers.type must be object")
         if semantic_markers.get("additionalProperties") is not False:
             errors.append("schema semantic_cache_markers must be closed")
         if semantic_markers.get("required") != list(EXPECTED_SEMANTIC_MARKER_KEYS):
@@ -688,10 +703,17 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
             )
         )
         for key in EXPECTED_SEMANTIC_MARKER_KEYS:
+            marker_schema_path = (
+                "properties",
+                "semantic_cache_markers",
+                "properties",
+                key,
+            )
+            errors.extend(_schema_type_at(schema, marker_schema_path, "boolean"))
             errors.extend(
                 _schema_const_at(
                     schema,
-                    ("properties", "semantic_cache_markers", "properties", key),
+                    marker_schema_path,
                     True,
                 )
             )
@@ -700,6 +722,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     if source_policy is None:
         errors.append("schema source_policy must be an object")
     else:
+        if source_policy.get("type") != "object":
+            errors.append("schema source_policy.type must be object")
         if source_policy.get("additionalProperties") is not False:
             errors.append("schema source_policy must be closed")
         if source_policy.get("required") != list(EXPECTED_SOURCE_POLICY_KEYS):
@@ -719,11 +743,9 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
             ("credential_policy", "credential_like_urls_forbidden"),
             ("wellness_boundary", ALLOWED_WELLNESS_BOUNDARY),
         ):
-            errors.extend(
-                _schema_const_at(
-                    schema, ("properties", "source_policy", "properties", key), expected
-                )
-            )
+            policy_schema_path = ("properties", "source_policy", "properties", key)
+            errors.extend(_schema_type_at(schema, policy_schema_path, "string"))
+            errors.extend(_schema_const_at(schema, policy_schema_path, expected))
 
     sources = _schema_object_at(schema, ("properties", "sources"))
     if sources is None:
@@ -770,8 +792,20 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
                 )
             )
         errors.extend(
+            _schema_type_at(
+                schema, ("properties", "sources", "items", "properties", "language"), "string"
+            )
+        )
+        errors.extend(
             _schema_const_at(
                 schema, ("properties", "sources", "items", "properties", "language"), "ru"
+            )
+        )
+        errors.extend(
+            _schema_type_at(
+                schema,
+                ("properties", "sources", "items", "properties", "extraction_status"),
+                "string",
             )
         )
         errors.extend(
@@ -857,6 +891,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     if research_basis is None:
         errors.append("schema research_basis must be an object")
     else:
+        if research_basis.get("type") != "array":
+            errors.append("schema research_basis.type must be array")
         if research_basis.get("minItems") != len(EXPECTED_RESEARCH_BASIS):
             errors.append(f"schema research_basis.minItems must be {len(EXPECTED_RESEARCH_BASIS)}")
         if research_basis.get("maxItems") != len(EXPECTED_RESEARCH_BASIS):
@@ -865,6 +901,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     if research_item is None:
         errors.append("schema research_basis.items must be an object")
     else:
+        if research_item.get("type") != "object":
+            errors.append("schema research_basis.items.type must be object")
         if research_item.get("additionalProperties") is not False:
             errors.append("schema research_basis.items must be closed")
         if research_item.get("required") != list(EXPECTED_RESEARCH_BASIS_KEYS):
@@ -874,6 +912,13 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
                 research_item.get("properties"),
                 label="schema research_basis.items properties",
                 expected_keys=EXPECTED_RESEARCH_BASIS_KEYS,
+            )
+        )
+        errors.extend(
+            _schema_type_at(
+                schema,
+                ("properties", "research_basis", "items", "properties", "use"),
+                "string",
             )
         )
         errors.extend(

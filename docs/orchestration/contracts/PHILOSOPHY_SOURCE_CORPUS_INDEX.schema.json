@@ -24,27 +24,35 @@
   ],
   "properties": {
     "contract_id": {
+      "type": "string",
       "const": "philosophy_source_corpus_index"
     },
     "contract_version": {
+      "type": "string",
       "const": "2026-05-24"
     },
     "generated_at": {
+      "type": "string",
       "const": "static-2026-05-24"
     },
     "rollout_phase": {
+      "type": "string",
       "const": "PHILOSOPHY-PR5"
     },
     "gate_status": {
+      "type": "string",
       "const": "closed"
     },
     "runtime_allowed": {
+      "type": "boolean",
       "const": false
     },
     "implementation_allowed": {
+      "type": "boolean",
       "const": false
     },
     "requires_dedicated_gate": {
+      "type": "boolean",
       "const": true
     },
     "semantic_cache_markers": {
@@ -58,15 +66,19 @@
       ],
       "properties": {
         "gate_status_closed": {
+          "type": "boolean",
           "const": true
         },
         "runtime_allowed_false": {
+          "type": "boolean",
           "const": true
         },
         "implementation_allowed_false": {
+          "type": "boolean",
           "const": true
         },
         "dedicated_gate_required": {
+          "type": "boolean",
           "const": true
         }
       }
@@ -84,29 +96,37 @@
       ],
       "properties": {
         "authority": {
+          "type": "string",
           "const": "operator_pdf_design_evidence_repo_truth_wins"
         },
         "local_path_policy": {
+          "type": "string",
           "const": "no_absolute_local_paths_committed"
         },
         "text_policy": {
+          "type": "string",
           "const": "metadata_and_paraphrase_only_no_full_pdf_text"
         },
         "promotion_policy": {
+          "type": "string",
           "const": "not_runtime_truth_without_reviewed_contract"
         },
         "credential_policy": {
+          "type": "string",
           "const": "credential_like_urls_forbidden"
         },
         "wellness_boundary": {
+          "type": "string",
           "const": "cbt_inspired_reflective_wellness_coaching_not_medical_diagnosis_treatment_or_therapy"
         }
       }
     },
     "source_count": {
+      "type": "integer",
       "const": 6
     },
     "total_pages": {
+      "type": "integer",
       "const": 102
     },
     "sources": {
@@ -146,6 +166,7 @@
             "minLength": 8
           },
           "language": {
+            "type": "string",
             "const": "ru"
           },
           "page_count": {
@@ -168,6 +189,7 @@
             ]
           },
           "extraction_status": {
+            "type": "string",
             "const": "metadata_and_text_extract_verified"
           },
           "summary": {
@@ -295,6 +317,7 @@
             "type": "string"
           },
           "use": {
+            "type": "string",
             "const": "rationale_only_not_runtime_truth"
           }
         }
