@@ -237,6 +237,24 @@ Evidence: duplicate current-head finding; the branch already enforces exact JSON
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:531`, `scripts/ci/check_philosophy_source_corpus_index.py:1185`, `scripts/ci/check_philosophy_source_corpus_index.py:1188`, `tests/test_philosophy_source_corpus_index.py:125`.
 Reason: no additional code change is needed because the current PR head already rejects `6.0` / `102.0` aggregate count drift.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297525346 -> 004a6ef31
+Disposition: FIXED
+Commit: 004a6ef31
+Evidence: schema numeric keyword checks now require exact JSON integers for `minimum` and `minLength`, closing `True == 1` and `40.0 == 40` false-greens.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:815`, `scripts/ci/check_philosophy_source_corpus_index.py:818`, `scripts/ci/check_philosophy_source_corpus_index.py:839`, `tests/test_philosophy_source_corpus_index.py:511`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297529356 -> 004a6ef31
+Disposition: FIXED
+Commit: 004a6ef31
+Evidence: touched-artifact decoding now switches to UTF-32/UTF-16 first when NUL bytes indicate wide text and rejects decoded text with embedded NULs before scanning.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1034`, `scripts/ci/check_philosophy_source_corpus_index.py:1040`, `scripts/ci/check_philosophy_source_corpus_index.py:1048`, `tests/test_philosophy_source_corpus_index.py:1059`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297529364 -> 004a6ef31
+Disposition: FIXED
+Commit: 004a6ef31
+Evidence: source-row validation now mirrors source text minimum-length constraints for title, sanitized filename, summary, and future handoff text.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:98`, `scripts/ci/check_philosophy_source_corpus_index.py:1152`, `scripts/ci/check_philosophy_source_corpus_index.py:1156`, `tests/test_philosophy_source_corpus_index.py:205`.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -288,6 +306,10 @@ Reason: no additional code change is needed because the current PR head already 
 - NOT-A-BUG: repeated integer/type-aware review comments after `5f3142b14`
   describe classes already enforced at current head. Evidence: those duplicate
   threads are mapped as NOT-A-BUG with code/test anchors.
+- FIXED: current-head review found type-loose schema numeric keywords,
+  BOM-less UTF-16 leakage-scan bypass, and source-row text constraint drift.
+  Evidence: commit `004a6ef31` adds type-strict keyword checks, wide-text
+  decoding heuristics, row-level minLength validation, and focused regressions.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -345,6 +367,10 @@ Reason: no additional code change is needed because the current PR head already 
 - NOT-A-BUG: repeated current-head Codex comments for the already-fixed
   integer/type-aware classes require no extra code. Evidence: `5f3142b14` and
   the focused tests already reject those exact drifts.
+- FIXED: current-head CodeRabbit/Codex review found remaining oracle comparison
+  and decoding gaps. Evidence: commit `004a6ef31` closes schema numeric keyword
+  coercion, BOM-less UTF-16 artifact leakage, and source text row minLength
+  coverage.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
