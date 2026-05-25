@@ -386,8 +386,10 @@ def test_regional_catalog_dedicated_legal_contract_review_report_contract() -> N
     ("field_name", "bad_value", "match"),
     (
         ("source", "   ", "source"),
+        ("source", "regional_catalogs_wrong", "source must be regional_catalogs"),
         ("source_family", "regional_catalog_wrong", "source_family"),
         ("review_decision", "", "review_decision"),
+        ("review_decision", "review only; all providers remain blocked", "review_decision"),
         ("legal_review_authority", "review_only_not_authority", "legal_review_authority"),
         ("notes", "review-only legal facts remain blocked", "notes"),
     ),
@@ -682,6 +684,23 @@ def test_regional_catalog_dedicated_legal_contract_review_derives_next_lane_from
     )
 
     with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match="PR20 next"):
+        parse_regional_catalog_dedicated_legal_contract_review_governance(
+            _legal_review_payload(),
+            pr20_report=_pr20_report(),
+            pr20_gate=bad_gate,
+        )
+
+
+def test_regional_catalog_dedicated_legal_contract_review_rejects_pr20_candidate_order_drift() -> (
+    None
+):
+    gate = _pr20_gate()
+    bad_gate = replace(
+        gate,
+        candidate_closeout_terms=tuple(reversed(gate.candidate_closeout_terms)),
+    )
+
+    with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match="candidate order"):
         parse_regional_catalog_dedicated_legal_contract_review_governance(
             _legal_review_payload(),
             pr20_report=_pr20_report(),
