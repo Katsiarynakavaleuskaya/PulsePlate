@@ -14,7 +14,7 @@ Record every new bot/human disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments.
+- No actionable review comments
 
 ## Post-Open Governance
 
@@ -22,7 +22,7 @@ Record every new bot/human disposition here before resolving threads on GitHub.
 - Title: `docs(architecture): reconcile landed A3 bounded-context packet closeout`
 - Branch: `codex/ai-bounded-context-packet-a3-closeout`
 - Opening commit: `02b7d0f7d6ebb09531e0a20b2146b829b183ec3f`
-- Experiment Runner: `exp-e9c765a5951c`, oracle-only accepted.
+- Experiment Runner Artifact: `artifacts/orchestration/experiments/results/exp-e9c765a5951c.json`, oracle-only accepted.
 - Full local `make verify`: deferred under the operator-approved machine-heavy
   path. This PR uses narrow local gates plus current-head CI/review governance.
 
