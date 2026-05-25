@@ -101,9 +101,9 @@ Philosophy Epic V2 PR-5 adds the source-corpus index defined by
 That index preserves the six operator-provided philosophy PDFs as design
 evidence with sanitized titles, page counts, fingerprints, repo anchors, and
 false runtime flags. It is not PR-A2, does not change the closed machine markers
-above, and does not permit semantic-cache runtime admission, cache reads, cache
-writes, serving, providers, `/insight`, Redis, GPTCache, embeddings, vector
-search, DB, OpenAPI, frontend, or iOS changes.
+above, and keeps PR-5 outside semantic-cache runtime admission. Cache reads,
+cache writes, serving, providers, `/insight`, Redis, GPTCache, embeddings,
+vector search, DB, OpenAPI, frontend, and iOS remain out of scope.
 
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
