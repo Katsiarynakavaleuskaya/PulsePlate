@@ -8,10 +8,10 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 6300940dff019d03f18222de3ed9d25595df251c
+Commit: 6300940dfb0107a4a301f05bce25ca0407b74f6d
 Evidence: `tests/test_experiment_slack_socket_bridge.py` now uses canonical `dispatch_mode="dry-run"` in the duplicate-rate-limit regression and hashes the stable normalized `envelope_id`; focused Slack bridge tests pass locally.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1833#discussion_r3299103650 -> 6300940dff019d03f18222de3ed9d25595df251c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1833#discussion_r3299103653 -> 6300940dff019d03f18222de3ed9d25595df251c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1833#discussion_r3299103650 -> 6300940dfb0107a4a301f05bce25ca0407b74f6d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1833#discussion_r3299103653 -> 6300940dfb0107a4a301f05bce25ca0407b74f6d
 
 ## Lane Start Provenance
 
@@ -28,14 +28,14 @@ Evidence: `tests/test_experiment_slack_socket_bridge.py` now uses canonical `dis
 - Promotion: `promotion_ready: false`
 - Contribution: `commit_decision`
 - Co-author required: true
-- Commit: `6300940dff019d03f18222de3ed9d25595df251c`
+- Commit: `6300940dfb0107a4a301f05bce25ca0407b74f6d`
 
 ## Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration/experiment_slack_socket_bridge.py --path tests/test_experiment_slack_socket_bridge.py` - PASS
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` - PASS, packet `7ac3fb3de577.json`
 - `qoder_dispatch_bridge.py --packet artifacts/orchestration/task_packets/7ac3fb3de577.json --pretty` - PASS, packet role order emitted
-- `agent-coordinator` - completed, identified the two P1 test blockers fixed by `6300940dff019d03f18222de3ed9d25595df251c`
+- `agent-coordinator` - completed, identified the two P1 test blockers fixed by `6300940dfb0107a4a301f05bce25ca0407b74f6d`
 - `architecture-specialist` - PASS, production diff remains narrow and does not widen Slack authority
 - `python -m pytest tests/test_experiment_slack_socket_bridge.py -q` - PASS, 67 tests
 - Experiment Runner oracle-only evidence - accepted
