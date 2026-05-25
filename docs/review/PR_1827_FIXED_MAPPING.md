@@ -86,6 +86,19 @@ plus current-head CI and strict merge-readiness governance.
 - FIXED: Security P1 checker failure on class-method tests. Evidence: `ca589415a` accepts pytest-discoverable `Test*` class methods while rejecting nested/dead-scope and skip/xfail cases.
 - NOT-A-BUG: Security P2 packet/result artifact references. Reason: Phase2 governance validates local ignored artifact references as evidence pointers. Evidence: artifact files are not tracked, and this artifact explicitly records them as local ignored governance evidence only. Worktree path text was removed.
 
+## Codex Security Evidence
+
+- Phase: `threat-model` completed using repository threat-model guidance from
+  `AGENTS.md` and PR-local security boundaries.
+- Phase: `security-scan` / finding discovery completed against
+  `origin/main...HEAD`.
+- Phase: `validation` completed for the no-candidate result.
+- Result: no reportable security findings.
+- Local scan id: `pr1827_1e1a05228fb7_20260525T104758Z`
+- Evidence: no runtime route, provider, cache, persistence, OpenAPI, database,
+  Redis/GPTCache, or semantic-cache serving surface is added; semantic-cache
+  gate checker passed; full pre-commit and pre-push security hooks passed.
+
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297552749 -> ca589415a
