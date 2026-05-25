@@ -466,6 +466,82 @@ def test_philosophy_source_corpus_index_rejects_schema_sources_type_drift() -> N
     assert any("schema sources.type must be array" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_schema_page_count_minimum_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    items = sources["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    page_count = item_properties["page_count"]
+    assert isinstance(page_count, dict)
+    del page_count["minimum"]
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema sources.items.properties.page_count.minimum must be 1" in error for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_source_pattern_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    items = sources["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    source_id = item_properties["source_id"]
+    assert isinstance(source_id, dict)
+    source_id["pattern"] = ".*"
+    sha256 = item_properties["sha256"]
+    assert isinstance(sha256, dict)
+    del sha256["pattern"]
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema sources.items.properties.source_id.pattern drifted" in error for error in errors
+    )
+    assert any(
+        "schema sources.items.properties.sha256.pattern drifted" in error for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_source_min_length_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    items = sources["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    summary = item_properties["summary"]
+    assert isinstance(summary, dict)
+    summary["minLength"] = 1
+    handoff = item_properties["future_handoff"]
+    assert isinstance(handoff, dict)
+    del handoff["minLength"]
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema sources.items.properties.summary.minLength must be 40" in error for error in errors
+    )
+    assert any(
+        "schema sources.items.properties.future_handoff.minLength must be 20" in error
+        for error in errors
+    )
+
+
 def test_philosophy_source_corpus_index_rejects_schema_source_scalar_type_drift() -> None:
     schema = _schema()
     properties = schema["properties"]
@@ -546,6 +622,18 @@ def test_philosophy_source_corpus_index_rejects_schema_top_level_const_type_drif
 
     assert any(
         "schema properties.runtime_allowed.type must be boolean" in error for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_uri_drift() -> None:
+    schema = _schema()
+    schema["$schema"] = "https://json-schema.org/draft/2019-09/schema"
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema $schema must be https://json-schema.org/draft/2020-12/schema" in error
+        for error in errors
     )
 
 

@@ -648,6 +648,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
             ),
         )
     )
+    if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
+        errors.append("schema $schema must be https://json-schema.org/draft/2020-12/schema")
     if schema.get("$id") != "PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json":
         errors.append("schema $id must be PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json")
     if schema.get("title") != "Philosophy Source Corpus Index":
@@ -801,6 +803,34 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
                     expected_type,
                 )
             )
+        page_count_schema = _schema_object_at(
+            schema, ("properties", "sources", "items", "properties", "page_count")
+        )
+        if page_count_schema is None or page_count_schema.get("minimum") != 1:
+            errors.append("schema sources.items.properties.page_count.minimum must be 1")
+        for key, expected_pattern in (
+            ("source_id", "^[a-z0-9_]+$"),
+            ("sha256", "^[a-f0-9]{8}(?:-[a-f0-9]{8}){7}$"),
+        ):
+            field_schema = _schema_object_at(
+                schema, ("properties", "sources", "items", "properties", key)
+            )
+            if field_schema is None or field_schema.get("pattern") != expected_pattern:
+                errors.append(f"schema sources.items.properties.{key}.pattern drifted")
+        for key, expected_min_length in (
+            ("title", 8),
+            ("sanitized_filename", 8),
+            ("summary", 40),
+            ("future_handoff", 20),
+        ):
+            field_schema = _schema_object_at(
+                schema, ("properties", "sources", "items", "properties", key)
+            )
+            if field_schema is None or field_schema.get("minLength") != expected_min_length:
+                errors.append(
+                    f"schema sources.items.properties.{key}.minLength must be "
+                    f"{expected_min_length}"
+                )
         errors.extend(
             _schema_type_at(
                 schema, ("properties", "sources", "items", "properties", "language"), "string"
