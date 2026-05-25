@@ -39,24 +39,26 @@ Disposition: FIXED
 Commit: 52bdcccd1
 Evidence: `docs/review/PR_1469_FIXED_MAPPING.md:15-40`; `docs/review/PR_1469_FIXED_MAPPING.md:70-75`.
 
-## Merge Readiness
+## Post-Merge Closeout
 
-Merge-readiness contract:
-`AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
-`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
+- State: `MERGED`
+- Title: `docs(architecture): define AI bounded-context packet and ownership map`
+- PR #1469 merged at `2026-04-19T11:35:29Z`
+- Merge commit: `f8454715f88e44657cfad1c4675f93ea669dc490`
+- Original branch: `codex/ai-bounded-context-packet`
+- Closeout scope: historical docs-only A3 packet evidence; no runtime or public
+  API work is claimed by this artifact.
+- Boundary: PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate
+  and open until its own extraction DoD is proven.
+- Boundary: semantic-cache markers remain `closed / false / false / true`.
+  Semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence,
+  public routes, OpenAPI, DTOs, provider rewiring, and default activation remain
+  out of scope.
 
-- [ ] Current-head CI is green for PR branch head
-  Evidence: `AGENTS.md:42-49`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:95-112`.
-- [ ] Required checks complete (no pending jobs)
-  Evidence: `AGENTS.md:46-49`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:155-163`.
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: `AGENTS.md:43-45`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:95-112`.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: `AGENTS.md:44-45`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:95-112`.
-- [ ] Pre-commit green on latest pushed head
-  Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
-- [ ] `make verify` green on latest pushed head
-  Evidence: `AGENTS.md:1-16`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:175-180`.
+## Historical Merge Readiness
+
+This section is historical evidence only. PR #1469 is already merged, so this
+closeout does not re-run or reassert the original readiness checklist.
 
 ## Scope
 
@@ -73,6 +75,8 @@ Merge-readiness contract:
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `pre-commit run --all-files`
 - `VENV_PYTHON=.venv/bin/python make validate-min`
+- Later A3 closeout reconciliation validates PR #1469 merge evidence through
+  `scripts/ci/check_ai_bounded_context_a3_closeout.py`.
 
 ## Deferred / Follow-ups
 
