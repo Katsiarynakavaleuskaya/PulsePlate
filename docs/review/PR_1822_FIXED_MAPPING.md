@@ -201,6 +201,36 @@ Commit: 5f3142b14
 Evidence: schema `const` comparisons are type-aware, so boolean-to-numeric and integer-to-float drift cannot pass by Python equality.
 Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:535`, `scripts/ci/check_philosophy_source_corpus_index.py:558`, `tests/test_philosophy_source_corpus_index.py:430`, `tests/test_philosophy_source_corpus_index.py:443`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297445015 -> 2f5ef5169
+Disposition: FIXED
+Commit: 2f5ef5169
+Evidence: the schema oracle now validates the canonical JSON Schema draft URI and rejects metaschema drift.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:651`, `tests/test_philosophy_source_corpus_index.py:628`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297445019 -> 2f5ef5169
+Disposition: FIXED
+Commit: 2f5ef5169
+Evidence: the schema oracle now validates `page_count.minimum == 1` and has a regression for deleted minimum drift.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:806`, `scripts/ci/check_philosophy_source_corpus_index.py:810`, `tests/test_philosophy_source_corpus_index.py:469`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297445021 -> 2f5ef5169
+Disposition: FIXED
+Commit: 2f5ef5169
+Evidence: the schema oracle now validates source scalar pattern and minimum-length constraints for source identifiers, hashes, titles, filenames, summaries, and handoff text.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:811`, `scripts/ci/check_philosophy_source_corpus_index.py:820`, `tests/test_philosophy_source_corpus_index.py:490`, `tests/test_philosophy_source_corpus_index.py:517`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297445025
+Disposition: NOT-A-BUG
+Evidence: duplicate current-head finding; the branch already enforces type-aware schema `const` equality through commit `5f3142b14`, and the same class is mapped above under `discussion_r3297399794`.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:535`, `scripts/ci/check_philosophy_source_corpus_index.py:558`, `tests/test_philosophy_source_corpus_index.py:430`, `tests/test_philosophy_source_corpus_index.py:443`.
+Reason: no additional code change is needed because the current PR head already rejects boolean/numeric `const` drift.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297445030
+Disposition: NOT-A-BUG
+Evidence: duplicate current-head finding; the branch already enforces exact JSON integer aggregate counts through commit `5f3142b14`, and the same class is mapped above under `discussion_r3297399786`.
+Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:531`, `scripts/ci/check_philosophy_source_corpus_index.py:1185`, `scripts/ci/check_philosophy_source_corpus_index.py:1188`, `tests/test_philosophy_source_corpus_index.py:125`.
+Reason: no additional code change is needed because the current PR head already rejects `6.0` / `102.0` aggregate count drift.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -245,6 +275,13 @@ Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:535`, `scr
   UTF decoding order leakage risk. Evidence: commit `5f3142b14` adds exact
   JSON-integer checks, type-aware schema `const` comparison, UTF-32-before-UTF-16
   scanning, and focused regressions.
+- FIXED: current-head review found schema-oracle constraint drift for the
+  canonical `$schema` URI, `page_count.minimum`, and source scalar
+  pattern/minimum-length constraints. Evidence: commit `2f5ef5169` validates
+  those schema constraints and adds focused regressions.
+- NOT-A-BUG: repeated integer/type-aware review comments after `5f3142b14`
+  describe classes already enforced at current head. Evidence: those duplicate
+  threads are mapped as NOT-A-BUG with code/test anchors.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -295,6 +332,13 @@ Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:535`, `scr
   UTF-32 leakage-scan ordering, and Python equality false-greens in schema
   `const` checks. Evidence: commit `5f3142b14` closes all three classes in the
   checker and regression suite.
+- FIXED: the current-head Codex review found missing schema-oracle assertions
+  for `$schema`, `page_count.minimum`, and source scalar pattern/minLength
+  constraints. Evidence: commit `2f5ef5169` closes these with schema checks and
+  regressions.
+- NOT-A-BUG: repeated current-head Codex comments for the already-fixed
+  integer/type-aware classes require no extra code. Evidence: `5f3142b14` and
+  the focused tests already reject those exact drifts.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
