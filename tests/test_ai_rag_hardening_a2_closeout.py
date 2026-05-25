@@ -361,6 +361,16 @@ def test_checker_rejects_stale_a2_blocked_claim(tmp_path: Path) -> None:
     assert any("stale A2 active/pending claim" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_stale_a2_status_with_negation(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace("Status: Closed.", "Status: Planned, not closed."),
+        encoding="utf-8",
+    )
+    assert any("stale A2 active/pending claim" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_duplicate_closeout_anchor(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
@@ -734,6 +744,17 @@ def test_checker_rejects_namedexpr_runtime_symbol_rebound(tmp_path: Path) -> Non
     vector_path.write_text(
         vector_path.read_text(encoding="utf-8")
         + "\nif (_retrieve_vector_from_db := None):\n    pass\n",
+        encoding="utf-8",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_globals_runtime_symbol_rebound(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    vector_path = tmp_path / "core/rag/vector_rag.py"
+    vector_path.write_text(
+        vector_path.read_text(encoding="utf-8")
+        + '\nglobals()["_retrieve_vector_from_db"] = None\n',
         encoding="utf-8",
     )
     assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
@@ -1318,6 +1339,82 @@ TestVectorRequired.test_missing_subject_id_returns_empty_without_encoding.__test
 """,
     )
     assert any("falsy __test__" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_setattr_class_method_rebound(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """class TestVectorRequired:
+    def test_missing_subject_id_returns_empty_without_encoding(self): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(self): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(self): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(self): pass
+
+
+setattr(TestVectorRequired, "test_missing_subject_id_returns_empty_without_encoding", None)
+""",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_setattr_class_method_test_override(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """class TestVectorRequired:
+    def test_missing_subject_id_returns_empty_without_encoding(self): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(self): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(self): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(self): pass
+
+
+setattr(
+    TestVectorRequired.test_missing_subject_id_returns_empty_without_encoding,
+    "__test__",
+    0,
+)
+""",
+    )
+    assert any("falsy __test__" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_class_module_test_override(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """class TestVectorRequired:
+    def test_missing_subject_id_returns_empty_without_encoding(self): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(self): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(self): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(self): pass
+
+
+TestVectorRequired.__test__ = 0
+""",
+    )
+    assert any(
+        "must not live in disabled or uncollectable class" in error for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_class_module_rebound(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """class TestVectorRequired:
+    def test_missing_subject_id_returns_empty_without_encoding(self): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(self): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(self): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(self): pass
+
+
+TestVectorRequired = object()
+""",
+    )
+    assert any(
+        "must not live in disabled or uncollectable class" in error for error in _errors(tmp_path)
+    )
 
 
 def test_checker_rejects_local_path_leakage_in_closeout_text(tmp_path: Path) -> None:

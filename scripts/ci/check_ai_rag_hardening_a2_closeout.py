@@ -165,6 +165,7 @@ STALE_SECTION_RE = re.compile(
     r"missing\s+implementation)\b",
     re.I,
 )
+STALE_STATUS_RE = re.compile(r"\bStatus:\s*[^\n]*(?:Planned|in[-\s]+progress|pending)", re.I)
 MAPPING_STALE_RE = re.compile(
     r"\b(merge-readiness\s+stays\s+open|full\s+local\s+`?make\s+verify`?\s+completes|"
     r"re-check\s+on\s+current\s+head\s+before\s+merge|all\s+required\s+checks\s+pass)\b",
@@ -480,6 +481,9 @@ def _node_has_disabling_test_marker(node: ast.AST, aliases: set[str]) -> bool:
 def _bound_target_names(node: ast.AST) -> tuple[str, ...]:
     if isinstance(node, ast.Name):
         return (node.id,)
+    dynamic_name = _globals_subscript_target_name(node)
+    if dynamic_name is not None:
+        return (dynamic_name,)
     if isinstance(node, ast.Starred):
         return _bound_target_names(node.value)
     if isinstance(node, (ast.Tuple, ast.List)):
@@ -488,6 +492,14 @@ def _bound_target_names(node: ast.AST) -> tuple[str, ...]:
             names.extend(_bound_target_names(item))
         return tuple(names)
     return ()
+
+
+def _globals_subscript_target_name(node: ast.AST) -> str | None:
+    if not isinstance(node, ast.Subscript):
+        return None
+    if not isinstance(node.value, ast.Call) or _callable_name(node.value.func) != "globals":
+        return None
+    return _constant_string(node.slice)
 
 
 def _assigned_names(statement: ast.stmt) -> tuple[str, ...]:
@@ -780,6 +792,9 @@ def _class_method_rebound_after_class_definition(
         for target in _assignment_targets(statement):
             if _attribute_chain(target) == (class_name, method_name):
                 return True
+        for child in ast.walk(statement):
+            if _setattr_rebinds_class_member(child, class_name, method_name):
+                return True
     return False
 
 
@@ -793,12 +808,86 @@ def _class_method_test_attribute_disabled_after_class_definition(
         if getattr(statement, "lineno", -1) <= class_lineno:
             continue
         value = _assigned_value(statement)
+        for child in ast.walk(statement):
+            if _setattr_sets_falsy_class_method_test_attribute(
+                child,
+                class_name,
+                method_name,
+            ):
+                return True
         if value is None or not _is_falsy_constant(value):
             continue
         for target in _assignment_targets(statement):
             if _attribute_chain(target) == (class_name, method_name, "__test__"):
                 return True
     return False
+
+
+def _class_test_attribute_disabled_after_definition(
+    statements: list[ast.stmt],
+    class_name: str,
+    class_lineno: int,
+) -> bool:
+    for statement in _iter_scope_statements(statements):
+        if getattr(statement, "lineno", -1) <= class_lineno:
+            continue
+        value = _assigned_value(statement)
+        if value is not None and _is_falsy_constant(value):
+            for target in _assignment_targets(statement):
+                if _attribute_chain(target) == (class_name, "__test__"):
+                    return True
+        for child in ast.walk(statement):
+            if _setattr_sets_falsy_class_test_attribute(child, class_name):
+                return True
+    return False
+
+
+def _setattr_args(node: ast.AST) -> tuple[ast.AST, ast.AST, ast.AST] | None:
+    if not isinstance(node, ast.Call):
+        return None
+    if _callable_name(node.func) != "setattr" or len(node.args) < 3:
+        return None
+    return node.args[0], node.args[1], node.args[2]
+
+
+def _setattr_rebinds_class_member(
+    node: ast.AST,
+    class_name: str,
+    member_name: str,
+) -> bool:
+    args = _setattr_args(node)
+    if args is None:
+        return False
+    target, attr, _value = args
+    return _full_name(target) == class_name and _constant_string(attr) == member_name
+
+
+def _setattr_sets_falsy_class_method_test_attribute(
+    node: ast.AST,
+    class_name: str,
+    method_name: str,
+) -> bool:
+    args = _setattr_args(node)
+    if args is None:
+        return False
+    target, attr, value = args
+    return (
+        _full_name(target) == f"{class_name}.{method_name}"
+        and _constant_string(attr) == "__test__"
+        and _is_falsy_constant(value)
+    )
+
+
+def _setattr_sets_falsy_class_test_attribute(node: ast.AST, class_name: str) -> bool:
+    args = _setattr_args(node)
+    if args is None:
+        return False
+    target, attr, value = args
+    return (
+        _full_name(target) == class_name
+        and _constant_string(attr) == "__test__"
+        and _is_falsy_constant(value)
+    )
 
 
 def _reachable_statement_roots(statements: list[ast.stmt]) -> tuple[ast.stmt, ...]:
@@ -904,7 +993,15 @@ def _discoverable_test_function_nodes(
         if not isinstance(statement, ast.ClassDef) or not statement.name.startswith("Test"):
             continue
         class_aliases = module_aliases | _disabling_marker_aliases(statement.body)
-        class_disabled = _test_class_is_disabled(statement, module_aliases)
+        class_disabled = (
+            _test_class_is_disabled(statement, module_aliases)
+            or _name_rebound_after_definition(tree.body, statement.name, statement.lineno)
+            or _class_test_attribute_disabled_after_definition(
+                tree.body,
+                statement.name,
+                statement.lineno,
+            )
+        )
         for item in statement.body:
             if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
@@ -1145,7 +1242,9 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
 
 def _check_stale_a2_claims(label: str, text: str, errors: list[str]) -> None:
     for unit in _line_units(text):
-        if STALE_SECTION_RE.search(unit) and not NEGATION_RE.search(unit):
+        if STALE_STATUS_RE.search(unit):
+            errors.append(f"{label}: stale A2 active/pending claim: {unit}")
+        elif STALE_SECTION_RE.search(unit) and not NEGATION_RE.search(unit):
             errors.append(f"{label}: stale A2 active/pending claim: {unit}")
         elif (
             PR_A2_RE.search(unit) and STALE_A2_WORD_RE.search(unit) and not NEGATION_RE.search(unit)
