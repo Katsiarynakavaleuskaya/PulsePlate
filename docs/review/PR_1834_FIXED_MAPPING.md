@@ -212,8 +212,8 @@ Reason: The Sourcery review body was a weekly diff-character quota notification,
 
 ## Merge Readiness
 
-- [x] Current-head CI completed for this PR.
-- [x] Phase2 PR body gate passed for this PR.
-- [x] Strict merge-readiness wrapper passed for this PR after latest bot/review activity.
-- [x] No actionable bot comments remain.
+- [ ] Current-head CI completed for this PR.
+- [ ] Phase2 PR body gate passed for this PR.
+- [ ] Strict merge-readiness wrapper passed for this PR after latest bot/review activity.
+- [ ] No actionable bot comments remain.
 - [ ] Mandatory wait window elapsed after latest bot/review activity.
