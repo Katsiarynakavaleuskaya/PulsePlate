@@ -433,6 +433,18 @@ Commit: 9ba654437
 Evidence: touched-path normalization now preserves the exact raw git filename, including leading and trailing spaces, so content scanning reads the actual touched artifact.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:632`, `tests/test_philosophy_source_corpus_index.py:1136`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299923104 -> a8cb56911
+Disposition: FIXED
+Commit: a8cb56911
+Evidence: source-corpus leakage scanning now iterates every match for each leakage pattern, so an allowed `/usr/bin/env` occurrence cannot hide a later forbidden absolute local path.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1101`, `scripts/ci/check_philosophy_source_corpus_index.py:1102`, `tests/test_philosophy_source_corpus_index.py:1166`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299923108 -> a8cb56911
+Disposition: FIXED
+Commit: a8cb56911
+Evidence: source-corpus touched-file scanning now stops content reads after detecting an absolute or repository-escaping symlink target, preserving fail-closed symlink validation without reading outside-repo content.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1177`, `scripts/ci/check_philosophy_source_corpus_index.py:1192`, `tests/test_philosophy_source_corpus_index.py:1257`.
+
 ## CI Failure Closure
 
 - CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
@@ -499,52 +511,65 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `sc
 - NOT-A-BUG: repeated integer/type-aware review comments after `5f3142b14`
   describe classes already enforced at current head. Evidence: those duplicate
   threads are mapped as NOT-A-BUG with code/test anchors.
-- FIXED: current-head review found type-loose schema numeric keywords,
+- FIXED (Commit: 004a6ef31): current-head review found type-loose schema numeric keywords,
   BOM-less UTF-16 leakage-scan bypass, and source-row text constraint drift.
-  Evidence: commit `004a6ef31` adds type-strict keyword checks, wide-text
-  decoding heuristics, row-level minLength validation, and focused regressions.
-- FIXED: current-head review found companion roadmap/report leakage-scan gaps.
-  Evidence: commit `7b7eef081` applies the same local-path/credential scanner to
-  semantic-cache roadmap and gate-open precondition report text and adds focused
-  regressions for both inputs.
+  Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:815`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1034`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1152`,
+  `tests/test_philosophy_source_corpus_index.py:511`.
+- FIXED (Commit: 7b7eef081): current-head review found companion roadmap/report
+  leakage-scan gaps. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:1403`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1410`,
+  `tests/test_philosophy_source_corpus_index.py:925`,
+  `tests/test_philosophy_source_corpus_index.py:937`.
 - NOT-A-BUG: repeated UTF-16/UTF-32 decoding review comment after `004a6ef31`
   describes behavior already enforced at current head. Evidence: current
   `_decode_text_artifact()` returns plain text for the composed BOM-less
   UTF-16LE local-path sample and the regression test scans that artifact class.
-- FIXED: latest current-head review found BOM-less big-endian UTF-16/UTF-32
+- FIXED (Commit: 21fef7eac): latest current-head review found BOM-less
+  big-endian UTF-16/UTF-32
   leakage bypasses and float cardinality false-greens for schema bounds.
-  Evidence: commit `21fef7eac` scans all valid wide-text decoding candidates
-  and uses exact JSON-integer keyword checks for source, research, source
-  metadata, and scope-link cardinality.
-- FIXED: latest current-head review found PR-5 CI trigger and leakage error
-  hygiene gaps. Evidence: commit `3b16c3e11` added intermediate routing coverage
-  and redacted matched leakage values in error output; commit `f2ed27c0b`
-  supersedes the broad trigger with source-corpus-owned activation.
-- FIXED: current-head CI found Docs Phase1 used a stale
+  Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1093`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1104`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:584`,
+  `tests/test_philosophy_source_corpus_index.py:1165`.
+- FIXED (Commit: f2ed27c0b): latest current-head review found PR-5 CI trigger
+  and leakage error hygiene gaps. Evidence: Anchors: `.github/workflows/ci.yml:284`,
+  `.github/workflows/ci.yml:289`,
+  `tests/test_ci_workflow_pr_size_governance_contract.py:339`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1076`.
+- FIXED (Commit: 3aa36f850): current-head CI found Docs Phase1 used a stale
   `github.event.pull_request.base.sha` after `main` advanced, pulling unrelated
   Experiment Runner Slack files into the PR-5 source-corpus touched-file scan.
-  Evidence: commit `3aa36f850` prefers the pull_request merge-ref parent
-  `HEAD^1` and keeps the event base SHA only as a fallback, with workflow
-  contract coverage.
-- FIXED: current-head review found discipline rail enum false-greens. Evidence:
-  commit `33e57821f` rejects non-canonical `discipline_rails` values and adds a
-  regression for `totally_invalid_rail`.
-- FIXED: current-head CI after `origin/main` advanced found the PR-5 roadmap
-  wording tripped the new A3 bounded-context guard. Evidence: commit
-  `52216f2f9` rewrites the note to keep PR-5 outside semantic-cache runtime
-  admission while keeping OpenAPI, frontend, iOS, and cache/runtime surfaces out
-  of scope.
-- FIXED: current-head review found Docs Phase1 could trust `HEAD^1` even when
-  the checkout was not a pull-request merge commit. Evidence: commit
-  `5372841b2` verifies `HEAD^2` exists before using `HEAD^1` and keeps the PR
-  base SHA fallback.
-- FIXED: current-head review found touched-path normalization could rewrite
-  literal POSIX backslashes and skip a real file. Evidence: commit `5372841b2`
-  preserves backslashes, rejects Windows drive paths, and adds a literal
-  backslash path leakage regression.
-- FIXED: current-head review found CP1251/Windows-1252 text artifacts could be
-  skipped before content leakage scanning. Evidence: commit `5372841b2` adds
-  fallback decoding plus focused CP1251 and Windows-1252 leak regressions.
+  Evidence: Anchors: `.github/workflows/ci.yml:237`,
+  `.github/workflows/ci.yml:245`,
+  `tests/test_ci_workflow_pr_size_governance_contract.py:295`.
+- FIXED (Commit: 33e57821f): current-head review found discipline rail enum
+  false-greens. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:113`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1266`,
+  `tests/test_philosophy_source_corpus_index.py:315`.
+- FIXED (Commit: 52216f2f9): current-head CI after `origin/main` advanced found
+  the PR-5 roadmap wording tripped the new A3 bounded-context guard.
+  Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`,
+  `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:104`,
+  `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:106`.
+- FIXED (Commit: 5372841b2): current-head review found Docs Phase1 could trust
+  `HEAD^1` even when the checkout was not a pull-request merge commit.
+  Evidence: Anchors: `.github/workflows/ci.yml:237`,
+  `.github/workflows/ci.yml:245`,
+  `tests/test_ci_workflow_pr_size_governance_contract.py:295`.
+- FIXED (Commit: 5372841b2): current-head review found touched-path normalization
+  could rewrite literal POSIX backslashes and skip a real file.
+  Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:617`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:621`,
+  `tests/test_philosophy_source_corpus_index.py:1123`.
+- FIXED (Commit: 5372841b2): current-head review found CP1251/Windows-1252 text
+  artifacts could be skipped before content leakage scanning.
+  Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:421`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1092`,
+  `tests/test_philosophy_source_corpus_index.py:1150`.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -602,58 +627,72 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `sc
 - NOT-A-BUG: repeated current-head Codex comments for the already-fixed
   integer/type-aware classes require no extra code. Evidence: `5f3142b14` and
   the focused tests already reject those exact drifts.
-- FIXED: current-head CodeRabbit/Codex review found remaining oracle comparison
-  and decoding gaps. Evidence: commit `004a6ef31` closes schema numeric keyword
-  coercion, BOM-less UTF-16 artifact leakage, and source text row minLength
-  coverage.
-- FIXED: latest Codex review found roadmap/report companion text was not scanned
-  for local path or credential leakage. Evidence: commit `7b7eef081` scans both
-  companion inputs and adds roadmap/report regression tests.
+- FIXED (Commit: 004a6ef31): current-head CodeRabbit/Codex review found remaining
+  oracle comparison and decoding gaps. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:815`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1034`,
+  `tests/test_philosophy_source_corpus_index.py:511`.
+- FIXED (Commit: 7b7eef081): latest Codex review found roadmap/report companion
+  text was not scanned for local path or credential leakage. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:1403`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1410`,
+  `tests/test_philosophy_source_corpus_index.py:925`.
 - NOT-A-BUG: latest repeated decoding comment is already covered by current-head
   wide-text decoding. Evidence: `_decode_text_artifact()` decodes the BOM-less
   UTF-16LE sample into plain text and the existing regression catches its leak.
-- FIXED: latest Codex review found BOM-less UTF-16BE/UTF-32BE decode gaps and
+- FIXED (Commit: 21fef7eac): latest Codex review found BOM-less
+  UTF-16BE/UTF-32BE decode gaps and
   float cardinality false-greens for `sources`, `research_basis`, and scope-link
-  schema bounds. Evidence: commit `21fef7eac` closes these classes with exact
-  integer keyword checks and multi-candidate wide-text scanning regressions.
-- FIXED: latest Codex review found source-corpus oracle trigger and leakage
-  error hygiene gaps. Evidence: commit `3b16c3e11` added intermediate workflow
-  coverage and redacted leakage error regressions; commit `f2ed27c0b`
-  supersedes the over-broad trigger with source-corpus-owned activation.
-- FIXED: follow-up Codex review found the PR-5 CI activation class was
+  schema bounds. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:1093`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:584`,
+  `tests/test_philosophy_source_corpus_index.py:1165`.
+- FIXED (Commit: f2ed27c0b): latest Codex review found source-corpus oracle
+  trigger and leakage error hygiene gaps. Evidence: Anchors:
+  `.github/workflows/ci.yml:284`, `.github/workflows/ci.yml:289`,
+  `tests/test_ci_workflow_pr_size_governance_contract.py:339`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1076`.
+- FIXED (Commit: f2ed27c0b): follow-up Codex review found the PR-5 CI activation class was
   over-broad and the workflow test could false-green by checking the full docs
-  Phase1 section instead of the actual PR-5 case block. Evidence: commit
-  `f2ed27c0b` narrows activation back to PR-5-owned files and asserts the
-  concrete PR-5 switch block.
-- FIXED: current-head Docs Phase1 CI still failed after `main` advanced because
+  Phase1 section instead of the actual PR-5 case block. Evidence: Anchors:
+  `.github/workflows/ci.yml:284`, `.github/workflows/ci.yml:285`,
+  `tests/test_ci_workflow_pr_size_governance_contract.py:326`.
+- FIXED (Commit: 3aa36f850): current-head Docs Phase1 CI still failed after `main` advanced because
   changed-file detection used the stale PR event base SHA instead of the
-  current merge-ref parent. Evidence: commit `3aa36f850` uses `HEAD^1` first,
-  falls back to the event base SHA only when needed, and tests the ordering.
-- FIXED: current-head Codex review found source `discipline_rails` accepted
-  non-enum values. Evidence: commit `33e57821f` adds canonical rail set
-  validation and a targeted `totally_invalid_rail` regression.
-- FIXED: current-head A3 closeout guard found forbidden reconstructed
+  current merge-ref parent. Evidence: Anchors: `.github/workflows/ci.yml:237`,
+  `.github/workflows/ci.yml:245`,
+  `tests/test_ci_workflow_pr_size_governance_contract.py:295`.
+- FIXED (Commit: 33e57821f): current-head Codex review found source
+  `discipline_rails` accepted non-enum values. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:113`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1266`,
+  `tests/test_philosophy_source_corpus_index.py:315`.
+- FIXED (Commit: 52216f2f9): current-head A3 closeout guard found forbidden reconstructed
   OpenAPI/iOS scope wording in the PR-5 semantic-cache roadmap note. Evidence:
-  commit `52216f2f9` preserves the closed markers and rewrites the sentence as
-  explicit out-of-scope language.
-- FIXED: latest Codex review found workflow base-ref, touched-path
-  normalization, and non-UTF text artifact scan gaps. Evidence: commit
-  `5372841b2` closes those classes with workflow contract coverage and
-  source-corpus scanner regressions.
-- FIXED: latest Codex review found Windows absolute local-path and symlink
-  target scan gaps. Evidence: commit `fba701c10` rejects non-C Windows local
-  paths, non-user drive-root paths, UNC share paths, and absolute/escaping
-  symlink targets with focused regressions.
-- FIXED: latest Codex review found remaining generic POSIX local-path and
-  exact touched-filename normalization gaps. Evidence: commit `9ba654437`
-  rejects generic POSIX absolute local paths while preserving the
-  repo-neutral Python shebang, and preserves leading/trailing spaces in touched
-  filenames with focused regressions.
-- FIXED: current-head Docs Phase1 found the generic POSIX detector also matched
+  Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`,
+  `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:104`,
+  `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:106`.
+- FIXED (Commit: 5372841b2): latest Codex review found workflow base-ref,
+  touched-path normalization, and non-UTF text artifact scan gaps.
+  Evidence: Anchors: `.github/workflows/ci.yml:237`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:617`,
+  `tests/test_philosophy_source_corpus_index.py:1123`.
+- FIXED (Commit: fba701c10): latest Codex review found Windows absolute
+  local-path and symlink target scan gaps. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:411`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1164`,
+  `tests/test_philosophy_source_corpus_index.py:1185`.
+- FIXED (Commit: 9ba654437): latest Codex review found remaining generic POSIX
+  local-path and exact touched-filename normalization gaps. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:410`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1099`,
+  `tests/test_philosophy_source_corpus_index.py:1123`.
+- FIXED (Commit: 3a4d09e6e): current-head Docs Phase1 found the generic POSIX detector also matched
   repo-neutral absolute route and null-device literals in workflow/backlog/test
-  files. Evidence: commit `3a4d09e6e` keeps the local-path detector fail-closed
-  for local roots while allowlisting those repo-neutral literals with
-  regression coverage.
+  files. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:434`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1106`,
+  `tests/test_philosophy_source_corpus_index.py:1156`.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
