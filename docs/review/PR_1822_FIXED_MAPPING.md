@@ -255,6 +255,18 @@ Commit: 004a6ef31
 Evidence: source-row validation now mirrors source text minimum-length constraints for title, sanitized filename, summary, and future handoff text.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:98`, `scripts/ci/check_philosophy_source_corpus_index.py:1152`, `scripts/ci/check_philosophy_source_corpus_index.py:1156`, `tests/test_philosophy_source_corpus_index.py:205`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297595474 -> 7b7eef081
+Disposition: FIXED
+Commit: 7b7eef081
+Evidence: source-corpus validation now scans the semantic-cache roadmap and gate-open precondition report text for local path and credential-like leakage, with focused regressions for both companion inputs.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1403`, `scripts/ci/check_philosophy_source_corpus_index.py:1410`, `tests/test_philosophy_source_corpus_index.py:925`, `tests/test_philosophy_source_corpus_index.py:937`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297595482
+Disposition: NOT-A-BUG
+Evidence: current-head `_decode_text_artifact()` detects NUL-bearing wide text before UTF-8 fallback, attempts UTF-32/UTF-16 first, rejects decoded text with embedded NULs, and the BOM-less UTF-16LE regression detects the local-path leak.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1034`, `scripts/ci/check_philosophy_source_corpus_index.py:1036`, `scripts/ci/check_philosophy_source_corpus_index.py:1043`, `tests/test_philosophy_source_corpus_index.py:1087`.
+Reason: no additional code change is needed because `('leak=' + '/' + 'tmp/source.pdf').encode('utf-16-le')` decodes to `leak=/tmp/source.pdf` at current head and is scanned by the existing regression.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -310,6 +322,14 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:98`, `scr
   BOM-less UTF-16 leakage-scan bypass, and source-row text constraint drift.
   Evidence: commit `004a6ef31` adds type-strict keyword checks, wide-text
   decoding heuristics, row-level minLength validation, and focused regressions.
+- FIXED: current-head review found companion roadmap/report leakage-scan gaps.
+  Evidence: commit `7b7eef081` applies the same local-path/credential scanner to
+  semantic-cache roadmap and gate-open precondition report text and adds focused
+  regressions for both inputs.
+- NOT-A-BUG: repeated UTF-16/UTF-32 decoding review comment after `004a6ef31`
+  describes behavior already enforced at current head. Evidence: current
+  `_decode_text_artifact()` returns `leak=/tmp/source.pdf` for BOM-less UTF-16LE
+  text and the regression test scans that artifact class.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -371,6 +391,12 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:98`, `scr
   and decoding gaps. Evidence: commit `004a6ef31` closes schema numeric keyword
   coercion, BOM-less UTF-16 artifact leakage, and source text row minLength
   coverage.
+- FIXED: latest Codex review found roadmap/report companion text was not scanned
+  for local path or credential leakage. Evidence: commit `7b7eef081` scans both
+  companion inputs and adds roadmap/report regression tests.
+- NOT-A-BUG: latest repeated decoding comment is already covered by current-head
+  wide-text decoding. Evidence: `_decode_text_artifact()` decodes the BOM-less
+  UTF-16LE sample into plain text and the existing regression catches its leak.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
