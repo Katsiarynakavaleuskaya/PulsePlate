@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import threading
 from typing import Any
@@ -185,7 +186,7 @@ def test_secret_presence_validation_rejects_malformed_runtime_env(
     assert bridge.main(["--validate-secret-presence"]) == 1
     stdout = capsys.readouterr().out
 
-    assert "Slack operator bridge configuration is invalid" in stdout
+    assert "SLACK_APP_TOKEN token class is invalid" in stdout
     assert "present-but-not-an-app-token" not in stdout
     assert "xoxb-" not in stdout
     assert "C0ALERTS" not in stdout
@@ -211,6 +212,173 @@ def test_secret_presence_validation_rejects_malformed_allowlist_env(
     assert "xoxb-" not in stdout
     assert "/tmp/channel" not in stdout
     assert "U0OPERATOR" not in stdout
+
+
+def test_smoke_input_validation_accepts_digest_without_echoing_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", "main")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", "a" * 64)
+
+    assert bridge.main(["--validate-smoke-inputs"]) == 0
+    stdout = capsys.readouterr().out
+    payload = json.loads(stdout)
+
+    assert payload == {
+        "branch_ref_status": "valid",
+        "hypothesis_sha256_status": "valid",
+        "status": "pass",
+    }
+    assert "main" not in stdout
+    assert "a" * 64 not in stdout
+
+
+@pytest.mark.parametrize(
+    ("branch_ref", "hypothesis_sha256"),
+    [
+        ("../main", "a" * 64),
+        ("main", "raw hypothesis text"),
+    ],
+)
+def test_smoke_input_validation_rejects_unsafe_values_without_echoing_them(
+    branch_ref: str,
+    hypothesis_sha256: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", branch_ref)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", hypothesis_sha256)
+
+    assert bridge.main(["--validate-smoke-inputs"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "Slack live smoke input configuration is invalid" in stdout
+    assert branch_ref not in stdout
+    assert hypothesis_sha256 not in stdout
+
+
+def test_bounded_live_smoke_validates_slack_without_sdk_or_raw_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", "main")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", "c" * 64)
+    calls: list[dict[str, Any]] = []
+
+    def fake_slack_api(**kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        if kwargs["method"] == "apps.connections.open":
+            return {
+                "ok": True,
+                "url": "wss://wss.example.invalid/link/?ticket=secret",
+            }
+        return {
+            "bot_id": "B0SECRET",
+            "ok": True,
+            "team_id": "T0SECRET",
+            "user_id": "U0SECRET",
+        }
+
+    def fail_if_sdk_loads() -> tuple[Any, Any]:
+        raise AssertionError("bounded live smoke must not load Slack SDK")
+
+    monkeypatch.setattr(bridge, "_send_slack_api_request", fake_slack_api)
+    monkeypatch.setattr(bridge, "_load_slack_bolt", fail_if_sdk_loads)
+
+    assert bridge.main(["--validate-live-smoke"]) == 0
+    stdout = capsys.readouterr().out
+    payload = json.loads(stdout)
+
+    assert payload == {
+        "allowlist_status": "present",
+        "bot_auth_status": "validated",
+        "branch_ref_status": "valid",
+        "dispatch_mode": "dry-run",
+        "hypothesis_sha256_status": "valid",
+        "socket_mode_status": "validated",
+        "status": "pass",
+    }
+    assert [call["method"] for call in calls] == ["apps.connections.open", "auth.test"]
+    assert calls[0]["token"].startswith("xapp-")
+    assert calls[1]["token"].startswith("xoxb-")
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "wss://" not in stdout
+    assert "T0SECRET" not in stdout
+    assert "U0SECRET" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert "c" * 64 not in stdout
+
+
+def test_bounded_live_smoke_failure_is_sanitized(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", "main")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", "d" * 64)
+
+    def fake_slack_api(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "error": "invalid_auth",
+            "ok": False,
+            "url": "wss://wss.example.invalid/link/?ticket=secret",
+        }
+
+    monkeypatch.setattr(bridge, "_send_slack_api_request", fake_slack_api)
+
+    assert bridge.main(["--validate-live-smoke"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "Slack live smoke Socket Mode validation failed: invalid_auth." in stdout
+    assert "wss://" not in stdout
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+
+
+def test_bounded_live_smoke_failure_suppresses_unsafe_error_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", "main")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", "e" * 64)
+
+    def fake_slack_api(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "error": "invalid_auth xapp-secret",
+            "ok": False,
+        }
+
+    monkeypatch.setattr(bridge, "_send_slack_api_request", fake_slack_api)
+
+    assert bridge.main(["--validate-live-smoke"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "Slack live smoke Socket Mode validation failed: unknown." in stdout
+    assert "invalid_auth xapp-secret" not in stdout
+    assert "xapp-" not in stdout
 
 
 def test_live_socket_validation_reports_missing_sdk_without_import_time_failure(
@@ -261,7 +429,7 @@ def test_slack_runtime_tokens_must_match_expected_token_class(
     assert bridge.main(["--validate-runtime", "--run-socket", "--audit-dir", str(audit_dir)]) == 1
     stdout = capsys.readouterr().out
 
-    assert "configuration is invalid" in stdout
+    assert f"{env_name} token class is invalid" in stdout
     assert "xapp-" not in stdout
     assert "xoxb-" not in stdout
 
@@ -860,6 +1028,8 @@ def test_rate_limit_claim_recovers_empty_stale_lock(
     config = _config(audit_dir=audit_dir)
     lock_dir = audit_dir / bridge.RATE_LIMIT_LOCK_DIR
     lock_dir.mkdir(parents=True)
+    old_timestamp = datetime.fromtimestamp(0, tz=timezone.utc).timestamp()
+    os.utime(lock_dir, (old_timestamp, old_timestamp))
 
     bridge._claim_rate_limit(
         config,
@@ -874,6 +1044,32 @@ def test_rate_limit_claim_recovers_empty_stale_lock(
 
     claim = json.loads((lock_dir / "claim.json").read_text(encoding="utf-8"))
     assert claim["event_hash"] == bridge._sha256_text("Ev0STALELOCK")
+
+
+def test_rate_limit_claim_keeps_fresh_partial_lock_instead_of_stealing_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config(audit_dir=audit_dir)
+    lock_dir = audit_dir / bridge.RATE_LIMIT_LOCK_DIR
+    lock_dir.mkdir(parents=True)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="Unable to acquire"):
+        bridge._claim_rate_limit(
+            config,
+            bridge.OperatorEvent(
+                event_id="Ev0FRESHPARTIAL",
+                channel_id="C0ALERTS",
+                user_id="U0OPERATOR",
+                team_id="T0TEAM",
+                text="status",
+            ),
+        )
+
+    assert lock_dir.exists()
+    assert not (lock_dir / "claim.json").exists()
 
 
 def test_rate_limit_claim_wraps_lock_creation_failure(
@@ -1090,11 +1286,18 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
     assert inputs["dry_run"]["default"] == "true"
     assert inputs["audit_retention_days"]["default"] == "14"
     steps = job["steps"]
+    mask_step = next(step for step in steps if step["name"] == "Mask runtime allowlist inputs")
     presence_step = next(
         step for step in steps if step["name"] == "Validate live Socket Mode prerequisites"
     )
+    input_step = next(
+        step for step in steps if step["name"] == "Validate manual smoke inputs without raw echo"
+    )
     runtime_step = next(
-        step for step in steps if step["name"] == "Validate live Socket Mode runtime"
+        step for step in steps if step["name"] == "Run bounded live Socket Mode smoke"
+    )
+    summary_step = next(
+        step for step in steps if step["name"] == "Record sanitized live-smoke evidence summary"
     )
     assert presence_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
     assert presence_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
@@ -1108,9 +1311,22 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
     )
     assert runtime_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
     assert runtime_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
+    assert input_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
+    assert (
+        input_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
+        == "${{ inputs.hypothesis_sha256 }}"
+    )
+    assert runtime_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
+    assert (
+        runtime_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
+        == "${{ inputs.hypothesis_sha256 }}"
+    )
     assert "${{ secrets.SLACK_APP_TOKEN }}" in workflow_text
     assert "${{ secrets.SLACK_BOT_TOKEN }}" in workflow_text
     assert "--validate-secret-presence" in workflow_text
+    assert "--validate-smoke-inputs" in workflow_text
+    assert "--validate-live-smoke" in workflow_text
+    assert "--run-socket" not in workflow_text
     assert "--audit-retention report" in workflow_text
     assert "--slack-app-config-present" not in workflow_text
     assert "--slack-bot-config-present" not in workflow_text
@@ -1120,7 +1336,17 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
     assert "SLACK_BOT_TOKEN=%s" in workflow_text
     assert "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s" in workflow_text
     assert "EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s" in workflow_text
-    assert "slack-bolt==1.28.0" in workflow_text
+    assert "slack-bolt" not in workflow_text
+    assert steps.index(mask_step) < steps.index(presence_step)
+    assert steps.index(mask_step) < steps.index(runtime_step)
+    assert 'os.environ["GITHUB_EVENT_PATH"]' in mask_step["run"]
+    assert '"channel_allowlist", "user_allowlist", "hypothesis_sha256"' in mask_step["run"]
+    assert "::add-mask::" in mask_step["run"]
+    assert "${{ inputs.channel_allowlist }}" not in mask_step["run"]
+    assert "${{ inputs.user_allowlist }}" not in mask_step["run"]
+    assert "${{ inputs.hypothesis_sha256 }}" not in mask_step["run"]
+    assert "$GITHUB_STEP_SUMMARY" in summary_step["run"]
+    assert "raw tokens, token prefixes, Slack IDs" in summary_step["run"]
     assert "SLACK_SIGNING_SECRET" not in workflow_text
     assert "continue-on-error" not in workflow_text
     assert "|| true" not in workflow_text

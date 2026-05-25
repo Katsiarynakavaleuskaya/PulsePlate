@@ -135,9 +135,11 @@ hash-only: no raw Slack payload, channel or user identifier, token, local
 absolute path, oracle stdout/stderr, patch text, or raw hypothesis may be
 written.
 
-Live Socket Mode smoke runs are manual-only. The smoke workflow must report
-secret and allowlist presence without printing values, and audit retention must
-be report-first with explicit cleanup confined to the gitignored orchestration
+Live Socket Mode smoke runs are manual-only and bounded. The smoke workflow
+must report secret and allowlist presence without printing values, validate
+Socket Mode and bot credentials without starting the long-running listener,
+discard Slack response identifiers and WebSocket URLs, and keep audit retention
+report-first with explicit cleanup confined to the gitignored orchestration
 artifact directory. Operator procedure and failure interpretation live in
 `docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md`.
 
