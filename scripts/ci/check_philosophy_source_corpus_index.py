@@ -1085,7 +1085,7 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
 
 
 def _decode_text_artifact(data: bytes) -> str | None:
-    encodings = ("utf-8", "utf-8-sig", "utf-32", "utf-16")
+    encodings: tuple[str, ...] = ("utf-8", "utf-8-sig", "utf-32", "utf-16")
     if data.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
         encodings = ("utf-32", "utf-32-be", "utf-32-le", "utf-8", "utf-8-sig")
     elif data.startswith((b"\xff\xfe", b"\xfe\xff")):
