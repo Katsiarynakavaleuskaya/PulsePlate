@@ -802,15 +802,18 @@ def test_duplicate_event_during_rate_limit_does_not_drop_winning_handler(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
-    config = _config(dispatch_mode="dry_run", audit_dir=audit_dir)
-    event = _event(event_id="Ev0RACE01", text="status")
+    config = _config(dispatch_mode="dry-run", audit_dir=audit_dir)
+    event = _event(event_id="Ev0RACE01")
     pause = threading.Event()
     resume = threading.Event()
     observed: dict[str, str] = {}
     errors: dict[str, BaseException] = {}
     original_claim_rate_limit = bridge._claim_rate_limit
 
-    def pause_first_claim(claim_config: bridge.BridgeConfig, claim_event: bridge.OperatorEvent) -> None:
+    def pause_first_claim(
+        claim_config: bridge.BridgeConfig,
+        claim_event: bridge.OperatorEvent,
+    ) -> None:
         original_claim_rate_limit(claim_config, claim_event)
         if not pause.is_set():
             pause.set()
@@ -837,7 +840,7 @@ def test_duplicate_event_during_rate_limit_does_not_drop_winning_handler(
     assert not first_thread.is_alive()
     assert errors == {}
     assert observed["first"] == "dry_run"
-    audit_path = audit_dir / f"{bridge._sha256_text(event['event_id'])}.json"
+    audit_path = audit_dir / f"{bridge._sha256_text(str(event['envelope_id']))}.json"
     assert json.loads(audit_path.read_text(encoding="utf-8"))["status"] == "dry_run"
 
 
