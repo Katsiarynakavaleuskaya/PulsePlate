@@ -200,10 +200,11 @@
     },
     {
       "package": "sentence-transformers",
-      "version": "5.5.0",
-      "filename": "sentence_transformers-5.5.0-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/55/20/18416624bcbae866ec0b111979766cebabe8e5ff7563ab953ecbaf3ff9e7/sentence_transformers-5.5.0-py3-none-any.whl",
-      "sha256": "75313fdcc2397ec4b58297c25d6187fcca5a6b2aeb09570a72eff5a3223d8d58"
+      "version": "5.5.1",
+      "expires_at": "2026-06-08",
+      "filename": "sentence_transformers-5.5.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/bf/03/ee99a6b030e7a2e056547729f8a4709dd93e13d9c6f07590f74c395c4017/sentence_transformers-5.5.1-py3-none-any.whl",
+      "sha256": "4fe11d433badc5282d32f7fc08bc714216b7a5aca426f9df77a45a554756deb7"
     },
     {
       "package": "types-pyyaml",
@@ -214,10 +215,11 @@
     },
     {
       "package": "transformers",
-      "version": "5.8.1",
-      "filename": "transformers-5.8.1-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/fc/b1/8be7e7ef0b5200491312201918b6125ef9c9df9dd0f0240ccef9ac824e6b/transformers-5.8.1-py3-none-any.whl",
-      "sha256": "5340fb95962162cdfdae5cc91d7f8fedd92ed75216c1154c5e1f590fcf56dd0e"
+      "version": "5.9.0",
+      "expires_at": "2026-06-08",
+      "filename": "transformers-5.9.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/02/ca/2eaa5359f2ccb8c2e1656bc26305ad0cf438aa392ce4b29ae67a315c186e/transformers-5.9.0-py3-none-any.whl",
+      "sha256": "1d19509bcff7028ebc6b277d71caa712e8353778463d38764237d14b42b52788"
     }
   ]
 }
