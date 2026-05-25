@@ -47,11 +47,12 @@ For live prerequisite validation, set `dry_run` to `false` and provide:
 
 The workflow first runs a secret-presence diagnostic. The workflow shell prints
 only public required environment names with `present` / `missing` status, then
-passes explicit CLI booleans from GitHub expressions to the Python bridge. The
-Python bridge returns only the fail-closed exit code for that check; it does not
-print a secret-presence payload. The diagnostic must not print secret values,
-token prefixes, raw channel/user IDs, raw hypotheses, local absolute paths,
-Slack payload bodies, GitHub tokens, oracle stdout/stderr, or patch text.
+passes the runtime environment to the Python bridge. The Python bridge derives
+presence from runtime environment variables and returns only the fail-closed
+exit code for that check; it does not print a secret-presence payload. The
+diagnostic must not print secret values, token prefixes, raw channel/user IDs,
+raw hypotheses, local absolute paths, Slack payload bodies, GitHub tokens,
+oracle stdout/stderr, or patch text.
 
 ## Failure Interpretation
 

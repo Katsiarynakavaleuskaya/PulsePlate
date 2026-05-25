@@ -530,23 +530,6 @@ def validate_secret_presence(
     }
 
 
-def _secret_presence_all_present(
-    *,
-    slack_app_config_present: bool,
-    slack_bot_config_present: bool,
-    channel_allowlist_present: bool,
-    user_allowlist_present: bool,
-) -> bool:
-    """Return whether live smoke has all required runtime config markers."""
-
-    return (
-        slack_app_config_present
-        and slack_bot_config_present
-        and channel_allowlist_present
-        and user_allowlist_present
-    )
-
-
 def _audit_timestamp(audit: dict[str, Any]) -> datetime:
     timestamp_raw = audit.get("timestamp")
     if not isinstance(timestamp_raw, str):
@@ -1128,26 +1111,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Report live-smoke secret and allowlist presence without printing values.",
     )
     parser.add_argument(
-        "--slack-app-config-present",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--slack-bot-config-present",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--channel-allowlist-present",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--user-allowlist-present",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--audit-retention",
         choices=("none", "report", "cleanup"),
         default="none",
@@ -1160,13 +1123,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
         if args.validate_secret_presence:
-            all_present = _secret_presence_all_present(
-                slack_app_config_present=bool(args.slack_app_config_present),
-                slack_bot_config_present=bool(args.slack_bot_config_present),
-                channel_allowlist_present=bool(args.channel_allowlist_present),
-                user_allowlist_present=bool(args.user_allowlist_present),
-            )
-            return 0 if all_present else 1
+            return 0 if validate_secret_presence()["status"] == "pass" else 1
         config = build_config(
             dispatch_mode=args.dispatch_mode,
             audit_dir=args.audit_dir,

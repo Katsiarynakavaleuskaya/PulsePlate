@@ -161,18 +161,7 @@ def test_secret_presence_validation_passes_without_leaking_values(
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
 
-    assert (
-        bridge.main(
-            [
-                "--validate-secret-presence",
-                "--slack-app-config-present",
-                "--slack-bot-config-present",
-                "--channel-allowlist-present",
-                "--user-allowlist-present",
-            ]
-        )
-        == 0
-    )
+    assert bridge.main(["--validate-secret-presence"]) == 0
     stdout = capsys.readouterr().out
 
     assert stdout == ""
@@ -990,17 +979,26 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
     runtime_step = next(
         step for step in steps if step["name"] == "Validate live Socket Mode runtime"
     )
-    assert "env" not in presence_step
+    assert presence_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
+    assert presence_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
+    assert (
+        presence_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"]
+        == "${{ inputs.channel_allowlist }}"
+    )
+    assert (
+        presence_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"]
+        == "${{ inputs.user_allowlist }}"
+    )
     assert runtime_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
     assert runtime_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
     assert "${{ secrets.SLACK_APP_TOKEN }}" in workflow_text
     assert "${{ secrets.SLACK_BOT_TOKEN }}" in workflow_text
     assert "--validate-secret-presence" in workflow_text
     assert "--audit-retention report" in workflow_text
-    assert "--slack-app-config-present" in workflow_text
-    assert "--slack-bot-config-present" in workflow_text
-    assert "--channel-allowlist-present" in workflow_text
-    assert "--user-allowlist-present" in workflow_text
+    assert "--slack-app-config-present" not in workflow_text
+    assert "--slack-bot-config-present" not in workflow_text
+    assert "--channel-allowlist-present" not in workflow_text
+    assert "--user-allowlist-present" not in workflow_text
     assert "SLACK_APP_TOKEN=%s" in workflow_text
     assert "SLACK_BOT_TOKEN=%s" in workflow_text
     assert "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s" in workflow_text

@@ -80,6 +80,11 @@ jobs:
 
       - name: Validate live Socket Mode prerequisites
         if: inputs.dry_run == 'false'
+        env:
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
         run: |
           set -euo pipefail
           slack_app_status="${{ secrets.SLACK_APP_TOKEN != '' && 'present' || 'missing' }}"
@@ -91,11 +96,7 @@ jobs:
           printf 'EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s\n' "$channel_allowlist_status"
           printf 'EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s\n' "$user_allowlist_status"
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
-            --validate-secret-presence \
-            ${{ secrets.SLACK_APP_TOKEN != '' && '--slack-app-config-present' || '' }} \
-            ${{ secrets.SLACK_BOT_TOKEN != '' && '--slack-bot-config-present' || '' }} \
-            ${{ inputs.channel_allowlist != '' && '--channel-allowlist-present' || '' }} \
-            ${{ inputs.user_allowlist != '' && '--user-allowlist-present' || '' }}
+            --validate-secret-presence
 
       - name: Install optional Slack Socket Mode runtime
         if: inputs.dry_run == 'false'
