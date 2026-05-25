@@ -83,6 +83,14 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
   `shared_tree_untouched=true`.
 - Co-author: required; commit `9ba654437` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Finditer/symlink hardening artifact:
+  `artifacts/orchestration/experiments/results/exp-pr1822-finditer-symlink-oracle.json`
+- Finditer/symlink hardening status: accepted,
+  `oracle_only_governance_reviewer`, `contribution_kind=oracle_review`, 3/3
+  runner-executable oracle commands returned 0, and
+  `shared_tree_untouched=true`.
+- Co-author: required; commits `a8cb56911` and `328be5c3f` include
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
 
@@ -445,6 +453,18 @@ Commit: a8cb56911
 Evidence: source-corpus touched-file scanning now stops content reads after detecting an absolute or repository-escaping symlink target, preserving fail-closed symlink validation without reading outside-repo content.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1177`, `scripts/ci/check_philosophy_source_corpus_index.py:1192`, `tests/test_philosophy_source_corpus_index.py:1257`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299923099 -> 328be5c3f
+Disposition: FIXED
+Commit: 328be5c3f
+Evidence: the premortem and oracle closure FIXED bullets now use explicit `FIXED (Commit: <sha>)` wording with `Evidence: Anchors:` file-line tuples for the affected current-head closure entries.
+Evidence: Anchors: `docs/review/PR_1822_FIXED_MAPPING.md:534`, `docs/review/PR_1822_FIXED_MAPPING.md:557`, `docs/review/PR_1822_FIXED_MAPPING.md:650`, `docs/review/PR_1822_FIXED_MAPPING.md:670`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#pullrequestreview-4358738987 -> 328be5c3f
+Disposition: FIXED
+Commit: 328be5c3f
+Evidence: the CodeRabbit review-level request is closed by the same mapping-format hardening plus the code fixes mapped to `a8cb56911` for the two scanner bypass findings.
+Evidence: Anchors: `docs/review/PR_1822_FIXED_MAPPING.md:444`, `docs/review/PR_1822_FIXED_MAPPING.md:450`, `docs/review/PR_1822_FIXED_MAPPING.md:456`, `scripts/ci/check_philosophy_source_corpus_index.py:1101`, `scripts/ci/check_philosophy_source_corpus_index.py:1177`.
+
 ## CI Failure Closure
 
 - CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
@@ -693,6 +713,19 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `sc
   `scripts/ci/check_philosophy_source_corpus_index.py:434`,
   `scripts/ci/check_philosophy_source_corpus_index.py:1106`,
   `tests/test_philosophy_source_corpus_index.py:1156`.
+- FIXED (Commit: a8cb56911): latest CodeRabbit review found allowed-first
+  leakage matches and escaping symlink targets could bypass the scanner or read
+  outside-repo content. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:1101`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1177`,
+  `tests/test_philosophy_source_corpus_index.py:1166`,
+  `tests/test_philosophy_source_corpus_index.py:1257`.
+- FIXED (Commit: 328be5c3f): latest CodeRabbit review found closure bullets
+  without explicit commit/evidence tuples. Evidence: Anchors:
+  `docs/review/PR_1822_FIXED_MAPPING.md:534`,
+  `docs/review/PR_1822_FIXED_MAPPING.md:557`,
+  `docs/review/PR_1822_FIXED_MAPPING.md:650`,
+  `docs/review/PR_1822_FIXED_MAPPING.md:670`.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -711,6 +744,9 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `sc
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_semantic_cache_gate.py` PASS after the POSIX/edge-space leak hardening regressions.
 - `python3 scripts/ci/check_philosophy_source_corpus_index.py --check --files $(git diff --name-only $(git merge-base origin/main HEAD)...HEAD)` PASS after the repo-neutral absolute route allowlist regression.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the repo-neutral absolute route allowlist regression.
+- `python3 scripts/ci/check_philosophy_source_corpus_index.py --check --files scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py docs/review/PR_1822_FIXED_MAPPING.md` PASS after the allowed-first match and escaping-symlink hardening regressions.
+- `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the allowed-first match and escaping-symlink hardening regressions.
+- `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS after the allowed-first match and escaping-symlink hardening regressions.
 - `python3 scripts/ci/check_ai_bounded_context_a3_closeout.py` PASS after the PR-5 semantic-cache roadmap wording fix.
 - `$VENV_PYTHON -m pytest -q tests/test_ai_bounded_context_a3_closeout.py::test_checker_passes_on_current_repository` PASS.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
