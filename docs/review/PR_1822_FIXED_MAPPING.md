@@ -442,6 +442,12 @@ Evidence: current-head CI failed after `origin/main` introduced the A3 bounded-c
 Evidence: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` now keeps PR-5 outside semantic-cache runtime admission and says cache reads/writes, serving, providers, `/insight`, Redis, GPTCache, embeddings, vector search, DB, OpenAPI, frontend, and iOS remain out of scope.
 Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`, `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:104`, `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:106`.
 
+- CI: `Docs Phase1 gates`, run `26419224340`, job `77770254681`
+Disposition: FIXED
+Commit: 3a4d09e6e
+Evidence: source-corpus leakage scanning now preserves generic POSIX absolute local-path detection while allowing repo-neutral API route and null-device literals that are not local environment leaks.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `scripts/ci/check_philosophy_source_corpus_index.py:1106`, `tests/test_philosophy_source_corpus_index.py:1156`.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -643,6 +649,11 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
   rejects generic POSIX absolute local paths while preserving the
   repo-neutral Python shebang, and preserves leading/trailing spaces in touched
   filenames with focused regressions.
+- FIXED: current-head Docs Phase1 found the generic POSIX detector also matched
+  repo-neutral absolute route and null-device literals in workflow/backlog/test
+  files. Evidence: commit `3a4d09e6e` keeps the local-path detector fail-closed
+  for local roots while allowlisting those repo-neutral literals with
+  regression coverage.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -659,6 +670,8 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_docs_phase1_gates.py` PASS after the path/encoding hardening regressions.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the Windows/symlink leak hardening regressions.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_semantic_cache_gate.py` PASS after the POSIX/edge-space leak hardening regressions.
+- `python3 scripts/ci/check_philosophy_source_corpus_index.py --check --files $(git diff --name-only $(git merge-base origin/main HEAD)...HEAD)` PASS after the repo-neutral absolute route allowlist regression.
+- `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the repo-neutral absolute route allowlist regression.
 - `python3 scripts/ci/check_ai_bounded_context_a3_closeout.py` PASS after the PR-5 semantic-cache roadmap wording fix.
 - `$VENV_PYTHON -m pytest -q tests/test_ai_bounded_context_a3_closeout.py::test_checker_passes_on_current_repository` PASS.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
