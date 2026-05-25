@@ -329,6 +329,19 @@ def test_checker_rejects_overclaim_after_conjunction_negation(tmp_path: Path) ->
     assert any("benchmark/scientific overclaim" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_overclaim_after_deferred_wording(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout does not claim new\nbenchmark results",
+            "Deferred note: PR-A2 proves latency wins",
+        ),
+        encoding="utf-8",
+    )
+    assert any("benchmark/scientific overclaim" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_stale_a2_pending_claim_without_repeated_pr_token(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
@@ -336,6 +349,27 @@ def test_checker_rejects_stale_a2_pending_claim_without_repeated_pr_token(tmp_pa
         _valid_ledger().replace("Status: Closed.", "Status: Planned."), encoding="utf-8"
     )
     assert any("stale A2 active/pending claim" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_stale_a2_blocked_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace("Status: Closed.", "Status: Planned but blocked."),
+        encoding="utf-8",
+    )
+    assert any("stale A2 active/pending claim" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_duplicate_closeout_anchor(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger()
+        + '\n<a id="ledger-p1-rag-hardening-followthrough"></a>\n- [ ] Status: Planned\n',
+        encoding="utf-8",
+    )
+    assert any("expected exactly one start anchor" in error for error in _errors(tmp_path))
 
 
 def test_checker_allows_active_docs_phrase(tmp_path: Path) -> None:
@@ -614,6 +648,39 @@ def dead_helper() -> tuple[object, object]:
     assert any("missing AST reference _run_orchestration" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_unreachable_runtime_proof_after_return(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/orchestration.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def _resolve_confidence() -> None:
+    return None
+
+
+def _non_rag_result() -> None:
+    return None
+
+
+def _run_orchestration(subject_id: int) -> object:
+    return object()
+    asyncio.to_thread(retrieve_recursive_context_structured, subject_id=subject_id)
+    asyncio.to_thread(retrieve_context_structured, subject_id=subject_id)
+    _build_knowledge_candidates(subject_id=subject_id)
+    return (
+        RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+        RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+    )
+""",
+    )
+    errors = _errors(tmp_path)
+    assert any("missing AST reference _run_orchestration" in error for error in errors)
+    assert any("missing call proof _run_orchestration" in error for error in errors)
+
+
 def test_checker_rejects_runtime_symbol_rebound_after_definition(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -756,6 +823,27 @@ DISABLE = [pytest.mark.skip(reason="disabled")]
 
 
 @DISABLE[0]
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("must not be skipped or xfailed" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_subscripted_decorator_alias_assignment(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+DISABLE = (pytest.mark.skip(reason="disabled"),)[0]
+
+
+@DISABLE
 def test_missing_subject_id_returns_empty_without_encoding(): pass
 
 
@@ -998,6 +1086,49 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
     )
 
 
+def test_checker_rejects_computed_truthy_allow_module_level(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+pytest.skip("disabled", allow_module_level=(1 == 1))
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_kwargs_alias_allow_module_level(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+KW = {"allow_module_level": True}
+pytest.skip("disabled", **KW)
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
 def test_checker_rejects_imported_alias_module_level_pytest_skip(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -1036,6 +1167,31 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
 """,
     )
     assert any("must not be skipped or xfailed" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_getattr_based_test_skip(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+getattr(pytest, "skip")("disabled", allow_module_level=True)
+
+
+def test_missing_subject_id_returns_empty_without_encoding():
+    getattr(pytest, "skip")("disabled")
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    errors = _errors(tmp_path)
+    assert any(
+        "required test module must not disable pytest collection" in error for error in errors
+    )
+    assert any("must not be skipped or xfailed" in error for error in errors)
 
 
 def test_checker_rejects_in_test_pytest_skip_for_required_tests(tmp_path: Path) -> None:
@@ -1086,6 +1242,29 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
 """,
     )
     assert any("falsy __test__" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_computed_falsy_dunder_test_values(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """__test__ = bool(0)
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+test_missing_subject_id_returns_empty_without_encoding.__test__ = bool(0)
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    errors = _errors(tmp_path)
+    assert any(
+        "required test module must not disable pytest collection" in error for error in errors
+    )
+    assert any("falsy __test__" in error for error in errors)
 
 
 def test_checker_rejects_uncollectable_required_test_class(tmp_path: Path) -> None:
@@ -1155,6 +1334,16 @@ def test_checker_rejects_punctuation_prefixed_worktrees_leakage(tmp_path: Path) 
     mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
     mapping.write_text(
         _valid_mapping() + "\nLocal evidence: (worktrees/ai-rag-hardening-a2-closeout)\n",
+        encoding="utf-8",
+    )
+    assert any("local path leakage" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_capitalized_worktrees_leakage(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\nLocal evidence: (Worktrees/ai-rag-hardening-a2-closeout)\n",
         encoding="utf-8",
     )
     assert any("local path leakage" in error for error in _errors(tmp_path))

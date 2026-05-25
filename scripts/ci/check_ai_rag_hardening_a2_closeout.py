@@ -146,7 +146,7 @@ CONTRAST_SPLIT_RE = re.compile(
 )
 NEGATION_RE = re.compile(
     r"\b(no|not|never|does\s+not|do\s+not|must\s+not|cannot|can't|without|"
-    r"out\s+of\s+scope|deferred|blocked|"
+    r"out\s+of\s+scope|"
     r"does\s+not\s+claim)\b",
     re.I,
 )
@@ -193,7 +193,10 @@ OVERCLAIM_RE = re.compile(
     r"proves?\s+production\s+quality|guarantees?\s+retrieval\s+quality)\b",
     re.I,
 )
-LOCAL_PATH_RE = re.compile(r"(/Users/|(?:^|[^\w/])worktrees/|(?:^|[^\w/])artifacts/orchestration)")
+LOCAL_PATH_RE = re.compile(
+    r"(/Users/|(?:^|[^\w/])worktrees/|(?:^|[^\w/])artifacts/orchestration)",
+    re.I,
+)
 
 
 def _display(path: Path, repo_root: Path) -> str:
@@ -241,10 +244,14 @@ def _clauses(text: str, *, split_soft: bool = False) -> list[str]:
 
 
 def _slice(text: str, start: str, end_pattern: str, *, label: str, errors: list[str]) -> str:
-    start_index = text.find(start)
-    if start_index == -1:
+    starts = [match.start() for match in re.finditer(re.escape(start), text)]
+    if not starts:
         errors.append(f"{label}: missing start anchor {start!r}")
         return ""
+    if len(starts) != 1:
+        errors.append(f"{label}: expected exactly one start anchor {start!r}, got {len(starts)}")
+        return ""
+    start_index = starts[0]
     match = re.search(end_pattern, text[start_index + len(start) :])
     if not match:
         errors.append(f"{label}: missing end anchor {end_pattern!r}")
@@ -350,14 +357,99 @@ def _full_name(node: ast.AST) -> str | None:
     return None
 
 
+def _callable_name(node: ast.AST) -> str | None:
+    direct = _full_name(node)
+    if direct is not None:
+        return direct
+    if isinstance(node, ast.Call) and _full_name(node.func) == "getattr" and len(node.args) >= 2:
+        owner = _full_name(node.args[0])
+        attr = _constant_string(node.args[1])
+        if owner is not None and attr is not None:
+            return f"{owner}.{attr}"
+    return None
+
+
 def _decorator_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.Call):
-        return _full_name(node.func)
+        return _callable_name(node.func)
     return _full_name(node)
 
 
+def _static_truthiness(node: ast.AST) -> bool | None:
+    if isinstance(node, ast.Constant):
+        return bool(node.value)
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return bool(node.elts)
+    if isinstance(node, ast.Dict):
+        return bool(node.keys)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        operand_truthiness = _static_truthiness(node.operand)
+        if operand_truthiness is None:
+            return None
+        return not operand_truthiness
+    if isinstance(node, ast.BoolOp):
+        values = [_static_truthiness(value) for value in node.values]
+        if any(value is None for value in values):
+            return None
+        if isinstance(node.op, ast.And):
+            return all(value is True for value in values)
+        if isinstance(node.op, ast.Or):
+            return any(value is True for value in values)
+    if isinstance(node, ast.Compare):
+        return _static_compare_truthiness(node)
+    if (
+        isinstance(node, ast.Call)
+        and _full_name(node.func) == "bool"
+        and len(node.args) == 1
+        and not node.keywords
+    ):
+        return _static_truthiness(node.args[0])
+    return None
+
+
+def _literal_constant(node: ast.AST) -> object:
+    if isinstance(node, ast.Constant):
+        return node.value
+    raise ValueError
+
+
+def _static_compare_truthiness(node: ast.Compare) -> bool | None:
+    try:
+        left = _literal_constant(node.left)
+        comparators = [_literal_constant(comparator) for comparator in node.comparators]
+    except ValueError:
+        return None
+    current = left
+    for operator, comparator in zip(node.ops, comparators, strict=True):
+        try:
+            if isinstance(operator, ast.Eq):
+                result = current == comparator
+            elif isinstance(operator, ast.NotEq):
+                result = current != comparator
+            elif isinstance(operator, ast.Is):
+                result = current is comparator
+            elif isinstance(operator, ast.IsNot):
+                result = current is not comparator
+            else:
+                return None
+        except TypeError:
+            return None
+        if not result:
+            return False
+        current = comparator
+    return True
+
+
 def _is_falsy_constant(node: ast.AST) -> bool:
-    return isinstance(node, ast.Constant) and not bool(node.value)
+    truthiness = _static_truthiness(node)
+    return truthiness is not True
+
+
+def _is_truthy_or_unknown(node: ast.AST, truthy_aliases: set[str]) -> bool:
+    if isinstance(node, ast.Name) and node.id in truthy_aliases:
+        return True
+    truthiness = _static_truthiness(node)
+    return truthiness is not False
 
 
 def _is_disabling_test_marker_name(name: str | None) -> bool:
@@ -375,8 +467,11 @@ def _node_has_disabling_test_marker(node: ast.AST, aliases: set[str]) -> bool:
     marker_name = _decorator_name(node)
     if _is_disabling_test_marker_name(marker_name) or marker_name in aliases:
         return True
-    if isinstance(node, ast.Subscript) and _full_name(node.value) in aliases:
-        return True
+    if isinstance(node, ast.Subscript):
+        if _full_name(node.value) in aliases:
+            return True
+        if isinstance(node.value, (ast.List, ast.Tuple)):
+            return any(_node_has_disabling_test_marker(item, aliases) for item in node.value.elts)
     if isinstance(node, (ast.List, ast.Tuple)):
         return any(_node_has_disabling_test_marker(item, aliases) for item in node.elts)
     return False
@@ -481,7 +576,21 @@ def _truthy_constant_aliases(statements: list[ast.stmt]) -> set[str]:
     aliases: set[str] = set()
     for statement in _iter_scope_statements(statements):
         value = _assigned_value(statement)
-        if isinstance(value, ast.Constant) and bool(value.value):
+        if value is not None and _static_truthiness(value) is True:
+            aliases.update(_assigned_names(statement))
+    return aliases
+
+
+def _truthy_allow_module_level_mapping_aliases(
+    statements: list[ast.stmt],
+    truthy_aliases: set[str],
+) -> set[str]:
+    aliases: set[str] = set()
+    for statement in _iter_scope_statements(statements):
+        value = _assigned_value(statement)
+        if value is None:
+            continue
+        if _dict_has_truthy_allow_module_level(value, truthy_aliases):
             aliases.update(_assigned_names(statement))
     return aliases
 
@@ -499,6 +608,7 @@ def _pytest_module_aliases(statements: list[ast.stmt]) -> set[str]:
 
 def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str]) -> bool:
     truthy_aliases = _truthy_constant_aliases(statements)
+    mapping_aliases = _truthy_allow_module_level_mapping_aliases(statements, truthy_aliases)
     pytest_aliases = _pytest_module_aliases(statements)
     for statement in _iter_scope_statements(statements):
         value = _assigned_value(statement)
@@ -509,7 +619,13 @@ def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str])
             if "pytestmark" in names and _node_has_disabling_test_marker(value, aliases):
                 return True
         for child in ast.walk(statement):
-            if _module_level_skip_call(child, aliases, truthy_aliases, pytest_aliases):
+            if _module_level_skip_call(
+                child,
+                aliases,
+                truthy_aliases,
+                pytest_aliases,
+                mapping_aliases,
+            ):
                 return True
     return False
 
@@ -570,7 +686,7 @@ def _function_body_has_disabling_test_call(
     for child in ast.walk(node):
         if child is node or not isinstance(child, ast.Call):
             continue
-        call_name = _full_name(child.func)
+        call_name = _callable_name(child.func)
         if _is_disabling_test_marker_name(call_name) or call_name in local_aliases:
             return True
     return False
@@ -581,35 +697,36 @@ def _module_level_skip_call(
     aliases: set[str],
     truthy_aliases: set[str],
     pytest_aliases: set[str],
+    mapping_aliases: set[str],
 ) -> bool:
     if not isinstance(node, ast.Call):
         return False
-    call_name = _full_name(node.func)
+    call_name = _callable_name(node.func)
     if call_name not in aliases and call_name not in {
         f"{pytest_alias}.skip" for pytest_alias in pytest_aliases
     } | {f"{pytest_alias}.xfail" for pytest_alias in pytest_aliases}:
         return False
-    return _call_allows_module_level(node, truthy_aliases)
+    return _call_allows_module_level(node, truthy_aliases, mapping_aliases)
 
 
-def _call_allows_module_level(node: ast.Call, truthy_aliases: set[str]) -> bool:
+def _call_allows_module_level(
+    node: ast.Call,
+    truthy_aliases: set[str],
+    mapping_aliases: set[str],
+) -> bool:
     for keyword in node.keywords:
-        if keyword.arg == "allow_module_level" and _truthy_node(keyword.value, truthy_aliases):
+        if keyword.arg == "allow_module_level" and _is_truthy_or_unknown(
+            keyword.value, truthy_aliases
+        ):
             return True
         if keyword.arg is None and _mapping_has_truthy_allow_module_level(
-            keyword.value, truthy_aliases
+            keyword.value, truthy_aliases, mapping_aliases
         ):
             return True
     return False
 
 
-def _truthy_node(node: ast.AST, truthy_aliases: set[str]) -> bool:
-    return (isinstance(node, ast.Constant) and bool(node.value)) or (
-        isinstance(node, ast.Name) and node.id in truthy_aliases
-    )
-
-
-def _mapping_has_truthy_allow_module_level(
+def _dict_has_truthy_allow_module_level(
     node: ast.AST,
     truthy_aliases: set[str],
 ) -> bool:
@@ -618,9 +735,19 @@ def _mapping_has_truthy_allow_module_level(
     return any(
         isinstance(key, ast.Constant)
         and key.value == "allow_module_level"
-        and _truthy_node(value, truthy_aliases)
+        and _is_truthy_or_unknown(value, truthy_aliases)
         for key, value in zip(node.keys, node.values, strict=True)
     )
+
+
+def _mapping_has_truthy_allow_module_level(
+    node: ast.AST,
+    truthy_aliases: set[str],
+    mapping_aliases: set[str],
+) -> bool:
+    if isinstance(node, ast.Name) and node.id in mapping_aliases:
+        return True
+    return _dict_has_truthy_allow_module_level(node, truthy_aliases)
 
 
 def _attribute_chain(node: ast.AST) -> tuple[str, ...]:
@@ -672,6 +799,60 @@ def _class_method_test_attribute_disabled_after_class_definition(
             if _attribute_chain(target) == (class_name, method_name, "__test__"):
                 return True
     return False
+
+
+def _reachable_statement_roots(statements: list[ast.stmt]) -> tuple[ast.stmt, ...]:
+    roots, _terminated = _reachable_statement_roots_with_termination(statements)
+    return tuple(roots)
+
+
+def _reachable_statement_roots_with_termination(
+    statements: list[ast.stmt],
+) -> tuple[list[ast.stmt], bool]:
+    roots: list[ast.stmt] = []
+    for statement in statements:
+        if isinstance(statement, ast.If):
+            truthiness = _static_truthiness(statement.test)
+            if truthiness is False:
+                branch_roots, branch_terminated = _reachable_statement_roots_with_termination(
+                    statement.orelse
+                )
+                roots.extend(branch_roots)
+                if branch_terminated:
+                    return roots, True
+                continue
+            if truthiness is True:
+                branch_roots, branch_terminated = _reachable_statement_roots_with_termination(
+                    statement.body
+                )
+                roots.extend(branch_roots)
+                if branch_terminated:
+                    return roots, True
+                continue
+        roots.append(statement)
+        if isinstance(statement, (ast.Return, ast.Raise)):
+            return roots, True
+    return roots, False
+
+
+def _walk_without_nested_defs(root: ast.AST) -> Iterator[ast.AST]:
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        yield node
+        if node is not root and isinstance(
+            node,
+            (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda),
+        ):
+            continue
+        stack.extend(reversed(list(ast.iter_child_nodes(node))))
+
+
+def _reachable_nodes_in_function(
+    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> Iterator[ast.AST]:
+    for root in _reachable_statement_roots(function_node.body):
+        yield from _walk_without_nested_defs(root)
 
 
 def _class_has_uncollectable_constructor(class_node: ast.ClassDef) -> bool:
@@ -769,9 +950,9 @@ def _discoverable_test_function_nodes(
     return discovered
 
 
-def _attribute_refs(tree: ast.AST) -> set[str]:
+def _attribute_refs(nodes: Iterator[ast.AST]) -> set[str]:
     refs: set[str] = set()
-    for node in ast.walk(tree):
+    for node in nodes:
         if isinstance(node, ast.Attribute):
             name = _full_name(node)
             if name is not None:
@@ -783,12 +964,12 @@ def _attribute_refs_in_function(tree: ast.Module, function_name: str) -> set[str
     function_node = _module_function_nodes(tree).get(function_name)
     if function_node is None:
         return set()
-    return _attribute_refs(function_node)
+    return _attribute_refs(_reachable_nodes_in_function(function_node))
 
 
-def _call_keyword_name_refs(tree: ast.AST) -> set[tuple[str, str, str]]:
+def _call_keyword_name_refs(nodes: Iterator[ast.AST]) -> set[tuple[str, str, str]]:
     refs: set[tuple[str, str, str]] = set()
-    for node in ast.walk(tree):
+    for node in nodes:
         if not isinstance(node, ast.Call):
             continue
         call_name = _full_name(node.func)
@@ -809,13 +990,15 @@ def _call_keyword_name_refs_in_function(
         return set()
     return {
         (function_name, call_name, keyword, value)
-        for call_name, keyword, value in _call_keyword_name_refs(function_node)
+        for call_name, keyword, value in _call_keyword_name_refs(
+            _reachable_nodes_in_function(function_node)
+        )
     }
 
 
-def _call_target_keyword_name_refs(tree: ast.AST) -> set[tuple[str, str, str, str]]:
+def _call_target_keyword_name_refs(nodes: Iterator[ast.AST]) -> set[tuple[str, str, str, str]]:
     refs: set[tuple[str, str, str, str]] = set()
-    for node in ast.walk(tree):
+    for node in nodes:
         if not isinstance(node, ast.Call) or not node.args:
             continue
         call_name = _full_name(node.func)
@@ -837,7 +1020,9 @@ def _call_target_keyword_name_refs_in_function(
         return set()
     return {
         (function_name, call_name, target_name, keyword, value)
-        for call_name, target_name, keyword, value in _call_target_keyword_name_refs(function_node)
+        for call_name, target_name, keyword, value in _call_target_keyword_name_refs(
+            _reachable_nodes_in_function(function_node)
+        )
     }
 
 
