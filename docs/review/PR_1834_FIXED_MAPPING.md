@@ -189,6 +189,16 @@ Disposition: NOT-A-BUG
 Evidence: `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1834 --require-auth` found no review threads to enforce.
 Reason: The Sourcery review body was a weekly diff-character quota notification, not a code actionable.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1834#discussion_r3299488319 -> e696b154d29c1f09c69d78828b2b82a74d841c8f
+Disposition: FIXED
+Commit: e696b154d29c1f09c69d78828b2b82a74d841c8f
+Evidence: docs/review/PR_1834_FIXED_MAPPING.md:225
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1834#pullrequestreview-4358240243 -> e696b154d29c1f09c69d78828b2b82a74d841c8f
+Disposition: FIXED
+Commit: e696b154d29c1f09c69d78828b2b82a74d841c8f
+Evidence: docs/review/PR_1834_FIXED_MAPPING.md:225
+
 ## Bot No-Actionable Evidence
 
 - Cubic: Disposition `NOT-A-BUG`. Evidence:
