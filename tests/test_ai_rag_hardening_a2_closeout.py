@@ -316,6 +316,19 @@ def test_checker_rejects_contrasted_benchmark_overclaim(tmp_path: Path) -> None:
     assert any("benchmark/scientific overclaim" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_overclaim_after_conjunction_negation(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "does not claim new\nbenchmark results, latency wins, accuracy gains",
+            "does not claim benchmark results and PR-A2 proves latency wins",
+        ),
+        encoding="utf-8",
+    )
+    assert any("benchmark/scientific overclaim" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_stale_a2_pending_claim_without_repeated_pr_token(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
@@ -637,6 +650,28 @@ def _retrieve_vector_sqlite() -> tuple[object, object]:
     assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_destructuring_runtime_symbol_rebound(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    vector_path = tmp_path / "core/rag/vector_rag.py"
+    vector_path.write_text(
+        vector_path.read_text(encoding="utf-8")
+        + "\n(_retrieve_vector_from_db, _other) = (None, None)\n",
+        encoding="utf-8",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_namedexpr_runtime_symbol_rebound(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    vector_path = tmp_path / "core/rag/vector_rag.py"
+    vector_path.write_text(
+        vector_path.read_text(encoding="utf-8")
+        + "\nif (_retrieve_vector_from_db := None):\n    pass\n",
+        encoding="utf-8",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_nested_runtime_symbol_rebound_after_definition(
     tmp_path: Path,
 ) -> None:
@@ -656,6 +691,16 @@ def test_checker_rejects_import_rebinding_required_runtime_symbol(tmp_path: Path
     vector_path.write_text(
         vector_path.read_text(encoding="utf-8")
         + "\nfrom other.module import _retrieve_vector_from_db\n",
+        encoding="utf-8",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_wildcard_import_runtime_symbol_rebound(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    vector_path = tmp_path / "core/rag/vector_rag.py"
+    vector_path.write_text(
+        vector_path.read_text(encoding="utf-8") + "\nfrom other.module import *\n",
         encoding="utf-8",
     )
     assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
@@ -701,6 +746,27 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
     assert any("must not be skipped or xfailed" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_computed_decorator_alias(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+DISABLE = [pytest.mark.skip(reason="disabled")]
+
+
+@DISABLE[0]
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("must not be skipped or xfailed" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_module_level_xfail_for_required_tests(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -708,6 +774,27 @@ def test_checker_rejects_module_level_xfail_for_required_tests(tmp_path: Path) -
         """import pytest
 
 pytestmark = pytest.mark.xfail(reason="disabled")
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_module_level_pytest_xfail(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+pytest.xfail("disabled", allow_module_level=True)
 
 
 def test_missing_subject_id_returns_empty_without_encoding(): pass
@@ -848,6 +935,69 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
     )
 
 
+def test_checker_rejects_assignment_wrapped_module_level_skip(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+DISABLED = pytest.skip("disabled", allow_module_level=True)
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_import_pytest_as_alias_module_level_skip(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest as pt
+
+pt.skip("disabled", allow_module_level=True)
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_kwargs_expanded_allow_module_level(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+pytest.skip("disabled", **{"allow_module_level": True})
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
 def test_checker_rejects_imported_alias_module_level_pytest_skip(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -868,6 +1018,24 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
         "required test module must not disable pytest collection" in error
         for error in _errors(tmp_path)
     )
+
+
+def test_checker_rejects_function_local_skip_alias(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """def test_missing_subject_id_returns_empty_without_encoding():
+    from pytest import skip as local_skip
+
+    local_skip("disabled")
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("must not be skipped or xfailed" in error for error in _errors(tmp_path))
 
 
 def test_checker_rejects_in_test_pytest_skip_for_required_tests(tmp_path: Path) -> None:
@@ -937,6 +1105,40 @@ def test_checker_rejects_uncollectable_required_test_class(tmp_path: Path) -> No
     assert any(
         "must not live in disabled or uncollectable class" in error for error in _errors(tmp_path)
     )
+
+
+def test_checker_rejects_class_method_module_rebound(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """class TestVectorRequired:
+    def test_missing_subject_id_returns_empty_without_encoding(self): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(self): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(self): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(self): pass
+
+
+TestVectorRequired.test_missing_subject_id_returns_empty_without_encoding = None
+""",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_class_method_module_test_override(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """class TestVectorRequired:
+    def test_missing_subject_id_returns_empty_without_encoding(self): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(self): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(self): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(self): pass
+
+
+TestVectorRequired.test_missing_subject_id_returns_empty_without_encoding.__test__ = 0
+""",
+    )
+    assert any("falsy __test__" in error for error in _errors(tmp_path))
 
 
 def test_checker_rejects_local_path_leakage_in_closeout_text(tmp_path: Path) -> None:

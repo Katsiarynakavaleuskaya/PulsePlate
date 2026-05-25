@@ -375,27 +375,50 @@ def _node_has_disabling_test_marker(node: ast.AST, aliases: set[str]) -> bool:
     marker_name = _decorator_name(node)
     if _is_disabling_test_marker_name(marker_name) or marker_name in aliases:
         return True
+    if isinstance(node, ast.Subscript) and _full_name(node.value) in aliases:
+        return True
     if isinstance(node, (ast.List, ast.Tuple)):
         return any(_node_has_disabling_test_marker(item, aliases) for item in node.elts)
     return False
 
 
+def _bound_target_names(node: ast.AST) -> tuple[str, ...]:
+    if isinstance(node, ast.Name):
+        return (node.id,)
+    if isinstance(node, ast.Starred):
+        return _bound_target_names(node.value)
+    if isinstance(node, (ast.Tuple, ast.List)):
+        names: list[str] = []
+        for item in node.elts:
+            names.extend(_bound_target_names(item))
+        return tuple(names)
+    return ()
+
+
 def _assigned_names(statement: ast.stmt) -> tuple[str, ...]:
+    names: list[str] = []
     if isinstance(statement, ast.Assign):
-        return tuple(target.id for target in statement.targets if isinstance(target, ast.Name))
-    if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
-        return (statement.target.id,)
-    if isinstance(statement, ast.AugAssign) and isinstance(statement.target, ast.Name):
-        return (statement.target.id,)
-    if isinstance(statement, ast.Delete):
-        return tuple(target.id for target in statement.targets if isinstance(target, ast.Name))
-    if isinstance(statement, ast.Import):
-        return tuple(
+        for target in statement.targets:
+            names.extend(_bound_target_names(target))
+    elif isinstance(statement, ast.AnnAssign):
+        names.extend(_bound_target_names(statement.target))
+    elif isinstance(statement, ast.AugAssign):
+        names.extend(_bound_target_names(statement.target))
+    elif isinstance(statement, ast.Delete):
+        for target in statement.targets:
+            names.extend(_bound_target_names(target))
+    elif isinstance(statement, ast.Import):
+        names.extend(
             alias.asname or alias.name.split(".", maxsplit=1)[0] for alias in statement.names
         )
-    if isinstance(statement, ast.ImportFrom):
-        return tuple(alias.asname or alias.name for alias in statement.names)
-    return ()
+    elif isinstance(statement, ast.ImportFrom):
+        names.extend(
+            "*" if alias.name == "*" else alias.asname or alias.name for alias in statement.names
+        )
+    for child in ast.walk(statement):
+        if isinstance(child, ast.NamedExpr):
+            names.extend(_bound_target_names(child.target))
+    return tuple(dict.fromkeys(names))
 
 
 def _assigned_value(statement: ast.stmt) -> ast.AST | None:
@@ -463,8 +486,20 @@ def _truthy_constant_aliases(statements: list[ast.stmt]) -> set[str]:
     return aliases
 
 
+def _pytest_module_aliases(statements: list[ast.stmt]) -> set[str]:
+    aliases = {"pytest"}
+    for statement in _iter_scope_statements(statements):
+        if not isinstance(statement, ast.Import):
+            continue
+        for alias in statement.names:
+            if alias.name == "pytest" or alias.name.startswith("pytest."):
+                aliases.add(alias.asname or alias.name.split(".", maxsplit=1)[0])
+    return aliases
+
+
 def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str]) -> bool:
     truthy_aliases = _truthy_constant_aliases(statements)
+    pytest_aliases = _pytest_module_aliases(statements)
     for statement in _iter_scope_statements(statements):
         value = _assigned_value(statement)
         names = _assigned_names(statement)
@@ -473,10 +508,9 @@ def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str])
                 return True
             if "pytestmark" in names and _node_has_disabling_test_marker(value, aliases):
                 return True
-        if isinstance(statement, ast.Expr) and _module_level_skip_call(
-            statement.value, aliases, truthy_aliases
-        ):
-            return True
+        for child in ast.walk(statement):
+            if _module_level_skip_call(child, aliases, truthy_aliases, pytest_aliases):
+                return True
     return False
 
 
@@ -486,7 +520,8 @@ def _name_rebound_after_definition(
     for statement in _iter_scope_statements(statements):
         if getattr(statement, "lineno", -1) <= definition_lineno:
             continue
-        if name in _assigned_names(statement):
+        assigned_names = _assigned_names(statement)
+        if name in assigned_names or "*" in assigned_names:
             return True
     return False
 
@@ -531,11 +566,12 @@ def _function_body_has_disabling_test_call(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
     aliases: set[str],
 ) -> bool:
+    local_aliases = aliases | _disabling_marker_aliases(node.body)
     for child in ast.walk(node):
         if child is node or not isinstance(child, ast.Call):
             continue
         call_name = _full_name(child.func)
-        if _is_disabling_test_marker_name(call_name) or call_name in aliases:
+        if _is_disabling_test_marker_name(call_name) or call_name in local_aliases:
             return True
     return False
 
@@ -544,20 +580,98 @@ def _module_level_skip_call(
     node: ast.AST,
     aliases: set[str],
     truthy_aliases: set[str],
+    pytest_aliases: set[str],
 ) -> bool:
     if not isinstance(node, ast.Call):
         return False
     call_name = _full_name(node.func)
-    if call_name != "pytest.skip" and call_name not in aliases:
+    if call_name not in aliases and call_name not in {
+        f"{pytest_alias}.skip" for pytest_alias in pytest_aliases
+    } | {f"{pytest_alias}.xfail" for pytest_alias in pytest_aliases}:
+        return False
+    return _call_allows_module_level(node, truthy_aliases)
+
+
+def _call_allows_module_level(node: ast.Call, truthy_aliases: set[str]) -> bool:
+    for keyword in node.keywords:
+        if keyword.arg == "allow_module_level" and _truthy_node(keyword.value, truthy_aliases):
+            return True
+        if keyword.arg is None and _mapping_has_truthy_allow_module_level(
+            keyword.value, truthy_aliases
+        ):
+            return True
+    return False
+
+
+def _truthy_node(node: ast.AST, truthy_aliases: set[str]) -> bool:
+    return (isinstance(node, ast.Constant) and bool(node.value)) or (
+        isinstance(node, ast.Name) and node.id in truthy_aliases
+    )
+
+
+def _mapping_has_truthy_allow_module_level(
+    node: ast.AST,
+    truthy_aliases: set[str],
+) -> bool:
+    if not isinstance(node, ast.Dict):
         return False
     return any(
-        keyword.arg == "allow_module_level"
-        and (
-            (isinstance(keyword.value, ast.Constant) and bool(keyword.value.value))
-            or (isinstance(keyword.value, ast.Name) and keyword.value.id in truthy_aliases)
-        )
-        for keyword in node.keywords
+        isinstance(key, ast.Constant)
+        and key.value == "allow_module_level"
+        and _truthy_node(value, truthy_aliases)
+        for key, value in zip(node.keys, node.values, strict=True)
     )
+
+
+def _attribute_chain(node: ast.AST) -> tuple[str, ...]:
+    if isinstance(node, ast.Name):
+        return (node.id,)
+    if isinstance(node, ast.Attribute):
+        return (*_attribute_chain(node.value), node.attr)
+    return ()
+
+
+def _assignment_targets(statement: ast.stmt) -> tuple[ast.AST, ...]:
+    if isinstance(statement, ast.Assign):
+        return tuple(statement.targets)
+    if isinstance(statement, (ast.AnnAssign, ast.AugAssign)):
+        return (statement.target,)
+    if isinstance(statement, ast.Delete):
+        return tuple(statement.targets)
+    return ()
+
+
+def _class_method_rebound_after_class_definition(
+    statements: list[ast.stmt],
+    class_name: str,
+    method_name: str,
+    class_lineno: int,
+) -> bool:
+    for statement in _iter_scope_statements(statements):
+        if getattr(statement, "lineno", -1) <= class_lineno:
+            continue
+        for target in _assignment_targets(statement):
+            if _attribute_chain(target) == (class_name, method_name):
+                return True
+    return False
+
+
+def _class_method_test_attribute_disabled_after_class_definition(
+    statements: list[ast.stmt],
+    class_name: str,
+    method_name: str,
+    class_lineno: int,
+) -> bool:
+    for statement in _iter_scope_statements(statements):
+        if getattr(statement, "lineno", -1) <= class_lineno:
+            continue
+        value = _assigned_value(statement)
+        if value is None or not _is_falsy_constant(value):
+            continue
+        for target in _assignment_targets(statement):
+            if _attribute_chain(target) == (class_name, method_name, "__test__"):
+                return True
+    return False
 
 
 def _class_has_uncollectable_constructor(class_node: ast.ClassDef) -> bool:
@@ -632,6 +746,20 @@ def _discoverable_test_function_nodes(
                 continue
             if _function_test_attribute_disabled_after_definition(
                 statement.body, item.name, item.lineno
+            ):
+                errors.append(
+                    f"{relative_path}: required test {item.name} must not set falsy __test__ after definition"
+                )
+                continue
+            if _class_method_rebound_after_class_definition(
+                tree.body, statement.name, item.name, statement.lineno
+            ):
+                errors.append(
+                    f"{relative_path}: required test {item.name} must not be rebound after definition"
+                )
+                continue
+            if _class_method_test_attribute_disabled_after_class_definition(
+                tree.body, statement.name, item.name, statement.lineno
             ):
                 errors.append(
                     f"{relative_path}: required test {item.name} must not set falsy __test__ after definition"
@@ -851,7 +979,7 @@ def _check_forbidden_expansion_claims(label: str, text: str, errors: list[str]) 
 
 
 def _check_overclaims(label: str, text: str, errors: list[str]) -> None:
-    for clause in _clauses(text):
+    for clause in _clauses(text, split_soft=True):
         if OVERCLAIM_RE.search(clause) and not NEGATION_RE.search(clause):
             errors.append(f"{label}: benchmark/scientific overclaim: {clause}")
 
