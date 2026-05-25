@@ -464,6 +464,8 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     _require_bool(slack_identity, "requires_explicit_dispatch_opt_in", True)
     _require_bool(slack_identity, "requires_hash_only_audit", True)
     _require_bool(slack_identity, "requires_audit_artifact", True)
+    _require_bool(slack_identity, "requires_runtime_presence_diagnostics", True)
+    _require_bool(slack_identity, "requires_audit_retention_policy", True)
     _require_bool(slack_identity, "requires_redacted_messages", True)
     _require_bool(slack_identity, "requires_rate_limit", True)
     _require_bool(slack_identity, "requires_timeout", True)

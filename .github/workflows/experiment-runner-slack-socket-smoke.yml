@@ -32,6 +32,11 @@ on:
         required: true
         type: string
         default: ""
+      audit_retention_days:
+        description: "Local Slack audit retention window in days for report-only smoke checks"
+        required: true
+        type: string
+        default: "14"
 
 permissions:
   contents: read
@@ -56,17 +61,22 @@ jobs:
           python-version: "3.13"
 
       - name: Validate dry-run bridge config without Slack network
+        env:
+          EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
         run: |
           set -euo pipefail
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-runtime \
             --dispatch-mode dry-run
 
-      - name: Install optional Slack Socket Mode runtime
-        if: inputs.dry_run == 'false'
+      - name: Report local Slack audit retention policy
+        env:
+          EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check "slack-bolt==1.28.0"
+          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --audit-retention report \
+            --dispatch-mode dry-run
 
       - name: Validate live Socket Mode prerequisites
         if: inputs.dry_run == 'false'
@@ -75,6 +85,33 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
           EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
+        run: |
+          set -euo pipefail
+          slack_app_status="${{ secrets.SLACK_APP_TOKEN != '' && 'present' || 'missing' }}"
+          slack_bot_status="${{ secrets.SLACK_BOT_TOKEN != '' && 'present' || 'missing' }}"
+          channel_allowlist_status="${{ inputs.channel_allowlist != '' && 'present' || 'missing' }}"
+          user_allowlist_status="${{ inputs.user_allowlist != '' && 'present' || 'missing' }}"
+          printf 'SLACK_APP_TOKEN=%s\n' "$slack_app_status"
+          printf 'SLACK_BOT_TOKEN=%s\n' "$slack_bot_status"
+          printf 'EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s\n' "$channel_allowlist_status"
+          printf 'EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s\n' "$user_allowlist_status"
+          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --validate-secret-presence
+
+      - name: Install optional Slack Socket Mode runtime
+        if: inputs.dry_run == 'false'
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check "slack-bolt==1.28.0"
+
+      - name: Validate live Socket Mode runtime
+        if: inputs.dry_run == 'false'
+        env:
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
+          EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
         run: |
           set -euo pipefail
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
