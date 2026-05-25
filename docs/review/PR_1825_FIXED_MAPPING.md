@@ -47,7 +47,7 @@ Evidence: `scripts/ci/emergency_python_wheels.json:204`, `scripts/ci/emergency_p
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1825#pullrequestreview-4355655537 -> 3de7b3c7d
 Disposition: FIXED
 Commit: 3de7b3c7d
-Evidence: PM-DEPS rows below now include post-comment proof metadata; no stray trailing `114` line exists in this artifact.
+Evidence: `3de7b3c7d:docs/review/PR_1825_FIXED_MAPPING.md:61`, `3de7b3c7d:docs/review/PR_1825_FIXED_MAPPING.md:69`; no stray trailing `114` line exists in this artifact.
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
