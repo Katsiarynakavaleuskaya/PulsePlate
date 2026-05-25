@@ -325,6 +325,19 @@ def test_checker_rejects_forbidden_runtime_expansion_claim(tmp_path: Path) -> No
     assert any("forbidden runtime/scope expansion claim" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_closed_token_runtime_expansion_bypass(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping().replace(
+            "Semantic cache, Redis/GPTCache",
+            "PR-A2 opens semantic cache for serving; historical closeout is closed. Redis/GPTCache",
+        ),
+        encoding="utf-8",
+    )
+    assert any("forbidden runtime/scope expansion claim" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_duplicate_conflicting_gate_marker(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     gate = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
@@ -353,6 +366,49 @@ def test_checker_rejects_comment_only_landed_marker_spoof(tmp_path: Path) -> Non
     assert any("missing class RAGDegradedReason" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_nested_enum_marker_spoof(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/contracts.py",
+        """class Container:
+    class RAGDegradedReason:
+        VECTOR_FALLBACK_NO_RESULTS = "vector_fallback_no_results"
+        VECTOR_FALLBACK_EXCEPTION = "vector_fallback_exception"
+        VECTOR_FALLBACK_SUBJECT_MISSING = "vector_fallback_subject_missing"
+        FORMATTED_CONTEXT_MALFORMED = "formatted_context_malformed"
+        REDACTED_CONTEXT_MALFORMED = "redacted_context_malformed"
+""",
+    )
+    assert any("missing class RAGDegradedReason" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_nested_runtime_function_marker_spoof(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/orchestration.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def wrapper() -> object:
+    def _resolve_confidence() -> None:
+        return None
+
+    def _non_rag_result(subject_id: int) -> object:
+        return build(subject_id=subject_id)
+
+    return (
+        _resolve_confidence,
+        _non_rag_result,
+        RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+        RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+    )
+""",
+    )
+    assert any(
+        "missing module-level function _resolve_confidence" in error for error in _errors(tmp_path)
+    )
+
+
 def test_checker_rejects_string_only_test_marker_spoof(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -363,6 +419,60 @@ def test_checker_rejects_string_only_test_marker_spoof(tmp_path: Path) -> None:
         'test_vector_success_skips_malformed_rows_without_poisoning_whole_result"\n',
     )
     assert any("missing test function" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_nested_required_test_marker_spoof(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """def wrapper():
+    def test_missing_subject_id_returns_empty_without_encoding(): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("missing test function" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_skipped_required_test(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+
+@pytest.mark.skip(reason="disabled")
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("must not be skipped or xfailed" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_module_level_xfail_for_required_tests(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+pytestmark = pytest.mark.xfail(reason="disabled")
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not set skip/xfail pytestmark" in error
+        for error in _errors(tmp_path)
+    )
 
 
 def test_checker_rejects_local_path_leakage_in_closeout_text(tmp_path: Path) -> None:

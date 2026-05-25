@@ -123,7 +123,7 @@ CONTRAST_SPLIT_RE = re.compile(
 )
 NEGATION_RE = re.compile(
     r"\b(no|not|never|does\s+not|do\s+not|must\s+not|cannot|can't|without|"
-    r"out\s+of\s+scope|deferred|blocked|closed|remains?\s+closed|historical|"
+    r"out\s+of\s+scope|deferred|blocked|historical|"
     r"does\s+not\s+claim)\b",
     re.I,
 )
@@ -287,16 +287,20 @@ def _constant_string(node: ast.AST) -> str | None:
     return None
 
 
-def _function_names(tree: ast.AST) -> set[str]:
+def _module_function_nodes(tree: ast.Module) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
     return {
-        node.name
-        for node in ast.walk(tree)
+        node.name: node
+        for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
 
 
-def _class_nodes(tree: ast.AST) -> dict[str, ast.ClassDef]:
-    return {node.name: node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)}
+def _module_function_names(tree: ast.Module) -> set[str]:
+    return set(_module_function_nodes(tree))
+
+
+def _module_class_nodes(tree: ast.Module) -> dict[str, ast.ClassDef]:
+    return {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
 
 
 def _enum_members(class_node: ast.ClassDef) -> dict[str, str]:
@@ -321,6 +325,98 @@ def _full_name(node: ast.AST) -> str | None:
             return None
         return f"{prefix}.{node.attr}"
     return None
+
+
+def _decorator_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Call):
+        return _full_name(node.func)
+    return _full_name(node)
+
+
+def _is_disabling_test_marker_name(name: str | None) -> bool:
+    if name is None:
+        return False
+    normalized = name.lower()
+    return normalized.endswith((".skip", ".skipif", ".xfail")) or normalized in {
+        "skip",
+        "skipif",
+        "xfail",
+    }
+
+
+def _node_has_disabling_test_marker(node: ast.AST) -> bool:
+    marker_name = _decorator_name(node)
+    if _is_disabling_test_marker_name(marker_name):
+        return True
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return any(_node_has_disabling_test_marker(item) for item in node.elts)
+    return False
+
+
+def _module_has_disabling_pytestmark(tree: ast.Module) -> bool:
+    for statement in tree.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "pytestmark"
+            for target in statement.targets
+        ):
+            if _node_has_disabling_test_marker(statement.value):
+                return True
+    return False
+
+
+def _test_function_is_disabled(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    return any(_node_has_disabling_test_marker(decorator) for decorator in node.decorator_list)
+
+
+def _class_has_disabling_pytestmark(class_node: ast.ClassDef) -> bool:
+    for statement in class_node.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "pytestmark"
+            for target in statement.targets
+        ):
+            if _node_has_disabling_test_marker(statement.value):
+                return True
+    return False
+
+
+def _test_class_is_disabled(class_node: ast.ClassDef) -> bool:
+    return any(
+        _node_has_disabling_test_marker(decorator) for decorator in class_node.decorator_list
+    ) or (_class_has_disabling_pytestmark(class_node))
+
+
+def _discoverable_test_function_nodes(
+    tree: ast.Module,
+    *,
+    relative_path: str,
+    required_test_functions: set[str],
+    errors: list[str],
+) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
+    discovered: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+    for statement in tree.body:
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if statement.name in required_test_functions:
+                discovered[statement.name] = statement
+            continue
+        if not isinstance(statement, ast.ClassDef) or not statement.name.startswith("Test"):
+            continue
+        class_disabled = _test_class_is_disabled(statement)
+        for item in statement.body:
+            if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if item.name not in required_test_functions:
+                continue
+            if class_disabled:
+                errors.append(
+                    f"{relative_path}: required test {item.name} must not live in skipped or xfailed class"
+                )
+                continue
+            discovered[item.name] = item
+    return discovered
 
 
 def _attribute_refs(tree: ast.AST) -> set[str]:
@@ -373,11 +469,11 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
         tree = tree_for(relative_path)
         if tree is None:
             continue
-        classes = _class_nodes(tree)
+        classes = _module_class_nodes(tree)
         for class_name, expected_members in class_specs.items():
             class_node = classes.get(class_name)
             if class_node is None:
-                errors.append(f"{relative_path}: missing class {class_name}")
+                errors.append(f"{relative_path}: missing class {class_name} at module scope")
                 continue
             members = _enum_members(class_node)
             for member_name, expected_value in expected_members.items():
@@ -392,11 +488,11 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
         tree = tree_for(relative_path)
         if tree is None:
             continue
-        functions = _function_names(tree)
+        functions = _module_function_names(tree)
         for marker in required_functions:
             function_name = marker.removeprefix("def ").strip()
             if function_name not in functions:
-                errors.append(f"{relative_path}: missing function {function_name}")
+                errors.append(f"{relative_path}: missing module-level function {function_name}")
 
     for relative_path, expected_attribute_refs in REQUIRED_ATTRIBUTE_REFS.items():
         tree = tree_for(relative_path)
@@ -433,10 +529,25 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
         tree = tree_for(relative_path)
         if tree is None:
             continue
-        functions = _function_names(tree)
+        if _module_has_disabling_pytestmark(tree):
+            errors.append(
+                f"{relative_path}: required test module must not set skip/xfail pytestmark"
+            )
+        test_functions = _discoverable_test_function_nodes(
+            tree,
+            relative_path=relative_path,
+            required_test_functions=required_test_functions,
+            errors=errors,
+        )
         for expected_function in sorted(required_test_functions):
-            if expected_function not in functions:
+            function_node = test_functions.get(expected_function)
+            if function_node is None:
                 errors.append(f"{relative_path}: missing test function {expected_function}")
+                continue
+            if _test_function_is_disabled(function_node):
+                errors.append(
+                    f"{relative_path}: required test {expected_function} must not be skipped or xfailed"
+                )
 
 
 def _check_stale_a2_claims(label: str, text: str, errors: list[str]) -> None:
