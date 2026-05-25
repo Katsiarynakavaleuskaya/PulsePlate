@@ -816,6 +816,32 @@ def test_philosophy_source_corpus_index_rejects_schema_research_basis_cardinalit
     assert any("schema research_basis.maxItems must be 6" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_schema_research_basis_float_bounds() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    research_basis = properties["research_basis"]
+    assert isinstance(research_basis, dict)
+    research_basis["minItems"] = 6.0
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema research_basis.minItems must be 6" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_schema_sources_float_bounds() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    sources["maxItems"] = 6.0
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema sources.maxItems must be 6" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_rejects_schema_repo_truth_link_type_drift() -> None:
     schema = _schema()
     properties = schema["properties"]
@@ -909,6 +935,19 @@ def test_philosophy_source_corpus_index_rejects_schema_out_of_scope_cardinality_
     errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
 
     assert any("schema out_of_scope_paths.minItems must be 14" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_schema_scope_array_float_bounds() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    repo_truth_links = properties["repo_truth_links"]
+    assert isinstance(repo_truth_links, dict)
+    repo_truth_links["maxItems"] = 9.0
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema repo_truth_links.maxItems must be 9" in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_rejects_roadmap_marker_drift() -> None:
@@ -1097,12 +1136,38 @@ def test_philosophy_source_corpus_index_scans_bomless_utf16le_text_artifact_cont
     assert any("forbidden local path" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_scans_bomless_utf16be_text_artifact_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(("leak=" + "/" + "tmp/source.pdf\n").encode("utf-16-be"))
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_scans_utf32_text_artifact_contents(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     artifact = tmp_path / REL_INDEX
     artifact.parent.mkdir(parents=True)
     artifact.write_bytes(("leak=" + "/" + "tmp/source.pdf\n").encode("utf-32"))
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_scans_bomless_utf32be_text_artifact_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(("leak=" + "/" + "tmp/source.pdf\n").encode("utf-32-be"))
     monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
 
     errors = validate_file_contents([REL_INDEX])

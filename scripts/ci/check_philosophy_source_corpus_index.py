@@ -581,6 +581,19 @@ def _schema_type_at(
     return []
 
 
+def _schema_integer_keyword(
+    schema_node: dict[str, object],
+    *,
+    keyword: str,
+    expected: int,
+    label: str,
+) -> list[str]:
+    actual = schema_node.get(keyword)
+    if not _is_json_integer(actual) or actual != expected:
+        return [f"schema {label}.{keyword} must be {expected}"]
+    return []
+
+
 def _roadmap_markers(roadmap_text: str) -> dict[str, str]:
     markers: dict[str, str] = {}
     for match in re.finditer(r"<!--\s*([A-Z0-9_]+):\s*([^>]+?)\s*-->", roadmap_text):
@@ -771,10 +784,22 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     else:
         if sources.get("type") != "array":
             errors.append("schema sources.type must be array")
-        if sources.get("minItems") != len(EXPECTED_SOURCES):
-            errors.append(f"schema sources.minItems must be {len(EXPECTED_SOURCES)}")
-        if sources.get("maxItems") != len(EXPECTED_SOURCES):
-            errors.append(f"schema sources.maxItems must be {len(EXPECTED_SOURCES)}")
+        errors.extend(
+            _schema_integer_keyword(
+                sources,
+                keyword="minItems",
+                expected=len(EXPECTED_SOURCES),
+                label="sources",
+            )
+        )
+        errors.extend(
+            _schema_integer_keyword(
+                sources,
+                keyword="maxItems",
+                expected=len(EXPECTED_SOURCES),
+                label="sources",
+            )
+        )
     source_item = _schema_object_at(schema, ("properties", "sources", "items"))
     if source_item is None:
         errors.append("schema sources.items must be an object")
@@ -883,10 +908,14 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
                 continue
             if field_schema.get("type") != "array":
                 errors.append(f"schema sources.items.properties.{key}.type must be array")
-            if field_schema.get("minItems") != expected_min_items:
-                errors.append(
-                    f"schema sources.items.properties.{key}.minItems must be {expected_min_items}"
+            errors.extend(
+                _schema_integer_keyword(
+                    field_schema,
+                    keyword="minItems",
+                    expected=expected_min_items,
+                    label=f"sources.items.properties.{key}",
                 )
+            )
             items = _schema_object_at(
                 schema, ("properties", "sources", "items", "properties", key, "items")
             )
@@ -943,10 +972,22 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     else:
         if research_basis.get("type") != "array":
             errors.append("schema research_basis.type must be array")
-        if research_basis.get("minItems") != len(EXPECTED_RESEARCH_BASIS):
-            errors.append(f"schema research_basis.minItems must be {len(EXPECTED_RESEARCH_BASIS)}")
-        if research_basis.get("maxItems") != len(EXPECTED_RESEARCH_BASIS):
-            errors.append(f"schema research_basis.maxItems must be {len(EXPECTED_RESEARCH_BASIS)}")
+        errors.extend(
+            _schema_integer_keyword(
+                research_basis,
+                keyword="minItems",
+                expected=len(EXPECTED_RESEARCH_BASIS),
+                label="research_basis",
+            )
+        )
+        errors.extend(
+            _schema_integer_keyword(
+                research_basis,
+                keyword="maxItems",
+                expected=len(EXPECTED_RESEARCH_BASIS),
+                label="research_basis",
+            )
+        )
     research_item = _schema_object_at(schema, ("properties", "research_basis", "items"))
     if research_item is None:
         errors.append("schema research_basis.items must be an object")
@@ -1008,10 +1049,22 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
             continue
         if array_schema.get("type") != "array":
             errors.append(f"schema {key}.type must be array")
-        if array_schema.get("minItems") != expected_count:
-            errors.append(f"schema {key}.minItems must be {expected_count}")
-        if array_schema.get("maxItems") != expected_count:
-            errors.append(f"schema {key}.maxItems must be {expected_count}")
+        errors.extend(
+            _schema_integer_keyword(
+                array_schema,
+                keyword="minItems",
+                expected=expected_count,
+                label=key,
+            )
+        )
+        errors.extend(
+            _schema_integer_keyword(
+                array_schema,
+                keyword="maxItems",
+                expected=expected_count,
+                label=key,
+            )
+        )
         items = _schema_object_at(schema, ("properties", key, "items"))
         if items is None:
             errors.append(f"schema {key}.items must be an object")
@@ -1033,8 +1086,22 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
 
 def _decode_text_artifact(data: bytes) -> str | None:
     encodings = ("utf-8", "utf-8-sig", "utf-32", "utf-16")
-    if b"\x00" in data[:256]:
-        encodings = ("utf-32", "utf-16", "utf-8", "utf-8-sig")
+    if data.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
+        encodings = ("utf-32", "utf-32-be", "utf-32-le", "utf-8", "utf-8-sig")
+    elif data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        encodings = ("utf-16", "utf-16-be", "utf-16-le", "utf-8", "utf-8-sig")
+    elif b"\x00" in data[:256]:
+        encodings = (
+            "utf-32-be",
+            "utf-32-le",
+            "utf-16-be",
+            "utf-16-le",
+            "utf-32",
+            "utf-16",
+            "utf-8",
+            "utf-8-sig",
+        )
+    candidates: list[str] = []
     for encoding in encodings:
         try:
             text = data.decode(encoding)
@@ -1042,8 +1109,9 @@ def _decode_text_artifact(data: bytes) -> str | None:
             continue
         if "\x00" in text:
             continue
-        return text
-    return None
+        if text not in candidates:
+            candidates.append(text)
+    return "\n".join(candidates) if candidates else None
 
 
 def validate_file_contents(paths: list[str]) -> list[str]:
