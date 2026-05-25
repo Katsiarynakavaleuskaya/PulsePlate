@@ -38,6 +38,16 @@ Disposition: FIXED
 Commit: 981c8ac0b7b157852d48fcbaf16c1ddd8724e165
 Evidence: `scripts/ci/check_ai_bounded_context_a3_closeout.py` now scans packet closeout sections and semantic-cache gate closeout claims without requiring an A3 token, detects gate activation-state claims, and only treats explicit safe negation phrases as safe; `tests/test_ai_bounded_context_a3_closeout.py` adds regression coverage for each second-wave Codex bypass.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299202840 -> a6b3a45516fa542376fb63d389784d97b9e4045b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299202842 -> a6b3a45516fa542376fb63d389784d97b9e4045b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299202845 -> a6b3a45516fa542376fb63d389784d97b9e4045b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299202846 -> a6b3a45516fa542376fb63d389784d97b9e4045b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299202849 -> a6b3a45516fa542376fb63d389784d97b9e4045b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299202853 -> a6b3a45516fa542376fb63d389784d97b9e4045b
+Disposition: FIXED
+Commit: a6b3a45516fa542376fb63d389784d97b9e4045b
+Evidence: `scripts/ci/check_ai_bounded_context_a3_closeout.py` now preserves forbidden-surface context across clause splits, splits comma-mixed claims without accepting safe-negation bypasses, scans semantic-cache gate paragraphs for positive-action and A4 overclaims beyond closeout tokens, expands activation-state detection across all forbidden runtime surfaces, and avoids false positives for future PR-A4 hard-gate wording; `tests/test_ai_bounded_context_a3_closeout.py` adds regression coverage for each third-wave Codex bypass.
+
 ## Post-Open Governance
 
 - PR: #1832
@@ -75,6 +85,23 @@ Evidence: `scripts/ci/check_ai_bounded_context_a3_closeout.py` now scans packet 
 - [ ] Review thread disposition guard passes
 - [ ] Strict merge-readiness wrapper passes with auth
 - [ ] Wait-window completed after latest bot/review activity
+
+## Bot Review Dispositions
+
+- CodeRabbit issue comment `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#issuecomment-4535482276`
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit status context is `SUCCESS`; the issue comment is a rate-limit/walkthrough/pre-merge advisory, not a GitHub review thread. The only warning is docstring coverage, while this repo does not enforce docstring coverage for scoped CI guards/tests and the changed checker/tests are covered by focused pytest, mypy, `make validate-changed`, pre-commit, and current-head CI.
+Reason: No code/docs change is required beyond the already-fixed actionable Codex review threads.
+
+- Sourcery review rate-limit comment
+Disposition: NOT-A-BUG
+Evidence: Sourcery did not provide actionable code findings for this PR; GitHub reports the external Sourcery status as skipped/advisory.
+Reason: External review capacity/rate-limit state is not a repo code defect.
+
+- Cubic reviewer status
+Disposition: NOT-A-BUG
+Evidence: Cubic status is neutral/skipped with no actionable review thread or code finding in GitHub.
+Reason: No repo change is required.
 
 ## Deferred / Follow-ups
 
