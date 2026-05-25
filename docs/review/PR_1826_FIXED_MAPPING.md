@@ -13,6 +13,11 @@ Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` derives `--v
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1826#discussion_r3297649628 -> e9b8d7a2fd3b37b493045fe626106c3e2935497d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1826#discussion_r3297728504 -> e9b8d7a2fd3b37b493045fe626106c3e2935497d
 
+Disposition: FIXED
+Commit: 4dbaa4ec864d9e03a61d9f631767613a28ef0588
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` now builds runtime config for `--validate-secret-presence`, so malformed Slack token classes or allowlist IDs fail closed without printing token values, raw channel/user IDs, or payload text.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1826#discussion_r3297821280 -> 4dbaa4ec864d9e03a61d9f631767613a28ef0588
+
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/5a5af7b57390.json`
@@ -36,6 +41,7 @@ Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` derives `--v
 - `python3 scripts/orchestration/check_experiment_runner_identity.py` - PASS
 - `.venv/bin/python -m pytest -q tests/test_experiment_slack_socket_bridge.py tests/test_experiment_runner_identity_policy.py` - PASS
 - `.venv/bin/python -m pytest -q tests/test_experiment_runner.py -k 'oracle_only or coauthor or fastapi'` - PASS
+- `.venv/bin/python -m pytest -q tests/test_experiment_slack_socket_bridge.py` - PASS after malformed runtime-env regression coverage.
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS: workflow checks, formatting, Ruff, MyPy changed files, pip-audit, backend tests, full-repo Bandit, Docker build smoke.
