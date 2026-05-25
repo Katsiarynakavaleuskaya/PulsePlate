@@ -343,12 +343,14 @@ def test_philosophy_source_corpus_index_rejects_absolute_local_paths() -> None:
     sources = index["sources"]
     assert isinstance(sources, list)
     first = dict(sources[0])
-    first["summary"] = "/" + "Users/example/Downloads/source.pdf"
+    local_path = "/" + "Users/example/Downloads/source.pdf"
+    first["summary"] = local_path
     sources[0] = first
 
     errors = _validate(index)
 
     assert any("forbidden local path" in error for error in errors)
+    assert all(local_path not in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_rejects_credential_like_urls() -> None:
@@ -357,12 +359,15 @@ def test_philosophy_source_corpus_index_rejects_credential_like_urls() -> None:
     assert isinstance(basis, list)
     first = dict(basis[0])
     amz_credential = "X-" + "Amz-" + "Credential"
-    first["url"] = f"https://example.test/file.pdf?{amz_credential}=abcdefghijklmnop"
+    credential_url = f"https://example.test/file.pdf?{amz_credential}=abcdefghijklmnop"
+    first["url"] = credential_url
     basis[0] = first
 
     errors = _validate(index)
 
     assert any("credential-like token" in error for error in errors)
+    assert all(amz_credential not in error for error in errors)
+    assert all(credential_url not in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_rejects_arbitrary_research_https_url() -> None:

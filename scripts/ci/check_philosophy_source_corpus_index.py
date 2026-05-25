@@ -1079,7 +1079,7 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
         match = pattern.search(text)
         if match:
             errors.append(
-                f"{label}: forbidden local path or credential-like token: {match.group(0)}"
+                f"{label}: forbidden local path or credential-like token detected (value redacted)"
             )
     return errors
 
