@@ -187,7 +187,9 @@ def test_gate_open_preconditions_reject_empty_alignment_property_schemas(
 ) -> None:
     alignment_schema = tmp_path / "PHILOSOPHY_ALIGNMENT_RULE.schema.json"
     schema = _valid_alignment_rule_schema()
-    schema["properties"] = {key: {} for key in schema["required"]}
+    required = schema["required"]
+    assert isinstance(required, list)
+    schema["properties"] = {str(key): {} for key in required}
     alignment_schema.write_text(
         json.dumps(schema, indent=2) + "\n",
         encoding="utf-8",
@@ -240,7 +242,7 @@ def test_gate_open_preconditions_allow_valid_alignment_schema_without_opening_ga
     assert alignment["status"] == "source_present_not_merge_verified"
     assert alignment["blocks_gate_open"] is True
     assert report["runtime_handoff_allowed"] is False
-    assert report["handoff_decision"]["blocking_precondition_count"] == 7
+    assert report["handoff_decision"]["blocking_precondition_count"] == 2
 
 
 def test_gate_open_preconditions_reject_open_roadmap_markers() -> None:
@@ -309,13 +311,15 @@ def test_gate_open_preconditions_reject_per_id_status_drift() -> None:
     )
     pr_a1b["status"] = "source_current"
     pr_a1b["blocks_gate_open"] = False
-    report["handoff_decision"]["blocking_precondition_count"] = 6
+    handoff = report["handoff_decision"]
+    assert isinstance(handoff, dict)
+    handoff["blocking_precondition_count"] = 2
     report_text = json.dumps(report, indent=2) + "\n"
 
     errors = _validate(report_text=report_text)
 
     assert any(
-        "pr_a1b_reconciled status: expected 'not_verified_by_pr4'" in error for error in errors
+        "pr_a1b_reconciled status: expected 'merge_verified_closed'" in error for error in errors
     )
 
 

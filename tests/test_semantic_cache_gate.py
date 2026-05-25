@@ -28,6 +28,12 @@ Semantic cache belongs only to the product AI runtime rail.
 
 Semantic cache is not advisory wiki, not workforce memory, not a second source of truth, not billing/auth/entitlement truth, not a compliance/legal output cache, and not user-account truth surfaces.
 
+The runtime prerequisite train is closed by PR #1203 merge commit
+831d62d8be0da7307e5a0f2673d8c33dbf53ca49, PR #1395 merge commit
+2f8a9af461cec483aa81a774cce7496c6bf65a8a, and PR #1742 merge commit
+cb1db8b40141817b3ca856de570b8fc02e2ae9fa. A reviewed gate-open PR must still
+change the machine markers before runtime semantic-cache work can begin.
+
 If the gate opens later, rollout order is fixed:
 1. SC-G1 rollout gate contract
 2. SC-G2 exact/fuzzy cache scaffold
@@ -378,6 +384,13 @@ def test_checker_accepts_rollout_order_case_variation(tmp_path: Path) -> None:
         "not billing/auth/entitlement truth",
         "not a compliance/legal output cache",
         "not user-account truth surfaces",
+        "runtime prerequisite train is closed",
+        "PR #1203",
+        "831d62d8be0da7307e5a0f2673d8c33dbf53ca49",  # pragma: allowlist secret
+        "PR #1395",
+        "2f8a9af461cec483aa81a774cce7496c6bf65a8a",  # pragma: allowlist secret
+        "PR #1742",
+        "cb1db8b40141817b3ca856de570b8fc02e2ae9fa",  # pragma: allowlist secret
     ],
 )
 def test_checker_fails_if_required_phrase_is_missing(tmp_path: Path, phrase: str) -> None:

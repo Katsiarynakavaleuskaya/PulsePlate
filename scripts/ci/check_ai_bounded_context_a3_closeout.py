@@ -157,8 +157,9 @@ SAFE_FORBIDDEN_NEGATION_RE = re.compile(
     r"rewire|move|extract|implement|add|update|change|claim)|"
     r"can't\s+(?:open|enable|approve|authorize|permit|allow|activate|roll\s*out|wire|"
     r"rewire|move|extract|implement|add|update|change|claim)|"
-    r"out\s+of\s+scope|remains?\s+out\s+of\s+scope|stay(?:s)?\s+out\s+of\s+scope|"
+    r"blocked|out\s+of\s+scope|remains?\s+out\s+of\s+scope|stay(?:s)?\s+out\s+of\s+scope|"
     r"remains?\s+closed|stay(?:s)?\s+closed|gate[-\s]?closed|"
+    r"(?:is|are)\s+closed\s+via\s+PR\s+#(?:1203|1395|1742)|"
     r"until\s+a\s+reviewed\s+gate[-\s]?open\s+PR\s+changes|"
     r"reviewed\s+gate[-\s]?open\s+PR\s+must\s+still\s+change|"
     r"does\s+not\s+claim|is\s+not\s+claimed"
@@ -179,7 +180,10 @@ SAFE_A4_NEGATION_RE = re.compile(
     re.I,
 )
 SAFE_A4_FUTURE_GATE_RE = re.compile(
-    r"`?PR[-\s]?A4`?\s+is\s+closed\s+via\b",
+    r"`?PR[-\s]?A4`?\b.{0,180}\bclosed\s+(?:via|by)\s+PR\s+#1203\b|"
+    r"`?PR[-\s]?A4`?\b.{0,180}\bclosed\s+via\s+.*ledger-p1-ai-bounded-context-extraction\b|"
+    r"\bledger-p1-ai-bounded-context-extraction\b.{0,180}\bclosed\s+via\s+PR\s+#1203\b|"
+    r"\bseparate\s+from\s+A3\b.{0,120}\bclosed\s+by\s+PR\s+#1203\b",
     re.I,
 )
 CLAUSE_SPLIT_RE = re.compile(
@@ -459,8 +463,21 @@ def validate_closeout(
     if MAPPING_FIX_COMMIT in a3_ledger or MAPPING_FIX_COMMIT in a3_roadmap:
         errors.append("A3 active docs: mapping fix commit must not be used as merge proof")
 
-    if "- [ ] P1: Extract AI runtime into a dedicated bounded context" not in extraction_ledger:
-        errors.append("A4 extraction ledger entry: extraction item must remain open")
+    a4_open = "- [ ] P1: Extract AI runtime into a dedicated bounded context" in extraction_ledger
+    a4_closed_by_own_pr = all(
+        token in extraction_ledger
+        for token in (
+            "- [x] P1: Extract AI runtime into a dedicated bounded context",
+            "PR #1203",
+            "2026-03-21T06:01:31Z",
+            "831d62d8be0da7307e5a0f2673d8c33dbf53ca49",  # pragma: allowlist secret
+            "feat/ai-bounded-context-extraction",
+        )
+    )
+    if not (a4_open or a4_closed_by_own_pr):
+        errors.append(
+            "A4 extraction ledger entry: extraction item must be open or closed by PR #1203"
+        )
     if "PR-A4" not in a4_roadmap:
         errors.append("A4 roadmap section: missing or accidentally removed")
 

@@ -60,9 +60,9 @@ DEFAULT_REPORT = (
 DEFAULT_REPORT_SCHEMA = DEFAULT_REPORT.with_suffix(".schema.json")
 
 REPORT_ID = "philosophy_gate_open_preconditions_report"
-REPORT_VERSION = "2026-05-21"
-ROLLOUT_PHASE = "PHILOSOPHY-PR4"
-GENERATED_AT = "static-2026-05-21"
+REPORT_VERSION = "2026-05-25"
+ROLLOUT_PHASE = "PHILOSOPHY-PR4-SC0-RECONCILED"
+GENERATED_AT = "static-2026-05-25"
 ALIGNMENT_RULE_SCHEMA_ID = "https://pulseplate.app/schemas/philosophy-alignment-rule.v1.json"
 ALIGNMENT_RULE_SCHEMA_TITLE = "PhilosophyAlignmentRule"
 
@@ -88,6 +88,7 @@ PREREQUISITE_IDS = (
 PREREQUISITE_STATUSES = (
     "source_current",
     "source_present_not_merge_verified",
+    "merge_verified_closed",
     "pending_external_predecessor",
     "not_verified_by_pr4",
     "absent",
@@ -103,45 +104,76 @@ BLOCKING_STATUSES = {
 RUNTIME_PREREQUISITES: tuple[tuple[str, str, str], ...] = (
     (
         "pr_a1b_reconciled",
-        "PR-A1b",
-        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation",
+        "PR-A1b PRO quota reconciliation",
+        (
+            "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation; "
+            "PR #1461 merged 2026-04-19T11:34:45Z with merge commit "
+            "cd01d9c6db89813202f85b8b9f4c8378e72380ea from branch "
+            "codex/wave6-a1b-pro-quota-reconciliation; PR #1466 merged "
+            "2026-04-19T11:34:46Z with merge commit "
+            "fa0979e734b88575e01e3eca9ddd4d57ade86c05 from branch "
+            "codex/pr1461-mapping-fix; runtime truth remains PR #1379"
+        ),
     ),
     (
         "pr_a2_rag_hardening_closed",
-        "PR-A2",
-        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough",
+        "PR-A2 RAG hardening follow-through",
+        (
+            "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough; "
+            "PR #1415 merged 2026-04-14T20:59:47Z with merge commit "
+            "146da0e0d269acea5ba946d239997705ebaf62c3 from branch "
+            "feat/rag-hardening-followthrough"
+        ),
     ),
     (
         "pr_a3_bounded_context_packet_closed",
-        "PR-A3",
-        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet",
+        "PR-A3 AI bounded-context packet",
+        (
+            "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet; "
+            "PR #1469 merged 2026-04-19T11:35:29Z with merge commit "
+            "f8454715f88e44657cfad1c4675f93ea669dc490 from branch "
+            "codex/ai-bounded-context-packet"
+        ),
     ),
     (
         "pr_a4_bounded_context_extraction_closed",
-        "PR-A4",
-        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction",
+        "PR-A4 bounded-context extraction",
+        (
+            "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction; "
+            "PR #1203 `feat(ai): extract bounded AI runtime ownership into canonical "
+            "core/ai seam` merged 2026-03-21T06:01:31Z with merge commit "
+            "831d62d8be0da7307e5a0f2673d8c33dbf53ca49 from branch "
+            "feat/ai-bounded-context-extraction"
+        ),
     ),
     (
         "pr_a5_llm_reliability_security_closed",
-        "PR-A5",
-        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates",
+        "PR-A5 LLM reliability/security gates",
+        (
+            "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates; "
+            "PR #1395 `feat(ai): add PR-A5 runtime gates` merged "
+            "2026-04-12T11:45:35Z with merge commit "
+            "2f8a9af461cec483aa81a774cce7496c6bf65a8a from branch "
+            "feat/pr-a5-runtime-gates"
+        ),
     ),
 )
-RUNTIME_PREREQUISITE_ANCHORS = tuple(anchor for _id, _label, anchor in RUNTIME_PREREQUISITES)
+RUNTIME_PREREQUISITE_ANCHORS = tuple(
+    evidence.split(";", 1)[0] for _id, _label, evidence in RUNTIME_PREREQUISITES
+)
 REQUIRED_REASON_CODES = (
     "semantic_cache_gate_closed",
-    "runtime_prerequisites_not_verified",
     "dedicated_gate_open_pr_absent",
     "alignment_rule_schema_predecessor_pending",
 )
 EXPECTED_STATUS_BY_ID = {
     "pr2_policy_oracle_current": "source_current",
     "pr3_dry_run_current": "source_current",
-    "pr_a1b_reconciled": "not_verified_by_pr4",
-    "pr_a2_rag_hardening_closed": "not_verified_by_pr4",
-    "pr_a3_bounded_context_packet_closed": "not_verified_by_pr4",
-    "pr_a4_bounded_context_extraction_closed": "not_verified_by_pr4",
-    "pr_a5_llm_reliability_security_closed": "not_verified_by_pr4",
+    "pr_a1b_reconciled": "merge_verified_closed",
+    "pr_a2_rag_hardening_closed": "merge_verified_closed",
+    "pr_a3_bounded_context_packet_closed": "merge_verified_closed",
+    "pr_a4_bounded_context_extraction_closed": "merge_verified_closed",
+    "pr_a5_llm_reliability_security_closed": "merge_verified_closed",
     "dedicated_gate_open_pr_changes_markers": "absent",
 }
 
@@ -442,9 +474,9 @@ def _expected_preconditions(alignment_rule_schema: Path) -> list[dict[str, objec
             {
                 "id": precondition_id,
                 "label": label,
-                "status": "not_verified_by_pr4",
+                "status": "merge_verified_closed",
                 "required_for_gate_open": True,
-                "blocks_gate_open": True,
+                "blocks_gate_open": False,
                 "evidence": evidence,
             }
         )
@@ -474,9 +506,15 @@ def generate_philosophy_gate_open_preconditions_report(
     preconditions = _expected_preconditions(alignment_rule_schema)
     blocking = [item for item in preconditions if item.get("status") in BLOCKING_STATUSES]
     ledger_anchor_present = {
-        anchor: anchor in ledger_text for _precondition_id, _label, anchor in RUNTIME_PREREQUISITES
+        evidence.split(";", 1)[0]: evidence.split(";", 1)[0] in ledger_text
+        for _precondition_id, _label, evidence in RUNTIME_PREREQUISITES
     }
-    reason_codes = list(REQUIRED_REASON_CODES[:3])
+    reason_codes = ["semantic_cache_gate_closed", "dedicated_gate_open_pr_absent"]
+    if any(
+        str(item.get("id", "")).startswith("pr_a") and item.get("status") in BLOCKING_STATUSES
+        for item in blocking
+    ):
+        reason_codes.append("runtime_prerequisites_not_verified")
     if any(item["id"] == "pr1789_alignment_rule_schema_landed" for item in blocking):
         reason_codes.append("alignment_rule_schema_predecessor_pending")
     return {
@@ -920,7 +958,9 @@ def validate_philosophy_gate_open_preconditions_report(
         errors.append("philosophy gate-open preconditions must retain at least one blocker")
 
     ledger_anchor_present = report.get("ledger_anchor_present")
-    expected_anchors = [anchor for _precondition_id, _label, anchor in RUNTIME_PREREQUISITES]
+    expected_anchors = [
+        evidence.split(";", 1)[0] for _precondition_id, _label, evidence in RUNTIME_PREREQUISITES
+    ]
     if not isinstance(ledger_anchor_present, dict):
         errors.append("philosophy gate-open preconditions ledger_anchor_present must be an object")
     else:
