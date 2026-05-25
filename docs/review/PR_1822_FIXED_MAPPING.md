@@ -31,12 +31,19 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
 - Contribution: `oracle_review`
 - Co-author: required; commit `14faf95b5` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
-- Latest artifact:
+- Follow-up artifact:
   `artifacts/orchestration/experiments/results/exp-5dd169c24777.json`
-- Latest status: accepted, `oracle_only_governance_reviewer`,
+- Follow-up status: accepted, `oracle_only_governance_reviewer`,
   `contribution_kind=oracle_review`, 3/3 oracle commands returned 0,
   `source_diff_applied=true`, and `shared_tree_untouched=true`.
 - Co-author: required; commit `f2ed27c0b` includes
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Latest artifact:
+  `artifacts/orchestration/experiments/results/exp-241a503ee4f6.json`
+- Latest status: accepted, `oracle_only_governance_reviewer`,
+  `contribution_kind=oracle_review`, 2/2 runner-executable oracle commands
+  returned 0, and `shared_tree_untouched=true`.
+- Co-author: required; commit `3aa36f850` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
@@ -406,6 +413,12 @@ Evidence: Anchors: `tests/test_ci_workflow_pr_size_governance_contract.py:326`, 
   hygiene gaps. Evidence: commit `3b16c3e11` added intermediate routing coverage
   and redacted matched leakage values in error output; commit `f2ed27c0b`
   supersedes the broad trigger with source-corpus-owned activation.
+- FIXED: current-head CI found Docs Phase1 used a stale
+  `github.event.pull_request.base.sha` after `main` advanced, pulling unrelated
+  Experiment Runner Slack files into the PR-5 source-corpus touched-file scan.
+  Evidence: commit `3aa36f850` prefers the pull_request merge-ref parent
+  `HEAD^1` and keeps the event base SHA only as a fallback, with workflow
+  contract coverage.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -486,6 +499,10 @@ Evidence: Anchors: `tests/test_ci_workflow_pr_size_governance_contract.py:326`, 
   Phase1 section instead of the actual PR-5 case block. Evidence: commit
   `f2ed27c0b` narrows activation back to PR-5-owned files and asserts the
   concrete PR-5 switch block.
+- FIXED: current-head Docs Phase1 CI still failed after `main` advanced because
+  changed-file detection used the stale PR event base SHA instead of the
+  current merge-ref parent. Evidence: commit `3aa36f850` uses `HEAD^1` first,
+  falls back to the event base SHA only when needed, and tests the ordering.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
