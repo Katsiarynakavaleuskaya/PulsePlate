@@ -43,6 +43,7 @@ def _validate(
     *,
     schema_text: str | None = None,
     roadmap_text: str | None = None,
+    gate_report_text: str | None = None,
 ) -> list[str]:
     index_text = (
         json.dumps(index, ensure_ascii=False, indent=2) + "\n"
@@ -53,7 +54,7 @@ def _validate(
         index_text=index_text,
         schema_text=schema_text or _read(DEFAULT_SCHEMA),
         roadmap_text=roadmap_text or _read(DEFAULT_ROADMAP),
-        gate_report_text=_read(DEFAULT_GATE_REPORT),
+        gate_report_text=gate_report_text or _read(DEFAULT_GATE_REPORT),
     )
 
 
@@ -919,6 +920,33 @@ def test_philosophy_source_corpus_index_rejects_roadmap_marker_drift() -> None:
     errors = _validate(roadmap_text=roadmap_text)
 
     assert any("SEMANTIC_CACHE_ALLOWED_RUNTIME must be false" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_roadmap_local_path_leak() -> None:
+    local_path = "/" + "tmp/source.pdf"
+    roadmap_text = _read(DEFAULT_ROADMAP) + f"\noperator source: {local_path}\n"
+
+    errors = _validate(roadmap_text=roadmap_text)
+
+    assert any(
+        "semantic-cache roadmap: forbidden local path or credential-like token" in error
+        for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_gate_report_credential_leak() -> None:
+    credential_param = "X-" + "Amz-" + "Credential"
+    gate_report_text = (
+        _read(DEFAULT_GATE_REPORT)
+        + f"\nartifact_url: https://example.test/file.pdf?{credential_param}=abcdefghijklmnop\n"
+    )
+
+    errors = _validate(gate_report_text=gate_report_text)
+
+    assert any(
+        "gate-open precondition report: forbidden local path or credential-like token" in error
+        for error in errors
+    )
 
 
 def test_philosophy_source_corpus_index_rejects_runtime_touched_paths() -> None:

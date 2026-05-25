@@ -1400,6 +1400,18 @@ def validate_philosophy_source_corpus_index(
     errors.extend(_validate_gate_report(gate_report_text))
     errors.extend(_validate_no_secret_or_local_paths(index_text, label="source corpus index"))
     errors.extend(_validate_no_secret_or_local_paths(schema_text, label="source corpus schema"))
+    errors.extend(
+        _validate_no_secret_or_local_paths(
+            roadmap_text,
+            label="semantic-cache roadmap",
+        )
+    )
+    errors.extend(
+        _validate_no_secret_or_local_paths(
+            gate_report_text,
+            label="gate-open precondition report",
+        )
+    )
     return errors
 
 
