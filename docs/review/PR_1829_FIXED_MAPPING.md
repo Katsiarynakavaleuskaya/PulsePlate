@@ -106,15 +106,35 @@ Evidence: Review findings were fixed in code/tests/docs; focused PR21 pytest, CL
 
 ## Post-Open Required Checks
 
-- Post-open `task_bootstrap.py --pr-phase post_open_review`: pending.
-- Post-open role-agent rerun, including advisory agents: pending.
-- Mandatory `qa-engineer-agent -> bug-hunter`: pending.
-- CodeRabbit review: pending.
-- Codex Security diff-scoped scan: pending.
-- Security-auditor pass: pending.
-- Review-thread disposition guard: pending.
-- Strict merge-readiness: pending.
+- Post-open `task_bootstrap.py --pr-phase post_open_review`: PASS.
+  Evidence: `artifacts/orchestration/task_packets/658e2dec2203.json`.
+- Post-open role-agent rerun, including advisory agents: PASS.
+  Evidence: coordinator-declared order rerun completed through
+  `cursor-specialist-agent`; no instruction-surface patch required.
+- Mandatory `qa-engineer-agent -> bug-hunter`: PASS.
+  Evidence: bug-hunter verified current head `6156516a` and found no remaining
+  code/test blocker after the review-thread disposition fix.
+- CodeRabbit review: PASS with actionables fixed.
+  Evidence: CodeRabbit status check passed; comments
+  `discussion_r3297821811` and `discussion_r3297821836` map to commit
+  `a123dcaf5`.
+- Codex Security diff-scoped scan: PASS.
+  Evidence: local scan report
+  `/tmp/codex-security-scans/BMI-App_2025_clean/6156516ae1db_20260525T115946Z_pr1829_diff/report.md`
+  found no reportable diff-scoped candidates; Bandit on changed production
+  Python files passed.
+- Security-auditor pass: PASS.
+  Evidence: security-auditor found no secrets, runtime network/API/provider
+  access, scraping, download, DB write, or authority expansion.
+- Review-thread disposition guard: PASS.
+  Evidence: `check_review_threads_disposition.py --pr-number 1829
+  --require-auth` reported all 3 resolved review threads have disposition,
+  proof, and commit-after-comment.
+- Strict merge-readiness: pending GitHub current-head rerun.
+  Evidence: local strict wrapper passes review governance, but GitHub status
+  `Merge readiness gate` must rerun after thread disposition.
 - Current-head CI: pending.
+  Evidence: `test-pr (3.13)` remained in progress at the last inspection.
 
 ## Deferred / Follow-Ups
 
