@@ -110,6 +110,7 @@ EXPECTED_DISCIPLINE_RAILS = (
     "ai_governance",
     "wellness_product",
 )
+EXPECTED_DISCIPLINE_RAIL_SET = set(EXPECTED_DISCIPLINE_RAILS)
 EXPECTED_SOURCE_FAMILIES = (
     "socratic_cbt_semantic_cache",
     "leibniz_information_theory",
@@ -1262,11 +1263,17 @@ def _validate_sources(index: dict[str, object]) -> list[str]:
         disciplines = set(_string_items(source.get("discipline_rails")))
         missing_themes = sorted(REQUIRED_THEMES_BY_SOURCE[source_id] - themes)
         missing_disciplines = sorted(REQUIRED_DISCIPLINES_BY_SOURCE[source_id] - disciplines)
+        unexpected_disciplines = sorted(disciplines - EXPECTED_DISCIPLINE_RAIL_SET)
         if missing_themes:
             errors.append(f"{source_id}.theme_families missing required themes: {missing_themes}")
         if missing_disciplines:
             errors.append(
                 f"{source_id}.discipline_rails missing required disciplines: {missing_disciplines}"
+            )
+        if unexpected_disciplines:
+            errors.append(
+                f"{source_id}.discipline_rails contains non-canonical disciplines: "
+                f"{unexpected_disciplines}"
             )
         global_themes.update(themes)
         global_disciplines.update(disciplines)

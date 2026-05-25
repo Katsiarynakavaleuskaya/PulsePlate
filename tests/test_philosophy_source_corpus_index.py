@@ -312,6 +312,24 @@ def test_philosophy_source_corpus_index_rejects_missing_interdisciplinary_rail()
     assert any("source corpus missing global discipline coverage" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_non_enum_discipline_rail() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    first = dict(sources[0])
+    rails = list(first["discipline_rails"])
+    rails.append("totally_invalid_rail")
+    first["discipline_rails"] = rails
+    sources[0] = first
+
+    errors = _validate(index)
+
+    assert any(
+        "analytic_linguistic_audit.discipline_rails contains non-canonical disciplines" in error
+        for error in errors
+    )
+
+
 def test_philosophy_source_corpus_index_rejects_missing_wellness_boundary() -> None:
     index = _index()
     source_policy = index["source_policy"]
