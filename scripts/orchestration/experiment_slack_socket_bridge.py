@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 import re
 import sys
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 try:
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
@@ -41,6 +41,7 @@ BRIDGE_MIN_INTERVAL_ENV = "EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS"
 BRIDGE_TIMEOUT_ENV = "EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS"
 BRIDGE_AUDIT_RETENTION_DAYS_ENV = "EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS"
 GITHUB_API_HOST = "api.github.com"
+SLACK_API_HOST = "slack.com"
 DEFAULT_WORKFLOW_FILE = "experiment-runner-slack-socket-smoke.yml"
 DEFAULT_WORKFLOW_REF = "main"
 ALLOWED_WORKFLOW_REFS = {DEFAULT_WORKFLOW_REF}
@@ -72,6 +73,11 @@ LIVE_SECRET_PRESENCE_ENV = (
     SLACK_CHANNEL_ALLOWLIST_ENV,
     SLACK_USER_ALLOWLIST_ENV,
 )
+LIVE_SMOKE_BRANCH_REF_ENV = "EXPERIMENT_SLACK_SOCKET_BRANCH_REF"
+LIVE_SMOKE_HYPOTHESIS_SHA256_ENV = "EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"
+SHA256_HEX_RE = re.compile(r"^[A-Fa-f0-9]{64}$")
+SLACK_LIVE_SMOKE_METHODS = {"apps.connections.open", "auth.test"}
+SAFE_SLACK_ERROR_CODE_RE = re.compile(r"^[a-z0-9_]{1,80}$")
 
 
 class SlackSocketBridgeError(RuntimeError):
@@ -108,6 +114,19 @@ class WorkflowDispatchTransport(Protocol):
         timeout_seconds: int,
     ) -> None:
         """Dispatch a fixed workflow with sanitized typed inputs."""
+
+
+class SlackApiTransport(Protocol):
+    """Fakeable Slack Web API transport for bounded live-smoke checks."""
+
+    def __call__(
+        self,
+        *,
+        method: str,
+        token: str,
+        timeout_seconds: int,
+    ) -> dict[str, Any]:
+        """Call one fixed Slack Web API method and return parsed JSON."""
 
 
 @dataclass(frozen=True)
@@ -240,7 +259,7 @@ def _optional_token(env_name: str) -> str | None:
     if token_pattern is None:
         raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
     if CONTROL_CHAR_RE.search(token) or "`" in token or token_pattern.fullmatch(token) is None:
-        raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
+        raise SlackSocketConfigError(f"{env_name} token class is invalid.")
     return token
 
 
@@ -792,6 +811,16 @@ def _remove_stale_rate_limit_claim(lock_dir: Path) -> None:
         ) from exc
 
 
+def _partial_rate_limit_claim_is_stale(lock_dir: Path, *, config: BridgeConfig) -> bool:
+    """Return whether an incomplete rate-limit claim is old enough to clean."""
+
+    try:
+        modified_at = datetime.fromtimestamp(lock_dir.stat().st_mtime, tz=timezone.utc)
+    except OSError as exc:
+        raise SlackSocketAuditError("Unable to inspect Slack operator rate-limit claim.") from exc
+    return (_utcnow() - modified_at).total_seconds() >= config.timeout_seconds
+
+
 def _cleanup_partial_rate_limit_claim(lock_dir: Path) -> None:
     claim_path = lock_dir / "claim.json"
     try:
@@ -840,7 +869,8 @@ def _claim_rate_limit(
                 artifact_dir=Path(config.audit_dir).absolute(),
             )
             if not (lock_dir / "claim.json").exists():
-                _remove_stale_rate_limit_claim(lock_dir)
+                if _partial_rate_limit_claim_is_stale(lock_dir, config=config):
+                    _remove_stale_rate_limit_claim(lock_dir)
                 continue
             timestamp = _read_rate_limit_claim(lock_dir)
             age_seconds = (_utcnow() - timestamp).total_seconds()
@@ -921,6 +951,136 @@ def _github_dispatch_inputs(command: OperatorCommand) -> dict[str, str]:
         "branch_ref": command.branch_ref,
         "dry_run": "true",
         "hypothesis_sha256": _sha256_text(command.hypothesis),
+    }
+
+
+def validate_live_smoke_inputs(
+    *,
+    branch_ref: str | None = None,
+    hypothesis_sha256: str | None = None,
+) -> dict[str, str]:
+    """Validate manual workflow smoke inputs without printing raw values."""
+
+    raw_branch_ref = (
+        branch_ref if branch_ref is not None else os.environ.get(LIVE_SMOKE_BRANCH_REF_ENV, "")
+    ).strip()
+    raw_hypothesis_sha256 = (
+        hypothesis_sha256
+        if hypothesis_sha256 is not None
+        else os.environ.get(LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "")
+    ).strip()
+    if not _is_safe_ref(raw_branch_ref):
+        raise SlackSocketConfigError("Slack live smoke input configuration is invalid.")
+    if SHA256_HEX_RE.fullmatch(raw_hypothesis_sha256) is None:
+        raise SlackSocketConfigError("Slack live smoke input configuration is invalid.")
+    return {
+        "branch_ref_status": "valid",
+        "hypothesis_sha256_status": "valid",
+    }
+
+
+def _send_slack_api_request(
+    *,
+    method: str,
+    token: str,
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    """Call a fixed Slack Web API method for bounded smoke validation."""
+
+    if method not in SLACK_LIVE_SMOKE_METHODS:
+        raise SlackSocketConfigError("Slack live smoke method is invalid.")
+    connection: http.client.HTTPSConnection | None = None
+    try:
+        connection = http.client.HTTPSConnection(SLACK_API_HOST, timeout=timeout_seconds)
+        connection.request(
+            "POST",
+            f"/api/{method}",
+            body=b"{}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json; charset=utf-8",
+                "User-Agent": "pulseplate-experiment-runner-slack-bridge",
+            },
+        )
+        response = connection.getresponse()
+        response_body = response.read()
+    except (OSError, http.client.HTTPException) as exc:
+        raise SlackSocketConfigError("Slack live smoke validation failed.") from exc
+    finally:
+        if connection is not None:
+            connection.close()
+    if response.status not in {200, 201, 202}:
+        raise SlackSocketConfigError("Slack live smoke validation failed.")
+    try:
+        payload = json.loads(response_body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SlackSocketConfigError("Slack live smoke validation failed.") from exc
+    if not isinstance(payload, dict):
+        raise SlackSocketConfigError("Slack live smoke validation failed.")
+    return payload
+
+
+def _safe_slack_error_code(payload: dict[str, Any]) -> str:
+    raw_error = payload.get("error")
+    if not isinstance(raw_error, str):
+        return "unknown"
+    error = raw_error.strip()
+    if SAFE_SLACK_ERROR_CODE_RE.fullmatch(error) is None:
+        return "unknown"
+    return error
+
+
+def _require_slack_ok_response(payload: dict[str, Any], *, check_name: str) -> None:
+    if payload.get("ok") is not True:
+        error_code = _safe_slack_error_code(payload)
+        raise SlackSocketConfigError(
+            f"Slack live smoke {check_name} validation failed: {error_code}."
+        )
+
+
+def _require_live_smoke_runtime(config: BridgeConfig) -> None:
+    if config.slack_app_token is None or config.slack_bot_token is None:
+        raise SlackSocketConfigError("Slack Socket Mode configuration is incomplete.")
+    if not config.allowed_channels or not config.allowed_users:
+        raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
+
+
+def validate_live_smoke(
+    config: BridgeConfig,
+    *,
+    branch_ref: str | None = None,
+    hypothesis_sha256: str | None = None,
+    slack_api_transport: SlackApiTransport | None = None,
+) -> dict[str, Any]:
+    """Run bounded live-smoke checks and return a redacted status payload."""
+
+    _require_live_smoke_runtime(config)
+    input_status = validate_live_smoke_inputs(
+        branch_ref=branch_ref,
+        hypothesis_sha256=hypothesis_sha256,
+    )
+    transport = slack_api_transport or _send_slack_api_request
+    slack_app_token = cast(str, config.slack_app_token)
+    slack_bot_token = cast(str, config.slack_bot_token)
+    socket_payload = transport(
+        method="apps.connections.open",
+        token=slack_app_token,
+        timeout_seconds=config.timeout_seconds,
+    )
+    _require_slack_ok_response(socket_payload, check_name="Socket Mode")
+    bot_payload = transport(
+        method="auth.test",
+        token=slack_bot_token,
+        timeout_seconds=config.timeout_seconds,
+    )
+    _require_slack_ok_response(bot_payload, check_name="bot auth")
+    return {
+        **input_status,
+        "allowlist_status": "present",
+        "bot_auth_status": "validated",
+        "dispatch_mode": config.dispatch_mode,
+        "socket_mode_status": "validated",
+        "status": "pass",
     }
 
 
@@ -1135,6 +1295,26 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Report live-smoke secret and allowlist presence without printing values.",
     )
     parser.add_argument(
+        "--validate-live-smoke",
+        action="store_true",
+        help="Run bounded live-smoke validation for Socket Mode and bot auth, then exit.",
+    )
+    parser.add_argument(
+        "--validate-smoke-inputs",
+        action="store_true",
+        help="Validate manual smoke branch/digest inputs without printing values.",
+    )
+    parser.add_argument(
+        "--branch-ref",
+        default=None,
+        help="Manual smoke branch ref; if omitted, read runtime env.",
+    )
+    parser.add_argument(
+        "--hypothesis-sha256",
+        default=None,
+        help="Manual smoke hypothesis digest; if omitted, read runtime env.",
+    )
+    parser.add_argument(
         "--audit-retention",
         choices=("none", "report", "cleanup"),
         default="none",
@@ -1146,6 +1326,20 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
+        if args.validate_smoke_inputs:
+            print(
+                json.dumps(
+                    {
+                        **validate_live_smoke_inputs(
+                            branch_ref=args.branch_ref,
+                            hypothesis_sha256=args.hypothesis_sha256,
+                        ),
+                        "status": "pass",
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
         if args.validate_secret_presence:
             return 0 if validate_secret_presence()["status"] == "pass" else 1
         config = build_config(
@@ -1158,6 +1352,18 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 json.dumps(
                     audit_retention_summary(config, cleanup=args.audit_retention == "cleanup"),
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if args.validate_live_smoke:
+            print(
+                json.dumps(
+                    validate_live_smoke(
+                        config,
+                        branch_ref=args.branch_ref,
+                        hypothesis_sha256=args.hypothesis_sha256,
+                    ),
                     sort_keys=True,
                 )
             )
