@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 import re
 import sys
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 try:
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
@@ -1060,17 +1060,17 @@ def validate_live_smoke(
         hypothesis_sha256=hypothesis_sha256,
     )
     transport = slack_api_transport or _send_slack_api_request
-    if config.slack_app_token is None or config.slack_bot_token is None:
-        raise SlackSocketConfigError("Slack Socket Mode configuration is incomplete.")
+    slack_app_token = cast(str, config.slack_app_token)
+    slack_bot_token = cast(str, config.slack_bot_token)
     socket_payload = transport(
         method="apps.connections.open",
-        token=config.slack_app_token,
+        token=slack_app_token,
         timeout_seconds=config.timeout_seconds,
     )
     _require_slack_ok_response(socket_payload, check_name="Socket Mode")
     bot_payload = transport(
         method="auth.test",
-        token=config.slack_bot_token,
+        token=slack_bot_token,
         timeout_seconds=config.timeout_seconds,
     )
     _require_slack_ok_response(bot_payload, check_name="bot auth")
