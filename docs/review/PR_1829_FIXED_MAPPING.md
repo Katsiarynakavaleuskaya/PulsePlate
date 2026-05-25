@@ -23,7 +23,7 @@ authority.
 
 - Preflight: `python3 scripts/orchestration/check_preflight.py` - PASS.
 - Agent consistency: `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- Coordinator packet: `artifacts/orchestration/task_packets/eb95bc5061f3.json`.
+- Packet: `artifacts/orchestration/task_packets/eb95bc5061f3.json`
 - Dispatch manifest: `qoder_dispatch_bridge.py --mode docs-only` generated.
 - Pre-open role agents run in coordinator-declared order:
   `agent-coordinator -> architecture-specialist -> data-scientist-agent -> backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor -> dev-operator -> cursor-specialist-agent`.
@@ -37,6 +37,15 @@ authority.
 - Result: accepted; oracle commands returned 0; shared tree untouched.
 - Attribution: Not applicable: reviewed but did not change commit decisions. No
   Experiment Runner co-author trailer is used.
+
+## Split Justification
+
+PR21 exceeds the lightweight PR-size threshold because the governance lane must
+land as one atomic contract: artifact, packet, typed validator/report builder,
+CLI, focused tests, fixed mapping, and current pointer/backlog updates all
+validate each other. Splitting those files would temporarily leave either an
+unvalidated artifact, a validator without canonical data, or tests without the
+governing packet/backlog context.
 
 ## Validation Evidence
 
@@ -54,10 +63,14 @@ explicitly; after operator clarification, stopped during repo-wide coverage at
 about 29%. It had already passed verify-env, lint, typecheck, and smoke tests.
 Current scope uses focused local gates plus GitHub current-head CI parity.
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed in Commit Mapping
 
-No human or bot review threads existed at PR open. Future actionable comments
-must be added here with disposition evidence before resolution.
+- No actionable review comments
 
 ## Post-Open Required Checks
 
