@@ -43,10 +43,10 @@ coordinator-owned lane.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after latest bot/review activity
-- [ ] Fixed in commit mapping completed after latest bot/review activity
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-No GitHub review threads are open at mapping creation time.
+No GitHub review threads are open at this mapping update.
 
 ## Bot And Review Comments
 
@@ -68,8 +68,7 @@ No GitHub review threads are open at mapping creation time.
 
 ## Fixed in Commit Mapping
 
-No actionable review thread has been resolved yet. Add every future resolved
-actionable thread here with disposition-specific proof before merge readiness.
+- No actionable review comments
 
 ## Role-Agent Findings
 
