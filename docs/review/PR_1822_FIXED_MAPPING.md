@@ -89,7 +89,7 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
   `oracle_only_governance_reviewer`, `contribution_kind=oracle_review`, 3/3
   runner-executable oracle commands returned 0, and
   `shared_tree_untouched=true`.
-- Co-author: required; commits `a8cb56911` and `328be5c3f` include
+- Co-author: required; commits `a8cb56911`, `328be5c3f`, and `2f56f505b` include
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
@@ -726,6 +726,12 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `sc
   `docs/review/PR_1822_FIXED_MAPPING.md:557`,
   `docs/review/PR_1822_FIXED_MAPPING.md:650`,
   `docs/review/PR_1822_FIXED_MAPPING.md:670`.
+- FIXED (Commit: 2f56f505b): all-match leakage scanning exposed repo-neutral
+  infrastructure literals in workflow/backlog text after the scanner stopped
+  short-circuiting on the first allowed match. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:436`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1106`,
+  `tests/test_philosophy_source_corpus_index.py:1166`.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -747,6 +753,7 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `sc
 - `python3 scripts/ci/check_philosophy_source_corpus_index.py --check --files scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py docs/review/PR_1822_FIXED_MAPPING.md` PASS after the allowed-first match and escaping-symlink hardening regressions.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the allowed-first match and escaping-symlink hardening regressions.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS after the allowed-first match and escaping-symlink hardening regressions.
+- `python3 scripts/ci/check_philosophy_source_corpus_index.py --check --files $(git diff --name-only $(git merge-base origin/main HEAD)...HEAD)` PASS after the repo-neutral infrastructure literal regression.
 - `python3 scripts/ci/check_ai_bounded_context_a3_closeout.py` PASS after the PR-5 semantic-cache roadmap wording fix.
 - `$VENV_PYTHON -m pytest -q tests/test_ai_bounded_context_a3_closeout.py::test_checker_passes_on_current_repository` PASS.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
