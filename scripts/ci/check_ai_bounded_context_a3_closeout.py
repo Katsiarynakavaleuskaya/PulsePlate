@@ -103,7 +103,7 @@ FORBIDDEN_SURFACE_RE = re.compile(
 )
 POSITIVE_ACTION_RE = re.compile(
     r"\b("
-    r"opens?|opened|opening|enables?|enabled|enabling|approves?|approved|"
+    r"opens|opened|opening|enables?|enabled|enabling|approves?|approved|"
     r"authorizes?|authorized|permits?|permitted|allows?|allowed|"
     r"activates?|activated|activating|rolls?\s+out|rollout[-\s]?ready|"
     r"production[-\s]?ready|wires?|wired|rewires?|rewired|moves?|moved|"
@@ -113,8 +113,21 @@ POSITIVE_ACTION_RE = re.compile(
     re.I,
 )
 ACTIVATION_STATE_RE = re.compile(
-    r"\b(?:semantic[-\s]?cache|redis|gpt[-\s]?cache)\b"
+    r"\b("
+    r"semantic[-\s]?cache|redis|gpt[-\s]?cache|graph[-\s]?rag|"
+    r"context[-\s]?manifest|contextmanifest|"
+    r"(?:db|database)\s+persistence|public\s+(?:routes?|endpoints?|api)|"
+    r"openapi|dtos?|provider\s+(?:rewiring|integration|code|runtime|ownership)|"
+    r"runtime\s+(?:code|ownership|activation)|product\s+code|"
+    r"default\s+activation|default[-\s]?on"
+    r")\b"
     r".{0,80}\b(?:is|are|becomes?|became|now|as)\b"
+    r".{0,80}\b(?:live|active|enabled|open|production[-\s]?ready|rollout[-\s]?ready|"
+    r"default[-\s]?on|default\s+enabled)\b",
+    re.I | re.S,
+)
+ACTIVATION_PREDICATE_RE = re.compile(
+    r"\b(?:is|are|becomes?|became|now|as)\b"
     r".{0,80}\b(?:live|active|enabled|open|production[-\s]?ready|rollout[-\s]?ready|"
     r"default[-\s]?on|default\s+enabled)\b",
     re.I | re.S,
@@ -124,6 +137,8 @@ NEGATION_RE = re.compile(
     r"no|not|never|does\s+not|do\s+not|must\s+not|cannot|can't|without|"
     r"out\s+of\s+scope|remains?\s+out\s+of\s+scope|stay(?:s)?\s+out\s+of\s+scope|"
     r"remains?\s+closed|stay(?:s)?\s+closed|gate[-\s]?closed|"
+    r"until\s+a\s+reviewed\s+gate[-\s]?open\s+PR\s+changes|"
+    r"reviewed\s+gate[-\s]?open\s+PR\s+must\s+still\s+change|"
     r"does\s+not\s+claim|is\s+not\s+claimed"
     r")\b",
     re.I,
@@ -144,6 +159,8 @@ SAFE_FORBIDDEN_NEGATION_RE = re.compile(
     r"rewire|move|extract|implement|add|update|change|claim)|"
     r"out\s+of\s+scope|remains?\s+out\s+of\s+scope|stay(?:s)?\s+out\s+of\s+scope|"
     r"remains?\s+closed|stay(?:s)?\s+closed|gate[-\s]?closed|"
+    r"until\s+a\s+reviewed\s+gate[-\s]?open\s+PR\s+changes|"
+    r"reviewed\s+gate[-\s]?open\s+PR\s+must\s+still\s+change|"
     r"does\s+not\s+claim|is\s+not\s+claimed"
     r")\b",
     re.I,
@@ -161,14 +178,31 @@ SAFE_A4_NEGATION_RE = re.compile(
     r")\b",
     re.I,
 )
+SAFE_A4_FUTURE_GATE_RE = re.compile(
+    r"`?PR[-\s]?A4`?\s+is\s+closed\s+via\b",
+    re.I,
+)
 CLAUSE_SPLIT_RE = re.compile(
-    r"\b(?:but|however|yet|though|although|whereas|except|unless|therefore|"
-    r"notwithstanding|nevertheless|and|also|plus)\b|[;\n]",
+    r"([,;]|\b(?:but|however|yet|though|although|whereas|except|unless|therefore|"
+    r"notwithstanding|nevertheless|and|also|plus)\b)",
+    re.I,
+)
+CONTRAST_SEPARATOR_RE = re.compile(
+    r";|\b(?:but|however|yet|though|although|whereas|except|unless|therefore|"
+    r"notwithstanding|nevertheless)\b",
+    re.I,
+)
+SERIAL_SAFE_NEGATION_RE = re.compile(
+    r"\b("
+    r"does\s+not|do\s+not|must\s+not|cannot|can't"
+    r")\s+(?:open|enable|approve|authorize|permit|allow|activate|roll\s*out|wire|"
+    r"rewire|move|extract|implement|add|update|change|claim)",
     re.I,
 )
 EXTRACTION_CLOSE_RE = re.compile(
     r"\b(closes?|closed|satisfies|satisfied|completes?|completed|retires?|retired)\b"
-    r".{0,120}\b(PR[-\s]?A4|ledger-p1-ai-bounded-context-extraction|extraction\s+lane)\b"
+    r".{0,120}\b(PR[-\s]?A4|ledger-p1-ai-bounded-context-extraction|"
+    r"extraction(?:\s+lane)?)\b"
     r"|"
     r"\b(PR[-\s]?A4|ledger-p1-ai-bounded-context-extraction|extraction\s+lane)\b"
     r".{0,120}\b(closes?|closed|satisfies|satisfied|completes?|completed|retires?|retired)\b",
@@ -258,14 +292,53 @@ def _split_claims(text: str) -> list[str]:
     claims: list[str] = []
     for sentence in re.split(r"(?<=[.!?])\s+", text):
         for clause in CLAUSE_SPLIT_RE.split(sentence):
+            if not clause or CLAUSE_SPLIT_RE.fullmatch(clause):
+                continue
             normalized = " ".join(clause.split())
             if normalized:
                 claims.append(normalized)
     return claims
 
 
+def _forbidden_claims_with_context(text: str) -> list[str]:
+    claims: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        last_surface = ""
+        serial_safe_negation = False
+        parts = CLAUSE_SPLIT_RE.split(sentence)
+        for index, clause in enumerate(parts):
+            if index % 2 == 1:
+                if CONTRAST_SEPARATOR_RE.search(clause):
+                    serial_safe_negation = False
+                continue
+            normalized = " ".join(clause.split())
+            if not normalized:
+                continue
+            current_serial_safe = serial_safe_negation
+            surface_match = FORBIDDEN_SURFACE_RE.search(normalized)
+            explicit_serial_safe = bool(SERIAL_SAFE_NEGATION_RE.search(normalized))
+            if explicit_serial_safe:
+                serial_safe_negation = True
+            if current_serial_safe and (
+                POSITIVE_ACTION_RE.search(normalized) or ACTIVATION_PREDICATE_RE.search(normalized)
+            ):
+                list_item = re.sub(r"^(?:or\s+)?", "", normalized, flags=re.I)
+                normalized = f"does not {list_item}"
+            if surface_match:
+                last_surface = surface_match.group(0)
+                claims.append(normalized)
+                continue
+            if last_surface and (
+                POSITIVE_ACTION_RE.search(normalized) or ACTIVATION_PREDICATE_RE.search(normalized)
+            ):
+                claims.append(f"{last_surface} {normalized}")
+                continue
+            claims.append(normalized)
+    return claims
+
+
 def _check_forbidden_claims(label: str, text: str, errors: list[str]) -> None:
-    for claim in _split_claims(_normalize(text)):
+    for claim in _forbidden_claims_with_context(_normalize(text)):
         if not FORBIDDEN_SURFACE_RE.search(claim):
             continue
         has_activation_state = ACTIVATION_STATE_RE.search(claim)
@@ -288,11 +361,17 @@ def _check_a4_boundary(label: str, text: str, errors: list[str]) -> None:
             if not match:
                 continue
             claim = match.group(0)
+            if SAFE_A4_FUTURE_GATE_RE.search(claim_text):
+                continue
             if SAFE_A4_NEGATION_RE.search(claim):
                 continue
             errors.append(f"{label}: A3 must not close A4/extraction: {claim[:180]}")
         extraction_match = EXTRACTION_CLOSE_RE.search(claim_text)
-        if extraction_match and not SAFE_A4_NEGATION_RE.search(claim_text):
+        if (
+            extraction_match
+            and not SAFE_A4_FUTURE_GATE_RE.search(claim_text)
+            and not SAFE_A4_NEGATION_RE.search(claim_text)
+        ):
             errors.append(
                 f"{label}: A3 must not close A4/extraction: {extraction_match.group(0)[:180]}"
             )
@@ -309,10 +388,12 @@ def _a3_related_text(text: str) -> str:
 def _gate_closeout_claim_text(text: str) -> str:
     return "\n".join(
         unit.strip()
-        for unit in re.split(r"(?<=[.!?])\s+|\n", text)
+        for unit in re.split(r"\n\s*\n", text)
         if (
             re.search(r"\b(?:PR[-\s]?A3|A3|PR\s*#?\s*1469|#1469|closeout)\b", unit, re.I)
             or ACTIVATION_STATE_RE.search(_normalize(unit))
+            or FORBIDDEN_SURFACE_RE.search(_normalize(unit))
+            or EXTRACTION_CLOSE_RE.search(_normalize(unit))
         )
     )
 
