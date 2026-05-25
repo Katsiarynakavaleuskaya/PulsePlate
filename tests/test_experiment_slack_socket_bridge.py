@@ -171,6 +171,48 @@ def test_secret_presence_validation_passes_without_leaking_values(
     assert "U0OPERATOR" not in stdout
 
 
+def test_secret_presence_validation_rejects_malformed_runtime_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "present-but-not-an-app-token")
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+
+    assert bridge.main(["--validate-secret-presence"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "Slack operator bridge configuration is invalid" in stdout
+    assert "present-but-not-an-app-token" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+
+
+def test_secret_presence_validation_rejects_malformed_allowlist_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "/tmp/channel")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+
+    assert bridge.main(["--validate-secret-presence"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "channel allowlist is invalid" in stdout
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "/tmp/channel" not in stdout
+    assert "U0OPERATOR" not in stdout
+
+
 def test_live_socket_validation_reports_missing_sdk_without_import_time_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

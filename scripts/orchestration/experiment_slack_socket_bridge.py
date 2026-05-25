@@ -523,6 +523,15 @@ def validate_secret_presence(
 
     present = {env_name: bool(os.environ.get(env_name, "").strip()) for env_name in required_env}
     missing = [env_name for env_name, is_present in present.items() if not is_present]
+    if not missing:
+        config = build_config(dispatch_mode="dry-run")
+        if (
+            config.slack_app_token is None
+            or config.slack_bot_token is None
+            or not config.allowed_channels
+            or not config.allowed_users
+        ):
+            missing = list(required_env)
     return {
         "missing_env": missing,
         "required_env_present": present,
