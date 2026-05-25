@@ -44,9 +44,14 @@ signal.
 
 ## Post-Open Role-Agent Pass
 
-Pending. Required order after open:
-`qa-engineer-agent -> bug-hunter -> security-auditor`, plus premortem,
-CodeRabbit/Codex Security evidence, PR body mirror, and strict merge readiness.
+- `qa-engineer-agent`: FINDING fixed by 1420c683c09aac020af48a92f3c660eb13508804.
+  Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` now reads
+  non-secret presence sentinels for `--validate-secret-presence`; actual
+  `SLACK_APP_TOKEN` / `SLACK_BOT_TOKEN` values are scoped only to live runtime
+  validation in `.github/workflows/experiment-runner-slack-socket-smoke.yml`.
+- `bug-hunter`: pending post-fix pass.
+- `security-auditor`: pending post-fix pass.
+- Premortem / CodeRabbit / Codex Security evidence: pending.
 
 ## Merge Readiness
 
