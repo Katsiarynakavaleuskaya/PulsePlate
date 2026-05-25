@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import threading
 from typing import Any
 
@@ -16,15 +17,21 @@ import scripts.orchestration.context_pack as context_pack
 from scripts.orchestration import experiment_slack_socket_bridge as bridge
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "experiment-runner-slack-socket-smoke.yml"
+SMOKE_WORKFLOW_PATH = (
+    REPO_ROOT / ".github" / "workflows" / "experiment-runner-slack-socket-smoke.yml"
+)
+DISPATCH_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "experiment-runner-dispatch.yml"
+SLACK_MANIFEST_PATH = (
+    REPO_ROOT / "docs" / "orchestration" / "EXPERIMENT_RUNNER_SLACK_APP_MANIFEST.yml"
+)
 
 
 def _workflow_on(workflow: dict[str, Any]) -> dict[str, Any]:
     return workflow.get("on") or workflow[True]
 
 
-def _load_workflow() -> dict[str, Any]:
-    return yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+def _load_workflow(path: Path = SMOKE_WORKFLOW_PATH) -> dict[str, Any]:
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def _configure_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
@@ -234,6 +241,28 @@ def test_smoke_input_validation_accepts_digest_without_echoing_values(
     }
     assert "main" not in stdout
     assert "a" * 64 not in stdout
+
+
+def test_dispatch_input_validation_alias_accepts_digest_without_echoing_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", "main")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", "b" * 64)
+
+    assert bridge.main(["--validate-dispatch-inputs"]) == 0
+    stdout = capsys.readouterr().out
+    payload = json.loads(stdout)
+
+    assert payload == {
+        "branch_ref_status": "valid",
+        "hypothesis_sha256_status": "valid",
+        "status": "pass",
+    }
+    assert "main" not in stdout
+    assert "b" * 64 not in stdout
 
 
 @pytest.mark.parametrize(
@@ -544,6 +573,22 @@ def test_config_rejects_non_main_workflow_ref(
         )
 
 
+def test_config_rejects_arbitrary_workflow_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+
+    with pytest.raises(bridge.SlackSocketConfigError):
+        bridge.build_config(
+            dispatch_mode="dry-run",
+            audit_dir=str(audit_dir),
+            repo="Katsiarynakavaleuskaya/PulsePlate",
+            workflow_file="experiment-runner-slack-socket-smoke.yml",
+        )
+
+
 def test_config_rejects_parent_traversal_audit_dir_escape(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -663,17 +708,19 @@ def test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs(
     assert decision.status == "dispatched"
     assert len(calls) == 1
     assert calls[0]["repo"] == "Katsiarynakavaleuskaya/PulsePlate"
-    assert calls[0]["workflow_file"] == "experiment-runner-slack-socket-smoke.yml"
+    assert calls[0]["workflow_file"] == "experiment-runner-dispatch.yml"
     assert calls[0]["ref"] == "main"
     assert calls[0]["inputs"] == {
         "branch_ref": "release/smoke",
         "dry_run": "true",
         "hypothesis_sha256": bridge._sha256_text("Validate bounded Slack operator bridge"),
     }
+    assert bridge.DEFAULT_WORKFLOW_FILE == "experiment-runner-dispatch.yml"
+    assert bridge.ALLOWED_WORKFLOWS == {"experiment-runner-dispatch.yml"}
 
 
 def test_dispatch_inputs_match_manual_workflow_contract() -> None:
-    workflow = _load_workflow()
+    workflow = _load_workflow(DISPATCH_WORKFLOW_PATH)
     triggers = _workflow_on(workflow)
     workflow_inputs = set(triggers["workflow_dispatch"]["inputs"])
     command = bridge.OperatorCommand(
@@ -1310,9 +1357,94 @@ def test_audit_retention_rejects_symlinked_artifact_ancestor(
     assert not (outside / "slack_socket_bridge").exists()
 
 
-def test_workflow_is_manual_only_and_secret_safe() -> None:
+def test_slack_app_manifest_is_socket_mode_and_secret_free() -> None:
+    manifest_text = SLACK_MANIFEST_PATH.read_text(encoding="utf-8")
+    manifest = yaml.safe_load(manifest_text)
+
+    assert manifest["display_information"]["name"] == "Experiment Runner"
+    assert manifest["settings"]["socket_mode_enabled"] is True
+    assert manifest["settings"]["is_hosted"] is False
+    assert manifest["settings"]["org_deploy_enabled"] is False
+    assert manifest["features"]["bot_user"]["display_name"] == "experiment-runner"
+    slash_commands = manifest["features"]["slash_commands"]
+    assert slash_commands == [
+        {
+            "command": "/run-experiment",
+            "description": (
+                "Request a bounded Experiment Runner dispatch from an allowlisted operator."
+            ),
+            "usage_hint": "<branch> <hypothesis>",
+            "should_escape": False,
+        }
+    ]
+    assert manifest["oauth_config"]["scopes"]["bot"] == ["commands", "chat:write"]
+    assert "url" not in slash_commands[0]
+    assert "request_url" not in manifest_text
+    assert "hooks.slack.com" not in manifest_text
+    assert "xapp-" not in manifest_text
+    assert "xox" not in manifest_text
+    assert "SLACK_APP_TOKEN" not in manifest_text
+    assert "SLACK_BOT_TOKEN" not in manifest_text
+    assert "/Users/" not in manifest_text
+    assert "/tmp/" not in manifest_text
+    assert re.search(r"\b[ACDGTUW][A-Z0-9]{8,}\b", manifest_text) is None
+
+
+def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
+    workflow = _load_workflow(DISPATCH_WORKFLOW_PATH)
+    workflow_text = DISPATCH_WORKFLOW_PATH.read_text(encoding="utf-8")
+    triggers = _workflow_on(workflow)
+
+    assert set(triggers) == {"workflow_dispatch"}
+    assert "pull_request" not in triggers
+    assert "pull_request_target" not in workflow_text
+    assert "push" not in triggers
+    assert "schedule" not in triggers
+    assert workflow["permissions"] == {"contents": "read"}
+    job = workflow["jobs"]["experiment-runner-dispatch-contract"]
+    assert job["timeout-minutes"] == 10
+    inputs = triggers["workflow_dispatch"]["inputs"]
+    assert set(inputs) == {"branch_ref", "hypothesis_sha256", "dry_run"}
+    assert inputs["dry_run"]["default"] == "true"
+    assert inputs["dry_run"]["options"] == ["true", "false"]
+    steps = job["steps"]
+    input_step = next(
+        step for step in steps if step["name"] == "Validate typed dispatch inputs without raw echo"
+    )
+    fail_closed_step = next(
+        step
+        for step in steps
+        if step["name"] == "Fail closed until bounded live dispatch is promoted"
+    )
+    summary_step = next(
+        step for step in steps if step["name"] == "Record sanitized dispatch contract summary"
+    )
+    assert input_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
+    assert (
+        input_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
+        == "${{ inputs.hypothesis_sha256 }}"
+    )
+    assert "--validate-dispatch-inputs" in input_step["run"]
+    assert "--validate-smoke-inputs" not in workflow_text
+    assert fail_closed_step["if"] == "inputs.dry_run == 'false'"
+    assert "exit 1" in fail_closed_step["run"]
+    assert summary_step["if"] == "inputs.dry_run == 'true'"
+    assert "$GITHUB_STEP_SUMMARY" in summary_step["run"]
+    assert "SLACK_APP_TOKEN" not in workflow_text
+    assert "SLACK_BOT_TOKEN" not in workflow_text
+    assert "SLACK_SIGNING_SECRET" not in workflow_text
+    assert "pull-requests:" not in workflow_text
+    assert "issues:" not in workflow_text
+    assert "id-token:" not in workflow_text
+    assert "continue-on-error" not in workflow_text
+    assert "|| true" not in workflow_text
+    assert "gh pr" not in workflow_text
+    assert "gh workflow run" not in workflow_text
+
+
+def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     workflow = _load_workflow()
-    workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow_text = SMOKE_WORKFLOW_PATH.read_text(encoding="utf-8")
     triggers = _workflow_on(workflow)
 
     assert set(triggers) == {"workflow_dispatch"}
