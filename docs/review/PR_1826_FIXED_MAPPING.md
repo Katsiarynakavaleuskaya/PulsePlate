@@ -7,13 +7,10 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1826#discussion_r3297649628 -> e9b8d7a2f71228c688cfc2c57681a4136d915b9
-  - Disposition: FIXED
-  - Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py`
-    derives `--validate-secret-presence` from the live runtime environment again
-    and returns only a fail-closed exit code; `.github/workflows/experiment-runner-slack-socket-smoke.yml`
-    supplies the runtime env while printing only constant public
-    `present` / `missing` labels.
+Disposition: FIXED
+Commit: e9b8d7a2fd3b37b493045fe626106c3e2935497d
+Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` derives `--validate-secret-presence` from the live runtime environment and returns only a fail-closed exit code; `.github/workflows/experiment-runner-slack-socket-smoke.yml` supplies runtime env while printing only constant public `present` / `missing` labels.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1826#discussion_r3297649628 -> e9b8d7a2fd3b37b493045fe626106c3e2935497d
 
 ## Lane Start Provenance
 
@@ -59,12 +56,12 @@ signal.
   Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` moved
   `--validate-secret-presence` to explicit CLI booleans; subsequent review
   found that path non-authoritative, and
-  `e9b8d7a2f71228c688cfc2c57681a4136d915b9` restored runtime-env
+  `e9b8d7a2fd3b37b493045fe626106c3e2935497d` restored runtime-env
   validation while keeping Python stdout empty.
 - `qa-engineer-agent`: PASS on pushed head `bee128dc609b65dc654f7c021dcd57da16939bd5`;
   latest no-stdout remediation reran focused pytest, `make validate-changed`,
   and pre-commit before commit.
-- `security-auditor`: FINDING fixed by e9b8d7a2f71228c688cfc2c57681a4136d915b9.
+- `security-auditor`: FINDING fixed by e9b8d7a2fd3b37b493045fe626106c3e2935497d.
   Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` returns
   only a fail-closed exit code for `--validate-secret-presence`; the workflow
   passes runtime env to that check and prints only constant public required
