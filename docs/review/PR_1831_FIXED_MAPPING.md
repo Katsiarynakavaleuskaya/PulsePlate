@@ -31,19 +31,15 @@ Reason: The review was generated against stale commit `b49316b94d0329d908cc2d8c8
 
 ## Slack Live Smoke Evidence
 
-- Manual workflow run: https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26408207579
-- Head SHA: `076a164d5e6755a8e4a1fd28c11fd1fa6172939a`
+- Manual workflow run: https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26408625457
+- Head SHA: `4652ebc1fbd1acb6b6f3d99033a2651cc3e6c1d0`
 - Secret presence diagnostics: `SLACK_APP_TOKEN=present`, `SLACK_BOT_TOKEN=present`, channel allowlist present, user allowlist present.
+- Live smoke status: PASS with `socket_mode_status: validated` and `bot_auth_status: validated`.
 - Redaction scan: PASS for raw Slack channel ID, raw Slack user ID, hypothesis digest, token prefixes, and local absolute paths.
-- Current blocker: `Slack live smoke Socket Mode validation failed: missing_scope.`
 
-The current blocker is an external operator `SLACK_APP_TOKEN` scope/configuration
-issue: GitHub Actions sees the secret as present, but Slack returns
-`missing_scope` for the bounded Socket Mode validation. The secret value was not
-read, printed, copied, or committed. Do not claim merge readiness until
-`SLACK_APP_TOKEN` is updated to a valid app-level Socket Mode token with
-`connections:write` for this Slack app and the manual workflow passes on the
-current PR head.
+The secret values were not read, printed, copied, or committed. Runtime
+allowlist inputs were masked before workflow checkout and recorded only as
+present.
 
 ## Validation Evidence
 
@@ -71,8 +67,6 @@ Pending on current-head PR review cycle.
 
 Not merge-ready at mapping creation time. Remaining blockers:
 
-- Update `SLACK_APP_TOKEN` to a valid app-level Socket Mode token with `connections:write` for this Slack app; current workflow still returns `missing_scope`.
-- Rerun manual workflow on current PR head and record sanitized pass evidence.
 - Current-head PR CI terminal green.
 - No actionable bot comments or unresolved review threads.
 - Review-thread disposition guard with auth.
