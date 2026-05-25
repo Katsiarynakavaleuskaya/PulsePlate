@@ -83,14 +83,14 @@ REQUIRED_CALL_TARGET_KEYWORD_NAME_REFS = {
     "core/rag/orchestration.py": (
         (
             "_run_orchestration",
-            "to_thread",
+            "asyncio.to_thread",
             "retrieve_recursive_context_structured",
             "subject_id",
             "subject_id",
         ),
         (
             "_run_orchestration",
-            "to_thread",
+            "asyncio.to_thread",
             "retrieve_context_structured",
             "subject_id",
             "subject_id",
@@ -356,8 +356,8 @@ def _decorator_name(node: ast.AST) -> str | None:
     return _full_name(node)
 
 
-def _is_false_constant(node: ast.AST) -> bool:
-    return isinstance(node, ast.Constant) and node.value is False
+def _is_falsy_constant(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and not bool(node.value)
 
 
 def _is_disabling_test_marker_name(name: str | None) -> bool:
@@ -389,6 +389,12 @@ def _assigned_names(statement: ast.stmt) -> tuple[str, ...]:
         return (statement.target.id,)
     if isinstance(statement, ast.Delete):
         return tuple(target.id for target in statement.targets if isinstance(target, ast.Name))
+    if isinstance(statement, ast.Import):
+        return tuple(
+            alias.asname or alias.name.split(".", maxsplit=1)[0] for alias in statement.names
+        )
+    if isinstance(statement, ast.ImportFrom):
+        return tuple(alias.asname or alias.name for alias in statement.names)
     return ()
 
 
@@ -406,10 +412,22 @@ def _iter_scope_statements(statements: list[ast.stmt]) -> Iterator[ast.stmt]:
         if isinstance(statement, ast.If):
             yield from _iter_scope_statements(statement.body)
             yield from _iter_scope_statements(statement.orelse)
+        elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith)):
+            yield from _iter_scope_statements(statement.body)
+            yield from _iter_scope_statements(getattr(statement, "orelse", []))
+        elif isinstance(statement, ast.Try):
+            yield from _iter_scope_statements(statement.body)
+            yield from _iter_scope_statements(statement.orelse)
+            yield from _iter_scope_statements(statement.finalbody)
+            for handler in statement.handlers:
+                yield from _iter_scope_statements(handler.body)
+        elif isinstance(statement, ast.Match):
+            for case in statement.cases:
+                yield from _iter_scope_statements(case.body)
 
 
 def _disabling_marker_aliases(statements: list[ast.stmt]) -> set[str]:
-    aliases: set[str] = set()
+    aliases: set[str] = _imported_disabling_call_aliases(statements)
     changed = True
     while changed:
         changed = False
@@ -426,16 +444,38 @@ def _disabling_marker_aliases(statements: list[ast.stmt]) -> set[str]:
     return aliases
 
 
+def _imported_disabling_call_aliases(statements: list[ast.stmt]) -> set[str]:
+    aliases: set[str] = set()
+    for statement in _iter_scope_statements(statements):
+        if isinstance(statement, ast.ImportFrom) and statement.module == "pytest":
+            for alias in statement.names:
+                if alias.name in {"skip", "xfail"}:
+                    aliases.add(alias.asname or alias.name)
+    return aliases
+
+
+def _truthy_constant_aliases(statements: list[ast.stmt]) -> set[str]:
+    aliases: set[str] = set()
+    for statement in _iter_scope_statements(statements):
+        value = _assigned_value(statement)
+        if isinstance(value, ast.Constant) and bool(value.value):
+            aliases.update(_assigned_names(statement))
+    return aliases
+
+
 def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str]) -> bool:
+    truthy_aliases = _truthy_constant_aliases(statements)
     for statement in _iter_scope_statements(statements):
         value = _assigned_value(statement)
         names = _assigned_names(statement)
         if value is not None:
-            if "__test__" in names and _is_false_constant(value):
+            if "__test__" in names and _is_falsy_constant(value):
                 return True
             if "pytestmark" in names and _node_has_disabling_test_marker(value, aliases):
                 return True
-        if isinstance(statement, ast.Expr) and _module_level_skip_call(statement.value):
+        if isinstance(statement, ast.Expr) and _module_level_skip_call(
+            statement.value, aliases, truthy_aliases
+        ):
             return True
     return False
 
@@ -443,11 +483,38 @@ def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str])
 def _name_rebound_after_definition(
     statements: list[ast.stmt], name: str, definition_lineno: int
 ) -> bool:
-    for statement in statements:
+    for statement in _iter_scope_statements(statements):
         if getattr(statement, "lineno", -1) <= definition_lineno:
             continue
         if name in _assigned_names(statement):
             return True
+    return False
+
+
+def _function_test_attribute_disabled_after_definition(
+    statements: list[ast.stmt],
+    name: str,
+    definition_lineno: int,
+) -> bool:
+    for statement in _iter_scope_statements(statements):
+        if getattr(statement, "lineno", -1) <= definition_lineno:
+            continue
+        value = _assigned_value(statement)
+        if value is None or not _is_falsy_constant(value):
+            continue
+        targets: list[ast.AST] = []
+        if isinstance(statement, ast.Assign):
+            targets = list(statement.targets)
+        elif isinstance(statement, ast.AnnAssign):
+            targets = [statement.target]
+        for target in targets:
+            if (
+                isinstance(target, ast.Attribute)
+                and target.attr == "__test__"
+                and isinstance(target.value, ast.Name)
+                and target.value.id == name
+            ):
+                return True
     return False
 
 
@@ -473,15 +540,22 @@ def _function_body_has_disabling_test_call(
     return False
 
 
-def _module_level_skip_call(node: ast.AST) -> bool:
+def _module_level_skip_call(
+    node: ast.AST,
+    aliases: set[str],
+    truthy_aliases: set[str],
+) -> bool:
     if not isinstance(node, ast.Call):
         return False
-    if _full_name(node.func) != "pytest.skip":
+    call_name = _full_name(node.func)
+    if call_name != "pytest.skip" and call_name not in aliases:
         return False
     return any(
         keyword.arg == "allow_module_level"
-        and isinstance(keyword.value, ast.Constant)
-        and keyword.value.value is True
+        and (
+            (isinstance(keyword.value, ast.Constant) and bool(keyword.value.value))
+            or (isinstance(keyword.value, ast.Name) and keyword.value.id in truthy_aliases)
+        )
         for keyword in node.keywords
     )
 
@@ -523,6 +597,13 @@ def _discoverable_test_function_nodes(
                         f"{relative_path}: required test {statement.name} must not be rebound after definition"
                     )
                     continue
+                if _function_test_attribute_disabled_after_definition(
+                    tree.body, statement.name, statement.lineno
+                ):
+                    errors.append(
+                        f"{relative_path}: required test {statement.name} must not set falsy __test__ after definition"
+                    )
+                    continue
                 discovered[statement.name] = statement
             continue
         if not isinstance(statement, ast.ClassDef) or not statement.name.startswith("Test"):
@@ -547,6 +628,13 @@ def _discoverable_test_function_nodes(
             if _name_rebound_after_definition(statement.body, item.name, item.lineno):
                 errors.append(
                     f"{relative_path}: required test {item.name} must not be rebound after definition"
+                )
+                continue
+            if _function_test_attribute_disabled_after_definition(
+                statement.body, item.name, item.lineno
+            ):
+                errors.append(
+                    f"{relative_path}: required test {item.name} must not set falsy __test__ after definition"
                 )
                 continue
             discovered[item.name] = item
@@ -580,7 +668,7 @@ def _call_keyword_name_refs(tree: ast.AST) -> set[tuple[str, str, str]]:
             continue
         for keyword in node.keywords:
             if keyword.arg and isinstance(keyword.value, ast.Name):
-                refs.add((call_name.split(".")[-1], keyword.arg, keyword.value.id))
+                refs.add((call_name, keyword.arg, keyword.value.id))
     return refs
 
 
@@ -608,7 +696,7 @@ def _call_target_keyword_name_refs(tree: ast.AST) -> set[tuple[str, str, str, st
             continue
         for keyword in node.keywords:
             if keyword.arg and isinstance(keyword.value, ast.Name):
-                refs.add((call_name.split(".")[-1], target_name, keyword.arg, keyword.value.id))
+                refs.add((call_name, target_name, keyword.arg, keyword.value.id))
     return refs
 
 
