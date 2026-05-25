@@ -391,6 +391,51 @@ Disposition: FIXED
 Commit: ece53aa6b
 Evidence: aggregate Codex review actionables from the `7eba385b4` review are mapped to the six inline FIXED comments above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298468274 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: `_dynamic_attr_mutation_name(...)` routes `setattr`/`delattr` string-target mutations into required-symbol rebinding checks; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_module_setattr_runtime_symbol_rebound` covers module dynamic mutation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298468279 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: `_setattr_sets_falsy_test_attribute(...)` detects `setattr(required_test_function, "__test__", 0)` after definition; the required-test setattr `__test__` regression covers this bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298468282 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: `_has_disabled_test_collection(...)` now treats `pytestmark += [pytest.mark.skip(...)]` as collection-disabling; the pytestmark augassign regression covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298468290 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: class-method rebinding checks now track aliases of required `Test*` classes; the `setattr(Alias, "test_required", None)` regression covers alias-based class-method mutation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298468295 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: `_function_test_attribute_disabled_after_definition(...)` now tracks aliases of required test functions before checking falsy `.__test__`; the aliased required-test `__test__` regression covers this path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298468302 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: rebinding checks now use `(lineno, col_offset)` statement order via `_after_definition(...)`; the same-line rebinding helper regression covers the previous line-only bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298468306 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: `__test__` post-definition checks now also use `(lineno, col_offset)` ordering; the same-line dunder override helper regression covers the previous line-only bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298468311 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: call-proof extraction now ignores locally rebound noncanonical call targets while preserving canonical local imports; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_locally_rebound_runtime_call_targets` covers local runtime target rebinding.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#pullrequestreview-4357032118 -> 9f4bec992
+Disposition: FIXED
+Commit: 9f4bec992
+Evidence: aggregate Codex review actionables from the `fad2c5532` review are mapped to the eight inline FIXED comments above.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#issuecomment-4533488800
 Disposition: NOT-A-BUG
 Reason: CodeRabbit reported a review-capacity/rate-limit notice, not a code, docs, test, or security finding.
