@@ -14,7 +14,20 @@ Record every new bot/human disposition here before resolving threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299007611 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299007614 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299007618 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299007621 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299007624 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299007628 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299030140 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299030144 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299030150 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299030153 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299030156 -> f8557b51f46a4a1999358807b233a32972c7bdd1
+Disposition: FIXED
+Commit: f8557b51f46a4a1999358807b233a32972c7bdd1
+Evidence: `scripts/ci/check_ai_bounded_context_a3_closeout.py` now scans A3/C4 closeout sections, full semantic-cache gate path leakage, mixed negation/action clauses, A4 extraction overclaims, present-tense activation claims, Windows local paths, stale "A3 remains required" wording, and section-scoped merge evidence; `tests/test_ai_bounded_context_a3_closeout.py` adds regression coverage for each reviewed bypass.
 
 ## Post-Open Governance
 
@@ -37,6 +50,9 @@ Record every new bot/human disposition here before resolving threads on GitHub.
 - `python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_bounded_context_a3_closeout.py tests/test_ai_bounded_context_a3_closeout.py`
 - `make validate-changed`
 - `PATH=.venv/bin:$PATH pre-commit run --all-files`
+- Review-fix focused rerun: `python scripts/ci/check_ai_bounded_context_a3_closeout.py`
+- Review-fix focused rerun: `python -m pytest -q tests/test_ai_bounded_context_a3_closeout.py`
+- Review-fix focused rerun: `python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_bounded_context_a3_closeout.py tests/test_ai_bounded_context_a3_closeout.py`
 
 ## Merge Readiness
 
