@@ -2811,25 +2811,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       worktree, branch, caches, and temporary artifacts
 
 <a id="ledger-p1-rag-hardening-followthrough"></a>
-- [ ] P1: RAG hardening follow-through
+- [x] P1: RAG hardening follow-through
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime reliability)
-  - Target PR: PR-TBD-RAG-HARDENING-FOLLOWTHROUGH
+  - Target PR: PR-A2 / PR #1415
   - Area: AI / RAG / runtime hardening
   - Finding Type: follow-through runtime slice
-  - Status: 📋 Planned
-  - Reason (EN): The execution spine already calls for a dedicated runtime RAG hardening slice, but live `main` has already landed deterministic final-confidence recomputation in orchestration and removed part of the older raw-SQL/refactor framing. This item is now the canonical anchor for residual degraded-path hardening, retrieval-source cleanup, and response-contract-safe fail-safe behavior.
+  - Status: ✅ Closed. PR #1415 merged on `2026-04-14T20:59:47Z`
+    with merge commit `146da0e0d269acea5ba946d239997705ebaf62c3`
+    from branch `feat/rag-hardening-followthrough`; title
+    `feat(rag): harden degraded retrieval paths and keep contracts additive`.
+  - Reason (EN): Live GitHub/repo truth proves the dedicated A2 runtime RAG
+    hardening slice already landed in PR #1415. This closeout records the
+    landed degraded-retrieval, malformed-vector, subject-isolation, fail-safe
+    collapse, and final-confidence recomputation evidence without duplicating
+    runtime implementation or making new benchmark/scientific performance
+    claims.
   - Links:
     - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
     - `docs/contracts/RAG_CONTRACT.md`
+    - `core/rag/contracts.py`
+    - `core/rag/orchestration.py`
     - `core/rag/vector_rag.py`
+    - `tests/test_rag_orchestration.py`
+    - `tests/test_vector_rag.py`
+    - `tests/test_insight_rag_response_fields.py`
   - DoD:
-    - Retrieval hardening has one canonical backlog anchor
-    - Degraded retrieval paths and fail-safe prompt preservation are documented as runtime follow-through
-    - No new semantic/vector surface expansion is implied by this item alone
-    - Public response contracts remain additive and stable
+    - PR #1415 merge evidence is machine-checkable in active roadmap/review docs
+    - Landed degraded retrieval paths and fail-safe prompt preservation remain
+      covered by deterministic RAG tests
+    - Semantic-cache markers remain `closed / false / false / true`
+    - No semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB
+      persistence, public route, OpenAPI, DTO, provider, or default activation
+      scope is implied by this closeout
 
 <a id="ledger-p1-ai-bounded-context-packet"></a>
 - [ ] P1: AI bounded-context packet
