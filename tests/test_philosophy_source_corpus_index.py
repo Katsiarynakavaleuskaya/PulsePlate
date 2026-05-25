@@ -1120,6 +1120,33 @@ def test_philosophy_source_corpus_index_scans_touched_artifact_contents(
     assert any("forbidden local path" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_generic_posix_local_path_leak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("leak=" + "/" + "opt/work/source.pdf\n", encoding="utf-8")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_preserves_touched_path_edge_spaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rel_path = "docs/evidence/ source artifact.txt "
+    artifact = tmp_path / rel_path
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("leak=" + "/" + "tmp/source.pdf\n", encoding="utf-8")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([rel_path])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_preserves_backslash_touched_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

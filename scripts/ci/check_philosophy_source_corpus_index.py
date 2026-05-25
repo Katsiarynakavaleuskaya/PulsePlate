@@ -408,6 +408,12 @@ _AWS_CREDENTIAL_NAMES = (
 )
 SECRET_OR_LOCAL_PATTERNS = (
     *(re.compile(re.escape(prefix), re.IGNORECASE) for prefix in _LOCAL_PATH_PREFIXES),
+    re.compile(
+        r"(?<![A-Za-z0-9.:/])"
+        r"/(?!/)"
+        r"(?:[A-Za-z0-9._-]+/)+"
+        r"[A-Za-z0-9._~+%-][^\s<>'\"`),;]*"
+    ),
     re.compile(r"(?i)(?<![A-Za-z0-9])(?:[A-Z]" + ":" + r"[\\/][^\s<>'\"`]+)"),
     re.compile(
         r"(?i)(?<![\\])"
@@ -427,6 +433,7 @@ SECRET_OR_LOCAL_PATTERNS = (
     re.compile(r"(?i)(?:token|signature|credential)=[A-Za-z0-9_%./+=-]{12,}"),
     re.compile(r"(?i)(?<![A-Za-z0-9])" + "sk" + r"-[A-Za-z0-9_-]{16,}"),
 )
+ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES = frozenset({"/usr/bin/env"})
 WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
 FALLBACK_TEXT_ENCODINGS = ("cp1251", "windows-1252")
 
@@ -625,7 +632,7 @@ def _matches_forbidden_runtime_path(path: str) -> str | None:
 
 
 def _normalize_touched_path(raw_path: str) -> tuple[str | None, str | None]:
-    path = raw_path.strip()
+    path = raw_path
     if not path:
         return None, "empty changed path is not allowed"
     if WINDOWS_DRIVE_PATH_RE.match(path):
@@ -1092,7 +1099,7 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
     errors: list[str] = []
     for pattern in SECRET_OR_LOCAL_PATTERNS:
         match = pattern.search(text)
-        if match:
+        if match and match.group(0) not in ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES:
             errors.append(
                 f"{label}: forbidden local path or credential-like token detected (value redacted)"
             )
