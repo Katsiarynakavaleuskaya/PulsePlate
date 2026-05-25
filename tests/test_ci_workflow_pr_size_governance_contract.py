@@ -292,6 +292,11 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     )
     assert "PR4_PRECONDITION_CHANGED=0" in docs_phase1_section
     assert "PR5_SOURCE_CORPUS_CHANGED=0" in docs_phase1_section
+    assert 'if BASE_REF="$(git rev-parse HEAD^1 2>/dev/null)"; then' in (docs_phase1_section)
+    assert 'BASE_REF="${{ github.event.pull_request.base.sha }}"' in (docs_phase1_section)
+    assert docs_phase1_section.index("git rev-parse HEAD^1") < (
+        docs_phase1_section.index("github.event.pull_request.base.sha")
+    )
     assert 'git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD' in (
         docs_phase1_section
     )

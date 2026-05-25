@@ -234,11 +234,15 @@ jobs:
       - name: Run Phase1 docs gates
         run: |
           set -euo pipefail
-          BASE_REF="${{ github.event.pull_request.base.sha }}"
+          if BASE_REF="$(git rev-parse HEAD^1 2>/dev/null)"; then
+            :
+          else
+            BASE_REF=""
+          fi
           if [ -z "${BASE_REF}" ] || ! git cat-file -e "${BASE_REF}^{commit}" 2>/dev/null; then
-            # Fallback for rare checkout states: pull_request uses merge refs,
-            # where HEAD^1 points to the base branch parent.
-            BASE_REF="$(git rev-parse HEAD^1)"
+            # Fallback for rare checkout states where the pull_request merge
+            # ref parent is unavailable.
+            BASE_REF="${{ github.event.pull_request.base.sha }}"
           fi
           echo "Using docs Phase1 base ref: ${BASE_REF}"
           CHANGED_MD=()
