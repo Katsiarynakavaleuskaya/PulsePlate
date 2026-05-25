@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import http.client
 import json
@@ -39,6 +39,7 @@ SLACK_USER_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"
 SLACK_TEAM_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"
 BRIDGE_MIN_INTERVAL_ENV = "EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS"
 BRIDGE_TIMEOUT_ENV = "EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS"
+BRIDGE_AUDIT_RETENTION_DAYS_ENV = "EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS"
 GITHUB_API_HOST = "api.github.com"
 DEFAULT_WORKFLOW_FILE = "experiment-runner-slack-socket-smoke.yml"
 DEFAULT_WORKFLOW_REF = "main"
@@ -62,6 +63,14 @@ ALLOWED_COMMANDS = {"help", "status", "run-experiment"}
 ALLOWED_WORKFLOWS = {DEFAULT_WORKFLOW_FILE}
 RATE_LIMIT_LOCK_DIR = "rate_limit_claim"
 RATE_LIMIT_CLAIM_MAX_ATTEMPTS = 10
+DEFAULT_AUDIT_RETENTION_DAYS = 14
+MAX_AUDIT_RETENTION_DAYS = 366
+LIVE_SECRET_PRESENCE_ENV = (
+    SLACK_APP_AUTH_ENV,
+    SLACK_BOT_AUTH_ENV,
+    SLACK_CHANNEL_ALLOWLIST_ENV,
+    SLACK_USER_ALLOWLIST_ENV,
+)
 
 
 class SlackSocketBridgeError(RuntimeError):
@@ -114,6 +123,7 @@ class BridgeConfig:
     workflow_ref: str
     timeout_seconds: int
     min_interval_seconds: int
+    audit_retention_days: int
     slack_app_token: str | None
     slack_bot_token: str | None
     github_token: str | None
@@ -207,11 +217,13 @@ def _normalize_slack_id(raw_value: str, *, label: str) -> str:
 
 def _allowlist_from_env(env_name: str, *, label: str) -> frozenset[str]:
     raw = os.environ.get(env_name, "")
+    if not raw.strip():
+        return frozenset()
     values: set[str] = set()
     for candidate in raw.split(","):
         candidate = candidate.strip()
         if not candidate:
-            continue
+            raise SlackSocketConfigError(f"{label} allowlist is invalid.")
         values.add(_normalize_slack_id(candidate, label=label))
     return frozenset(values)
 
@@ -369,6 +381,11 @@ def build_config(
             60,
             maximum=3600,
         ),
+        audit_retention_days=_positive_int_from_env(
+            BRIDGE_AUDIT_RETENTION_DAYS_ENV,
+            DEFAULT_AUDIT_RETENTION_DAYS,
+            maximum=MAX_AUDIT_RETENTION_DAYS,
+        ),
         slack_app_token=_optional_token(SLACK_APP_AUTH_ENV),
         slack_bot_token=_optional_token(SLACK_BOT_AUTH_ENV),
         github_token=_github_token(),
@@ -497,6 +514,84 @@ def _read_audit(path: Path) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
         raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
     return payload
+
+
+def validate_secret_presence(
+    required_env: tuple[str, ...] = LIVE_SECRET_PRESENCE_ENV,
+) -> dict[str, Any]:
+    """Return a value-free live-smoke secret/allowlist presence report."""
+
+    present = {env_name: bool(os.environ.get(env_name, "").strip()) for env_name in required_env}
+    missing = [env_name for env_name, is_present in present.items() if not is_present]
+    return {
+        "missing_env": missing,
+        "required_env_present": present,
+        "status": "pass" if not missing else "fail",
+    }
+
+
+def _audit_timestamp(audit: dict[str, Any]) -> datetime:
+    timestamp_raw = audit.get("timestamp")
+    if not isinstance(timestamp_raw, str):
+        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
+    try:
+        timestamp = datetime.fromisoformat(timestamp_raw)
+    except ValueError as exc:
+        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.") from exc
+    if timestamp.tzinfo is None:
+        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
+    return timestamp.astimezone(timezone.utc)
+
+
+def audit_retention_summary(config: BridgeConfig, *, cleanup: bool) -> dict[str, Any]:
+    """Report or delete expired Slack audit JSON files without exposing paths."""
+
+    mode = "cleanup" if cleanup else "report"
+    _reject_symlinked_output_components(
+        (config.audit_dir / "retention-check.json").absolute(),
+        artifact_dir=Path(config.audit_dir).absolute(),
+    )
+    if not config.audit_dir.exists():
+        return {
+            "deleted_count": 0,
+            "expired_count": 0,
+            "mode": mode,
+            "retention_days": config.audit_retention_days,
+            "status": "pass",
+        }
+    threshold = _utcnow() - timedelta(days=config.audit_retention_days)
+    expired_paths: list[Path] = []
+    try:
+        audit_paths = sorted(config.audit_dir.glob("*.json"))
+    except OSError as exc:
+        raise SlackSocketAuditError("Unable to inspect Slack operator audit artifacts.") from exc
+    for audit_path in audit_paths:
+        _reject_symlinked_output_components(
+            audit_path.absolute(),
+            artifact_dir=Path(config.audit_dir).absolute(),
+        )
+        audit = _read_audit(audit_path)
+        if audit is None:
+            continue
+        if _audit_timestamp(audit) < threshold:
+            expired_paths.append(audit_path)
+    deleted_count = 0
+    if cleanup:
+        for audit_path in expired_paths:
+            try:
+                audit_path.unlink()
+            except OSError as exc:
+                raise SlackSocketAuditError(
+                    "Unable to clean up Slack operator audit artifact."
+                ) from exc
+            deleted_count += 1
+    return {
+        "deleted_count": deleted_count,
+        "expired_count": len(expired_paths),
+        "mode": mode,
+        "retention_days": config.audit_retention_days,
+        "status": "pass",
+    }
 
 
 def _ensure_event_not_processed(path: Path, *, config: BridgeConfig) -> None:
@@ -1010,18 +1105,41 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Validate bridge runtime config without connecting to Slack or GitHub.",
     )
+    parser.add_argument(
+        "--validate-secret-presence",
+        action="store_true",
+        help="Report live-smoke secret and allowlist presence without printing values.",
+    )
+    parser.add_argument(
+        "--audit-retention",
+        choices=("none", "report", "cleanup"),
+        default="none",
+        help="Report or explicitly clean up expired local Slack audit artifacts.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
+        if args.validate_secret_presence:
+            report = validate_secret_presence()
+            print(json.dumps(report, sort_keys=True))
+            return 0 if report["status"] == "pass" else 1
         config = build_config(
             dispatch_mode=args.dispatch_mode,
             audit_dir=args.audit_dir,
             repo=args.repo,
             workflow_ref=args.workflow_ref,
         )
+        if args.audit_retention != "none":
+            print(
+                json.dumps(
+                    audit_retention_summary(config, cleanup=args.audit_retention == "cleanup"),
+                    sort_keys=True,
+                )
+            )
+            return 0
         if args.validate_runtime:
             if config.dispatch_mode == "execute":
                 _require_execute_config(config)

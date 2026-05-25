@@ -93,6 +93,7 @@ def _config_without_rate_limit(
         workflow_ref=config.workflow_ref,
         timeout_seconds=config.timeout_seconds,
         min_interval_seconds=0,
+        audit_retention_days=config.audit_retention_days,
         slack_app_token=config.slack_app_token,
         slack_bot_token=config.slack_bot_token,
         github_token=config.github_token,
@@ -130,6 +131,52 @@ def test_live_socket_validation_fails_closed_without_runtime_tokens(
     assert "SLACK_BOT_TOKEN" not in stdout
     assert "xapp-" not in stdout
     assert "xox" not in stdout
+
+
+def test_secret_presence_validation_reports_missing_without_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    for env_name in bridge.LIVE_SECRET_PRESENCE_ENV:
+        monkeypatch.delenv(env_name, raising=False)
+
+    assert bridge.main(["--validate-secret-presence"]) == 1
+    stdout = capsys.readouterr().out
+    payload = json.loads(stdout)
+
+    assert payload["status"] == "fail"
+    assert payload["missing_env"] == list(bridge.LIVE_SECRET_PRESENCE_ENV)
+    assert all(present is False for present in payload["required_env_present"].values())
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+
+
+def test_secret_presence_validation_passes_without_leaking_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+
+    assert bridge.main(["--validate-secret-presence"]) == 0
+    stdout = capsys.readouterr().out
+    payload = json.loads(stdout)
+
+    assert payload["status"] == "pass"
+    assert payload["missing_env"] == []
+    assert all(present is True for present in payload["required_env_present"].values())
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
 
 
 def test_live_socket_validation_reports_missing_sdk_without_import_time_failure(
@@ -244,6 +291,27 @@ def test_live_socket_validation_requires_channel_and_user_allowlists(
     assert "allowlist configuration is incomplete" in stdout
     assert "xapp-" not in stdout
     assert "xoxb-" not in stdout
+
+
+@pytest.mark.parametrize(
+    ("env_name", "value"),
+    [
+        ("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS, ,C0OPS"),
+        ("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR, ,U0REVIEWER"),
+    ],
+)
+def test_allowlists_reject_empty_comma_segments(
+    env_name: str,
+    value: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv(env_name, value)
+
+    with pytest.raises(bridge.SlackSocketConfigError, match="allowlist is invalid"):
+        _config(audit_dir=audit_dir)
 
 
 def test_config_rejects_zero_rate_limit_without_test_override(
@@ -805,6 +873,90 @@ def test_malformed_existing_audit_blocks_before_dispatch(
     assert calls == []
 
 
+def test_audit_retention_report_and_cleanup_are_path_redacted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS", "14")
+    audit_dir.mkdir(parents=True)
+    old_event = "Ev0OLDRETENTION"
+    fresh_event = "Ev0FRESHRETENTION"
+    old_path = audit_dir / f"{bridge._sha256_text(old_event)}.json"
+    fresh_path = audit_dir / f"{bridge._sha256_text(fresh_event)}.json"
+    old_payload = {
+        "channel_hash": "a" * 64,
+        "command_kind": "status",
+        "event_hash": bridge._sha256_text(old_event),
+        "provider_type": "slack_socket_mode",
+        "status": "dry_run",
+        "timestamp": "2026-01-01T00:00:00+00:00",
+        "user_hash": "b" * 64,
+    }
+    fresh_payload = {
+        **old_payload,
+        "event_hash": bridge._sha256_text(fresh_event),
+        "timestamp": bridge._utcnow().isoformat(),
+    }
+    old_path.write_text(json.dumps(old_payload), encoding="utf-8")
+    fresh_path.write_text(json.dumps(fresh_payload), encoding="utf-8")
+
+    assert bridge.main(["--audit-retention", "report", "--audit-dir", str(audit_dir)]) == 0
+    report_stdout = capsys.readouterr().out
+    report = json.loads(report_stdout)
+
+    assert report == {
+        "deleted_count": 0,
+        "expired_count": 1,
+        "mode": "report",
+        "retention_days": 14,
+        "status": "pass",
+    }
+    assert old_path.exists()
+    assert fresh_path.exists()
+    assert str(audit_dir) not in report_stdout
+    assert old_event not in report_stdout
+    assert fresh_event not in report_stdout
+
+    assert bridge.main(["--audit-retention", "cleanup", "--audit-dir", str(audit_dir)]) == 0
+    cleanup_stdout = capsys.readouterr().out
+    cleanup = json.loads(cleanup_stdout)
+
+    assert cleanup["deleted_count"] == 1
+    assert cleanup["expired_count"] == 1
+    assert cleanup["mode"] == "cleanup"
+    assert not old_path.exists()
+    assert fresh_path.exists()
+    assert str(audit_dir) not in cleanup_stdout
+
+
+def test_audit_retention_rejects_symlinked_artifact_ancestor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    outside = tmp_path / "outside"
+    experiments = repo / "artifacts" / "orchestration" / "experiments"
+    experiments.parent.mkdir(parents=True)
+    outside.mkdir()
+    experiments.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(bridge.SlackSocketAuditError, match="symlink"):
+        bridge.audit_retention_summary(
+            _config_without_rate_limit(
+                monkeypatch=monkeypatch,
+                audit_dir=experiments / "slack_socket_bridge",
+            ),
+            cleanup=True,
+        )
+
+    assert not (outside / "slack_socket_bridge").exists()
+
+
 def test_workflow_is_manual_only_and_secret_safe() -> None:
     workflow = _load_workflow()
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -819,6 +971,7 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
     assert job["timeout-minutes"] == 10
     inputs = triggers["workflow_dispatch"]["inputs"]
     assert set(inputs) == {
+        "audit_retention_days",
         "branch_ref",
         "channel_allowlist",
         "dry_run",
@@ -826,8 +979,11 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
         "user_allowlist",
     }
     assert inputs["dry_run"]["default"] == "true"
+    assert inputs["audit_retention_days"]["default"] == "14"
     assert "${{ secrets.SLACK_APP_TOKEN }}" in workflow_text
     assert "${{ secrets.SLACK_BOT_TOKEN }}" in workflow_text
+    assert "--validate-secret-presence" in workflow_text
+    assert "--audit-retention report" in workflow_text
     assert "slack-bolt==1.28.0" in workflow_text
     assert "SLACK_SIGNING_SECRET" not in workflow_text
     assert "continue-on-error" not in workflow_text
