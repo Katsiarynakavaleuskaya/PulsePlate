@@ -78,7 +78,10 @@ No GitHub review threads are open at this mapping update.
 | architecture-specialist | Keep Slack manifest secret-free and fixed dispatch workflow manual-only/read-only. | FIXED | `docs/orchestration/EXPERIMENT_RUNNER_SLACK_APP_MANIFEST.yml`; `.github/workflows/experiment-runner-dispatch.yml`; tests. |
 | security-auditor | Do not commit Slack IDs, token values, token prefixes, webhook URLs, request URLs, or authority expansion. | FIXED | Manifest/workflow tests reject these surfaces; detect-secrets, Bandit, and pre-push hooks passed. |
 | qa-engineer-agent | Cover manifest/workflow/bridge contract deterministically and do not mix live smoke. | FIXED | `tests/test_experiment_slack_socket_bridge.py` covers manifest, workflow contract, arbitrary workflow rejection, and dispatch alias. |
+| qa-engineer-agent post-open | No actionable QA findings after PR open; review threads query returned empty and Phase2 body gate passed. | FIXED | Post-open QA PASS; focused pytest, `git diff --check origin/main...HEAD`, and `check_agent_consistency.py` passed. |
 | bug-hunter | Authorized dispatch must remain fixed-workflow only and dry-run default must not be bypassed. | FIXED | Bridge default/allowlist tests and workflow fail-closed test. |
+| bug-hunter post-open | No behavioral regression found for arbitrary dispatch, dry-run fail-closed, branch/digest validation, or redaction. | FIXED | Post-open bug-hunter PASS; focused pytest and sanitized scan evidence. |
+| security-auditor post-open | No actionable security finding for workflow permissions, pinned actions, manifest secret hygiene, auth boundary, or authority expansion. | FIXED | Post-open security-auditor PASS; current-head `security-scan` PASS and `CodeQL` PASS. |
 | dev-operator | Branch must be synced with `origin/main` before PR open and use PR-scoped gates only. | FIXED | Branch rebased to `origin/main` (`0 0`) before push; PR-scoped gates listed below. |
 | cursor-specialist-agent | Keep coordinator-first startup and do not let docs make Experiment Runner the lane start authority. | FIXED | PR body and runbook preserve coordinator-first startup; Experiment Runner section is evidence-only. |
 
@@ -93,6 +96,7 @@ No GitHub review threads are open at this mapping update.
 | `make validate-changed` | PASS |
 | `pre-commit run --all-files` | PASS |
 | pre-push hooks | PASS: mypy, pip-audit, backend tests, full Bandit, docker build test |
+| Current-head GitHub checks after latest push | PASS/SKIP terminal for visible checks: actionlint, build, CodeQL, security-scan, validate-pr, CodeRabbit, Cubic, Sourcery, Trivy |
 
 Full local `make verify` is deferred by operator instruction for this
 governance/tooling lane. This PR uses PR-scoped local gates plus current-head
