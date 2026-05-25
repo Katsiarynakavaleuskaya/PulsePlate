@@ -9,7 +9,7 @@
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1831#discussion_r3298856236
 Disposition: NOT-A-BUG
-Evidence: `docs/review/PR_1831_FIXED_MAPPING.md` now names `SLACK_APP_TOKEN` and `connections:write` in the merge-readiness blocker; current PR head `0a78819aaba714c12a8cbed2f28bdae7eb840415` already contained the requested correction before the Codex review was submitted.
+Evidence: `docs/review/PR_1831_FIXED_MAPPING.md` names `SLACK_APP_TOKEN` and `connections:write` in the merge-readiness blocker; current PR head `076a164d5e6755a8e4a1fd28c11fd1fa6172939a` preserves that correction.
 Reason: The review was generated against stale commit `b49316b94d0329d908cc2d8c8a89fc46a5b70d29`; the current branch state already matches the requested correction, so no additional code/docs change is needed beyond this disposition record.
 
 ## Lane Start Provenance
@@ -31,17 +31,19 @@ Reason: The review was generated against stale commit `b49316b94d0329d908cc2d8c8
 
 ## Slack Live Smoke Evidence
 
-- Manual workflow run: https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26407084651
-- Head SHA: `b49316b94d0329d908cc2d8c8a89fc46a5b70d29`
+- Manual workflow run: https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26408207579
+- Head SHA: `076a164d5e6755a8e4a1fd28c11fd1fa6172939a`
 - Secret presence diagnostics: `SLACK_APP_TOKEN=present`, `SLACK_BOT_TOKEN=present`, channel allowlist present, user allowlist present.
 - Redaction scan: PASS for raw Slack channel ID, raw Slack user ID, hypothesis digest, token prefixes, and local absolute paths.
 - Current blocker: `Slack live smoke Socket Mode validation failed: missing_scope.`
 
 The current blocker is an external operator `SLACK_APP_TOKEN` scope/configuration
-issue. The secret value was not read, printed, copied, or committed. Do not
-claim merge readiness until the exposed app-level token is rotated/regenerated,
-`SLACK_APP_TOKEN` is updated to the new app-level Socket Mode token with
-`connections:write`, and the manual workflow passes on the current PR head.
+issue: GitHub Actions sees the secret as present, but Slack returns
+`missing_scope` for the bounded Socket Mode validation. The secret value was not
+read, printed, copied, or committed. Do not claim merge readiness until
+`SLACK_APP_TOKEN` is updated to a valid app-level Socket Mode token with
+`connections:write` for this Slack app and the manual workflow passes on the
+current PR head.
 
 ## Validation Evidence
 
@@ -69,7 +71,7 @@ Pending on current-head PR review cycle.
 
 Not merge-ready at mapping creation time. Remaining blockers:
 
-- Rotate/regenerate the exposed app-level Socket Mode token and update `SLACK_APP_TOKEN` with the new `connections:write` value.
+- Update `SLACK_APP_TOKEN` to a valid app-level Socket Mode token with `connections:write` for this Slack app; current workflow still returns `missing_scope`.
 - Rerun manual workflow on current PR head and record sanitized pass evidence.
 - Current-head PR CI terminal green.
 - No actionable bot comments or unresolved review threads.
