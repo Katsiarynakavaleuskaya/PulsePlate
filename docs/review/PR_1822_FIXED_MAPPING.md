@@ -52,6 +52,13 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
   returned 0, and `shared_tree_untouched=true`.
 - Co-author: required; commit `33e57821f` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- A3 gate-wording artifact:
+  `artifacts/orchestration/experiments/results/exp-pr1822-a3-gate-wording-oracle.json`
+- A3 gate-wording status: accepted, `oracle_only_governance_reviewer`,
+  `contribution_kind=oracle_review`, 3/3 runner-executable oracle commands
+  returned 0, and `shared_tree_untouched=true`.
+- Co-author: required; commit `52216f2f9` includes
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
 
@@ -354,6 +361,15 @@ Commit: 33e57821f
 Evidence: source-corpus validation now rejects `discipline_rails` values outside the canonical `EXPECTED_DISCIPLINE_RAILS` enum, closing the `totally_invalid_rail` false-green.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:113`, `scripts/ci/check_philosophy_source_corpus_index.py:1266`, `scripts/ci/check_philosophy_source_corpus_index.py:1273`, `tests/test_philosophy_source_corpus_index.py:315`.
 
+## CI Failure Closure
+
+- CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
+Disposition: FIXED
+Commit: 52216f2f9
+Evidence: current-head CI failed after `origin/main` introduced the A3 bounded-context closeout guard and the PR-5 semantic-cache roadmap note let the guard reconstruct `OpenAPI does not iOS changes` as a forbidden positive scope claim.
+Evidence: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` now keeps PR-5 outside semantic-cache runtime admission and says cache reads/writes, serving, providers, `/insight`, Redis, GPTCache, embeddings, vector search, DB, OpenAPI, frontend, and iOS remain out of scope.
+Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`, `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:104`, `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:106`.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -435,6 +451,11 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:113`, `sc
 - FIXED: current-head review found discipline rail enum false-greens. Evidence:
   commit `33e57821f` rejects non-canonical `discipline_rails` values and adds a
   regression for `totally_invalid_rail`.
+- FIXED: current-head CI after `origin/main` advanced found the PR-5 roadmap
+  wording tripped the new A3 bounded-context guard. Evidence: commit
+  `52216f2f9` rewrites the note to keep PR-5 outside semantic-cache runtime
+  admission while keeping OpenAPI, frontend, iOS, and cache/runtime surfaces out
+  of scope.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -522,6 +543,10 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:113`, `sc
 - FIXED: current-head Codex review found source `discipline_rails` accepted
   non-enum values. Evidence: commit `33e57821f` adds canonical rail set
   validation and a targeted `totally_invalid_rail` regression.
+- FIXED: current-head A3 closeout guard found forbidden reconstructed
+  OpenAPI/iOS scope wording in the PR-5 semantic-cache roadmap note. Evidence:
+  commit `52216f2f9` preserves the closed markers and rewrites the sentence as
+  explicit out-of-scope language.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -535,6 +560,8 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:113`, `sc
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py tests/test_ci_workflow_pr_size_governance_contract.py` PASS.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the discipline-rail enum regression.
+- `python3 scripts/ci/check_ai_bounded_context_a3_closeout.py` PASS after the PR-5 semantic-cache roadmap wording fix.
+- `$VENV_PYTHON -m pytest -q tests/test_ai_bounded_context_a3_closeout.py::test_checker_passes_on_current_repository` PASS.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
 - `$VENV_PYTHON -m bandit -q scripts/ci/check_philosophy_source_corpus_index.py scripts/ci/check_docs_phase1_gates.py` PASS.
 - `DEV_PYTHON=$VENV_PYTHON VENV_PYTHON=$VENV_PYTHON make validate-changed` PASS.
