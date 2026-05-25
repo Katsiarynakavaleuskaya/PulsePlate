@@ -139,15 +139,17 @@ def test_secret_presence_validation_reports_missing_without_values(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _configure_repo(monkeypatch, tmp_path)
-    for env_name in bridge.LIVE_SECRET_PRESENCE_ENV:
-        monkeypatch.delenv(env_name, raising=False)
+    for _public_env_name, marker_env_name in bridge.LIVE_SECRET_PRESENCE_REQUIREMENTS:
+        monkeypatch.delenv(marker_env_name, raising=False)
 
     assert bridge.main(["--validate-secret-presence"]) == 1
     stdout = capsys.readouterr().out
     payload = json.loads(stdout)
 
     assert payload["status"] == "fail"
-    assert payload["missing_env"] == list(bridge.LIVE_SECRET_PRESENCE_ENV)
+    assert payload["missing_env"] == [
+        env_name for env_name, _marker_env_name in bridge.LIVE_SECRET_PRESENCE_REQUIREMENTS
+    ]
     assert all(present is False for present in payload["required_env_present"].values())
     assert "xapp-" not in stdout
     assert "xoxb-" not in stdout
@@ -165,6 +167,10 @@ def test_secret_presence_validation_passes_without_leaking_values(
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+    monkeypatch.setenv("PULSEPLATE_SLACK_APP_CONFIG_PRESENT", "true")
+    monkeypatch.setenv("PULSEPLATE_SLACK_BOT_CONFIG_PRESENT", "true")
+    monkeypatch.setenv("PULSEPLATE_SLACK_CHANNEL_ALLOWLIST_PRESENT", "true")
+    monkeypatch.setenv("PULSEPLATE_SLACK_USER_ALLOWLIST_PRESENT", "true")
 
     assert bridge.main(["--validate-secret-presence"]) == 0
     stdout = capsys.readouterr().out
@@ -980,10 +986,25 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
     }
     assert inputs["dry_run"]["default"] == "true"
     assert inputs["audit_retention_days"]["default"] == "14"
+    steps = job["steps"]
+    presence_step = next(
+        step for step in steps if step["name"] == "Validate live Socket Mode prerequisites"
+    )
+    runtime_step = next(
+        step for step in steps if step["name"] == "Validate live Socket Mode runtime"
+    )
+    assert "SLACK_APP_TOKEN" not in presence_step["env"]
+    assert "SLACK_BOT_TOKEN" not in presence_step["env"]
+    assert runtime_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
+    assert runtime_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
     assert "${{ secrets.SLACK_APP_TOKEN }}" in workflow_text
     assert "${{ secrets.SLACK_BOT_TOKEN }}" in workflow_text
     assert "--validate-secret-presence" in workflow_text
     assert "--audit-retention report" in workflow_text
+    assert "PULSEPLATE_SLACK_APP_CONFIG_PRESENT" in workflow_text
+    assert "PULSEPLATE_SLACK_BOT_CONFIG_PRESENT" in workflow_text
+    assert "PULSEPLATE_SLACK_CHANNEL_ALLOWLIST_PRESENT" in workflow_text
+    assert "PULSEPLATE_SLACK_USER_ALLOWLIST_PRESENT" in workflow_text
     assert "slack-bolt==1.28.0" in workflow_text
     assert "SLACK_SIGNING_SECRET" not in workflow_text
     assert "continue-on-error" not in workflow_text

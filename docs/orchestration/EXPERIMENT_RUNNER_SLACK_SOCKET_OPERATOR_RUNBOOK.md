@@ -46,10 +46,11 @@ For live prerequisite validation, set `dry_run` to `false` and provide:
 - audit retention days.
 
 The workflow first runs a secret-presence diagnostic. It reports only whether
-required environment names are present and which names are missing. It must not
-print secret values, token prefixes, raw channel/user IDs, raw hypotheses, local
-absolute paths, Slack payload bodies, GitHub tokens, oracle stdout/stderr, or
-patch text.
+required environment names are present and which names are missing. The
+diagnostic step uses non-secret GitHub expression sentinels, not raw token
+environment variables. It must not print secret values, token prefixes, raw
+channel/user IDs, raw hypotheses, local absolute paths, Slack payload bodies,
+GitHub tokens, oracle stdout/stderr, or patch text.
 
 ## Failure Interpretation
 
