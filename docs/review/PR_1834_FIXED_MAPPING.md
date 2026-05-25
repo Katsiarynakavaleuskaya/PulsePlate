@@ -69,8 +69,36 @@ Pre-open role-agent dispositions:
   sequencing/provenance blocker, fixed by explicit operator-approved reuse and
   packet/body/mapping evidence.
 
-Post-open role-agent pass is pending after this mapping bootstrap commit and
-must be refreshed before merge readiness.
+Post-open role-agent dispositions on head
+`612307816356967be16b60c48203be11da2c0542`:
+
+- `agent-coordinator`: Disposition `PASS`. Evidence: verified scope,
+  role-order/provenance exception, Experiment Runner evidence, premortem
+  dispositions, Phase2 body/mapping posture, and no review threads.
+- `architecture-specialist`: Disposition `PASS`. Evidence: verified typed
+  deterministic validator/report builder, dry-run CLI boundary, no runtime,
+  OpenAPI, provider, DB, or cache authority drift, and no durable instruction
+  update needed.
+- `data-scientist-agent`: Disposition `PASS`. Evidence: verified
+  evidence-only research posture, exact candidate order, and oracle-only
+  Experiment Runner handling with no source/nutrition authority grant.
+- `backend-engineer`: Disposition `PASS`. Evidence: verified validator,
+  CLI, mypy, malformed/unsafe regression coverage, and no backend/runtime
+  import surface.
+- `qa-engineer-agent`: Disposition `FINDING -> FIXED`. Evidence: code/test
+  coverage passed; external bot evidence was explicitly dispositioned below.
+- `bug-hunter`: Disposition `FINDING -> FIXED`. Evidence: malformed PR22 and
+  PR21 handoff probes failed closed; external bot evidence was explicitly
+  dispositioned below.
+- `security-auditor`: Disposition `FINDING -> FIXED`. Evidence: no diff
+  security issue found; external bot evidence was explicitly dispositioned
+  below.
+- `dev-operator`: Disposition `FINDING -> FIXED`. Evidence: current-head
+  checks terminal, strict wrapper passed, and external bot evidence was
+  explicitly dispositioned below.
+- `cursor-specialist-agent`: Disposition `PASS`. Evidence: verified context
+  pack hygiene, dispatch order, provenance wording, and parser-safe mapping
+  structure.
 
 ## Experiment Runner Evidence
 
@@ -132,6 +160,13 @@ blockers drifted, or pre-gate worktree provenance was hidden.
 - Pre-push hooks: PASS for mypy changed files, pip-audit, backend pre-push
   tests, full-repo Bandit, and docker build test.
 - Post-open `python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR22 regional catalog dedicated legal contract review closeout post-open review" --task-class Orchestration --pr-phase post_open_review ...`: PASS; packet `9fb243e90f04`.
+- `python3 scripts/orchestration/qoder_dispatch_bridge.py --packet artifacts/orchestration/task_packets/9fb243e90f04.json --mode docs-only --pretty`: PASS; post-open dispatch sequence covered 9 role agents including `cursor-specialist-agent`.
+- Post-open coordinator-declared role agents: PASS / findings closed as evidence-only governance dispositions; no code/test/security defect remained.
+- `coderabbit review --agent -t committed --base origin/main -c AGENTS.md`: PASS; `review_completed`, `findings=0`.
+- Codex Security diff-scoped scan (`security-scan` skill phases through finding discovery): PASS; no plausible candidates. Evidence: diff contains no runtime/network/provider/DB imports, no secrets, no local artifact leakage, no suppressions, and only test-local subprocess/file-write helpers.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1834 --require-auth`: PASS; no resolved review threads found.
+- `GITHUB_TOKEN="$(gh auth token)" python3 scripts/ci/check_pr_merge_readiness.py --pr-number 1834 --repo Katsiarynakavaleuskaya/PulsePlate`: PASS.
+- `gh pr checks 1834 --repo Katsiarynakavaleuskaya/PulsePlate`: PASS for current-head required/relevant checks, including lint, security, OpenAPI sync, `test-pr (3.13)`, coverage-pr, diff-coverage, PR Body Phase2 gates, and Merge readiness gate.
 
 Full local `make verify` is intentionally deferred by operator instruction for
 this governance-only lane. Merge readiness still requires PR current-head CI
@@ -144,26 +179,41 @@ parity and strict review-governance checks before any readiness claim.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1834#issuecomment-4535848942
+Disposition: NOT-A-BUG
+Evidence: `coderabbit review --agent -t committed --base origin/main -c AGENTS.md` completed with `findings=0`.
+Reason: The GitHub bot comment was a quota/usage notification, not a code actionable.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1834#pullrequestreview-4357946555
+Disposition: NOT-A-BUG
+Evidence: `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1834 --require-auth` found no review threads to enforce.
+Reason: The Sourcery review body was a weekly diff-character quota notification, not a code actionable.
+
+## Bot No-Actionable Evidence
+
+- Cubic: Disposition `NOT-A-BUG`. Evidence:
+  `gh pr checks 1834 --repo Katsiarynakavaleuskaya/PulsePlate` reported Cubic
+  as neutral/skipped, with no GitHub review comments or actionable threads.
+  Reason: Cubic did not emit a code actionable for this PR.
 
 ## Post-Open Governance Checklist
 
 - [x] PR opened non-draft.
 - [x] Post-open bootstrap completed.
-- [ ] Post-open role agents completed.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` completed.
-- [ ] CodeRabbit reviewed with no actionables.
-- [ ] Codex Security diff-scoped scan completed.
-- [ ] Security-auditor post-open pass completed.
-- [ ] Current-head PR checks terminal green.
-- [ ] Review-thread disposition guard passed.
-- [ ] Strict merge-readiness gate passed.
+- [x] Post-open role agents completed.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` completed.
+- [x] CodeRabbit reviewed with no actionables.
+- [x] Codex Security diff-scoped scan completed.
+- [x] Security-auditor post-open pass completed.
+- [x] Current-head PR checks terminal green.
+- [x] Review-thread disposition guard passed.
+- [x] Strict merge-readiness gate passed.
 - [ ] Wait-window satisfied.
 
 ## Merge Readiness
 
-- [ ] Current-head CI completed for this PR.
-- [ ] Phase2 PR body gate passed for this PR.
-- [ ] Strict merge-readiness wrapper passed for this PR after latest bot/review activity.
-- [ ] No actionable bot comments remain.
+- [x] Current-head CI completed for this PR.
+- [x] Phase2 PR body gate passed for this PR.
+- [x] Strict merge-readiness wrapper passed for this PR after latest bot/review activity.
+- [x] No actionable bot comments remain.
 - [ ] Mandatory wait window elapsed after latest bot/review activity.
