@@ -500,7 +500,7 @@ def _json_packet_has_requested_order(packet_path: Path) -> bool:
 
 
 def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, Any]) -> bool:
-    """Return whether requested_agents explicitly keeps QA before bug-hunter."""
+    """Return whether requested_agents explicitly keeps the canonical post-open tail."""
 
     requested_agents = payload.get("requested_agents")
     if not isinstance(requested_agents, list):
@@ -511,7 +511,11 @@ def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, An
         bug_index = requested_order.index("bug-hunter")
     except ValueError:
         return False
-    return qa_index < bug_index
+    if qa_index >= bug_index:
+        return False
+    if "security-auditor" not in requested_order:
+        return True
+    return bug_index < requested_order.index("security-auditor")
 
 
 def _json_packet_requested_order_preserves_mandatory_tail(packet_path: Path) -> bool:

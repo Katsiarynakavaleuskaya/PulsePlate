@@ -470,6 +470,43 @@ def test_python_oracle_path_prefix_uses_repo_venv_python(
     assert prefix == str(repo_python.parent)
 
 
+def test_python_oracle_path_prefix_uses_shared_worktree_root_venv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shared_root = tmp_path / "repo"
+    worktree_root = shared_root / "worktrees" / "lane"
+    shared_python = shared_root / ".venv" / "bin" / "python"
+    worktree_root.mkdir(parents=True)
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    _write_executable(shared_python.parent / "python3")
+    monkeypatch.delenv("VENV_PYTHON", raising=False)
+    monkeypatch.delenv("DEV_PYTHON", raising=False)
+    monkeypatch.setattr(experiment_runner, "REPO_ROOT", worktree_root)
+
+    def fake_run_git(
+        args: list[str],
+        *,
+        cwd: Path,
+        check: bool = True,
+        input_text: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        assert args == ["rev-parse", "--path-format=absolute", "--git-common-dir"]
+        assert cwd == worktree_root
+        return subprocess.CompletedProcess(
+            args=args, returncode=0, stdout=str(shared_root / ".git")
+        )
+
+    monkeypatch.setattr(experiment_runner, "_run_git", fake_run_git)
+
+    prefix = experiment_runner._python_oracle_path_prefix(
+        [SandboxRequest(binary="python3", args=("-c", "pass"), cwd=".")]
+    )
+
+    assert prefix == str(shared_python.parent)
+
+
 def test_python_oracle_path_prefix_rejects_relative_venv_python(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

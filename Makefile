@@ -62,6 +62,7 @@ unit-fast:
 SHELL := /bin/bash
 VENV_PYTHON ?= .venv/bin/python
 PIP ?= $(VENV_PYTHON) -m pip
+HOOK_REPO_PYTHON = . scripts/hooks/repo_python.sh; resolve_repo_python "$$PWD"
 
 # Container-aware Python: prefers .venv when present, falls back to system python3
 # inside containers.  Generic developer targets (test, lint, typecheck, coverage,
@@ -98,8 +99,8 @@ venv: ensure-python-proxy ## Create venv, install requirements & setup git hooks
 	@test -x $(VENV_PYTHON) || python3 -m venv .venv
 	PIP_REQUIRE_VIRTUALENV=1 $(VENV_PYTHON) scripts/ci/install_locked_python_requirements.py --python-executable $(VENV_PYTHON) --constraints-file constraints.txt --install-dev --require-virtualenv
 	@echo "$(YELLOW)🔧 Настройка автоматизации...$(NC)"
-	pre-commit install
-	pre-commit install --hook-type pre-push
+	$(VENV_PYTHON) -m pre_commit install
+	$(VENV_PYTHON) -m pre_commit install --hook-type pre-push
 	chmod +x scripts/*.sh
 	./scripts/setup_git_aliases.sh
 	@echo "$(GREEN)✅ Окружение готово!$(NC)"
@@ -113,8 +114,8 @@ venv-sync: ensure-python-proxy ## Refresh .venv from locked requirements without
 ## Setup automation only (git hooks & aliases)
 setup-automation: ## Setup pre-commit hooks and git aliases
 	@echo "$(YELLOW)🔧 Настройка автоматизации...$(NC)"
-	pre-commit install
-	pre-commit install --hook-type pre-push
+	@"$$($(HOOK_REPO_PYTHON))" -m pre_commit install
+	@"$$($(HOOK_REPO_PYTHON))" -m pre_commit install --hook-type pre-push
 	chmod +x scripts/*.sh
 	./scripts/setup_git_aliases.sh
 	@echo "$(GREEN)✅ Автоматизация настроена!$(NC)"
@@ -144,7 +145,7 @@ validate-min: ## Run the cheap deterministic local validation bundle
 ## Diff-based validation for changed Python files
 validate-changed: ## Run tests inferred from changed Python files
 	@echo "$(YELLOW)🧪 Running diff-based validation for changed Python files...$(NC)"
-	VENV_PYTHON="$(DEV_PYTHON)" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
+	VENV_PYTHON="$$($(HOOK_REPO_PYTHON))" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
 	@echo "$(GREEN)✅ Diff-based validation completed$(NC)"
 
 pr-start: ## Start a governed PR lane in an isolated worktree
@@ -362,7 +363,7 @@ security: ## Run security checks (bandit + pip-audit)
 ## Run all pre-commit hooks
 pre-commit: ## Run all pre-commit hooks
 	@echo "$(YELLOW)🔄 Запуск pre-commit хуков...$(NC)"
-	pre-commit run --all-files
+	"$$($(HOOK_REPO_PYTHON))" -m pre_commit run --all-files
 	@echo "$(GREEN)✅ Pre-commit завершен$(NC)"
 
 ## Quick check before commit
@@ -579,8 +580,8 @@ devcontainer-bootstrap: ensure-python-proxy ## Install deps + hooks inside dev c
 	@# Create .venv so existing VENV_PYTHON targets and activate scripts work
 	@python3 -m venv .venv --without-pip 2>/dev/null || true
 	@ln -sf "$$(command -v python3)" .venv/bin/python
-	pre-commit install
-	pre-commit install --hook-type pre-push
+	python3 -m pre_commit install
+	python3 -m pre_commit install --hook-type pre-push
 	chmod +x scripts/*.sh
 	./scripts/setup_git_aliases.sh
 	@echo "$(GREEN)Devcontainer bootstrap complete$(NC)"

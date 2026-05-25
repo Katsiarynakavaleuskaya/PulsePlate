@@ -18,6 +18,28 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if [ "${SKIP_TESTS:-0}" = "1" ]; then
+    echo "⏩ SKIP_TESTS=1 set, skipping backend tests"
+    exit 0
+fi
+
+# Resolve Python through the repo/worktree-aware hook resolver before running
+# syntax or pytest checks. This prevents local hooks from falling back to an
+# ambient PATH interpreter that lacks locked deps such as FastAPI.
+# shellcheck source=scripts/hooks/repo_python.sh
+source "$ROOT_DIR/scripts/hooks/repo_python.sh"
+REPO_PYTHON_BIN="$(resolve_repo_python "$ROOT_DIR")"
+export VENV_PYTHON="$REPO_PYTHON_BIN"
+export PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
+
+if ! "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
+    echo "❌ pytest not available through repo Python: $REPO_PYTHON_BIN" >&2
+    echo "   Run make venv or set absolute VENV_PYTHON to the repo environment." >&2
+    exit 1
+fi
+
+declare -a PYTEST_COMMAND=("$REPO_PYTHON_BIN" -m pytest)
+
 # Debug mode: set PREPUSH_DEBUG=1 to see detailed information
 DEBUG="${PREPUSH_DEBUG:-0}"
 log_debug() {
@@ -26,24 +48,7 @@ log_debug() {
     fi
 }
 
-if [ "${SKIP_TESTS:-0}" = "1" ]; then
-    echo "⏩ SKIP_TESTS=1 set, skipping backend tests"
-    exit 0
-fi
-
-VENV_PYTHON_BIN="${VENV_PYTHON:-$ROOT_DIR/.venv/bin/python}"
-declare -a PYTEST_COMMAND=()
-
-if [ -x "$VENV_PYTHON_BIN" ]; then
-    PYTEST_COMMAND=("$VENV_PYTHON_BIN" -m pytest)
-    log_debug "Using repo venv pytest via: ${PYTEST_COMMAND[*]}"
-elif command -v pytest > /dev/null 2>&1; then
-    PYTEST_COMMAND=("pytest")
-    log_debug "Using PATH pytest via: $(command -v pytest)"
-else
-    echo "⚠️  Warning: pytest not found, skipping backend tests"
-    exit 0
-fi
+log_debug "Using repo Python pytest via: ${PYTEST_COMMAND[*]}"
 
 # Get changed Python files
 # For pre-commit: check staged files
