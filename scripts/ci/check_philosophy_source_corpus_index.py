@@ -1115,7 +1115,7 @@ def _is_allowed_secret_or_local_match(text: str, match: re.Match[str]) -> bool:
     if _is_route_literal(matched_value):
         return True
     if match.start() > 0 and text[match.start() - 1] == "~":
-        return True
+        return matched_value.startswith("/")
     return False
 
 

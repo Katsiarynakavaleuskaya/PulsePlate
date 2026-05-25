@@ -1219,6 +1219,32 @@ def test_philosophy_source_corpus_index_allows_repo_neutral_infra_literals(
     assert errors == []
 
 
+def test_philosophy_source_corpus_index_rejects_tilde_prefixed_secret_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("token=~" + "sk-" + "a" * 16 + "\n", encoding="utf-8")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("credential-like token" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_allows_tilde_prefixed_path_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("cache=~" + "/" + ".cache/pip\n", encoding="utf-8")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert errors == []
+
+
 def test_philosophy_source_corpus_index_allows_credential_identifier_names(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
