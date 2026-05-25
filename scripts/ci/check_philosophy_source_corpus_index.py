@@ -1099,17 +1099,16 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
 def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
     errors: list[str] = []
     for pattern in SECRET_OR_LOCAL_PATTERNS:
-        match = pattern.search(text)
-        if not match:
-            continue
-        matched_value = match.group(0)
-        if matched_value in ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES:
-            continue
-        if matched_value.startswith(ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES):
-            continue
-        errors.append(
-            f"{label}: forbidden local path or credential-like token detected (value redacted)"
-        )
+        for match in pattern.finditer(text):
+            matched_value = match.group(0)
+            if matched_value in ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES:
+                continue
+            if matched_value.startswith(ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES):
+                continue
+            errors.append(
+                f"{label}: forbidden local path or credential-like token detected (value redacted)"
+            )
+            break
     return errors
 
 
@@ -1175,18 +1174,23 @@ def validate_file_contents(paths: list[str]) -> list[str]:
             errors.append(f"changed path could not be normalized: {raw_path}")
             continue
         candidate = REPO_ROOT / path
+        skip_content_scan = False
         if candidate.is_symlink():
             target = candidate.readlink()
             target_text = str(target)
             errors.extend(_validate_no_secret_or_local_paths(target_text, label=f"{path} symlink"))
             if target.is_absolute() or WINDOWS_DRIVE_PATH_RE.match(target_text):
                 errors.append(f"{path}: symlink target must not be an absolute local path")
+                skip_content_scan = True
             else:
                 resolved_target = (candidate.parent / target).resolve(strict=False)
                 try:
                     resolved_target.relative_to(REPO_ROOT.resolve(strict=False))
                 except ValueError:
                     errors.append(f"{path}: symlink target escapes repo root")
+                    skip_content_scan = True
+        if skip_content_scan:
+            continue
         if not candidate.exists() or not candidate.is_file():
             continue
         text = _decode_text_artifact(candidate.read_bytes())

@@ -1163,6 +1163,22 @@ def test_philosophy_source_corpus_index_allows_repo_neutral_absolute_routes(
     assert errors == []
 
 
+def test_philosophy_source_corpus_index_scans_past_allowed_posix_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        "shebang=" + "/" + "usr/bin/env\nleak=" + "/" + "opt/work/source.pdf\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_preserves_backslash_touched_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1236,6 +1252,23 @@ def test_philosophy_source_corpus_index_scans_broken_symlink_target(
     errors = validate_file_contents(["docs/evidence/leaky-link.txt"])
 
     assert any("symlink target must not be an absolute local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_does_not_read_escaping_symlink_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root = tmp_path / "repo"
+    artifact = repo_root / "docs" / "evidence" / "leaky-link.txt"
+    outside = tmp_path / "outside-source.txt"
+    artifact.parent.mkdir(parents=True)
+    outside.write_text("leak=" + "/" + "tmp/source.pdf\n", encoding="utf-8")
+    artifact.symlink_to("../../../outside-source.txt")
+    monkeypatch.setattr(corpus, "REPO_ROOT", repo_root)
+
+    errors = validate_file_contents(["docs/evidence/leaky-link.txt"])
+
+    assert any("symlink target escapes repo root" in error for error in errors)
+    assert not any("forbidden local path" in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_skips_binary_touched_files(
