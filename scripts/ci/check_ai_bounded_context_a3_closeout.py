@@ -128,9 +128,42 @@ NEGATION_RE = re.compile(
     r")\b",
     re.I,
 )
+SAFE_FORBIDDEN_NEGATION_RE = re.compile(
+    r"\b("
+    r"does\s+not\s+(?:open|enable|approve|authorize|permit|allow|activate|roll\s*out|wire|"
+    r"rewire|move|extract|implement|add|update|change|claim)|"
+    r"is\s+\*{0,2}not\*{0,2}\s+part|"
+    r"\*{0,2}not\*{0,2}\s+part\s+of|"
+    r"do\s+not\s+(?:open|enable|approve|authorize|permit|allow|activate|roll\s*out|wire|"
+    r"rewire|move|extract|implement|add|update|change|claim)|"
+    r"must\s+not\s+(?:open|enable|approve|authorize|permit|allow|activate|roll\s*out|wire|"
+    r"rewire|move|extract|implement|add|update|change|claim)|"
+    r"cannot\s+(?:open|enable|approve|authorize|permit|allow|activate|roll\s*out|wire|"
+    r"rewire|move|extract|implement|add|update|change|claim)|"
+    r"can't\s+(?:open|enable|approve|authorize|permit|allow|activate|roll\s*out|wire|"
+    r"rewire|move|extract|implement|add|update|change|claim)|"
+    r"out\s+of\s+scope|remains?\s+out\s+of\s+scope|stay(?:s)?\s+out\s+of\s+scope|"
+    r"remains?\s+closed|stay(?:s)?\s+closed|gate[-\s]?closed|"
+    r"does\s+not\s+claim|is\s+not\s+claimed"
+    r")\b",
+    re.I,
+)
+SAFE_A4_NEGATION_RE = re.compile(
+    r"\b("
+    r"does\s+not\s+(?:close|satisfy|complete|retire)|"
+    r"do\s+not\s+(?:close|satisfy|complete|retire)|"
+    r"must\s+not\s+(?:close|satisfy|complete|retire)|"
+    r"cannot\s+(?:close|satisfy|complete|retire)|"
+    r"can't\s+(?:close|satisfy|complete|retire)|"
+    r"does\s+not\s+claim|is\s+not\s+claimed|"
+    r"remains?\s+separate|stay(?:s)?\s+separate|remains?\s+open|stay(?:s)?\s+open|"
+    r"out\s+of\s+scope|remains?\s+out\s+of\s+scope"
+    r")\b",
+    re.I,
+)
 CLAUSE_SPLIT_RE = re.compile(
     r"\b(?:but|however|yet|though|although|whereas|except|unless|therefore|"
-    r"notwithstanding|nevertheless|and|also|plus)\b|[,;\n]",
+    r"notwithstanding|nevertheless|and|also|plus)\b|[;\n]",
     re.I,
 )
 EXTRACTION_CLOSE_RE = re.compile(
@@ -235,10 +268,15 @@ def _check_forbidden_claims(label: str, text: str, errors: list[str]) -> None:
     for claim in _split_claims(_normalize(text)):
         if not FORBIDDEN_SURFACE_RE.search(claim):
             continue
-        has_positive_claim = POSITIVE_ACTION_RE.search(claim) or ACTIVATION_STATE_RE.search(claim)
-        if not has_positive_claim:
+        has_activation_state = ACTIVATION_STATE_RE.search(claim)
+        if has_activation_state:
+            if SAFE_FORBIDDEN_NEGATION_RE.search(claim):
+                continue
+            errors.append(f"{label}: forbidden runtime/scope expansion claim: {claim[:180]}")
             continue
-        if NEGATION_RE.search(claim):
+        if not POSITIVE_ACTION_RE.search(claim):
+            continue
+        if SAFE_FORBIDDEN_NEGATION_RE.search(claim):
             continue
         errors.append(f"{label}: forbidden runtime/scope expansion claim: {claim[:180]}")
 
@@ -250,11 +288,11 @@ def _check_a4_boundary(label: str, text: str, errors: list[str]) -> None:
             if not match:
                 continue
             claim = match.group(0)
-            if NEGATION_RE.search(claim):
+            if SAFE_A4_NEGATION_RE.search(claim):
                 continue
             errors.append(f"{label}: A3 must not close A4/extraction: {claim[:180]}")
         extraction_match = EXTRACTION_CLOSE_RE.search(claim_text)
-        if extraction_match and not NEGATION_RE.search(claim_text):
+        if extraction_match and not SAFE_A4_NEGATION_RE.search(claim_text):
             errors.append(
                 f"{label}: A3 must not close A4/extraction: {extraction_match.group(0)[:180]}"
             )
@@ -265,6 +303,17 @@ def _a3_related_text(text: str) -> str:
         unit.strip()
         for unit in re.split(r"(?<=[.!?])\s+|\n", text)
         if re.search(r"\b(?:PR[-\s]?A3|A3|PR\s*#?\s*1469|#1469)\b", unit, re.I)
+    )
+
+
+def _gate_closeout_claim_text(text: str) -> str:
+    return "\n".join(
+        unit.strip()
+        for unit in re.split(r"(?<=[.!?])\s+|\n", text)
+        if (
+            re.search(r"\b(?:PR[-\s]?A3|A3|PR\s*#?\s*1469|#1469|closeout)\b", unit, re.I)
+            or ACTIVATION_STATE_RE.search(_normalize(unit))
+        )
     )
 
 
@@ -371,17 +420,17 @@ def validate_closeout(
     a3_claim_texts = {
         "A3 ledger entry": a3_ledger,
         "A3 roadmap section": a3_roadmap,
-        "semantic-cache gate": _a3_related_text(gate_text),
+        "semantic-cache gate": _gate_closeout_claim_text(gate_text),
         "PR #1469 mapping closeout": mapping_closeout,
-        "A3 orchestration packet": _a3_related_text(a3_packet_text),
-        "C4 A3 packet": _a3_related_text(c4_packet_text),
+        "A3 orchestration packet closeout": a3_packet_closeout,
+        "C4 A3 packet status": c4_status,
     }
     for label, text in a3_claim_texts.items():
         _check_a4_boundary(label, text, errors)
     for label, text in {
         "A3 ledger entry": a3_ledger,
         "A3 roadmap section": a3_roadmap,
-        "semantic-cache gate": _a3_related_text(gate_text),
+        "semantic-cache gate": _gate_closeout_claim_text(gate_text),
         "PR #1469 mapping closeout": mapping_closeout,
         "A3 orchestration packet closeout": a3_packet_closeout,
         "C4 A3 packet status": c4_status,

@@ -367,6 +367,31 @@ def test_checker_rejects_extraction_closure_without_a3_token_in_a3_section(tmp_p
     assert "A3 must not close A4/extraction" in _errors(tmp_path)
 
 
+def test_checker_rejects_extraction_closure_without_a3_token_in_packet_section(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md"
+    path.write_text(
+        path.read_text().replace(
+            "`closed / false / false / true`.",
+            "`closed / false / false / true`.\nThis closeout closes extraction lane now.",
+        ),
+        encoding="utf-8",
+    )
+    assert "A3 must not close A4/extraction" in _errors(tmp_path)
+
+
+def test_checker_rejects_extraction_closure_without_a3_token_in_gate(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    path.write_text(
+        path.read_text() + "\nThis closeout closes extraction lane now.\n",
+        encoding="utf-8",
+    )
+    assert "A3 must not close A4/extraction" in _errors(tmp_path)
+
+
 def test_checker_rejects_present_tense_activation_state(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
@@ -379,6 +404,44 @@ def test_checker_rejects_present_tense_activation_state(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_rejects_present_tense_activation_state_in_full_gate(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    path.write_text(
+        path.read_text() + "\nSemantic cache is live in production by default.\n",
+        encoding="utf-8",
+    )
+    assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_rejects_activation_state_with_without_clause(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    path.write_text(
+        path.read_text().replace(
+            "Semantic-cache markers remain `closed / false / false / true`;",
+            "Semantic cache is live in production without a dedicated gate-open PR.\n"
+            "    - Semantic-cache markers remain `closed / false / false / true`;",
+        ),
+        encoding="utf-8",
+    )
+    assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_rejects_a4_closure_with_without_clause(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    path.write_text(
+        path.read_text().replace(
+            "## PR-A4 - bounded-context extraction",
+            "PR-A3 closes extraction lane without waiting for PR-A4.\n\n"
+            "## PR-A4 - bounded-context extraction",
+        ),
+        encoding="utf-8",
+    )
+    assert "A3 must not close A4/extraction" in _errors(tmp_path)
 
 
 def test_checker_requires_merge_commit_in_mapping_closeout_section(tmp_path: Path) -> None:
