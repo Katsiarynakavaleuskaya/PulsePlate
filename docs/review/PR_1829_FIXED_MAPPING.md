@@ -59,6 +59,19 @@ governing packet/backlog context.
   still required full `make verify` after operator clarification. Disposition:
   FIXED. Evidence: current packet/artifact/validator/tests now require focused
   local gates, `pre-commit`, `make validate-changed`, and current-head CI parity.
+- CodeRabbit finding: validation evidence used an absolute local
+  `/Users/.../.venv` path instead of a portable repo invocation. Disposition:
+  FIXED. Evidence: commit `a123dcaf5`; this mapping and the PR body now use
+  `make validate-changed VENV_PYTHON=.venv/bin/python`.
+- CodeRabbit finding: CLI subprocess tests lacked explicit timeouts.
+  Disposition: FIXED. Evidence: commit `a123dcaf5`;
+  `tests/test_food_source_regional_catalog_dedicated_legal_contract_review.py`
+  adds `timeout=30` to the CLI subprocess paths and focused pytest passed.
+- Codex connector finding: malformed non-bool safety flags were not preserved in
+  failure report diagnostics. Disposition: FIXED. Evidence: commit `a123dcaf5`;
+  `core/food_sources/regional_catalog_dedicated_legal_contract_review.py`
+  reports present safety flag values before validation failure, with regression
+  coverage for malformed `network_allowed`.
 
 ## Validation Evidence
 
@@ -83,7 +96,10 @@ Current scope uses focused local gates plus GitHub current-head CI parity.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1829#pullrequestreview-4356281419 -> a123dcaf5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1829#discussion_r3297821811 -> a123dcaf5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1829#discussion_r3297821836 -> a123dcaf5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1829#discussion_r3297859491 -> a123dcaf5
 
 ## Post-Open Required Checks
 
