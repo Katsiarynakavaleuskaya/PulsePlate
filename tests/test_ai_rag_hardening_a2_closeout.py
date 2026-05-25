@@ -162,6 +162,16 @@ def _non_rag_result(subject_id: int) -> object:
         RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
         RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
     )
+
+
+def _run_orchestration(subject_id: int) -> object:
+    asyncio.to_thread(retrieve_recursive_context_structured, subject_id=subject_id)
+    asyncio.to_thread(retrieve_context_structured, subject_id=subject_id)
+    _build_knowledge_candidates(subject_id=subject_id)
+    return (
+        RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+        RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+    )
 """,
     )
     _write(
@@ -179,6 +189,10 @@ def _retrieve_vector_postgres(session: object, subject_id: int) -> None:
 
 def _retrieve_vector_from_db(session: object, subject_id: int) -> None:
     apply_user_rls_context(session, user_id=subject_id)
+    return (
+        RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING,
+        RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+    )
 
 
 def _retrieve_vector_sqlite() -> tuple[object, object]:
@@ -487,6 +501,107 @@ def dead_helper(session: object, subject_id: int) -> None:
     )
 
 
+def test_checker_rejects_dead_helper_subject_id_keyword_marker_spoof(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/orchestration.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def _resolve_confidence() -> None:
+    return None
+
+
+def _non_rag_result() -> None:
+    return None
+
+
+def _run_orchestration(subject_id: int) -> object:
+    retrieve_context_structured()
+    return (
+        RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+        RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+    )
+
+
+def dead_helper(subject_id: int) -> None:
+    retrieve_context_structured(subject_id=subject_id)
+    retrieve_recursive_context_structured(subject_id=subject_id)
+    _build_knowledge_candidates(subject_id=subject_id)
+""",
+    )
+    assert any("missing call proof _run_orchestration" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_degraded_reason_marker_spoof_outside_target_function(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/orchestration.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def _resolve_confidence() -> None:
+    return None
+
+
+def _non_rag_result() -> None:
+    return None
+
+
+def _run_orchestration(subject_id: int) -> None:
+    retrieve_context_structured(subject_id=subject_id)
+    retrieve_recursive_context_structured(subject_id=subject_id)
+    _build_knowledge_candidates(subject_id=subject_id)
+
+
+def dead_helper() -> tuple[object, object]:
+    return (
+        RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+        RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+    )
+""",
+    )
+    assert any("missing AST reference _run_orchestration" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_runtime_symbol_rebound_after_definition(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/vector_rag.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def _normalize_embedding_vector() -> None:
+    return None
+
+
+def _retrieve_vector_postgres(session: object, subject_id: int) -> None:
+    return None
+
+
+def _retrieve_vector_from_db(session: object, subject_id: int) -> tuple[object, object]:
+    apply_user_rls_context(session, user_id=subject_id)
+    return (
+        RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING,
+        RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+    )
+
+
+_retrieve_vector_from_db = None
+
+
+def _retrieve_vector_sqlite() -> tuple[object, object]:
+    return (
+        RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING,
+        RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+    )
+""",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_skipped_required_test(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -631,6 +746,38 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
     )
 
 
+def test_checker_rejects_in_test_pytest_skip_for_required_tests(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pytest.skip("disabled")
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("must not be skipped or xfailed" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_required_test_rebound_after_definition(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """def test_missing_subject_id_returns_empty_without_encoding(): pass
+test_missing_subject_id_returns_empty_without_encoding = None
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_uncollectable_required_test_class(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -655,6 +802,16 @@ def test_checker_rejects_local_path_leakage_in_closeout_text(tmp_path: Path) -> 
     mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
     mapping.write_text(
         _valid_mapping() + "\nLocal evidence: /Users/example/worktrees/a2\n", encoding="utf-8"
+    )
+    assert any("local path leakage" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_punctuation_prefixed_worktrees_leakage(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\nLocal evidence: (worktrees/ai-rag-hardening-a2-closeout)\n",
+        encoding="utf-8",
     )
     assert any("local path leakage" in error for error in _errors(tmp_path))
 

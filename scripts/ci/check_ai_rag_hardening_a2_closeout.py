@@ -49,6 +49,7 @@ REQUIRED_FUNCTIONS = {
     "core/rag/orchestration.py": (
         "def _resolve_confidence",
         "def _non_rag_result",
+        "def _run_orchestration",
     ),
     "core/rag/vector_rag.py": (
         "def _normalize_embedding_vector",
@@ -58,24 +59,42 @@ REQUIRED_FUNCTIONS = {
     ),
 }
 
-REQUIRED_ATTRIBUTE_REFS = {
+REQUIRED_FUNCTION_ATTRIBUTE_REFS = {
     "core/rag/orchestration.py": (
-        "RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED",
-        "RAGDegradedReason.REDACTED_CONTEXT_MALFORMED",
+        ("_run_orchestration", "RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED"),
+        ("_run_orchestration", "RAGDegradedReason.REDACTED_CONTEXT_MALFORMED"),
     ),
     "core/rag/vector_rag.py": (
-        "RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING",
-        "RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS",
+        ("_retrieve_vector_from_db", "RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING"),
+        ("_retrieve_vector_from_db", "RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS"),
     ),
-}
-
-REQUIRED_KEYWORD_NAME_REFS = {
-    "core/rag/orchestration.py": (("subject_id", "subject_id"),),
 }
 
 REQUIRED_CALL_KEYWORD_NAME_REFS = {
+    "core/rag/orchestration.py": (
+        ("_run_orchestration", "_build_knowledge_candidates", "subject_id", "subject_id"),
+    ),
     "core/rag/vector_rag.py": (
         ("_retrieve_vector_from_db", "apply_user_rls_context", "user_id", "subject_id"),
+    ),
+}
+
+REQUIRED_CALL_TARGET_KEYWORD_NAME_REFS = {
+    "core/rag/orchestration.py": (
+        (
+            "_run_orchestration",
+            "to_thread",
+            "retrieve_recursive_context_structured",
+            "subject_id",
+            "subject_id",
+        ),
+        (
+            "_run_orchestration",
+            "to_thread",
+            "retrieve_context_structured",
+            "subject_id",
+            "subject_id",
+        ),
     ),
 }
 
@@ -174,7 +193,7 @@ OVERCLAIM_RE = re.compile(
     r"proves?\s+production\s+quality|guarantees?\s+retrieval\s+quality)\b",
     re.I,
 )
-LOCAL_PATH_RE = re.compile(r"(/Users/|(?:^|[\s`])worktrees/|artifacts/orchestration)")
+LOCAL_PATH_RE = re.compile(r"(/Users/|(?:^|[^\w/])worktrees/|(?:^|[^\w/])artifacts/orchestration)")
 
 
 def _display(path: Path, repo_root: Path) -> str:
@@ -366,6 +385,10 @@ def _assigned_names(statement: ast.stmt) -> tuple[str, ...]:
         return tuple(target.id for target in statement.targets if isinstance(target, ast.Name))
     if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
         return (statement.target.id,)
+    if isinstance(statement, ast.AugAssign) and isinstance(statement.target, ast.Name):
+        return (statement.target.id,)
+    if isinstance(statement, ast.Delete):
+        return tuple(target.id for target in statement.targets if isinstance(target, ast.Name))
     return ()
 
 
@@ -417,13 +440,37 @@ def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str])
     return False
 
 
+def _name_rebound_after_definition(
+    statements: list[ast.stmt], name: str, definition_lineno: int
+) -> bool:
+    for statement in statements:
+        if getattr(statement, "lineno", -1) <= definition_lineno:
+            continue
+        if name in _assigned_names(statement):
+            return True
+    return False
+
+
 def _test_function_is_disabled(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
     aliases: set[str],
 ) -> bool:
     return any(
         _node_has_disabling_test_marker(decorator, aliases) for decorator in node.decorator_list
-    )
+    ) or _function_body_has_disabling_test_call(node, aliases)
+
+
+def _function_body_has_disabling_test_call(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    aliases: set[str],
+) -> bool:
+    for child in ast.walk(node):
+        if child is node or not isinstance(child, ast.Call):
+            continue
+        call_name = _full_name(child.func)
+        if _is_disabling_test_marker_name(call_name) or call_name in aliases:
+            return True
+    return False
 
 
 def _module_level_skip_call(node: ast.AST) -> bool:
@@ -471,6 +518,11 @@ def _discoverable_test_function_nodes(
     for statement in tree.body:
         if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if statement.name in required_test_functions:
+                if _name_rebound_after_definition(tree.body, statement.name, statement.lineno):
+                    errors.append(
+                        f"{relative_path}: required test {statement.name} must not be rebound after definition"
+                    )
+                    continue
                 discovered[statement.name] = statement
             continue
         if not isinstance(statement, ast.ClassDef) or not statement.name.startswith("Test"):
@@ -492,6 +544,11 @@ def _discoverable_test_function_nodes(
                     f"{relative_path}: required test {item.name} must not be skipped or xfailed"
                 )
                 continue
+            if _name_rebound_after_definition(statement.body, item.name, item.lineno):
+                errors.append(
+                    f"{relative_path}: required test {item.name} must not be rebound after definition"
+                )
+                continue
             discovered[item.name] = item
     return discovered
 
@@ -506,15 +563,11 @@ def _attribute_refs(tree: ast.AST) -> set[str]:
     return refs
 
 
-def _keyword_name_refs(tree: ast.AST) -> set[tuple[str, str]]:
-    refs: set[tuple[str, str]] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        for keyword in node.keywords:
-            if keyword.arg and isinstance(keyword.value, ast.Name):
-                refs.add((keyword.arg, keyword.value.id))
-    return refs
+def _attribute_refs_in_function(tree: ast.Module, function_name: str) -> set[str]:
+    function_node = _module_function_nodes(tree).get(function_name)
+    if function_node is None:
+        return set()
+    return _attribute_refs(function_node)
 
 
 def _call_keyword_name_refs(tree: ast.AST) -> set[tuple[str, str, str]]:
@@ -544,6 +597,34 @@ def _call_keyword_name_refs_in_function(
     }
 
 
+def _call_target_keyword_name_refs(tree: ast.AST) -> set[tuple[str, str, str, str]]:
+    refs: set[tuple[str, str, str, str]] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        call_name = _full_name(node.func)
+        target_name = _full_name(node.args[0])
+        if call_name is None or target_name is None:
+            continue
+        for keyword in node.keywords:
+            if keyword.arg and isinstance(keyword.value, ast.Name):
+                refs.add((call_name.split(".")[-1], target_name, keyword.arg, keyword.value.id))
+    return refs
+
+
+def _call_target_keyword_name_refs_in_function(
+    tree: ast.Module,
+    function_name: str,
+) -> set[tuple[str, str, str, str, str]]:
+    function_node = _module_function_nodes(tree).get(function_name)
+    if function_node is None:
+        return set()
+    return {
+        (function_name, call_name, target_name, keyword, value)
+        for call_name, target_name, keyword, value in _call_target_keyword_name_refs(function_node)
+    }
+
+
 def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
     parsed: dict[str, ast.Module] = {}
 
@@ -565,6 +646,11 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
             if class_node is None:
                 errors.append(f"{relative_path}: missing class {class_name} at module scope")
                 continue
+            if _name_rebound_after_definition(tree.body, class_name, class_node.lineno):
+                errors.append(
+                    f"{relative_path}: required runtime symbol {class_name} must not be rebound after definition"
+                )
+                continue
             members = _enum_members(class_node)
             for member_name, expected_value in expected_members.items():
                 actual_value = members.get(member_name)
@@ -583,25 +669,23 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
             function_name = marker.removeprefix("def ").strip()
             if function_name not in functions:
                 errors.append(f"{relative_path}: missing module-level function {function_name}")
+                continue
+            function_node = _module_function_nodes(tree)[function_name]
+            if _name_rebound_after_definition(tree.body, function_name, function_node.lineno):
+                errors.append(
+                    f"{relative_path}: required runtime symbol {function_name} must not be rebound after definition"
+                )
 
-    for relative_path, expected_attribute_refs in REQUIRED_ATTRIBUTE_REFS.items():
+    for relative_path, expected_attribute_refs in REQUIRED_FUNCTION_ATTRIBUTE_REFS.items():
         tree = tree_for(relative_path)
         if tree is None:
             continue
-        attribute_refs = _attribute_refs(tree)
-        for expected_attribute_ref in expected_attribute_refs:
+        for function_name, expected_attribute_ref in expected_attribute_refs:
+            attribute_refs = _attribute_refs_in_function(tree, function_name)
             if expected_attribute_ref not in attribute_refs:
-                errors.append(f"{relative_path}: missing AST reference {expected_attribute_ref}")
-
-    for relative_path, expected_keyword_refs in REQUIRED_KEYWORD_NAME_REFS.items():
-        tree = tree_for(relative_path)
-        if tree is None:
-            continue
-        keyword_refs = _keyword_name_refs(tree)
-        for expected_keyword_ref in expected_keyword_refs:
-            if expected_keyword_ref not in keyword_refs:
-                keyword, value = expected_keyword_ref
-                errors.append(f"{relative_path}: missing keyword proof {keyword}={value}")
+                errors.append(
+                    f"{relative_path}: missing AST reference {function_name}->{expected_attribute_ref}"
+                )
 
     for relative_path, expected_call_refs in REQUIRED_CALL_KEYWORD_NAME_REFS.items():
         tree = tree_for(relative_path)
@@ -615,6 +699,21 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
                 function_name, call_name, keyword, value = expected_call_ref
                 errors.append(
                     f"{relative_path}: missing call proof {function_name}->{call_name}(..., {keyword}={value})"
+                )
+
+    for relative_path, expected_target_call_refs in REQUIRED_CALL_TARGET_KEYWORD_NAME_REFS.items():
+        tree = tree_for(relative_path)
+        if tree is None:
+            continue
+        target_call_refs: set[tuple[str, str, str, str, str]] = set()
+        for expected_target_call_ref in expected_target_call_refs:
+            function_name, _call_name, _target_name, _keyword, _value = expected_target_call_ref
+            target_call_refs.update(_call_target_keyword_name_refs_in_function(tree, function_name))
+            if expected_target_call_ref not in target_call_refs:
+                function_name, call_name, target_name, keyword, value = expected_target_call_ref
+                errors.append(
+                    f"{relative_path}: missing call proof "
+                    f"{function_name}->{call_name}({target_name}, ..., {keyword}={value})"
                 )
 
     for relative_path, required_test_functions in REQUIRED_TEST_FUNCTIONS.items():
@@ -633,11 +732,11 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
             errors=errors,
         )
         for expected_function in sorted(required_test_functions):
-            function_node = test_functions.get(expected_function)
-            if function_node is None:
+            test_function_node = test_functions.get(expected_function)
+            if test_function_node is None:
                 errors.append(f"{relative_path}: missing test function {expected_function}")
                 continue
-            if _test_function_is_disabled(function_node, module_aliases):
+            if _test_function_is_disabled(test_function_node, module_aliases):
                 errors.append(
                     f"{relative_path}: required test {expected_function} must not be skipped or xfailed"
                 )
