@@ -69,6 +69,10 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_CLOSEOUT_PR20_PACKET_2026-05-24.md`](./FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_CLOSEOUT_PR20_PACKET_2026-05-24.md)
 - Current PR20 regional catalog source-specific terms closeout:
   [`FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_CLOSEOUT_PR20_2026-05-24.json`](../architecture/FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_CLOSEOUT_PR20_2026-05-24.json)
+- Current PR21 regional catalog dedicated legal contract review packet:
+  [`FOOD_DATA_REGIONAL_CATALOG_DEDICATED_LEGAL_CONTRACT_REVIEW_PR21_PACKET_2026-05-25.md`](./FOOD_DATA_REGIONAL_CATALOG_DEDICATED_LEGAL_CONTRACT_REVIEW_PR21_PACKET_2026-05-25.md)
+- Current PR21 regional catalog dedicated legal contract review:
+  [`FOOD_DATA_REGIONAL_CATALOG_DEDICATED_LEGAL_CONTRACT_REVIEW_PR21_2026-05-25.json`](../architecture/FOOD_DATA_REGIONAL_CATALOG_DEDICATED_LEGAL_CONTRACT_REVIEW_PR21_2026-05-25.json)
 - Current PR3 source catalog packet:
   [`FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md)
 - Current PR3 source catalog:
@@ -97,3 +101,5 @@ Update it again when a later accepted packet supersedes PR19 regional catalog
 source-specific terms review governance.
 Update it again when a later accepted packet supersedes PR20 regional catalog
 source-specific terms closeout governance.
+Update it again when a later accepted packet supersedes PR21 regional catalog
+dedicated legal contract review governance.
