@@ -56,14 +56,16 @@ LEDGER_ANCHOR_RE = re.compile(r'<a id="(?P<anchor>[^"]+)"></a>')
 ROADMAP_HEADING_RE = re.compile(r"^##\s+(?P<heading>PR-[A-Z0-9]+)\b", re.M)
 MAPPING_STALE_HEADING_RE = re.compile(r"^##\s+Merge Readiness\s*$", re.M)
 LOCAL_PATH_RE = re.compile(
-    r"(/Users/|(?:^|[^\w/])worktrees/|(?:^|[^\w/])Worktrees/|artifacts/orchestration)", re.I
+    r"(/Users/|[A-Za-z]:\\Users\\|(?:^|[^\w/])worktrees/|(?:^|[^\w/])Worktrees/|"
+    r"\\worktrees\\|artifacts/orchestration|artifacts\\orchestration)",
+    re.I,
 )
 
 STALE_A3_RE = re.compile(
     r"\b(?:PR[-\s]?A3|A3|PR\s*#?\s*1469|#1469)\b.{0,160}\b("
     r"planned|pending|in[-\s]+progress|active\s+(?:implementation|runtime|lane)|"
     r"next\s+runtime|missing\s+packet|still\s+requires\s+PR[-\s]?A3|"
-    r"requires\s+PR[-\s]?A3\s+through\s+PR[-\s]?A5"
+    r"requires\s+PR[-\s]?A3\s+through\s+PR[-\s]?A5|remains\s+required"
     r")\b",
     re.I | re.S,
 )
@@ -71,7 +73,7 @@ STALE_A3_REVERSED_RE = re.compile(
     r"\b("
     r"planned|pending|in[-\s]+progress|active\s+(?:implementation|runtime|lane)|"
     r"next\s+runtime|missing\s+packet|still\s+requires\s+PR[-\s]?A3|"
-    r"requires\s+PR[-\s]?A3\s+through\s+PR[-\s]?A5"
+    r"requires\s+PR[-\s]?A3\s+through\s+PR[-\s]?A5|remains\s+required"
     r")\b.{0,160}\b(?:PR[-\s]?A3|A3|PR\s*#?\s*1469|#1469)\b",
     re.I | re.S,
 )
@@ -110,6 +112,13 @@ POSITIVE_ACTION_RE = re.compile(
     r")\b",
     re.I,
 )
+ACTIVATION_STATE_RE = re.compile(
+    r"\b(?:semantic[-\s]?cache|redis|gpt[-\s]?cache)\b"
+    r".{0,80}\b(?:is|are|becomes?|became|now|as)\b"
+    r".{0,80}\b(?:live|active|enabled|open|production[-\s]?ready|rollout[-\s]?ready|"
+    r"default[-\s]?on|default\s+enabled)\b",
+    re.I | re.S,
+)
 NEGATION_RE = re.compile(
     r"\b("
     r"no|not|never|does\s+not|do\s+not|must\s+not|cannot|can't|without|"
@@ -121,8 +130,16 @@ NEGATION_RE = re.compile(
 )
 CLAUSE_SPLIT_RE = re.compile(
     r"\b(?:but|however|yet|though|although|whereas|except|unless|therefore|"
-    r"notwithstanding|nevertheless)\b|[;\n]",
+    r"notwithstanding|nevertheless|and|also|plus)\b|[,;\n]",
     re.I,
+)
+EXTRACTION_CLOSE_RE = re.compile(
+    r"\b(closes?|closed|satisfies|satisfied|completes?|completed|retires?|retired)\b"
+    r".{0,120}\b(PR[-\s]?A4|ledger-p1-ai-bounded-context-extraction|extraction\s+lane)\b"
+    r"|"
+    r"\b(PR[-\s]?A4|ledger-p1-ai-bounded-context-extraction|extraction\s+lane)\b"
+    r".{0,120}\b(closes?|closed|satisfies|satisfied|completes?|completed|retires?|retired)\b",
+    re.I | re.S,
 )
 
 
@@ -146,8 +163,9 @@ def _normalize(text: str) -> str:
 
 
 def _require_tokens(label: str, text: str, tokens: tuple[str, ...], errors: list[str]) -> None:
+    collapsed = " ".join(text.split())
     for token in tokens:
-        if token not in text:
+        if " ".join(token.split()) not in collapsed:
             errors.append(f"{label}: missing required evidence token: {token}")
 
 
@@ -169,6 +187,16 @@ def _roadmap_section(text: str, heading: str) -> str:
             end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
             return text[start:end]
     return ""
+
+
+def _heading_section(text: str, heading: str) -> str:
+    pattern = re.compile(rf"^##\s+{re.escape(heading)}\s*$", re.M)
+    match = pattern.search(text)
+    if not match:
+        return ""
+    next_match = re.search(r"^##\s+", text[match.end() :], re.M)
+    end = match.end() + next_match.start() if next_match else len(text)
+    return text[match.start() : end]
 
 
 def _check_local_path_leaks(label: str, text: str, errors: list[str]) -> None:
@@ -207,7 +235,8 @@ def _check_forbidden_claims(label: str, text: str, errors: list[str]) -> None:
     for claim in _split_claims(_normalize(text)):
         if not FORBIDDEN_SURFACE_RE.search(claim):
             continue
-        if not POSITIVE_ACTION_RE.search(claim):
+        has_positive_claim = POSITIVE_ACTION_RE.search(claim) or ACTIVATION_STATE_RE.search(claim)
+        if not has_positive_claim:
             continue
         if NEGATION_RE.search(claim):
             continue
@@ -224,6 +253,11 @@ def _check_a4_boundary(label: str, text: str, errors: list[str]) -> None:
             if NEGATION_RE.search(claim):
                 continue
             errors.append(f"{label}: A3 must not close A4/extraction: {claim[:180]}")
+        extraction_match = EXTRACTION_CLOSE_RE.search(claim_text)
+        if extraction_match and not NEGATION_RE.search(claim_text):
+            errors.append(
+                f"{label}: A3 must not close A4/extraction: {extraction_match.group(0)[:180]}"
+            )
 
 
 def _a3_related_text(text: str) -> str:
@@ -258,6 +292,10 @@ def validate_closeout(
     )
     a3_roadmap = _roadmap_section(roadmap_text, "PR-A3")
     a4_roadmap = _roadmap_section(roadmap_text, "PR-A4")
+    mapping_closeout = _heading_section(mapping_text, "Post-Merge Closeout")
+    a3_packet_closeout = _heading_section(a3_packet_text, "Closeout Status")
+    c4_status = _heading_section(c4_packet_text, "Status")
+    gate_hard_gate = _heading_section(gate_text, "Hard Gate")
 
     if not a3_ledger:
         errors.append("A3 ledger entry: missing anchor ledger-p1-ai-bounded-context-packet")
@@ -277,10 +315,10 @@ def validate_closeout(
     )
     _require_tokens("A3 ledger entry", a3_ledger, merge_tokens, errors)
     _require_tokens("A3 roadmap section", a3_roadmap, merge_tokens, errors)
-    _require_tokens("PR #1469 mapping", mapping_text, merge_tokens, errors)
-    _require_tokens("A3 orchestration packet", a3_packet_text, merge_tokens, errors)
-    _require_tokens("C4 A3 packet", c4_packet_text, merge_tokens, errors)
-    _require_tokens("semantic-cache gate", gate_text, merge_tokens, errors)
+    _require_tokens("PR #1469 mapping closeout", mapping_closeout, merge_tokens, errors)
+    _require_tokens("A3 orchestration packet closeout", a3_packet_closeout, merge_tokens, errors)
+    _require_tokens("C4 A3 packet status", c4_status, merge_tokens, errors)
+    _require_tokens("semantic-cache gate hard gate", gate_hard_gate, merge_tokens, errors)
 
     if "- [x] P1: AI bounded-context packet" not in a3_ledger:
         errors.append("A3 ledger entry: checkbox must be closed")
@@ -306,6 +344,10 @@ def validate_closeout(
         errors.append("PR #1469 mapping: missing historical merge-readiness section")
     if "Post-Merge Closeout" not in mapping_text:
         errors.append("PR #1469 mapping: missing post-merge closeout evidence")
+    if not mapping_closeout:
+        errors.append("PR #1469 mapping: missing Post-Merge Closeout section")
+    if not gate_hard_gate:
+        errors.append("semantic-cache gate: missing Hard Gate section")
 
     whole_active_text = "\n".join(
         (ledger_text, roadmap_text, gate_text, mapping_text, a3_packet_text, c4_packet_text)
@@ -318,7 +360,7 @@ def validate_closeout(
     scanned_texts = {
         "A3 ledger entry": a3_ledger,
         "A3 roadmap section": a3_roadmap,
-        "semantic-cache gate": _a3_related_text(gate_text),
+        "semantic-cache gate": gate_text,
         "PR #1469 mapping": mapping_text,
         "A3 orchestration packet": a3_packet_text,
         "C4 A3 packet": c4_packet_text,
@@ -327,20 +369,22 @@ def validate_closeout(
         _check_local_path_leaks(label, text, errors)
 
     a3_claim_texts = {
-        "A3 ledger text": _a3_related_text(ledger_text),
-        "A3 roadmap text": _a3_related_text(roadmap_text),
+        "A3 ledger entry": a3_ledger,
+        "A3 roadmap section": a3_roadmap,
         "semantic-cache gate": _a3_related_text(gate_text),
-        "PR #1469 mapping": _a3_related_text(mapping_text),
+        "PR #1469 mapping closeout": mapping_closeout,
         "A3 orchestration packet": _a3_related_text(a3_packet_text),
         "C4 A3 packet": _a3_related_text(c4_packet_text),
     }
     for label, text in a3_claim_texts.items():
         _check_a4_boundary(label, text, errors)
     for label, text in {
-        "A3 ledger text": _a3_related_text(ledger_text),
-        "A3 roadmap text": _a3_related_text(roadmap_text),
+        "A3 ledger entry": a3_ledger,
+        "A3 roadmap section": a3_roadmap,
         "semantic-cache gate": _a3_related_text(gate_text),
-        "PR #1469 mapping": _a3_related_text(mapping_text),
+        "PR #1469 mapping closeout": mapping_closeout,
+        "A3 orchestration packet closeout": a3_packet_closeout,
+        "C4 A3 packet status": c4_status,
     }.items():
         _check_forbidden_claims(label, text, errors)
 

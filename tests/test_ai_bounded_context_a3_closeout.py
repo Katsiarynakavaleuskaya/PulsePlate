@@ -155,6 +155,8 @@ until its own extraction DoD is proven, and semantic-cache markers remain
 def _valid_c4_packet() -> str:
     return f"""# C4 AI Bounded Context Packet
 
+## Status
+
 Closeout note: PR-A3 landed via PR #1469
 `docs(architecture): define AI bounded-context packet and ownership map`, merged
 on `2026-04-19T11:35:29Z` with merge commit
@@ -262,7 +264,11 @@ def test_checker_rejects_a3_closing_a4_extraction_ledger(tmp_path: Path) -> None
     _write_valid_repo(tmp_path)
     path = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
     path.write_text(
-        path.read_text() + "\nPR-A3 closes ledger-p1-ai-bounded-context-extraction.\n",
+        path.read_text().replace(
+            "## PR-A4 - bounded-context extraction",
+            "PR-A3 closes ledger-p1-ai-bounded-context-extraction.\n\n"
+            "## PR-A4 - bounded-context extraction",
+        ),
         encoding="utf-8",
     )
     assert "A3 must not close A4/extraction" in _errors(tmp_path)
@@ -282,11 +288,137 @@ def test_checker_rejects_mixed_clause_semantic_cache_activation(tmp_path: Path) 
     _write_valid_repo(tmp_path)
     path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
     path.write_text(
-        path.read_text()
-        + "\nPR-A3 does not open semantic cache, but approves Redis production-ready rollout.\n",
+        path.read_text().replace(
+            "Semantic-cache markers remain `closed / false / false / true`;",
+            "PR-A3 does not open semantic cache, but approves Redis production-ready rollout.\n"
+            "    - Semantic-cache markers remain `closed / false / false / true`;",
+        ),
         encoding="utf-8",
     )
     assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_rejects_and_clause_semantic_cache_activation(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    path.write_text(
+        path.read_text().replace(
+            "Semantic-cache markers remain `closed / false / false / true`;",
+            "PR-A3 does not open semantic cache and enables Redis rollout.\n"
+            "    - Semantic-cache markers remain `closed / false / false / true`;",
+        ),
+        encoding="utf-8",
+    )
+    assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_rejects_forbidden_claims_in_packet_closeout_sections(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md"
+    path.write_text(
+        path.read_text().replace(
+            "semantic-cache markers remain\n`closed / false / false / true`.",
+            "semantic-cache markers remain\n`closed / false / false / true`.\n"
+            "This closeout activates semantic cache.",
+        ),
+        encoding="utf-8",
+    )
+    assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_scans_full_a3_ledger_section_for_forbidden_claims(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    path.write_text(
+        path.read_text().replace(
+            "Semantic-cache markers remain `closed / false / false / true`;",
+            "Semantic cache is production-ready and enabled by default.\n"
+            "    - Semantic-cache markers remain `closed / false / false / true`;",
+        ),
+        encoding="utf-8",
+    )
+    assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_rejects_and_clause_a4_extraction_closure(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    path.write_text(
+        path.read_text().replace(
+            "## PR-A4 - bounded-context extraction",
+            "PR-A3 does not close PR-A4 and closes extraction lane now.\n\n"
+            "## PR-A4 - bounded-context extraction",
+        ),
+        encoding="utf-8",
+    )
+    assert "A3 must not close A4/extraction" in _errors(tmp_path)
+
+
+def test_checker_rejects_extraction_closure_without_a3_token_in_a3_section(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    path.write_text(
+        path.read_text().replace(
+            "## PR-A4 - bounded-context extraction",
+            "This closeout closes extraction lane now.\n\n## PR-A4 - bounded-context extraction",
+        ),
+        encoding="utf-8",
+    )
+    assert "A3 must not close A4/extraction" in _errors(tmp_path)
+
+
+def test_checker_rejects_present_tense_activation_state(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    path.write_text(
+        path.read_text().replace(
+            "Semantic-cache markers remain `closed / false / false / true`;",
+            "PR-A3 semantic cache is live in production.\n"
+            "    - Semantic-cache markers remain `closed / false / false / true`;",
+        ),
+        encoding="utf-8",
+    )
+    assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_requires_merge_commit_in_mapping_closeout_section(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/review/PR_1469_FIXED_MAPPING.md"
+    text = path.read_text()
+    path.write_text(
+        text.replace(f"Merge commit: `{MERGE_COMMIT}`", f"Merge commit: `{MAPPING_FIX_COMMIT}`")
+        + f"\nHistorical note elsewhere: `{MERGE_COMMIT}`\n",
+        encoding="utf-8",
+    )
+    assert "PR #1469 mapping closeout: missing required evidence token" in _errors(tmp_path)
+
+
+def test_checker_requires_merge_commit_in_packet_closeout_section(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md"
+    path.write_text(
+        path.read_text().replace(
+            f"with merge commit\n`{MERGE_COMMIT}`",
+            f"with merge commit\n`{MAPPING_FIX_COMMIT}`",
+        )
+        + f"\n## Historical Note\n\nHistorical note elsewhere: `{MERGE_COMMIT}`\n",
+        encoding="utf-8",
+    )
+    assert "A3 orchestration packet closeout: missing required evidence token" in _errors(tmp_path)
+
+
+def test_checker_requires_merge_commit_in_semantic_gate_hard_gate(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    text = path.read_text()
+    hard_gate_start = text.index("## Hard Gate")
+    path.write_text(
+        text[:hard_gate_start]
+        + text[hard_gate_start:].replace(MERGE_COMMIT, MAPPING_FIX_COMMIT, 1)
+        + f"\n## Historical Note\n\nHistorical note elsewhere: `{MERGE_COMMIT}`\n",
+        encoding="utf-8",
+    )
+    assert "semantic-cache gate hard gate: missing required evidence token" in _errors(tmp_path)
 
 
 def test_checker_rejects_local_path_leakage_variants(tmp_path: Path) -> None:
@@ -295,6 +427,27 @@ def test_checker_rejects_local_path_leakage_variants(tmp_path: Path) -> None:
     path.write_text(
         path.read_text()
         + "\nEvidence: /Users/example/worktrees/a3/artifacts/orchestration/task_packets/x.json\n",
+        encoding="utf-8",
+    )
+    assert "local path leakage" in _errors(tmp_path)
+
+
+def test_checker_rejects_windows_local_path_leakage(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/review/PR_1469_FIXED_MAPPING.md"
+    path.write_text(
+        path.read_text()
+        + "\nEvidence: C:\\Users\\alice\\worktrees\\a3\\artifacts\\orchestration\\x.json\n",
+        encoding="utf-8",
+    )
+    assert "local path leakage" in _errors(tmp_path)
+
+
+def test_checker_rejects_local_path_leakage_in_full_semantic_gate(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    path.write_text(
+        path.read_text() + "\nEvidence: /Users/alice/worktrees/a3/artifacts/orchestration/x.json\n",
         encoding="utf-8",
     )
     assert "local path leakage" in _errors(tmp_path)
