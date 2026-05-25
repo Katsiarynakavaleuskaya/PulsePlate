@@ -36,8 +36,8 @@ Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:1057` keeps t
 
 ## Slack Live Smoke Evidence
 
-- Manual workflow run: https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26408625457
-- Head SHA: `4652ebc1fbd1acb6b6f3d99033a2651cc3e6c1d0`
+- Manual workflow run: https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26409223051
+- Head SHA: `5672691e42b09800d294c65e5b3e923d9cf3bb83`
 - Secret presence diagnostics: `SLACK_APP_TOKEN=present`, `SLACK_BOT_TOKEN=present`, channel allowlist present, user allowlist present.
 - Live smoke status: PASS with `socket_mode_status: validated` and `bot_auth_status: validated`.
 - Redaction scan: PASS for raw Slack channel ID, raw Slack user ID, hypothesis digest, token prefixes, and local absolute paths.
