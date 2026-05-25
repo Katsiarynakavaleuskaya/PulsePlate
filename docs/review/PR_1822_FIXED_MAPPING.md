@@ -263,9 +263,9 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1403`, `s
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297595482
 Disposition: NOT-A-BUG
-Evidence: current-head `_decode_text_artifact()` detects NUL-bearing wide text before UTF-8 fallback, attempts UTF-32/UTF-16 first, rejects decoded text with embedded NULs, and the BOM-less UTF-16LE regression detects the local-path leak.
+Evidence: current-head `_decode_text_artifact()` detects NUL-bearing wide text before UTF-8 fallback, attempts UTF-32/UTF-16 first, rejects decoded text with embedded NULs, and the BOM-less UTF-16LE regression detects the constructed local-path leak.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1034`, `scripts/ci/check_philosophy_source_corpus_index.py:1036`, `scripts/ci/check_philosophy_source_corpus_index.py:1043`, `tests/test_philosophy_source_corpus_index.py:1087`.
-Reason: no additional code change is needed because `('leak=' + '/' + 'tmp/source.pdf').encode('utf-16-le')` decodes to `leak=/tmp/source.pdf` at current head and is scanned by the existing regression.
+Reason: no additional code change is needed because the composed BOM-less UTF-16LE local-path sample decodes to plain text at current head and is scanned by the existing regression.
 
 ## Premortem And Oracle Closure
 
@@ -328,8 +328,8 @@ Reason: no additional code change is needed because `('leak=' + '/' + 'tmp/sourc
   regressions for both inputs.
 - NOT-A-BUG: repeated UTF-16/UTF-32 decoding review comment after `004a6ef31`
   describes behavior already enforced at current head. Evidence: current
-  `_decode_text_artifact()` returns `leak=/tmp/source.pdf` for BOM-less UTF-16LE
-  text and the regression test scans that artifact class.
+  `_decode_text_artifact()` returns plain text for the composed BOM-less
+  UTF-16LE local-path sample and the regression test scans that artifact class.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
