@@ -542,6 +542,35 @@ def validate_secret_presence(
     }
 
 
+def _secret_presence_report_json(
+    required_env: tuple[tuple[str, str], ...] = LIVE_SECRET_PRESENCE_REQUIREMENTS,
+) -> tuple[str, bool]:
+    """Format presence diagnostics from constants and literal booleans only."""
+
+    present_parts: list[str] = []
+    missing_parts: list[str] = []
+    all_present = True
+    for public_env_name, marker_env_name in required_env:
+        public_env_json = json.dumps(public_env_name)
+        if _presence_marker_is_set(marker_env_name):
+            present_parts.append(f"{public_env_json}: true")
+        else:
+            all_present = False
+            present_parts.append(f"{public_env_json}: false")
+            missing_parts.append(public_env_json)
+    status_json = json.dumps("pass" if all_present else "fail")
+    report = (
+        '{"missing_env": ['
+        + ", ".join(missing_parts)
+        + '], "required_env_present": {'
+        + ", ".join(present_parts)
+        + '}, "status": '
+        + status_json
+        + "}"
+    )
+    return report, all_present
+
+
 def _audit_timestamp(audit: dict[str, Any]) -> datetime:
     timestamp_raw = audit.get("timestamp")
     if not isinstance(timestamp_raw, str):
@@ -1135,9 +1164,9 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
         if args.validate_secret_presence:
-            report = validate_secret_presence()
-            print(json.dumps(report, sort_keys=True))
-            return 0 if report["status"] == "pass" else 1
+            report_text, all_present = _secret_presence_report_json()
+            print(report_text)
+            return 0 if all_present else 1
         config = build_config(
             dispatch_mode=args.dispatch_mode,
             audit_dir=args.audit_dir,
