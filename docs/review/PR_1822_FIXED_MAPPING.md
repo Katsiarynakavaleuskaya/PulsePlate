@@ -89,7 +89,8 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
   `oracle_only_governance_reviewer`, `contribution_kind=oracle_review`, 3/3
   runner-executable oracle commands returned 0, and
   `shared_tree_untouched=true`.
-- Co-author: required; commits `a8cb56911`, `328be5c3f`, and `2f56f505b` include
+- Co-author: required; commits `a8cb56911`, `328be5c3f`, `2f56f505b`, and
+  `b1f820608` include
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
@@ -465,6 +466,48 @@ Commit: 328be5c3f
 Evidence: the CodeRabbit review-level request is closed by the same mapping-format hardening plus the code fixes mapped to `a8cb56911` for the two scanner bypass findings.
 Evidence: Anchors: `docs/review/PR_1822_FIXED_MAPPING.md:444`, `docs/review/PR_1822_FIXED_MAPPING.md:450`, `docs/review/PR_1822_FIXED_MAPPING.md:456`, `scripts/ci/check_philosophy_source_corpus_index.py:1101`, `scripts/ci/check_philosophy_source_corpus_index.py:1177`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299928701 -> b1f820608
+Disposition: FIXED
+Commit: b1f820608
+Evidence: the source-corpus leakage scanner now iterates every regex match before applying allowlist skips, preserving detection after an allowed `/usr/bin/env` or route literal.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1117`, `scripts/ci/check_philosophy_source_corpus_index.py:1131`, `tests/test_philosophy_source_corpus_index.py:1254`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299928706 -> b1f820608
+Disposition: FIXED
+Commit: b1f820608
+Evidence: route literals are now classified through a route-specific helper instead of the generic local-path prefix allowlist, with non-file route regression coverage.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1115`, `scripts/ci/check_philosophy_source_corpus_index.py:1122`, `tests/test_philosophy_source_corpus_index.py:1166`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299928710 -> b1f820608
+Disposition: FIXED
+Commit: b1f820608
+Evidence: credential field names no longer count as leaks unless paired with a value-shaped assignment, with allow/reject regressions for identifier names and values.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:432`, `tests/test_philosophy_source_corpus_index.py:1222`, `tests/test_philosophy_source_corpus_index.py:1238`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299966762 -> b1f820608
+Disposition: FIXED
+Commit: b1f820608
+Evidence: all-match scanning now catches the forbidden opt-work PDF fixture after earlier allowlisted route or shebang literals.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1117`, `scripts/ci/check_philosophy_source_corpus_index.py:1131`, `tests/test_philosophy_source_corpus_index.py:1254`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299966764 -> b1f820608
+Disposition: FIXED
+Commit: b1f820608
+Evidence: non-file route literals such as `/health/db` are accepted by the route helper without treating them as local filesystem paths.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:447`, `scripts/ci/check_philosophy_source_corpus_index.py:1122`, `tests/test_philosophy_source_corpus_index.py:1166`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299966765 -> b1f820608
+Disposition: FIXED
+Commit: b1f820608
+Evidence: file-like API PDF values are no longer blanket-allowlisted as routes and are rejected as local-path leakage.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1122`, `scripts/ci/check_philosophy_source_corpus_index.py:1125`, `tests/test_philosophy_source_corpus_index.py:1182`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299966766
+Disposition: NOT-A-BUG
+Evidence: PR-5 intentionally excludes `scripts/ci/check_docs_phase1_gates.py` from the source-corpus trigger so shared docs-gate maintenance does not force unrelated PRs through PR-5 source-corpus runtime-path bans.
+Evidence: Anchors: `.github/workflows/ci.yml:288`, `.github/workflows/ci.yml:292`, `tests/test_ci_workflow_pr_size_governance_contract.py:348`, `tests/test_ci_workflow_pr_size_governance_contract.py:351`.
+Reason: this matches the operator-approved PR #1822 finish plan; direct docs Phase1 validation remains responsible for shared gate-script changes.
+
 ## CI Failure Closure
 
 - CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
@@ -732,6 +775,14 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `sc
   `scripts/ci/check_philosophy_source_corpus_index.py:436`,
   `scripts/ci/check_philosophy_source_corpus_index.py:1106`,
   `tests/test_philosophy_source_corpus_index.py:1166`.
+- FIXED (Commit: b1f820608): latest Codex comments found route-literal
+  false positives, blanket `/api/` route false negatives, and credential-name
+  false positives. Evidence: Anchors:
+  `scripts/ci/check_philosophy_source_corpus_index.py:432`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1115`,
+  `scripts/ci/check_philosophy_source_corpus_index.py:1122`,
+  `tests/test_philosophy_source_corpus_index.py:1166`,
+  `tests/test_philosophy_source_corpus_index.py:1222`.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -754,6 +805,8 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:434`, `sc
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the allowed-first match and escaping-symlink hardening regressions.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS after the allowed-first match and escaping-symlink hardening regressions.
 - `python3 scripts/ci/check_philosophy_source_corpus_index.py --check --files $(git diff --name-only $(git merge-base origin/main HEAD)...HEAD)` PASS after the repo-neutral infrastructure literal regression.
+- `python3 scripts/ci/check_philosophy_source_corpus_index.py --check --files $(git diff --name-only $(git merge-base origin/main HEAD)...HEAD)` PASS after the route/credential scanner refinement.
+- `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the route/credential scanner refinement.
 - `python3 scripts/ci/check_ai_bounded_context_a3_closeout.py` PASS after the PR-5 semantic-cache roadmap wording fix.
 - `$VENV_PYTHON -m pytest -q tests/test_ai_bounded_context_a3_closeout.py::test_checker_passes_on_current_repository` PASS.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
