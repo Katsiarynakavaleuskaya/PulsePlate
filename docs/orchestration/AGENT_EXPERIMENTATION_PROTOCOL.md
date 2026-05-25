@@ -120,8 +120,11 @@ Rules:
   must not auto-run experiments by default, create PRs, resolve review threads,
   claim merge readiness, or replace the local Experiment Runner evidence
   artifact.
-- Live Socket Mode smoke procedure, runtime secret setup, allowlist inputs, and
-  audit retention handling are governed by
+- Live Socket Mode smoke procedure is manual-only and bounded: it validates
+  runtime secret presence, operator allowlists, Socket Mode credential
+  connectivity, and bot authentication without starting the long-running
+  listener or printing Slack response identifiers. Runtime secret setup,
+  allowlist inputs, and audit retention handling are governed by
   `docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md`.
 - `Not applicable` is narrow. It is intended for trivial docs cleanup, main
   cleanup, cache cleanup, or operator-declared emergency infrastructure repair
