@@ -98,6 +98,11 @@ REQUIRED_CALL_TARGET_KEYWORD_NAME_REFS = {
     ),
 }
 
+CANONICAL_LOCAL_IMPORT_BINDINGS = {
+    ("core.rag.recursive_retrieval", "retrieve_recursive_context_structured"),
+    ("core.rag.vector_rag", "retrieve_context_structured"),
+}
+
 REQUIRED_TEST_FUNCTIONS = {
     "tests/test_rag_orchestration.py": {
         "test_validation_disabled_ignores_stale_retriever_confidence",
@@ -504,6 +509,18 @@ def _globals_subscript_target_name(node: ast.AST) -> str | None:
 
 def _assigned_names(statement: ast.stmt) -> tuple[str, ...]:
     names: list[str] = []
+    names.extend(_direct_assigned_names(statement))
+    for child in ast.walk(statement):
+        if isinstance(child, ast.NamedExpr):
+            names.extend(_bound_target_names(child.target))
+        dynamic_name = _dynamic_attr_mutation_name(child)
+        if dynamic_name is not None:
+            names.append(dynamic_name)
+    return tuple(dict.fromkeys(names))
+
+
+def _direct_assigned_names(statement: ast.stmt) -> tuple[str, ...]:
+    names: list[str] = []
     if isinstance(statement, ast.Assign):
         for target in statement.targets:
             names.extend(_bound_target_names(target))
@@ -522,9 +539,6 @@ def _assigned_names(statement: ast.stmt) -> tuple[str, ...]:
         names.extend(
             "*" if alias.name == "*" else alias.asname or alias.name for alias in statement.names
         )
-    for child in ast.walk(statement):
-        if isinstance(child, ast.NamedExpr):
-            names.extend(_bound_target_names(child.target))
     return tuple(dict.fromkeys(names))
 
 
@@ -534,6 +548,28 @@ def _assigned_value(statement: ast.stmt) -> ast.AST | None:
     if isinstance(statement, ast.AnnAssign):
         return statement.value
     return None
+
+
+def _dynamic_attr_mutation_name(node: ast.AST) -> str | None:
+    if not isinstance(node, ast.Call):
+        return None
+    call_name = _callable_name(node.func)
+    if call_name == "setattr" and len(node.args) >= 2:
+        return _constant_string(node.args[1])
+    if call_name == "delattr" and len(node.args) >= 2:
+        return _constant_string(node.args[1])
+    return None
+
+
+def _after_definition(statement: ast.stmt, definition_lineno: int, definition_col: int) -> bool:
+    return (
+        getattr(statement, "lineno", -1),
+        getattr(statement, "col_offset", -1),
+    ) > (definition_lineno, definition_col)
+
+
+def _root_name(name: str) -> str:
+    return name.split(".", maxsplit=1)[0]
 
 
 def _iter_scope_statements(statements: list[ast.stmt]) -> Iterator[ast.stmt]:
@@ -625,6 +661,12 @@ def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str])
     for statement in _iter_scope_statements(statements):
         value = _assigned_value(statement)
         names = _assigned_names(statement)
+        if (
+            isinstance(statement, ast.AugAssign)
+            and "pytestmark" in names
+            and _node_has_disabling_test_marker(statement.value, aliases)
+        ):
+            return True
         if value is not None:
             if "__test__" in names and _is_falsy_constant(value):
                 return True
@@ -643,10 +685,10 @@ def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str])
 
 
 def _name_rebound_after_definition(
-    statements: list[ast.stmt], name: str, definition_lineno: int
+    statements: list[ast.stmt], name: str, definition_lineno: int, definition_col: int
 ) -> bool:
     for statement in _iter_scope_statements(statements):
-        if getattr(statement, "lineno", -1) <= definition_lineno:
+        if not _after_definition(statement, definition_lineno, definition_col):
             continue
         assigned_names = _assigned_names(statement)
         if name in assigned_names or "*" in assigned_names:
@@ -658,11 +700,17 @@ def _function_test_attribute_disabled_after_definition(
     statements: list[ast.stmt],
     name: str,
     definition_lineno: int,
+    definition_col: int,
 ) -> bool:
+    aliases = {name}
     for statement in _iter_scope_statements(statements):
-        if getattr(statement, "lineno", -1) <= definition_lineno:
+        if not _after_definition(statement, definition_lineno, definition_col):
             continue
+        aliases.update(_alias_targets_for_statement(statement, aliases))
         value = _assigned_value(statement)
+        for child in ast.walk(statement):
+            if _setattr_sets_falsy_test_attribute(child, aliases):
+                return True
         if value is None or not _is_falsy_constant(value):
             continue
         targets: list[ast.AST] = []
@@ -675,7 +723,7 @@ def _function_test_attribute_disabled_after_definition(
                 isinstance(target, ast.Attribute)
                 and target.attr == "__test__"
                 and isinstance(target.value, ast.Name)
-                and target.value.id == name
+                and target.value.id in aliases
             ):
                 return True
     return False
@@ -780,20 +828,35 @@ def _assignment_targets(statement: ast.stmt) -> tuple[ast.AST, ...]:
     return ()
 
 
+def _alias_targets_for_statement(statement: ast.stmt, aliases: set[str]) -> set[str]:
+    value = _assigned_value(statement)
+    if value is None:
+        return set()
+    value_name = _full_name(value)
+    if value_name not in aliases:
+        return set()
+    return set(_direct_assigned_names(statement))
+
+
 def _class_method_rebound_after_class_definition(
     statements: list[ast.stmt],
     class_name: str,
     method_name: str,
     class_lineno: int,
+    class_col: int,
 ) -> bool:
+    class_aliases = {class_name}
     for statement in _iter_scope_statements(statements):
-        if getattr(statement, "lineno", -1) <= class_lineno:
+        if not _after_definition(statement, class_lineno, class_col):
             continue
+        class_aliases.update(_alias_targets_for_statement(statement, class_aliases))
         for target in _assignment_targets(statement):
-            if _attribute_chain(target) == (class_name, method_name):
+            if _attribute_chain_matches_member(
+                _attribute_chain(target), class_aliases, method_name
+            ):
                 return True
         for child in ast.walk(statement):
-            if _setattr_rebinds_class_member(child, class_name, method_name):
+            if _setattr_rebinds_class_member(child, class_aliases, method_name):
                 return True
     return False
 
@@ -803,22 +866,30 @@ def _class_method_test_attribute_disabled_after_class_definition(
     class_name: str,
     method_name: str,
     class_lineno: int,
+    class_col: int,
 ) -> bool:
+    class_aliases = {class_name}
     for statement in _iter_scope_statements(statements):
-        if getattr(statement, "lineno", -1) <= class_lineno:
+        if not _after_definition(statement, class_lineno, class_col):
             continue
+        class_aliases.update(_alias_targets_for_statement(statement, class_aliases))
         value = _assigned_value(statement)
         for child in ast.walk(statement):
             if _setattr_sets_falsy_class_method_test_attribute(
                 child,
-                class_name,
+                class_aliases,
                 method_name,
             ):
                 return True
         if value is None or not _is_falsy_constant(value):
             continue
         for target in _assignment_targets(statement):
-            if _attribute_chain(target) == (class_name, method_name, "__test__"):
+            if _attribute_chain_matches_member_attr(
+                _attribute_chain(target),
+                class_aliases,
+                method_name,
+                "__test__",
+            ):
                 return True
     return False
 
@@ -827,19 +898,56 @@ def _class_test_attribute_disabled_after_definition(
     statements: list[ast.stmt],
     class_name: str,
     class_lineno: int,
+    class_col: int,
 ) -> bool:
+    class_aliases = {class_name}
     for statement in _iter_scope_statements(statements):
-        if getattr(statement, "lineno", -1) <= class_lineno:
+        if not _after_definition(statement, class_lineno, class_col):
             continue
+        class_aliases.update(_alias_targets_for_statement(statement, class_aliases))
         value = _assigned_value(statement)
         if value is not None and _is_falsy_constant(value):
             for target in _assignment_targets(statement):
-                if _attribute_chain(target) == (class_name, "__test__"):
+                if _attribute_chain_matches_class_attr(
+                    _attribute_chain(target),
+                    class_aliases,
+                    "__test__",
+                ):
                     return True
         for child in ast.walk(statement):
-            if _setattr_sets_falsy_class_test_attribute(child, class_name):
+            if _setattr_sets_falsy_class_test_attribute(child, class_aliases):
                 return True
     return False
+
+
+def _attribute_chain_matches_member(
+    chain: tuple[str, ...],
+    class_aliases: set[str],
+    member_name: str,
+) -> bool:
+    return len(chain) == 2 and chain[0] in class_aliases and chain[1] == member_name
+
+
+def _attribute_chain_matches_member_attr(
+    chain: tuple[str, ...],
+    class_aliases: set[str],
+    member_name: str,
+    attr_name: str,
+) -> bool:
+    return (
+        len(chain) == 3
+        and chain[0] in class_aliases
+        and chain[1] == member_name
+        and chain[2] == attr_name
+    )
+
+
+def _attribute_chain_matches_class_attr(
+    chain: tuple[str, ...],
+    class_aliases: set[str],
+    attr_name: str,
+) -> bool:
+    return len(chain) == 2 and chain[0] in class_aliases and chain[1] == attr_name
 
 
 def _setattr_args(node: ast.AST) -> tuple[ast.AST, ast.AST, ast.AST] | None:
@@ -852,39 +960,53 @@ def _setattr_args(node: ast.AST) -> tuple[ast.AST, ast.AST, ast.AST] | None:
 
 def _setattr_rebinds_class_member(
     node: ast.AST,
-    class_name: str,
+    class_aliases: set[str],
     member_name: str,
 ) -> bool:
     args = _setattr_args(node)
     if args is None:
         return False
     target, attr, _value = args
-    return _full_name(target) == class_name and _constant_string(attr) == member_name
+    target_name = _full_name(target)
+    return target_name in class_aliases and _constant_string(attr) == member_name
 
 
 def _setattr_sets_falsy_class_method_test_attribute(
     node: ast.AST,
-    class_name: str,
+    class_aliases: set[str],
     method_name: str,
 ) -> bool:
     args = _setattr_args(node)
     if args is None:
         return False
     target, attr, value = args
+    target_chain = _attribute_chain(target)
     return (
-        _full_name(target) == f"{class_name}.{method_name}"
+        _attribute_chain_matches_member(target_chain, class_aliases, method_name)
         and _constant_string(attr) == "__test__"
         and _is_falsy_constant(value)
     )
 
 
-def _setattr_sets_falsy_class_test_attribute(node: ast.AST, class_name: str) -> bool:
+def _setattr_sets_falsy_class_test_attribute(node: ast.AST, class_aliases: set[str]) -> bool:
     args = _setattr_args(node)
     if args is None:
         return False
     target, attr, value = args
     return (
-        _full_name(target) == class_name
+        _full_name(target) in class_aliases
+        and _constant_string(attr) == "__test__"
+        and _is_falsy_constant(value)
+    )
+
+
+def _setattr_sets_falsy_test_attribute(node: ast.AST, aliases: set[str]) -> bool:
+    args = _setattr_args(node)
+    if args is None:
+        return False
+    target, attr, value = args
+    return (
+        _full_name(target) in aliases
         and _constant_string(attr) == "__test__"
         and _is_falsy_constant(value)
     )
@@ -944,6 +1066,32 @@ def _reachable_nodes_in_function(
         yield from _walk_without_nested_defs(root)
 
 
+def _local_bound_names_in_function(
+    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> set[str]:
+    names: set[str] = set()
+    for root in _reachable_statement_roots(function_node.body):
+        for node in _walk_without_nested_defs(root):
+            if isinstance(node, ast.stmt):
+                names.update(_noncanonical_local_binding_names(node))
+    return names
+
+
+def _noncanonical_local_binding_names(statement: ast.stmt) -> tuple[str, ...]:
+    if not isinstance(statement, ast.ImportFrom):
+        return _assigned_names(statement)
+    names: list[str] = []
+    for alias in statement.names:
+        bound_name = "*" if alias.name == "*" else alias.asname or alias.name
+        if (
+            statement.module,
+            alias.name,
+        ) in CANONICAL_LOCAL_IMPORT_BINDINGS and bound_name == alias.name:
+            continue
+        names.append(bound_name)
+    return tuple(dict.fromkeys(names))
+
+
 def _class_has_uncollectable_constructor(class_node: ast.ClassDef) -> bool:
     return any(
         isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
@@ -976,13 +1124,21 @@ def _discoverable_test_function_nodes(
     for statement in tree.body:
         if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if statement.name in required_test_functions:
-                if _name_rebound_after_definition(tree.body, statement.name, statement.lineno):
+                if _name_rebound_after_definition(
+                    tree.body,
+                    statement.name,
+                    statement.lineno,
+                    statement.col_offset,
+                ):
                     errors.append(
                         f"{relative_path}: required test {statement.name} must not be rebound after definition"
                     )
                     continue
                 if _function_test_attribute_disabled_after_definition(
-                    tree.body, statement.name, statement.lineno
+                    tree.body,
+                    statement.name,
+                    statement.lineno,
+                    statement.col_offset,
                 ):
                     errors.append(
                         f"{relative_path}: required test {statement.name} must not set falsy __test__ after definition"
@@ -995,11 +1151,17 @@ def _discoverable_test_function_nodes(
         class_aliases = module_aliases | _disabling_marker_aliases(statement.body)
         class_disabled = (
             _test_class_is_disabled(statement, module_aliases)
-            or _name_rebound_after_definition(tree.body, statement.name, statement.lineno)
+            or _name_rebound_after_definition(
+                tree.body,
+                statement.name,
+                statement.lineno,
+                statement.col_offset,
+            )
             or _class_test_attribute_disabled_after_definition(
                 tree.body,
                 statement.name,
                 statement.lineno,
+                statement.col_offset,
             )
         )
         for item in statement.body:
@@ -1017,27 +1179,43 @@ def _discoverable_test_function_nodes(
                     f"{relative_path}: required test {item.name} must not be skipped or xfailed"
                 )
                 continue
-            if _name_rebound_after_definition(statement.body, item.name, item.lineno):
+            if _name_rebound_after_definition(
+                statement.body,
+                item.name,
+                item.lineno,
+                item.col_offset,
+            ):
                 errors.append(
                     f"{relative_path}: required test {item.name} must not be rebound after definition"
                 )
                 continue
             if _function_test_attribute_disabled_after_definition(
-                statement.body, item.name, item.lineno
+                statement.body,
+                item.name,
+                item.lineno,
+                item.col_offset,
             ):
                 errors.append(
                     f"{relative_path}: required test {item.name} must not set falsy __test__ after definition"
                 )
                 continue
             if _class_method_rebound_after_class_definition(
-                tree.body, statement.name, item.name, statement.lineno
+                tree.body,
+                statement.name,
+                item.name,
+                statement.lineno,
+                statement.col_offset,
             ):
                 errors.append(
                     f"{relative_path}: required test {item.name} must not be rebound after definition"
                 )
                 continue
             if _class_method_test_attribute_disabled_after_class_definition(
-                tree.body, statement.name, item.name, statement.lineno
+                tree.body,
+                statement.name,
+                item.name,
+                statement.lineno,
+                statement.col_offset,
             ):
                 errors.append(
                     f"{relative_path}: required test {item.name} must not set falsy __test__ after definition"
@@ -1064,13 +1242,19 @@ def _attribute_refs_in_function(tree: ast.Module, function_name: str) -> set[str
     return _attribute_refs(_reachable_nodes_in_function(function_node))
 
 
-def _call_keyword_name_refs(nodes: Iterator[ast.AST]) -> set[tuple[str, str, str]]:
+def _call_keyword_name_refs(
+    nodes: Iterator[ast.AST],
+    *,
+    local_bound_names: set[str],
+) -> set[tuple[str, str, str]]:
     refs: set[tuple[str, str, str]] = set()
     for node in nodes:
         if not isinstance(node, ast.Call):
             continue
         call_name = _full_name(node.func)
         if call_name is None:
+            continue
+        if _root_name(call_name) in local_bound_names:
             continue
         for keyword in node.keywords:
             if keyword.arg and isinstance(keyword.value, ast.Name):
@@ -1085,15 +1269,21 @@ def _call_keyword_name_refs_in_function(
     function_node = _module_function_nodes(tree).get(function_name)
     if function_node is None:
         return set()
+    local_bound_names = _local_bound_names_in_function(function_node)
     return {
         (function_name, call_name, keyword, value)
         for call_name, keyword, value in _call_keyword_name_refs(
-            _reachable_nodes_in_function(function_node)
+            _reachable_nodes_in_function(function_node),
+            local_bound_names=local_bound_names,
         )
     }
 
 
-def _call_target_keyword_name_refs(nodes: Iterator[ast.AST]) -> set[tuple[str, str, str, str]]:
+def _call_target_keyword_name_refs(
+    nodes: Iterator[ast.AST],
+    *,
+    local_bound_names: set[str],
+) -> set[tuple[str, str, str, str]]:
     refs: set[tuple[str, str, str, str]] = set()
     for node in nodes:
         if not isinstance(node, ast.Call) or not node.args:
@@ -1101,6 +1291,11 @@ def _call_target_keyword_name_refs(nodes: Iterator[ast.AST]) -> set[tuple[str, s
         call_name = _full_name(node.func)
         target_name = _full_name(node.args[0])
         if call_name is None or target_name is None:
+            continue
+        if (
+            _root_name(call_name) in local_bound_names
+            or _root_name(target_name) in local_bound_names
+        ):
             continue
         for keyword in node.keywords:
             if keyword.arg and isinstance(keyword.value, ast.Name):
@@ -1115,10 +1310,12 @@ def _call_target_keyword_name_refs_in_function(
     function_node = _module_function_nodes(tree).get(function_name)
     if function_node is None:
         return set()
+    local_bound_names = _local_bound_names_in_function(function_node)
     return {
         (function_name, call_name, target_name, keyword, value)
         for call_name, target_name, keyword, value in _call_target_keyword_name_refs(
-            _reachable_nodes_in_function(function_node)
+            _reachable_nodes_in_function(function_node),
+            local_bound_names=local_bound_names,
         )
     }
 
@@ -1144,7 +1341,12 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
             if class_node is None:
                 errors.append(f"{relative_path}: missing class {class_name} at module scope")
                 continue
-            if _name_rebound_after_definition(tree.body, class_name, class_node.lineno):
+            if _name_rebound_after_definition(
+                tree.body,
+                class_name,
+                class_node.lineno,
+                class_node.col_offset,
+            ):
                 errors.append(
                     f"{relative_path}: required runtime symbol {class_name} must not be rebound after definition"
                 )
@@ -1169,7 +1371,12 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
                 errors.append(f"{relative_path}: missing module-level function {function_name}")
                 continue
             function_node = _module_function_nodes(tree)[function_name]
-            if _name_rebound_after_definition(tree.body, function_name, function_node.lineno):
+            if _name_rebound_after_definition(
+                tree.body,
+                function_name,
+                function_node.lineno,
+                function_node.col_offset,
+            ):
                 errors.append(
                     f"{relative_path}: required runtime symbol {function_name} must not be rebound after definition"
                 )

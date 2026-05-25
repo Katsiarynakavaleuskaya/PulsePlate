@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable
 import os
 from pathlib import Path
@@ -625,6 +626,37 @@ def dead_helper(subject_id: int) -> None:
     assert any("missing call proof _run_orchestration" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_locally_rebound_runtime_call_targets(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/orchestration.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def _resolve_confidence() -> None:
+    return None
+
+
+def _non_rag_result() -> None:
+    return None
+
+
+def _run_orchestration(subject_id: int) -> object:
+    retrieve_recursive_context_structured = object()
+    retrieve_context_structured = object()
+    _build_knowledge_candidates = object()
+    asyncio.to_thread(retrieve_recursive_context_structured, subject_id=subject_id)
+    asyncio.to_thread(retrieve_context_structured, subject_id=subject_id)
+    _build_knowledge_candidates(subject_id=subject_id)
+    return (
+        RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+        RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+    )
+""",
+    )
+    assert any("missing call proof _run_orchestration" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_degraded_reason_marker_spoof_outside_target_function(
     tmp_path: Path,
 ) -> None:
@@ -760,6 +792,29 @@ def test_checker_rejects_globals_runtime_symbol_rebound(tmp_path: Path) -> None:
     assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_module_setattr_runtime_symbol_rebound(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    vector_path = tmp_path / "core/rag/vector_rag.py"
+    vector_path.write_text(
+        vector_path.read_text(encoding="utf-8")
+        + '\nsetattr(sys.modules[__name__], "_retrieve_vector_from_db", None)\n',
+        encoding="utf-8",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
+def test_checker_statement_order_treats_same_line_rebind_as_post_definition() -> None:
+    namespace = runpy.run_path(str(CHECKER), run_name="a2_closeout_checker")
+    helper = cast(
+        Callable[[list[ast.stmt], str, int, int], bool],
+        namespace["_name_rebound_after_definition"],
+    )
+    tree = ast.parse("if True: marker = object(); marker = None\n")
+    if_node = cast(ast.If, tree.body[0])
+    definition = if_node.body[0]
+    assert helper(if_node.body, "marker", definition.lineno, definition.col_offset)
+
+
 def test_checker_rejects_nested_runtime_symbol_rebound_after_definition(
     tmp_path: Path,
 ) -> None:
@@ -883,6 +938,30 @@ def test_checker_rejects_module_level_xfail_for_required_tests(tmp_path: Path) -
         """import pytest
 
 pytestmark = pytest.mark.xfail(reason="disabled")
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_pytestmark_augassign_skip_for_required_tests(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+pytestmark = []
+pytestmark += [pytest.mark.skip(reason="disabled")]
 
 
 def test_missing_subject_id_returns_empty_without_encoding(): pass
@@ -1265,6 +1344,55 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
     assert any("falsy __test__" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_setattr_required_test_dunder_test_override(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """def test_missing_subject_id_returns_empty_without_encoding(): pass
+setattr(test_missing_subject_id_returns_empty_without_encoding, "__test__", 0)
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("falsy __test__" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_aliased_required_test_dunder_test_override(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """def test_missing_subject_id_returns_empty_without_encoding(): pass
+required_alias = test_missing_subject_id_returns_empty_without_encoding
+required_alias.__test__ = 0
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("falsy __test__" in error for error in _errors(tmp_path))
+
+
+def test_checker_statement_order_treats_same_line_dunder_override_as_post_definition() -> None:
+    namespace = runpy.run_path(str(CHECKER), run_name="a2_closeout_checker")
+    helper = cast(
+        Callable[[list[ast.stmt], str, int, int], bool],
+        namespace["_function_test_attribute_disabled_after_definition"],
+    )
+    tree = ast.parse("if True: required_test = object(); required_test.__test__ = 0\n")
+    if_node = cast(ast.If, tree.body[0])
+    definition = if_node.body[0]
+    assert helper(if_node.body, "required_test", definition.lineno, definition.col_offset)
+
+
 def test_checker_rejects_computed_falsy_dunder_test_values(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -1353,6 +1481,26 @@ def test_checker_rejects_setattr_class_method_rebound(tmp_path: Path) -> None:
 
 
 setattr(TestVectorRequired, "test_missing_subject_id_returns_empty_without_encoding", None)
+""",
+    )
+    assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_setattr_class_method_rebound_through_alias(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """class TestVectorRequired:
+    def test_missing_subject_id_returns_empty_without_encoding(self): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(self): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(self): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(self): pass
+
+
+Alias = TestVectorRequired
+setattr(Alias, "test_missing_subject_id_returns_empty_without_encoding", None)
 """,
     )
     assert any("must not be rebound after definition" in error for error in _errors(tmp_path))
