@@ -67,6 +67,8 @@ Accepted oracle-only packet:
 Accepted oracle-only result:
 `artifacts/orchestration/experiments/results/exp-637094c96b10.json`
 
+Artifact: `artifacts/orchestration/experiments/results/exp-637094c96b10.json`
+
 Result summary: `accepted`, `runner_mode=oracle_only_governance_reviewer`,
 `mutated_paths=[]`, `shared_tree_untouched=true`,
 `contribution_kind=commit_decision`, `coauthor_required=true`, oracle return
@@ -130,12 +132,12 @@ and the final wait-window.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after post-open review.
-- [ ] Fixed in commit mapping completed after bot/human review comments.
+- [x] Discussion-thread pass completed.
+- [x] Fixed in commit mapping completed.
 
 ## Fixed in Commit Mapping
 
-No review threads or bot actionables have been dispositioned yet.
+- No actionable review comments
 
 ## Post-Open Governance Checklist
 
