@@ -94,7 +94,7 @@ plus current-head CI and strict merge-readiness governance.
   `origin/main...HEAD`.
 - Phase: `validation` completed for the no-candidate result.
 - Result: no reportable security findings.
-- Local scan ids: `pr1827_1e1a05228fb7_20260525T104758Z`; refreshed after checker hardening as `pr1827_db19fb52b_20260525T111945Z`, `pr1827_f802efe2c_20260525T115151Z`, `pr1827_9e96f799d_20260525T122420Z`, and `pr1827_afc897fc2_20260525T125555Z`
+- Local scan ids: `pr1827_1e1a05228fb7_20260525T104758Z`; refreshed after checker hardening as `pr1827_db19fb52b_20260525T111945Z`, `pr1827_f802efe2c_20260525T115151Z`, `pr1827_9e96f799d_20260525T122420Z`, `pr1827_afc897fc2_20260525T125555Z`, and `pr1827_ece53aa6b_20260525T132749Z`
 - Evidence: no runtime route, provider, cache, persistence, OpenAPI, database,
   Redis/GPTCache, or semantic-cache serving surface is added; semantic-cache
   gate checker passed; full pre-commit and pre-push security hooks passed.
@@ -355,6 +355,41 @@ Evidence: `LOCAL_PATH_RE` is now case-insensitive; `tests/test_ai_rag_hardening_
 Disposition: FIXED
 Commit: afc897fc2
 Evidence: aggregate Codex review actionables from the `7ec4728c5` review are mapped to the nine inline FIXED comments above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298314392 -> ece53aa6b
+Disposition: FIXED
+Commit: ece53aa6b
+Evidence: `_globals_subscript_target_name(...)` routes `globals()["required_name"] = ...` into rebinding detection; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_globals_runtime_symbol_rebound` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298314396 -> ece53aa6b
+Disposition: FIXED
+Commit: ece53aa6b
+Evidence: `_class_method_rebound_after_class_definition(...)` now detects `setattr(TestClass, "method", ...)`; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_setattr_class_method_rebound` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298314401 -> ece53aa6b
+Disposition: FIXED
+Commit: ece53aa6b
+Evidence: `STALE_STATUS_RE` now flags `Status: Planned/pending/in-progress` even when the line also contains negation text; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_stale_a2_status_with_negation` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298314406 -> ece53aa6b
+Disposition: FIXED
+Commit: ece53aa6b
+Evidence: `_setattr_sets_falsy_class_method_test_attribute(...)` detects `setattr(TestClass.method, "__test__", 0)`; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_setattr_class_method_test_override` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298314410 -> ece53aa6b
+Disposition: FIXED
+Commit: ece53aa6b
+Evidence: `_class_test_attribute_disabled_after_definition(...)` rejects post-definition class `.__test__` disabling; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_class_module_test_override` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298314416 -> ece53aa6b
+Disposition: FIXED
+Commit: ece53aa6b
+Evidence: class-based required tests now reuse `_name_rebound_after_definition(...)` for the containing `Test*` class; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_class_module_rebound` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#pullrequestreview-4356849948 -> ece53aa6b
+Disposition: FIXED
+Commit: ece53aa6b
+Evidence: aggregate Codex review actionables from the `7eba385b4` review are mapped to the six inline FIXED comments above.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#issuecomment-4533488800
 Disposition: NOT-A-BUG
