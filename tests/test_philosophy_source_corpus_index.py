@@ -202,6 +202,27 @@ def test_philosophy_source_corpus_index_rejects_source_scalar_type_drift() -> No
     assert any("analytic_linguistic_audit.title must be a string" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_source_text_min_length_drift() -> None:
+    index = _index()
+    sources = index["sources"]
+    assert isinstance(sources, list)
+    first = dict(sources[0])
+    first["summary"] = "short"
+    first["future_handoff"] = "later"
+    sources[0] = first
+
+    errors = _validate(index)
+
+    assert any(
+        "analytic_linguistic_audit.summary must be at least 40 characters" in error
+        for error in errors
+    )
+    assert any(
+        "analytic_linguistic_audit.future_handoff must be at least 20 characters" in error
+        for error in errors
+    )
+
+
 def test_philosophy_source_corpus_index_rejects_source_array_type_drift() -> None:
     index = _index()
     sources = index["sources"]
@@ -484,6 +505,33 @@ def test_philosophy_source_corpus_index_rejects_schema_page_count_minimum_drift(
 
     assert any(
         "schema sources.items.properties.page_count.minimum must be 1" in error for error in errors
+    )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_numeric_keyword_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    sources = properties["sources"]
+    assert isinstance(sources, dict)
+    items = sources["items"]
+    assert isinstance(items, dict)
+    item_properties = items["properties"]
+    assert isinstance(item_properties, dict)
+    page_count = item_properties["page_count"]
+    assert isinstance(page_count, dict)
+    page_count["minimum"] = True
+    summary = item_properties["summary"]
+    assert isinstance(summary, dict)
+    summary["minLength"] = 40.0
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any(
+        "schema sources.items.properties.page_count.minimum must be 1" in error for error in errors
+    )
+    assert any(
+        "schema sources.items.properties.summary.minLength must be 40" in error for error in errors
     )
 
 
@@ -1001,6 +1049,19 @@ def test_philosophy_source_corpus_index_scans_utf16_text_artifact_contents(
     artifact = tmp_path / REL_INDEX
     artifact.parent.mkdir(parents=True)
     artifact.write_bytes(("leak=" + "/" + "tmp/source.pdf\n").encode("utf-16"))
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_scans_bomless_utf16le_text_artifact_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(("leak=" + "/" + "tmp/source.pdf\n").encode("utf-16-le"))
     monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
 
     errors = validate_file_contents([REL_INDEX])

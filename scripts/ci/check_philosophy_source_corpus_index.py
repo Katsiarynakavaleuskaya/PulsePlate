@@ -95,6 +95,12 @@ SOURCE_STRING_ARRAY_FIELDS = (
     "discipline_rails",
     "linked_repo_anchors",
 )
+SOURCE_MIN_LENGTH_FIELDS = {
+    "title": 8,
+    "sanitized_filename": 8,
+    "summary": 40,
+    "future_handoff": 20,
+}
 EXPECTED_DISCIPLINE_RAILS = (
     "philosophy",
     "linguistics",
@@ -806,7 +812,10 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
         page_count_schema = _schema_object_at(
             schema, ("properties", "sources", "items", "properties", "page_count")
         )
-        if page_count_schema is None or page_count_schema.get("minimum") != 1:
+        page_count_minimum = (
+            page_count_schema.get("minimum") if page_count_schema is not None else None
+        )
+        if not _is_json_integer(page_count_minimum) or page_count_minimum != 1:
             errors.append("schema sources.items.properties.page_count.minimum must be 1")
         for key, expected_pattern in (
             ("source_id", "^[a-z0-9_]+$"),
@@ -826,7 +835,8 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
             field_schema = _schema_object_at(
                 schema, ("properties", "sources", "items", "properties", key)
             )
-            if field_schema is None or field_schema.get("minLength") != expected_min_length:
+            min_length_value = field_schema.get("minLength") if field_schema is not None else None
+            if not _is_json_integer(min_length_value) or min_length_value != expected_min_length:
                 errors.append(
                     f"schema sources.items.properties.{key}.minLength must be "
                     f"{expected_min_length}"
@@ -1022,11 +1032,17 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
 
 
 def _decode_text_artifact(data: bytes) -> str | None:
-    for encoding in ("utf-8", "utf-8-sig", "utf-32", "utf-16"):
+    encodings = ("utf-8", "utf-8-sig", "utf-32", "utf-16")
+    if b"\x00" in data[:256]:
+        encodings = ("utf-32", "utf-16", "utf-8", "utf-8-sig")
+    for encoding in encodings:
         try:
-            return data.decode(encoding)
+            text = data.decode(encoding)
         except UnicodeDecodeError:
             continue
+        if "\x00" in text:
+            continue
+        return text
     return None
 
 
@@ -1133,6 +1149,13 @@ def _validate_sources(index: dict[str, object]) -> list[str]:
         for field in SOURCE_STRING_FIELDS:
             if not isinstance(source.get(field), str):
                 errors.append(f"{source_id or '<unknown>'}.{field} must be a string")
+        for field, minimum_length in SOURCE_MIN_LENGTH_FIELDS.items():
+            value = source.get(field)
+            if isinstance(value, str) and len(value) < minimum_length:
+                errors.append(
+                    f"{source_id or '<unknown>'}.{field} must be at least "
+                    f"{minimum_length} characters"
+                )
         for field in SOURCE_STRING_ARRAY_FIELDS:
             errors.extend(
                 _validate_string_array(
