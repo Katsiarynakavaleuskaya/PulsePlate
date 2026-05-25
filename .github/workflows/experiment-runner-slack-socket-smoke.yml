@@ -50,6 +50,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Mask runtime allowlist inputs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          inputs = event.get("inputs", {})
+          for key in ("channel_allowlist", "user_allowlist", "hypothesis_sha256"):
+              value = str(inputs.get(key, "")).strip()
+              if value:
+                  print(f"::add-mask::{value}")
+          PY
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -68,6 +84,15 @@ jobs:
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-runtime \
             --dispatch-mode dry-run
+
+      - name: Validate manual smoke inputs without raw echo
+        env:
+          EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
+          EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --validate-smoke-inputs
 
       - name: Report local Slack audit retention policy
         env:
@@ -98,13 +123,7 @@ jobs:
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-secret-presence
 
-      - name: Install optional Slack Socket Mode runtime
-        if: inputs.dry_run == 'false'
-        run: |
-          set -euo pipefail
-          python3 -m pip install --disable-pip-version-check "slack-bolt==1.28.0"
-
-      - name: Validate live Socket Mode runtime
+      - name: Run bounded live Socket Mode smoke
         if: inputs.dry_run == 'false'
         env:
           SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
@@ -112,9 +131,24 @@ jobs:
           EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
           EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
           EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
+          EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
+          EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
         run: |
           set -euo pipefail
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
-            --validate-runtime \
-            --run-socket \
+            --validate-live-smoke \
             --dispatch-mode dry-run
+
+      - name: Record sanitized live-smoke evidence summary
+        if: inputs.dry_run == 'false'
+        run: |
+          set -euo pipefail
+          {
+            printf '### Experiment Runner Slack live smoke\n'
+            printf -- '- mode: bounded manual workflow_dispatch\n'
+            printf -- '- secret names: checked as present/missing only\n'
+            printf -- '- channel_allowlist: present\n'
+            printf -- '- user_allowlist: present\n'
+            printf -- '- audit_retention: report-first\n'
+            printf -- '- redaction: raw tokens, token prefixes, Slack IDs, hypotheses, payloads, and local paths are not emitted by workflow steps\n'
+          } >> "$GITHUB_STEP_SUMMARY"

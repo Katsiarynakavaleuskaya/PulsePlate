@@ -2,12 +2,28 @@
 
 **Date:** 18 April 2026
 **Scope:** docs-only architecture packet for `PR-A3`
-**Mode:** pre-open governance packet
+**Mode:** historical pre-open governance packet; landed via PR #1469 on
+`2026-04-19T11:35:29Z` with merge commit
+`f8454715f88e44657cfad1c4675f93ea669dc490` from branch
+`codex/ai-bounded-context-packet`
 
 ## Purpose
 
 Freeze the current-head ownership map for the AI bounded-context lane before the
 runtime extraction slice (`PR-A4`).
+
+## Closeout Status
+
+This packet landed through PR #1469
+`docs(architecture): define AI bounded-context packet and ownership map`, merged
+on `2026-04-19T11:35:29Z` with merge commit
+`f8454715f88e44657cfad1c4675f93ea669dc490` from branch
+`codex/ai-bounded-context-packet`.
+
+This status note does not change the packet's original scope. `PR-A4` /
+`ledger-p1-ai-bounded-context-extraction` remains separate and open until its
+own extraction DoD is proven, and semantic-cache markers remain
+`closed / false / false / true`.
 
 This packet exists to:
 

@@ -109,6 +109,8 @@ Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
 - landed PR-A2 RAG hardening via PR #1415
+- landed PR-A3 AI bounded-context packet via PR #1469
+  `docs(architecture): define AI bounded-context packet and ownership map`
 - deterministic orchestration confidence recomputation
 
 The runtime prerequisite train is tracked by canonical PR/backlog anchors:
@@ -120,6 +122,10 @@ The runtime prerequisite train is tracked by canonical PR/backlog anchors:
    `146da0e0d269acea5ba946d239997705ebaf62c3` from branch
    `feat/rag-hardening-followthrough`
 3. `PR-A3` and [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet)
+   are closed via PR #1469 `docs(architecture): define AI bounded-context
+   packet and ownership map`, merged `2026-04-19T11:35:29Z` with merge commit
+   `f8454715f88e44657cfad1c4675f93ea669dc490` from branch
+   `codex/ai-bounded-context-packet`
 4. `PR-A4` and [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
 5. `PR-A5` and [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates)
 
@@ -136,7 +142,11 @@ Do **not** start semantic cache work before all the following are true:
    additive`, merged `2026-04-14T20:59:47Z` with merge commit
    `146da0e0d269acea5ba946d239997705ebaf62c3` from branch
    `feat/rag-hardening-followthrough`
-3. `PR-A3` is closed via [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet)
+3. `PR-A3` is closed via [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet),
+   PR #1469 `docs(architecture): define AI bounded-context packet and
+   ownership map`, merged `2026-04-19T11:35:29Z` with merge commit
+   `f8454715f88e44657cfad1c4675f93ea669dc490` from branch
+   `codex/ai-bounded-context-packet`
 4. `PR-A4` is closed via [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
 5. at least `PR-A5` is closed via [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates)
 

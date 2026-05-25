@@ -2848,14 +2848,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       scope is implied by this closeout
 
 <a id="ledger-p1-ai-bounded-context-packet"></a>
-- [ ] P1: AI bounded-context packet
+- [x] P1: AI bounded-context packet
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (architecture sequencing)
-  - Target PR: PR-A3
+  - Target PR: PR-A3 / PR #1469
   - Area: AI / architecture / docs
   - Finding Type: packet-first architecture freeze
-  - Status: 📋 Planned
-  - Reason (EN): The execution order already expects a packet-first architecture slice before bounded-context extraction, but the backlog lacks a dedicated packet anchor. This item freezes ownership boundaries before code movement so extraction work stays narrow and contract-safe.
+  - Status: Closed. PR #1469 `docs(architecture): define AI bounded-context packet and ownership map` merged on `2026-04-19T11:35:29Z` with merge commit `f8454715f88e44657cfad1c4675f93ea669dc490` from branch `codex/ai-bounded-context-packet`.
+  - Reason (EN): Live GitHub/repo truth proves the dedicated A3 docs-only packet already landed in PR #1469. This closeout reconciles active roadmap/review truth and prevents duplicate packet work before the separate A4 extraction lane.
   - Links:
     - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
@@ -2864,9 +2864,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md`
     - `docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md`
   - DoD:
+    - PR #1469 merge evidence is machine-checkable in active roadmap/review docs
     - A docs-only packet exists before extraction
     - Ownership boundaries for AI runtime seams are explicit
     - Packet and extraction items are separate and non-duplicative
+    - PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate and open until its own extraction DoD is proven
+    - Semantic-cache markers remain `closed / false / false / true`; no semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, provider, or default activation scope is implied by this closeout
 
 <a id="ledger-p1-governance-doc-sot-consolidation"></a>
 - [ ] P1: Consolidate coordinator-first docs SoT and rail summary table
