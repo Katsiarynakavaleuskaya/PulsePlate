@@ -49,7 +49,11 @@ signal.
   non-secret presence sentinels for `--validate-secret-presence`; actual
   `SLACK_APP_TOKEN` / `SLACK_BOT_TOKEN` values are scoped only to live runtime
   validation in `.github/workflows/experiment-runner-slack-socket-smoke.yml`.
-- `bug-hunter`: pending post-fix pass.
+- `bug-hunter`: FINDING fixed by 0de1967728f4bf2f32372754449696c371060862.
+  Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` formats
+  the `--validate-secret-presence` JSON from constant public env names and
+  literal boolean/status strings; no env-read value or env-derived report object
+  is printed.
 - `security-auditor`: pending post-fix pass.
 - Premortem / CodeRabbit / Codex Security evidence: pending.
 
