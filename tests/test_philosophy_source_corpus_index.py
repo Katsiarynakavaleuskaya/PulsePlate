@@ -122,6 +122,17 @@ def test_philosophy_source_corpus_index_rejects_page_count_drift() -> None:
     assert any("sources page_count sum must be 102" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_aggregate_count_type_drift() -> None:
+    index = _index()
+    index["source_count"] = 6.0
+    index["total_pages"] = 102.0
+
+    errors = _validate(index)
+
+    assert any("source_count must be integer 6" in error for error in errors)
+    assert any("total_pages must be integer 102" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_rejects_sha256_drift() -> None:
     index = _index()
     sources = index["sources"]
@@ -414,6 +425,32 @@ def test_philosophy_source_corpus_index_rejects_schema_runtime_flag_const_drift(
         "cache_read_allowed.const must be False" in error
         for error in errors
     )
+
+
+def test_philosophy_source_corpus_index_rejects_schema_boolean_const_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    runtime_allowed = properties["runtime_allowed"]
+    assert isinstance(runtime_allowed, dict)
+    runtime_allowed["const"] = 0
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema properties.runtime_allowed.const must be False" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_schema_integer_const_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    source_count = properties["source_count"]
+    assert isinstance(source_count, dict)
+    source_count["const"] = 6.0
+
+    errors = _validate(schema_text=json.dumps(schema, ensure_ascii=False, indent=2) + "\n")
+
+    assert any("schema properties.source_count.const must be 6" in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_rejects_schema_sources_type_drift() -> None:
@@ -876,6 +913,19 @@ def test_philosophy_source_corpus_index_scans_utf16_text_artifact_contents(
     artifact = tmp_path / REL_INDEX
     artifact.parent.mkdir(parents=True)
     artifact.write_bytes(("leak=" + "/" + "tmp/source.pdf\n").encode("utf-16"))
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_scans_utf32_text_artifact_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(("leak=" + "/" + "tmp/source.pdf\n").encode("utf-32"))
     monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
 
     errors = validate_file_contents([REL_INDEX])

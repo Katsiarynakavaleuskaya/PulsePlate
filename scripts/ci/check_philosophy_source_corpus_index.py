@@ -528,6 +528,14 @@ def _validate_exact_keys(
     return errors
 
 
+def _is_json_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _const_values_match(actual: object, expected: object) -> bool:
+    return type(actual) is type(expected) and actual == expected
+
+
 def _schema_object_at(schema: dict[str, object], path: tuple[str, ...]) -> dict[str, object] | None:
     value: object = schema
     for key in path:
@@ -546,8 +554,10 @@ def _schema_const_at(
     dotted = ".".join(path)
     if target is None:
         return [f"schema {dotted} must be an object with const {expected!r}"]
-    if target.get("const") != expected:
-        return [f"schema {dotted}.const must be {expected!r}"]
+    actual = target.get("const")
+    if not _const_values_match(actual, expected):
+        expected_type = type(expected).__name__
+        return [f"schema {dotted}.const must be {expected!r} ({expected_type})"]
     return []
 
 
@@ -982,7 +992,7 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
 
 
 def _decode_text_artifact(data: bytes) -> str | None:
-    for encoding in ("utf-8", "utf-8-sig", "utf-16", "utf-32"):
+    for encoding in ("utf-8", "utf-8-sig", "utf-32", "utf-16"):
         try:
             return data.decode(encoding)
         except UnicodeDecodeError:
@@ -1140,10 +1150,12 @@ def _validate_sources(index: dict[str, object]) -> list[str]:
         global_themes.update(themes)
         global_disciplines.update(disciplines)
 
-    if index.get("source_count") != len(EXPECTED_SOURCES):
-        errors.append(f"source_count must be {len(EXPECTED_SOURCES)}")
-    if index.get("total_pages") != EXPECTED_TOTAL_PAGES:
-        errors.append(f"total_pages must be {EXPECTED_TOTAL_PAGES}")
+    source_count = index.get("source_count")
+    if not _is_json_integer(source_count) or source_count != len(EXPECTED_SOURCES):
+        errors.append(f"source_count must be integer {len(EXPECTED_SOURCES)}")
+    total_pages_value = index.get("total_pages")
+    if not _is_json_integer(total_pages_value) or total_pages_value != EXPECTED_TOTAL_PAGES:
+        errors.append(f"total_pages must be integer {EXPECTED_TOTAL_PAGES}")
     errors.extend(
         _validate_exact_string_array(
             index.get("repo_truth_links"),
