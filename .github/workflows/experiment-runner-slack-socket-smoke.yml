@@ -82,6 +82,14 @@ jobs:
         if: inputs.dry_run == 'false'
         run: |
           set -euo pipefail
+          slack_app_status="${{ secrets.SLACK_APP_TOKEN != '' && 'present' || 'missing' }}"
+          slack_bot_status="${{ secrets.SLACK_BOT_TOKEN != '' && 'present' || 'missing' }}"
+          channel_allowlist_status="${{ inputs.channel_allowlist != '' && 'present' || 'missing' }}"
+          user_allowlist_status="${{ inputs.user_allowlist != '' && 'present' || 'missing' }}"
+          printf 'SLACK_APP_TOKEN=%s\n' "$slack_app_status"
+          printf 'SLACK_BOT_TOKEN=%s\n' "$slack_bot_status"
+          printf 'EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s\n' "$channel_allowlist_status"
+          printf 'EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s\n' "$user_allowlist_status"
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-secret-presence \
             ${{ secrets.SLACK_APP_TOKEN != '' && '--slack-app-config-present' || '' }} \

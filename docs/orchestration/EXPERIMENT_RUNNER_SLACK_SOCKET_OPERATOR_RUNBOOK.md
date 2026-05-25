@@ -45,12 +45,13 @@ For live prerequisite validation, set `dry_run` to `false` and provide:
 - a SHA256 digest of the hypothesis, not raw Slack text,
 - audit retention days.
 
-The workflow first runs a secret-presence diagnostic. It reports only whether
-required environment names are present and which names are missing. The
-diagnostic step passes explicit CLI booleans from GitHub expressions, not raw
-token environment variables. It must not print secret values, token prefixes,
-raw channel/user IDs, raw hypotheses, local absolute paths, Slack payload
-bodies, GitHub tokens, oracle stdout/stderr, or patch text.
+The workflow first runs a secret-presence diagnostic. The workflow shell prints
+only public required environment names with `present` / `missing` status, then
+passes explicit CLI booleans from GitHub expressions to the Python bridge. The
+Python bridge returns only the fail-closed exit code for that check; it does not
+print a secret-presence payload. The diagnostic must not print secret values,
+token prefixes, raw channel/user IDs, raw hypotheses, local absolute paths,
+Slack payload bodies, GitHub tokens, oracle stdout/stderr, or patch text.
 
 ## Failure Interpretation
 

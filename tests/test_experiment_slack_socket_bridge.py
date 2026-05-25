@@ -142,11 +142,8 @@ def test_secret_presence_validation_reports_missing_without_values(
 
     assert bridge.main(["--validate-secret-presence"]) == 1
     stdout = capsys.readouterr().out
-    payload = json.loads(stdout)
 
-    assert payload["status"] == "fail"
-    assert payload["missing_env"] == list(bridge.LIVE_SECRET_PRESENCE_ENV)
-    assert all(present is False for present in payload["required_env_present"].values())
+    assert stdout == ""
     assert "xapp-" not in stdout
     assert "xoxb-" not in stdout
     assert "C0ALERTS" not in stdout
@@ -177,11 +174,8 @@ def test_secret_presence_validation_passes_without_leaking_values(
         == 0
     )
     stdout = capsys.readouterr().out
-    payload = json.loads(stdout)
 
-    assert payload["status"] == "pass"
-    assert payload["missing_env"] == []
-    assert all(present is True for present in payload["required_env_present"].values())
+    assert stdout == ""
     assert "xapp-" not in stdout
     assert "xoxb-" not in stdout
     assert "C0ALERTS" not in stdout
@@ -1007,6 +1001,10 @@ def test_workflow_is_manual_only_and_secret_safe() -> None:
     assert "--slack-bot-config-present" in workflow_text
     assert "--channel-allowlist-present" in workflow_text
     assert "--user-allowlist-present" in workflow_text
+    assert "SLACK_APP_TOKEN=%s" in workflow_text
+    assert "SLACK_BOT_TOKEN=%s" in workflow_text
+    assert "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s" in workflow_text
+    assert "EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s" in workflow_text
     assert "slack-bolt==1.28.0" in workflow_text
     assert "SLACK_SIGNING_SECRET" not in workflow_text
     assert "continue-on-error" not in workflow_text

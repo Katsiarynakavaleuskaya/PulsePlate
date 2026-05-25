@@ -530,66 +530,21 @@ def validate_secret_presence(
     }
 
 
-def _build_secret_presence_report_literals() -> (
-    dict[tuple[bool, bool, bool, bool], tuple[str, bool]]
-):
-    """Build all public presence reports without reading env or CLI input."""
-
-    reports: dict[tuple[bool, bool, bool, bool], tuple[str, bool]] = {}
-    for slack_app_present in (False, True):
-        for slack_bot_present in (False, True):
-            for channel_present in (False, True):
-                for user_present in (False, True):
-                    key = (
-                        slack_app_present,
-                        slack_bot_present,
-                        channel_present,
-                        user_present,
-                    )
-                    presence = {
-                        SLACK_APP_AUTH_ENV: slack_app_present,
-                        SLACK_BOT_AUTH_ENV: slack_bot_present,
-                        SLACK_CHANNEL_ALLOWLIST_ENV: channel_present,
-                        SLACK_USER_ALLOWLIST_ENV: user_present,
-                    }
-                    missing = [
-                        env_name for env_name in LIVE_SECRET_PRESENCE_ENV if not presence[env_name]
-                    ]
-                    all_present = all(key)
-                    reports[key] = (
-                        json.dumps(
-                            {
-                                "missing_env": missing,
-                                "required_env_present": presence,
-                                "status": "pass" if all_present else "fail",
-                            },
-                            sort_keys=True,
-                        ),
-                        all_present,
-                    )
-    return reports
-
-
-_SECRET_PRESENCE_REPORTS = _build_secret_presence_report_literals()
-
-
-def _secret_presence_report_json(
+def _secret_presence_all_present(
     *,
     slack_app_config_present: bool,
     slack_bot_config_present: bool,
     channel_allowlist_present: bool,
     user_allowlist_present: bool,
-) -> tuple[str, bool]:
-    """Select a prebuilt value-free diagnostics payload from CLI booleans."""
+) -> bool:
+    """Return whether live smoke has all required runtime config markers."""
 
-    return _SECRET_PRESENCE_REPORTS[
-        (
-            slack_app_config_present,
-            slack_bot_config_present,
-            channel_allowlist_present,
-            user_allowlist_present,
-        )
-    ]
+    return (
+        slack_app_config_present
+        and slack_bot_config_present
+        and channel_allowlist_present
+        and user_allowlist_present
+    )
 
 
 def _audit_timestamp(audit: dict[str, Any]) -> datetime:
@@ -1205,13 +1160,12 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
         if args.validate_secret_presence:
-            report_text, all_present = _secret_presence_report_json(
+            all_present = _secret_presence_all_present(
                 slack_app_config_present=bool(args.slack_app_config_present),
                 slack_bot_config_present=bool(args.slack_bot_config_present),
                 channel_allowlist_present=bool(args.channel_allowlist_present),
                 user_allowlist_present=bool(args.user_allowlist_present),
             )
-            print(report_text)
             return 0 if all_present else 1
         config = build_config(
             dispatch_mode=args.dispatch_mode,
