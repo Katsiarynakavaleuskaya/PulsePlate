@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Experiment Runner Dispatch
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_ref:
+        description: "Operator target branch reference; validated as typed input only"
+        required: true
+        type: string
+        default: "main"
+      hypothesis_sha256:
+        description: "SHA256 of the operator hypothesis; never pass raw Slack text"
+        required: true
+        type: string
+        default: "0000000000000000000000000000000000000000000000000000000000000000"
+      dry_run:
+        description: "Keep true until the bounded live dispatch exercise PR enables execution"
+        required: true
+        type: choice
+        default: "true"
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  experiment-runner-dispatch-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Validate typed dispatch inputs without raw echo
+        env:
+          EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
+          EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --validate-dispatch-inputs
+
+      - name: Fail closed until bounded live dispatch is promoted
+        if: inputs.dry_run == 'false'
+        run: |
+          set -euo pipefail
+          printf 'Experiment Runner live dispatch is deferred to a later governed PR.\n'
+          exit 1
+
+      - name: Record sanitized dispatch contract summary
+        if: inputs.dry_run == 'true'
+        run: |
+          set -euo pipefail
+          {
+            printf '### Experiment Runner dispatch contract\n'
+            printf -- '- mode: manual workflow_dispatch only\n'
+            printf -- '- dry_run: true\n'
+            printf -- '- branch_ref: validated without raw echo\n'
+            printf -- '- hypothesis_sha256: validated without raw echo\n'
+            printf -- '- authority: no PR creation, review disposition, merge readiness, or arbitrary workflow dispatch\n'
+          } >> "$GITHUB_STEP_SUMMARY"

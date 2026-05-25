@@ -29,6 +29,23 @@ time:
 Use the approved `#experiment-runner` channel ID only as a runtime input. The
 repository must not hardcode it as a default.
 
+## Slack App Manifest
+
+The secret-free operator setup manifest lives at
+`docs/orchestration/EXPERIMENT_RUNNER_SLACK_APP_MANIFEST.yml`.
+
+The manifest documents the repo-approved Socket Mode shape only: Experiment
+Runner app identity, Slack-safe bot display `experiment-runner`,
+`/run-experiment`, bot scopes `commands` and `chat:write`,
+`socket_mode_enabled: true`, `org_deploy_enabled: false`, and `is_hosted:
+false`.
+
+The manifest must not contain token values, token prefixes, webhook URLs,
+request URLs, real workspace/team/channel/user IDs, or repository defaults for
+operator allowlists. App-level Socket Mode token creation and the
+`connections:write` scope remain external operator setup, stored only in the
+runtime secret store.
+
 ## Manual Live Smoke
 
 Run `.github/workflows/experiment-runner-slack-socket-smoke.yml` manually with
@@ -107,8 +124,11 @@ rejected before deletion.
 ## Authority Boundary
 
 The Slack operator bridge may validate configuration, report status, and in
-explicit execute mode dispatch only the fixed smoke workflow with typed,
-sanitized inputs. It must not:
+explicit execute mode dispatch only the fixed
+`.github/workflows/experiment-runner-dispatch.yml` workflow with typed,
+sanitized inputs. The dispatch workflow is manual-only, defaults to `dry_run:
+true`, and fails closed for `dry_run: false` until a later bounded dispatch
+exercise PR promotes live execution. It must not:
 
 - create or update pull requests,
 - resolve review threads,
@@ -117,3 +137,7 @@ sanitized inputs. It must not:
 - run arbitrary workflows,
 - execute shell commands from Slack text,
 - auto-run experiments by default.
+
+The earlier `.github/workflows/experiment-runner-slack-socket-smoke.yml`
+workflow remains the separate manual live-smoke validation path for runtime
+Slack secrets and allowlists.
