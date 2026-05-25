@@ -7,7 +7,13 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1826#discussion_r3297649628 -> e9b8d7a2f71228c688cfc2c57681a4136d915b9
+  - Disposition: FIXED
+  - Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py`
+    derives `--validate-secret-presence` from the live runtime environment again
+    and returns only a fail-closed exit code; `.github/workflows/experiment-runner-slack-socket-smoke.yml`
+    supplies the runtime env while printing only constant public
+    `present` / `missing` labels.
 
 ## Lane Start Provenance
 
@@ -51,16 +57,18 @@ signal.
   validation in `.github/workflows/experiment-runner-slack-socket-smoke.yml`.
 - `bug-hunter`: FINDING fixed by 129ff42fd8ff54e7b0a87f9f952ee288bcb905d0.
   Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` moved
-  `--validate-secret-presence` to explicit CLI booleans and then
-  `1dafe8af9d8e03b52214fa1d24cda1ca071628e1` removed the Python
-  secret-presence stdout payload entirely.
+  `--validate-secret-presence` to explicit CLI booleans; subsequent review
+  found that path non-authoritative, and
+  `e9b8d7a2f71228c688cfc2c57681a4136d915b9` restored runtime-env
+  validation while keeping Python stdout empty.
 - `qa-engineer-agent`: PASS on pushed head `bee128dc609b65dc654f7c021dcd57da16939bd5`;
   latest no-stdout remediation reran focused pytest, `make validate-changed`,
   and pre-commit before commit.
-- `security-auditor`: FINDING fixed by 1dafe8af9d8e03b52214fa1d24cda1ca071628e1.
+- `security-auditor`: FINDING fixed by e9b8d7a2f71228c688cfc2c57681a4136d915b9.
   Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` returns
   only a fail-closed exit code for `--validate-secret-presence`; the workflow
-  prints only constant public required names with `present` / `missing` status.
+  passes runtime env to that check and prints only constant public required
+  names with `present` / `missing` status.
 - Premortem: PASS; risk reviewed for secret leakage, workflow trigger drift,
   audit cleanup traversal, and Slack authority expansion.
 - CodeRabbit: PASS on head `bee128dc609b65dc654f7c021dcd57da16939bd5`; will be
