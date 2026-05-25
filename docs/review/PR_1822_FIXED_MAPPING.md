@@ -45,6 +45,13 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
   returned 0, and `shared_tree_untouched=true`.
 - Co-author: required; commit `3aa36f850` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Discipline-rail artifact:
+  `artifacts/orchestration/experiments/results/exp-pr1822-discipline-rails-oracle.json`
+- Discipline-rail status: accepted, `oracle_only_governance_reviewer`,
+  `contribution_kind=oracle_review`, 2/2 runner-executable oracle commands
+  returned 0, and `shared_tree_untouched=true`.
+- Co-author: required; commit `33e57821f` includes
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
 
@@ -341,6 +348,12 @@ Commit: f2ed27c0b
 Evidence: the workflow contract test now extracts the actual PR-5 `case "$path"` block before asserting source-corpus trigger inclusion and docs Phase1 trigger exclusion, closing the prior broad-section false-green.
 Evidence: Anchors: `tests/test_ci_workflow_pr_size_governance_contract.py:326`, `tests/test_ci_workflow_pr_size_governance_contract.py:331`, `tests/test_ci_workflow_pr_size_governance_contract.py:332`, `tests/test_ci_workflow_pr_size_governance_contract.py:344`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299252790 -> 33e57821f
+Disposition: FIXED
+Commit: 33e57821f
+Evidence: source-corpus validation now rejects `discipline_rails` values outside the canonical `EXPECTED_DISCIPLINE_RAILS` enum, closing the `totally_invalid_rail` false-green.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:113`, `scripts/ci/check_philosophy_source_corpus_index.py:1266`, `scripts/ci/check_philosophy_source_corpus_index.py:1273`, `tests/test_philosophy_source_corpus_index.py:315`.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -419,6 +432,9 @@ Evidence: Anchors: `tests/test_ci_workflow_pr_size_governance_contract.py:326`, 
   Evidence: commit `3aa36f850` prefers the pull_request merge-ref parent
   `HEAD^1` and keeps the event base SHA only as a fallback, with workflow
   contract coverage.
+- FIXED: current-head review found discipline rail enum false-greens. Evidence:
+  commit `33e57821f` rejects non-canonical `discipline_rails` values and adds a
+  regression for `totally_invalid_rail`.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -503,6 +519,9 @@ Evidence: Anchors: `tests/test_ci_workflow_pr_size_governance_contract.py:326`, 
   changed-file detection used the stale PR event base SHA instead of the
   current merge-ref parent. Evidence: commit `3aa36f850` uses `HEAD^1` first,
   falls back to the event base SHA only when needed, and tests the ordering.
+- FIXED: current-head Codex review found source `discipline_rails` accepted
+  non-enum values. Evidence: commit `33e57821f` adds canonical rail set
+  validation and a targeted `totally_invalid_rail` regression.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -515,6 +534,8 @@ Evidence: Anchors: `tests/test_ci_workflow_pr_size_governance_contract.py:326`, 
 - `python3 scripts/ci/check_philosophy_gate_open_preconditions.py --check --files ...` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py tests/test_ci_workflow_pr_size_governance_contract.py` PASS.
+- `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the discipline-rail enum regression.
+- `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
 - `$VENV_PYTHON -m bandit -q scripts/ci/check_philosophy_source_corpus_index.py scripts/ci/check_docs_phase1_gates.py` PASS.
 - `DEV_PYTHON=$VENV_PYTHON VENV_PYTHON=$VENV_PYTHON make validate-changed` PASS.
 - `pre-commit run --all-files` PASS.
