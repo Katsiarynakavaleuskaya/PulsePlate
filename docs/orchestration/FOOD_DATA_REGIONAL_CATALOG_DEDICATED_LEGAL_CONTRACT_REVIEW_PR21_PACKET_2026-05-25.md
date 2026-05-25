@@ -33,7 +33,7 @@ Pre-open role-agent findings:
 
 - `agent-coordinator`: PASS; keep PR21 governance/file-only, validate PR20
   handoff, run every declared role, premortem, Experiment Runner, focused gates,
-  and full `make verify`.
+  `pre-commit`, `make validate-changed`, and current-head CI parity.
 - `architecture-specialist`: PASS; preserve exact PR20 candidate order and keep
   legal/contract review as review-only documentation, not source authority.
 - `data-scientist-agent`: PASS; preserve low/unverified evidence confidence and
@@ -42,7 +42,7 @@ Pre-open role-agent findings:
   thin CLI; no runtime, API, DB, cache, provider, or OpenAPI changes.
 - `qa-engineer-agent`: PASS; require canonical load/report, malformed artifact,
   CLI, unsafe prose, exact handoff, adjacent regressions, mypy, pre-commit,
-  `make validate-changed`, and full `make verify`.
+  `make validate-changed`, and current-head CI parity.
 - `bug-hunter`: PASS; guard approval-sounding legal prose, candidate drift,
   inherited-field drift, evidence-overreach, and CLI failure paths.
 - `security-auditor`: PASS; reject source/provider/API/account/download/cache/
@@ -123,10 +123,11 @@ evidence became checkbox-only.
   - Disposition: FIXED in packet/process.
   - Evidence: role-agent dispatch status and Experiment Runner policy are
     validator-controlled artifact fields.
-- PM-PR21-005: Type or coverage gaps could surface only after PR open.
+- PM-PR21-005: Type or gate gaps could surface only after PR open.
   - Disposition: FIXED in validation plan.
   - Evidence: targeted mypy, focused tests, adjacent regressions, pre-commit,
-    `make validate-changed`, and full `make verify` are required gates.
+    `make validate-changed`, and GitHub current-head CI parity are required
+    gates.
 
 ## Experiment Runner
 
@@ -152,8 +153,11 @@ VENV_PYTHON="${VENV_PYTHON:-.venv/bin/python}"
 "${VENV_PYTHON}" -m pytest -q tests/test_repo_policy_guards.py
 pre-commit run --all-files
 make validate-changed VENV_PYTHON="${VENV_PYTHON}"
-make verify
 ```
+
+Full local `make verify` is not a default PR21 local gate after operator
+clarification because this food-data governance lane relies on focused local
+gates plus GitHub current-head CI parity for the repo-wide suite.
 
 ## Post-Open Governance
 

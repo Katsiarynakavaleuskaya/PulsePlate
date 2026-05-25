@@ -206,7 +206,7 @@ _EXPECTED_PREMORTEM_DISPOSITIONS = (
     "PM-PR21-002 candidate handoff drift fixed by exact PR20 candidate-order and status validation",
     "PM-PR21-003 evidence overreach fixed by review-context-only evidence fields and authority rejection",
     "PM-PR21-004 provenance false-green fixed by role-agent dispatch and Experiment Runner evidence requirements",
-    "PM-PR21-005 type and coverage false-green fixed by focused tests, targeted mypy, and full make verify",
+    "PM-PR21-005 type and gate false-green fixed by focused tests, targeted mypy, pre-commit, validate-changed, and current-head CI parity",
 )
 _EXPECTED_ROLE_AGENT_DISPATCH_STATUS = (
     "pre_open_full_dispatch_sequence_completed_before_implementation"

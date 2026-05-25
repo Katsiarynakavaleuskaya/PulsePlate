@@ -27,7 +27,9 @@ authority.
 - Dispatch manifest: `qoder_dispatch_bridge.py --mode docs-only` generated.
 - Pre-open role agents run in coordinator-declared order:
   `agent-coordinator -> architecture-specialist -> data-scientist-agent -> backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor -> dev-operator -> cursor-specialist-agent`.
-- Premortem PM-PR21-001..005: FIXED in artifact, validator, tests, packet, and validation plan.
+- Premortem PM-PR21-001..005: FIXED in artifact, validator, tests, packet,
+  and validation plan. PM-PR21-005 uses focused local gates plus current-head CI
+  parity after operator clarification.
 
 ## Experiment Runner Evidence
 
@@ -46,6 +48,17 @@ CLI, focused tests, fixed mapping, and current pointer/backlog updates all
 validate each other. Splitting those files would temporarily leave either an
 unvalidated artifact, a validator without canonical data, or tests without the
 governing packet/backlog context.
+
+## Finding Dispositions
+
+- Agent-coordinator post-open finding: Phase2 mapping format and split
+  justification were invalid. Disposition: FIXED. Evidence: commit `d3849c62a`;
+  local `check_pr_body_phase2_gates.py` and `check_pr_size_governance.py`
+  passed after the fix.
+- Architecture-specialist post-open finding: PR21 packet/artifact/validator
+  still required full `make verify` after operator clarification. Disposition:
+  FIXED. Evidence: current packet/artifact/validator/tests now require focused
+  local gates, `pre-commit`, `make validate-changed`, and current-head CI parity.
 
 ## Validation Evidence
 
