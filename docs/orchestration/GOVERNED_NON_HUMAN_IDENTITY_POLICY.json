@@ -86,6 +86,8 @@
     "requires_explicit_dispatch_opt_in": true,
     "requires_hash_only_audit": true,
     "requires_audit_artifact": true,
+    "requires_runtime_presence_diagnostics": true,
+    "requires_audit_retention_policy": true,
     "requires_redacted_messages": true,
     "requires_rate_limit": true,
     "requires_timeout": true,

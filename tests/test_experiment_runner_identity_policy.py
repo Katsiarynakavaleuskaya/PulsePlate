@@ -32,6 +32,8 @@ def test_default_policy_validates() -> None:
     assert policy["slack_identity"]["requires_user_allowlist"] is True
     assert policy["slack_identity"]["requires_explicit_dispatch_opt_in"] is True
     assert policy["slack_identity"]["requires_hash_only_audit"] is True
+    assert policy["slack_identity"]["requires_runtime_presence_diagnostics"] is True
+    assert policy["slack_identity"]["requires_audit_retention_policy"] is True
     assert policy["slack_identity"]["allowed_sinks"] == [
         "experiment_notify_slack_explicit_sink",
         "experiment_slack_socket_operator_bridge",
@@ -529,6 +531,25 @@ def test_rejects_slack_socket_boundary_missing_user_allowlist() -> None:
     policy["slack_identity"]["requires_user_allowlist"] = False
 
     with pytest.raises(identity_check.IdentityPolicyError, match="requires_user_allowlist"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_boundary_missing_runtime_presence_diagnostics() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["requires_runtime_presence_diagnostics"] = False
+
+    with pytest.raises(
+        identity_check.IdentityPolicyError,
+        match="requires_runtime_presence_diagnostics",
+    ):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_slack_socket_boundary_missing_audit_retention_policy() -> None:
+    policy = _valid_policy()
+    policy["slack_identity"]["requires_audit_retention_policy"] = False
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="requires_audit_retention_policy"):
         identity_check.validate_identity_policy(policy)
 
 
