@@ -94,7 +94,7 @@ plus current-head CI and strict merge-readiness governance.
   `origin/main...HEAD`.
 - Phase: `validation` completed for the no-candidate result.
 - Result: no reportable security findings.
-- Local scan ids: `pr1827_1e1a05228fb7_20260525T104758Z`; refreshed after the last substantive checker change as `pr1827_db19fb52b_20260525T111945Z`
+- Local scan ids: `pr1827_1e1a05228fb7_20260525T104758Z`; refreshed after checker hardening as `pr1827_db19fb52b_20260525T111945Z` and `pr1827_f802efe2c_20260525T115151Z`
 - Evidence: no runtime route, provider, cache, persistence, OpenAPI, database,
   Redis/GPTCache, or semantic-cache serving surface is added; semantic-cache
   gate checker passed; full pre-commit and pre-push security hooks passed.
@@ -200,6 +200,51 @@ Evidence: local-path leakage detection now catches punctuation-prefixed `worktre
 Disposition: FIXED
 Commit: db19fb52b
 Evidence: aggregate Codex review actionables from the `bf982c7d1d` review are mapped to the six inline FIXED comments above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297874930 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: `_iter_scope_statements(...)` is now used by rebinding checks and walks nested executable blocks; the nested runtime-symbol rebound regression covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297874934 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: the scope walker descends into `if`, loops, try/except/finally, with, and match blocks; the try-block pytestmark regression covers non-`if` disables.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297874939 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: `_imported_disabling_call_aliases(...)` and `_module_level_skip_call(...)` detect imported and assigned skip aliases; the imported-alias module skip regression covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297874942 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: call-proof extraction now preserves exact callee identity instead of dropping namespaces; the similar-method call spoof regression covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297874948 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: `_assigned_names(...)` now treats `import` and `from ... import ...` bindings as rebinding evidence; the import-rebinding regression covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297874955 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: `_function_test_attribute_disabled_after_definition(...)` rejects falsy function `.__test__` overrides after required test definitions; the post-definition `__test__` override regression covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297874957 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: `_is_falsy_constant(...)` now treats falsey `__test__` constants as disabling, not just literal `False`; the module `__test__ = 0` regression covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297874959 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: `_truthy_constant_aliases(...)` resolves simple true aliases for `allow_module_level`; the imported-alias module skip regression covers non-literal truthy allow-module-level.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#pullrequestreview-4356337666 -> f802efe2c
+Disposition: FIXED
+Commit: f802efe2c
+Evidence: aggregate Codex review actionables from the `6ef16db12e` review are mapped to the eight inline FIXED comments above.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#issuecomment-4533488800
 Disposition: NOT-A-BUG
