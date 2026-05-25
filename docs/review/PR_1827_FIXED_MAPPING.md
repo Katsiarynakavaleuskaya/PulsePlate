@@ -94,7 +94,7 @@ plus current-head CI and strict merge-readiness governance.
   `origin/main...HEAD`.
 - Phase: `validation` completed for the no-candidate result.
 - Result: no reportable security findings.
-- Local scan ids: `pr1827_1e1a05228fb7_20260525T104758Z`; refreshed after checker hardening as `pr1827_db19fb52b_20260525T111945Z`, `pr1827_f802efe2c_20260525T115151Z`, and `pr1827_9e96f799d_20260525T122420Z`
+- Local scan ids: `pr1827_1e1a05228fb7_20260525T104758Z`; refreshed after checker hardening as `pr1827_db19fb52b_20260525T111945Z`, `pr1827_f802efe2c_20260525T115151Z`, `pr1827_9e96f799d_20260525T122420Z`, and `pr1827_afc897fc2_20260525T125555Z`
 - Evidence: no runtime route, provider, cache, persistence, OpenAPI, database,
   Redis/GPTCache, or semantic-cache serving surface is added; semantic-cache
   gate checker passed; full pre-commit and pre-push security hooks passed.
@@ -305,6 +305,56 @@ Evidence: `_check_overclaims(...)` now splits soft conjunctions such as `and`; `
 Disposition: FIXED
 Commit: 9e96f799d
 Evidence: aggregate Codex review actionables from the `d773c0f7d` review are mapped to the eleven inline FIXED comments above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170259 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `_static_truthiness(...)` and `_is_truthy_or_unknown(...)` now detect computed truthy `allow_module_level`; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_computed_truthy_allow_module_level` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170265 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `__test__` disabling checks now use deterministic static truthiness and fail closed on unknown values; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_computed_falsy_dunder_test_values` covers module and function override variants.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170271 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `_truthy_allow_module_level_mapping_aliases(...)` resolves kwargs mapping aliases before module-level skip checks; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_kwargs_alias_allow_module_level` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170273 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `_node_has_disabling_test_marker(...)` now treats subscripted tuple/list marker expressions as disabling aliases; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_subscripted_decorator_alias_assignment` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170277 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `_slice(...)` now rejects duplicate closeout anchors before section validation; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_duplicate_closeout_anchor` covers decoy-anchor spoofing.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170282 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `_callable_name(...)` resolves `getattr(pytest, "skip"/"xfail")` calls; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_getattr_based_test_skip` covers module-level and in-test variants.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170288 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `_reachable_nodes_in_function(...)` excludes statements after `return` and constant-false branches from runtime proof checks; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_unreachable_runtime_proof_after_return` covers unreachable call/reference proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170291 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `blocked` and `deferred` were removed as blanket negation tokens; stale blocked wording and deferred overclaim regressions cover the false-negative paths.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298170294 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: `LOCAL_PATH_RE` is now case-insensitive; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_capitalized_worktrees_leakage` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#pullrequestreview-4356675240 -> afc897fc2
+Disposition: FIXED
+Commit: afc897fc2
+Evidence: aggregate Codex review actionables from the `7ec4728c5` review are mapped to the nine inline FIXED comments above.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#issuecomment-4533488800
 Disposition: NOT-A-BUG
