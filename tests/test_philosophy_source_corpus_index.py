@@ -1163,6 +1163,35 @@ def test_philosophy_source_corpus_index_allows_repo_neutral_absolute_routes(
     assert errors == []
 
 
+def test_philosophy_source_corpus_index_allows_non_file_route_literals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / "docs" / "evidence" / "routes.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        "route=" + "/" + "health/db\nlegacy=" + "/" + "insight\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents(["docs/evidence/routes.md"])
+
+    assert errors == []
+
+
+def test_philosophy_source_corpus_index_rejects_file_like_api_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("leak=" + "/" + "api/private/source.pdf\n", encoding="utf-8")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_allows_repo_neutral_infra_literals(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1188,6 +1217,38 @@ def test_philosophy_source_corpus_index_allows_repo_neutral_infra_literals(
     errors = validate_file_contents(["docs/roadmap/BACKLOG_LEDGER.md"])
 
     assert errors == []
+
+
+def test_philosophy_source_corpus_index_allows_credential_identifier_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / "docs" / "evidence" / "credential-fields.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        "fields: AWS_ACCESS_KEY_ID, access_key_id, secret_access_key\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents(["docs/evidence/credential-fields.md"])
+
+    assert errors == []
+
+
+def test_philosophy_source_corpus_index_rejects_credential_identifier_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        "AWS_SECRET_ACCESS_KEY=" + "abcdefghijklmnop\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("credential-like token" in error for error in errors)
 
 
 def test_philosophy_source_corpus_index_scans_past_allowed_posix_match(

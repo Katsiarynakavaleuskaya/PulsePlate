@@ -429,19 +429,22 @@ SECRET_OR_LOCAL_PATTERNS = (
         + re.escape(_AWS_PARAMETER_PREFIX)
         + r"(?:credential|signature|security-token|algorithm)"
     ),
-    re.compile(r"(?i)(?:" + "|".join(re.escape(name) for name in _AWS_CREDENTIAL_NAMES) + r")"),
+    re.compile(
+        r"(?i)(?:"
+        + "|".join(re.escape(name) for name in _AWS_CREDENTIAL_NAMES)
+        + r")\s*[:=]\s*[A-Za-z0-9_%./+=-]{12,}"
+    ),
     re.compile(r"(?i)(?:token|signature|credential)=[A-Za-z0-9_%./+=-]{12,}"),
     re.compile(r"(?i)(?<![A-Za-z0-9])" + "sk" + r"-[A-Za-z0-9_-]{16,}"),
 )
 ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES = frozenset({"/dev/null", "/dev/stdout", "/usr/bin/env"})
 ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES = (
     "/Applications/Xcode",
-    "/api/",
-    "/insight/",
     "/opt/venv/lib/",
     "/srv/pulseplate-staging",
     "/usr/local/lib/",
 )
+ALLOWED_ROUTE_PATH_PREFIXES = ("/api/", "/health/", "/insight", "/insight/")
 WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
 FALLBACK_TEXT_ENCODINGS = ("cp1251", "windows-1252")
 
@@ -1109,9 +1112,18 @@ def _is_allowed_secret_or_local_match(text: str, match: re.Match[str]) -> bool:
         return True
     if matched_value.startswith(ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES):
         return True
+    if _is_route_literal(matched_value):
+        return True
     if match.start() > 0 and text[match.start() - 1] == "~":
         return True
     return False
+
+
+def _is_route_literal(matched_value: str) -> bool:
+    if not matched_value.startswith(ALLOWED_ROUTE_PATH_PREFIXES):
+        return False
+    final_segment = matched_value.rsplit("/", 1)[-1]
+    return "." not in final_segment
 
 
 def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
