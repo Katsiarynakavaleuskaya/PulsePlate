@@ -75,6 +75,14 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
   `shared_tree_untouched=true`.
 - Co-author: required; commit `fba701c10` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- POSIX/edge-space leak hardening artifact:
+  `artifacts/orchestration/experiments/results/exp-pr1822-posix-edge-space-oracle.json`
+- POSIX/edge-space leak hardening status: accepted,
+  `oracle_only_governance_reviewer`, `contribution_kind=oracle_review`, 3/3
+  runner-executable oracle commands returned 0, and
+  `shared_tree_untouched=true`.
+- Co-author: required; commit `9ba654437` includes
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
 
@@ -413,6 +421,18 @@ Commit: fba701c10
 Evidence: touched-file scanning now validates symlink targets before content reads, including broken symlinks and targets that escape the repository root.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1164`, `scripts/ci/check_philosophy_source_corpus_index.py:1168`, `scripts/ci/check_philosophy_source_corpus_index.py:1171`, `tests/test_philosophy_source_corpus_index.py:1185`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299774947 -> 9ba654437
+Disposition: FIXED
+Commit: 9ba654437
+Evidence: touched-artifact leakage scanning now rejects generic POSIX absolute local-path fixtures, while keeping the repo-neutral Python shebang allowed.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:410`, `scripts/ci/check_philosophy_source_corpus_index.py:1099`, `tests/test_philosophy_source_corpus_index.py:1123`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299774948 -> 9ba654437
+Disposition: FIXED
+Commit: 9ba654437
+Evidence: touched-path normalization now preserves the exact raw git filename, including leading and trailing spaces, so content scanning reads the actual touched artifact.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:632`, `tests/test_philosophy_source_corpus_index.py:1136`.
+
 ## CI Failure Closure
 
 - CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
@@ -618,6 +638,11 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
   target scan gaps. Evidence: commit `fba701c10` rejects non-C Windows local
   paths, non-user drive-root paths, UNC share paths, and absolute/escaping
   symlink targets with focused regressions.
+- FIXED: latest Codex review found remaining generic POSIX local-path and
+  exact touched-filename normalization gaps. Evidence: commit `9ba654437`
+  rejects generic POSIX absolute local paths while preserving the
+  repo-neutral Python shebang, and preserves leading/trailing spaces in touched
+  filenames with focused regressions.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -633,6 +658,7 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the discipline-rail enum regression.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_docs_phase1_gates.py` PASS after the path/encoding hardening regressions.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the Windows/symlink leak hardening regressions.
+- `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_semantic_cache_gate.py` PASS after the POSIX/edge-space leak hardening regressions.
 - `python3 scripts/ci/check_ai_bounded_context_a3_closeout.py` PASS after the PR-5 semantic-cache roadmap wording fix.
 - `$VENV_PYTHON -m pytest -q tests/test_ai_bounded_context_a3_closeout.py::test_checker_passes_on_current_repository` PASS.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
