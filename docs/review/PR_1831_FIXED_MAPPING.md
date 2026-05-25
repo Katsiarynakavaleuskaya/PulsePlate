@@ -14,7 +14,7 @@ Reason: The review was generated against stale commit `b49316b94d0329d908cc2d8c8
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1831#pullrequestreview-4357565699 -> 07f2ecaee32e064df348a2bed1c71fae3920d6af
 Disposition: FIXED
-Commit: `07f2ecaee32e064df348a2bed1c71fae3920d6af`
+Commit: 07f2ecaee32e064df348a2bed1c71fae3920d6af
 Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py:1057` keeps the single runtime guard; `scripts/orchestration/experiment_slack_socket_bridge.py:1063` uses typed locals without a duplicate `None` check.
 
 ## Lane Start Provenance
