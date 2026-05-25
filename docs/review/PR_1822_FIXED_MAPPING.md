@@ -267,6 +267,36 @@ Evidence: current-head `_decode_text_artifact()` detects NUL-bearing wide text b
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1034`, `scripts/ci/check_philosophy_source_corpus_index.py:1036`, `scripts/ci/check_philosophy_source_corpus_index.py:1043`, `tests/test_philosophy_source_corpus_index.py:1087`.
 Reason: no additional code change is needed because the composed BOM-less UTF-16LE local-path sample decodes to plain text at current head and is scanned by the existing regression.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297654612 -> 21fef7eac
+Disposition: FIXED
+Commit: 21fef7eac
+Evidence: touched-artifact decoding now includes explicit BOM-less UTF-32BE/LE candidates and scans every valid NUL-free decoding candidate instead of returning after the first ambiguous decode.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1093`, `scripts/ci/check_philosophy_source_corpus_index.py:1104`, `scripts/ci/check_philosophy_source_corpus_index.py:1114`, `tests/test_philosophy_source_corpus_index.py:1165`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297654616 -> 21fef7eac
+Disposition: FIXED
+Commit: 21fef7eac
+Evidence: touched-artifact decoding now includes explicit BOM-less UTF-16BE/LE candidates and scans every valid NUL-free decoding candidate to prevent wrong-endian false-greens.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1093`, `scripts/ci/check_philosophy_source_corpus_index.py:1097`, `scripts/ci/check_philosophy_source_corpus_index.py:1114`, `tests/test_philosophy_source_corpus_index.py:1139`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297654621 -> 21fef7eac
+Disposition: FIXED
+Commit: 21fef7eac
+Evidence: `research_basis.minItems` and `research_basis.maxItems` now use the exact JSON-integer schema keyword helper, with regression coverage for float drift.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:584`, `scripts/ci/check_philosophy_source_corpus_index.py:975`, `scripts/ci/check_philosophy_source_corpus_index.py:983`, `tests/test_philosophy_source_corpus_index.py:819`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297654625 -> 21fef7eac
+Disposition: FIXED
+Commit: 21fef7eac
+Evidence: `sources.minItems` and `sources.maxItems` now use the exact JSON-integer schema keyword helper, with regression coverage for float drift.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:584`, `scripts/ci/check_philosophy_source_corpus_index.py:787`, `scripts/ci/check_philosophy_source_corpus_index.py:795`, `tests/test_philosophy_source_corpus_index.py:832`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297654627 -> 21fef7eac
+Disposition: FIXED
+Commit: 21fef7eac
+Evidence: scope-link arrays now use the exact JSON-integer schema keyword helper for `repo_truth_links` and `out_of_scope_paths` bounds, with regression coverage for float drift.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:584`, `scripts/ci/check_philosophy_source_corpus_index.py:1052`, `scripts/ci/check_philosophy_source_corpus_index.py:1060`, `tests/test_philosophy_source_corpus_index.py:940`.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -330,6 +360,11 @@ Reason: no additional code change is needed because the composed BOM-less UTF-16
   describes behavior already enforced at current head. Evidence: current
   `_decode_text_artifact()` returns plain text for the composed BOM-less
   UTF-16LE local-path sample and the regression test scans that artifact class.
+- FIXED: latest current-head review found BOM-less big-endian UTF-16/UTF-32
+  leakage bypasses and float cardinality false-greens for schema bounds.
+  Evidence: commit `21fef7eac` scans all valid wide-text decoding candidates
+  and uses exact JSON-integer keyword checks for source, research, source
+  metadata, and scope-link cardinality.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -397,6 +432,10 @@ Reason: no additional code change is needed because the composed BOM-less UTF-16
 - NOT-A-BUG: latest repeated decoding comment is already covered by current-head
   wide-text decoding. Evidence: `_decode_text_artifact()` decodes the BOM-less
   UTF-16LE sample into plain text and the existing regression catches its leak.
+- FIXED: latest Codex review found BOM-less UTF-16BE/UTF-32BE decode gaps and
+  float cardinality false-greens for `sources`, `research_basis`, and scope-link
+  schema bounds. Evidence: commit `21fef7eac` closes these classes with exact
+  integer keyword checks and multi-candidate wide-text scanning regressions.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
