@@ -276,6 +276,11 @@ code, docs, tests, or CI routing:
   flag boolean properties. Evidence: `check_philosophy_source_corpus_index.py`
   now validates those schema types and `tests/test_philosophy_source_corpus_index.py`
   carries targeted regressions.
+- `FIXED`: latest Codex review found remaining section-level schema-type
+  false-greens for `research_basis`, `source_policy`, and
+  `semantic_cache_markers`. Evidence: the source-corpus checker now enforces
+  section object/array types and string/boolean typed constants across the
+  schema oracle.
 
 ## Experiment Runner
 

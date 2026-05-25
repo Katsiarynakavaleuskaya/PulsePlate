@@ -140,6 +140,21 @@ Disposition: FIXED
 Commit: 79823c296
 Evidence: runtime flag schema properties now require `type: boolean` plus `const: false`, with focused regression coverage.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295432296 -> c37adb4ec
+Disposition: FIXED
+Commit: c37adb4ec
+Evidence: `research_basis` now requires `type: array`, `items.type == object`, and `use.type == string`, with focused regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295432297 -> c37adb4ec
+Disposition: FIXED
+Commit: c37adb4ec
+Evidence: `source_policy` now requires `type: object` and string-typed policy constants, with focused regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3295432300 -> c37adb4ec
+Disposition: FIXED
+Commit: c37adb4ec
+Evidence: `semantic_cache_markers` now requires `type: object` and boolean-typed marker constants, with focused regression coverage.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
@@ -176,6 +191,10 @@ Evidence: runtime flag schema properties now require `type: boolean` plus `const
   arrays, source scalar fields, runtime flag object shape, and runtime flag
   boolean properties. Evidence: commit `79823c296` closes these with schema
   validation and regression tests.
+- FIXED: post-open review found remaining section/const schema-type false-greens
+  for `research_basis`, `source_policy`, and `semantic_cache_markers`. Evidence:
+  commit `c37adb4ec` generalizes the type contract across top-level constants,
+  section objects/arrays, section constants, and focused regressions.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -218,6 +237,10 @@ Evidence: runtime flag schema properties now require `type: boolean` plus `const
   false-greens. Evidence: commit `79823c296` enforces `sources.type`,
   `sources.items.type`, source scalar property types, `runtime_flags.type`, and
   runtime flag `type: boolean` declarations with targeted tests.
+- FIXED: the latest Codex review found section-level schema-type drift for
+  `research_basis`, `source_policy`, and `semantic_cache_markers`. Evidence:
+  commit `c37adb4ec` enforces these section types plus string/boolean typed
+  constants across the source-corpus schema oracle.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
