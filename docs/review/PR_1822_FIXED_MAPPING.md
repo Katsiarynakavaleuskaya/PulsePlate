@@ -59,6 +59,14 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
   returned 0, and `shared_tree_untouched=true`.
 - Co-author: required; commit `52216f2f9` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Path/encoding hardening artifact:
+  `artifacts/orchestration/experiments/results/exp-pr1822-path-encoding-oracle.json`
+- Path/encoding hardening status: accepted,
+  `oracle_only_governance_reviewer`, `contribution_kind=oracle_review`, 3/3
+  runner-executable oracle commands returned 0, and
+  `shared_tree_untouched=true`.
+- Co-author: required; commit `5372841b2` includes
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
 
@@ -361,6 +369,24 @@ Commit: 33e57821f
 Evidence: source-corpus validation now rejects `discipline_rails` values outside the canonical `EXPECTED_DISCIPLINE_RAILS` enum, closing the `totally_invalid_rail` false-green.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:113`, `scripts/ci/check_philosophy_source_corpus_index.py:1266`, `scripts/ci/check_philosophy_source_corpus_index.py:1273`, `tests/test_philosophy_source_corpus_index.py:315`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299452726 -> 5372841b2
+Disposition: FIXED
+Commit: 5372841b2
+Evidence: Docs Phase1 workflow now trusts the pull-request merge-ref parent `HEAD^1` only when `HEAD^2` exists; otherwise it falls back to the PR base SHA.
+Evidence: Anchors: `.github/workflows/ci.yml:237`, `.github/workflows/ci.yml:245`, `tests/test_ci_workflow_pr_size_governance_contract.py:295`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299452728 -> 5372841b2
+Disposition: FIXED
+Commit: 5372841b2
+Evidence: touched-path normalization now preserves literal POSIX backslashes instead of rewriting them to slashes, while still rejecting Windows drive paths as outside-repo input.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:617`, `scripts/ci/check_philosophy_source_corpus_index.py:621`, `tests/test_philosophy_source_corpus_index.py:1123`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299452730 -> 5372841b2
+Disposition: FIXED
+Commit: 5372841b2
+Evidence: touched-artifact text scanning now attempts CP1251 and Windows-1252 fallback decoding after Unicode candidates so common non-UTF text artifacts are scanned for local-path and credential-like leaks.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:421`, `scripts/ci/check_philosophy_source_corpus_index.py:1092`, `tests/test_philosophy_source_corpus_index.py:1150`, `tests/test_philosophy_source_corpus_index.py:1165`.
+
 ## CI Failure Closure
 
 - CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
@@ -456,6 +482,17 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
   `52216f2f9` rewrites the note to keep PR-5 outside semantic-cache runtime
   admission while keeping OpenAPI, frontend, iOS, and cache/runtime surfaces out
   of scope.
+- FIXED: current-head review found Docs Phase1 could trust `HEAD^1` even when
+  the checkout was not a pull-request merge commit. Evidence: commit
+  `5372841b2` verifies `HEAD^2` exists before using `HEAD^1` and keeps the PR
+  base SHA fallback.
+- FIXED: current-head review found touched-path normalization could rewrite
+  literal POSIX backslashes and skip a real file. Evidence: commit `5372841b2`
+  preserves backslashes, rejects Windows drive paths, and adds a literal
+  backslash path leakage regression.
+- FIXED: current-head review found CP1251/Windows-1252 text artifacts could be
+  skipped before content leakage scanning. Evidence: commit `5372841b2` adds
+  fallback decoding plus focused CP1251 and Windows-1252 leak regressions.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -547,6 +584,10 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
   OpenAPI/iOS scope wording in the PR-5 semantic-cache roadmap note. Evidence:
   commit `52216f2f9` preserves the closed markers and rewrites the sentence as
   explicit out-of-scope language.
+- FIXED: latest Codex review found workflow base-ref, touched-path
+  normalization, and non-UTF text artifact scan gaps. Evidence: commit
+  `5372841b2` closes those classes with workflow contract coverage and
+  source-corpus scanner regressions.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -560,9 +601,13 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py tests/test_ci_workflow_pr_size_governance_contract.py` PASS.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the discipline-rail enum regression.
+- `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_docs_phase1_gates.py` PASS after the path/encoding hardening regressions.
 - `python3 scripts/ci/check_ai_bounded_context_a3_closeout.py` PASS after the PR-5 semantic-cache roadmap wording fix.
 - `$VENV_PYTHON -m pytest -q tests/test_ai_bounded_context_a3_closeout.py::test_checker_passes_on_current_repository` PASS.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
+- `git diff --check` PASS after the path/encoding hardening diff.
+- Codex-security-style diff scan: no new secret/local-path payloads in the
+  touched diff; only scanner-function context matched the word `secret`.
 - `$VENV_PYTHON -m bandit -q scripts/ci/check_philosophy_source_corpus_index.py scripts/ci/check_docs_phase1_gates.py` PASS.
 - `DEV_PYTHON=$VENV_PYTHON VENV_PYTHON=$VENV_PYTHON make validate-changed` PASS.
 - `pre-commit run --all-files` PASS.
