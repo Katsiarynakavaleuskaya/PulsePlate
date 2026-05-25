@@ -11,6 +11,7 @@ Disposition: FIXED
 Commit: e9b8d7a2fd3b37b493045fe626106c3e2935497d
 Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` derives `--validate-secret-presence` from the live runtime environment and returns only a fail-closed exit code; `.github/workflows/experiment-runner-slack-socket-smoke.yml` supplies runtime env while printing only constant public `present` / `missing` labels.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1826#discussion_r3297649628 -> e9b8d7a2fd3b37b493045fe626106c3e2935497d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1826#discussion_r3297728504 -> e9b8d7a2fd3b37b493045fe626106c3e2935497d
 
 ## Lane Start Provenance
 
