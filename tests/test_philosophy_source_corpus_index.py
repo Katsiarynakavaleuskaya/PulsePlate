@@ -1134,6 +1134,67 @@ def test_philosophy_source_corpus_index_preserves_backslash_touched_paths(
     assert any("forbidden local path" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_rejects_non_c_windows_local_path_leak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    bs = chr(92)
+    artifact.write_text(
+        "leak=" + "D:" + bs + "Users" + bs + "alice" + bs + "source.pdf\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_windows_tmp_local_path_leak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    bs = chr(92)
+    artifact.write_text("leak=" + "D:" + bs + "tmp" + bs + "source.pdf\n", encoding="utf-8")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_rejects_unc_local_path_leak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / REL_INDEX
+    artifact.parent.mkdir(parents=True)
+    bs = chr(92)
+    artifact.write_text(
+        "leak=" + bs * 2 + "server" + bs + "share" + bs + "source.pdf\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents([REL_INDEX])
+
+    assert any("forbidden local path" in error for error in errors)
+
+
+def test_philosophy_source_corpus_index_scans_broken_symlink_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / "docs" / "evidence" / "leaky-link.txt"
+    artifact.parent.mkdir(parents=True)
+    artifact.symlink_to("/" + "tmp/source.pdf")
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents(["docs/evidence/leaky-link.txt"])
+
+    assert any("symlink target must not be an absolute local path" in error for error in errors)
+
+
 def test_philosophy_source_corpus_index_skips_binary_touched_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
