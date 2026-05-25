@@ -96,6 +96,10 @@ Current scope uses focused local gates plus GitHub current-head CI parity.
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: a123dcaf5
+Evidence: Review findings were fixed in code/tests/docs; focused PR21 pytest,
+CLI smoke, and mypy passed after the changes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1829#pullrequestreview-4356281419 -> a123dcaf5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1829#discussion_r3297821811 -> a123dcaf5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1829#discussion_r3297821836 -> a123dcaf5
