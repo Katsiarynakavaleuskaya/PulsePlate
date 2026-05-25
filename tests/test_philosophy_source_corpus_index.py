@@ -1147,6 +1147,22 @@ def test_philosophy_source_corpus_index_preserves_touched_path_edge_spaces(
     assert any("forbidden local path" in error for error in errors)
 
 
+def test_philosophy_source_corpus_index_allows_repo_neutral_absolute_routes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        "route=" + "/" + "api/v1/pro/session\nsink=" + "/" + "dev/null\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents(["docs/roadmap/BACKLOG_LEDGER.md"])
+
+    assert errors == []
+
+
 def test_philosophy_source_corpus_index_preserves_backslash_touched_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

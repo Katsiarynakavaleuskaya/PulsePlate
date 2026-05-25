@@ -433,7 +433,8 @@ SECRET_OR_LOCAL_PATTERNS = (
     re.compile(r"(?i)(?:token|signature|credential)=[A-Za-z0-9_%./+=-]{12,}"),
     re.compile(r"(?i)(?<![A-Za-z0-9])" + "sk" + r"-[A-Za-z0-9_-]{16,}"),
 )
-ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES = frozenset({"/usr/bin/env"})
+ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES = frozenset({"/dev/null", "/usr/bin/env"})
+ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES = ("/api/", "/insight/")
 WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
 FALLBACK_TEXT_ENCODINGS = ("cp1251", "windows-1252")
 
@@ -1099,10 +1100,16 @@ def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
     errors: list[str] = []
     for pattern in SECRET_OR_LOCAL_PATTERNS:
         match = pattern.search(text)
-        if match and match.group(0) not in ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES:
-            errors.append(
-                f"{label}: forbidden local path or credential-like token detected (value redacted)"
-            )
+        if not match:
+            continue
+        matched_value = match.group(0)
+        if matched_value in ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES:
+            continue
+        if matched_value.startswith(ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES):
+            continue
+        errors.append(
+            f"{label}: forbidden local path or credential-like token detected (value redacted)"
+        )
     return errors
 
 
