@@ -189,6 +189,12 @@ Commit: 8af44cc69
 Evidence: the CodeRabbit review-level request for file:line anchors is covered by parser-valid `Evidence: Anchors:` lines across every FIXED disposition.
 Evidence: Anchors: `docs/review/PR_1822_FIXED_MAPPING.md:52`, `docs/review/PR_1822_FIXED_MAPPING.md:112`, `docs/review/PR_1822_FIXED_MAPPING.md:184`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#pullrequestreview-4355944032 -> 004a6ef31
+Disposition: FIXED
+Commit: 004a6ef31
+Evidence: the CodeRabbit review-level request for type-strict JSON Schema numeric keyword checks is covered by exact integer validation for `minimum` and `minLength`.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:815`, `scripts/ci/check_philosophy_source_corpus_index.py:818`, `scripts/ci/check_philosophy_source_corpus_index.py:839`, `tests/test_philosophy_source_corpus_index.py:511`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297399786 -> 5f3142b14
 Disposition: FIXED
 Commit: 5f3142b14
