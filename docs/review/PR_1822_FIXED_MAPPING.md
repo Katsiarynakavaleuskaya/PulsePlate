@@ -67,6 +67,14 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
   `shared_tree_untouched=true`.
 - Co-author: required; commit `5372841b2` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Windows/symlink leak hardening artifact:
+  `artifacts/orchestration/experiments/results/exp-pr1822-windows-symlink-leak-oracle.json`
+- Windows/symlink leak hardening status: accepted,
+  `oracle_only_governance_reviewer`, `contribution_kind=oracle_review`, 3/3
+  runner-executable oracle commands returned 0, and
+  `shared_tree_untouched=true`.
+- Co-author: required; commit `fba701c10` includes
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
 
@@ -387,6 +395,24 @@ Commit: 5372841b2
 Evidence: touched-artifact text scanning now attempts CP1251 and Windows-1252 fallback decoding after Unicode candidates so common non-UTF text artifacts are scanned for local-path and credential-like leaks.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:421`, `scripts/ci/check_philosophy_source_corpus_index.py:1092`, `tests/test_philosophy_source_corpus_index.py:1150`, `tests/test_philosophy_source_corpus_index.py:1165`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299600291 -> fba701c10
+Disposition: FIXED
+Commit: fba701c10
+Evidence: touched-artifact leakage scanning now rejects Windows drive-root local paths on any drive, including non-C user directories.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:411`, `tests/test_philosophy_source_corpus_index.py:1137`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299600292 -> fba701c10
+Disposition: FIXED
+Commit: fba701c10
+Evidence: touched-artifact leakage scanning now rejects non-user Windows drive-root paths and UNC share paths without allowing raw leak strings in test source.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:411`, `scripts/ci/check_philosophy_source_corpus_index.py:412`, `tests/test_philosophy_source_corpus_index.py:1154`, `tests/test_philosophy_source_corpus_index.py:1168`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3299600296 -> fba701c10
+Disposition: FIXED
+Commit: fba701c10
+Evidence: touched-file scanning now validates symlink targets before content reads, including broken symlinks and targets that escape the repository root.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1164`, `scripts/ci/check_philosophy_source_corpus_index.py:1168`, `scripts/ci/check_philosophy_source_corpus_index.py:1171`, `tests/test_philosophy_source_corpus_index.py:1185`.
+
 ## CI Failure Closure
 
 - CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
@@ -588,6 +614,10 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
   normalization, and non-UTF text artifact scan gaps. Evidence: commit
   `5372841b2` closes those classes with workflow contract coverage and
   source-corpus scanner regressions.
+- FIXED: latest Codex review found Windows absolute local-path and symlink
+  target scan gaps. Evidence: commit `fba701c10` rejects non-C Windows local
+  paths, non-user drive-root paths, UNC share paths, and absolute/escaping
+  symlink targets with focused regressions.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
@@ -602,6 +632,7 @@ Evidence: Anchors: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:103`
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py tests/test_ci_workflow_pr_size_governance_contract.py` PASS.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the discipline-rail enum regression.
 - `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_docs_phase1_gates.py` PASS after the path/encoding hardening regressions.
+- `$VENV_PYTHON -m pytest -q tests/test_philosophy_source_corpus_index.py` PASS after the Windows/symlink leak hardening regressions.
 - `python3 scripts/ci/check_ai_bounded_context_a3_closeout.py` PASS after the PR-5 semantic-cache roadmap wording fix.
 - `$VENV_PYTHON -m pytest -q tests/test_ai_bounded_context_a3_closeout.py::test_checker_passes_on_current_repository` PASS.
 - `$VENV_PYTHON -m mypy --explicit-package-bases --follow-imports=skip scripts/ci/check_philosophy_source_corpus_index.py tests/test_philosophy_source_corpus_index.py` PASS.
