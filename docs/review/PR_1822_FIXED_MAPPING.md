@@ -31,6 +31,13 @@ embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS,
 - Contribution: `oracle_review`
 - Co-author: required; commit `14faf95b5` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Latest artifact:
+  `artifacts/orchestration/experiments/results/exp-5dd169c24777.json`
+- Latest status: accepted, `oracle_only_governance_reviewer`,
+  `contribution_kind=oracle_review`, 3/3 oracle commands returned 0,
+  `source_diff_applied=true`, and `shared_tree_untouched=true`.
+- Co-author: required; commit `f2ed27c0b` includes
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
 
@@ -306,14 +313,26 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:584`, `sc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297736953 -> 3b16c3e11
 Disposition: FIXED
 Commit: 3b16c3e11
-Evidence: PR-5 docs Phase1 routing now treats `scripts/ci/check_docs_phase1_gates.py` as a source-corpus companion trigger, so source-corpus oracle checks run when docs Phase1 routing behavior changes.
-Evidence: Anchors: `.github/workflows/ci.yml:284`, `.github/workflows/ci.yml:288`, `tests/test_ci_workflow_pr_size_governance_contract.py:317`, `tests/test_ci_workflow_pr_size_governance_contract.py:321`.
+Evidence: the intermediate routing fix ensured PR-5 oracle coverage was represented in docs Phase1 workflow tests; current-head follow-up `f2ed27c0b` supersedes the broad docs-gate trigger by keeping PR-5 activation limited to source-corpus-owned files and preserving concrete workflow-contract coverage.
+Evidence: Anchors: `.github/workflows/ci.yml:284`, `.github/workflows/ci.yml:289`, `tests/test_ci_workflow_pr_size_governance_contract.py:318`, `tests/test_ci_workflow_pr_size_governance_contract.py:344`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297736959 -> 3b16c3e11
 Disposition: FIXED
 Commit: 3b16c3e11
 Evidence: leakage detection errors now redact the matched value while preserving the fail-closed signal, with regressions proving local-path and credential-like payloads are not echoed.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1076`, `scripts/ci/check_philosophy_source_corpus_index.py:1082`, `tests/test_philosophy_source_corpus_index.py:341`, `tests/test_philosophy_source_corpus_index.py:356`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3298347737 -> f2ed27c0b
+Disposition: FIXED
+Commit: f2ed27c0b
+Evidence: PR-5 CI activation is now limited to source-corpus-owned files only; `scripts/ci/check_docs_phase1_gates.py` no longer triggers the PR-5 oracle path.
+Evidence: Anchors: `.github/workflows/ci.yml:284`, `.github/workflows/ci.yml:285`, `.github/workflows/ci.yml:289`, `tests/test_ci_workflow_pr_size_governance_contract.py:339`, `tests/test_ci_workflow_pr_size_governance_contract.py:344`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3298347743 -> f2ed27c0b
+Disposition: FIXED
+Commit: f2ed27c0b
+Evidence: the workflow contract test now extracts the actual PR-5 `case "$path"` block before asserting source-corpus trigger inclusion and docs Phase1 trigger exclusion, closing the prior broad-section false-green.
+Evidence: Anchors: `tests/test_ci_workflow_pr_size_governance_contract.py:326`, `tests/test_ci_workflow_pr_size_governance_contract.py:331`, `tests/test_ci_workflow_pr_size_governance_contract.py:332`, `tests/test_ci_workflow_pr_size_governance_contract.py:344`.
 
 ## Premortem And Oracle Closure
 
@@ -384,8 +403,9 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1076`, `s
   and uses exact JSON-integer keyword checks for source, research, source
   metadata, and scope-link cardinality.
 - FIXED: latest current-head review found PR-5 CI trigger and leakage error
-  hygiene gaps. Evidence: commit `3b16c3e11` runs PR-5 oracle when docs Phase1
-  routing changes and redacts matched leakage values in error output.
+  hygiene gaps. Evidence: commit `3b16c3e11` added intermediate routing coverage
+  and redacted matched leakage values in error output; commit `f2ed27c0b`
+  supersedes the broad trigger with source-corpus-owned activation.
 - NOT-A-BUG: no full local `make verify` was run. Evidence: operator-approved
   narrow-gate path applies; `make validate-changed`, focused gates,
   `pre-commit run --all-files`, pre-push hooks, and current-head CI remain the
@@ -401,7 +421,7 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1076`, `s
   excludes product efficacy, therapy, diagnosis, treatment, and runtime
   authority.
 - FIXED: CI could miss PR-5 guard execution. Evidence: `.github/workflows/ci.yml`
-  routes source-corpus-specific contract, packet, guard, and test
+  routes only source-corpus-owned contract, packet, guard, and test
   changes into
   `check_philosophy_source_corpus_index.py --check --files "${ALL_CHANGED_FILES[@]}"`.
 - FIXED: PR-5 CI routing could trigger on unrelated backlog/runtime PRs.
@@ -457,10 +477,15 @@ Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1076`, `s
   float cardinality false-greens for `sources`, `research_basis`, and scope-link
   schema bounds. Evidence: commit `21fef7eac` closes these classes with exact
   integer keyword checks and multi-candidate wide-text scanning regressions.
-- FIXED: latest Codex review found source-corpus oracle could be skipped when
-  docs Phase1 routing changed and that leakage errors echoed matched values.
-  Evidence: commit `3b16c3e11` closes both with workflow routing coverage and
-  redacted leakage error regressions.
+- FIXED: latest Codex review found source-corpus oracle trigger and leakage
+  error hygiene gaps. Evidence: commit `3b16c3e11` added intermediate workflow
+  coverage and redacted leakage error regressions; commit `f2ed27c0b`
+  supersedes the over-broad trigger with source-corpus-owned activation.
+- FIXED: follow-up Codex review found the PR-5 CI activation class was
+  over-broad and the workflow test could false-green by checking the full docs
+  Phase1 section instead of the actual PR-5 case block. Evidence: commit
+  `f2ed27c0b` narrows activation back to PR-5-owned files and asserts the
+  concrete PR-5 switch block.
 - FIXED: raw SHA fingerprints triggered secret-scanner false positives.
   Evidence: fingerprints use grouped SHA-256 form and `pre-commit run
   --all-files` passes.
