@@ -177,6 +177,12 @@ Commit: c37adb4ec
 Evidence: `semantic_cache_markers` now requires `type: object` and boolean-typed marker constants, with focused regression coverage.
 Evidence anchors: `scripts/ci/check_philosophy_source_corpus_index.py:688`, `scripts/ci/check_philosophy_source_corpus_index.py:705`, `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json:58`, `tests/test_philosophy_source_corpus_index.py:515`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3297211726 -> adcfe6c03
+Disposition: FIXED
+Commit: adcfe6c03
+Evidence: every Fixed in Commit Mapping entry now keeps its explicit commit binding and adds concrete file:line evidence anchors.
+Evidence anchors: `docs/review/PR_1822_FIXED_MAPPING.md:49`, `docs/review/PR_1822_FIXED_MAPPING.md:112`, `docs/review/PR_1822_FIXED_MAPPING.md:175`, `docs/review/PR_1822_FIXED_MAPPING.md:180`, `docs/review/PR_1822_FIXED_MAPPING.md:182`.
+
 ## Premortem And Oracle Closure
 
 - Premortem skill: `pulseplate-premortem-risk-review`
