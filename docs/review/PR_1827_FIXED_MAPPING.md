@@ -94,7 +94,7 @@ plus current-head CI and strict merge-readiness governance.
   `origin/main...HEAD`.
 - Phase: `validation` completed for the no-candidate result.
 - Result: no reportable security findings.
-- Local scan ids: `pr1827_1e1a05228fb7_20260525T104758Z`; refreshed after checker hardening as `pr1827_db19fb52b_20260525T111945Z` and `pr1827_f802efe2c_20260525T115151Z`
+- Local scan ids: `pr1827_1e1a05228fb7_20260525T104758Z`; refreshed after checker hardening as `pr1827_db19fb52b_20260525T111945Z`, `pr1827_f802efe2c_20260525T115151Z`, and `pr1827_9e96f799d_20260525T122420Z`
 - Evidence: no runtime route, provider, cache, persistence, OpenAPI, database,
   Redis/GPTCache, or semantic-cache serving surface is added; semantic-cache
   gate checker passed; full pre-commit and pre-push security hooks passed.
@@ -245,6 +245,66 @@ Evidence: `_truthy_constant_aliases(...)` resolves simple true aliases for `allo
 Disposition: FIXED
 Commit: f802efe2c
 Evidence: aggregate Codex review actionables from the `6ef16db12e` review are mapped to the eight inline FIXED comments above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024837 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_bound_target_names(...)` and `_assigned_names(...)` now inspect tuple/list/starred targets; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_destructuring_runtime_symbol_rebound` covers destructuring rebinding.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024840 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_has_disabled_test_collection(...)` now walks statement ASTs for module-level skip calls; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_assignment_wrapped_module_level_skip` covers assignment-wrapped collection disable.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024845 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_function_body_has_disabling_test_call(...)` now includes function-local disabling aliases; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_function_local_skip_alias` covers local `pytest.skip` aliasing.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024849 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_assigned_names(...)` now records wildcard imports as a fail-closed rebinding sentinel; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_wildcard_import_runtime_symbol_rebound` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024851 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_pytest_module_aliases(...)` resolves `import pytest as ...`; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_import_pytest_as_alias_module_level_skip` covers module-level skip through an alias.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024855 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_class_method_rebound_after_class_definition(...)` and `_class_method_test_attribute_disabled_after_class_definition(...)` reject module-scope class-method mutation; class-method rebinding and `.__test__` override regressions cover this path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024858 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_module_level_skip_call(...)` now treats `pytest.xfail(..., allow_module_level=True)` as collection-disabling; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_module_level_pytest_xfail` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024863 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_assigned_names(...)` now inspects `ast.NamedExpr` targets; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_namedexpr_runtime_symbol_rebound` covers assignment-expression rebinding.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024867 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_node_has_disabling_test_marker(...)` now resolves subscripted decorator aliases; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_computed_decorator_alias` covers `DISABLE[0]`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024870 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_call_allows_module_level(...)` and `_mapping_has_truthy_allow_module_level(...)` inspect `**{...}` expansions; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_kwargs_expanded_allow_module_level` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3298024875 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: `_check_overclaims(...)` now splits soft conjunctions such as `and`; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_overclaim_after_conjunction_negation` covers negation-masked overclaims.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#pullrequestreview-4356511330 -> 9e96f799d
+Disposition: FIXED
+Commit: 9e96f799d
+Evidence: aggregate Codex review actionables from the `d773c0f7d` review are mapped to the eleven inline FIXED comments above.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#issuecomment-4533488800
 Disposition: NOT-A-BUG
