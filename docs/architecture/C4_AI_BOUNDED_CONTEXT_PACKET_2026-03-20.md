@@ -5,6 +5,12 @@
 This document freezes the packet for the C4 AI bounded-context architecture
 lane (`PR-A3`) that prepares the later extraction lane (`PR-A4`).
 
+Closeout note: PR-A3 landed via PR #1469
+`docs(architecture): define AI bounded-context packet and ownership map`, merged
+on `2026-04-19T11:35:29Z` with merge commit
+`f8454715f88e44657cfad1c4675f93ea669dc490` from branch
+`codex/ai-bounded-context-packet`.
+
 It is a **packet-only** architecture artifact. It does **not** implement the
 runtime extraction itself and does **not** satisfy
 `ledger-p1-ai-bounded-context-extraction`.

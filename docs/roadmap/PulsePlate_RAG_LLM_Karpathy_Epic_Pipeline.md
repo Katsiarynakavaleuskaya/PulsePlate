@@ -271,8 +271,9 @@ Semantic cache remains closed by
 remain `closed / false / false / true`; Redis/GPTCache, GraphRAG,
 ContextManifest, DB persistence, public routes, OpenAPI, DTOs, provider/auth/
 billing changes, and default activation remain out of scope. PR-A2 is already
-landed via PR #1415; the broader runtime sequence still requires PR-A3 through
-PR-A5 and a later reviewed gate-open PR before semantic-cache work can begin.
+landed via PR #1415, and PR-A3 is already landed via PR #1469; the broader
+runtime sequence still requires PR-A4 through PR-A5 and a later reviewed
+gate-open PR before semantic-cache work can begin.
 
 ---
 
@@ -330,10 +331,19 @@ production RAG robustness beyond the existing deterministic test evidence.
 `docs(architecture): define AI bounded-context packet and ownership map`
 
 #### Backlog target
-new `ledger-p1-ai-bounded-context-packet`
+`ledger-p1-ai-bounded-context-packet`
 
 #### Goal
 Lock architecture before extraction.
+
+#### Current status
+Landed via PR [#1469](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1469)
+on `2026-04-19T11:35:29Z` with merge commit
+`f8454715f88e44657cfad1c4675f93ea669dc490` from branch
+`codex/ai-bounded-context-packet`.
+
+This closeout reconciles stale roadmap/backlog/review truth and does not
+duplicate packet implementation or runtime extraction.
 
 #### In scope
 - define ownership boundaries for:
@@ -345,8 +355,14 @@ Lock architecture before extraction.
 - list what remains transitional
 
 #### DoD
+- PR #1469 merge evidence is present in active roadmap/review docs
 - packet exists as canonical architecture SoT for extraction PR
 - routers/adapters vs AI core ownership is explicit
+- PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate and open
+- semantic-cache markers remain `closed / false / false / true`; no semantic
+  cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public
+  route, OpenAPI, DTO, provider, or default activation scope is implied by this
+  closeout
 
 ---
 
