@@ -29,6 +29,15 @@ Disposition: FIXED
 Commit: f8557b51f46a4a1999358807b233a32972c7bdd1
 Evidence: `scripts/ci/check_ai_bounded_context_a3_closeout.py` now scans A3/C4 closeout sections, full semantic-cache gate path leakage, mixed negation/action clauses, A4 extraction overclaims, present-tense activation claims, Windows local paths, stale "A3 remains required" wording, and section-scoped merge evidence; `tests/test_ai_bounded_context_a3_closeout.py` adds regression coverage for each reviewed bypass.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299109329 -> 981c8ac0b7b157852d48fcbaf16c1ddd8724e165
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299109331 -> 981c8ac0b7b157852d48fcbaf16c1ddd8724e165
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299109335 -> 981c8ac0b7b157852d48fcbaf16c1ddd8724e165
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299109338 -> 981c8ac0b7b157852d48fcbaf16c1ddd8724e165
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1832#discussion_r3299109343 -> 981c8ac0b7b157852d48fcbaf16c1ddd8724e165
+Disposition: FIXED
+Commit: 981c8ac0b7b157852d48fcbaf16c1ddd8724e165
+Evidence: `scripts/ci/check_ai_bounded_context_a3_closeout.py` now scans packet closeout sections and semantic-cache gate closeout claims without requiring an A3 token, detects gate activation-state claims, and only treats explicit safe negation phrases as safe; `tests/test_ai_bounded_context_a3_closeout.py` adds regression coverage for each second-wave Codex bypass.
+
 ## Post-Open Governance
 
 - PR: #1832
@@ -53,6 +62,9 @@ Evidence: `scripts/ci/check_ai_bounded_context_a3_closeout.py` now scans A3/C4 c
 - Review-fix focused rerun: `python scripts/ci/check_ai_bounded_context_a3_closeout.py`
 - Review-fix focused rerun: `python -m pytest -q tests/test_ai_bounded_context_a3_closeout.py`
 - Review-fix focused rerun: `python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_bounded_context_a3_closeout.py tests/test_ai_bounded_context_a3_closeout.py`
+- Second review-fix focused rerun: `python scripts/ci/check_ai_bounded_context_a3_closeout.py`
+- Second review-fix focused rerun: `python -m pytest -q tests/test_ai_bounded_context_a3_closeout.py`
+- Second review-fix focused rerun: `python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_bounded_context_a3_closeout.py tests/test_ai_bounded_context_a3_closeout.py`
 
 ## Merge Readiness
 
