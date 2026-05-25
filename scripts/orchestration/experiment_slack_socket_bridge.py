@@ -37,10 +37,6 @@ SLACK_BOT_AUTH_ENV = "SLACK_BOT_" + "".join(("TO", "KEN"))
 SLACK_CHANNEL_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"
 SLACK_USER_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"
 SLACK_TEAM_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"
-SLACK_APP_AUTH_PRESENT_ENV = "PULSEPLATE_SLACK_APP_CONFIG_PRESENT"
-SLACK_BOT_AUTH_PRESENT_ENV = "PULSEPLATE_SLACK_BOT_CONFIG_PRESENT"
-SLACK_CHANNEL_ALLOWLIST_PRESENT_ENV = "PULSEPLATE_SLACK_CHANNEL_ALLOWLIST_PRESENT"
-SLACK_USER_ALLOWLIST_PRESENT_ENV = "PULSEPLATE_SLACK_USER_ALLOWLIST_PRESENT"
 BRIDGE_MIN_INTERVAL_ENV = "EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS"
 BRIDGE_TIMEOUT_ENV = "EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS"
 BRIDGE_AUDIT_RETENTION_DAYS_ENV = "EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS"
@@ -69,11 +65,11 @@ RATE_LIMIT_LOCK_DIR = "rate_limit_claim"
 RATE_LIMIT_CLAIM_MAX_ATTEMPTS = 10
 DEFAULT_AUDIT_RETENTION_DAYS = 14
 MAX_AUDIT_RETENTION_DAYS = 366
-LIVE_SECRET_PRESENCE_REQUIREMENTS = (
-    (SLACK_APP_AUTH_ENV, SLACK_APP_AUTH_PRESENT_ENV),
-    (SLACK_BOT_AUTH_ENV, SLACK_BOT_AUTH_PRESENT_ENV),
-    (SLACK_CHANNEL_ALLOWLIST_ENV, SLACK_CHANNEL_ALLOWLIST_PRESENT_ENV),
-    (SLACK_USER_ALLOWLIST_ENV, SLACK_USER_ALLOWLIST_PRESENT_ENV),
+LIVE_SECRET_PRESENCE_ENV = (
+    SLACK_APP_AUTH_ENV,
+    SLACK_BOT_AUTH_ENV,
+    SLACK_CHANNEL_ALLOWLIST_ENV,
+    SLACK_USER_ALLOWLIST_ENV,
 )
 
 
@@ -520,20 +516,12 @@ def _read_audit(path: Path) -> dict[str, Any] | None:
     return payload
 
 
-def _presence_marker_is_set(env_name: str) -> bool:
-    """Return whether a non-secret presence marker is truthy."""
-
-    return os.environ.get(env_name, "").strip().lower() in {"1", "true", "yes", "present"}
-
-
 def validate_secret_presence(
-    required_env: tuple[tuple[str, str], ...] = LIVE_SECRET_PRESENCE_REQUIREMENTS,
+    required_env: tuple[str, ...] = LIVE_SECRET_PRESENCE_ENV,
 ) -> dict[str, Any]:
     """Return a value-free live-smoke secret/allowlist presence report."""
 
-    present = {
-        env_name: _presence_marker_is_set(marker_env) for env_name, marker_env in required_env
-    }
+    present = {env_name: bool(os.environ.get(env_name, "").strip()) for env_name in required_env}
     missing = [env_name for env_name, is_present in present.items() if not is_present]
     return {
         "missing_env": missing,
@@ -543,19 +531,28 @@ def validate_secret_presence(
 
 
 def _secret_presence_report_json(
-    required_env: tuple[tuple[str, str], ...] = LIVE_SECRET_PRESENCE_REQUIREMENTS,
+    *,
+    slack_app_config_present: bool,
+    slack_bot_config_present: bool,
+    channel_allowlist_present: bool,
+    user_allowlist_present: bool,
 ) -> tuple[str, bool]:
-    """Format presence diagnostics from constants and literal booleans only."""
+    """Format presence diagnostics from constants and CLI booleans only."""
 
+    presence = (
+        (SLACK_APP_AUTH_ENV, slack_app_config_present),
+        (SLACK_BOT_AUTH_ENV, slack_bot_config_present),
+        (SLACK_CHANNEL_ALLOWLIST_ENV, channel_allowlist_present),
+        (SLACK_USER_ALLOWLIST_ENV, user_allowlist_present),
+    )
     present_parts: list[str] = []
     missing_parts: list[str] = []
-    all_present = True
-    for public_env_name, marker_env_name in required_env:
+    all_present = all(is_present for _public_env_name, is_present in presence)
+    for public_env_name, is_present in presence:
         public_env_json = json.dumps(public_env_name)
-        if _presence_marker_is_set(marker_env_name):
+        if is_present:
             present_parts.append(f"{public_env_json}: true")
         else:
-            all_present = False
             present_parts.append(f"{public_env_json}: false")
             missing_parts.append(public_env_json)
     status_json = json.dumps("pass" if all_present else "fail")
@@ -1152,6 +1149,26 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Report live-smoke secret and allowlist presence without printing values.",
     )
     parser.add_argument(
+        "--slack-app-config-present",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--slack-bot-config-present",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--channel-allowlist-present",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--user-allowlist-present",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
         "--audit-retention",
         choices=("none", "report", "cleanup"),
         default="none",
@@ -1164,7 +1181,12 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
         if args.validate_secret_presence:
-            report_text, all_present = _secret_presence_report_json()
+            report_text, all_present = _secret_presence_report_json(
+                slack_app_config_present=bool(args.slack_app_config_present),
+                slack_bot_config_present=bool(args.slack_bot_config_present),
+                channel_allowlist_present=bool(args.channel_allowlist_present),
+                user_allowlist_present=bool(args.user_allowlist_present),
+            )
             print(report_text)
             return 0 if all_present else 1
         config = build_config(

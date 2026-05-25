@@ -80,16 +80,14 @@ jobs:
 
       - name: Validate live Socket Mode prerequisites
         if: inputs.dry_run == 'false'
-        env:
-          PULSEPLATE_SLACK_APP_CONFIG_PRESENT: ${{ secrets.SLACK_APP_TOKEN != '' && 'true' || '' }}
-          PULSEPLATE_SLACK_BOT_CONFIG_PRESENT: ${{ secrets.SLACK_BOT_TOKEN != '' && 'true' || '' }}
-          PULSEPLATE_SLACK_CHANNEL_ALLOWLIST_PRESENT: ${{ inputs.channel_allowlist != '' && 'true' || '' }}
-          PULSEPLATE_SLACK_USER_ALLOWLIST_PRESENT: ${{ inputs.user_allowlist != '' && 'true' || '' }}
-          EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
         run: |
           set -euo pipefail
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
-            --validate-secret-presence
+            --validate-secret-presence \
+            ${{ secrets.SLACK_APP_TOKEN != '' && '--slack-app-config-present' || '' }} \
+            ${{ secrets.SLACK_BOT_TOKEN != '' && '--slack-bot-config-present' || '' }} \
+            ${{ inputs.channel_allowlist != '' && '--channel-allowlist-present' || '' }} \
+            ${{ inputs.user_allowlist != '' && '--user-allowlist-present' || '' }}
 
       - name: Install optional Slack Socket Mode runtime
         if: inputs.dry_run == 'false'
