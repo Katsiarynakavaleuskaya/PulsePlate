@@ -1,0 +1,382 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+import os
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+from typing import cast
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CHECKER = REPO_ROOT / "scripts/ci/check_ai_rag_hardening_a2_closeout.py"
+MERGE_COMMIT = "146da0e0d269acea5ba946d239997705ebaf62c3"  # pragma: allowlist secret
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def _valid_gate() -> str:
+    return f"""# Semantic Cache Gate
+
+<!-- SEMANTIC_CACHE_GATE_STATUS: closed -->
+<!-- SEMANTIC_CACHE_ALLOWED_RUNTIME: false -->
+<!-- SEMANTIC_CACHE_IMPLEMENTATION_ALLOWED: false -->
+<!-- SEMANTIC_CACHE_REQUIRES_DEDICATED_GATE: true -->
+
+Current `main` already contains:
+- landed PR-A2 RAG hardening via PR #1415
+
+The runtime prerequisite train is tracked by canonical PR/backlog anchors:
+1. `PR-A1b` is reconciled elsewhere
+2. `PR-A2` is closed via
+   [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough),
+   PR #1415 `feat(rag): harden degraded retrieval paths and keep contracts
+   additive`, merged `2026-04-14T20:59:47Z` with merge commit
+   `{MERGE_COMMIT}` from branch `feat/rag-hardening-followthrough`
+3. `PR-A3` remains separate
+
+Do **not** start semantic cache work before all the following are true:
+2. `PR-A2` is closed via
+   [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough),
+   PR #1415 `feat(rag): harden degraded retrieval paths and keep contracts
+   additive`, merged `2026-04-14T20:59:47Z` with merge commit
+   `{MERGE_COMMIT}` from branch `feat/rag-hardening-followthrough`
+
+## Rail Boundary
+Semantic cache remains closed.
+"""
+
+
+def _valid_ledger() -> str:
+    return f"""# Backlog
+
+<a id="ledger-p1-rag-hardening-followthrough"></a>
+- [x] P1: RAG hardening follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-A2 / PR #1415
+  - Status: Closed. PR #1415 merged on `2026-04-14T20:59:47Z`
+    with merge commit `{MERGE_COMMIT}` from branch
+    `feat/rag-hardening-followthrough`; title
+    `feat(rag): harden degraded retrieval paths and keep contracts additive`.
+  - Reason (EN): Live GitHub/repo truth proves the dedicated A2 runtime RAG
+    hardening slice already landed in PR #1415. This closeout records active
+    roadmap/review docs as evidence without duplicating runtime implementation.
+  - DoD:
+    - PR #1415 merge evidence is machine-checkable in active roadmap/review docs
+    - Semantic-cache markers remain `closed / false / false / true`
+
+<a id="next"></a>
+- [ ] Next item
+"""
+
+
+def _valid_roadmap() -> str:
+    return f"""# RAG roadmap
+
+## PR-A2 - RAG hardening follow-through
+#### Title
+`feat(rag): harden degraded retrieval paths and keep contracts additive`
+
+#### Current status
+Landed via PR [#1415](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1415)
+on `2026-04-14T20:59:47Z` with merge commit
+`{MERGE_COMMIT}` from branch
+`feat/rag-hardening-followthrough`.
+
+#### Evidence boundary
+Runtime evidence is limited to PR #1415 merge evidence, landed symbols, focused
+deterministic tests, and review artifacts. This closeout does not claim new
+benchmark results, latency wins, accuracy gains, RAGAS quality proof, or
+production RAG robustness beyond the existing deterministic test evidence.
+
+#### Out of scope
+Semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence,
+public routes, OpenAPI, DTOs, provider integration, recursive learning,
+provider chain/tree-of-thought, and default activation remain out of scope.
+
+## PR-A3
+"""
+
+
+def _valid_mapping() -> str:
+    return f"""# PR 1415 - Fixed in Commit Mapping
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1415#discussion_r1 -> abc123
+Disposition: FIXED
+
+## Post-Merge Closeout
+
+- State: `MERGED`
+- Title: `feat(rag): harden degraded retrieval paths and keep contracts additive`
+- PR #1415 merged at `2026-04-14T20:59:47Z`
+- Merge commit: `{MERGE_COMMIT}`
+- Original branch: `feat/rag-hardening-followthrough`
+- Evidence boundary: deterministic tests and landed symbols prove the closeout
+  state only. This artifact does not claim new benchmark results, accuracy
+  gains, latency wins, or production RAG robustness.
+- Boundary: semantic-cache markers remain `closed / false / false / true`.
+  Semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence,
+  public routes, OpenAPI, DTOs, provider integration, recursive learning,
+  provider chain/tree-of-thought, and default activation remain out of scope.
+
+## Historical Merge Readiness
+
+This section is historical evidence only. PR #1415 is already merged, so this
+closeout does not re-run or reassert the original readiness checklist.
+"""
+
+
+def _write_runtime_markers(repo_root: Path) -> None:
+    _write(
+        repo_root / "core/rag/contracts.py",
+        """from enum import Enum
+
+
+class RAGDegradedReason(str, Enum):
+    VECTOR_FALLBACK_NO_RESULTS = "vector_fallback_no_results"
+    VECTOR_FALLBACK_EXCEPTION = "vector_fallback_exception"
+    VECTOR_FALLBACK_SUBJECT_MISSING = "vector_fallback_subject_missing"
+    FORMATTED_CONTEXT_MALFORMED = "formatted_context_malformed"
+    REDACTED_CONTEXT_MALFORMED = "redacted_context_malformed"
+""",
+    )
+    _write(
+        repo_root / "core/rag/orchestration.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def _resolve_confidence() -> None:
+    return None
+
+
+def _non_rag_result(subject_id: int) -> object:
+    result = build(subject_id=subject_id)
+    return (
+        result,
+        RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED,
+        RAGDegradedReason.REDACTED_CONTEXT_MALFORMED,
+    )
+""",
+    )
+    _write(
+        repo_root / "core/rag/vector_rag.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def _normalize_embedding_vector() -> None:
+    return None
+
+
+def _retrieve_vector_postgres(session: object, subject_id: int) -> None:
+    apply_user_rls_context(session, user_id=subject_id)
+
+
+def _retrieve_vector_sqlite() -> tuple[object, object]:
+    return (
+        RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING,
+        RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+    )
+""",
+    )
+    for path, names in {
+        "tests/test_rag_orchestration.py": (
+            "test_validation_disabled_ignores_stale_retriever_confidence",
+            "test_vector_path_propagates_subject_id",
+            "test_empty_formatted_context_returns_fail_safe_non_rag_result",
+            "test_non_string_redacted_context_returns_fail_safe_non_rag_result",
+            "test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_degraded",
+        ),
+        "tests/test_vector_rag.py": (
+            "test_missing_subject_id_returns_empty_without_encoding",
+            "test_wrong_query_dimensions_return_empty_without_db_work",
+            "test_retrieve_vector_sqlite_binds_subject_id",
+            "test_vector_success_skips_malformed_rows_without_poisoning_whole_result",
+        ),
+        "tests/test_insight_rag_response_fields.py": (
+            "test_rag_late_context_collapse_returns_non_rag_contract",
+            "test_rag_late_redaction_collapse_returns_non_rag_contract",
+            "test_rag_response_confidence_uses_active_output_chunks",
+            "test_rag_response_confidence_uses_filtered_subset_chunks",
+        ),
+    }.items():
+        _write(repo_root / path, "\n".join(f"def {name}(): pass" for name in names))
+
+
+def _write_valid_repo(repo_root: Path) -> None:
+    _write_runtime_markers(repo_root)
+    _write(repo_root / "docs/roadmap/BACKLOG_LEDGER.md", _valid_ledger())
+    _write(
+        repo_root / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md",
+        _valid_roadmap(),
+    )
+    _write(repo_root / "docs/review/PR_1415_FIXED_MAPPING.md", _valid_mapping())
+    _write(repo_root / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md", _valid_gate())
+
+
+def _checker_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    return env
+
+
+def _errors(repo_root: Path) -> list[str]:
+    result = subprocess.run(
+        [sys.executable, str(CHECKER), "--repo-root", str(repo_root)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_checker_env(),
+    )
+    if result.returncode == 0:
+        return []
+    return [line for line in f"{result.stderr}\n{result.stdout}".splitlines() if line.strip()]
+
+
+def _errors_with_mapping(repo_root: Path, mapping: Path) -> list[str]:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CHECKER),
+            "--repo-root",
+            str(repo_root),
+            "--mapping",
+            str(mapping),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_checker_env(),
+    )
+    if result.returncode == 0:
+        return []
+    return [line for line in f"{result.stderr}\n{result.stdout}".splitlines() if line.strip()]
+
+
+def _load_validate_closeout() -> Callable[..., list[str]]:
+    namespace = runpy.run_path(str(CHECKER), run_name="a2_closeout_checker")
+    return cast(Callable[..., list[str]], namespace["validate_closeout"])
+
+
+def test_checker_passes_on_current_repository() -> None:
+    assert _errors(REPO_ROOT) == []
+
+
+def test_checker_passes_on_valid_minimal_fixture(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    assert _errors(tmp_path) == []
+
+
+def test_validate_closeout_direct_api_passes_valid_minimal_fixture(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    validate_closeout = _load_validate_closeout()
+    assert validate_closeout(repo_root=tmp_path) == []
+
+
+def test_checker_accepts_negated_boundary_lists(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    assert _errors(tmp_path) == []
+
+
+def test_checker_rejects_contrasted_benchmark_overclaim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout does not claim new\nbenchmark results",
+            "This closeout does not claim benchmark results, but PR-A2 proves latency wins",
+        ),
+        encoding="utf-8",
+    )
+    assert any("benchmark/scientific overclaim" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_stale_a2_pending_claim_without_repeated_pr_token(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace("Status: Closed.", "Status: Planned."), encoding="utf-8"
+    )
+    assert any("stale A2 active/pending claim" in error for error in _errors(tmp_path))
+
+
+def test_checker_allows_active_docs_phrase(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    assert _errors(tmp_path) == []
+
+
+def test_checker_rejects_forbidden_runtime_expansion_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping().replace(
+            "Semantic cache, Redis/GPTCache",
+            "PR-A2 opens semantic cache. Redis/GPTCache",
+        ),
+        encoding="utf-8",
+    )
+    assert any("forbidden runtime/scope expansion claim" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_duplicate_conflicting_gate_marker(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    gate = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    gate.write_text(
+        _valid_gate().replace(
+            "<!-- SEMANTIC_CACHE_GATE_STATUS: closed -->",
+            "<!-- SEMANTIC_CACHE_GATE_STATUS: open -->\n<!-- SEMANTIC_CACHE_GATE_STATUS: closed -->",
+        ),
+        encoding="utf-8",
+    )
+    assert any("SEMANTIC_CACHE_GATE_STATUS" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_comment_only_landed_marker_spoof(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/contracts.py",
+        """# class RAGDegradedReason
+# VECTOR_FALLBACK_NO_RESULTS = "vector_fallback_no_results"
+# VECTOR_FALLBACK_EXCEPTION = "vector_fallback_exception"
+# VECTOR_FALLBACK_SUBJECT_MISSING = "vector_fallback_subject_missing"
+# FORMATTED_CONTEXT_MALFORMED = "formatted_context_malformed"
+# REDACTED_CONTEXT_MALFORMED = "redacted_context_malformed"
+""",
+    )
+    assert any("missing class RAGDegradedReason" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_string_only_test_marker_spoof(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        'NAMES = "test_missing_subject_id_returns_empty_without_encoding '
+        "test_wrong_query_dimensions_return_empty_without_db_work "
+        "test_retrieve_vector_sqlite_binds_subject_id "
+        'test_vector_success_skips_malformed_rows_without_poisoning_whole_result"\n',
+    )
+    assert any("missing test function" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_local_path_leakage_in_closeout_text(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\nLocal evidence: /Users/example/worktrees/a2\n", encoding="utf-8"
+    )
+    assert any("local path leakage" in error for error in _errors(tmp_path))
+
+
+def test_checker_redacts_external_override_path_errors(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    errors = _errors_with_mapping(tmp_path, Path("/tmp/a2-secret-missing.md"))
+    joined = "\n".join(errors)
+    assert "<external-path>: unable to read" in joined
+    assert "/tmp/a2-secret-missing.md" not in joined

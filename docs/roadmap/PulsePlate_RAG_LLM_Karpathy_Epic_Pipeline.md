@@ -270,9 +270,9 @@ Semantic cache remains closed by
 `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`. Its machine markers
 remain `closed / false / false / true`; Redis/GPTCache, GraphRAG,
 ContextManifest, DB persistence, public routes, OpenAPI, DTOs, provider/auth/
-billing changes, and default activation remain out of scope. The broader
-runtime sequence still requires PR-A2 through PR-A5 and a later reviewed
-gate-open PR before semantic-cache work can begin.
+billing changes, and default activation remain out of scope. PR-A2 is already
+landed via PR #1415; the broader runtime sequence still requires PR-A3 through
+PR-A5 and a later reviewed gate-open PR before semantic-cache work can begin.
 
 ---
 
@@ -281,29 +281,47 @@ gate-open PR before semantic-cache work can begin.
 `feat(rag): harden degraded retrieval paths and keep contracts additive`
 
 #### Backlog target
-new `ledger-p1-rag-hardening-followthrough`
+`ledger-p1-rag-hardening-followthrough`
 
-#### Goal
-Turn the residual RAG technical debt into one bounded runtime hardening lane without reopening already-landed work.
+#### Current status
+Landed via PR [#1415](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1415)
+on `2026-04-14T20:59:47Z` with merge commit
+`146da0e0d269acea5ba946d239997705ebaf62c3` from branch
+`feat/rag-hardening-followthrough`.
 
-#### In scope
-- vector query hardening
-- degraded retrieval / fail-safe behavior
-- retrieval-source weighting cleanup
-- malformed vector / embedding row handling
-- deterministic response reasons
+This closeout reconciles stale roadmap/backlog/review truth and does not
+duplicate runtime implementation.
+
+#### Landed scope
+- deterministic degraded retrieval reasons through `RAGDegradedReason`
+- fail-safe non-RAG collapse for empty, malformed, filtered, and redacted
+  context paths
+- malformed vector and embedding-row handling
+- subject-id isolation and fail-closed vector retrieval
+- final confidence recomputation from the chunks that actually reach output
+
+#### Evidence boundary
+Runtime evidence is limited to PR #1415 merge evidence, landed symbols, focused
+deterministic tests, and review artifacts. This closeout does not claim new
+benchmark results, latency wins, accuracy gains, RAGAS quality proof, or
+production RAG robustness beyond the existing deterministic test evidence.
 
 #### Out of scope
 - workforce wiki
 - broad UX changes
 - giant multimodal expansion
-- semantic cache
-- Redis / GPTCache rollout
+- semantic cache implementation or gate opening
+- Redis/GPTCache rollout or backend approval
+- GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs,
+  provider integration, recursive learning, provider chain/tree-of-thought, and
+  default activation
 
 #### DoD
+- PR #1415 merge evidence is present in active roadmap/review docs
 - degraded retrieval collapses fail-safe without corrupting the prompt contract
-- vector path is safer and more maintainable
-- no response-contract regressions
+- vector path keeps subject isolation and malformed-row handling covered
+- public response contracts remain additive and stable
+- semantic-cache markers remain `closed / false / false / true`
 
 ---
 
@@ -879,7 +897,10 @@ Build the PulsePlate RAG/LLM/Karpathy line as three separate but coordinated rai
    - PR-A1b docs reconciliation for already-landed PRO quota truth
      (evidence: `docs/roadmap/BACKLOG_LEDGER.md:299-305`;
      `docs/review/PR_1379_FIXED_MAPPING.md:12-30`)
-   - PR-A2 RAG hardening follow-through
+   - Historical PR-A2 RAG hardening record: landed via PR #1415
+     (`2026-04-14T20:59:47Z`,
+     `146da0e0d269acea5ba946d239997705ebaf62c3`,
+     `feat/rag-hardening-followthrough`)
    - PR-A3 AI bounded-context packet
    - PR-A4 AI bounded-context extraction
    - PR-A5 LLM reliability/security gates

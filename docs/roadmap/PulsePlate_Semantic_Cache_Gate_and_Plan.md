@@ -99,11 +99,17 @@ minimal status mirror.
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
+- landed PR-A2 RAG hardening via PR #1415
 - deterministic orchestration confidence recomputation
 
 The runtime prerequisite train is tracked by canonical PR/backlog anchors:
 1. `PR-A1b` is reconciled via [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation), PR #1461, and PR #1466
-2. `PR-A2` and [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough)
+2. `PR-A2` is closed via
+   [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough),
+   PR #1415 `feat(rag): harden degraded retrieval paths and keep contracts
+   additive`, merged `2026-04-14T20:59:47Z` with merge commit
+   `146da0e0d269acea5ba946d239997705ebaf62c3` from branch
+   `feat/rag-hardening-followthrough`
 3. `PR-A3` and [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet)
 4. `PR-A4` and [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
 5. `PR-A5` and [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates)
@@ -115,7 +121,12 @@ Semantic cache can be considered only **after** those runtime rails are closed.
 Do **not** start semantic cache work before all the following are true:
 
 1. `PR-A1b` is reconciled in docs/backlog via [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation), PR #1461, and PR #1466
-2. `PR-A2` is closed via [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough)
+2. `PR-A2` is closed via
+   [`ledger-p1-rag-hardening-followthrough`](./BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough),
+   PR #1415 `feat(rag): harden degraded retrieval paths and keep contracts
+   additive`, merged `2026-04-14T20:59:47Z` with merge commit
+   `146da0e0d269acea5ba946d239997705ebaf62c3` from branch
+   `feat/rag-hardening-followthrough`
 3. `PR-A3` is closed via [`ledger-p1-ai-bounded-context-packet`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet)
 4. `PR-A4` is closed via [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
 5. at least `PR-A5` is closed via [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates)

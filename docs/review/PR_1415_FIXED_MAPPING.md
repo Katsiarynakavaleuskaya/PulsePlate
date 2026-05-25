@@ -46,10 +46,27 @@ Disposition: NOT-A-BUG
 Reason: This CodeRabbit review URL is the aggregate container for the already-dispositioned inline finding and does not introduce an extra unfixed delta beyond `discussion_r3076040654`.
 Evidence: See the FIXED mapping for `discussion_r3076040654` above.
 
-## Merge Readiness
-- [ ] All required checks pass
-- [ ] No unresolved review threads (re-check on current head before merge)
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [x] Pre-commit green
-- [ ] `make verify` green
-Notes: This A2 runtime PR hardens degraded retrieval and non-RAG collapse paths while preserving the existing public RAG response contract. Semantic cache, provider/quota seams, and broader reliability-control-plane work remain out of scope. Current-head discussion/mapping governance is now synchronized; merge-readiness stays open until current-head CI is green and a full local `make verify` completes without environment termination.
+## Post-Merge Closeout
+
+- State: `MERGED`
+- Title: `feat(rag): harden degraded retrieval paths and keep contracts additive`
+- PR #1415 merged at `2026-04-14T20:59:47Z`
+- Merge commit: `146da0e0d269acea5ba946d239997705ebaf62c3`
+- Original branch: `feat/rag-hardening-followthrough`
+- Closeout scope: PR-A2 is landed historical runtime truth; this
+  reconciliation does not duplicate implementation.
+- Evidence boundary: deterministic tests and landed symbols prove the closeout
+  state only. This artifact does not claim new benchmark results, accuracy
+  gains, latency wins, or production RAG robustness.
+- Boundary: semantic-cache markers remain `closed / false / false / true`.
+  Semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence,
+  public routes, OpenAPI, DTOs, provider integration, recursive learning,
+  provider chain/tree-of-thought, and default activation remain out of scope.
+
+## Historical Merge Readiness
+
+This section is historical evidence only. PR #1415 is already merged, so this
+closeout does not re-run or reassert the original readiness checklist. The
+current A2 closeout PR must record its own validation evidence, operator-approved
+narrow-gate deferral, PR body mirror, and fixed-mapping artifact after its PR
+number exists.
