@@ -174,6 +174,10 @@ def _normalize_embedding_vector() -> None:
 
 
 def _retrieve_vector_postgres(session: object, subject_id: int) -> None:
+    return None
+
+
+def _retrieve_vector_from_db(session: object, subject_id: int) -> None:
     apply_user_rls_context(session, user_id=subject_id)
 
 
@@ -338,6 +342,19 @@ def test_checker_rejects_closed_token_runtime_expansion_bypass(tmp_path: Path) -
     assert any("forbidden runtime/scope expansion claim" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_historical_token_runtime_expansion_bypass(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping().replace(
+            "Semantic cache, Redis/GPTCache",
+            "Historical note: PR-A2 opens semantic cache. Redis/GPTCache",
+        ),
+        encoding="utf-8",
+    )
+    assert any("forbidden runtime/scope expansion claim" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_duplicate_conflicting_gate_marker(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     gate = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
@@ -435,6 +452,41 @@ def test_checker_rejects_nested_required_test_marker_spoof(tmp_path: Path) -> No
     assert any("missing test function" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_dead_helper_call_keyword_marker_spoof(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "core/rag/vector_rag.py",
+        """from core.rag.contracts import RAGDegradedReason
+
+
+def _normalize_embedding_vector() -> None:
+    return None
+
+
+def _retrieve_vector_postgres(session: object, subject_id: int) -> None:
+    return None
+
+
+def _retrieve_vector_from_db(session: object, subject_id: int) -> None:
+    return None
+
+
+def _retrieve_vector_sqlite() -> tuple[object, object]:
+    return (
+        RAGDegradedReason.VECTOR_FALLBACK_SUBJECT_MISSING,
+        RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+    )
+
+
+def dead_helper(session: object, subject_id: int) -> None:
+    apply_user_rls_context(session, user_id=subject_id)
+""",
+    )
+    assert any(
+        "missing call proof _retrieve_vector_from_db" in error for error in _errors(tmp_path)
+    )
+
+
 def test_checker_rejects_skipped_required_test(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     _write(
@@ -443,6 +495,27 @@ def test_checker_rejects_skipped_required_test(tmp_path: Path) -> None:
 
 
 @pytest.mark.skip(reason="disabled")
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+
+
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any("must not be skipped or xfailed" in error for error in _errors(tmp_path))
+
+
+def test_checker_rejects_alias_bound_skipped_required_test(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+SKIP_REQUIRED = pytest.mark.skip(reason="disabled")
+
+
+@SKIP_REQUIRED
 def test_missing_subject_id_returns_empty_without_encoding(): pass
 
 
@@ -470,8 +543,110 @@ def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): p
 """,
     )
     assert any(
-        "required test module must not set skip/xfail pytestmark" in error
+        "required test module must not disable pytest collection" in error
         for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_annotated_pytestmark_for_required_tests(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+pytestmark: object = pytest.mark.skip(reason="disabled")
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_conditional_pytestmark_for_required_tests(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+if True:
+    pytestmark = pytest.mark.skip(reason="disabled")
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_module_dunder_test_false_for_required_tests(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """__test__ = False
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_module_level_pytest_skip_for_required_tests(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """import pytest
+
+pytest.skip("disabled", allow_module_level=True)
+
+
+def test_missing_subject_id_returns_empty_without_encoding(): pass
+def test_wrong_query_dimensions_return_empty_without_db_work(): pass
+def test_retrieve_vector_sqlite_binds_subject_id(): pass
+def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(): pass
+""",
+    )
+    assert any(
+        "required test module must not disable pytest collection" in error
+        for error in _errors(tmp_path)
+    )
+
+
+def test_checker_rejects_uncollectable_required_test_class(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    _write(
+        tmp_path / "tests/test_vector_rag.py",
+        """class TestVectorRequired:
+    def __init__(self) -> None:
+        pass
+
+    def test_missing_subject_id_returns_empty_without_encoding(self): pass
+    def test_wrong_query_dimensions_return_empty_without_db_work(self): pass
+    def test_retrieve_vector_sqlite_binds_subject_id(self): pass
+    def test_vector_success_skips_malformed_rows_without_poisoning_whole_result(self): pass
+""",
+    )
+    assert any(
+        "must not live in disabled or uncollectable class" in error for error in _errors(tmp_path)
     )
 
 

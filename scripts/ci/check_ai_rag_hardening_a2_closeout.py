@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+from collections.abc import Iterator
 from pathlib import Path
 import re
 import sys
@@ -51,6 +52,7 @@ REQUIRED_FUNCTIONS = {
     ),
     "core/rag/vector_rag.py": (
         "def _normalize_embedding_vector",
+        "def _retrieve_vector_from_db",
         "def _retrieve_vector_postgres",
         "def _retrieve_vector_sqlite",
     ),
@@ -72,7 +74,9 @@ REQUIRED_KEYWORD_NAME_REFS = {
 }
 
 REQUIRED_CALL_KEYWORD_NAME_REFS = {
-    "core/rag/vector_rag.py": (("apply_user_rls_context", "user_id", "subject_id"),),
+    "core/rag/vector_rag.py": (
+        ("_retrieve_vector_from_db", "apply_user_rls_context", "user_id", "subject_id"),
+    ),
 }
 
 REQUIRED_TEST_FUNCTIONS = {
@@ -123,7 +127,7 @@ CONTRAST_SPLIT_RE = re.compile(
 )
 NEGATION_RE = re.compile(
     r"\b(no|not|never|does\s+not|do\s+not|must\s+not|cannot|can't|without|"
-    r"out\s+of\s+scope|deferred|blocked|historical|"
+    r"out\s+of\s+scope|deferred|blocked|"
     r"does\s+not\s+claim)\b",
     re.I,
 )
@@ -333,6 +337,10 @@ def _decorator_name(node: ast.AST) -> str | None:
     return _full_name(node)
 
 
+def _is_false_constant(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and node.value is False
+
+
 def _is_disabling_test_marker_name(name: str | None) -> bool:
     if name is None:
         return False
@@ -344,49 +352,111 @@ def _is_disabling_test_marker_name(name: str | None) -> bool:
     }
 
 
-def _node_has_disabling_test_marker(node: ast.AST) -> bool:
+def _node_has_disabling_test_marker(node: ast.AST, aliases: set[str]) -> bool:
     marker_name = _decorator_name(node)
-    if _is_disabling_test_marker_name(marker_name):
+    if _is_disabling_test_marker_name(marker_name) or marker_name in aliases:
         return True
     if isinstance(node, (ast.List, ast.Tuple)):
-        return any(_node_has_disabling_test_marker(item) for item in node.elts)
+        return any(_node_has_disabling_test_marker(item, aliases) for item in node.elts)
     return False
 
 
-def _module_has_disabling_pytestmark(tree: ast.Module) -> bool:
-    for statement in tree.body:
-        if not isinstance(statement, ast.Assign):
-            continue
-        if any(
-            isinstance(target, ast.Name) and target.id == "pytestmark"
-            for target in statement.targets
-        ):
-            if _node_has_disabling_test_marker(statement.value):
+def _assigned_names(statement: ast.stmt) -> tuple[str, ...]:
+    if isinstance(statement, ast.Assign):
+        return tuple(target.id for target in statement.targets if isinstance(target, ast.Name))
+    if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+        return (statement.target.id,)
+    return ()
+
+
+def _assigned_value(statement: ast.stmt) -> ast.AST | None:
+    if isinstance(statement, ast.Assign):
+        return statement.value
+    if isinstance(statement, ast.AnnAssign):
+        return statement.value
+    return None
+
+
+def _iter_scope_statements(statements: list[ast.stmt]) -> Iterator[ast.stmt]:
+    for statement in statements:
+        yield statement
+        if isinstance(statement, ast.If):
+            yield from _iter_scope_statements(statement.body)
+            yield from _iter_scope_statements(statement.orelse)
+
+
+def _disabling_marker_aliases(statements: list[ast.stmt]) -> set[str]:
+    aliases: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for statement in _iter_scope_statements(statements):
+            value = _assigned_value(statement)
+            if value is None:
+                continue
+            if not _node_has_disabling_test_marker(value, aliases):
+                continue
+            for name in _assigned_names(statement):
+                if name != "pytestmark" and name not in aliases:
+                    aliases.add(name)
+                    changed = True
+    return aliases
+
+
+def _has_disabled_test_collection(statements: list[ast.stmt], aliases: set[str]) -> bool:
+    for statement in _iter_scope_statements(statements):
+        value = _assigned_value(statement)
+        names = _assigned_names(statement)
+        if value is not None:
+            if "__test__" in names and _is_false_constant(value):
                 return True
-    return False
-
-
-def _test_function_is_disabled(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    return any(_node_has_disabling_test_marker(decorator) for decorator in node.decorator_list)
-
-
-def _class_has_disabling_pytestmark(class_node: ast.ClassDef) -> bool:
-    for statement in class_node.body:
-        if not isinstance(statement, ast.Assign):
-            continue
-        if any(
-            isinstance(target, ast.Name) and target.id == "pytestmark"
-            for target in statement.targets
-        ):
-            if _node_has_disabling_test_marker(statement.value):
+            if "pytestmark" in names and _node_has_disabling_test_marker(value, aliases):
                 return True
+        if isinstance(statement, ast.Expr) and _module_level_skip_call(statement.value):
+            return True
     return False
 
 
-def _test_class_is_disabled(class_node: ast.ClassDef) -> bool:
+def _test_function_is_disabled(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    aliases: set[str],
+) -> bool:
     return any(
-        _node_has_disabling_test_marker(decorator) for decorator in class_node.decorator_list
-    ) or (_class_has_disabling_pytestmark(class_node))
+        _node_has_disabling_test_marker(decorator, aliases) for decorator in node.decorator_list
+    )
+
+
+def _module_level_skip_call(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if _full_name(node.func) != "pytest.skip":
+        return False
+    return any(
+        keyword.arg == "allow_module_level"
+        and isinstance(keyword.value, ast.Constant)
+        and keyword.value.value is True
+        for keyword in node.keywords
+    )
+
+
+def _class_has_uncollectable_constructor(class_node: ast.ClassDef) -> bool:
+    return any(
+        isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and statement.name in {"__init__", "__new__"}
+        for statement in class_node.body
+    )
+
+
+def _test_class_is_disabled(class_node: ast.ClassDef, inherited_aliases: set[str]) -> bool:
+    aliases = inherited_aliases | _disabling_marker_aliases(class_node.body)
+    return (
+        any(
+            _node_has_disabling_test_marker(decorator, aliases)
+            for decorator in class_node.decorator_list
+        )
+        or _has_disabled_test_collection(class_node.body, aliases)
+        or _class_has_uncollectable_constructor(class_node)
+    )
 
 
 def _discoverable_test_function_nodes(
@@ -397,6 +467,7 @@ def _discoverable_test_function_nodes(
     errors: list[str],
 ) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
     discovered: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+    module_aliases = _disabling_marker_aliases(tree.body)
     for statement in tree.body:
         if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if statement.name in required_test_functions:
@@ -404,7 +475,8 @@ def _discoverable_test_function_nodes(
             continue
         if not isinstance(statement, ast.ClassDef) or not statement.name.startswith("Test"):
             continue
-        class_disabled = _test_class_is_disabled(statement)
+        class_aliases = module_aliases | _disabling_marker_aliases(statement.body)
+        class_disabled = _test_class_is_disabled(statement, module_aliases)
         for item in statement.body:
             if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
@@ -412,7 +484,12 @@ def _discoverable_test_function_nodes(
                 continue
             if class_disabled:
                 errors.append(
-                    f"{relative_path}: required test {item.name} must not live in skipped or xfailed class"
+                    f"{relative_path}: required test {item.name} must not live in disabled or uncollectable class"
+                )
+                continue
+            if _test_function_is_disabled(item, class_aliases):
+                errors.append(
+                    f"{relative_path}: required test {item.name} must not be skipped or xfailed"
                 )
                 continue
             discovered[item.name] = item
@@ -452,6 +529,19 @@ def _call_keyword_name_refs(tree: ast.AST) -> set[tuple[str, str, str]]:
             if keyword.arg and isinstance(keyword.value, ast.Name):
                 refs.add((call_name.split(".")[-1], keyword.arg, keyword.value.id))
     return refs
+
+
+def _call_keyword_name_refs_in_function(
+    tree: ast.Module,
+    function_name: str,
+) -> set[tuple[str, str, str, str]]:
+    function_node = _module_function_nodes(tree).get(function_name)
+    if function_node is None:
+        return set()
+    return {
+        (function_name, call_name, keyword, value)
+        for call_name, keyword, value in _call_keyword_name_refs(function_node)
+    }
 
 
 def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
@@ -517,21 +607,24 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
         tree = tree_for(relative_path)
         if tree is None:
             continue
-        call_refs = _call_keyword_name_refs(tree)
+        call_refs: set[tuple[str, str, str, str]] = set()
         for expected_call_ref in expected_call_refs:
+            function_name, _call_name, _keyword, _value = expected_call_ref
+            call_refs.update(_call_keyword_name_refs_in_function(tree, function_name))
             if expected_call_ref not in call_refs:
-                call_name, keyword, value = expected_call_ref
+                function_name, call_name, keyword, value = expected_call_ref
                 errors.append(
-                    f"{relative_path}: missing call proof {call_name}(..., {keyword}={value})"
+                    f"{relative_path}: missing call proof {function_name}->{call_name}(..., {keyword}={value})"
                 )
 
     for relative_path, required_test_functions in REQUIRED_TEST_FUNCTIONS.items():
         tree = tree_for(relative_path)
         if tree is None:
             continue
-        if _module_has_disabling_pytestmark(tree):
+        module_aliases = _disabling_marker_aliases(tree.body)
+        if _has_disabled_test_collection(tree.body, module_aliases):
             errors.append(
-                f"{relative_path}: required test module must not set skip/xfail pytestmark"
+                f"{relative_path}: required test module must not disable pytest collection"
             )
         test_functions = _discoverable_test_function_nodes(
             tree,
@@ -544,7 +637,7 @@ def _check_landed_markers(repo_root: Path, errors: list[str]) -> None:
             if function_node is None:
                 errors.append(f"{relative_path}: missing test function {expected_function}")
                 continue
-            if _test_function_is_disabled(function_node):
+            if _test_function_is_disabled(function_node, module_aliases):
                 errors.append(
                     f"{relative_path}: required test {expected_function} must not be skipped or xfailed"
                 )
