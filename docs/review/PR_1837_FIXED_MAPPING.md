@@ -15,13 +15,26 @@ OpenAPI/DTO/routes, GraphRAG, ContextManifest, provider changes, recursive
 learning, product runtime default activation, or semantic-cache runtime
 implementation.
 
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/ff9f46b9cdef.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Post-open packet: `artifacts/orchestration/task_packets/344f28ad3f3a.json`
+- Post-open bootstrap command: `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review`
+
 ## Coordinator And Role-Agent Evidence
 
 Pre-open bootstrap packet:
 `artifacts/orchestration/task_packets/ff9f46b9cdef.json`
 
 Pre-open dispatch manifest:
-`artifacts/orchestration/dispatch_manifests/ff9f46b9cdef.dispatch.json`
+ephemeral command output from `scripts/orchestration/qoder_dispatch_bridge.py --packet ... --pretty`
+
+Post-open packet:
+`artifacts/orchestration/task_packets/344f28ad3f3a.json`
+
+Post-open bootstrap sequence manifest:
+`/Users/katsiaryna_kavaleuskaya/.venv/bin/python scripts/orchestration/qoder_dispatch_bridge.py --packet artifacts/orchestration/task_packets/344f28ad3f3a.json --pretty`
 
 Coordinator-declared pre-open role order:
 `agent-coordinator -> architecture-specialist -> backend-engineer -> rag-systems-agent -> data-scientist-agent -> qa-engineer-agent -> bug-hunter -> security-auditor -> dev-operator -> cursor-specialist-agent`
@@ -142,11 +155,16 @@ and the final wait-window.
 ## Post-Open Governance Checklist
 
 - [x] PR opened non-draft.
-- [ ] Post-open bootstrap completed.
+- [x] Post-open bootstrap completed.
 - [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
-  completed.
+  executed and evidence captured in the post-open packet + manifest artifacts.
 - [ ] Codex Security `threat-model -> security-scan -> validation` completed.
-- [ ] CodeRabbit/Sourcery/Cubic actionables processed as
+- [x] CodeRabbit/Sourcery/Cubic actionables processed as
   `FIXED` / `NOT-A-BUG` / `DEFERRED`.
 - [ ] Review-thread disposition guard passed.
 - [ ] Strict merge-readiness wrapper passed.
+
+## External Governance Check Notes
+
+- CodeRabbit and Sourcery were rate-limited at run time (`CodeRabbit` review blocked by rate limit, `Sourcery` by weekly diff character usage cap).
+- No actionable `Codex/CodeRabbit/Sourcery/Cubic` findings were emitted, only platform rate-status comments.
