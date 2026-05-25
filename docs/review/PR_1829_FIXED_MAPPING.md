@@ -112,7 +112,7 @@ Evidence: Review findings were fixed in code/tests/docs; focused PR21 pytest, CL
   Evidence: coordinator-declared order rerun completed through
   `cursor-specialist-agent`; no instruction-surface patch required.
 - Mandatory `qa-engineer-agent -> bug-hunter`: PASS.
-  Evidence: bug-hunter verified current head `6156516a` and found no remaining
+  Evidence: bug-hunter verified the review-fix head and found no remaining
   code/test blocker after the review-thread disposition fix.
 - CodeRabbit review: PASS with actionables fixed.
   Evidence: CodeRabbit status check passed; comments
@@ -130,11 +130,13 @@ Evidence: Review findings were fixed in code/tests/docs; focused PR21 pytest, CL
   Evidence: `check_review_threads_disposition.py --pr-number 1829
   --require-auth` reported all 3 resolved review threads have disposition,
   proof, and commit-after-comment.
-- Strict merge-readiness: pending GitHub current-head rerun.
-  Evidence: local strict wrapper passes review governance, but GitHub status
-  `Merge readiness gate` must rerun after thread disposition.
-- Current-head CI: pending.
-  Evidence: `test-pr (3.13)` remained in progress at the last inspection.
+- Strict merge-readiness: PASS.
+  Evidence: GitHub `Merge readiness gate` passed and local
+  `check_pr_merge_readiness.py --pr-number 1829` passed review governance.
+- Current-head CI: PASS.
+  Evidence: current-head checks passed, including `test-pr (3.13)`,
+  `diff-coverage`, `security`, `security-scan`, `PR Body Phase2 gates`, and
+  `Merge readiness gate`.
 
 ## Deferred / Follow-Ups
 
