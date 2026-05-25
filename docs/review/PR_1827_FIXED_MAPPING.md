@@ -9,15 +9,16 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Opening pass: no review threads existed when PR #1827 was created. This artifact
-must be refreshed after bot and human review activity.
+Post-open pass refreshed after CodeRabbit, Sourcery, Codex Review, QA,
+bug-hunter, and security-auditor activity.
 
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/8245eb73c1c8.json`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Branch: `codex/ai-rag-hardening-a2-closeout`
-- Worktree: `worktrees/ai-rag-hardening-a2-closeout`
+- Worktree: isolated closeout worktree; local path intentionally omitted from
+  committed governance evidence
 - Coordinator order: `agent-coordinator -> architecture-specialist -> data-scientist-agent -> backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor -> dev-operator`
 
 ## Experiment Runner Evidence
@@ -31,6 +32,13 @@ must be refreshed after bot and human review activity.
 - Contribution: `oracle_review`
 - Co-author required: yes
 - Commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Post-review artifact: `artifacts/orchestration/experiments/results/exp-bdeb5cf56f40-post-review.json`
+- Post-review status: `accepted`
+- Post-review contribution: `fixed_mapping_review`
+- Post-review co-author required: yes
+- Post-review commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Artifact references are local ignored governance evidence only; no
+  `artifacts/orchestration/` files are tracked by this PR.
 
 ## Premortem Disposition
 
@@ -59,7 +67,7 @@ must be refreshed after bot and human review activity.
 - PASS: `python scripts/ci/check_ai_rag_hardening_a2_closeout.py`
 - PASS: `python scripts/ci/check_semantic_cache_gate.py`
 - PASS: `python scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1415_FIXED_MAPPING.md`
-- PASS: `python -m pytest -q tests/test_ai_rag_hardening_a2_closeout.py tests/test_rag_orchestration.py tests/test_vector_rag.py tests/test_insight_rag_response_fields.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` (`54 passed`)
+- PASS: `python -m pytest -q tests/test_ai_rag_hardening_a2_closeout.py tests/test_rag_orchestration.py tests/test_vector_rag.py tests/test_insight_rag_response_fields.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` (`60 passed`)
 - PASS: `python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_rag_hardening_a2_closeout.py tests/test_ai_rag_hardening_a2_closeout.py`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
@@ -70,9 +78,50 @@ Full local `make verify` is intentionally deferred under the
 operator-approved machine-heavy PR exception. This PR uses narrow local gates
 plus current-head CI and strict merge-readiness governance.
 
+## Post-Open Agent Review Disposition
+
+- FIXED: QA P1 `pr_scope_guard` red. Evidence: PR body now includes `## Split Justification`.
+- FIXED: QA/Bug/Security stale post-open disposition. Evidence: this artifact now maps bot activity and review comments, and the PR body mirror was refreshed.
+- FIXED: QA/Bug/Security stale commit bookkeeping. Evidence: PR body commit breakdown now includes `69857f392`, `6e105d974`, and `ca589415a`.
+- FIXED: Security P1 checker failure on class-method tests. Evidence: `ca589415a` accepts pytest-discoverable `Test*` class methods while rejecting nested/dead-scope and skip/xfail cases.
+- NOT-A-BUG: Security P2 packet/result artifact references. Reason: Phase2 governance validates local ignored artifact references as evidence pointers. Evidence: artifact files are not tracked, and this artifact explicitly records them as local ignored governance evidence only. Worktree path text was removed.
+
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297552749 -> ca589415a
+Disposition: FIXED
+Commit: ca589415a
+Evidence: `_module_function_names(...)` now only accepts module-scope runtime functions; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_nested_runtime_function_marker_spoof` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297552751 -> ca589415a
+Disposition: FIXED
+Commit: ca589415a
+Evidence: `_discoverable_test_function_nodes(...)` accepts pytest-discoverable module tests and `Test*` class methods only, while rejecting skipped, xfailed, and nested/dead-scope markers. Regression tests cover nested required tests, function-level skip, and module-level xfail.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297552753 -> ca589415a
+Disposition: FIXED
+Commit: ca589415a
+Evidence: `_module_class_nodes(...)` restricts `RAGDegradedReason` proof to module-scope classes; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_nested_enum_marker_spoof` covers nested class spoofing.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#discussion_r3297552755 -> ca589415a
+Disposition: FIXED
+Commit: ca589415a
+Evidence: standalone `closed` is no longer a generic negation token; `tests/test_ai_rag_hardening_a2_closeout.py::test_checker_rejects_closed_token_runtime_expansion_bypass` covers the false-negative path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#pullrequestreview-4355977247 -> ca589415a
+Disposition: FIXED
+Commit: ca589415a
+Evidence: aggregate Codex review actionables are mapped to the four inline FIXED comments above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#issuecomment-4533488800
+Disposition: NOT-A-BUG
+Reason: CodeRabbit reported a review-capacity/rate-limit notice, not a code, docs, test, or security finding.
+Evidence: comment body says review limit/usage credits were exhausted.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1827#pullrequestreview-4355948535
+Disposition: NOT-A-BUG
+Reason: Sourcery reported a weekly diff-character rate-limit notice, not a code, docs, test, or security finding.
+Evidence: review body asks to retry later or upgrade due rate limit.
 
 ## Merge Readiness
 
