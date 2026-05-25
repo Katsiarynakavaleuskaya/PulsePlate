@@ -508,6 +508,12 @@ Evidence: PR-5 intentionally excludes `scripts/ci/check_docs_phase1_gates.py` fr
 Evidence: Anchors: `.github/workflows/ci.yml:288`, `.github/workflows/ci.yml:292`, `tests/test_ci_workflow_pr_size_governance_contract.py:348`, `tests/test_ci_workflow_pr_size_governance_contract.py:351`.
 Reason: this matches the operator-approved PR #1822 finish plan; direct docs Phase1 validation remains responsible for shared gate-script changes.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#discussion_r3300014896 -> f7cb6a423
+Disposition: FIXED
+Commit: f7cb6a423
+Evidence: `~` allowlisting now applies only to path-shaped matches (`~/<path>`), which blocks `~sk-...` token leaks and still allows `~/.cache/...` path-like entries.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1117`, `scripts/ci/check_philosophy_source_corpus_index.py:1119`, `tests/test_philosophy_source_corpus_index.py:1222`, `tests/test_philosophy_source_corpus_index.py:1235`.
+
 ## CI Failure Closure
 
 - CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
