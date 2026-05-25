@@ -383,6 +383,56 @@ def test_regional_catalog_dedicated_legal_contract_review_report_contract() -> N
 
 
 @pytest.mark.parametrize(
+    ("field_name", "bad_value", "match"),
+    (
+        ("source", "   ", "source"),
+        ("source_family", "regional_catalog_wrong", "source_family"),
+        ("review_decision", "", "review_decision"),
+        ("legal_review_authority", "review_only_not_authority", "legal_review_authority"),
+        ("notes", "review-only legal facts remain blocked", "notes"),
+    ),
+)
+def test_regional_catalog_dedicated_legal_contract_review_rejects_controlled_text_drift(
+    field_name: str,
+    bad_value: object,
+    match: str,
+) -> None:
+    payload = _legal_review_payload()
+    payload[field_name] = bad_value
+
+    with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match=match):
+        parse_regional_catalog_dedicated_legal_contract_review_governance(
+            payload,
+            pr20_report=_pr20_report(),
+            pr20_gate=_pr20_gate(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("bad_value", "match"),
+    (
+        ("api_call", "list of strings"),
+        (["api_call", ""], "blocked_methods\\[1\\]"),
+        (["api_call", "api_call"], "duplicate"),
+        ([], "must not be empty"),
+    ),
+)
+def test_regional_catalog_dedicated_legal_contract_review_rejects_blocked_methods_shape(
+    bad_value: object,
+    match: str,
+) -> None:
+    payload = _legal_review_payload()
+    payload["blocked_methods"] = bad_value
+
+    with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match=match):
+        parse_regional_catalog_dedicated_legal_contract_review_governance(
+            payload,
+            pr20_report=_pr20_report(),
+            pr20_gate=_pr20_gate(),
+        )
+
+
+@pytest.mark.parametrize(
     "flag_name",
     (
         "runtime_cutover",
@@ -597,6 +647,31 @@ def test_regional_catalog_dedicated_legal_contract_review_validates_pr20_report(
         )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "match"),
+    (
+        ("success", False, "PR20 closeout report must succeed"),
+        ("final_gate_decision", "provider_use_approved", "PR20 final_gate_decision"),
+        ("candidate_ids", list(reversed(_EXPECTED_CANDIDATE_IDS)), "PR20 candidate_ids"),
+        ("network_allowed", True, "PR20 safety flag drifted"),
+    ),
+)
+def test_regional_catalog_dedicated_legal_contract_review_rejects_pr20_report_drift(
+    field_name: str,
+    bad_value: object,
+    match: str,
+) -> None:
+    report = copy.deepcopy(_pr20_report())
+    report[field_name] = bad_value
+
+    with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match=match):
+        parse_regional_catalog_dedicated_legal_contract_review_governance(
+            _legal_review_payload(),
+            pr20_report=report,
+            pr20_gate=_pr20_gate(),
+        )
+
+
 def test_regional_catalog_dedicated_legal_contract_review_derives_next_lane_from_pr20() -> None:
     gate = _pr20_gate()
     first = gate.candidate_closeout_terms[0]
@@ -611,6 +686,80 @@ def test_regional_catalog_dedicated_legal_contract_review_derives_next_lane_from
             _legal_review_payload(),
             pr20_report=_pr20_report(),
             pr20_gate=bad_gate,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "match"),
+    (
+        ("allowed_role", "review_only_provider_use_allowed", "allowed_role"),
+        ("terms_document_identity_status", "verified", "terms_document_identity_status"),
+    ),
+)
+def test_regional_catalog_dedicated_legal_contract_review_rejects_pr20_candidate_drift(
+    field_name: str,
+    bad_value: str,
+    match: str,
+) -> None:
+    gate = _pr20_gate()
+    first = gate.candidate_closeout_terms[0]
+    if field_name == "allowed_role":
+        bad_first = replace(first, allowed_role=bad_value)
+    else:
+        bad_first = replace(first, terms_document_identity_status=bad_value)
+    bad_gate = replace(
+        gate,
+        candidate_closeout_terms=(bad_first, *gate.candidate_closeout_terms[1:]),
+    )
+
+    with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match=match):
+        parse_regional_catalog_dedicated_legal_contract_review_governance(
+            _legal_review_payload(),
+            pr20_report=_pr20_report(),
+            pr20_gate=bad_gate,
+        )
+
+
+def test_regional_catalog_dedicated_legal_contract_review_rejects_candidate_list_shape() -> None:
+    payload = _legal_review_payload()
+    payload["candidate_legal_contract_reviews"] = "not-a-list"
+
+    with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match="must be a list"):
+        parse_regional_catalog_dedicated_legal_contract_review_governance(
+            payload,
+            pr20_report=_pr20_report(),
+            pr20_gate=_pr20_gate(),
+        )
+
+
+def test_regional_catalog_dedicated_legal_contract_review_rejects_duplicate_candidate_id() -> None:
+    payload = _legal_review_payload()
+    candidates = payload["candidate_legal_contract_reviews"]
+    assert isinstance(candidates, list)
+    second = copy.deepcopy(candidates[1])
+    assert isinstance(second, dict)
+    first = candidates[0]
+    assert isinstance(first, dict)
+    second["candidate_id"] = first["candidate_id"]
+    candidates[1] = second
+
+    with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match="duplicate"):
+        parse_regional_catalog_dedicated_legal_contract_review_governance(
+            payload,
+            pr20_report=_pr20_report(),
+            pr20_gate=_pr20_gate(),
+        )
+
+
+def test_regional_catalog_dedicated_legal_contract_review_rejects_blocking_reason_drift() -> None:
+    payload = _legal_review_payload()
+    _candidate(payload, "kroger")["blocking_reasons"] = ["dedicated review remains incomplete"]
+
+    with pytest.raises(RegionalCatalogDedicatedLegalContractReviewError, match="blocking_reasons"):
+        parse_regional_catalog_dedicated_legal_contract_review_governance(
+            payload,
+            pr20_report=_pr20_report(),
+            pr20_gate=_pr20_gate(),
         )
 
 
@@ -664,6 +813,86 @@ def test_regional_catalog_dedicated_legal_contract_review_report_failure_preserv
     assert report["success"] is False
     assert report["network_allowed"] == "true"
     assert "network_allowed" in json.dumps(report["validation_errors"])
+
+
+@pytest.mark.parametrize(
+    ("file_contents", "expected_path"),
+    (
+        ("{not-json", "bad-pr21.json"),
+        ("[]", "outside-pr21.json"),
+    ),
+)
+def test_regional_catalog_dedicated_legal_contract_review_report_failure_captures_bad_paths(
+    tmp_path: Path,
+    file_contents: str,
+    expected_path: str,
+) -> None:
+    bad_path = (tmp_path / expected_path).resolve()
+    bad_path.write_text(file_contents, encoding="utf-8")
+
+    report = build_regional_catalog_dedicated_legal_contract_review_report(
+        catalog_path=_CATALOG_PATH,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        pr16_closeout_path=_PR16_CLOSEOUT_PATH,
+        pr17_identity_path=_PR17_IDENTITY_PATH,
+        pr18_provider_terms_path=_PR18_PROVIDER_TERMS_PATH,
+        pr19_source_specific_terms_path=_PR19_SOURCE_SPECIFIC_TERMS_PATH,
+        pr20_closeout_path=_PR20_CLOSEOUT_PATH,
+        legal_review_path=bad_path,
+    )
+
+    assert report["success"] is False
+    assert report["validation_errors"]
+
+
+def test_regional_catalog_dedicated_legal_contract_review_report_uses_absolute_outside_repo_path(
+    tmp_path: Path,
+) -> None:
+    outside_catalog_path = (tmp_path / "outside-catalog.json").resolve()
+    outside_catalog_path.write_text("[]", encoding="utf-8")
+
+    report = build_regional_catalog_dedicated_legal_contract_review_report(
+        catalog_path=outside_catalog_path,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        pr16_closeout_path=_PR16_CLOSEOUT_PATH,
+        pr17_identity_path=_PR17_IDENTITY_PATH,
+        pr18_provider_terms_path=_PR18_PROVIDER_TERMS_PATH,
+        pr19_source_specific_terms_path=_PR19_SOURCE_SPECIFIC_TERMS_PATH,
+        pr20_closeout_path=_PR20_CLOSEOUT_PATH,
+        legal_review_path=_PR21_LEGAL_REVIEW_PATH,
+    )
+
+    assert report["success"] is False
+    assert outside_catalog_path.as_posix() in json.dumps(report["validation_errors"])
+
+
+def test_regional_catalog_dedicated_legal_contract_review_report_failure_captures_missing_path(
+    tmp_path: Path,
+) -> None:
+    missing_path = tmp_path / "missing-pr21.json"
+
+    report = build_regional_catalog_dedicated_legal_contract_review_report(
+        catalog_path=_CATALOG_PATH,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        pr16_closeout_path=_PR16_CLOSEOUT_PATH,
+        pr17_identity_path=_PR17_IDENTITY_PATH,
+        pr18_provider_terms_path=_PR18_PROVIDER_TERMS_PATH,
+        pr19_source_specific_terms_path=_PR19_SOURCE_SPECIFIC_TERMS_PATH,
+        pr20_closeout_path=_PR20_CLOSEOUT_PATH,
+        legal_review_path=missing_path,
+    )
+
+    assert report["success"] is False
+    assert report["validation_errors"]
 
 
 def test_regional_catalog_dedicated_legal_contract_review_load_rejects_unreadable_json(
