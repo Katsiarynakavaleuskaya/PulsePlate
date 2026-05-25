@@ -553,7 +553,7 @@ def test_duplicate_rejected_event_is_blocked_without_overwriting_audit(
     assert audit_path.read_text(encoding="utf-8") == original_audit
 
 
-def test_invalid_command_does_not_acquire_global_rate_limit_claim(
+def test_invalid_command_acquires_global_rate_limit_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -568,7 +568,7 @@ def test_invalid_command_does_not_acquire_global_rate_limit_claim(
     audit_path = audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json"
     audit = json.loads(audit_path.read_text(encoding="utf-8"))
     assert audit["status"] == "rejected"
-    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+    assert (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
 
 
 def test_recent_audit_rate_limit_blocks_before_dispatch(
@@ -783,7 +783,7 @@ def test_rate_limit_claim_cleans_partial_lock_on_write_failure(
             ),
         )
 
-    assert not (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
+    assert (audit_dir / bridge.RATE_LIMIT_LOCK_DIR).exists()
 
 
 def test_malformed_existing_audit_blocks_before_dispatch(

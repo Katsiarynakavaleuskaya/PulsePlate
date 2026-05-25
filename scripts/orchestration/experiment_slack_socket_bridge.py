@@ -851,9 +851,22 @@ def process_operator_event(
     """Authorize, audit, and optionally dispatch one Slack operator event."""
 
     audit_path = _audit_path(config, event)
+    _ensure_event_not_processed(audit_path, config=config)
+    try:
+        _check_rate_limit(config)
+        _claim_rate_limit(config, event)
+    except SlackSocketAuditError:
+        _write_audit_exclusive(
+            path=audit_path,
+            event=event,
+            command=OperatorCommand(kind="rejected"),
+            config=config,
+            status="failed",
+            failure_class="rate_limited",
+        )
+        raise
     try:
         _require_authorized_event(event, config)
-        _ensure_event_not_processed(audit_path, config=config)
         command = parse_operator_command(event.text, command_hint=event.command_hint)
     except SlackSocketCommandError:
         command = OperatorCommand(kind="rejected")
@@ -867,19 +880,6 @@ def process_operator_event(
         )
         raise
     _claim_event(audit_path, event=event, command=command, config=config)
-    try:
-        _check_rate_limit(config)
-        _claim_rate_limit(config, event)
-    except SlackSocketAuditError:
-        _write_audit(
-            path=audit_path,
-            event=event,
-            command=command,
-            config=config,
-            status="failed",
-            failure_class="rate_limited",
-        )
-        raise
     status = "dry_run"
     failure_class: str | None = None
     try:
