@@ -447,11 +447,7 @@ def _observed_safety_flags(path: Path | str) -> dict[str, object]:
         return {}
     if not isinstance(payload, dict):
         return {}
-    return {
-        key: payload.get(key)
-        for key in _SAFETY_FLAG_TEMPLATE
-        if key in payload and isinstance(payload.get(key), bool)
-    }
+    return {key: payload[key] for key in _SAFETY_FLAG_TEMPLATE if key in payload}
 
 
 def _validate_pr20_report(report: dict[str, object], context: str) -> None:

@@ -69,7 +69,7 @@ governing packet/backlog context.
 - `.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_dedicated_legal_contract_review.py scripts/food_source_regional_catalog_dedicated_legal_contract_review.py tests/test_food_source_regional_catalog_dedicated_legal_contract_review.py` - PASS.
 - `.venv/bin/python -m pytest -q tests/test_food_source_regional_catalog_source_specific_terms_closeout.py tests/test_food_source_regional_catalog_source_specific_terms.py tests/test_food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_identity.py tests/test_food_source_preference_mapping_closeout.py tests/test_food_source_gap_audit.py tests/test_food_source_catalog.py tests/test_food_source_onboarding.py tests/test_repo_policy_guards.py` - PASS.
 - `pre-commit run --all-files` - PASS.
-- `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` - PASS.
+- `make validate-changed VENV_PYTHON=.venv/bin/python` - PASS.
 
 Full local `make verify` note: started because the initial PR21 plan listed it
 explicitly; after operator clarification, stopped during repo-wide coverage at

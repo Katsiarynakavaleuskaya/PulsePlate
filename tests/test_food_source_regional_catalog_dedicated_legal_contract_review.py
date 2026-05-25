@@ -640,6 +640,32 @@ def test_regional_catalog_dedicated_legal_contract_review_report_failure_capture
     assert report["validation_errors"]
 
 
+def test_regional_catalog_dedicated_legal_contract_review_report_failure_preserves_malformed_flags(
+    tmp_path: Path,
+) -> None:
+    payload = _legal_review_payload()
+    payload["network_allowed"] = "true"
+    bad_path = _write_payload(tmp_path / "bad-pr21.json", payload)
+
+    report = build_regional_catalog_dedicated_legal_contract_review_report(
+        catalog_path=_CATALOG_PATH,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        pr16_closeout_path=_PR16_CLOSEOUT_PATH,
+        pr17_identity_path=_PR17_IDENTITY_PATH,
+        pr18_provider_terms_path=_PR18_PROVIDER_TERMS_PATH,
+        pr19_source_specific_terms_path=_PR19_SOURCE_SPECIFIC_TERMS_PATH,
+        pr20_closeout_path=_PR20_CLOSEOUT_PATH,
+        legal_review_path=bad_path,
+    )
+
+    assert report["success"] is False
+    assert report["network_allowed"] == "true"
+    assert "network_allowed" in json.dumps(report["validation_errors"])
+
+
 def test_regional_catalog_dedicated_legal_contract_review_load_rejects_unreadable_json(
     tmp_path: Path,
 ) -> None:
@@ -661,6 +687,7 @@ def test_regional_catalog_dedicated_legal_contract_review_cli_success_json() -> 
         check=True,
         capture_output=True,
         text=True,
+        timeout=30,
     )
     payload = json.loads(completed.stdout)
 
@@ -679,6 +706,7 @@ def test_regional_catalog_dedicated_legal_contract_review_cli_success_text() -> 
         check=True,
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
     assert "food_source_regional_catalog_dedicated_legal_contract_review: PASS" in (
@@ -703,6 +731,7 @@ def test_regional_catalog_dedicated_legal_contract_review_cli_failure(tmp_path: 
         check=False,
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
     assert completed.returncode == 1
