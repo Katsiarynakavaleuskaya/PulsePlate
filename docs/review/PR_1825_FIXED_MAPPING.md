@@ -9,6 +9,8 @@
   `985351389c35345f8738e528831a3ce809ad2980`
 - First post-open review fix commit:
   `ff1927e50` (`fix(deps): address rag-vector review evidence`)
+- Mapping proof metadata commit:
+  `3de7b3c7d` (`docs(review): map PR 1825 post-open findings`)
 
 ## Summary
 Human-owned consolidation for Dependabot #1805 and #1806. The lane aligns the
@@ -41,10 +43,10 @@ Disposition: FIXED
 Commit: ff1927e50
 Evidence: `scripts/ci/emergency_python_wheels.json:204`, `scripts/ci/emergency_python_wheels.json:219`, `docs/roadmap/BACKLOG_LEDGER.md:577`, `requirements-rag-vector.in:7`, and `requirements-rag-vector-cpu.in:13`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1825#discussion_r3297276710 -> ff1927e50
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1825#pullrequestreview-4355655537 -> ff1927e50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1825#discussion_r3297276710 -> 3de7b3c7d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1825#pullrequestreview-4355655537 -> 3de7b3c7d
 Disposition: FIXED
-Commit: ff1927e50
+Commit: 3de7b3c7d
 Evidence: PM-DEPS rows below now include post-comment proof metadata; no stray trailing `114` line exists in this artifact.
 
 ## Discussion Thread Pass
