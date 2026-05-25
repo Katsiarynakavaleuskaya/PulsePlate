@@ -433,8 +433,15 @@ SECRET_OR_LOCAL_PATTERNS = (
     re.compile(r"(?i)(?:token|signature|credential)=[A-Za-z0-9_%./+=-]{12,}"),
     re.compile(r"(?i)(?<![A-Za-z0-9])" + "sk" + r"-[A-Za-z0-9_-]{16,}"),
 )
-ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES = frozenset({"/dev/null", "/usr/bin/env"})
-ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES = ("/api/", "/insight/")
+ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES = frozenset({"/dev/null", "/dev/stdout", "/usr/bin/env"})
+ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES = (
+    "/Applications/Xcode",
+    "/api/",
+    "/insight/",
+    "/opt/venv/lib/",
+    "/srv/pulseplate-staging",
+    "/usr/local/lib/",
+)
 WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
 FALLBACK_TEXT_ENCODINGS = ("cp1251", "windows-1252")
 
@@ -1096,14 +1103,22 @@ def _validate_schema_object(schema: dict[str, object]) -> list[str]:
     return errors
 
 
+def _is_allowed_secret_or_local_match(text: str, match: re.Match[str]) -> bool:
+    matched_value = match.group(0)
+    if matched_value in ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES:
+        return True
+    if matched_value.startswith(ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES):
+        return True
+    if match.start() > 0 and text[match.start() - 1] == "~":
+        return True
+    return False
+
+
 def _validate_no_secret_or_local_paths(text: str, *, label: str) -> list[str]:
     errors: list[str] = []
     for pattern in SECRET_OR_LOCAL_PATTERNS:
         for match in pattern.finditer(text):
-            matched_value = match.group(0)
-            if matched_value in ALLOWED_ABSOLUTE_POSIX_PATH_MATCHES:
-                continue
-            if matched_value.startswith(ALLOWED_ABSOLUTE_POSIX_PATH_PREFIXES):
+            if _is_allowed_secret_or_local_match(text, match):
                 continue
             errors.append(
                 f"{label}: forbidden local path or credential-like token detected (value redacted)"

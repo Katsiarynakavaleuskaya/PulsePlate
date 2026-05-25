@@ -1163,6 +1163,33 @@ def test_philosophy_source_corpus_index_allows_repo_neutral_absolute_routes(
     assert errors == []
 
 
+def test_philosophy_source_corpus_index_allows_repo_neutral_infra_literals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        "\n".join(
+            [
+                "cache=~" + "/" + ".cache/pip",
+                "config=~" + "/" + ".codex/config.toml",
+                "xcode=" + "/" + "Applications/Xcode_26.2.app/Contents/Developer",
+                "stdout=" + "/" + "dev/stdout",
+                "staging=" + "/" + "srv/pulseplate-staging",
+                "venv=" + "/" + "opt/venv/lib/python",
+                "lib=" + "/" + "usr/local/lib/python",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(corpus, "REPO_ROOT", tmp_path)
+
+    errors = validate_file_contents(["docs/roadmap/BACKLOG_LEDGER.md"])
+
+    assert errors == []
+
+
 def test_philosophy_source_corpus_index_scans_past_allowed_posix_match(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
