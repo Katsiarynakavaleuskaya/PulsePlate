@@ -7,7 +7,21 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 856657553
+Evidence: `core/ai/*` GitHub token detectors now match dotted/hyphenated `github_pat_` token-like values; `docs/security/CVE-2026-45363-jwt-fastlane.md` validation wording now reflects the resolved passing guard; A1b/A2 closeout guards and Slack bridge tests cover the false-green/leak cases.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305930523 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305930540 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305930547 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305930555 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305930560 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305930565 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305930573 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305930576 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#pullrequestreview-4366345515 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#pullrequestreview-4366364660 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305946826 -> 856657553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1839#discussion_r3305946838 -> 856657553
 
 ## CI Failure Remediation Evidence
 
