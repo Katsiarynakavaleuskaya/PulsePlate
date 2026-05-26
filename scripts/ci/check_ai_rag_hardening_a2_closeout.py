@@ -1466,8 +1466,12 @@ def _check_forbidden_expansion_claims(label: str, text: str, errors: list[str]) 
         has_surface = FORBIDDEN_SURFACE_RE.search(clause)
         has_action = POSITIVE_ACTION_RE.search(clause)
         if has_surface and has_action and not NEGATION_RE.search(clause):
-            if re.search(r"\bmerged\b", clause, re.I) and re.search(
-                r"\bmerge\s+commit\b", clause, re.I
+            if (
+                re.search(r"\bmerged\b", clause, re.I)
+                and re.search(r"\bmerge\s+commit\b", clause, re.I)
+                and re.search(
+                    r"\b(historical|already\s+landed|closed|out\s+of\s+scope)\b", clause, re.I
+                )
             ):
                 continue
             errors.append(f"{label}: forbidden runtime/scope expansion claim: {clause}")

@@ -31,6 +31,10 @@ Disposition: FIXED
 Evidence: Current-head `test-main` later failed `tests/test_ai_pro_quota_a1b_closeout.py` on semantic-cache runtime wording in `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`. The clause now uses explicit no-runtime wording and the A1b guard covers blocked semantic-cache runtime wording; local `.venv/bin/python -m pytest -q tests/test_ai_pro_quota_a1b_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
 Commit: 24506790d, 58dec64f9
 
+Disposition: FIXED
+Evidence: CodeRabbit/Cubic review found remaining token detector, fail-closed suppression, semantic-cache blocked-pattern, merge-evidence exemption, docs wording, and leak assertion gaps. Regexes, guard semantics, docs, and tests now cover those cases; local focused review-fix pytest bundle passes.
+Commit: pending
+
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/bf71b8de0f6b.json`

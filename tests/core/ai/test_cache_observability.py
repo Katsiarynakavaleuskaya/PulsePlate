@@ -790,6 +790,7 @@ def test_unsafe_metadata_fails_closed() -> None:
         {"api-key": "sk-test"},
         {"github": "ghs_header.payload.signature"},
         {"github": "ghs_header-payload.signature-with-hyphen"},
+        {"github": "github_pat_header.payload-signature"},
         {"cookie": "session=abc"},
         {"contact": "user@example.com"},
         {"phone": "+1 555 123 4567"},

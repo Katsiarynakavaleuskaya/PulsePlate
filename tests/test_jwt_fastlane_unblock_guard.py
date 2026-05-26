@@ -147,6 +147,14 @@ def test_jwt_fastlane_guard_ignores_rego_comment_only_cve_reference(tmp_path: Pa
     assert trivy_suppression_present(policy, trivyignore) is False
 
 
+def test_jwt_fastlane_guard_fails_closed_on_unreadable_rego_policy(tmp_path: Path) -> None:
+    trivyignore = tmp_path / ".trivyignore"
+    trivyignore.write_text("", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Unable to read Trivy policy file"):
+        trivy_suppression_present(tmp_path, trivyignore)
+
+
 def test_jwt_fastlane_guard_detects_legacy_trivyignore_suppression(tmp_path: Path) -> None:
     policy = tmp_path / "ignore-policy.rego"
     trivyignore = tmp_path / ".trivyignore"
@@ -177,6 +185,14 @@ def test_jwt_fastlane_guard_ignores_trivyignore_comment_only_cve_reference(tmp_p
     trivyignore.write_text("# CVE-2026-45363 removed in PR 1839\n", encoding="utf-8")
 
     assert trivy_suppression_present(policy, trivyignore) is False
+
+
+def test_jwt_fastlane_guard_fails_closed_on_unreadable_trivyignore(tmp_path: Path) -> None:
+    policy = tmp_path / "ignore-policy.rego"
+    policy.write_text("package trivy\n\ndefault ignore := false\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=r"Unable to read \.trivyignore file"):
+        trivy_suppression_present(policy, tmp_path)
 
 
 def test_jwt_fastlane_guard_passes_after_complete_remediation(

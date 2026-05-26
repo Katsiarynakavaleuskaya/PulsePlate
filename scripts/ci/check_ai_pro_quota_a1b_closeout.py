@@ -143,7 +143,10 @@ SAFE_RUNTIME_EVIDENCE_RE = re.compile(
 SAFE_SEMANTIC_CACHE_BLOCKED_RE = re.compile(
     r"\bsemantic[-\s]?cache\b[^.\n]{0,160}\bblocked\b|"
     r"\bblocked\b[^.\n]{0,220}\bsemantic[-\s]?cache\b|"
-    r"\bblocked\b[^.\n]{0,220}\bruntime\b[^.\n]{0,80}\bwork\s+can\s+begin\b",
+    r"\bsemantic[-\s]?cache\b[^.\n]{0,220}\bblocked\b[^.\n]{0,220}"
+    r"\bruntime\b[^.\n]{0,80}\bwork\s+can\s+begin\b|"
+    r"\bblocked\b[^.\n]{0,220}\bsemantic[-\s]?cache\b[^.\n]{0,220}"
+    r"\bruntime\b[^.\n]{0,80}\bwork\s+can\s+begin\b",
     re.I,
 )
 

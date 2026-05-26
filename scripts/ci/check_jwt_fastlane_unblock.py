@@ -228,8 +228,8 @@ def _rego_policy_contains_cve_suppression(path: Path) -> bool:
                 continue
             if re.fullmatch(rf'input\.VulnerabilityID\s*==\s*"{re.escape(CVE_ID)}"', line):
                 return True
-    except OSError:
-        return False
+    except OSError as exc:
+        raise RuntimeError(f"Unable to read Trivy policy file {path}: {exc}") from exc
     return False
 
 
@@ -241,8 +241,10 @@ def _trivyignore_contains_cve_suppression(path: Path) -> bool:
                 continue
             if re.match(rf"^{re.escape(CVE_ID)}(?:\s|$)", line):
                 return True
-    except OSError:
+    except FileNotFoundError:
         return False
+    except OSError as exc:
+        raise RuntimeError(f"Unable to read .trivyignore file {path}: {exc}") from exc
     return False
 
 
@@ -339,7 +341,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     evidence = parse_bundler_evidence(output)
     errors = evaluate_bundler_evidence(evidence, fixed_jwt_floor=args.fixed_jwt_floor)
-    suppression_present = trivy_suppression_present(args.trivy_policy, args.trivy_ignore)
+    try:
+        suppression_present = trivy_suppression_present(args.trivy_policy, args.trivy_ignore)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}")
+        return 1
     if not suppression_present:
         if errors:
             if not remediation_evidence_complete(evidence, fixed_jwt_floor=args.fixed_jwt_floor):

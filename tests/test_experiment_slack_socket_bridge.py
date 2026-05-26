@@ -563,22 +563,23 @@ def test_execute_runtime_rejects_non_github_token_classes(
 
 
 @pytest.mark.parametrize(
-    "token",
+    ("token", "sensitive_fragment"),
     [
-        "ghs_valid.segment\nnext",
-        "ghs_valid.segment\rnext",
-        "ghs_valid.segment`next",
-        "ghs_valid segment",
-        "ghs_valid/segment",
-        "ghs_valid;segment",
-        "ghs_valid|segment",
-        "ghs_valid$segment",
-        "header.payload.signature",
-        "xoxb-" + "c" * 24,
+        ("ghs_valid.segment\nnext", "ghs_valid"),
+        ("ghs_valid.segment\rnext", "ghs_valid"),
+        ("ghs_valid.segment`next", "ghs_valid"),
+        ("ghs_valid segment", "ghs_valid"),
+        ("ghs_valid/segment", "ghs_valid"),
+        ("ghs_valid;segment", "ghs_valid"),
+        ("ghs_valid|segment", "ghs_valid"),
+        ("ghs_valid$segment", "ghs_valid"),
+        ("header.payload.signature", "header.payload.signature"),
+        ("xoxb-" + "c" * 24, "xoxb-"),
     ],
 )
 def test_execute_runtime_rejects_unsafe_or_non_github_token_shapes(
     token: str,
+    sensitive_fragment: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -596,8 +597,8 @@ def test_execute_runtime_rejects_unsafe_or_non_github_token_shapes(
     stdout = capsys.readouterr().out
 
     assert "GitHub dispatch configuration is invalid" in stdout
-    assert "ghs_valid" not in stdout
-    assert "xoxb-" not in stdout
+    assert token not in stdout
+    assert sensitive_fragment not in stdout
 
 
 def test_live_socket_validation_requires_channel_and_user_allowlists(
