@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import copy
 import json
 from pathlib import Path
@@ -40,19 +41,19 @@ def _write_repo_inputs(
     decision_path.write_text(json.dumps(decisions), encoding="utf-8")
     bridge_path = tmp_path / "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json"
     bridge_path.parent.mkdir(parents=True, exist_ok=True)
-    bridge_path.write_text(
-        json.dumps(bridge or json.loads(BRIDGE_PATH.read_text(encoding="utf-8"))),
-        encoding="utf-8",
+    bridge_payload = (
+        json.loads(BRIDGE_PATH.read_text(encoding="utf-8")) if bridge is None else bridge
     )
+    bridge_path.write_text(json.dumps(bridge_payload), encoding="utf-8")
     registry_path = tmp_path / "docs/orchestration/contracts/design_component_registry.v1.json"
     registry_path.write_text(REGISTRY_PATH.read_text(encoding="utf-8"), encoding="utf-8")
     visual_path = (
         tmp_path / "docs/orchestration/contracts/design_visual_regression_decisions.v1.json"
     )
-    visual_path.write_text(
-        json.dumps(visual or json.loads(VISUAL_PATH.read_text(encoding="utf-8"))),
-        encoding="utf-8",
+    visual_payload = (
+        json.loads(VISUAL_PATH.read_text(encoding="utf-8")) if visual is None else visual
     )
+    visual_path.write_text(json.dumps(visual_payload), encoding="utf-8")
     for record in decisions.get("records", []):
         if not isinstance(record, dict):
             continue
@@ -290,9 +291,30 @@ def test_decisions_reject_reference_artifact_canonical_authority(
     )
 
 
+def test_decisions_reject_unexpected_reference_only_authority(tmp_path: Path) -> None:
+    decisions = _load_decisions()
+    decisions["authority"]["reference_only"].append("Vendor Lab")
+
+    assert any(
+        "authority.reference_only" in error and "unexpected Vendor Lab" in error
+        for error in _errors(tmp_path, decisions)
+    )
+
+
 def test_decisions_reject_nonexistent_repo_evidence_anchor(tmp_path: Path) -> None:
     decisions = _load_decisions()
     decisions["records"][0]["evidence_anchors"] = ["docs/not_real.md:123"]
+
+    assert any(
+        "repo evidence file does not exist" in error for error in _errors(tmp_path, decisions)
+    )
+
+
+def test_decisions_reject_bad_json_evidence_fragment(tmp_path: Path) -> None:
+    decisions = _load_decisions()
+    decisions["records"][0]["evidence_anchors"] = [
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:buton"
+    ]
 
     assert any(
         "repo evidence file does not exist" in error for error in _errors(tmp_path, decisions)
@@ -349,18 +371,14 @@ def test_validator_has_no_runtime_network_or_subprocess_imports() -> None:
     source = (REPO_ROOT / "scripts/design/design_accessibility_regression_decisions.py").read_text(
         encoding="utf-8"
     )
+    tree = ast.parse(source)
+    imported_roots: set[str] = set()
 
-    forbidden = [
-        "import requests",
-        "import httpx",
-        "import socket",
-        "import subprocess",
-        "import app",
-        "from app",
-        "import frontend",
-        "from frontend",
-        "import ios",
-        "from ios",
-    ]
-    for token in forbidden:
-        assert token not in source
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".", 1)[0])
+
+    forbidden_roots = {"requests", "httpx", "socket", "subprocess", "app", "frontend", "ios"}
+    assert not (imported_roots & forbidden_roots)

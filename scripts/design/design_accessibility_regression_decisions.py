@@ -233,10 +233,26 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
     ):
         errors.append("authority.reference_only: expected list of strings")
         reference_only = []
-    if not REQUIRED_CANONICAL.issubset(set(canonical)):
-        errors.append("authority.canonical: missing required repo source-of-truth entries")
-    if not REFERENCE_ONLY.issubset(set(reference_only)):
-        errors.append("authority.reference_only: missing required reference-only tools")
+    canonical_set = set(canonical)
+    missing_canonical = sorted(REQUIRED_CANONICAL - canonical_set)
+    unexpected_canonical = sorted(canonical_set - REQUIRED_CANONICAL)
+    if missing_canonical or unexpected_canonical:
+        details = []
+        if missing_canonical:
+            details.append("missing " + ", ".join(missing_canonical))
+        if unexpected_canonical:
+            details.append("unexpected " + ", ".join(unexpected_canonical))
+        errors.append("authority.canonical: " + "; ".join(details))
+    reference_only_set = set(reference_only)
+    missing_reference = sorted(REFERENCE_ONLY - reference_only_set)
+    unexpected_reference = sorted(reference_only_set - REFERENCE_ONLY)
+    if missing_reference or unexpected_reference:
+        details = []
+        if missing_reference:
+            details.append("missing " + ", ".join(missing_reference))
+        if unexpected_reference:
+            details.append("unexpected " + ", ".join(unexpected_reference))
+        errors.append("authority.reference_only: " + "; ".join(details))
     promoted = []
     for entry in canonical:
         normalized = _normalize_authority(entry)
@@ -252,13 +268,26 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
 
 
 def _repo_evidence_file_exists(anchor: str, repo_root: Path) -> bool:
-    path_text = anchor.split(":", 1)[0]
+    path_text, _, fragment = anchor.partition(":")
     path = repo_root / path_text
     try:
         path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
     except (OSError, ValueError):
         return False
-    return path.is_file()
+    if not path.is_file():
+        return False
+    if not fragment:
+        return True
+    if path.suffix != ".json":
+        return False
+    try:
+        payload = _load_json_object(path, label=str(path))
+    except AccessibilityDecisionError:
+        return False
+    records = payload.get("records")
+    return isinstance(records, list) and any(
+        isinstance(record, dict) and record.get("component_id") == fragment for record in records
+    )
 
 
 def _validate_enum(
