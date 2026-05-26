@@ -96,6 +96,15 @@ Future PR-4 status reconciliation updates must use the PR-4.1 packet
 source-truth section as the update checklist and keep this roadmap to the
 minimal status mirror.
 
+Philosophy Epic V2 PR-5 adds the source-corpus index defined by
+[`PHILOSOPHY_SOURCE_CORPUS_INDEX.json`](../orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json).
+That index preserves the six operator-provided philosophy PDFs as design
+evidence with sanitized titles, page counts, fingerprints, repo anchors, and
+false runtime flags. It is not PR-A2, does not change the closed machine markers
+above, and keeps PR-5 outside semantic-cache runtime admission. Cache reads,
+cache writes, serving, providers, `/insight`, Redis, GPTCache, embeddings,
+vector search, DB, OpenAPI, frontend, and iOS remain out of scope.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery

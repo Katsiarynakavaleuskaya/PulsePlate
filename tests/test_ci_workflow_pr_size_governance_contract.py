@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 import re
+from typing import cast
 
 import yaml
 
@@ -260,6 +261,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
+        "'docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json'" in docs_phase1_section
+    )
+    assert (
         "':(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json'"
         in docs_phase1_section
     )
@@ -275,7 +279,7 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
-        'if [ "${PR4_PRECONDITION_CHANGED}" -eq 0 ] && [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
+        'if [ "${PR4_PRECONDITION_CHANGED}" -eq 0 ] && [ "${PR5_SOURCE_CORPUS_CHANGED}" -eq 0 ] && [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
         in docs_phase1_section
     )
     assert (
@@ -287,6 +291,16 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert "PR4_PRECONDITION_CHANGED=0" in docs_phase1_section
+    assert "PR5_SOURCE_CORPUS_CHANGED=0" in docs_phase1_section
+    assert "git rev-parse HEAD^2 >/dev/null 2>&1" in (docs_phase1_section)
+    assert 'BASE_REF="$(git rev-parse HEAD^1)"' in (docs_phase1_section)
+    assert 'BASE_REF="${{ github.event.pull_request.base.sha }}"' in (docs_phase1_section)
+    assert docs_phase1_section.index("git rev-parse HEAD^2") < (
+        docs_phase1_section.index('BASE_REF="$(git rev-parse HEAD^1)"')
+    )
+    assert docs_phase1_section.index('BASE_REF="$(git rev-parse HEAD^1)"') < (
+        docs_phase1_section.index("github.event.pull_request.base.sha")
+    )
     assert 'git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD' in (
         docs_phase1_section
     )
@@ -310,9 +324,39 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         "tests/test_philosophy_gate_open_preconditions.py",
     ):
         assert pr4_companion_input in docs_phase1_section
-    assert "docs/roadmap/BACKLOG_LEDGER.md|\\" not in docs_phase1_section
+    for pr5_companion_input in (
+        "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json",
+        "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
+        "scripts/ci/check_philosophy_source_corpus_index.py",
+        "tests/test_philosophy_source_corpus_index.py",
+    ):
+        assert pr5_companion_input in docs_phase1_section
+    pr5_case = _extract_section(
+        docs_phase1_section,
+        '              case "$path" in\n'
+        "                docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json",
+        "                  PR5_SOURCE_CORPUS_CHANGED=1",
+    )
+    for pr5_companion_input in (
+        "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json",
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md",
+        "scripts/ci/check_philosophy_source_corpus_index.py",
+        "tests/test_philosophy_source_corpus_index.py",
+    ):
+        assert pr5_companion_input in pr5_case
+    for unrelated_pr5_trigger in (
+        "docs/roadmap/BACKLOG_LEDGER.md",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+        "scripts/ci/check_docs_phase1_gates.py",
+    ):
+        assert unrelated_pr5_trigger not in pr5_case
     assert (
         "python scripts/ci/check_philosophy_gate_open_preconditions.py --check --files"
+        in docs_phase1_section
+    )
+    assert (
+        "python scripts/ci/check_philosophy_source_corpus_index.py --check --files"
         in docs_phase1_section
     )
     assert (
@@ -559,7 +603,7 @@ def test_feature_push_branches_include_feature_prefix() -> None:
     workflow = _load_ci_workflow()
     on_section = workflow.get("on")
     if on_section is None:
-        on_section = workflow.get(True)
+        on_section = cast(dict[object, object], workflow).get(True)
     assert isinstance(on_section, dict)
     push_section = on_section["push"]
     assert isinstance(push_section, dict)

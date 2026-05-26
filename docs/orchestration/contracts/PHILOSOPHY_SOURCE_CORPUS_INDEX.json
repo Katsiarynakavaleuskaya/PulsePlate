@@ -1,0 +1,345 @@
+{
+  "contract_id": "philosophy_source_corpus_index",
+  "contract_version": "2026-05-24",
+  "generated_at": "static-2026-05-24",
+  "rollout_phase": "PHILOSOPHY-PR5",
+  "gate_status": "closed",
+  "runtime_allowed": false,
+  "implementation_allowed": false,
+  "requires_dedicated_gate": true,
+  "semantic_cache_markers": {
+    "gate_status_closed": true,
+    "runtime_allowed_false": true,
+    "implementation_allowed_false": true,
+    "dedicated_gate_required": true
+  },
+  "source_policy": {
+    "authority": "operator_pdf_design_evidence_repo_truth_wins",
+    "local_path_policy": "no_absolute_local_paths_committed",
+    "text_policy": "metadata_and_paraphrase_only_no_full_pdf_text",
+    "promotion_policy": "not_runtime_truth_without_reviewed_contract",
+    "credential_policy": "credential_like_urls_forbidden",
+    "wellness_boundary": "cbt_inspired_reflective_wellness_coaching_not_medical_diagnosis_treatment_or_therapy"
+  },
+  "source_count": 6,
+  "total_pages": 102,
+  "sources": [
+    {
+      "source_id": "analytic_linguistic_audit",
+      "title": "PulsePlate analytical and linguistic philosophy deep audit and extended epic",
+      "sanitized_filename": "PulsePlate analytical linguistic philosophy deep audit extended epic.pdf",
+      "language": "ru",
+      "page_count": 22,
+      "sha256": "ccdb02fb-ec4f3348-d108b505-36ce9175-e35564d4-4dfa599b-bcb3a2fb-6221a938",
+      "source_family": "analytic_linguistic_audit",
+      "extraction_status": "metadata_and_text_extract_verified",
+      "summary": "Audits the existing analytical, linguistic, post-analytical, and Aristotelian philosophy modules and frames future work as claim semantics, falsifiability, speech-act, language-game, and hermeneutic enrichment.",
+      "theme_families": [
+        "analytic_falsification",
+        "linguistic_meaning_as_use",
+        "speech_acts",
+        "hermeneutic_context"
+      ],
+      "discipline_rails": [
+        "philosophy",
+        "linguistics",
+        "ai_governance",
+        "wellness_product"
+      ],
+      "linked_repo_anchors": [
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md",
+        "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json",
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr2-policy-oracle"
+      ],
+      "future_handoff": "Use as a design-evidence input for future analytical and linguistic module packets after gate-closed governance remains satisfied.",
+      "runtime_flags": {
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false,
+        "runtime_activation_allowed": false,
+        "provider_call_allowed": false,
+        "insight_route_change_allowed": false
+      }
+    },
+    {
+      "source_id": "leibniz_information_theory",
+      "title": "Leibniz and information theory integration analysis and extended epic",
+      "sanitized_filename": "Leibniz information theory PulsePlate integration analysis extended epic.pdf",
+      "language": "ru",
+      "page_count": 12,
+      "sha256": "4e8f5ab1-3e8fcd37-c61981af-d31c9e73-c008a68e-cc480939-2c3ecfa7-b314b705",
+      "source_family": "leibniz_information_theory",
+      "extraction_status": "metadata_and_text_extract_verified",
+      "summary": "Connects Leibnizian state-containment and future-oriented interpretation with information-theoretic uncertainty reduction as a research frame for evidence, temporal claims, and admission semantics.",
+      "theme_families": [
+        "leibniz_monad_state",
+        "information_uncertainty",
+        "temporal_semantics",
+        "evidence_compression"
+      ],
+      "discipline_rails": [
+        "philosophy",
+        "information_theory",
+        "mathematics",
+        "ai_governance"
+      ],
+      "linked_repo_anchors": [
+        "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
+        "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+      ],
+      "future_handoff": "Use as rationale for temporal/modal claim indexing and provenance-rich alignment rules, not as cache or provider authorization.",
+      "runtime_flags": {
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false,
+        "runtime_activation_allowed": false,
+        "provider_call_allowed": false,
+        "insight_route_change_allowed": false
+      }
+    },
+    {
+      "source_id": "philosophy_cbt_correlation_matrix",
+      "title": "PulsePlate philosophy systems and CBT coaching correlation matrix",
+      "sanitized_filename": "PulsePlate philosophy systems CBT coaching correlation matrix.pdf",
+      "language": "ru",
+      "page_count": 13,
+      "sha256": "d6ae043d-a9de22ac-0ad825e4-3e0021e8-3cc4680d-59a9eabe-353d9e60-57d7d560",
+      "source_family": "philosophy_cbt_correlation",
+      "extraction_status": "metadata_and_text_extract_verified",
+      "summary": "Maps existing philosophy modules to CBT-coaching affordances such as syllogistic structure, category validation, contradiction checks, speech acts, practical consequences, and contextual interpretation.",
+      "theme_families": [
+        "cbt_mapping",
+        "coaching_structure",
+        "contradiction_review",
+        "pragmatic_actionability"
+      ],
+      "discipline_rails": [
+        "philosophy",
+        "cbt_coaching",
+        "linguistics",
+        "wellness_product"
+      ],
+      "linked_repo_anchors": [
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md",
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophical-logic",
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-reliability-experiment-sublane"
+      ],
+      "future_handoff": "Use as a bounded wellness-only coaching design map after a separate reviewed packet defines tests and safety copy.",
+      "runtime_flags": {
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false,
+        "runtime_activation_allowed": false,
+        "provider_call_allowed": false,
+        "insight_route_change_allowed": false
+      }
+    },
+    {
+      "source_id": "philosophy_cbt_plan_adaptation_epic",
+      "title": "PulsePlate philosophy line to CBT coaching to automatic plan adaptation epic",
+      "sanitized_filename": "PulsePlate philosophy line CBT coaching automatic plan adaptation full epic.pdf",
+      "language": "ru",
+      "page_count": 24,
+      "sha256": "d81cd0fd-753cf6d7-bcd58028-43d0e292-c41d83ac-08df1c63-fb0434e6-4035231f",
+      "source_family": "philosophy_cbt_plan_adaptation",
+      "extraction_status": "metadata_and_text_extract_verified",
+      "summary": "Frames a future bridge from philosophical insight interpretation to CBT-style coaching and plan-adaptation concepts while acknowledging existing runtime seams and disabled philosophy feature flags.",
+      "theme_families": [
+        "plan_adaptation",
+        "next_best_action",
+        "wellness_only_coaching",
+        "verification_bundle_boundary"
+      ],
+      "discipline_rails": [
+        "philosophy",
+        "cbt_coaching",
+        "wellness_product",
+        "ai_governance"
+      ],
+      "linked_repo_anchors": [
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-recursive-methods",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+        "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json"
+      ],
+      "future_handoff": "Use as future packet evidence only after runtime prerequisites are independently closed and wellness-only boundaries are revalidated.",
+      "runtime_flags": {
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false,
+        "runtime_activation_allowed": false,
+        "provider_call_allowed": false,
+        "insight_route_change_allowed": false
+      }
+    },
+    {
+      "source_id": "philosophy_full_roadmap",
+      "title": "PulsePlate philosophical epic full map and extended roadmap",
+      "sanitized_filename": "PulsePlate philosophical epic full map extended roadmap.pdf",
+      "language": "ru",
+      "page_count": 19,
+      "sha256": "fdb0c06a-5fbad392-a8bab29e-423c551e-d0b25911-c3bb9ac9-7ecd3bbc-3c687fdf",
+      "source_family": "full_philosophy_roadmap",
+      "extraction_status": "metadata_and_text_extract_verified",
+      "summary": "Collects the broader philosophy-roadmap narrative across existing philosophical runtime modules, rollout ideas, semantic-cache sequencing, CBT/FitChef concepts, and phased expansion proposals.",
+      "theme_families": [
+        "epic_sequence",
+        "runtime_foundation_inventory",
+        "semantic_cache_deferral",
+        "rollout_governance"
+      ],
+      "discipline_rails": [
+        "philosophy",
+        "ai_governance",
+        "cbt_coaching",
+        "wellness_product"
+      ],
+      "linked_repo_anchors": [
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md",
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_GATE_OPEN_PRECONDITIONS_PACKET_2026-05-21.md",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+      ],
+      "future_handoff": "Use as the high-level philosophy-line map while preserving repo truth and closed semantic-cache machine markers.",
+      "runtime_flags": {
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false,
+        "runtime_activation_allowed": false,
+        "provider_call_allowed": false,
+        "insight_route_change_allowed": false
+      }
+    },
+    {
+      "source_id": "socratic_method_rag_llm_semantic_cache_cbt",
+      "title": "Socratic method in PulsePlate RAG LLM semantic cache and CBT coaching",
+      "sanitized_filename": "Socratic method PulsePlate RAG LLM semantic cache CBT coaching.pdf",
+      "language": "ru",
+      "page_count": 12,
+      "sha256": "b0ce7010-b3d45288-377e7a09-a39f2d34-8d89b1c8-e9048515-befac769-faf3f2fb",
+      "source_family": "socratic_cbt_semantic_cache",
+      "extraction_status": "metadata_and_text_extract_verified",
+      "summary": "Uses Socratic questioning and elenchus as a design frame for LLM answer reliability, token discipline, verification prompts, and CBT-style reflective coaching without promoting the document as runtime authority.",
+      "theme_families": [
+        "socratic_questioning",
+        "elenchus",
+        "rag_verification",
+        "cbt_reflection"
+      ],
+      "discipline_rails": [
+        "philosophy",
+        "cbt_coaching",
+        "ai_governance",
+        "wellness_product"
+      ],
+      "linked_repo_anchors": [
+        "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md",
+        "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json",
+        "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json"
+      ],
+      "future_handoff": "Use as a future prompt-evaluation and CBT-reflection evidence source only through reviewed wellness-only contracts.",
+      "runtime_flags": {
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false,
+        "runtime_activation_allowed": false,
+        "provider_call_allowed": false,
+        "insight_route_change_allowed": false
+      }
+    }
+  ],
+  "research_basis": [
+    {
+      "id": "sep_socrates",
+      "label": "Stanford Encyclopedia of Philosophy: Socrates",
+      "url": "https://plato.stanford.edu/entries/socrates/",
+      "rail": "socratic_questioning_and_interpretation",
+      "source_kind": "external_research_reference",
+      "accessed_on": "2026-05-24",
+      "verification_status": "verified_stable_public_reference",
+      "boundary_note": "philosophy_context_only_repo_truth_and_closed_gate_markers_remain_authoritative",
+      "use": "rationale_only_not_runtime_truth"
+    },
+    {
+      "id": "sep_leibniz",
+      "label": "Stanford Encyclopedia of Philosophy: Leibniz",
+      "url": "https://plato.stanford.edu/entries/leibniz/",
+      "rail": "leibnizian_state_and_possible_worlds",
+      "source_kind": "external_research_reference",
+      "accessed_on": "2026-05-24",
+      "verification_status": "verified_stable_public_reference",
+      "boundary_note": "philosophy_context_only_repo_truth_and_closed_gate_markers_remain_authoritative",
+      "use": "rationale_only_not_runtime_truth"
+    },
+    {
+      "id": "sep_wittgenstein",
+      "label": "Stanford Encyclopedia of Philosophy: Wittgenstein",
+      "url": "https://plato.stanford.edu/entries/wittgenstein/",
+      "rail": "language_games_and_meaning_as_use",
+      "source_kind": "external_research_reference",
+      "accessed_on": "2026-05-24",
+      "verification_status": "verified_stable_public_reference",
+      "boundary_note": "linguistics_context_only_repo_truth_and_closed_gate_markers_remain_authoritative",
+      "use": "rationale_only_not_runtime_truth"
+    },
+    {
+      "id": "sep_semantic_information",
+      "label": "Stanford Encyclopedia of Philosophy: Semantic Conceptions of Information",
+      "url": "https://plato.stanford.edu/entries/information-semantic/",
+      "rail": "semantic_information_and_uncertainty",
+      "source_kind": "external_research_reference",
+      "accessed_on": "2026-05-24",
+      "verification_status": "verified_stable_public_reference",
+      "boundary_note": "information_theory_context_only_repo_truth_and_closed_gate_markers_remain_authoritative",
+      "use": "rationale_only_not_runtime_truth"
+    },
+    {
+      "id": "nist_ai_600_1",
+      "label": "NIST AI 600-1 Generative AI Profile",
+      "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
+      "rail": "ai_governance_and_red_team_framing",
+      "source_kind": "external_research_reference",
+      "accessed_on": "2026-05-24",
+      "verification_status": "verified_stable_public_reference",
+      "boundary_note": "governance_risk_frame_only_repo_truth_and_closed_gate_markers_remain_authoritative",
+      "use": "rationale_only_not_runtime_truth"
+    },
+    {
+      "id": "pubmed_socratic_questioning_cbt",
+      "label": "PubMed: Socratic Questions With Children",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32755910/",
+      "rail": "cbt_socratic_questioning_context",
+      "source_kind": "external_research_reference",
+      "accessed_on": "2026-05-24",
+      "verification_status": "verified_stable_public_reference",
+      "boundary_note": "clinical_cbt_children_context_caution_only_not_product_efficacy_therapy_diagnosis_treatment_or_runtime_authority",
+      "use": "rationale_only_not_runtime_truth"
+    }
+  ],
+  "repo_truth_links": [
+    "AGENTS.md",
+    "RUNBOOK_AGENT.md",
+    "docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md",
+    "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md",
+    "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json",
+    "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json",
+    "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
+    "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+    "docs/roadmap/BACKLOG_LEDGER.md"
+  ],
+  "out_of_scope_paths": [
+    "app/**",
+    "core/ai/**",
+    "core/insight/**",
+    "core/knowledge/**",
+    "core/rag/**",
+    "core/verification/**",
+    "core/evidence/**",
+    "legacy_app.py",
+    "mcp_pulseplate_server.py",
+    "providers/**",
+    "frontend/**",
+    "ios/**",
+    "alembic/**",
+    "openapi/**"
+  ]
+}

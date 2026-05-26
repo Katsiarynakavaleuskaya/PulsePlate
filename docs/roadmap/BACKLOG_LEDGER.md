@@ -3120,6 +3120,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, `/insight`, connection-string, cache-adapter, or runtime activation changes are made
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
+<a id="ledger-p1-philosophy-epic-v2-pr5-source-corpus-index"></a>
+- [ ] P1: Philosophy Epic V2 PR-5 philosophical source corpus / interdisciplinary synthesis index
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: `codex/philosophy-epic-v2-pr5-source-corpus-index`
+  - Status: Active branch. PR-5 preserves the six operator-provided philosophy PDFs as a governed source-corpus index before any later philosophy module or semantic-cache follow-up. PR-A2 remains a separate AI/runtime prerequisite line. Semantic-cache runtime handoff remains blocked: all machine markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before any runtime semantic-cache work can begin.
+  - Area: AI / RAG / philosophy / source corpus / interdisciplinary governance / test infrastructure
+  - Finding Type: corpus-preservation, source-boundary policy, interdisciplinary synthesis index
+  - Reason (EN): PR-0 through PR-4.2 made the philosophy semantic-cache admission line deterministic and gate-closed, but the expanded operator PDF corpus now spans Socratic method, Leibniz and information theory, analytical/linguistic philosophy, CBT-coaching correlations, and plan-adaptation concepts. PR-5 prevents those documents from being lost or accidentally treated as runtime truth by adding a canonical source index, schema, guard, tests, and packet that preserve source identity while keeping semantic-cache and runtime activation blocked.
+  - Links:
+    - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR5_SOURCE_CORPUS_INDEX_PACKET_2026-05-24.md`
+    - `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json`
+    - `docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json`
+    - `scripts/ci/check_philosophy_source_corpus_index.py`
+    - `tests/test_philosophy_source_corpus_index.py`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+  - Deferred / Follow-ups:
+    - Future analytical module packet: consume `analytic_linguistic_audit` only through a reviewed docs/governance packet with deterministic tests.
+    - Future CBT/wellness-coaching packet: consume CBT correlation and plan-adaptation sources only with wellness-only copy and safety tests.
+    - Future runtime semantic-cache slice: still requires the global semantic-cache gate to open through a reviewed gate-open PR after runtime prerequisites close.
+  - DoD:
+    - Canonical JSON index represents all six PDFs with stable IDs, page counts, SHA-256 fingerprints, paraphrased summaries, discipline rails, repo anchors, and false runtime flags
+    - Closed JSON schema and deterministic checker validate source completeness, sorted IDs, page-count drift, local-path/credential-like URL leakage, roadmap marker drift, PR-4 blocked handoff state, and forbidden runtime touched paths
+    - Phase 1 docs gates validate the source index and schema when either changes
+    - PR-5 packet records coordinator-first startup, role order, research basis, oracle pass, premortem closure, Experiment Runner evidence rules, and post-open QA/bug/security pass
+    - No Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, `/insight`, connection-string, cache-adapter, or runtime activation changes are made
+    - Premortem, architecture, philosophy, web-research, QA, security, cursor-specialist, and bug-hunter findings are fixed or formally dispositioned before readiness claims
+
 <a id="ledger-p1-recursive-methods"></a>
 - [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)
   - Owner: @katsiaryna_kavaleuskaya
