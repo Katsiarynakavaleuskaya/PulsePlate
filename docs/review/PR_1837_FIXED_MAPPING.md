@@ -151,37 +151,37 @@ and the final wait-window.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3299929807
-  Disposition: FIXED
-  Commit: 74bbf5f12
-  Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:241
+Disposition: FIXED
+Commit: 74bbf5f12
+Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:241
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3299929810
-  Disposition: FIXED
-  Commit: 74bbf5f12
-  Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:420
+Disposition: FIXED
+Commit: 74bbf5f12
+Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:420
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3299929812
-  Disposition: FIXED
-  Commit: 74bbf5f12
-  Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:309
+Disposition: FIXED
+Commit: 74bbf5f12
+Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:309
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3301690326
-  Disposition: FIXED
-  Commit: ba6cc6c14
-  Evidence: docs/review/PR_1837_FIXED_MAPPING.md:161
-  Evidence: docs/review/PR_1837_FIXED_MAPPING.md:163
+Disposition: FIXED
+Commit: ba6cc6c14
+Evidence: docs/review/PR_1837_FIXED_MAPPING.md:161
+Evidence: docs/review/PR_1837_FIXED_MAPPING.md:163
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3301690334
-  Disposition: FIXED
-  Commit: ba6cc6c14
-  Evidence: tests/test_ai_bounded_context_a3_closeout.py:621
-  Evidence: scripts/ci/check_ai_bounded_context_a3_closeout.py:477
+Disposition: FIXED
+Commit: ba6cc6c14
+Evidence: tests/test_ai_bounded_context_a3_closeout.py:621
+Evidence: scripts/ci/check_ai_bounded_context_a3_closeout.py:477
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3301690341
-  Disposition: FIXED
-  Commit: ba6cc6c14
-  Evidence: tests/test_ai_runtime_semantic_cache_handoff.py:247
-  Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:298
+Disposition: FIXED
+Commit: ba6cc6c14
+Evidence: tests/test_ai_runtime_semantic_cache_handoff.py:247
+Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:298
 
 
 ## Post-Open Governance Checklist
