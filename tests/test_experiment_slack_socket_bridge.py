@@ -1522,6 +1522,17 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert 'os.environ["GITHUB_EVENT_PATH"]' in mask_step["run"]
     assert '"channel_allowlist", "user_allowlist", "hypothesis_sha256"' in mask_step["run"]
     assert "::add-mask::" in mask_step["run"]
+    assert "_escape_workflow_command_value" in mask_step["run"]
+    assert 'return value.replace("%", "%25")' in mask_step["run"]
+    assert (
+        'replace("\\r", "%0D")' in mask_step["run"] or "replace('\\r', '%0D')" in mask_step["run"]
+    )
+    assert (
+        'replace("\\n", "%0A")' in mask_step["run"] or "replace('\\n', '%0A')" in mask_step["run"]
+    )
+    assert 'print(f"::add-mask::{_escape_workflow_command_value(value)}")' in mask_step["run"]
+    assert 'print(f"::add-mask::{value}")' not in mask_step["run"]
+    assert "::add-mask::{value}" not in mask_step["run"]
     assert "${{ inputs.channel_allowlist }}" not in mask_step["run"]
     assert "${{ inputs.user_allowlist }}" not in mask_step["run"]
     assert "${{ inputs.hypothesis_sha256 }}" not in mask_step["run"]
