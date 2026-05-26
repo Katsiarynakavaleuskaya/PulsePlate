@@ -281,7 +281,7 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
 def _repo_evidence_error(anchor: str, repo_root: Path) -> str | None:
     path_text, _, fragment = anchor.partition(":")
     if ".." in Path(path_text).parts:
-        return "repo evidence file does not exist"
+        return "invalid evidence anchor traversal"
     path = repo_root / path_text
     try:
         resolved_relative = path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))

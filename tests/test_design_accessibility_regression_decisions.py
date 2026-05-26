@@ -418,7 +418,7 @@ def test_decisions_reject_traversal_evidence_anchor(tmp_path: Path) -> None:
     ]
 
     assert any(
-        "repo evidence file does not exist" in error for error in _errors(tmp_path, decisions)
+        "invalid evidence anchor traversal" in error for error in _errors(tmp_path, decisions)
     )
 
 
