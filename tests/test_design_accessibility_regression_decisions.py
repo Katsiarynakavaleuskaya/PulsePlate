@@ -343,6 +343,26 @@ def test_decisions_reject_runtime_permission_wording(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "wording",
+    [
+        "Implementation can start after accessibility evidence is collected.",
+        "Start runtime implementation after this accessibility pass.",
+        "Implementation is unblocked once token/runtime parity is checked.",
+    ],
+)
+def test_decisions_reject_broader_implementation_permission_wording(
+    tmp_path: Path, wording: str
+) -> None:
+    decisions = _load_decisions()
+    decisions["records"][0]["implementation_blocked_reason"] = wording
+
+    assert any(
+        "must not grant runtime implementation permission" in error
+        for error in _errors(tmp_path, decisions)
+    )
+
+
 def test_decisions_reject_missing_source_visual_decisions_file(tmp_path: Path) -> None:
     decisions = _load_decisions()
     decision_path = _write_repo_inputs(tmp_path, decisions)
@@ -365,6 +385,41 @@ def test_decisions_reject_missing_source_registry_file(tmp_path: Path) -> None:
     errors = decisions_module.validate_decisions(decision_path, repo_root=tmp_path)
 
     assert any("source_registry: file not found" in error for error in errors)
+
+
+def test_decisions_reject_malformed_source_visual_decisions(tmp_path: Path) -> None:
+    decisions = _load_decisions()
+    visual = json.loads(VISUAL_PATH.read_text(encoding="utf-8"))
+    visual["records"][0]["visual_regression_decision"] = "figma_approved"
+    decision_path = _write_repo_inputs(tmp_path, decisions, visual=visual)
+
+    errors = decisions_module.validate_decisions(decision_path, repo_root=tmp_path)
+
+    assert any("source_visual_decisions" in error for error in errors)
+    assert any("visual_regression_decision" in error for error in errors)
+
+
+def test_decisions_reject_broad_unanchored_doc_evidence(tmp_path: Path) -> None:
+    decisions = _load_decisions()
+    decisions["records"][0]["evidence_anchors"] = ["docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md"]
+
+    errors = _errors(tmp_path, decisions)
+
+    assert any("missing bridge evidence anchor" in error for error in errors)
+    assert any("missing visual evidence anchor" in error for error in errors)
+
+
+def test_decisions_reject_traversal_evidence_anchor(tmp_path: Path) -> None:
+    decisions = _load_decisions()
+    decisions["records"][0]["evidence_anchors"] = [
+        "docs/../.github/workflows/ci.yml",
+        "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:button",
+        "docs/orchestration/contracts/design_visual_regression_decisions.v1.json:button",
+    ]
+
+    assert any(
+        "repo evidence file does not exist" in error for error in _errors(tmp_path, decisions)
+    )
 
 
 def test_validator_has_no_runtime_network_or_subprocess_imports() -> None:

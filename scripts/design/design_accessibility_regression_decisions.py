@@ -12,6 +12,14 @@ import sys
 from typing import Any, TextIO
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+try:
+    from scripts.design import design_visual_regression_decisions as _visual_decisions_package
+except ModuleNotFoundError:
+    import design_visual_regression_decisions as _visual_decisions_script
+
+    design_visual_regression_decisions = _visual_decisions_script
+else:
+    design_visual_regression_decisions = _visual_decisions_package
 SCHEMA_VERSION = "design_accessibility_regression_decisions.v1"
 BRIDGE_INVENTORY_PATH = Path(
     "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json"
@@ -147,6 +155,9 @@ RUNTIME_PERMISSION_PATTERNS = [
         r"permission\s+to\s+implement",
         r"may\s+implement\s+runtime",
         r"can\s+implement\s+runtime",
+        r"implementation\s+(can|may)\s+start",
+        r"start\s+(runtime\s+)?implementation",
+        r"implementation\s+is\s+unblocked",
         r"web/iOS\s+implementation\s+may\s+start",
     )
 ]
@@ -269,10 +280,15 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
 
 def _repo_evidence_file_exists(anchor: str, repo_root: Path) -> bool:
     path_text, _, fragment = anchor.partition(":")
+    if ".." in Path(path_text).parts:
+        return False
     path = repo_root / path_text
     try:
-        path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
+        resolved_relative = path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
     except (OSError, ValueError):
+        return False
+    allowed_roots = ("docs/", "scripts/", "tests/", "frontend/", "ios/", "tokens/")
+    if not str(resolved_relative).startswith(allowed_roots):
         return False
     if not path.is_file():
         return False
@@ -299,7 +315,7 @@ def _validate_enum(
 
 
 def _validate_evidence_anchors(
-    anchors: Any, *, prefix: str, repo_root: Path, errors: list[str]
+    anchors: Any, *, prefix: str, component_id: str, repo_root: Path, errors: list[str]
 ) -> None:
     if (
         not isinstance(anchors, list)
@@ -320,6 +336,12 @@ def _validate_evidence_anchors(
             errors.append(
                 f"{prefix}.evidence_anchors: repo evidence file does not exist: {anchor!r}"
             )
+    expected_bridge_anchor = f"{BRIDGE_INVENTORY_PATH}:{component_id}"
+    if expected_bridge_anchor not in anchors:
+        errors.append(f"{prefix}.evidence_anchors: missing bridge evidence anchor")
+    expected_visual_anchor = f"{VISUAL_DECISIONS_PATH}:{component_id}"
+    if expected_visual_anchor not in anchors:
+        errors.append(f"{prefix}.evidence_anchors: missing visual evidence anchor")
 
 
 def _validate_record(
@@ -422,7 +444,11 @@ def _validate_record(
                 "accessibility dimensions and token/runtime parity"
             )
     _validate_evidence_anchors(
-        record["evidence_anchors"], prefix=prefix, repo_root=repo_root, errors=errors
+        record["evidence_anchors"],
+        prefix=prefix,
+        component_id=component_id,
+        repo_root=repo_root,
+        errors=errors,
     )
 
 
@@ -462,6 +488,11 @@ def validate_decisions(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list
         bridge_records = _load_records(
             repo_root, BRIDGE_INVENTORY_PATH, label=str(BRIDGE_INVENTORY_PATH)
         )
+        visual_errors = design_visual_regression_decisions.validate_decisions(
+            repo_root / VISUAL_DECISIONS_PATH, repo_root=repo_root
+        )
+        if visual_errors:
+            errors.extend(f"source_visual_decisions: {error}" for error in visual_errors)
         visual_records = _load_records(
             repo_root, VISUAL_DECISIONS_PATH, label=str(VISUAL_DECISIONS_PATH)
         )
