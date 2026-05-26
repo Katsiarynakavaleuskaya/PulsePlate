@@ -44,6 +44,17 @@ dependency changes.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#pullrequestreview-4363279270 -> d8d1b8959
+Disposition: FIXED
+Commit: d8d1b8959
+Evidence: scripts/design/design_accessibility_regression_decisions.py:236
+Evidence: scripts/design/design_accessibility_regression_decisions.py:272
+Evidence: tests/test_design_accessibility_regression_decisions.py:43
+Evidence: tests/test_design_accessibility_regression_decisions.py:373
+Evidence: docs/review/PR_1838_FIXED_MAPPING.md:56
+Evidence: docs/review/PR_1838_FIXED_MAPPING.md:68
+Reason: CodeRabbit review summary grouped the seven inline findings; follow-up commits fixed code/test hardening and mapping-table evidence.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399164 -> 87d9e8e04
 Disposition: FIXED
 Commit: 87d9e8e04
