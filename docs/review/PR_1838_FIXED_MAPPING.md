@@ -47,6 +47,26 @@ dependency changes.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#pullrequestreview-4364048019 -> aded576db
+Disposition: FIXED
+Commit: aded576db
+Evidence: docs/review/PR_1838_FIXED_MAPPING.md:107
+Evidence: tests/test_design_accessibility_regression_decisions.py:313
+Reason: CodeRabbit review summary grouped the evidence-format and fragment-specific assertion findings; commit `aded576db` fixed both.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3304038452 -> aded576db
+Disposition: FIXED
+Commit: aded576db
+Evidence: docs/review/PR_1838_FIXED_MAPPING.md:107
+Reason: agent-coordinator role evidence now uses file:line anchors instead of descriptive text.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3304038472 -> aded576db
+Disposition: FIXED
+Commit: aded576db
+Evidence: scripts/design/design_accessibility_regression_decisions.py:270
+Evidence: tests/test_design_accessibility_regression_decisions.py:313
+Reason: Bad JSON evidence fragments now produce an `invalid evidence fragment` error and the regression test asserts that fragment-specific failure.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#pullrequestreview-4363279270 -> d8d1b8959
 Disposition: FIXED
 Commit: d8d1b8959
