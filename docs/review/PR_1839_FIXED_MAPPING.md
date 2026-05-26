@@ -13,11 +13,11 @@
 
 Disposition: FIXED
 Evidence: CI rerun `PR Body Phase2 gates` failed on canonical artifact / PR body mirror format; local `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1839 --body "$(gh pr view 1839 --json body --jq .body)"` now passes.
-Commit: pending
+Commit: 365ade545
 
 Disposition: FIXED
 Evidence: CI rerun `Ruby jwt/Fastlane unblock guard` proved Fastlane `2.235.0` permits patched `jwt 3.2.0`; `ios/Gemfile.lock`, `trivy/ignore-policy.rego`, `docs/security/CVE-2026-45363-jwt-fastlane.md`, and `docs/roadmap/BACKLOG_LEDGER.md` now reflect suppression removal. Local `python scripts/ci/check_jwt_fastlane_unblock.py` passes.
-Commit: pending
+Commit: 365ade545
 
 ## Lane Start Provenance
 
