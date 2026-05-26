@@ -67,6 +67,13 @@ RUNTIME_PRECONDITION_IDS = (
     "pr_a5_llm_reliability_security_closed",
 )
 
+REASON_CODE_TO_PRECONDITION_ID = {
+    "alignment_rule_schema_predecessor_pending": "pr1789_alignment_rule_schema_landed",
+    "dedicated_gate_open_pr_absent": "dedicated_gate_open_pr_changes_markers",
+}
+
+REQUIRED_NON_RUNTIME_REASON_CODES = frozenset(REASON_CODE_TO_PRECONDITION_ID.keys())
+
 MARKER_RE = re.compile(r"<!--\s*(SEMANTIC_CACHE_[A-Z_]+):\s*(.*?)\s*-->")
 LEDGER_ANCHOR_RE = re.compile(r'<a id="(?P<anchor>[^"]+)"></a>')
 ROADMAP_HEADING_RE = re.compile(r"^##\s+(?P<heading>PR-[A-Z0-9]+)\b", re.M)
@@ -138,7 +145,7 @@ FORBIDDEN_SCOPE_PATTERNS = (
 SAFE_NEGATION_RE = re.compile(
     r"\b("
     r"no|not|never|does\s+not|do\s+not|must\s+not|cannot|can't|without|"
-    r"blocked|out\s+of\s+scope|remains?\s+closed|remain\s+closed|stay(?:s)?\s+closed|"
+    r"out\s+of\s+scope|remains?\s+closed|remain\s+closed|stay(?:s)?\s+closed|"
     r"until\s+a\s+later\s+reviewed\s+gate[-\s]?open\s+PR|"
     r"must\s+still\s+change|candidate\s+labels"
     r")\b",
@@ -228,9 +235,10 @@ def _unsafe_sentences(text: str) -> list[str]:
 def _check_forbidden_scope(label: str, text: str, errors: list[str]) -> None:
     for sentence in _unsafe_sentences(text):
         for pattern_label, pattern in FORBIDDEN_SCOPE_PATTERNS:
-            if not pattern.search(sentence):
+            match = pattern.search(sentence)
+            if not match:
                 continue
-            if SAFE_NEGATION_RE.search(sentence):
+            if SAFE_NEGATION_RE.search(sentence[: match.start()]):
                 continue
             errors.append(f"{label}: forbidden runtime/scope expansion claim: {pattern_label}")
 
@@ -296,8 +304,32 @@ def _check_preconditions_report(report: dict[str, object], errors: list[str]) ->
     }
     if set(reason_codes) != required_codes:
         errors.append("preconditions report: reason_codes mismatch for SC0 handoff")
-    if handoff.get("blocking_precondition_count") != 2:
-        errors.append("preconditions report: blocking_precondition_count must remain 2")
+    non_runtime_codes = [code for code in reason_codes if code in REQUIRED_NON_RUNTIME_REASON_CODES]
+    if handoff.get("blocking_precondition_count") != len(non_runtime_codes):
+        errors.append(
+            "preconditions report: blocking_precondition_count must match blocker reason count"
+        )
+    blocking_map = {item.get("id"): item for item in preconditions if isinstance(item, dict)}
+    for code in non_runtime_codes:
+        if code not in REASON_CODE_TO_PRECONDITION_ID:
+            errors.append(f"preconditions report: unsupported blocker code {code}")
+            continue
+        precondition_id = REASON_CODE_TO_PRECONDITION_ID[code]
+        precondition = blocking_map.get(precondition_id)
+        if not isinstance(precondition, dict):
+            errors.append(
+                "preconditions report: missing blocker precondition for reason code " + code
+            )
+            continue
+        if precondition.get("status") == "merge_verified_closed":
+            errors.append(
+                f"preconditions report: {precondition_id} is merge_verified_closed "
+                "but is claimed as blocking"
+            )
+        if precondition.get("blocks_gate_open") is not True:
+            errors.append(
+                f"preconditions report: {precondition_id} must block gate-open for reason code {code}"
+            )
     for flag in (
         "runtime_handoff_allowed",
         "cache_read_allowed",
@@ -383,24 +415,36 @@ def validate_handoff(
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
-    parser.add_argument("--rag-roadmap", type=Path, default=DEFAULT_RAG_ROADMAP)
-    parser.add_argument("--semantic-gate", type=Path, default=DEFAULT_SEMANTIC_GATE)
-    parser.add_argument("--preconditions-report", type=Path, default=DEFAULT_PRECONDITIONS_REPORT)
-    parser.add_argument("--preconditions-checker", type=Path, default=DEFAULT_PRECONDITIONS_CHECKER)
+    parser.add_argument("--repo-root", type=Path, default=None)
+    parser.add_argument("--ledger", type=Path)
+    parser.add_argument("--rag-roadmap", type=Path)
+    parser.add_argument("--semantic-gate", type=Path)
+    parser.add_argument("--preconditions-report", type=Path)
+    parser.add_argument("--preconditions-checker", type=Path)
     return parser.parse_args(argv)
+
+
+def _coalesce_path(repo_root: Path, value: Path | None, fallback: Path) -> Path:
+    if value is None:
+        return repo_root / fallback.relative_to(REPO_ROOT)
+    return value if value.is_absolute() else repo_root / value
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
+    repo_root: Path = args.repo_root if args.repo_root is not None else REPO_ROOT
+    repo_root = repo_root.resolve()
     errors = validate_handoff(
-        repo_root=args.repo_root,
-        ledger=args.ledger,
-        rag_roadmap=args.rag_roadmap,
-        semantic_gate=args.semantic_gate,
-        preconditions_report=args.preconditions_report,
-        preconditions_checker=args.preconditions_checker,
+        repo_root=repo_root,
+        ledger=_coalesce_path(repo_root, args.ledger, DEFAULT_LEDGER),
+        rag_roadmap=_coalesce_path(repo_root, args.rag_roadmap, DEFAULT_RAG_ROADMAP),
+        semantic_gate=_coalesce_path(repo_root, args.semantic_gate, DEFAULT_SEMANTIC_GATE),
+        preconditions_report=_coalesce_path(
+            repo_root, args.preconditions_report, DEFAULT_PRECONDITIONS_REPORT
+        ),
+        preconditions_checker=_coalesce_path(
+            repo_root, args.preconditions_checker, DEFAULT_PRECONDITIONS_CHECKER
+        ),
     )
     if errors:
         for error in errors:

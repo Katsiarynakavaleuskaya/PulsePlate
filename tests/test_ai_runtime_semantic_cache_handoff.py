@@ -133,6 +133,18 @@ def _valid_report() -> str:
                     "branch feat/pr-a5-runtime-gates"
                 ),
             },
+            {
+                "id": "dedicated_gate_open_pr_changes_markers",
+                "status": "absent",
+                "blocks_gate_open": True,
+                "evidence": "PR #1837 reconciles prerequisites but no gate-open PR has changed markers",
+            },
+            {
+                "id": "pr1789_alignment_rule_schema_landed",
+                "status": "source_present_not_merge_verified",
+                "blocks_gate_open": True,
+                "evidence": "PR-1789 alignment-rule trust schema is present but merge-verified proof pending",
+            },
         ],
         "handoff_decision": {
             "reason_codes": [
@@ -222,6 +234,26 @@ def test_checker_rejects_forbidden_satisfied_phrase(tmp_path: Path) -> None:
     assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
 
 
+def test_checker_rejects_live_but_blocked_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    path.write_text(
+        path.read_text() + "\nSemantic cache is live but blocked.\n",
+        encoding="utf-8",
+    )
+    assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
+
+
+def test_checker_allows_negated_live_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    path.write_text(
+        path.read_text() + "\nSemantic cache is not live and stays blocked.\n",
+        encoding="utf-8",
+    )
+    assert "forbidden runtime/scope expansion claim" not in _errors(tmp_path)
+
+
 def test_checker_rejects_open_gate_marker(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
@@ -245,6 +277,40 @@ def test_checker_rejects_runtime_precondition_reopening(tmp_path: Path) -> None:
     report["handoff_decision"]["blocking_precondition_count"] = 3
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     assert "must be merge_verified_closed" in _errors(tmp_path)
+
+
+def test_checker_rejects_missing_blocking_precondition_evidence_for_reason_code(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    report["preconditions"] = [
+        item
+        for item in report["preconditions"]
+        if item.get("id") != "dedicated_gate_open_pr_changes_markers"
+    ]
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    assert "missing blocker precondition for reason code dedicated_gate_open_pr_absent" in _errors(
+        tmp_path
+    )
+
+
+def test_checker_rejects_repo_root_only_when_invalid_fixture(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    path.write_text(
+        path.read_text() + "\nThe runtime sequence still requires PR-A4 through PR-A5.\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, str(CHECKER), "--repo-root", str(tmp_path)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "active docs: stale wording remains (A4/A5 still required)" in result.stderr
 
 
 def test_checker_rejects_review_fix_sha_as_merge_proof(tmp_path: Path) -> None:
