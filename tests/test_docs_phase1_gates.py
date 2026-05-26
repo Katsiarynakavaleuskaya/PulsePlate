@@ -145,6 +145,12 @@ Semantic cache is not advisory wiki, not workforce memory, not a second source
 of truth, not billing/auth/entitlement truth, and not a compliance/legal output
 cache, and not user-account truth surfaces.
 
+The runtime prerequisite train is closed by PR #1203 merge commit
+831d62d8be0da7307e5a0f2673d8c33dbf53ca49, PR #1395 merge commit
+2f8a9af461cec483aa81a774cce7496c6bf65a8a, and PR #1742 merge commit
+cb1db8b40141817b3ca856de570b8fc02e2ae9fa. A reviewed gate-open PR must still
+change the machine markers before runtime semantic-cache work can begin.
+
 If the gate opens later, rollout order is fixed:
 1. SC-G1 rollout gate contract
 2. SC-G2 exact/fuzzy cache scaffold

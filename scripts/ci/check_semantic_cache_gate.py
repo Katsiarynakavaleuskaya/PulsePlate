@@ -80,6 +80,13 @@ REQUIRED_PHRASES = (
     "not billing/auth/entitlement truth",
     "not a compliance/legal output cache",
     "not user-account truth surfaces",
+    "runtime prerequisite train is closed",
+    "PR #1203",
+    "831d62d8be0da7307e5a0f2673d8c33dbf53ca49",  # pragma: allowlist secret
+    "PR #1395",
+    "2f8a9af461cec483aa81a774cce7496c6bf65a8a",  # pragma: allowlist secret
+    "PR #1742",
+    "cb1db8b40141817b3ca856de570b8fc02e2ae9fa",  # pragma: allowlist secret
 )
 
 ROLLOUT_ORDER = (

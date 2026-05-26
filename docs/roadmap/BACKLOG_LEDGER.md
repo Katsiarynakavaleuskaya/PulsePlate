@@ -2249,14 +2249,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
 <a id="ledger-p1-llm-reliability-security-gates"></a>
-- [ ] P1: LLM reliability and security CI gates for retrieval, faithfulness, prompt-injection, and privacy
+- [x] P1: LLM reliability and security CI gates for retrieval, faithfulness, prompt-injection, and privacy
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-LLM-CI-GATES
-  - Status: 📋 Planned
+  - Target PR: PR-A5 / PR #1395
+  - Status: ✅ Closed. PR #1395 `feat(ai): add PR-A5 runtime gates` merged on `2026-04-12T11:45:35Z` with merge commit `2f8a9af461cec483aa81a774cce7496c6bf65a8a` from branch `feat/pr-a5-runtime-gates`.
   - Area: AI runtime / security / evaluation
   - Finding Type: model-evaluation gate gap
-  - Reason (EN): The repo has AI safety posture and tracing materials, but there is no canonical CI gate bundle for retrieval quality regressions, faithfulness checks, prompt-injection adversarial tests, and privacy-sensitive evaluation. Without that package, AI quality and safety can drift silently between releases.
+  - Reason (EN): Live GitHub/repo truth proves the dedicated A5 runtime-gate slice already landed in PR #1395. The landed evidence includes the canonical AI runtime gate contract, deterministic gate-bundle launcher, safety hardening, RAG/recursive tests, and review mapping without opening semantic cache or widening public contracts.
   - Links:
     - `docs/security/SECURITY_POSTURE.md`
     - `docs/analytics/README.md`
@@ -2264,12 +2264,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
     - `scripts/orchestration/ai_runtime_gate_bundle.py`
     - `core/insight/philosophy_validator.py`
+    - `tests/test_ai_runtime_gate_bundle.py`
+    - `tests/test_rag_orchestration.py`
+    - `tests/test_recursive_rag.py`
     - `AGENTS.md`
   - DoD:
+    - PR #1395 merge evidence is machine-checkable in active roadmap docs
     - Canonical evaluation package defines required retrieval/faithfulness/security/privacy checks and where they run
-    - Prompt-injection and untrusted-context posture is covered by explicit CI or release-gate tests
+    - Prompt-injection and untrusted-context posture is covered by deterministic gate-bundle tests
     - LLM outputs used for product copy/coaching pass `philosophy_validator` (BLOCKER = rewrite)
     - AI runtime/runbook docs link to the same gate source instead of ad-hoc evaluation notes
+    - Semantic-cache markers remain `closed / false / false / true`; no semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, provider, or default activation scope is implied by this closeout
 
 <a id="ledger-p1-rag-release-gates-lane"></a>
 - [ ] P1: PulsePlate RAG release-gates lane and artifact contract
@@ -2529,7 +2534,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: PR #1742
   - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
   - Finding Type: asset-lineage and replay-governance gap
-  - Status: PR-E5 advisory wiki evidence bridge merged; E0/E1/E2/E3/E4/E5 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, and semantic cache remains blocked behind a dedicated gate with machine-checkable closed markers
+  - Status: PR-E5 advisory wiki evidence bridge merged; E0/E1/E2/E3/E4/E5 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, SC-G5 closed via PR #1742 `feat(ai-runtime): add semantic-cache backend selection contract` merged on `2026-05-16T21:03:48Z` with merge commit `cb1db8b40141817b3ca856de570b8fc02e2ae9fa`, and semantic cache remains blocked behind a dedicated gate with machine-checkable closed markers
   - Remove-by: 2026-06-30
   - Reason (EN): PulsePlate already has strong RAG runtime, verification, knowledge-promotion, eval-gate, advisory-wiki, and plugin/control-plane foundations, but evidence-bearing artifacts are still governed mostly through task packets, gate outputs, and lane-specific docs rather than one asset/evidence graph. This umbrella freezes the rail boundaries and PR train needed to make eval runs, context bundles, verification bundles, knowledge candidates, knowledge records, and gate reports first-class assets with lineage, idempotency, replay, fingerprints, policy versions, and admission decisions.
   - Links:
@@ -3070,7 +3075,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1789 (`codex/philosophy-alignment-rule-trust-schema`)
-  - Status: Completed. PR #1789 merged on 2026-05-21T22:14:53Z with merge commit `651c56bb510125b4df011a6d48de6f82a8f6e0b7`. PR #1811 / PR-4.1 reconciled the PR-4 ledger closeout on 2026-05-24T09:39:30Z with merge commit `0b324f516b5ba33dfc5e65d068cd5aaca742b5f8`; PR-4.2 closes this separate alignment-rule ledger row only. Semantic-cache runtime handoff remains blocked: all gate markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before any runtime semantic-cache work can begin.
+  - Status: Completed. PR #1789 merged on 2026-05-21T22:14:53Z with merge commit `651c56bb510125b4df011a6d48de6f82a8f6e0b7`. PR #1811 / PR-4.1 reconciled the PR-4 ledger closeout on 2026-05-24T09:39:30Z with merge commit `0b324f516b5ba33dfc5e65d068cd5aaca742b5f8`; PR-4.2 closes this separate alignment-rule ledger row only. Semantic-cache runtime handoff remains blocked: all gate markers stay closed/false, the A1b-A5 runtime prerequisite train is closed by merge evidence, and a later reviewed gate-open PR remains required before any runtime semantic-cache work can begin.
   - Area: AI / RAG / philosophy / semantic-cache governance / trust schema
   - Finding Type: provenance, schema-hash, and future admission-rule auditability
   - Reason (EN): PR #1784 connected the admission oracle to verification-bundle dry-run truth while keeping cache read, cache write, and serving disabled. The next safe slice defines a machine-readable alignment-rule record shape and deterministic validator so future admission-rule artifacts can carry stable provenance, executable assertion hints, schema version, and schema hash before any later release-manifest or runtime semantic-cache linkage is considered.
@@ -3097,10 +3102,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1791 (`codex/philosophy-epic-v2-pr4-gate-open-preconditions`)
-  - Status: Completed. PR #1789 merged on 2026-05-21 with merge commit `651c56bb510125b4df011a6d48de6f82a8f6e0b7`; PR #1791 merged on 2026-05-22 with merge commit `b16175721933012ae53162b8268888c960458d46`. PR-4.1 reconciles ledger/roadmap status only: semantic-cache runtime handoff remains blocked, all gate markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before runtime semantic-cache work can begin. Future status-only reconciliations must use the PR-4.1 packet source-truth section as the update checklist.
+  - Status: Completed. PR #1789 merged on 2026-05-21 with merge commit `651c56bb510125b4df011a6d48de6f82a8f6e0b7`; PR #1791 merged on 2026-05-22 with merge commit `b16175721933012ae53162b8268888c960458d46`. PR-4.1 reconciles ledger/roadmap status only: semantic-cache runtime handoff remains blocked and all gate markers stay closed/false. PR-SC0 records the A1b-A5 runtime prerequisite train as closed by merge evidence; a later reviewed gate-open PR remains required before runtime semantic-cache work can begin. Future status-only reconciliations must use the PR-4.1 packet source-truth section as the update checklist.
   - Area: AI / RAG / philosophy / semantic-cache governance / runtime handoff readiness
   - Finding Type: gate-open false-positive prevention, prerequisite drift guard, blocked runtime handoff inventory
-  - Reason (EN): PR #1777 made Philosophy admission claim families deterministic, and PR #1784 connected them to a verification-bundle dry-run while preserving the closed gate. PR-4 adds the next guard: a compact machine-checkable precondition report that proves PR-2/PR-3 sources are current but runtime handoff remains blocked until PR #1789, PR-A1b through PR-A5, and a later reviewed gate-open PR are all proven.
+  - Reason (EN): PR #1777 made Philosophy admission claim families deterministic, and PR #1784 connected them to a verification-bundle dry-run while preserving the closed gate. PR-4 adds the next guard: a compact machine-checkable precondition report that proves PR-2/PR-3 sources are current and, after PR-SC0 reconciliation, records PR-A1b through PR-A5 as merge-verified closed while runtime handoff remains blocked until a later reviewed gate-open PR changes the machine markers.
   - Links:
     - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_GATE_OPEN_PRECONDITIONS_PACKET_2026-05-21.md`
     - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_1_LEDGER_CLOSEOUT_PACKET_2026-05-24.md`
@@ -3111,8 +3116,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-alignment-rule-trust-schema`
   - DoD:
-    - PR-4 report validates PR-2 policy/oracle truth, PR-3 dry-run truth, semantic-cache roadmap markers, and runtime prerequisite anchors without opening the gate
-    - Report distinguishes `source_current` governance sources from runtime readiness and records that ledger anchor presence does not verify closure
+    - PR-4 report validates PR-2 policy/oracle truth, PR-3 dry-run truth, semantic-cache roadmap markers, and runtime prerequisite merge evidence without opening the gate
+    - Report distinguishes `source_current` governance sources from `merge_verified_closed` runtime prerequisites and records that ledger anchor presence alone does not verify closure
     - `gate_open_allowed=false`, `runtime_handoff_allowed=false`, `cache_read_allowed=false`, `cache_write_allowed=false`, and `serving_allowed=false` are enforced by report, schema, checker, and tests
     - PR #1789 alignment-rule schema remains a blocking external predecessor unless its artifact is present and minimally valid on the current base; file presence alone is not accepted
     - PR-4.1 closeout records PR #1789 and PR #1791 merge evidence without changing semantic-cache gate markers, runtime handoff flags, or runtime/cache implementation scope
@@ -3218,13 +3223,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-ai-bounded-context-extraction"></a>
-- [ ] P1: Extract AI runtime into a dedicated bounded context
+- [x] P1: Extract AI runtime into a dedicated bounded context
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#1203`
+  - Target PR: PR-A4 / PR #1203
+  - Status: ✅ Closed. PR #1203 `feat(ai): extract bounded AI runtime ownership into canonical core/ai seam` merged on `2026-03-21T06:01:31Z` with merge commit `831d62d8be0da7307e5a0f2673d8c33dbf53ca49` from branch `feat/ai-bounded-context-extraction`.
   - Area: backend / AI runtime / architecture
   - Finding Type: bounded-context hardening
-  - Reason: AI logic, provider seams, and safety-related behavior were historically distributed across runtime areas. The canonical `core/ai/*` seam now exists, but the remaining consolidation still needs to remove transitional ownership outside that boundary. Follow-up tracking remains anchored here: `docs/roadmap/BACKLOG_LEDGER.md:1208`. Closure criteria: move the remaining provider/runtime ownership into `core/ai/*`, keep legacy/app layers as thin adapters, and verify ownership through canonical `file:line` evidence plus passing `make verify`.
+  - Reason: Live GitHub/repo truth proves the dedicated A4 bounded-context extraction slice already landed in PR #1203. The landed evidence created the canonical `core/ai/*` runtime seam, `core/ai/insight_runtime.py`, thin `app/services/insight_application_service.py` handoff, architecture documentation updates, and deterministic tests without opening semantic cache or changing public route/OpenAPI/DTO contracts.
   - Links:
     - `docs/architecture/providers_implementation.md`
     - `AGENTS.md`
@@ -3232,11 +3238,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/runbooks/ENGINEER_QUICKPATH.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md`
+    - `core/ai/insight_runtime.py`
+    - `app/services/insight_application_service.py`
+    - `tests/test_core_ai_insight_runtime.py`
+    - `tests/test_insight_application_service.py`
   - DoD:
+    - PR #1203 merge evidence is machine-checkable in active roadmap docs
     - Canonical AI runtime package structure exists and is documented
     - Routers and client layers remain thin adapters around AI behavior
     - Safety/eval/provider ownership is mapped to the bounded context
-    - AGENTS and architecture docs no longer need transitional wording about future extraction
+    - AGENTS and architecture docs no longer need transitional wording about this A4 extraction prerequisite
+    - Semantic-cache markers remain `closed / false / false / true`; no semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, provider, or default activation scope is implied by this closeout
 
 
 <a id="ledger-p1-api-key-toggle-guard"></a>

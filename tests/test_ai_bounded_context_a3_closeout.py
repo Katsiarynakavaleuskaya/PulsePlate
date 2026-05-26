@@ -56,12 +56,13 @@ def _valid_ledger() -> str:
   - Status: Closed. PR #1469 `docs(architecture): define AI bounded-context packet and ownership map` merged on `2026-04-19T11:35:29Z` with merge commit `{MERGE_COMMIT}` from branch `codex/ai-bounded-context-packet`.
   - DoD:
     - PR #1469 merge evidence is machine-checkable in active roadmap/review docs
-    - PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate and open until its own extraction DoD is proven
+    - PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate from A3 and is now closed by PR #1203 merge evidence
     - Semantic-cache markers remain `closed / false / false / true`; no semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, provider, or default activation scope is implied by this closeout
 
 <a id="ledger-p1-ai-bounded-context-extraction"></a>
-- [ ] P1: Extract AI runtime into a dedicated bounded context
-  - Target PR: PR `#1203`
+- [x] P1: Extract AI runtime into a dedicated bounded context
+  - Target PR: PR-A4 / PR #1203
+  - Status: Closed. PR #1203 merged on `2026-03-21T06:01:31Z` with merge commit `831d62d8be0da7307e5a0f2673d8c33dbf53ca49` from branch `feat/ai-bounded-context-extraction`.
   - DoD:
     - Canonical AI runtime package structure exists and is documented
 """
@@ -72,8 +73,8 @@ def _valid_roadmap() -> str:
 
 #### Deferred optimization note
 PR-A3 is already landed via PR #1469; the broader runtime sequence still
-requires PR-A4 through PR-A5 and a later reviewed gate-open PR before
-semantic-cache work can begin.
+records PR-A4 separately by PR #1203 merge evidence and still requires a later
+reviewed gate-open PR before semantic-cache work can begin.
 
 ## PR-A3 - AI bounded-context packet
 #### Title
@@ -91,7 +92,8 @@ on `2026-04-19T11:35:29Z` with merge commit
 #### DoD
 - PR #1469 merge evidence is present in active roadmap/review docs
 - packet exists as canonical architecture SoT for extraction PR
-- PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate and open
+- PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate from A3
+  and is now closed by PR #1203 merge evidence
 - semantic-cache markers remain `closed / false / false / true`; no semantic
   cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public
   route, OpenAPI, DTO, provider, or default activation scope is implied by this
@@ -146,8 +148,8 @@ on `2026-04-19T11:35:29Z` with merge commit
 `{MERGE_COMMIT}` from branch
 `codex/ai-bounded-context-packet`.
 
-`PR-A4` / `ledger-p1-ai-bounded-context-extraction` remains separate and open
-until its own extraction DoD is proven, and semantic-cache markers remain
+`PR-A4` / `ledger-p1-ai-bounded-context-extraction` remains separate from A3
+and is now closed by PR #1203 merge evidence, and semantic-cache markers remain
 `closed / false / false / true`.
 """
 
@@ -254,7 +256,7 @@ def test_checker_rejects_stale_a3_required_outside_a3_section(tmp_path: Path) ->
     _write_valid_repo(tmp_path)
     path = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
     path.write_text(
-        path.read_text().replace("requires PR-A4 through PR-A5", "requires PR-A3 through PR-A5"),
+        path.read_text() + "\nThe next runtime lane still requires PR-A3 implementation.\n",
         encoding="utf-8",
     )
     assert "stale planned/pending wording" in _errors(tmp_path)
@@ -601,17 +603,36 @@ def test_checker_rejects_duplicate_semantic_cache_markers(tmp_path: Path) -> Non
     assert "duplicate marker: SEMANTIC_CACHE_GATE_STATUS" in _errors(tmp_path)
 
 
-def test_checker_rejects_closed_a4_extraction_checkbox(tmp_path: Path) -> None:
+def test_checker_rejects_closed_a4_extraction_checkbox_without_merge_evidence(
+    tmp_path: Path,
+) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
     path.write_text(
         path.read_text().replace(
-            "- [ ] P1: Extract AI runtime into a dedicated bounded context",
-            "- [x] P1: Extract AI runtime into a dedicated bounded context",
+            "831d62d8be0da7307e5a0f2673d8c33dbf53ca49",  # pragma: allowlist secret
+            "bad-a4-merge-proof",
         ),
         encoding="utf-8",
     )
-    assert "extraction item must remain open" in _errors(tmp_path)
+    assert "extraction item must be open or closed by PR #1203" in _errors(tmp_path)
+
+
+def test_checker_rejects_a4_extraction_contradictory_open_and_closed_state(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    path.write_text(
+        path.read_text().replace(
+            "- [x] P1: Extract AI runtime into a dedicated bounded context",
+            "- [ ] P1: Extract AI runtime into a dedicated bounded context\n"
+            "- [x] P1: Extract AI runtime into a dedicated bounded context",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    assert "contradictory state (open and closed-by-#1203 markers present)" in _errors(tmp_path)
 
 
 def test_checker_uses_stdlib_only_and_no_dynamic_imports() -> None:

@@ -103,7 +103,8 @@ It should **not overtake** still-open release-truth blockers.
 Use it as:
 - architecture/packet preparation now
 - implementation rail after the emergency fixes are stabilized
-- strict one-PR-at-a-time runtime sequence through `A5`
+- strict one-PR-at-a-time runtime sequence through `A5` as historical merge
+  evidence; the A1b-A5 runtime prerequisite train is now closed
 - treat `K1` as the first bounded post-A5 follow-up, not as semantic-cache rollout
 
 ### Governance rule for the prep PR
@@ -271,9 +272,11 @@ Semantic cache remains closed by
 remain `closed / false / false / true`; Redis/GPTCache, GraphRAG,
 ContextManifest, DB persistence, public routes, OpenAPI, DTOs, provider/auth/
 billing changes, and default activation remain out of scope. PR-A2 is already
-landed via PR #1415, and PR-A3 is already landed via PR #1469; the broader
-runtime sequence still requires PR-A4 through PR-A5 and a later reviewed
-gate-open PR before semantic-cache work can begin.
+landed via PR #1415, PR-A3 is already landed via PR #1469, PR-A4 is already
+landed via PR #1203, and PR-A5 is already landed via PR #1395. The runtime
+prerequisite train is closed, but a later reviewed gate-open PR must still
+change the semantic-cache machine markers before runtime semantic-cache work can
+begin.
 
 ---
 
@@ -358,7 +361,8 @@ duplicate packet implementation or runtime extraction.
 - PR #1469 merge evidence is present in active roadmap/review docs
 - packet exists as canonical architecture SoT for extraction PR
 - routers/adapters vs AI core ownership is explicit
-- PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate and open
+- PR-A4 / `ledger-p1-ai-bounded-context-extraction` remains separate from A3
+  and is now closed by PR #1203 merge evidence
 - semantic-cache markers remain `closed / false / false / true`; no semantic
   cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public
   route, OpenAPI, DTO, provider, or default activation scope is implied by this
@@ -376,6 +380,16 @@ duplicate packet implementation or runtime extraction.
 #### Goal
 Physically move remaining runtime ownership into the canonical AI seam.
 
+#### Current status
+Landed via PR [#1203](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1203)
+`feat(ai): extract bounded AI runtime ownership into canonical core/ai seam`,
+merged on `2026-03-21T06:01:31Z` with merge commit
+`831d62d8be0da7307e5a0f2673d8c33dbf53ca49` from branch
+`feat/ai-bounded-context-extraction`.
+
+This reconciliation records the landed A4 runtime prerequisite and does not
+move code, alter public contracts, or reopen bounded-context implementation.
+
 #### In scope
 - provider/runtime ownership moves into `core/ai/*`
 - routers stay thin
@@ -384,11 +398,18 @@ Physically move remaining runtime ownership into the canonical AI seam.
 #### Out of scope
 - new model features
 - product copy changes
+- semantic cache, Redis/GPTCache, GraphRAG, ContextManifest, DB persistence,
+  public routes, OpenAPI, DTOs, provider rollout, and default activation
 
 #### DoD
-- AI core ownership is consolidated
+- PR #1203 merge evidence is present in active roadmap/backlog docs
+- AI core ownership is consolidated through the canonical `core/ai/*` seam
 - adapters stay thin
-- file:line evidence exists
+- file:line evidence exists in `core/ai/insight_runtime.py`,
+  `app/services/insight_application_service.py`,
+  `tests/test_core_ai_insight_runtime.py`, and
+  `tests/test_insight_application_service.py`
+- semantic-cache markers remain `closed / false / false / true`
 
 ---
 
@@ -402,6 +423,15 @@ Physically move remaining runtime ownership into the canonical AI seam.
 #### Goal
 Make AI quality drift detectable before merge/release.
 
+#### Current status
+Landed via PR [#1395](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1395)
+`feat(ai): add PR-A5 runtime gates`, merged on `2026-04-12T11:45:35Z`
+with merge commit `2f8a9af461cec483aa81a774cce7496c6bf65a8a` from branch
+`feat/pr-a5-runtime-gates`.
+
+This reconciliation records the landed A5 runtime prerequisite and does not
+rebuild the gate bundle or widen runtime scope.
+
 #### In scope
 - retrieval regression checks
 - faithfulness / unsupported-claim checks
@@ -412,9 +442,13 @@ Make AI quality drift detectable before merge/release.
 - canonical launcher: `scripts/orchestration/ai_runtime_gate_bundle.py`
 
 #### DoD
+- PR #1395 merge evidence is present in active roadmap/backlog docs
 - explicit evaluation package exists
-- gates are deterministic
-- runtime docs point to one gate source
+- gates are deterministic through
+  `scripts/orchestration/ai_runtime_gate_bundle.py`
+- runtime docs point to one gate source,
+  `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
+- semantic-cache markers remain `closed / false / false / true`
 
 ---
 

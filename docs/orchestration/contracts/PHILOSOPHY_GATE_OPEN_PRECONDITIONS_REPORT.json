@@ -1,8 +1,8 @@
 {
   "report_id": "philosophy_gate_open_preconditions_report",
-  "report_version": "2026-05-21",
-  "generated_at": "static-2026-05-21",
-  "rollout_phase": "PHILOSOPHY-PR4",
+  "report_version": "2026-05-25",
+  "generated_at": "static-2026-05-25",
+  "rollout_phase": "PHILOSOPHY-PR4-SC0-RECONCILED",
   "gate_status": "closed",
   "runtime_allowed": false,
   "implementation_allowed": false,
@@ -72,43 +72,43 @@
     },
     {
       "id": "pr_a1b_reconciled",
-      "label": "PR-A1b",
-      "status": "not_verified_by_pr4",
+      "label": "PR-A1b PRO quota reconciliation",
+      "status": "merge_verified_closed",
       "required_for_gate_open": true,
-      "blocks_gate_open": true,
-      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation"
+      "blocks_gate_open": false,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation; PR #1461 merged 2026-04-19T11:34:45Z with merge commit cd01d9c6db89813202f85b8b9f4c8378e72380ea from branch codex/wave6-a1b-pro-quota-reconciliation; PR #1466 merged 2026-04-19T11:34:46Z with merge commit fa0979e734b88575e01e3eca9ddd4d57ade86c05 from branch codex/pr1461-mapping-fix; runtime truth remains PR #1379"
     },
     {
       "id": "pr_a2_rag_hardening_closed",
-      "label": "PR-A2",
-      "status": "not_verified_by_pr4",
+      "label": "PR-A2 RAG hardening follow-through",
+      "status": "merge_verified_closed",
       "required_for_gate_open": true,
-      "blocks_gate_open": true,
-      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough"
+      "blocks_gate_open": false,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough; PR #1415 merged 2026-04-14T20:59:47Z with merge commit 146da0e0d269acea5ba946d239997705ebaf62c3 from branch feat/rag-hardening-followthrough"
     },
     {
       "id": "pr_a3_bounded_context_packet_closed",
-      "label": "PR-A3",
-      "status": "not_verified_by_pr4",
+      "label": "PR-A3 AI bounded-context packet",
+      "status": "merge_verified_closed",
       "required_for_gate_open": true,
-      "blocks_gate_open": true,
-      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet"
+      "blocks_gate_open": false,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet; PR #1469 merged 2026-04-19T11:35:29Z with merge commit f8454715f88e44657cfad1c4675f93ea669dc490 from branch codex/ai-bounded-context-packet"
     },
     {
       "id": "pr_a4_bounded_context_extraction_closed",
-      "label": "PR-A4",
-      "status": "not_verified_by_pr4",
+      "label": "PR-A4 bounded-context extraction",
+      "status": "merge_verified_closed",
       "required_for_gate_open": true,
-      "blocks_gate_open": true,
-      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction"
+      "blocks_gate_open": false,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction; PR #1203 `feat(ai): extract bounded AI runtime ownership into canonical core/ai seam` merged 2026-03-21T06:01:31Z with merge commit 831d62d8be0da7307e5a0f2673d8c33dbf53ca49 from branch feat/ai-bounded-context-extraction"
     },
     {
       "id": "pr_a5_llm_reliability_security_closed",
-      "label": "PR-A5",
-      "status": "not_verified_by_pr4",
+      "label": "PR-A5 LLM reliability/security gates",
+      "status": "merge_verified_closed",
       "required_for_gate_open": true,
-      "blocks_gate_open": true,
-      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates"
+      "blocks_gate_open": false,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates; PR #1395 `feat(ai): add PR-A5 runtime gates` merged 2026-04-12T11:45:35Z with merge commit 2f8a9af461cec483aa81a774cce7496c6bf65a8a from branch feat/pr-a5-runtime-gates"
     },
     {
       "id": "dedicated_gate_open_pr_changes_markers",
@@ -123,11 +123,10 @@
     "decision": "gate_open_blocked_preconditions_incomplete",
     "reason_codes": [
       "semantic_cache_gate_closed",
-      "runtime_prerequisites_not_verified",
       "dedicated_gate_open_pr_absent",
       "alignment_rule_schema_predecessor_pending"
     ],
-    "blocking_precondition_count": 7,
+    "blocking_precondition_count": 2,
     "runtime_handoff_allowed": false,
     "cache_read_allowed": false,
     "cache_write_allowed": false,

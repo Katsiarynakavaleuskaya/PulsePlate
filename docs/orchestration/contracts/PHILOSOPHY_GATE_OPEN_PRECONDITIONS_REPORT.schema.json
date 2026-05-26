@@ -33,13 +33,13 @@
       "const": "philosophy_gate_open_preconditions_report"
     },
     "report_version": {
-      "const": "2026-05-21"
+      "const": "2026-05-25"
     },
     "generated_at": {
-      "const": "static-2026-05-21"
+      "const": "static-2026-05-25"
     },
     "rollout_phase": {
-      "const": "PHILOSOPHY-PR4"
+      "const": "PHILOSOPHY-PR4-SC0-RECONCILED"
     },
     "gate_status": {
       "const": "closed"
@@ -224,6 +224,7 @@
             "enum": [
               "source_current",
               "source_present_not_merge_verified",
+              "merge_verified_closed",
               "pending_external_predecessor",
               "not_verified_by_pr4",
               "absent"
@@ -329,7 +330,6 @@
           "items": {
             "enum": [
               "semantic_cache_gate_closed",
-              "runtime_prerequisites_not_verified",
               "dedicated_gate_open_pr_absent",
               "alignment_rule_schema_predecessor_pending"
             ]
@@ -338,11 +338,6 @@
             {
               "contains": {
                 "const": "semantic_cache_gate_closed"
-              }
-            },
-            {
-              "contains": {
-                "const": "runtime_prerequisites_not_verified"
               }
             },
             {
@@ -356,7 +351,7 @@
               }
             }
           ],
-          "minItems": 4,
+          "minItems": 3,
           "uniqueItems": true
         },
         "blocking_precondition_count": {

@@ -1,6 +1,6 @@
 # PulsePlate Semantic Cache Gate and Plan
 
-**Last reconciled:** 24 May 2026
+**Last reconciled:** 25 May 2026
 **Rail:** Product AI runtime rail only
 **Status:** Gate-closed deferred optimization, not active execution scope
 
@@ -80,9 +80,9 @@ validates PR-2 policy/oracle truth, PR-3 dry-run truth, this roadmap's closed
 machine markers, and runtime prerequisite anchors while keeping
 `gate_open_allowed=false`, `runtime_handoff_allowed=false`,
 `cache_read_allowed=false`, `cache_write_allowed=false`, and
-`serving_allowed=false`. Ledger anchor presence does not verify prerequisite
-closure; a later reviewed gate-open PR must still change the machine-checkable
-markers before runtime semantic-cache work can begin.
+`serving_allowed=false`. PR-SC0 records the runtime prerequisite train as
+closed by merge evidence, while a later reviewed gate-open PR must still change
+the machine-checkable markers before runtime semantic-cache work can begin.
 
 Philosophy Epic V2 PR-4 landed in PR #1791 on 2026-05-22 with merge commit
 `b16175721933012ae53162b8268888c960458d46`, after the PR #1789 alignment-rule
@@ -111,6 +111,9 @@ Current `main` already contains:
 - landed PR-A2 RAG hardening via PR #1415
 - landed PR-A3 AI bounded-context packet via PR #1469
   `docs(architecture): define AI bounded-context packet and ownership map`
+- landed PR-A4 AI bounded-context extraction via PR #1203
+- landed PR-A5 AI runtime gates via PR #1395
+- landed `SC-G5` backend-selection contract via PR #1742
 - deterministic orchestration confidence recomputation
 
 The runtime prerequisite train is tracked by canonical PR/backlog anchors:
@@ -127,13 +130,21 @@ The runtime prerequisite train is tracked by canonical PR/backlog anchors:
    `f8454715f88e44657cfad1c4675f93ea669dc490` from branch
    `codex/ai-bounded-context-packet`
 4. `PR-A4` and [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
+   are closed via PR #1203, merged `2026-03-21T06:01:31Z` with merge commit
+   `831d62d8be0da7307e5a0f2673d8c33dbf53ca49` from branch
+   `feat/ai-bounded-context-extraction`
 5. `PR-A5` and [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates)
+   are closed via PR #1395, merged `2026-04-12T11:45:35Z` with merge commit
+   `2f8a9af461cec483aa81a774cce7496c6bf65a8a` from branch
+   `feat/pr-a5-runtime-gates`
 
-Semantic cache can be considered only **after** those runtime rails are closed.
+The runtime prerequisite train is closed. Semantic-cache runtime serving remains
+blocked until a later reviewed gate-open PR changes the machine markers and
+defines admission, replay, observability, rollback, and lineage safety.
 
 ## Hard Gate
 
-Do **not** start semantic cache work before all the following are true:
+Do **not** start semantic-cache runtime work before all the following are true:
 
 1. `PR-A1b` is reconciled in docs/backlog via [`ledger-p1-pro-monthly-quota-ledger-reconciliation`](./BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation), PR #1461, and PR #1466
 2. `PR-A2` is closed via
@@ -147,8 +158,20 @@ Do **not** start semantic cache work before all the following are true:
    ownership map`, merged `2026-04-19T11:35:29Z` with merge commit
    `f8454715f88e44657cfad1c4675f93ea669dc490` from branch
    `codex/ai-bounded-context-packet`
-4. `PR-A4` is closed via [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction)
-5. at least `PR-A5` is closed via [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates)
+4. `PR-A4` is closed via [`ledger-p1-ai-bounded-context-extraction`](./BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction),
+   PR #1203, merged `2026-03-21T06:01:31Z` with merge commit
+   `831d62d8be0da7307e5a0f2673d8c33dbf53ca49` from branch
+   `feat/ai-bounded-context-extraction`
+5. `PR-A5` is closed via [`ledger-p1-llm-reliability-security-gates`](./BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates),
+   PR #1395, merged `2026-04-12T11:45:35Z` with merge commit
+   `2f8a9af461cec483aa81a774cce7496c6bf65a8a` from branch
+   `feat/pr-a5-runtime-gates`
+6. `SC-G5` backend-selection contract is closed via PR #1742
+   `feat(ai-runtime): add semantic-cache backend selection contract`, merged
+   `2026-05-16T21:03:48Z` with merge commit
+   `cb1db8b40141817b3ca856de570b8fc02e2ae9fa`
+7. a later reviewed gate-open PR changes the machine markers above from their
+   current closed state and passes current-head CI/review governance
 
 ## Rail Boundary
 
