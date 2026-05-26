@@ -168,8 +168,8 @@ Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:309
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3301690326
 Disposition: FIXED
 Commit: ba6cc6c14
-Evidence: docs/review/PR_1837_FIXED_MAPPING.md:161
-Evidence: docs/review/PR_1837_FIXED_MAPPING.md:163
+Evidence: tests/test_ai_runtime_semantic_cache_handoff.py:258
+Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:299
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3301690334
 Disposition: FIXED
