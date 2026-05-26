@@ -27,6 +27,10 @@ Disposition: FIXED
 Evidence: Current-head Python 3.11/3.12 shards failed philosophy/AI closeout docs guards. `docs/roadmap/BACKLOG_LEDGER.md` now uses explicit gate-closed wording and `check_ai_rag_hardening_a2_closeout.py` avoids false positives for historical merge-evidence clauses; local `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
 Commit: c57888aa7
 
+Disposition: FIXED
+Evidence: Current-head `test-main` later failed `tests/test_ai_pro_quota_a1b_closeout.py` on semantic-cache runtime wording in `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`. The clause now uses explicit no-runtime wording; local `.venv/bin/python -m pytest -q tests/test_ai_pro_quota_a1b_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
+Commit: pending
+
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/bf71b8de0f6b.json`

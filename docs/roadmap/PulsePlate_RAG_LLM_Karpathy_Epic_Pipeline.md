@@ -274,9 +274,8 @@ ContextManifest, DB persistence, public routes, OpenAPI, DTOs, provider/auth/
 billing changes, and default activation remain out of scope. PR-A2 is already
 landed via PR #1415, PR-A3 is already landed via PR #1469, PR-A4 is already
 landed via PR #1203, and PR-A5 is already landed via PR #1395. The runtime
-prerequisite train is closed, but a later reviewed gate-open PR must still
-change the semantic-cache machine markers before runtime semantic-cache work can
-begin.
+prerequisite train is closed, but no runtime semantic-cache work may begin until
+a later reviewed gate-open PR changes the semantic-cache machine markers.
 
 ---
 
