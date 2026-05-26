@@ -28,8 +28,8 @@ Evidence: Current-head Python 3.11/3.12 shards failed philosophy/AI closeout doc
 Commit: c57888aa7
 
 Disposition: FIXED
-Evidence: Current-head `test-main` later failed `tests/test_ai_pro_quota_a1b_closeout.py` on semantic-cache runtime wording in `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`. The clause now uses explicit no-runtime wording; local `.venv/bin/python -m pytest -q tests/test_ai_pro_quota_a1b_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
-Commit: pending
+Evidence: Current-head `test-main` later failed `tests/test_ai_pro_quota_a1b_closeout.py` on semantic-cache runtime wording in `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`. The clause now uses explicit no-runtime wording and the A1b guard covers blocked semantic-cache runtime wording; local `.venv/bin/python -m pytest -q tests/test_ai_pro_quota_a1b_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
+Commit: 24506790d, 58dec64f9
 
 ## Lane Start Provenance
 
