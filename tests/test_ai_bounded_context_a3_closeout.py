@@ -618,6 +618,23 @@ def test_checker_rejects_closed_a4_extraction_checkbox_without_merge_evidence(
     assert "extraction item must be open or closed by PR #1203" in _errors(tmp_path)
 
 
+def test_checker_rejects_a4_extraction_contradictory_open_and_closed_state(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    path.write_text(
+        path.read_text().replace(
+            "- [x] P1: Extract AI runtime into a dedicated bounded context",
+            "- [ ] P1: Extract AI runtime into a dedicated bounded context\n"
+            "- [x] P1: Extract AI runtime into a dedicated bounded context",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    assert "contradictory state (open and closed-by-#1203 markers present)" in _errors(tmp_path)
+
+
 def test_checker_uses_stdlib_only_and_no_dynamic_imports() -> None:
     tree = ast.parse(CHECKER.read_text(encoding="utf-8"))
     imports: set[str] = set()

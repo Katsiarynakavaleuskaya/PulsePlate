@@ -244,6 +244,20 @@ def test_checker_rejects_live_but_blocked_claim(tmp_path: Path) -> None:
     assert "forbidden runtime/scope expansion claim" in _errors(tmp_path)
 
 
+def test_checker_rejects_duplicate_reason_codes(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    report["handoff_decision"]["reason_codes"] = [
+        "semantic_cache_gate_closed",
+        "dedicated_gate_open_pr_absent",
+        "alignment_rule_schema_predecessor_pending",
+        "alignment_rule_schema_predecessor_pending",
+    ]
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    assert "reason_codes must not contain duplicates" in _errors(tmp_path)
+
+
 def test_checker_allows_negated_live_claim(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"

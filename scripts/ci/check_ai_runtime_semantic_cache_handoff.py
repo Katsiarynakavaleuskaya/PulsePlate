@@ -295,6 +295,8 @@ def _check_preconditions_report(report: dict[str, object], errors: list[str]) ->
     ):
         errors.append("preconditions report: reason_codes must be a string array")
         return
+    if len(reason_codes) != len(set(reason_codes)):
+        errors.append("preconditions report: reason_codes must not contain duplicates")
     if "runtime_prerequisites_not_verified" in reason_codes:
         errors.append("preconditions report: runtime prerequisites must no longer be unverified")
     required_codes = {

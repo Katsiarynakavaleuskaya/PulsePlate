@@ -474,6 +474,10 @@ def validate_closeout(
             "feat/ai-bounded-context-extraction",
         )
     )
+    if a4_open and a4_closed_by_own_pr:
+        errors.append(
+            "A4 extraction ledger entry: contradictory state (open and closed-by-#1203 markers present)"
+        )
     if not (a4_open or a4_closed_by_own_pr):
         errors.append(
             "A4 extraction ledger entry: extraction item must be open or closed by PR #1203"
