@@ -20,6 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IOS_DIR = REPO_ROOT / "ios"
 DEFAULT_TRIVY_POLICY = REPO_ROOT / "trivy" / "ignore-policy.rego"
+DEFAULT_TRIVY_IGNORE = REPO_ROOT / ".trivyignore"
 FIXED_JWT_FLOOR = "3.2.0"
 CVE_ID = "CVE-2026-45363"
 
@@ -164,13 +165,96 @@ def evaluate_bundler_evidence(
     return errors
 
 
-def trivy_suppression_present(policy_path: Path = DEFAULT_TRIVY_POLICY) -> bool:
-    """Return True while the temporary Ruby jwt Trivy suppression remains."""
+def patched_jwt_resolved(
+    evidence: BundlerEvidence,
+    *,
+    fixed_jwt_floor: str = FIXED_JWT_FLOOR,
+) -> bool:
+    """Return True only when resolver evidence proves the patched jwt line is active."""
+
+    jwt_version = evidence.versions.get("jwt")
+    return bool(jwt_version and _version_at_least(jwt_version, fixed_jwt_floor))
+
+
+def remediation_evidence_complete(
+    evidence: BundlerEvidence,
+    *,
+    fixed_jwt_floor: str = FIXED_JWT_FLOOR,
+) -> bool:
+    """Return True only when resolver evidence proves the unblock is complete."""
+
+    fastlane_constraint = evidence.jwt_constraints.get("fastlane")
+    return bool(
+        patched_jwt_resolved(evidence, fixed_jwt_floor=fixed_jwt_floor)
+        and evidence.versions.get("fastlane")
+        and fastlane_constraint
+        and not _constraint_blocks_fixed_jwt_floor(fastlane_constraint, fixed_jwt_floor)
+    )
+
+
+def validate_tracked_lockfile(
+    lockfile_path: Path,
+    *,
+    fixed_jwt_floor: str = FIXED_JWT_FLOOR,
+) -> list[str]:
+    """Validate the committed iOS lockfile no longer carries vulnerable jwt."""
 
     try:
-        return CVE_ID in policy_path.read_text(encoding="utf-8")
+        evidence = parse_bundler_evidence(lockfile_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return [f"Unable to read tracked lockfile {lockfile_path}: {exc}"]
+
+    jwt_version = evidence.versions.get("jwt")
+    if jwt_version is None:
+        return ["Tracked ios/Gemfile.lock did not include a resolved jwt version."]
+    if not _version_at_least(jwt_version, fixed_jwt_floor):
+        return [
+            f"Tracked ios/Gemfile.lock resolves jwt {jwt_version}, below patched floor "
+            f"{fixed_jwt_floor}."
+        ]
+    if not remediation_evidence_complete(evidence, fixed_jwt_floor=fixed_jwt_floor):
+        return [
+            "Tracked ios/Gemfile.lock does not include complete Fastlane jwt "
+            "remediation evidence."
+        ]
+    return []
+
+
+def _rego_policy_contains_cve_suppression(path: Path) -> bool:
+    try:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.split("#", 1)[0].strip()
+            if line.startswith("#"):
+                continue
+            if re.fullmatch(rf'input\.VulnerabilityID\s*==\s*"{re.escape(CVE_ID)}"', line):
+                return True
     except OSError:
         return False
+    return False
+
+
+def _trivyignore_contains_cve_suppression(path: Path) -> bool:
+    try:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.split("#", 1)[0].strip()
+            if not line or line.startswith("#"):
+                continue
+            if re.match(rf"^{re.escape(CVE_ID)}(?:\s|$)", line):
+                return True
+    except OSError:
+        return False
+    return False
+
+
+def trivy_suppression_present(
+    policy_path: Path = DEFAULT_TRIVY_POLICY,
+    ignore_path: Path = DEFAULT_TRIVY_IGNORE,
+) -> bool:
+    """Return True while the temporary Ruby jwt Trivy suppression remains."""
+
+    return _rego_policy_contains_cve_suppression(
+        policy_path
+    ) or _trivyignore_contains_cve_suppression(ignore_path)
 
 
 def _run_bundler(ios_dir: Path) -> str:
@@ -227,6 +311,18 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_TRIVY_POLICY,
         help="Trivy ignore policy path used to detect whether the jwt suppression remains.",
     )
+    parser.add_argument(
+        "--trivy-ignore",
+        type=Path,
+        default=DEFAULT_TRIVY_IGNORE,
+        help="Legacy .trivyignore path used to ensure the jwt suppression is absent there too.",
+    )
+    parser.add_argument(
+        "--lockfile",
+        type=Path,
+        default=DEFAULT_IOS_DIR / "Gemfile.lock",
+        help="Tracked iOS Gemfile.lock path that must resolve patched jwt after suppression removal.",
+    )
     return parser.parse_args(argv)
 
 
@@ -243,10 +339,30 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     evidence = parse_bundler_evidence(output)
     errors = evaluate_bundler_evidence(evidence, fixed_jwt_floor=args.fixed_jwt_floor)
+    suppression_present = trivy_suppression_present(args.trivy_policy, args.trivy_ignore)
+    if not suppression_present:
+        if errors:
+            if not remediation_evidence_complete(evidence, fixed_jwt_floor=args.fixed_jwt_floor):
+                print("ERROR: Ruby jwt/Fastlane unblock guard failed:")
+                for error in errors:
+                    print(f"- {error}")
+                return 1
+        else:
+            print("ERROR: Ruby jwt/Fastlane suppression is absent but resolver remains blocked.")
+            return 1
+        lockfile_errors = validate_tracked_lockfile(
+            args.lockfile,
+            fixed_jwt_floor=args.fixed_jwt_floor,
+        )
+        if lockfile_errors:
+            print("ERROR: Ruby jwt/Fastlane lockfile remediation is incomplete:")
+            for error in lockfile_errors:
+                print(f"- {error}")
+            return 1
+        print("OK: Ruby jwt suppression has been removed after patched resolver evidence.")
+        return 0
+
     if errors:
-        if not trivy_suppression_present(args.trivy_policy):
-            print("OK: Ruby jwt suppression has been removed after patched resolver evidence.")
-            return 0
         print("ERROR: Ruby jwt/Fastlane unblock guard failed:")
         for error in errors:
             print(f"- {error}")
