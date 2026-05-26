@@ -147,6 +147,14 @@ Reason: Runtime/network/subprocess import guard now parses imports with AST and 
 - Missing registry and visual source files: rejected.
 - Summary output: deterministic.
 
+## PR Review Dry-Run Dispositions
+
+- Finding: large-diff-risk from deterministic PR review dry-run.
+  Disposition: NOT-A-BUG
+  Evidence: changed scope is four files only: contract, validator, focused tests, and mapping artifact.
+  Evidence: `make validate-changed` -> PASS; focused design pytest -> PASS; pre-commit -> PASS.
+  Reason: The diff is large because the new accessibility decision contract enumerates all 24 design components and includes a full validator/test suite in one governed gate. Splitting would create incomplete governance surfaces.
+
 ## Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --mode analyze --path docs/orchestration/contracts/design_accessibility_regression_decisions.v1.json --path scripts/design/design_accessibility_regression_decisions.py --path tests/test_design_accessibility_regression_decisions.py`: PASS.
