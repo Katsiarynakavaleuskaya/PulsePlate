@@ -50,17 +50,17 @@ Commit: 87d9e8e04
 Evidence: docs/review/PR_1838_FIXED_MAPPING.md:3
 Reason: CodeRabbit requested replacing the placeholder `PR: TBD` with the actual PR #1838 reference; this follow-up mapping commit updates the canonical artifact header with explicit `#1838` wording after the comment.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399182 -> d8d1b8959
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399182 -> ac85e225f
 Disposition: FIXED
-Commit: d8d1b8959
+Commit: ac85e225f
 Evidence: docs/review/PR_1838_FIXED_MAPPING.md:56
-Reason: Role-agent table commit-SHA request was addressed through a follow-up mapping-table evidence update and the code/test hardening commit.
+Reason: Role-agent table commit-SHA request was addressed through a follow-up mapping-table evidence update.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399185 -> d8d1b8959
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399185 -> ac85e225f
 Disposition: FIXED
-Commit: d8d1b8959
+Commit: ac85e225f
 Evidence: docs/review/PR_1838_FIXED_MAPPING.md:68
-Reason: Premortem matrix commit-SHA request was addressed through a follow-up mapping-table evidence update and the code/test hardening commit.
+Reason: Premortem matrix commit-SHA request was addressed through a follow-up mapping-table evidence update.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399191 -> d8d1b8959
 Disposition: FIXED
