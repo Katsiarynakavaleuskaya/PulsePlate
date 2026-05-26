@@ -1,6 +1,6 @@
 # PR #1838 Fixed in Commit Mapping
 
-PR: TBD
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838
 
 Lane: `design-accessibility-regression-decision-gate`
 
@@ -20,9 +20,9 @@ dependency changes.
 - Operator override: proceed with next design epic despite missing fresh
   post-#1837 GitHub Actions push workflow listing; if CI fails later, use a
   separate fix PR after diagnosis.
+- Packet: `artifacts/orchestration/task_packets/7ec2360fbb09.json`
 - Preflight: `python3 scripts/orchestration/check_preflight.py --mode analyze --path docs/design --path docs/review` -> PASS.
 - Agent consistency: `python3 scripts/orchestration/check_agent_consistency.py` -> PASS.
-- Packet: `artifacts/orchestration/task_packets/7ec2360fbb09.json`.
 - Bootstrap command: `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open`.
 
 ## Discussion Thread Pass
@@ -32,7 +32,7 @@ dependency changes.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at PR creation.
+- No actionable review comments
 
 ## Role-Agent Findings
 
