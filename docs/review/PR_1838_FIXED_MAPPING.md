@@ -1,6 +1,6 @@
 # PR #1838 Fixed in Commit Mapping
 
-PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838
+PR: `#1838` (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838)
 
 Lane: `design-accessibility-regression-decision-gate`
 
@@ -44,7 +44,12 @@ dependency changes.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399164 -> PENDING_POST_COMMENT_COMMIT
+Disposition: FIXED
+Commit: PENDING_POST_COMMENT_COMMIT
+Evidence: docs/review/PR_1838_FIXED_MAPPING.md:3
+Reason: CodeRabbit requested replacing the placeholder `PR: TBD` with the actual PR #1838 reference; this follow-up mapping commit updates the canonical artifact header with explicit `#1838` wording after the comment.
+
 
 ## Role-Agent Findings
 
