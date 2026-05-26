@@ -192,7 +192,7 @@ Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:298
 - [ ] Codex Security `threat-model -> security-scan -> validation` not yet re-run after this latest commit in this lane.
 - [x] CodeRabbit/Sourcery/Cubic actionables processed as
   `FIXED` / `NOT-A-BUG` / `DEFERRED`.
-- [ ] Review-thread disposition guard passed.
+- [x] Review-thread disposition guard passed.
 - [ ] Strict merge-readiness wrapper passed.
 
 ## External Governance Check Notes
