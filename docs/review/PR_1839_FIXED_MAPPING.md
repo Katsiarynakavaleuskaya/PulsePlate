@@ -21,11 +21,11 @@ Commit: 365ade545
 
 Disposition: FIXED
 Evidence: Internal PR review found `check_jwt_fastlane_unblock.py` false-green seams after suppression removal. The guard now requires complete resolver evidence, patched tracked `ios/Gemfile.lock`, and semantic detection of active Rego / `.trivyignore` suppressions; local `.venv/bin/python -m pytest -q tests/test_jwt_fastlane_unblock_guard.py` passes.
-Commit: pending
+Commit: 55588b76f
 
 Disposition: FIXED
 Evidence: Current-head Python 3.11/3.12 shards failed philosophy/AI closeout docs guards. `docs/roadmap/BACKLOG_LEDGER.md` and `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` now use explicit gate-closed wording; local `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
-Commit: pending
+Commit: d22716c18
 
 ## Lane Start Provenance
 
