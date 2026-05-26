@@ -150,15 +150,16 @@ and the final wait-window.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3299929807 -> 74bbf5f12
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3299929810 -> 74bbf5f12
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3299929812 -> 74bbf5f12
 
 ## Post-Open Governance Checklist
 
 - [x] PR opened non-draft.
 - [x] Post-open bootstrap completed.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
-  executed and evidence captured in the post-open packet + manifest artifacts.
-- [ ] Codex Security `threat-model -> security-scan -> validation` completed.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` executed; evidence: post-open packet `artifacts/orchestration/task_packets/c13cf43403b0.json` and manifest from `scripts/orchestration/qoder_dispatch_bridge.py`.
+- [ ] Codex Security `threat-model -> security-scan -> validation` not yet re-run after this latest commit in this lane.
 - [x] CodeRabbit/Sourcery/Cubic actionables processed as
   `FIXED` / `NOT-A-BUG` / `DEFERRED`.
 - [ ] Review-thread disposition guard passed.
