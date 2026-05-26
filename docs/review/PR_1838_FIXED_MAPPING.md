@@ -44,9 +44,9 @@ dependency changes.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399164 -> PENDING_POST_COMMENT_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399164 -> 87d9e8e04
 Disposition: FIXED
-Commit: PENDING_POST_COMMENT_COMMIT
+Commit: 87d9e8e04
 Evidence: docs/review/PR_1838_FIXED_MAPPING.md:3
 Reason: CodeRabbit requested replacing the placeholder `PR: TBD` with the actual PR #1838 reference; this follow-up mapping commit updates the canonical artifact header with explicit `#1838` wording after the comment.
 
