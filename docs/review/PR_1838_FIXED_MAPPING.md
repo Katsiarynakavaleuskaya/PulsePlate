@@ -160,6 +160,29 @@ Reason: Runtime/network/subprocess import guard now parses imports with AST and 
 - `bug-hunter`: PASS. CodeRabbit edge cases were fixed: unexpected authority entries, anchor fragments, falsy fixture payloads, and AST import detection.
 - `security-auditor`: PASS. Validator remains offline/stdlib-only and rejects non-canonical reference-tool evidence.
 
+## Premortem Agent Findings
+
+- Finding: implementation-permission wording false green.
+  Disposition: FIXED
+  Commit: 92fb6b6cc
+  Evidence: scripts/design/design_accessibility_regression_decisions.py:145
+  Evidence: tests/test_design_accessibility_regression_decisions.py:324
+- Finding: malformed source visual decisions could be trusted by accessibility validator.
+  Disposition: FIXED
+  Commit: 92fb6b6cc
+  Evidence: scripts/design/design_accessibility_regression_decisions.py:461
+  Evidence: tests/test_design_accessibility_regression_decisions.py:354
+- Finding: broad unanchored evidence could satisfy component evidence.
+  Disposition: FIXED
+  Commit: 92fb6b6cc
+  Evidence: scripts/design/design_accessibility_regression_decisions.py:301
+  Evidence: tests/test_design_accessibility_regression_decisions.py:366
+- Finding: evidence anchor allowlist could be bypassed with in-repo traversal.
+  Disposition: FIXED
+  Commit: 92fb6b6cc
+  Evidence: scripts/design/design_accessibility_regression_decisions.py:270
+  Evidence: tests/test_design_accessibility_regression_decisions.py:380
+
 ## PR Review Dry-Run Dispositions
 
 - Finding: large-diff-risk from deterministic PR review dry-run.
