@@ -427,6 +427,21 @@ def test_checker_rejects_historical_token_runtime_expansion_bypass(tmp_path: Pat
     assert any("forbidden runtime/scope expansion claim" in error for error in _errors(tmp_path))
 
 
+def test_checker_rejects_positive_expansion_in_merge_evidence_clause(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1415_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping().replace(
+            "PR #1415 merged at `2026-04-14T20:59:47Z`",
+            "PR #1415 merged at `2026-04-14T20:59:47Z` with merge commit "
+            "`146da0e0d269acea5ba946d239997705ebaf62c3` and opens semantic cache",
+        ),
+        encoding="utf-8",
+    )
+
+    assert any("forbidden runtime/scope expansion claim" in error for error in _errors(tmp_path))
+
+
 def test_checker_rejects_duplicate_conflicting_gate_marker(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     gate = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"

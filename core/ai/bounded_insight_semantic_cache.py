@@ -105,6 +105,8 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|x-api-key"
     r"|private[_ -]?key"
     r"|sk-[a-z0-9]"
+    r"|gh[pousr]_[a-z0-9._-]+"
+    r"|github_pat_[a-z0-9._-]+"
     r"|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
     r"|\+?\d[\d ()-]{7,}\d"
     r"|healthkit"

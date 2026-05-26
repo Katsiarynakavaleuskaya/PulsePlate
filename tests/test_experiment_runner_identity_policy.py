@@ -250,6 +250,8 @@ def test_rejects_pgp_private_key_material_under_neutral_key() -> None:
     "secret_value",
     [
         "github_pat_" + "a" * 24,
+        "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 8,
+        "ghs_header-payload.signature-with-hyphen.stateless-token-fixture" + "a" * 24,
         "https://hooks.slack.com/services/" + "A" * 12 + "/" + "B" * 12 + "/" + "C" * 24,
         "xapp-" + "b" * 24,
         "xoxc-" + "c" * 24,
@@ -284,7 +286,7 @@ def test_rejects_duplicate_json_keys_before_validation(tmp_path: Path) -> None:
 
 def test_token_shaped_json_key_error_is_redacted() -> None:
     policy = _valid_policy()
-    token_value = "github_pat_" + "a" * 24
+    token_value = "ghs_header-payload.signature-with-hyphen.stateless-token-fixture" + "a" * 24
     policy["cryptographic_boundary"]["external_handles"] = {token_value: "external"}
 
     with pytest.raises(identity_check.IdentityPolicyError) as exc_info:

@@ -53,13 +53,13 @@ LOCAL_PATH_RE = re.compile(r"(^|\s)(/Users/|/private/|/tmp/|\.{1,2}/|[A-Za-z]:\\
 ENV_ASSIGNMENT_RE = re.compile(r"(^|\s)[A-Za-z_][A-Za-z0-9_]*=")
 SECRET_SHAPED_RE = re.compile(
     r"(xapp-[A-Za-z0-9-]{10,}|xox[abcprs]-[A-Za-z0-9-]{10,}|"
-    r"gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|"
+    r"gh[pousr]_[A-Za-z0-9._-]{20,}|github_pat_[A-Za-z0-9_]{20,}|"
     r"https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,}|sk-[A-Za-z0-9_-]{12,})",
     re.IGNORECASE,
 )
 SLACK_APP_TOKEN_RE = re.compile(r"^xapp-[A-Za-z0-9-]{10,}$")
 SLACK_BOT_TOKEN_RE = re.compile(r"^xoxb-[A-Za-z0-9-]{10,}$")
-GITHUB_TOKEN_RE = re.compile(r"^(gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})$")
+GITHUB_TOKEN_RE = re.compile(r"^(gh[pousr]_[A-Za-z0-9._-]{20,}|github_pat_[A-Za-z0-9_]{20,})$")
 ALLOWED_COMMANDS = {"help", "status", "run-experiment"}
 ALLOWED_WORKFLOWS = {DEFAULT_WORKFLOW_FILE}
 RATE_LIMIT_LOCK_DIR = "rate_limit_claim"

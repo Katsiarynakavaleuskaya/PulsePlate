@@ -56,7 +56,7 @@ SENSITIVE_POLICY_KEY_TOKENS = frozenset(
     }
 )
 SENSITIVE_VALUE_RE = re.compile(
-    r"(-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,}|https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,})",
+    r"(-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9._-]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,}|https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,})",
     re.IGNORECASE,
 )
 AUTHORITY_FIELD_NAMES = frozenset(
