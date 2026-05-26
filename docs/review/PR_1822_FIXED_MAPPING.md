@@ -514,6 +514,12 @@ Commit: f7cb6a423
 Evidence: `~` allowlisting now applies only to path-shaped matches (`~/<path>`), which blocks `~sk-...` token leaks and still allows `~/.cache/...` path-like entries.
 Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1117`, `scripts/ci/check_philosophy_source_corpus_index.py:1119`, `tests/test_philosophy_source_corpus_index.py:1222`, `tests/test_philosophy_source_corpus_index.py:1235`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1822#pullrequestreview-4358844503 -> f7cb6a423
+Disposition: FIXED
+Commit: f7cb6a423
+Evidence: the review-level CodeRabbit request is covered by the same tilde path-only allowlist fix in `f7cb6a423`; token-like values such as `~sk-...` are now rejected while path-shaped home-dir forms are still allowed.
+Evidence: Anchors: `scripts/ci/check_philosophy_source_corpus_index.py:1117`, `scripts/ci/check_philosophy_source_corpus_index.py:1119`, `tests/test_philosophy_source_corpus_index.py:1222`, `tests/test_philosophy_source_corpus_index.py:1235`.
+
 ## CI Failure Closure
 
 - CI: `test-main (3.11, 60)`, run `26413427211`, job `77752795738`
