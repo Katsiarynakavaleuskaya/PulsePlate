@@ -316,9 +316,9 @@ def test_decisions_reject_bad_json_evidence_fragment(tmp_path: Path) -> None:
         "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json:buton"
     ]
 
-    assert any(
-        "repo evidence file does not exist" in error for error in _errors(tmp_path, decisions)
-    )
+    errors = _errors(tmp_path, decisions)
+
+    assert any("invalid evidence fragment" in error for error in errors)
 
 
 def test_decisions_reject_non_repo_evidence_anchor(tmp_path: Path) -> None:

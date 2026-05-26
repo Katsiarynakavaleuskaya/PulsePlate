@@ -278,32 +278,33 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
         )
 
 
-def _repo_evidence_file_exists(anchor: str, repo_root: Path) -> bool:
+def _repo_evidence_error(anchor: str, repo_root: Path) -> str | None:
     path_text, _, fragment = anchor.partition(":")
     if ".." in Path(path_text).parts:
-        return False
+        return "repo evidence file does not exist"
     path = repo_root / path_text
     try:
         resolved_relative = path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
     except (OSError, ValueError):
-        return False
+        return "repo evidence file does not exist"
     allowed_roots = ("docs/", "scripts/", "tests/", "frontend/", "ios/", "tokens/")
     if not str(resolved_relative).startswith(allowed_roots):
-        return False
+        return "repo evidence file does not exist"
     if not path.is_file():
-        return False
+        return "repo evidence file does not exist"
     if not fragment:
-        return True
+        return None
     if path.suffix != ".json":
-        return False
+        return "invalid evidence fragment"
     try:
         payload = _load_json_object(path, label=str(path))
     except AccessibilityDecisionError:
-        return False
+        return "invalid evidence fragment"
     records = payload.get("records")
-    return isinstance(records, list) and any(
+    fragment_exists = isinstance(records, list) and any(
         isinstance(record, dict) and record.get("component_id") == fragment for record in records
     )
+    return None if fragment_exists else "invalid evidence fragment"
 
 
 def _validate_enum(
@@ -332,10 +333,10 @@ def _validate_evidence_anchors(
             )
         if not re.match(r"^(docs|scripts|tests|frontend|ios|tokens)/", anchor):
             errors.append(f"{prefix}.evidence_anchors: expected repo evidence anchor: {anchor!r}")
-        elif not _repo_evidence_file_exists(anchor, repo_root):
-            errors.append(
-                f"{prefix}.evidence_anchors: repo evidence file does not exist: {anchor!r}"
-            )
+        else:
+            evidence_error = _repo_evidence_error(anchor, repo_root)
+            if evidence_error:
+                errors.append(f"{prefix}.evidence_anchors: {evidence_error}: {anchor!r}")
     expected_bridge_anchor = f"{BRIDGE_INVENTORY_PATH}:{component_id}"
     if expected_bridge_anchor not in anchors:
         errors.append(f"{prefix}.evidence_anchors: missing bridge evidence anchor")

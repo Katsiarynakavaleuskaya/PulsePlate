@@ -107,7 +107,7 @@ Reason: Runtime/network/subprocess import guard now parses imports with AST and 
 
 | Role | Finding | Disposition | Commit SHA | Evidence |
 | --- | --- | --- | --- | --- |
-| agent-coordinator | Scope is a design governance contract only and remains separate from runtime implementation. | FIXED | d8d1b8959 | Changed paths limited to accessibility decision contract, validator, tests, and this mapping artifact. |
+| agent-coordinator | Scope is a design governance contract only and remains separate from runtime implementation. | FIXED | d8d1b8959 | `docs/orchestration/contracts/design_accessibility_regression_decisions.v1.json:1`; `scripts/design/design_accessibility_regression_decisions.py:1`; `tests/test_design_accessibility_regression_decisions.py:1`. |
 | creative-designer | Accessibility decisions remain fail-closed and do not promote visual approval into accessibility approval. | FIXED | d8d1b8959 | `tests/test_design_accessibility_regression_decisions.py:230`. |
 | frontend-engineer | No frontend runtime files are touched; implementation readiness stays blocked. | FIXED | d8d1b8959 | `scripts/design/design_accessibility_regression_decisions.py:361`; focused validator tests. |
 | architecture-specialist | Contract derives from bridge inventory and visual decisions without introducing a second source of truth. | FIXED | d8d1b8959 | `scripts/design/design_accessibility_regression_decisions.py:423`; `validate` command PASS. |
