@@ -50,29 +50,67 @@ Commit: 87d9e8e04
 Evidence: docs/review/PR_1838_FIXED_MAPPING.md:3
 Reason: CodeRabbit requested replacing the placeholder `PR: TBD` with the actual PR #1838 reference; this follow-up mapping commit updates the canonical artifact header with explicit `#1838` wording after the comment.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399182 -> d8d1b8959
+Disposition: FIXED
+Commit: d8d1b8959
+Evidence: docs/review/PR_1838_FIXED_MAPPING.md:56
+Reason: Role-agent table commit-SHA request was addressed through a follow-up mapping-table evidence update and the code/test hardening commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399185 -> d8d1b8959
+Disposition: FIXED
+Commit: d8d1b8959
+Evidence: docs/review/PR_1838_FIXED_MAPPING.md:68
+Reason: Premortem matrix commit-SHA request was addressed through a follow-up mapping-table evidence update and the code/test hardening commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399191 -> d8d1b8959
+Disposition: FIXED
+Commit: d8d1b8959
+Evidence: scripts/design/design_accessibility_regression_decisions.py:236
+Evidence: tests/test_design_accessibility_regression_decisions.py:293
+Reason: Validator now rejects unexpected canonical/reference-only authority entries.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399196 -> d8d1b8959
+Disposition: FIXED
+Commit: d8d1b8959
+Evidence: scripts/design/design_accessibility_regression_decisions.py:272
+Evidence: tests/test_design_accessibility_regression_decisions.py:313
+Reason: Validator now validates JSON anchor fragments against component IDs instead of file existence only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399201 -> d8d1b8959
+Disposition: FIXED
+Commit: d8d1b8959
+Evidence: tests/test_design_accessibility_regression_decisions.py:43
+Reason: Test fixture helper now uses explicit `None` checks for optional bridge and visual payloads.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3303399202 -> d8d1b8959
+Disposition: FIXED
+Commit: d8d1b8959
+Evidence: tests/test_design_accessibility_regression_decisions.py:373
+Reason: Runtime/network/subprocess import guard now parses imports with AST and catches `from ... import ...` forms.
+
 
 ## Role-Agent Findings
 
-| Role | Finding | Disposition | Evidence |
-| --- | --- | --- | --- |
-| agent-coordinator | Scope is a design governance contract only and remains separate from runtime implementation. | FIXED | Changed paths limited to accessibility decision contract, validator, tests, and this mapping artifact. |
-| creative-designer | Accessibility decisions remain fail-closed and do not promote visual approval into accessibility approval. | FIXED | `tests/test_design_accessibility_regression_decisions.py::test_decisions_reject_visual_approval_as_accessibility_approval`. |
-| frontend-engineer | No frontend runtime files are touched; implementation readiness stays blocked. | FIXED | `scripts/design/design_accessibility_regression_decisions.py:361`; focused validator tests. |
-| architecture-specialist | Contract derives from bridge inventory and visual decisions without introducing a second source of truth. | FIXED | `scripts/design/design_accessibility_regression_decisions.py:423`; `validate` command PASS. |
-| security-auditor | Validator is offline and does not import runtime, network, subprocess, frontend, or iOS modules. | FIXED | `tests/test_design_accessibility_regression_decisions.py::test_validator_has_no_runtime_network_or_subprocess_imports`. |
-| qa-engineer-agent | Regression suite covers valid path, deterministic summary, malformed contracts, authority promotion, runtime-permission wording, and missing dependency files. | FIXED | `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_design_accessibility_regression_decisions.py` -> PASS. |
-| bug-hunter | Probed unknown component ids, order mismatch, visual-decision mismatch, runtime permission wording, and non-canonical evidence anchors. | FIXED | `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_design_accessibility_regression_decisions.py tests/test_design_bridge_coverage_inventory.py tests/test_design_visual_regression_decisions.py` -> PASS. |
+| Role | Finding | Disposition | Commit SHA | Evidence |
+| --- | --- | --- | --- | --- |
+| agent-coordinator | Scope is a design governance contract only and remains separate from runtime implementation. | FIXED | d8d1b8959 | Changed paths limited to accessibility decision contract, validator, tests, and this mapping artifact. |
+| creative-designer | Accessibility decisions remain fail-closed and do not promote visual approval into accessibility approval. | FIXED | d8d1b8959 | `tests/test_design_accessibility_regression_decisions.py:230`. |
+| frontend-engineer | No frontend runtime files are touched; implementation readiness stays blocked. | FIXED | d8d1b8959 | `scripts/design/design_accessibility_regression_decisions.py:361`; focused validator tests. |
+| architecture-specialist | Contract derives from bridge inventory and visual decisions without introducing a second source of truth. | FIXED | d8d1b8959 | `scripts/design/design_accessibility_regression_decisions.py:423`; `validate` command PASS. |
+| security-auditor | Validator is offline and does not import runtime, network, subprocess, frontend, or iOS modules. | FIXED | d8d1b8959 | `tests/test_design_accessibility_regression_decisions.py:373`. |
+| qa-engineer-agent | Regression suite covers valid path, deterministic summary, malformed contracts, authority promotion, runtime-permission wording, and missing dependency files. | FIXED | d8d1b8959 | `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_design_accessibility_regression_decisions.py` -> PASS. |
+| bug-hunter | Probed unknown component ids, order mismatch, visual-decision mismatch, runtime permission wording, and non-canonical evidence anchors. | FIXED | d8d1b8959 | `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_design_accessibility_regression_decisions.py tests/test_design_bridge_coverage_inventory.py tests/test_design_visual_regression_decisions.py` -> PASS. |
 
 ## Premortem Risk Fix Matrix
 
-| Risk ID | Failure mode | Fix | Regression test | Evidence command | Disposition |
-| --- | --- | --- | --- | --- | --- |
-| PM-1838-001 | Accessibility gate is misread as runtime implementation permission. | `implementation_readiness` remains `blocked`; validator rejects runtime-permission wording and `ready` implementation. | `test_decisions_reject_implementation_ready_before_later_gates`; `test_decisions_reject_runtime_permission_wording`. | `python -m pytest -q tests/test_design_accessibility_regression_decisions.py` -> PASS. | FIXED |
-| PM-1838-002 | Visual approval substitutes for accessibility approval. | Validator rejects visual approval wording and requires accessibility evidence independently. | `test_decisions_reject_visual_approval_as_accessibility_approval`; ready accessibility tests. | `python -m pytest -q tests/test_design_accessibility_regression_decisions.py` -> PASS. | FIXED |
-| PM-1838-003 | Accessibility contract drifts from bridge inventory or visual decisions. | Validator compares record order, IDs, anchors, and canonical names against source contracts. | valid/order/mismatch tests. | `python scripts/design/design_accessibility_regression_decisions.py validate ...` -> PASS. | FIXED |
-| PM-1838-004 | External reference tools become canonical evidence. | Authority and evidence-anchor checks reject reference-tool promotion. | authority/evidence anchor tests. | `python -m pytest -q tests/test_design_accessibility_regression_decisions.py` -> PASS. | FIXED |
-| PM-1838-005 | Validator introduces runtime/network/dependency risk. | Validator remains stdlib-only and offline; guard test scans forbidden imports. | `test_validator_has_no_runtime_network_or_subprocess_imports`. | `python -m pytest -q tests/test_design_accessibility_regression_decisions.py` -> PASS. | FIXED |
-| PM-1838-006 | Summary output becomes nondeterministic. | `summarize_decisions` sorts counters and returns stable schema. | `test_summarize_output_is_deterministic`. | `python scripts/design/design_accessibility_regression_decisions.py summarize ...` -> PASS. | FIXED |
+| Risk ID | Failure mode | Fix | Regression test | Evidence command | Commit SHA | Disposition |
+| --- | --- | --- | --- | --- | --- | --- |
+| PM-1838-001 | Accessibility gate is misread as runtime implementation permission. | `implementation_readiness` remains `blocked`; validator rejects runtime-permission wording and `ready` implementation. | `test_decisions_reject_implementation_ready_before_later_gates`; `test_decisions_reject_runtime_permission_wording`. | `tests/test_design_accessibility_regression_decisions.py:242`; focused pytest -> PASS. | d8d1b8959 | FIXED |
+| PM-1838-002 | Visual approval substitutes for accessibility approval. | Validator rejects visual approval wording and requires accessibility evidence independently. | `test_decisions_reject_visual_approval_as_accessibility_approval`; ready accessibility tests. | `tests/test_design_accessibility_regression_decisions.py:230`; focused pytest -> PASS. | d8d1b8959 | FIXED |
+| PM-1838-003 | Accessibility contract drifts from bridge inventory or visual decisions. | Validator compares record order, IDs, anchors, and canonical names against source contracts. | valid/order/mismatch tests. | `scripts/design/design_accessibility_regression_decisions.py:423`; validator validate -> PASS. | d8d1b8959 | FIXED |
+| PM-1838-004 | External reference tools become canonical evidence. | Authority and evidence-anchor checks reject reference-tool promotion. | authority/evidence anchor tests. | `scripts/design/design_accessibility_regression_decisions.py:236`; focused pytest -> PASS. | d8d1b8959 | FIXED |
+| PM-1838-005 | Validator introduces runtime/network/dependency risk. | Validator remains stdlib-only and offline; guard test scans forbidden imports. | `test_validator_has_no_runtime_network_or_subprocess_imports`. | `tests/test_design_accessibility_regression_decisions.py:373`; focused pytest -> PASS. | d8d1b8959 | FIXED |
+| PM-1838-006 | Summary output becomes nondeterministic. | `summarize_decisions` sorts counters and returns stable schema. | `test_summarize_output_is_deterministic`. | `scripts/design/design_accessibility_regression_decisions.py:472`; summarize -> PASS. | d8d1b8959 | FIXED |
 
 ## Security Review
 
