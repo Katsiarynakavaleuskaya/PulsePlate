@@ -224,6 +224,10 @@ Reason: Runtime/network/subprocess import guard now parses imports with AST and 
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`: PASS.
 - `python scripts/orchestration/experiment_runner.py --packet artifacts/orchestration/experiments/pr-1838-accessibility-oracle-packet.json --output pr-1838-accessibility-oracle-result.json --contribution-kind fixed_mapping_review --coauthor-required --coauthor-reason "Experiment Runner oracle-only evidence shaped PR 1838 fixed mapping and PR body governance evidence."`: PASS.
 
+## Split Justification
+
+This PR intentionally keeps the accessibility decision contract, validator, and focused tests together because the gate is only reviewable when the contract and enforcement logic land atomically. Splitting the JSON contract from the validator/tests would create a temporary false-green or unenforced design governance surface. The changed files remain limited to four surfaces: contract, validator, tests, and fixed-mapping artifact.
+
 ## Deferred / Follow-ups
 
 - Runtime implementation remains blocked until accessibility repo evidence and
