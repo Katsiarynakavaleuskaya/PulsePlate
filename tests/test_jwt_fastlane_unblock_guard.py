@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from scripts.ci.check_jwt_fastlane_unblock import (
     evaluate_bundler_evidence,
     parse_bundler_evidence,
+    trivy_suppression_present,
 )
 
 BLOCKED_BUNDLER_OUTPUT = """
@@ -47,6 +50,23 @@ def test_jwt_fastlane_guard_fails_when_resolver_reaches_patched_jwt() -> None:
     errors = evaluate_bundler_evidence(parse_bundler_evidence(UNBLOCKED_BUNDLER_OUTPUT))
 
     assert any("remove the Trivy suppression" in error for error in errors)
+
+
+def test_jwt_fastlane_guard_detects_removed_trivy_suppression(tmp_path: Path) -> None:
+    policy = tmp_path / "ignore-policy.rego"
+    policy.write_text("package trivy\n\ndefault ignore := false\n", encoding="utf-8")
+
+    assert trivy_suppression_present(policy) is False
+
+
+def test_jwt_fastlane_guard_detects_present_trivy_suppression(tmp_path: Path) -> None:
+    policy = tmp_path / "ignore-policy.rego"
+    policy.write_text(
+        "package trivy\n\n# CVE-2026-45363 temporary jwt suppression\n",
+        encoding="utf-8",
+    )
+
+    assert trivy_suppression_present(policy) is True
 
 
 def test_jwt_fastlane_guard_fails_when_fastlane_no_longer_blocks_jwt_3() -> None:

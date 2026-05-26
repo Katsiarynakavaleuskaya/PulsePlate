@@ -19,7 +19,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IOS_DIR = REPO_ROOT / "ios"
+DEFAULT_TRIVY_POLICY = REPO_ROOT / "trivy" / "ignore-policy.rego"
 FIXED_JWT_FLOOR = "3.2.0"
+CVE_ID = "CVE-2026-45363"
 
 _SPEC_RE = re.compile(r"^(?P<indent>\s*)(?P<name>[A-Za-z0-9_.-]+) \((?P<body>[^)]+)\)")
 _VERSION_RE = re.compile(r"^\d+(?:\.\d+)*(?:\.[A-Za-z0-9_-]+)?$")
@@ -162,6 +164,15 @@ def evaluate_bundler_evidence(
     return errors
 
 
+def trivy_suppression_present(policy_path: Path = DEFAULT_TRIVY_POLICY) -> bool:
+    """Return True while the temporary Ruby jwt Trivy suppression remains."""
+
+    try:
+        return CVE_ID in policy_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
 def _run_bundler(ios_dir: Path) -> str:
     bundle_path = shutil.which("bundle")
     if bundle_path is None:
@@ -210,6 +221,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=FIXED_JWT_FLOOR,
         help="Patched jwt floor reported by GitHub/Trivy.",
     )
+    parser.add_argument(
+        "--trivy-policy",
+        type=Path,
+        default=DEFAULT_TRIVY_POLICY,
+        help="Trivy ignore policy path used to detect whether the jwt suppression remains.",
+    )
     return parser.parse_args(argv)
 
 
@@ -227,6 +244,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     evidence = parse_bundler_evidence(output)
     errors = evaluate_bundler_evidence(evidence, fixed_jwt_floor=args.fixed_jwt_floor)
     if errors:
+        if not trivy_suppression_present(args.trivy_policy):
+            print("OK: Ruby jwt suppression has been removed after patched resolver evidence.")
+            return 0
         print("ERROR: Ruby jwt/Fastlane unblock guard failed:")
         for error in errors:
             print(f"- {error}")

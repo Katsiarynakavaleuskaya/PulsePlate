@@ -7,16 +7,26 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments yet.
+- No actionable review comments
+
+## CI Failure Remediation Evidence
+
+Disposition: FIXED
+Evidence: CI rerun `PR Body Phase2 gates` failed on canonical artifact / PR body mirror format; local `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1839 --body "$(gh pr view 1839 --json body --jq .body)"` now passes.
+Commit: pending
+
+Disposition: FIXED
+Evidence: CI rerun `Ruby jwt/Fastlane unblock guard` proved Fastlane `2.235.0` permits patched `jwt 3.2.0`; `ios/Gemfile.lock`, `trivy/ignore-policy.rego`, `docs/security/CVE-2026-45363-jwt-fastlane.md`, and `docs/roadmap/BACKLOG_LEDGER.md` now reflect suppression removal. Local `python scripts/ci/check_jwt_fastlane_unblock.py` passes.
+Commit: pending
 
 ## Lane Start Provenance
 
-- Task packet: `artifacts/orchestration/task_packets/bf71b8de0f6b.json` (local artifact, not committed).
+- Packet: `artifacts/orchestration/task_packets/bf71b8de0f6b.json`
 - Bootstrap command: `python3 scripts/orchestration/task_bootstrap.py --goal "Diagnose missing canonical GitHub Actions jobs and harden GitHub token format handling for stateless installation tokens" --task-class "CI/Security" --pr-phase pre_open ...`
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/github-actions-token-format-oracle-result.json` (local, gitignored, not committed).
+- Artifact: `artifacts/orchestration/experiments/results/github-actions-token-format-oracle-result.json`
 - Contribution: oracle-only governance review shaped CI token-format validation and commit decision.
 
 ## Local Gate Evidence

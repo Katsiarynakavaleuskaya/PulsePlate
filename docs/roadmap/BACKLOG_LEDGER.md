@@ -4814,14 +4814,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alert #590 remains closed on `main`
 
 <a id="ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363"></a>
-- [ ] Remove Trivy suppression for Ruby jwt CVE-2026-45363
+- [x] Remove Trivy suppression for Ruby jwt CVE-2026-45363
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (follow-up after Fastlane permits jwt 3.x)
-  - Status: Open
+  - Target PR: #1839
+  - Status: Closed by PR #1839 after Fastlane `2.235.0` permitted the patched `jwt 3.2.0` resolver path.
   - Area: security / iOS release tooling / code-scanning
   - Finding Type: release-tooling dependency vulnerability
-  - Reason: GitHub Code Scanning alert #594 and Dependabot alert #142 report Ruby gem `jwt` `CVE-2026-45363` at `2.10.2` from `ios/Gemfile.lock`, with fixed version `3.2.0`. Bundler resolver evidence on 2026-05-19 shows latest Fastlane `2.234.0` still requires `jwt >= 2.1.0, < 3`, so the fixed `jwt` 3.x line is not reachable through a safe lockfile update. Live RubyGems package-head evidence on 2026-05-19 shows `jwt 3.2.0`, `fastlane 2.234.0`, `googleauth 1.16.2`, and `signet 0.21.0`; the Fastlane-owned resolver graph still selects `googleauth 1.11.2` and `jwt 2.10.2`. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` scoped by exact CVE, package, installed version, fixed version, PURL, and primary advisory URL while monitoring Fastlane support.
+  - Reason: GitHub Code Scanning alert #594 and Dependabot alert #142 reported Ruby gem `jwt` `CVE-2026-45363` at `2.10.2` from `ios/Gemfile.lock`, with fixed version `3.2.0`. Bundler resolver evidence on 2026-05-26 shows Fastlane `2.235.0` now permits `jwt >= 2.1.0, < 4`, and the lockfile resolves `jwt 3.2.0`; PR #1839 removed the obsolete Trivy suppression.
   - Links:
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/142
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/594
