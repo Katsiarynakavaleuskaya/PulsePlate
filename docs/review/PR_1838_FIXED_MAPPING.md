@@ -47,6 +47,13 @@ dependency changes.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3306959607 -> fd3c456f1
+Disposition: FIXED
+Commit: fd3c456f1
+Evidence: scripts/design/design_accessibility_regression_decisions.py:270
+Evidence: tests/test_design_accessibility_regression_decisions.py:418
+Reason: Traversal anchors now emit `invalid evidence anchor traversal`, and the regression test asserts that traversal-specific failure instead of a generic missing-file error.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#pullrequestreview-4364048019 -> aded576db
 Disposition: FIXED
 Commit: aded576db
