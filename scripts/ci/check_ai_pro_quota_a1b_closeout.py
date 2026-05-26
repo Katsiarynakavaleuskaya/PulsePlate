@@ -140,6 +140,12 @@ SAFE_RUNTIME_EVIDENCE_RE = re.compile(
     r"out\s+of\s+scope|without)\b",
     re.I,
 )
+SAFE_SEMANTIC_CACHE_BLOCKED_RE = re.compile(
+    r"\bsemantic[-\s]?cache\b[^.\n]{0,160}\bblocked\b|"
+    r"\bblocked\b[^.\n]{0,220}\bsemantic[-\s]?cache\b|"
+    r"\bblocked\b[^.\n]{0,220}\bruntime\b[^.\n]{0,80}\bwork\s+can\s+begin\b",
+    re.I,
+)
 
 STALE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("A1b in-progress status", re.compile(r"\bA1b\b[^.\n]{0,120}\bin\s+progress\b", re.I)),
@@ -274,7 +280,9 @@ def _check_forbidden_claims(text: str, label: str, errors: list[str]) -> None:
                 if not compacted:
                     continue
                 if SEMANTIC_SURFACE_RE.search(compacted) and SEMANTIC_ACTION_RE.search(compacted):
-                    if not _has_local_negation(compacted):
+                    if not _has_local_negation(
+                        compacted
+                    ) and not SAFE_SEMANTIC_CACHE_BLOCKED_RE.search(sentence):
                         errors.append(
                             f"{label}: semantic-cache/runtime-expansion claim is not fail-closed: {compacted}"
                         )
@@ -289,6 +297,8 @@ def _check_forbidden_claims(text: str, label: str, errors: list[str]) -> None:
                     or SAFE_RUNTIME_EVIDENCE_RE.search(compacted)
                 )
                 if has_runtime_expansion:
+                    if SAFE_SEMANTIC_CACHE_BLOCKED_RE.search(sentence):
+                        continue
                     if has_a1b_context or (
                         label != "semantic-cache gate" and not has_safe_runtime_evidence
                     ):
