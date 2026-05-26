@@ -34,11 +34,24 @@
 - `pytest -q tests/test_experiment_slack_socket_bridge.py`
 - `make validate-changed`
 - `pre-commit run --all-files`
-- PR body mirror updated in PR #1835 with required Phase2 sections.
+- PR body mirror updated in PR #1835 with required Phase 2 sections.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1835#discussion_r3301741287
+Disposition: NOT-A-BUG
+Evidence: PR body and mapping now use "Phase 2" wording (spelling suggestion from CodeRabbit resolved in PR text).
+Reason: Spelling is a non-functional docs wording suggestion with no runtime behavior impact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1835#discussion_r3301741304
+Disposition: NOT-A-BUG
+Evidence: PR body checklist item now uses "Phase 2" wording (spelling suggestion from CodeRabbit resolved).
+Reason: Spelling is a non-functional docs wording suggestion with no runtime behavior impact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1835#pullrequestreview-4361228301
+Disposition: NOT-A-BUG
+Evidence: Follow-up action summary in PR review was informational and all underlying spelling findings were addressed in this PR.
+Reason: Review summary is informational and confirms only spelling-level suggestions already handled.
 
 ## Risk / Rollback
 
@@ -47,7 +60,7 @@
 
 ## Merge Readiness
 
-- [x] PR body contains required Phase2 mirror sections
+- [x] PR body contains required Phase 2 mirror sections
 - [x] Mapping artifact exists with required headings
 - [x] No unresolved review threads
 - [x] No actionable bot threads remain unmapped
