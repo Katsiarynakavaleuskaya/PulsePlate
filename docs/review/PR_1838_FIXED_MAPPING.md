@@ -21,9 +21,21 @@ dependency changes.
   post-#1837 GitHub Actions push workflow listing; if CI fails later, use a
   separate fix PR after diagnosis.
 - Packet: `artifacts/orchestration/task_packets/7ec2360fbb09.json`
+- Post-open packet: `artifacts/orchestration/task_packets/b21366786c60.json`
 - Preflight: `python3 scripts/orchestration/check_preflight.py --mode analyze --path docs/design --path docs/review` -> PASS.
 - Agent consistency: `python3 scripts/orchestration/check_agent_consistency.py` -> PASS.
 - Bootstrap command: `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open`.
+- Post-open bootstrap command: `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` -> PASS.
+
+## Experiment Runner Evidence
+
+- Packet: `artifacts/orchestration/experiments/pr-1838-accessibility-oracle-packet.json`
+- Artifact: `artifacts/orchestration/experiments/results/pr-1838-accessibility-oracle-result.json`
+- Status: `accepted`
+- Runner mode: `oracle_only_governance_reviewer`
+- Contribution: `fixed_mapping_review`
+- Co-author required: `true`
+- Evidence: 4/4 oracle commands passed; source diff paths were limited to the accessibility decision contract, validator, tests, and mapping artifact; validator validate/summarize passed; related design governance tests passed; shared tree untouched.
 
 ## Discussion Thread Pass
 
@@ -57,6 +69,30 @@ dependency changes.
 | PM-1838-005 | Validator introduces runtime/network/dependency risk. | Validator remains stdlib-only and offline; guard test scans forbidden imports. | `test_validator_has_no_runtime_network_or_subprocess_imports`. | `python -m pytest -q tests/test_design_accessibility_regression_decisions.py` -> PASS. | FIXED |
 | PM-1838-006 | Summary output becomes nondeterministic. | `summarize_decisions` sorts counters and returns stable schema. | `test_summarize_output_is_deterministic`. | `python scripts/design/design_accessibility_regression_decisions.py summarize ...` -> PASS. | FIXED |
 
+## Security Review
+
+- No runtime code touched.
+- No frontend/iOS implementation touched.
+- No token/generated mirror changes.
+- No design-tool writes.
+- No dependency changes.
+- No CI workflow YAML changes.
+- Validator is offline and stdlib-only.
+- Reference tools remain non-canonical.
+- Runtime implementation remains blocked by contract and tests.
+
+## Bug Hunter Pass
+
+- Unknown component id: deterministic bridge-inventory errors.
+- Wrong record order: deterministic bridge-order error.
+- Visual decision order mismatch: deterministic visual-order error.
+- Runtime permission wording: rejected.
+- Visual approval as accessibility approval: rejected.
+- Reference-tool authority promotion: rejected.
+- Non-repo evidence anchors: rejected.
+- Missing registry and visual source files: rejected.
+- Summary output: deterministic.
+
 ## Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --mode analyze --path docs/orchestration/contracts/design_accessibility_regression_decisions.v1.json --path scripts/design/design_accessibility_regression_decisions.py --path tests/test_design_accessibility_regression_decisions.py`: PASS.
@@ -65,6 +101,10 @@ dependency changes.
 - `python scripts/design/design_accessibility_regression_decisions.py summarize docs/orchestration/contracts/design_accessibility_regression_decisions.v1.json`: PASS.
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_design_accessibility_regression_decisions.py`: PASS.
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_design_accessibility_regression_decisions.py tests/test_design_bridge_coverage_inventory.py tests/test_design_visual_regression_decisions.py`: PASS.
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m mypy --explicit-package-bases --no-incremental --cache-dir=/dev/null scripts/design/design_accessibility_regression_decisions.py tests/test_design_accessibility_regression_decisions.py`: PASS.
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make validate-changed`: PASS.
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`: PASS.
+- `python scripts/orchestration/experiment_runner.py --packet artifacts/orchestration/experiments/pr-1838-accessibility-oracle-packet.json --output pr-1838-accessibility-oracle-result.json --contribution-kind fixed_mapping_review --coauthor-required --coauthor-reason "Experiment Runner oracle-only evidence shaped PR 1838 fixed mapping and PR body governance evidence."`: PASS.
 
 ## Deferred / Follow-ups
 
