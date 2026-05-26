@@ -19,6 +19,14 @@ Disposition: FIXED
 Evidence: CI rerun `Ruby jwt/Fastlane unblock guard` proved Fastlane `2.235.0` permits patched `jwt 3.2.0`; `ios/Gemfile.lock`, `trivy/ignore-policy.rego`, `docs/security/CVE-2026-45363-jwt-fastlane.md`, and `docs/roadmap/BACKLOG_LEDGER.md` now reflect suppression removal. Local `python scripts/ci/check_jwt_fastlane_unblock.py` passes.
 Commit: 365ade545
 
+Disposition: FIXED
+Evidence: Internal PR review found `check_jwt_fastlane_unblock.py` false-green seams after suppression removal. The guard now requires complete resolver evidence, patched tracked `ios/Gemfile.lock`, and semantic detection of active Rego / `.trivyignore` suppressions; local `.venv/bin/python -m pytest -q tests/test_jwt_fastlane_unblock_guard.py` passes.
+Commit: pending
+
+Disposition: FIXED
+Evidence: Current-head Python 3.11/3.12 shards failed philosophy/AI closeout docs guards. `docs/roadmap/BACKLOG_LEDGER.md` and `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` now use explicit gate-closed wording; local `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
+Commit: pending
+
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/bf71b8de0f6b.json`

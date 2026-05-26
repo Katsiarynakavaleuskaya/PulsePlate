@@ -138,9 +138,10 @@ The runtime prerequisite train is tracked by canonical PR/backlog anchors:
    `2f8a9af461cec483aa81a774cce7496c6bf65a8a` from branch
    `feat/pr-a5-runtime-gates`
 
-The runtime prerequisite train is closed. Semantic-cache runtime serving remains
-blocked until a later reviewed gate-open PR changes the machine markers and
-defines admission, replay, observability, rollback, and lineage safety.
+The runtime prerequisite train is closed for historical merge evidence only, but
+semantic-cache runtime serving remains blocked. No runtime serving may begin
+until a later reviewed gate-open PR changes the machine markers and defines
+admission, replay, observability, rollback, and lineage safety.
 
 ## Hard Gate
 
@@ -166,9 +167,8 @@ Do **not** start semantic-cache runtime work before all the following are true:
    PR #1395, merged `2026-04-12T11:45:35Z` with merge commit
    `2f8a9af461cec483aa81a774cce7496c6bf65a8a` from branch
    `feat/pr-a5-runtime-gates`
-6. `SC-G5` backend-selection contract is closed via PR #1742
-   `feat(ai-runtime): add semantic-cache backend selection contract`, merged
-   `2026-05-16T21:03:48Z` with merge commit
+6. `SC-G5` backend-selection contract has historical merge evidence in PR #1742,
+   merged `2026-05-16T21:03:48Z` with merge commit
    `cb1db8b40141817b3ca856de570b8fc02e2ae9fa`
 7. a later reviewed gate-open PR changes the machine markers above from their
    current closed state and passes current-head CI/review governance
