@@ -116,6 +116,25 @@ because the accepted oracle-only output was used as commit-decision evidence.
 
 ## Validation Evidence
 
+- `git merge --no-edit origin/main`: PASS; PR branch updated to current
+  `origin/main` after PR #1835 merged, with no conflicts.
+- `python3 scripts/orchestration/check_preflight.py --mode analyze --path docs/review/PR_1837_FIXED_MAPPING.md --path scripts/ci/check_ai_runtime_semantic_cache_handoff.py --path tests/test_ai_runtime_semantic_cache_handoff.py`:
+  PASS after current-main merge.
+- `python3 scripts/orchestration/check_agent_consistency.py`: PASS after
+  current-main merge.
+- `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1837`: PASS
+  after current-main merge.
+- `python scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_1837_FIXED_MAPPING.md docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.schema.json`:
+  PASS after current-main merge.
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_ai_runtime_semantic_cache_handoff.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py tests/test_docs_phase1_gates.py tests/test_philosophy_gate_open_preconditions.py tests/test_ai_bounded_context_a3_closeout.py`:
+  PASS after current-main merge.
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH MYPYPATH=. python -m mypy --explicit-package-bases --disable-error-code no-redef --disable-error-code redundant-cast --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_runtime_semantic_cache_handoff.py scripts/ci/check_semantic_cache_gate.py scripts/ci/check_philosophy_gate_open_preconditions.py scripts/ci/check_ai_bounded_context_a3_closeout.py tests/test_ai_runtime_semantic_cache_handoff.py tests/test_semantic_cache_gate.py tests/test_philosophy_gate_open_preconditions.py tests/test_ai_bounded_context_a3_closeout.py tests/test_docs_phase1_gates.py`:
+  PASS after current-main merge.
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make validate-changed`:
+  PASS after current-main merge.
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`:
+  PASS after current-main merge.
+
 - `python3 scripts/orchestration/check_preflight.py`: PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py`: PASS.
 - `python scripts/ci/check_ai_runtime_semantic_cache_handoff.py`: PASS.
