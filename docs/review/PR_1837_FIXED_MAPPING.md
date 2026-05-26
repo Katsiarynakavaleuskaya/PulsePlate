@@ -150,6 +150,15 @@ and the final wait-window.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#pullrequestreview-4361168632
+Disposition: FIXED
+Commit: ba6cc6c14
+Evidence: scripts/ci/check_ai_runtime_semantic_cache_handoff.py:298
+Evidence: tests/test_ai_runtime_semantic_cache_handoff.py:247
+Evidence: scripts/ci/check_ai_bounded_context_a3_closeout.py:477
+Evidence: tests/test_ai_bounded_context_a3_closeout.py:621
+Reason: CodeRabbit review summary grouped three actionable findings; later commit `ba6cc6c14` fixed duplicate reason-code rejection, contradictory A4 open/closed state rejection, and the mapping evidence references for the earlier `74bbf5f12` entries.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1837#discussion_r3299929807
 Disposition: FIXED
 Commit: 74bbf5f12
