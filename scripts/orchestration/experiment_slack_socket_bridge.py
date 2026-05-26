@@ -42,7 +42,7 @@ BRIDGE_TIMEOUT_ENV = "EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS"
 BRIDGE_AUDIT_RETENTION_DAYS_ENV = "EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS"
 GITHUB_API_HOST = "api.github.com"
 SLACK_API_HOST = "slack.com"
-DEFAULT_WORKFLOW_FILE = "experiment-runner-slack-socket-smoke.yml"
+DEFAULT_WORKFLOW_FILE = "experiment-runner-dispatch.yml"
 DEFAULT_WORKFLOW_REF = "main"
 ALLOWED_WORKFLOW_REFS = {DEFAULT_WORKFLOW_REF}
 SAFE_SLACK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$")
@@ -1303,6 +1303,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--validate-smoke-inputs",
         action="store_true",
         help="Validate manual smoke branch/digest inputs without printing values.",
+    )
+    parser.add_argument(
+        "--validate-dispatch-inputs",
+        action="store_true",
+        dest="validate_smoke_inputs",
+        help="Alias for validating bounded dispatch branch/digest inputs.",
     )
     parser.add_argument(
         "--branch-ref",

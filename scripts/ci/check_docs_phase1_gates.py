@@ -42,6 +42,9 @@ try:
     from scripts.ci.check_philosophy_alignment_rules import (
         validate_alignment_rules as _validate_alignment_rules,
     )
+    from scripts.ci.check_philosophy_source_corpus_index import (
+        validate_philosophy_source_corpus_index as _validate_philosophy_source_corpus_index,
+    )
 except ModuleNotFoundError:
     from check_semantic_cache_gate import (  # noqa: E402
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
@@ -65,6 +68,9 @@ except ModuleNotFoundError:
     )
     from check_philosophy_alignment_rules import (  # noqa: E402
         validate_alignment_rules as _validate_alignment_rules,
+    )
+    from check_philosophy_source_corpus_index import (  # noqa: E402
+        validate_philosophy_source_corpus_index as _validate_philosophy_source_corpus_index,
     )
 
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
@@ -112,6 +118,10 @@ PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA = (
 PHILOSOPHY_ALIGNMENT_RULE_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json"
 )
+PHILOSOPHY_SOURCE_CORPUS_INDEX = "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json"
+PHILOSOPHY_SOURCE_CORPUS_INDEX_SCHEMA = (
+    "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json"
+)
 PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX = "docs/orchestration/contracts/philosophy_alignment_rules/"
 PHILOSOPHY_ADMISSION_DRY_RUN_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY,
@@ -131,6 +141,12 @@ PHILOSOPHY_GATE_OPEN_PRECONDITIONS_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_ALIGNMENT_RULE_SCHEMA,
     SEMANTIC_CACHE_GATE_DOC,
     "docs/roadmap/BACKLOG_LEDGER.md",
+)
+PHILOSOPHY_SOURCE_CORPUS_INPUTS: tuple[str, ...] = (
+    PHILOSOPHY_SOURCE_CORPUS_INDEX,
+    PHILOSOPHY_SOURCE_CORPUS_INDEX_SCHEMA,
+    SEMANTIC_CACHE_GATE_DOC,
+    PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT,
 )
 PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/PHILOSOPHY_",
@@ -280,6 +296,21 @@ class AlignmentRuleValidator(Protocol):
 
 def _load_philosophy_alignment_rule_validator() -> AlignmentRuleValidator:
     return cast(AlignmentRuleValidator, _validate_alignment_rules)
+
+
+class SourceCorpusIndexValidator(Protocol):
+    def __call__(
+        self,
+        *,
+        index_text: str,
+        schema_text: str,
+        roadmap_text: str,
+        gate_report_text: str,
+    ) -> list[str]: ...
+
+
+def _load_philosophy_source_corpus_index_validator() -> SourceCorpusIndexValidator:
+    return cast(SourceCorpusIndexValidator, _validate_philosophy_source_corpus_index)
 
 
 def _is_philosophy_alignment_rule_record(path: str) -> bool:
@@ -667,6 +698,42 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                     schema_text=schema_text, rule_texts=rule_texts
                 )
             )
+
+        if relpath in PHILOSOPHY_SOURCE_CORPUS_INPUTS:
+            validate_source_corpus_index = _load_philosophy_source_corpus_index_validator()
+            try:
+                index_text = (
+                    content
+                    if relpath == PHILOSOPHY_SOURCE_CORPUS_INDEX
+                    else _read_text(PHILOSOPHY_SOURCE_CORPUS_INDEX)
+                )
+                schema_text = (
+                    content
+                    if relpath == PHILOSOPHY_SOURCE_CORPUS_INDEX_SCHEMA
+                    else _read_text(PHILOSOPHY_SOURCE_CORPUS_INDEX_SCHEMA)
+                )
+                roadmap_text = (
+                    content
+                    if relpath == SEMANTIC_CACHE_GATE_DOC
+                    else _read_text(SEMANTIC_CACHE_GATE_DOC)
+                )
+                gate_report_text = (
+                    content
+                    if relpath == PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT
+                    else _read_text(PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT)
+                )
+            except FileNotFoundError as exc:
+                errors.append(f"{relpath}: missing companion file {exc.filename}")
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_source_corpus_index(
+                        index_text=index_text,
+                        schema_text=schema_text,
+                        roadmap_text=roadmap_text,
+                        gate_report_text=gate_report_text,
+                    )
+                )
 
     return errors
 

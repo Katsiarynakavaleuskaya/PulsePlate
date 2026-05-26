@@ -26,7 +26,11 @@ def _copy_gate_open_precondition_companions(
     skip: set[str] | None = None,
 ) -> None:
     skipped = skip or set()
-    for relpath in gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_INPUTS:
+    companion_paths = sorted(
+        set(gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_INPUTS)
+        | set(gates.PHILOSOPHY_SOURCE_CORPUS_INPUTS)
+    )
+    for relpath in companion_paths:
         if relpath in skipped:
             continue
         source = REPO_ROOT / relpath
@@ -165,7 +169,9 @@ If the gate opens later, rollout order is fixed:
 
     assert errors == [
         "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md: "
-        "invalid marker SEMANTIC_CACHE_GATE_STATUS: expected closed, got open"
+        "invalid marker SEMANTIC_CACHE_GATE_STATUS: expected closed, got open",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md: "
+        "roadmap marker SEMANTIC_CACHE_GATE_STATUS must be closed",
     ]
 
 

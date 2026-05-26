@@ -60,10 +60,13 @@ jobs:
 
           event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
           inputs = event.get("inputs", {})
+          def _escape_workflow_command_value(value: str) -> str:
+              return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
           for key in ("channel_allowlist", "user_allowlist", "hypothesis_sha256"):
               value = str(inputs.get(key, "")).strip()
               if value:
-                  print(f"::add-mask::{value}")
+                  print(f"::add-mask::{_escape_workflow_command_value(value)}")
           PY
 
       - name: Checkout
