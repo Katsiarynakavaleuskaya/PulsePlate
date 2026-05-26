@@ -26,6 +26,9 @@ dependency changes.
 - Agent consistency: `python3 scripts/orchestration/check_agent_consistency.py` -> PASS.
 - Bootstrap command: `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open`.
 - Post-open bootstrap command: `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` -> PASS.
+- Merge-ready packet: `artifacts/orchestration/task_packets/0f282175cdc2.json`
+- Dispatch manifest: `python scripts/orchestration/qoder_dispatch_bridge.py --packet artifacts/orchestration/task_packets/0f282175cdc2.json --pretty` -> PASS; sequence: `agent-coordinator -> creative-designer -> frontend-engineer -> architecture-specialist -> qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Host limitation: packet creation and dispatch manifest do not spawn native subagents in this environment; role findings below are local synthesized dispositions against the dispatch manifest, deterministic PR review report, CodeRabbit findings, Experiment Runner evidence, and bounded gate outputs.
 
 ## Experiment Runner Evidence
 
@@ -146,6 +149,16 @@ Reason: Runtime/network/subprocess import guard now parses imports with AST and 
 - Non-repo evidence anchors: rejected.
 - Missing registry and visual source files: rejected.
 - Summary output: deterministic.
+
+## Role-Agent Dispatch Evidence
+
+- `agent-coordinator`: PASS. Scope remains one design governance gate; no runtime implementation or token/design-tool writes were added.
+- `creative-designer`: PASS. Accessibility decisions remain blocked and do not convert visual approval into accessibility approval.
+- `frontend-engineer`: PASS. No frontend runtime files are touched; future UI implementation remains blocked by accessibility and token/runtime gates.
+- `architecture-specialist`: PASS. Validator derives from bridge inventory and visual decisions without becoming runtime source of truth.
+- `qa-engineer-agent`: PASS. Focused tests cover valid path, malformed contract, authority boundaries, anchor fragments, runtime-permission wording, and deterministic summary.
+- `bug-hunter`: PASS. CodeRabbit edge cases were fixed: unexpected authority entries, anchor fragments, falsy fixture payloads, and AST import detection.
+- `security-auditor`: PASS. Validator remains offline/stdlib-only and rejects non-canonical reference-tool evidence.
 
 ## PR Review Dry-Run Dispositions
 
