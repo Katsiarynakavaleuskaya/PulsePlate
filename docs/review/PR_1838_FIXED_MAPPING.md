@@ -47,6 +47,13 @@ dependency changes.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#pullrequestreview-4367624456 -> fd3c456f1
+Disposition: FIXED
+Commit: fd3c456f1
+Evidence: scripts/design/design_accessibility_regression_decisions.py:270
+Evidence: tests/test_design_accessibility_regression_decisions.py:418
+Reason: CodeRabbit review summary grouped the traversal-test finding; commit `fd3c456f1` fixed the validator error and regression assertion.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1838#discussion_r3306959607 -> fd3c456f1
 Disposition: FIXED
 Commit: fd3c456f1
