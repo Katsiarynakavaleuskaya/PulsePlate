@@ -111,7 +111,7 @@ _UNSAFE_TOKEN_RE = re.compile(
     r"|password"
     r"|pwd"
     r"|(?<![a-z0-9])sk-[a-z0-9][a-z0-9_-]*"
-    r"|ghp_[a-z0-9_]+"
+    r"|gh[pousr]_[a-z0-9._-]+"
     r"|github_pat_[a-z0-9_]+"
     r"|xox[baprs]-[a-z0-9-]+"
     r"|eyj[a-z0-9_-]*\.[a-z0-9_-]+(?:\.[a-z0-9_-]+)?",
@@ -144,7 +144,7 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|password"
     r"|pwd"
     r"|sk-[a-z0-9]"
-    r"|ghp_[a-z0-9_]+"
+    r"|gh[pousr]_[a-z0-9._-]+"
     r"|github_pat_[a-z0-9_]+"
     r"|xox[baprs]-[a-z0-9-]+"
     r"|eyj[a-z0-9_-]*\.[a-z0-9_-]+(?:\.[a-z0-9_-]+)?"

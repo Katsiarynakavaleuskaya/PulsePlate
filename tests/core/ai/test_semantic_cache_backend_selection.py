@@ -835,6 +835,8 @@ def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None
         {"pass" + "word": "blocked-value"},
         {"p" + "wd": "blocked-value"},
         {"safe_key": "ghp_test_token"},
+        {"safe_key": "ghs_header.payload.signature"},
+        {"safe_key": "ghs_header-payload.signature-with-hyphen"},
         {"safe_key": "github_pat_test_token"},
         {"safe_key": "xoxb-test-token"},
         {"safe_key": "eyJ.test.signature"},
@@ -1163,6 +1165,8 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for unsafe_value in (
         "access_token",
         "ghp_test_token",
+        "ghs_header.payload.signature",
+        "ghs_header-payload.signature-with-hyphen",
         "github_pat_test_token",
         "xoxb-test-token",
         "eyJ.test.signature",

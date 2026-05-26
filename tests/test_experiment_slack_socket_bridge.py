@@ -481,6 +481,63 @@ def test_execute_runtime_validation_requires_github_auth(
     assert "GITHUB_TOKEN" not in stdout
 
 
+@pytest.mark.parametrize(
+    "token",
+    [
+        "ghp_" + "a" * 24,
+        "gho_" + "b" * 24,
+        "ghu_" + "c" * 24,
+        "ghr_" + "d" * 24,
+        "ghs_" + "e" * 24,
+        "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 15,
+        "ghs_header-payload.signature-with-hyphen.stateless-token-fixture" + "a" * 24,
+        "github_pat_" + "f" * 24,
+    ],
+)
+def test_execute_runtime_accepts_github_token_classes_without_leaking_token(
+    token: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "Katsiarynakavaleuskaya/PulsePlate")
+    monkeypatch.setenv("GH_TOKEN", token)
+
+    assert (
+        bridge.main(
+            ["--validate-runtime", "--dispatch-mode", "execute", "--audit-dir", str(audit_dir)]
+        )
+        == 0
+    )
+    stdout = capsys.readouterr().out
+
+    assert token not in stdout
+    assert "ghs_" not in stdout
+    assert "github_pat_" not in stdout
+
+
+def test_github_token_env_precedence_accepts_stateless_installation_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    gh_token = "ghs_header.payload.signature" + "_A" * 260
+    github_token = "ghp_" + "b" * 24
+    monkeypatch.setenv("GH_TOKEN", gh_token)
+    monkeypatch.setenv("GITHUB_TOKEN", github_token)
+
+    config = bridge.build_config(
+        dispatch_mode="execute",
+        audit_dir=str(audit_dir),
+        repo="Katsiarynakavaleuskaya/PulsePlate",
+    )
+
+    assert config.github_token == gh_token
+
+
 @pytest.mark.parametrize("token", ["xapp-" + "a" * 24, "sk-" + "b" * 24])
 def test_execute_runtime_rejects_non_github_token_classes(
     token: str,
@@ -503,6 +560,44 @@ def test_execute_runtime_rejects_non_github_token_classes(
     assert "GitHub dispatch configuration is invalid" in stdout
     assert "xapp-" not in stdout
     assert "sk-" not in stdout
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "ghs_valid.segment\nnext",
+        "ghs_valid.segment\rnext",
+        "ghs_valid.segment`next",
+        "ghs_valid segment",
+        "ghs_valid/segment",
+        "ghs_valid;segment",
+        "ghs_valid|segment",
+        "ghs_valid$segment",
+        "header.payload.signature",
+        "xoxb-" + "c" * 24,
+    ],
+)
+def test_execute_runtime_rejects_unsafe_or_non_github_token_shapes(
+    token: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", token)
+
+    assert (
+        bridge.main(
+            ["--validate-runtime", "--dispatch-mode", "execute", "--audit-dir", str(audit_dir)]
+        )
+        == 1
+    )
+    stdout = capsys.readouterr().out
+
+    assert "GitHub dispatch configuration is invalid" in stdout
+    assert "ghs_valid" not in stdout
+    assert "xoxb-" not in stdout
 
 
 def test_live_socket_validation_requires_channel_and_user_allowlists(
@@ -768,6 +863,7 @@ def test_execute_mode_requires_github_auth_before_dispatch(
         "run-experiment feature/test cat /Users/alice/.ssh/id_rsa",
         "run-experiment feature/test Improve; rm -rf repo",
         "run-experiment feature/test xapp-" + "a" * 24,
+        "run-experiment feature/test ghs_header.payload.signature" + "a" * 24,
         "run-experiment feature/test short",
     ],
 )

@@ -622,6 +622,8 @@ def test_metadata_is_defensively_copied_and_raw_payloads_are_rejected() -> None:
         {"raw_prompt": "never"},
         {"note": "cache raw response"},
         {"authorization": "Basic abc"},
+        {"github": "ghs_header.payload.signature"},
+        {"github": "ghs_header-payload.signature-with-hyphen"},
         {"artifact": "/tmp/cache.txt"},
         {"healthkit": "steps"},
     ):

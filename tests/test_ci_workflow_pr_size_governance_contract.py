@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+import fnmatch
 from pathlib import Path
 import re
 from typing import cast
@@ -611,6 +612,14 @@ def test_feature_push_branches_include_feature_prefix() -> None:
     assert isinstance(push_branches, list)
 
     assert {"main", "feat/**", "fix/**", "feature/**"}.issubset(set(push_branches))
+    representative_branches = (
+        "main",
+        "feat/design-accessibility-regression-decision-gate",
+        "fix/ci-github-token-format-and-run-diagnostics",
+        "feature/example",
+    )
+    for branch in representative_branches:
+        assert any(fnmatch.fnmatchcase(branch, pattern) for pattern in push_branches)
 
 
 def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
@@ -660,6 +669,37 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
         in coverage_feature_step_names
     )
     assert "Upload to Codecov" in coverage_feature_step_names
+
+
+def test_ci_workflow_declares_canonical_main_and_feature_push_jobs() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    required_job_ids = {
+        "changes",
+        "lint",
+        "security",
+        "test-feature",
+        "coverage-feature",
+        "test-main",
+        "coverage-main",
+        "diff-coverage",
+    }
+    assert required_job_ids <= set(jobs)
+    for job_id in required_job_ids:
+        job = jobs[job_id]
+        assert isinstance(job, dict)
+        assert "runs-on" in job or "uses" in job
+
+    test_main = jobs["test-main"]
+    assert isinstance(test_main, dict)
+    assert "github.ref == 'refs/heads/main'" in str(test_main["if"])
+
+    coverage_main = jobs["coverage-main"]
+    assert isinstance(coverage_main, dict)
+    assert coverage_main["needs"] == "test-main"
+    assert "github.ref == 'refs/heads/main'" in str(coverage_main["if"])
 
 
 def test_feature_push_fast_feedback_budget_is_warning_only_evidence() -> None:
