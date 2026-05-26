@@ -33,7 +33,7 @@ Commit: 24506790d, 58dec64f9
 
 Disposition: FIXED
 Evidence: CodeRabbit/Cubic review found remaining token detector, fail-closed suppression, semantic-cache blocked-pattern, merge-evidence exemption, docs wording, and leak assertion gaps. Regexes, guard semantics, docs, and tests now cover those cases; local focused review-fix pytest bundle passes.
-Commit: pending
+Commit: 856657553
 
 ## Lane Start Provenance
 
