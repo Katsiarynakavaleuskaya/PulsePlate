@@ -344,6 +344,21 @@ def test_checker_rejects_semantic_cache_gate_overclaim_even_when_markers_closed(
     assert any("semantic-cache gate" in error and "semantic-cache" in error for error in errors)
 
 
+def test_checker_allows_semantic_cache_gate_blocked_until_later_reviewed_pr(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    gate = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    gate.write_text(
+        _valid_gate()
+        + "\nSemantic-cache runtime serving remains blocked until a later reviewed gate-open "
+        "PR changes machine markers before runtime semantic-cache work can begin.\n",
+        encoding="utf-8",
+    )
+
+    assert _errors(tmp_path) == []
+
+
 @pytest.mark.parametrize(
     ("claim", "expected"),
     [

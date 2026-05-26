@@ -3075,7 +3075,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1789 (`codex/philosophy-alignment-rule-trust-schema`)
-  - Status: Completed. PR #1789 merged on 2026-05-21T22:14:53Z with merge commit `651c56bb510125b4df011a6d48de6f82a8f6e0b7`. PR #1811 / PR-4.1 reconciled the PR-4 ledger closeout on 2026-05-24T09:39:30Z with merge commit `0b324f516b5ba33dfc5e65d068cd5aaca742b5f8`; PR-4.2 closes this separate alignment-rule ledger row only. Semantic-cache runtime handoff remains blocked: all gate markers stay closed/false, the A1b-A5 runtime prerequisite train is closed by merge evidence, and a later reviewed gate-open PR remains required before any runtime semantic-cache work can begin.
+  - Status: Completed. PR #1789 merged on 2026-05-21T22:14:53Z with merge commit `651c56bb510125b4df011a6d48de6f82a8f6e0b7`. PR #1811 / PR-4.1 reconciled the PR-4 ledger closeout on 2026-05-24T09:39:30Z with merge commit `0b324f516b5ba33dfc5e65d068cd5aaca742b5f8`; PR-4.2 closes this separate alignment-rule ledger row only. Semantic-cache runtime handoff remains blocked: all gate markers stay closed/false, PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required, and no runtime semantic-cache work may begin.
   - Area: AI / RAG / philosophy / semantic-cache governance / trust schema
   - Finding Type: provenance, schema-hash, and future admission-rule auditability
   - Reason (EN): PR #1784 connected the admission oracle to verification-bundle dry-run truth while keeping cache read, cache write, and serving disabled. The next safe slice defines a machine-readable alignment-rule record shape and deterministic validator so future admission-rule artifacts can carry stable provenance, executable assertion hints, schema version, and schema hash before any later release-manifest or runtime semantic-cache linkage is considered.
@@ -4814,14 +4814,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alert #590 remains closed on `main`
 
 <a id="ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363"></a>
-- [ ] Remove Trivy suppression for Ruby jwt CVE-2026-45363
+- [x] Remove Trivy suppression for Ruby jwt CVE-2026-45363
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (follow-up after Fastlane permits jwt 3.x)
-  - Status: Open
+  - Target PR: #1839
+  - Status: Closed by PR #1839 after Fastlane `2.235.0` permitted the patched `jwt 3.2.0` resolver path.
   - Area: security / iOS release tooling / code-scanning
   - Finding Type: release-tooling dependency vulnerability
-  - Reason: GitHub Code Scanning alert #594 and Dependabot alert #142 report Ruby gem `jwt` `CVE-2026-45363` at `2.10.2` from `ios/Gemfile.lock`, with fixed version `3.2.0`. Bundler resolver evidence on 2026-05-19 shows latest Fastlane `2.234.0` still requires `jwt >= 2.1.0, < 3`, so the fixed `jwt` 3.x line is not reachable through a safe lockfile update. Live RubyGems package-head evidence on 2026-05-19 shows `jwt 3.2.0`, `fastlane 2.234.0`, `googleauth 1.16.2`, and `signet 0.21.0`; the Fastlane-owned resolver graph still selects `googleauth 1.11.2` and `jwt 2.10.2`. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` scoped by exact CVE, package, installed version, fixed version, PURL, and primary advisory URL while monitoring Fastlane support.
+  - Reason: GitHub Code Scanning alert #594 and Dependabot alert #142 reported Ruby gem `jwt` `CVE-2026-45363` at `2.10.2` from `ios/Gemfile.lock`, with fixed version `3.2.0`. Bundler resolver evidence on 2026-05-26 shows Fastlane `2.235.0` now permits `jwt >= 2.1.0, < 4`, and the lockfile resolves `jwt 3.2.0`; PR #1839 removed the obsolete Trivy suppression.
   - Links:
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/142
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/594
