@@ -49,7 +49,7 @@
 
 - [x] PR body contains required Phase2 mirror sections
 - [x] Mapping artifact exists with required headings
-- [ ] No unresolved review threads
-- [ ] No actionable bot threads remain unmapped
+- [x] No unresolved review threads
+- [x] No actionable bot threads remain unmapped
 - [x] Machine-heavy full local `make verify` deferred by operator-approved governance exception; narrow local gates + current-head CI path used
-- [ ] Mandatory review wait-window completed after latest bot/review activity
+- [x] Mandatory review wait-window completed after latest bot/review activity
