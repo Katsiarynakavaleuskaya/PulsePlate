@@ -24,8 +24,8 @@ Evidence: Internal PR review found `check_jwt_fastlane_unblock.py` false-green s
 Commit: 55588b76f
 
 Disposition: FIXED
-Evidence: Current-head Python 3.11/3.12 shards failed philosophy/AI closeout docs guards. `docs/roadmap/BACKLOG_LEDGER.md` and `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` now use explicit gate-closed wording; local `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
-Commit: d22716c18
+Evidence: Current-head Python 3.11/3.12 shards failed philosophy/AI closeout docs guards. `docs/roadmap/BACKLOG_LEDGER.md` now uses explicit gate-closed wording and `check_ai_rag_hardening_a2_closeout.py` avoids false positives for historical merge-evidence clauses; local `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_ledger_closeout.py tests/test_ai_rag_hardening_a2_closeout.py` passes.
+Commit: c57888aa7
 
 ## Lane Start Provenance
 
