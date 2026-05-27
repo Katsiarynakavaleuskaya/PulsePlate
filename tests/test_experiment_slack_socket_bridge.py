@@ -295,6 +295,32 @@ def test_operator_help_status_and_mvp_evidence_renderers_are_slack_safe(
     assert "review resolved" not in combined.lower()
 
 
+def test_mvp_evidence_event_contract_matches_frontend_source() -> None:
+    frontend_source = (REPO_ROOT / "frontend" / "src" / "lib" / "mvpObservability.ts").read_text(
+        encoding="utf-8"
+    )
+    event_type_block = frontend_source.split("export type GuidedPlanningEventName =", 1)[1].split(
+        ";", 1
+    )[0]
+    frontend_events = set(re.findall(r"\| '([^']+)'", event_type_block))
+    bridge_source = (
+        REPO_ROOT / "scripts" / "orchestration" / "experiment_slack_socket_bridge.py"
+    ).read_text(encoding="utf-8")
+    bridge_events = set(
+        re.findall(
+            r'"([a-z]+(?:_[a-z]+)+)"',
+            bridge_source.split("def render_mvp_evidence_summary", 1)[1].split(
+                "return SlackSafeMessage", 1
+            )[0],
+        )
+    )
+
+    assert bridge_events == frontend_events
+    assert "email" not in bridge_events
+    assert "weight" not in bridge_events
+    assert "bmi" not in bridge_events
+
+
 def test_dispatch_preview_hashes_branch_and_hypothesis_without_dispatching(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -343,49 +369,6 @@ def test_slack_text_renderer_redacts_secret_mentions_and_paths() -> None:
     assert "C0SECRET" not in message
     assert "diff --git" not in message
     assert "raw patch" not in message
-
-
-def test_result_kpp_and_failure_renderers_omit_raw_artifact_fields() -> None:
-    result_output = bridge.render_experiment_runner_result(
-        {
-            "status": "rejected",
-            "failure_class": "guard_failure",
-            "oracle_results": [
-                {
-                    "stdout": "xoxb-secret and /Users/alice/path should not render",
-                    "stderr": "raw stderr",
-                }
-            ],
-            "mutated_paths": ["scripts/orchestration/experiment_slack_socket_bridge.py"],
-            "shared_tree_untouched": True,
-            "promotion_ready": False,
-            "artifact_ref": "artifacts/orchestration/experiments/results/exp.json",
-        }
-    ).as_text()
-    kpp_output = bridge.render_kpp_decision(
-        {
-            "disposition": "promoted",
-            "result_status": "accepted",
-            "failure_class": None,
-            "promotion_target": "guard_test_proposal",
-            "durable_artifact_path": "docs/orchestration/experiment_guard_proposals/exp.md",
-        }
-    ).as_text()
-    failure_output = bridge.render_failure_class_alert(
-        failure_class="policy_violation",
-        artifact_ref="/Users/alice/artifacts/result.json",
-    ).as_text()
-    combined = "\n".join([result_output, kpp_output, failure_output])
-
-    assert "Experiment Runner outcome" in combined
-    assert "KPP decision" in combined
-    assert "Failure class alert" in combined
-    assert "oracle_count=1" in combined
-    assert "mutated_path_count=1" in combined
-    assert "raw stderr" not in combined
-    assert "xoxb" not in combined
-    assert "/Users/alice" not in combined
-    assert "[redacted-ref]" in combined
 
 
 def test_mvp_evidence_command_uses_existing_auth_audit_and_no_dispatch(
@@ -465,6 +448,46 @@ def test_execute_mode_text_reply_reports_dispatch_not_dry_run(
     assert "feature/test" not in reply
     assert "Validate bounded execution reply" not in reply
     capsys.readouterr()
+
+
+def test_run_socket_listener_registers_runner_and_experiment_commands(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    registered: list[str] = []
+
+    class FakeApp:
+        def __init__(self, token: str) -> None:
+            assert token.startswith("xoxb-")
+
+        def command(self, command_name: str) -> Any:
+            registered.append(command_name)
+
+            def decorator(handler: object) -> object:
+                return handler
+
+            return decorator
+
+    class FakeSocketModeHandler:
+        def __init__(self, app: FakeApp, token: str) -> None:
+            assert token.startswith("xapp-")
+
+        def start(self) -> None:
+            return None
+
+    monkeypatch.setattr(bridge, "_load_slack_bolt", lambda: (FakeApp, FakeSocketModeHandler))
+
+    assert (
+        bridge.run_socket_listener(
+            _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+        )
+        == 0
+    )
+    assert registered == ["/run-experiment", "/pulseplate-runner"]
 
 
 @pytest.mark.parametrize(

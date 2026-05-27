@@ -337,82 +337,6 @@ def render_mvp_evidence_summary() -> SlackSafeMessage:
     )
 
 
-def render_experiment_runner_result(result: dict[str, Any]) -> SlackSafeMessage:
-    """Render a sanitized Experiment Runner result summary."""
-
-    status = str(result.get("status", "unknown"))
-    failure_class = str(result.get("failure_class") or "none")
-    oracle_results = result.get("oracle_results")
-    oracle_count = len(oracle_results) if isinstance(oracle_results, list) else 0
-    mutated_paths = result.get("mutated_paths")
-    mutated_count = len(mutated_paths) if isinstance(mutated_paths, list) else 0
-    return SlackSafeMessage(
-        message_type="experiment_runner_result",
-        header="Experiment Runner outcome",
-        status_line=status if status in {"accepted", "rejected"} else "unknown",
-        scope="Oracle-only/local result summary; not merge readiness.",
-        evidence_summary=(
-            f"failure_class={failure_class if failure_class in {'none', 'timeout', 'oom', 'metric_regression', 'guard_failure', 'policy_violation', 'unchanged_result', 'infra_flake'} else 'unknown'}",
-            f"oracle_count={oracle_count}",
-            f"mutated_path_count={mutated_count}",
-            f"shared_tree_untouched={str(bool(result.get('shared_tree_untouched', False))).lower()}",
-            f"promotion_ready={str(bool(result.get('promotion_ready', False))).lower()}",
-        ),
-        action_required="Inspect local artifact and repo gates before any PR decision.",
-        artifact_refs=(_safe_artifact_ref(result.get("artifact_ref", "")),),
-    )
-
-
-def render_kpp_decision(decision: dict[str, Any]) -> SlackSafeMessage:
-    """Render a sanitized KPP/promotion decision summary."""
-
-    disposition = str(decision.get("disposition", "unknown"))
-    if disposition not in {"promoted", "deferred", "discarded", "failed", "unknown"}:
-        disposition = "unknown"
-    failure_class = str(decision.get("failure_class") or "none")
-    return SlackSafeMessage(
-        message_type="kpp_decision",
-        header="KPP decision",
-        status_line=disposition,
-        scope="Promotion decision summary; Slack does not author KPP truth.",
-        evidence_summary=(
-            f"result_status={_slack_text(decision.get('result_status', 'unknown'))}",
-            f"failure_class={_slack_text(failure_class)}",
-            f"promotion_target={_slack_text(decision.get('promotion_target', 'unknown'))}",
-        ),
-        action_required="Use repo-reviewed promotion artifact as source of truth.",
-        artifact_refs=(_safe_artifact_ref(decision.get("durable_artifact_path", "")),),
-    )
-
-
-def render_failure_class_alert(*, failure_class: str, artifact_ref: str = "") -> SlackSafeMessage:
-    """Render a bounded failure-class alert."""
-
-    safe_failure = (
-        failure_class
-        if failure_class
-        in {
-            "timeout",
-            "oom",
-            "metric_regression",
-            "guard_failure",
-            "policy_violation",
-            "unchanged_result",
-            "infra_flake",
-        }
-        else "unknown"
-    )
-    return SlackSafeMessage(
-        message_type="failure_class_alert",
-        header="Failure class alert",
-        status_line=safe_failure,
-        scope="Operator alert only; no raw logs included.",
-        evidence_summary=(f"failure_class={safe_failure}",),
-        action_required="Triage local artifact and rerun focused gate after root-cause fix.",
-        artifact_refs=(_safe_artifact_ref(artifact_ref),),
-    )
-
-
 def render_dispatch_dry_run_preview(command: OperatorCommand) -> SlackSafeMessage:
     """Render a dry-run-only dispatch preview without raw branch or hypothesis text."""
 
@@ -1517,14 +1441,6 @@ def run_socket_listener(config: BridgeConfig) -> int:
     handler = SocketModeHandler(app, config.slack_app_token)
     handler.start()
     return 0
-
-
-def _format_operator_reply(decision: BridgeDecision) -> str:
-    return (
-        "Experiment Runner bridge "
-        f"{decision.status}; command={decision.command_kind}; "
-        f"dispatch_mode={decision.dispatch_mode}; event={decision.event_hash[:12]}"
-    )
 
 
 def _format_command_reply(
