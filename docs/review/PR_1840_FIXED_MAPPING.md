@@ -11,8 +11,15 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 
 ## Lane Start Provenance
 
-- Task packet: `artifacts/orchestration/task_packets/eade287dd930.json` (local artifact, not committed)
-- Starter: `.venv/bin/python scripts/orchestration/task_bootstrap.py --goal "Design automation final boundary: add token/runtime parity gate after accessibility regression decision gate and before frontend MVP implementation" --task-class "Design" --pr-phase pre_open ...`
+- Packet: `artifacts/orchestration/task_packets/eade287dd930.json` (local artifact, not committed)
+- Starter: `scripts/orchestration/start_pr_lane.sh` is supplemental only; this lane used direct `task_bootstrap.py` because the operator prompt supplied the exact command.
+
+## Orchestration Source Of Truth Note
+
+- `task_bootstrap.py` generated the deterministic coordinator packet; it did not execute role agents.
+- Role execution was performed explicitly by the model/operator and recorded in the PR body Agent Execution Log.
+- `qoder_dispatch_bridge` is adapter-only. When its advisory manifest conflicted with the operator-declared role order and omitted `ios-engineer`, this PR followed `AGENTS.md`, scoped `AGENTS.md`, and the task packet/operator-declared order.
+- No separate orchestration PR is opened in this lane. Follow-up candidate if the drift recurs: `fix(orchestration): clarify task bootstrap as canonical role packet and demote Qoder bridge to adapter`.
 
 ## Experiment Runner Evidence
 
@@ -22,11 +29,15 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 
 ## Fixed in Commit Mapping
 
-No review threads exist yet.
+### Fixed in Commit Mapping
+
+- No actionable review comments
 
 ## Discussion Thread Pass
 
 - [x] No human or bot review threads existed at artifact creation time.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Re-check after first bot review.
 - [ ] Map every actionable comment before resolving any thread.
 
@@ -59,3 +70,4 @@ No review threads exist yet.
 - Next PR: `feat(frontend): implement first governed MVP product slice`.
 - Slack/Experiment Runner operator bridge remains after MVP observability exists, not before.
 - Ledger: `docs/roadmap/BACKLOG_LEDGER.md` Design token/runtime parity boundary item.
+- Follow-up proposal only if orchestration drift recurs or bots require it: `fix(orchestration): clarify task bootstrap as canonical role packet and demote Qoder bridge to adapter`.
