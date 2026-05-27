@@ -77,6 +77,14 @@ Evidence: `docs/review/PR_1840_FIXED_MAPPING.md:36` and `docs/review/PR_1840_FIX
 - Post-open premortem at `3b06e2aec`: proceed with changes.
 - Remaining closure items: current-head CI completion, final bot/actionable disposition confirmation, and next-MVP admission must run the token/runtime parity boundary validator as a blocking gate.
 
+## After-first-bot Review Pass
+
+- `agent-coordinator`: FINDINGS. Lane coherent; remaining blockers at review time were current-head CI completion, authenticated disposition/merge-readiness reruns, no pending required jobs, no unresolved actionable bot comments, and wait-window.
+- `qa-engineer-agent`: FINDINGS. Current-head `test-pr (3.13)`/coverage chain was still pending at review time; final confirmation required after CI settled.
+- `bug-hunter`: FINDINGS. Current-head CI was pending at review time; no unresolved review threads found; CodeRabbit thread resolved; Codex/Sourcery quota comments non-actionable; stale check rows must not be treated as current-head truth.
+- `security-auditor`: FINDINGS only for local strict merge-wrapper auth setup; no remaining security/code blocker found. CodeRabbit actionable thread is resolved and mapped; Cubic no issues; Sourcery/Codex quota comments have no actionable code change.
+- `pulseplate-pr-review`: post-open pass corrected CodeRabbit mapping SHA/review URL; after-bot final review remains tied to strict merge-readiness and current-head CI completion.
+
 ## Deferred / Follow-ups
 
 - Next PR: `feat(frontend): implement first governed MVP product slice`.
