@@ -8,12 +8,12 @@
 
 ### Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1841#pullrequestreview-51129dee-efc1-4216-a86a-2ffd883c3cd4 -> af04ca326
-
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1841#discussion_r3309708921 -> af04ca326
 Disposition: FIXED
 Commit: af04ca326
 Evidence: `scripts/ci/check_pr_size_governance.py` preserves leading dotfile paths when removing only literal `./`; `tests/test_check_pr_size_governance.py` covers `.github/workflows/ci.yml`, `./.github/workflows/ci.yml`, `.trivyignore`, and `./.trivyignore` as privileged paths.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1841#discussion_r3309708946 -> af04ca326
 Disposition: FIXED
 Commit: af04ca326
 Evidence: `docs/policy/PR_SCOPE_RULES.md` Quick Reference now requires `Operator approval: approved` plus `Privileged scope exception: approved` for privileged PRs over the hard cap.
