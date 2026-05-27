@@ -7,6 +7,7 @@
 - [x] Fixed in commit mapping completed
 
 No actionable GitHub review threads exist as of this mapping update. Future actionable review threads must be fixed or dispositioned here before resolution.
+The checked checklist items above are required by `scripts/orchestration/review_mapping_artifact.py` for Phase2 validation.
 
 ## Fixed in Commit Mapping
 
