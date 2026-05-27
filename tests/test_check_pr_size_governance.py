@@ -282,6 +282,16 @@ def test_micro_privileged_pr_uses_privileged_category() -> None:
     assert not any("OK (micro PR" in line for line in lines)
 
 
+def test_dotfile_privileged_paths_are_not_normalized_out_of_privileged_lane() -> None:
+    for path in (
+        ".github/workflows/ci.yml",
+        "./.github/workflows/ci.yml",
+        ".trivyignore",
+        "./.trivyignore",
+    ):
+        assert size_gate._is_privileged_path(path)
+
+
 def test_privileged_pr_cannot_mix_frontend_product_without_exception() -> None:
     exit_code, lines = size_gate.evaluate_pr_size_policy(
         total_changed_lines=20,

@@ -147,7 +147,10 @@ def classify_pr_size(total_changed_lines: int) -> str:
 
 
 def _normalize_path(path: str) -> str:
-    return path.strip().lstrip("./")
+    normalized = path.strip()
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
 
 
 def _is_privileged_path(path: str) -> bool:
