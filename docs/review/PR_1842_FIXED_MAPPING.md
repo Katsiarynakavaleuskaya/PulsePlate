@@ -23,13 +23,30 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1842#issuecomment-4553741547
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1842#issuecomment-4553742553
+
+Disposition: NOT-A-BUG
+Evidence: Codex and CodeRabbit comments are usage/rate-limit notices and contain no requested code change. CodeRabbit walkthrough/docstring warning is non-blocking for this frontend slice and does not identify a concrete implementation defect.
+Reason: No code, test, security, accessibility, or wellness-safety action is required.
+
+- Sourcery review `PRR_kwDOPi-pts8AAAABBJJiKQ`
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery review is a weekly rate-limit notice and contains no requested code change.
+Reason: No implementation action is required.
+
+- Cubic review `PRR_kwDOPi-pts8AAAABBJLYgQ`
+
+Disposition: NOT-A-BUG
+Evidence: Cubic reported “No issues found” across 2 files.
+Reason: No implementation action is required.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Re-check after first bot review.
+- [x] Re-check after first bot review.
 - [ ] Map every actionable comment before resolving any thread.
 
 ## Merge Readiness
@@ -63,3 +80,11 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 - Add MVP observability and accessibility evidence hooks after this visible slice lands.
 - Extend guided planning with authenticated save/progress flow in a later PR.
 - No ledger entry needed for intentionally deferred runtime expansion because next PR candidates are recorded here and no bad skip/guard disable was added.
+
+## Post-open Review Notes
+
+- `qa-engineer-agent`: PASS. Deterministic Home coverage, accessibility-oriented button/heading coverage, no direct API/fetch/auth/premium/storage/analytics additions in Home, and no backend/OpenAPI/token artifact drift.
+- `bug-hunter`: FINDINGS only for governance mapping/body updates; no code findings for route auth redirect, hidden Home API imports, forbidden medical copy, mobile overflow, token-source/generated-mirror drift, or stale Home tests.
+- `security-auditor`: PASS. No direct fetch/API call, analytics/tracking SDK, storage/cookie telemetry, entitlement inference, backend/OpenAPI drift, or medical-claim copy found.
+- `pulseplate-pr-review`: FINDINGS only for explicit bot disposition mapping, now recorded above.
+- `pulseplate-premortem-risk-review`: proceed with changes; closure items were bot disposition mapping and current-head CI/strict readiness checks.
