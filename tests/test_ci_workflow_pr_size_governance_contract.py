@@ -218,10 +218,15 @@ def test_pr_size_governance_uses_pull_request_head_sha() -> None:
         "      - name: Design invariant guard",
     )
 
+    assert "permissions:" in pr_scope_guard_section
+    assert "contents: read" in pr_scope_guard_section
+    assert "pull-requests: read" in pr_scope_guard_section
     assert "python3 scripts/ci/check_pr_size_governance.py \\" in pr_scope_guard_section
     assert '--base-sha "${{ github.event.pull_request.base.sha }}" \\' in pr_scope_guard_section
     assert '--head-sha "${{ github.event.pull_request.head.sha }}" \\' in pr_scope_guard_section
     assert '--head-sha "${{ github.sha }}" \\' not in pr_scope_guard_section
+    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
 
 
 def test_pr_risk_profile_uses_pull_request_head_sha() -> None:
