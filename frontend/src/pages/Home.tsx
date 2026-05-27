@@ -202,6 +202,10 @@ export default function Home(): JSX.Element {
     preview.nextAction,
     timeNotes[selectedTime],
     progressMessage,
+    progressAuthMessage,
+    savePromptLabel,
+    savePromptCopy,
+    saveButtonLabel,
   ].join(' ');
 
   useEffect(() => {
