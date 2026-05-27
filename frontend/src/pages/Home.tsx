@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, Hero, StatsCard, buttonClasses } from '../components/ui';
-import { trackGuidedPlanningEvent } from '../lib/mvpObservability';
+import { useAuth } from '../lib/auth';
+import { trackGuidedPlanningEvent, type GuidedPlanningEventPayload } from '../lib/mvpObservability';
 
 type PlanningIntentId = 'consistent' | 'balanced' | 'decision_fatigue' | 'shopping';
 type PlanningTimeId = 'quick' | 'standard' | 'batch' | 'flexible';
+type PlanningAuthState = NonNullable<GuidedPlanningEventPayload['authState']>;
 
 interface PlanningIntent {
   id: PlanningIntentId;
@@ -160,9 +162,37 @@ function ValueRailCard({ title, detail, badge }: { title: string; detail: string
 }
 
 export default function Home(): JSX.Element {
+  const { isAuthenticated, isLoading } = useAuth();
   const [selectedIntent, setSelectedIntent] = useState<PlanningIntentId>('consistent');
   const [selectedTime, setSelectedTime] = useState<PlanningTimeId>('standard');
+  const [isPreviewSaved, setIsPreviewSaved] = useState(false);
+  const unauthenticatedPromptViewedRef = useRef(false);
   const preview = previewByIntent[selectedIntent];
+  const authState: PlanningAuthState = isLoading ? 'unknown' : isAuthenticated ? 'authenticated' : 'unauthenticated';
+  const isKnownAuthenticated = authState === 'authenticated';
+  const progressMessage = isPreviewSaved
+    ? 'Preview marked here. Continue when you are ready to turn this direction into weekly planning.'
+    : 'Planning progress starts with your selected intent and practical cooking window.';
+  const progressAuthMessage = isKnownAuthenticated
+    ? 'Your signed-in session can continue this planning direction into protected PulsePlate flows.'
+    : authState === 'unknown'
+      ? 'Checking your session before PulsePlate routes this preview into protected planning flows.'
+      : 'Sign in to continue this planning direction through protected flows. This preview mark stays on this screen only.';
+  const savePromptLabel = isKnownAuthenticated
+    ? 'Continue marked direction'
+    : authState === 'unknown'
+      ? 'Checking session'
+      : 'Save preview';
+  const savePromptCopy = isKnownAuthenticated
+    ? 'Your planning direction is ready. PulsePlate can mark this preview on this screen before you continue.'
+    : authState === 'unknown'
+      ? 'PulsePlate is checking whether this preview can continue through a signed-in planning session.'
+      : 'Without sign-in, PulsePlate can only mark this preview on this screen.';
+  const saveButtonLabel = isPreviewSaved
+    ? 'Preview marked here'
+    : isKnownAuthenticated
+      ? 'Mark preview ready here'
+      : 'Mark preview here';
   const copyCorpus = [
     ...planningIntents.map((intent) => `${intent.label} ${intent.helper}`),
     ...planningTimes.map((time) => `${time.label} ${time.helper}`),
@@ -171,6 +201,11 @@ export default function Home(): JSX.Element {
     ...preview.shoppingDirection,
     preview.nextAction,
     timeNotes[selectedTime],
+    progressMessage,
+    progressAuthMessage,
+    savePromptLabel,
+    savePromptCopy,
+    saveButtonLabel,
   ].join(' ');
 
   useEffect(() => {
@@ -199,11 +234,42 @@ export default function Home(): JSX.Element {
     });
   }, []);
 
+  useEffect(() => {
+    trackGuidedPlanningEvent('planning_progress_state_viewed', {
+      surface: 'app',
+      componentId: 'planning-progress-state',
+      routePath: '/app',
+      optionId: isPreviewSaved ? 'screen_preview_marked' : 'preview_ready',
+      authState,
+    });
+  }, [authState, isPreviewSaved]);
+
+  useEffect(() => {
+    if (authState === 'unauthenticated' && !unauthenticatedPromptViewedRef.current) {
+      unauthenticatedPromptViewedRef.current = true;
+      trackGuidedPlanningEvent('planning_save_prompt_viewed', {
+        surface: 'app',
+        componentId: 'planning-save-auth-prompt',
+        routePath: '/app',
+        authState,
+      });
+      trackGuidedPlanningEvent('planning_auth_prompt_viewed', {
+        surface: 'app',
+        componentId: 'planning-save-auth-prompt',
+        routePath: '/app',
+        authState,
+      });
+    }
+  }, [authState]);
+
   if (forbiddenMedicalClaimPattern.test(copyCorpus)) {
     throw new Error('Guided Planning Preview contains forbidden medical claim copy.');
   }
 
   function selectIntent(intentId: PlanningIntentId): void {
+    if (intentId !== selectedIntent) {
+      setIsPreviewSaved(false);
+    }
     setSelectedIntent(intentId);
     trackGuidedPlanningEvent('planning_intent_selected', {
       surface: 'app',
@@ -214,6 +280,9 @@ export default function Home(): JSX.Element {
   }
 
   function selectTime(timeId: PlanningTimeId): void {
+    if (timeId !== selectedTime) {
+      setIsPreviewSaved(false);
+    }
     setSelectedTime(timeId);
     trackGuidedPlanningEvent('planning_time_selected', {
       surface: 'app',
@@ -228,6 +297,27 @@ export default function Home(): JSX.Element {
       surface: 'app',
       componentId: 'primary-planning-cta',
       routePath: '/setup',
+    });
+  }
+
+  function savePlanningPreview(): void {
+    setIsPreviewSaved(true);
+    trackGuidedPlanningEvent('planning_save_clicked', {
+      surface: 'app',
+      componentId: 'planning-save-cta',
+      routePath: '/app',
+      optionId: selectedIntent,
+      authState,
+    });
+  }
+
+  function trackContinuePlanning(routePath: '/plate' | '/progress' | '/pro'): void {
+    trackGuidedPlanningEvent('planning_continue_clicked', {
+      surface: 'app',
+      componentId: 'planning-continue-cta',
+      routePath,
+      optionId: selectedTime,
+      authState,
     });
   }
 
@@ -417,9 +507,49 @@ export default function Home(): JSX.Element {
                 <div className="rounded-2xl border border-white/12 bg-[var(--pp-navy)]/40 p-4">
                   <h3 className="text-sm font-semibold text-white">Next action</h3>
                   <p className="mt-2 text-sm leading-6 text-white/70">{preview.nextAction}</p>
+                  <div
+                    className="mt-4 rounded-2xl border border-white/12 bg-white/[0.07] p-4"
+                    data-testid="planning-progress-state"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/46">
+                      Planning progress
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-white/72">{progressMessage}</p>
+                    <p className="mt-2 text-xs font-semibold text-white/58">
+                      {progressAuthMessage}
+                    </p>
+                  </div>
+                  <div
+                    className="mt-4 rounded-2xl border border-white/12 bg-white/[0.06] p-4"
+                    data-testid="planning-save-auth-prompt"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/46">
+                      {savePromptLabel}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-white/68">
+                      {savePromptCopy}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        data-testid="planning-save-cta"
+                        onClick={savePlanningPreview}
+                        className={buttonClasses({
+                          variant: 'secondary',
+                          className: 'rounded-2xl border-white/14 bg-white/[0.08] text-white hover:bg-white/[0.12]',
+                        })}
+                      >
+                        {saveButtonLabel}
+                      </button>
+                    </div>
+                  </div>
                   <div className="mt-4 flex flex-wrap gap-3">
                     <Link
                       to="/plate"
+                      data-testid="planning-continue-cta"
+                      onClick={() => trackContinuePlanning('/plate')}
                       className={buttonClasses({
                         variant: 'secondary',
                         className: 'rounded-2xl border-white/14 bg-white/[0.08] text-white hover:bg-white/[0.12]',
@@ -429,6 +559,7 @@ export default function Home(): JSX.Element {
                     </Link>
                     <Link
                       to="/progress"
+                      onClick={() => trackContinuePlanning('/progress')}
                       className={buttonClasses({
                         variant: 'ghost',
                         className: 'rounded-2xl text-white hover:bg-white/[0.1]',
@@ -438,6 +569,7 @@ export default function Home(): JSX.Element {
                     </Link>
                     <Link
                       to="/pro"
+                      onClick={() => trackContinuePlanning('/pro')}
                       className={buttonClasses({
                         variant: 'ghost',
                         className: 'rounded-2xl text-white hover:bg-white/[0.1]',

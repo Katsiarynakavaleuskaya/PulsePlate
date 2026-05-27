@@ -63,6 +63,26 @@ function renderHomeRoutes(): ReturnType<typeof render> {
   );
 }
 
+function rerenderHomeWithAuthState(
+  renderedHome: ReturnType<typeof render>,
+  authState: { isAuthenticated: boolean; isLoading: boolean }
+): void {
+  vi.mocked(useAuth).mockReturnValue({
+    apiKey: null,
+    isAuthenticated: authState.isAuthenticated,
+    isLoading: authState.isLoading,
+    setApiKey: vi.fn(),
+    clearApiKey: vi.fn(),
+    showAuthPrompt: false,
+    setShowAuthPrompt: vi.fn(),
+  });
+  renderedHome.rerender(
+    <MemoryRouter>
+      <Home />
+    </MemoryRouter>
+  );
+}
+
 describe('Home Guided Planning Preview', () => {
   const guidedPlanningEvents: GuidedPlanningEvent[] = [];
 
@@ -122,6 +142,10 @@ describe('Home Guided Planning Preview', () => {
     expect(screen.getByTestId('tier-value-rail')).toBeInTheDocument();
     expect(screen.getByTestId('wellness-boundary-note')).toBeInTheDocument();
     expect(screen.getByTestId('primary-planning-cta')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-save-cta')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-continue-cta')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-progress-state')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-save-auth-prompt')).toBeInTheDocument();
   });
 
   it('emits safe frontend-only MVP view evidence on render', () => {
@@ -138,6 +162,9 @@ describe('Home Guided Planning Preview', () => {
       'tier_value_viewed',
       'tier_value_viewed',
       'wellness_boundary_viewed',
+      'planning_progress_state_viewed',
+      'planning_save_prompt_viewed',
+      'planning_auth_prompt_viewed',
     ]);
     expect(guidedPlanningEvents).toEqual(
       expect.arrayContaining([
@@ -152,6 +179,25 @@ describe('Home Guided Planning Preview', () => {
         {
           name: 'wellness_boundary_viewed',
           payload: { surface: 'app', componentId: 'wellness-boundary-note', routePath: '/app' },
+        },
+        {
+          name: 'planning_progress_state_viewed',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-progress-state',
+            routePath: '/app',
+            optionId: 'preview_ready',
+            authState: 'unauthenticated',
+          },
+        },
+        {
+          name: 'planning_auth_prompt_viewed',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-save-auth-prompt',
+            routePath: '/app',
+            authState: 'unauthenticated',
+          },
         },
       ])
     );
@@ -172,6 +218,8 @@ describe('Home Guided Planning Preview', () => {
 
     await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
     await user.click(screen.getByRole('button', { name: /Batch prep/i }));
+    await user.click(screen.getByTestId('planning-save-cta'));
+    await user.click(screen.getByTestId('planning-continue-cta'));
     await user.click(screen.getByTestId('primary-planning-cta'));
 
     const payloadKeys = guidedPlanningEvents.flatMap((event) => Object.keys(event.payload));
@@ -225,6 +273,232 @@ describe('Home Guided Planning Preview', () => {
     );
   });
 
+  it('shows an honest unauthenticated session-local save and continuation state', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('planning-save-auth-prompt')).toHaveTextContent(
+      'Without sign-in, PulsePlate can only mark this preview on this screen.'
+    );
+    expect(screen.getByTestId('planning-progress-state')).toHaveTextContent(
+      'Planning progress starts with your selected intent and practical cooking window.'
+    );
+    expect(screen.getByTestId('planning-progress-state')).toHaveAttribute('role', 'status');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview here');
+    expect(screen.getByTestId('planning-continue-cta')).toHaveAttribute('href', '/plate');
+
+    await user.click(screen.getByTestId('planning-save-cta'));
+
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+    expect(screen.getByTestId('planning-progress-state')).toHaveTextContent(
+      'Preview marked here. Continue when you are ready to turn this direction into weekly planning.'
+    );
+    expect(guidedPlanningEvents).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'planning_save_clicked',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-save-cta',
+            routePath: '/app',
+            optionId: 'consistent',
+            authState: 'unauthenticated',
+          },
+        },
+        {
+          name: 'planning_progress_state_viewed',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-progress-state',
+            routePath: '/app',
+            optionId: 'screen_preview_marked',
+            authState: 'unauthenticated',
+          },
+        },
+      ])
+    );
+  });
+
+  it('clears the screen-local preview mark when selections change', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByTestId('planning-save-cta'));
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+
+    await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
+
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview here');
+    expect(screen.getByTestId('planning-progress-state')).toHaveTextContent(
+      'Planning progress starts with your selected intent and practical cooking window.'
+    );
+
+    await user.click(screen.getByTestId('planning-save-cta'));
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+
+    await user.click(screen.getByRole('button', { name: /Batch prep/i }));
+
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview here');
+  });
+
+  it('keeps the screen-local preview mark when the selected option is clicked again', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByTestId('planning-save-cta'));
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+
+    await user.click(screen.getByRole('button', { name: /More consistent meals/i }));
+    await user.click(screen.getByRole('button', { name: /Standard meal window/i }));
+
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+  });
+
+  it('does not re-emit prompt viewed events when only planning selections change', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    const initialPromptViews = guidedPlanningEvents.filter(
+      (event) => event.name === 'planning_save_prompt_viewed' || event.name === 'planning_auth_prompt_viewed'
+    );
+    expect(initialPromptViews).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
+    await user.click(screen.getByRole('button', { name: /Batch prep/i }));
+
+    const promptViewsAfterSelection = guidedPlanningEvents.filter(
+      (event) => event.name === 'planning_save_prompt_viewed' || event.name === 'planning_auth_prompt_viewed'
+    );
+    expect(promptViewsAfterSelection).toHaveLength(2);
+  });
+
+  it('emits unauthenticated prompt viewed events once per page view across auth transitions', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: false,
+      isLoading: true,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    const renderedHome = render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(
+      guidedPlanningEvents.filter(
+        (event) => event.name === 'planning_save_prompt_viewed' || event.name === 'planning_auth_prompt_viewed'
+      )
+    ).toHaveLength(0);
+
+    rerenderHomeWithAuthState(renderedHome, { isAuthenticated: false, isLoading: false });
+    rerenderHomeWithAuthState(renderedHome, { isAuthenticated: false, isLoading: true });
+    rerenderHomeWithAuthState(renderedHome, { isAuthenticated: false, isLoading: false });
+
+    const promptViewsAfterAuthTransitions = guidedPlanningEvents.filter(
+      (event) => event.name === 'planning_save_prompt_viewed' || event.name === 'planning_auth_prompt_viewed'
+    );
+    expect(promptViewsAfterAuthTransitions).toHaveLength(2);
+  });
+
+  it('uses neutral save copy while auth state is loading', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: false,
+      isLoading: true,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('planning-progress-state')).toHaveTextContent(
+      'Checking your session before PulsePlate routes this preview into protected planning flows.'
+    );
+    expect(screen.getByTestId('planning-save-auth-prompt')).toHaveTextContent('Checking session');
+    expect(screen.queryByText(/Without sign-in/i)).not.toBeInTheDocument();
+    expect(guidedPlanningEvents).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'planning_progress_state_viewed',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-progress-state',
+            routePath: '/app',
+            optionId: 'preview_ready',
+            authState: 'unknown',
+          },
+        },
+      ])
+    );
+  });
+
+  it('shows authenticated save-ready copy without claiming backend persistence', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('planning-save-auth-prompt')).toHaveTextContent('Your planning direction is ready');
+    expect(screen.getByTestId('planning-save-auth-prompt')).toHaveTextContent('on this screen');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview ready here');
+
+    await user.click(screen.getByTestId('planning-save-cta'));
+
+    expect(screen.queryByText(/saved to your account/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('planning-save-auth-prompt')).not.toHaveTextContent(/saved weekly plan/i);
+    expect(screen.queryByText(/for the current session/i)).not.toBeInTheDocument();
+    expect(guidedPlanningEvents).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'planning_save_clicked',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-save-cta',
+            routePath: '/app',
+            optionId: 'consistent',
+            authState: 'authenticated',
+          },
+        },
+      ])
+    );
+  });
+
   it('shows the FREE PRO VIP value ladder honestly', () => {
     render(
       <MemoryRouter>
@@ -261,6 +535,7 @@ describe('Home Guided Planning Preview', () => {
 
     expect(screen.getByTestId('primary-planning-cta')).toHaveAttribute('href', '/setup');
     expect(screen.getByRole('link', { name: 'Continue planning' })).toHaveAttribute('href', '/setup');
+    expect(screen.getByTestId('planning-continue-cta')).toHaveAttribute('href', '/plate');
     expect(screen.getByRole('link', { name: 'Learn why this is wellness-only' })).toHaveAttribute(
       'href',
       '#wellness-boundary'
@@ -315,6 +590,29 @@ describe('Home Guided Planning Preview', () => {
     expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/progress');
   });
 
+  it('emits continue evidence before protected route redirects', async () => {
+    const user = userEvent.setup();
+
+    renderHomeRoutes();
+    await user.click(screen.getByTestId('planning-continue-cta'));
+
+    expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/plate');
+    expect(guidedPlanningEvents).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'planning_continue_clicked',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-continue-cta',
+            routePath: '/plate',
+            optionId: 'standard',
+            authState: 'unauthenticated',
+          },
+        },
+      ])
+    );
+  });
+
   it('opens protected planning CTAs when secure session exists', async () => {
     vi.mocked(useAuth).mockReturnValue({
       apiKey: null,
@@ -335,6 +633,68 @@ describe('Home Guided Planning Preview', () => {
     renderHomeRoutes();
     await user.click(screen.getByRole('link', { name: /Use progress check-ins/i }));
     expect(screen.getByTestId('progress-route')).toBeInTheDocument();
+  });
+
+  it('emits authenticated continuation evidence for protected and upgrade routes', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    const user = userEvent.setup();
+
+    const plateRender = renderHomeRoutes();
+    await user.click(screen.getByTestId('planning-continue-cta'));
+    expect(screen.getByTestId('plate-route')).toBeInTheDocument();
+    plateRender.unmount();
+
+    const progressRender = renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: /Use progress check-ins/i }));
+    expect(screen.getByTestId('progress-route')).toBeInTheDocument();
+    progressRender.unmount();
+
+    renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: /Unlock weekly planning/i }));
+    expect(screen.getByTestId('pro-route')).toBeInTheDocument();
+
+    expect(guidedPlanningEvents).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'planning_continue_clicked',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-continue-cta',
+            routePath: '/plate',
+            optionId: 'standard',
+            authState: 'authenticated',
+          },
+        },
+        {
+          name: 'planning_continue_clicked',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-continue-cta',
+            routePath: '/progress',
+            optionId: 'standard',
+            authState: 'authenticated',
+          },
+        },
+        {
+          name: 'planning_continue_clicked',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-continue-cta',
+            routePath: '/pro',
+            optionId: 'standard',
+            authState: 'authenticated',
+          },
+        },
+      ])
+    );
   });
 
   it('keeps the page token-backed and tabbar-compatible', () => {
