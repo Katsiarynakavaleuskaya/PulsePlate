@@ -36,7 +36,6 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1840#pullrequestreview-4370342962 -> 9e2a2ffd1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1840#discussion_r3309205089 -> 9e2a2ffd1
-
 Disposition: FIXED
 Commit: 9e2a2ffd1
 Evidence: `docs/review/PR_1840_FIXED_MAPPING.md:36` and `docs/review/PR_1840_FIXED_MAPPING.md:37` use the canonical checked markers; `9e2a2ffd1` maps the CodeRabbit feedback after the comment timestamp; local Phase2 fallback passed after PR body mirror update.
