@@ -9,10 +9,16 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1844#pullrequestreview-3153735664 -> 134c5979d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1844#pullrequestreview-4372887451 -> 134c5979d
 Disposition: FIXED
 Commit: 134c5979d
 Evidence: frontend/src/pages/Home.tsx:1, frontend/src/pages/Home.tsx:9, frontend/src/pages/Home.tsx:169, frontend/src/pages/Home.tsx:242, frontend/src/pages/__tests__/Home.test.tsx:66
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1844#pullrequestreview-4372920151 -> a2370eef4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1844#discussion_r3311245033 -> a2370eef4
+Disposition: FIXED
+Commit: a2370eef4
+Evidence: frontend/src/pages/Home.tsx:195
 
 ## Merge Readiness
 
