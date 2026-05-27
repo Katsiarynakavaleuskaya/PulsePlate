@@ -237,6 +237,19 @@ def test_standard_sized_frontend_backend_mix_requires_mix_approval() -> None:
     assert any("operator approval for frontend vertical MVP" in line for line in lines)
 
 
+def test_micro_sized_frontend_backend_mix_requires_mvp_approval() -> None:
+    exit_code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=20,
+        counted_files=2,
+        pr_body="",
+        changed_files=["frontend/src/flow/example.tsx", "app/routers/example.py"],
+    )
+
+    assert exit_code == 1
+    assert any("Category: frontend_vertical_mvp" in line for line in lines)
+    assert not any("OK (micro PR" in line for line in lines)
+
+
 def test_frontend_mvp_allows_backend_api_ai_runtime_mix_with_explicit_mix_approval() -> None:
     exit_code, lines = size_gate.evaluate_pr_size_policy(
         total_changed_lines=400,

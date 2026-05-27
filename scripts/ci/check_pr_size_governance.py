@@ -267,8 +267,6 @@ def classify_pr_scope(*, counted_files: int, changed_files: list[str], pr_body: 
     """Classify the PR under the current file-count scope policy."""
     if any(_is_privileged_path(path) for path in changed_files):
         return "privileged_ci_security_workflow"
-    if counted_files <= MICRO_MAX_FILES:
-        return "micro"
     has_frontend = any(_normalize_path(path).startswith("frontend/") for path in changed_files)
     if has_frontend and (
         counted_files > STANDARD_MAX_FILES
@@ -276,6 +274,8 @@ def classify_pr_scope(*, counted_files: int, changed_files: list[str], pr_body: 
         or has_mixed_frontend_backend_runtime(changed_files)
     ):
         return "frontend_vertical_mvp"
+    if counted_files <= MICRO_MAX_FILES:
+        return "micro"
     return "standard_governance_design"
 
 
