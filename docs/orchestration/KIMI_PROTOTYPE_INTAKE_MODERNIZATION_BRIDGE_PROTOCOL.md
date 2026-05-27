@@ -187,7 +187,7 @@ Future web/iOS modernization work must proceed in this order:
 3. Visual regression decision gate.
 4. Accessibility regression decision gate.
 5. Token/runtime parity boundary.
-6. Later web+iOS implementation slices.
+6. First bounded frontend MVP product slice.
 
 Web and iOS slices must stay thin over backend/OpenAPI and repo contracts. Tokens change only through `/tokens` plus generated mirrors and parity gates. Component changes must use repo component contracts, Storybook review where applicable, and accessibility validation.
 

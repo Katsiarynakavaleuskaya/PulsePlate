@@ -7,6 +7,8 @@ This spec records the PR-9 design-system automation lane for web+iOS runtime par
 
 PR-9 is docs/tests/governance only. It does not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma/Canva writes, screenshots, or Code Connect activation.
 
+This token/runtime parity boundary is the final design-governance gate before frontend MVP. Frontend implementation is still blocked until this boundary lands, and the next PR is the first bounded frontend MVP product slice.
+
 ## Current Strengths
 
 PulsePlate already has:
@@ -57,9 +59,11 @@ Future work must proceed in this order:
 3. Visual regression decision gate.
 4. Accessibility regression decision gate.
 5. Token/runtime parity boundary.
-6. Later web+iOS implementation slices.
+6. First bounded frontend MVP product slice.
 
-Implementation slices may start only after the registry, coverage inventory, and regression lane decisions exist or record formal `DEFERRED` dispositions with backlog anchors.
+Short form: registry -> bridge coverage -> visual regression decision -> accessibility regression decision -> token/runtime parity boundary -> first bounded frontend MVP product slice.
+
+Implementation slices may start only after the registry, coverage inventory, regression lane decisions, and token/runtime parity boundary exist with repo evidence. Missing prerequisite gates are blockers, not `DEFERRED` permission to proceed. `DEFERRED` records follow-up tracking only. This PR does not implement frontend or iOS runtime.
 
 ## Component Contract Registry Requirement
 
@@ -104,7 +108,17 @@ Missing baseline, threshold, or tooling evidence blocks runtime implementation. 
 
 Kimi, Figma, Canva, Penpot, Storybook, Code Connect, screenshots, and generated design exports remain reference-only evidence. GPT-5.5 is the primary coding and governance model for repo changes in this lane; Kimi may provide bounded design review only.
 
-Fail-closed means missing visual or accessibility regression coverage blocks implementation readiness unless the coordinator records a `DEFERRED` disposition with a backlog anchor and PR-body follow-up.
+Fail-closed means missing visual or accessibility regression coverage blocks implementation readiness. A `DEFERRED` disposition may track follow-up work, but it does not grant implementation permission.
+
+## Token/Runtime Parity Boundary
+
+The final machine-readable boundary for this governance train is `docs/orchestration/contracts/design_token_runtime_parity_boundary.v1.json`, validated by `scripts/design/design_token_runtime_parity_boundary.py`.
+
+The boundary maps every registry/bridge component exactly once across token authoring status, web runtime token anchor, iOS runtime token anchor, generated mirror status, visual decision anchor, accessibility decision anchor, and implementation readiness.
+
+Generated mirrors remain derived runtime evidence and are not token authoring truth. Missing visual or accessibility decision evidence keeps implementation readiness `blocked`. The next required gate after the boundary is not another design governance layer; it is the first bounded frontend MVP product slice.
+
+Slack/Experiment Runner operator bridge remains after MVP observability exists, not before the first MVP slice.
 
 ## Runtime Boundary
 

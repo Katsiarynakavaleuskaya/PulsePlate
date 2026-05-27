@@ -43,6 +43,24 @@ Scope: `docs/orchestration/**`
     - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md)
     - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md)
     - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md)
+- For the PR-9 token/runtime parity boundary lane:
+  - primary: `agent-coordinator`
+  - execution order:
+    - `creative-designer`
+    - `frontend-engineer`
+    - `ios-engineer`
+    - `cursor-specialist-agent`
+    - `architecture-specialist`
+    - `security-auditor`
+    - `qa-engineer-agent`
+    - `bug-hunter`
+  - invariants:
+    - token/runtime parity boundary is the final design-governance gate before the first bounded frontend MVP product slice
+    - no web runtime, iOS runtime, token value, generated mirror, Storybook, external-write, screenshot, binary, backend, OpenAPI, auth, billing, or deploy changes are authorized by this lane
+    - generated mirrors remain derived runtime evidence and are not token authoring truth
+    - missing visual, accessibility, or token/runtime parity evidence remains fail-closed and cannot be converted into implementation permission by `DEFERRED`
+  - canonical packet/runbook:
+    - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md)
 - For the Kimi prototype intake modernization bridge lane:
   - primary: `agent-coordinator`
   - execution order:

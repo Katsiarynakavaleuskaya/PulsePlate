@@ -82,11 +82,11 @@ PR-9 design-system automation opens the next docs-only web+iOS runtime parity la
 3. Visual regression decision gate.
 4. Accessibility regression decision gate.
 5. Token/runtime parity boundary.
-6. Later web+iOS implementation slices.
+6. First bounded frontend MVP product slice.
 
 PR-9 must not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma writes, Canva writes, Penpot writes, screenshots, or Code Connect activation.
 
-Kimi prototype modernization bridge -> docs/governance intake lane over Kimi page, Drive folder, and desktop code bundle evidence. It does not copy Kimi code, assets, layouts, copy, routes, or token values; it records provenance, source-of-truth boundaries, and the normalization sequence into component contracts, bridge coverage, visual/a11y gates, and later web+iOS slices.
+Kimi prototype modernization bridge -> docs/governance intake lane over Kimi page, Drive folder, and desktop code bundle evidence. It does not copy Kimi code, assets, layouts, copy, routes, or token values; it records provenance, source-of-truth boundaries, and the normalization sequence into component contracts, bridge coverage, visual/a11y gates, token/runtime parity, and the first bounded frontend MVP product slice.
 
 ## 6. Authority Boundaries
 

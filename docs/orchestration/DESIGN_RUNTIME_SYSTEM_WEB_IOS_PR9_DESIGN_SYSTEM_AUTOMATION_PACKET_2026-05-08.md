@@ -7,6 +7,8 @@ PR-9 opens a docs-only design-system automation lane for web+iOS runtime parity.
 
 It is an implementation-opening governance PR, not a runtime PR. It creates the next packet layer after the completed PR-0 through PR-8 design runtime train, and it records that implementation must wait for a machine-readable design infrastructure layer.
 
+The token/runtime parity boundary is the final design-governance gate before frontend MVP. Frontend implementation is still blocked until this boundary lands. The next PR is the first bounded frontend MVP product slice.
+
 This packet supersedes the prior closeout statement only for docs-governance routing: the old train remains complete through PR-8, and this PR-9 lane does not reopen any merged runtime, token, Storybook, Figma, or iOS implementation slice.
 
 ## Branch And Title
@@ -62,7 +64,9 @@ Future implementation must follow this order:
 3. Visual regression decision gate.
 4. Accessibility regression decision gate.
 5. Token/runtime parity boundary.
-6. Later web+iOS implementation slices.
+6. First bounded frontend MVP product slice.
+
+Short form: registry -> bridge coverage -> visual regression decision -> accessibility regression decision -> token/runtime parity boundary -> first bounded frontend MVP product slice.
 
 No later step may be skipped by calling it a design prompt, evidence pass, or agent finding. If coordinator expands the role order, every coordinator-declared agent becomes mandatory and must run in order.
 
@@ -139,6 +143,8 @@ Fail-closed means:
 - if no accessibility regression decision gate exists for a component, future implementation must stop or record `DEFERRED` with backlog evidence;
 - a screenshot, Storybook story, Figma node, or prompt review is not a substitute for a repo-reviewed visual or accessibility regression decision.
 
+`DEFERRED` records follow-up tracking only. Missing prerequisite gates are blockers, not `DEFERRED` permission to proceed with runtime implementation.
+
 ## Token And Runtime Parity Boundary
 
 The boundary for future parity work is:
@@ -152,6 +158,15 @@ The boundary for future parity work is:
 
 Exact component mappings, schema format, bridge coverage status, visual thresholds, accessibility thresholds, and Code Connect activation status are `unspecified` until later implementation PRs verify them from repo truth.
 
+Current machine-readable boundary:
+
+- `docs/orchestration/contracts/design_token_runtime_parity_boundary.v1.json`
+- `scripts/design/design_token_runtime_parity_boundary.py`
+
+This boundary is fail-closed and maps every component from the component registry and bridge inventory exactly once. Generated mirrors remain derived runtime evidence and are not token authoring truth. Missing visual or accessibility decision evidence keeps implementation readiness `blocked`. The next required gate is the first bounded frontend MVP product slice; this PR does not implement frontend or iOS runtime.
+
+Slack/Experiment Runner operator bridge remains after MVP observability exists, not before the first MVP slice.
+
 ## Agent And Skill Execution
 
 Pre-open role order is coordinator-expanded and mandatory:
@@ -159,11 +174,12 @@ Pre-open role order is coordinator-expanded and mandatory:
 1. `agent-coordinator`
 2. `creative-designer`
 3. `frontend-engineer`
-4. `cursor-specialist-agent`
-5. `architecture-specialist`
-6. `security-auditor`
-7. `qa-engineer-agent`
-8. `bug-hunter`
+4. `ios-engineer`
+5. `cursor-specialist-agent`
+6. `architecture-specialist`
+7. `security-auditor`
+8. `qa-engineer-agent`
+9. `bug-hunter`
 
 Every role must produce an execution record or pass/finding note before PR open.
 
