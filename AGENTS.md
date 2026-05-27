@@ -435,6 +435,15 @@ Rules:
 - No assigned role agent may be skipped without an explicit coordinator update to the
   packet/runbook.
 - No parallel or ad-hoc internal role stack may replace the declared coordinator order.
+- `task_bootstrap.py` packet generation is routing/provenance only and does not execute
+  role agents. After files exist, agents MUST explicitly run the declared role-agent
+  passes and attach the bootstrap packet context to each pass because local
+  `artifacts/` packets are gitignored and are not available in the branch by default.
+  When the host runtime does not expose native PulsePlate role subagents, use the
+  available general-purpose subagent transport and state the canonical PulsePlate role
+  slug in the prompt (for example, "You are PulsePlate custom role
+  `security-auditor`"). The transport name is adapter-only; the repo role slug and
+  bootstrap packet remain the authority for the pass.
 - Privileged-surface lanes must still include the canonical mandatory post-open
   `qa-engineer-agent -> bug-hunter` pass even when earlier reviewers already participated.
 

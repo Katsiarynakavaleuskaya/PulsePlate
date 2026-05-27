@@ -36,7 +36,7 @@ The secret-free operator setup manifest lives at
 
 The manifest documents the repo-approved Socket Mode shape only: Experiment
 Runner app identity, Slack-safe bot display `experiment-runner`,
-`/run-experiment`, bot scopes `commands` and `chat:write`,
+`/run-experiment`, `/pulseplate-runner`, bot scopes `commands` and `chat:write`,
 `socket_mode_enabled: true`, `org_deploy_enabled: false`, and `is_hosted:
 false`.
 
@@ -123,8 +123,8 @@ rejected before deletion.
 
 ## Authority Boundary
 
-The Slack operator bridge may validate configuration, report status, and in
-explicit execute mode dispatch only the fixed
+The Slack operator bridge may validate configuration, report status, render
+redacted Guided Planning MVP evidence contract summaries, and in explicit execute mode dispatch only the fixed
 `.github/workflows/experiment-runner-dispatch.yml` workflow with typed,
 sanitized inputs. The dispatch workflow is manual-only, defaults to `dry_run:
 true`, and fails closed for `dry_run: false` until a later bounded dispatch
@@ -137,6 +137,21 @@ exercise PR promotes live execution. It must not:
 - run arbitrary workflows,
 - execute shell commands from Slack text,
 - auto-run experiments by default.
+
+Allowed operator display commands are bounded and redacted:
+
+- `/pulseplate-runner help`: static command summary and authority boundary.
+- `/pulseplate-runner status`: bridge mode, allowlist presence, fixed workflow
+  metadata, rate-limit setting, and local audit-retention setting only.
+- `/pulseplate-runner mvp-evidence`: static Guided Planning MVP evidence contract
+  coverage summary for #1842-#1844 event hooks; no raw user events, PII, health data,
+  hypotheses, local paths, Slack IDs, or provider logs.
+- `/run-experiment <branch> <hypothesis>`: existing dry-run-first fixed workflow
+  path; Slack-visible preview uses hashes for branch and hypothesis values.
+
+These commands are operator convenience views only. They do not create PRs,
+resolve reviews, satisfy fixed-mapping evidence, prove merge readiness, or
+replace GitHub Actions/current-head truth.
 
 The earlier `.github/workflows/experiment-runner-slack-socket-smoke.yml`
 workflow remains the separate manual live-smoke validation path for runtime

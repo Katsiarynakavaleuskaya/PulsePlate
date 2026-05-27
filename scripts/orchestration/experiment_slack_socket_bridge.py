@@ -57,10 +57,17 @@ SECRET_SHAPED_RE = re.compile(
     r"https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,}|sk-[A-Za-z0-9_-]{12,})",
     re.IGNORECASE,
 )
+SLACK_IDENTIFIER_RE = re.compile(r"\b[ACDGTUW][A-Z0-9]{2,}\b")
+SLACK_MENTION_RE = re.compile(r"<[@#!]?[A-Z0-9][A-Z0-9_-]{1,79}(?:\|[^>]+)?>")
+PATCH_MARKER_RE = re.compile(
+    r"(diff\s+--git|^@@\s|^\+\+\+\s|^---\s|raw\s+patch|patch\s+text|"
+    r"oracle\s+stdout|oracle\s+stderr|\bstdout\b|\bstderr\b)",
+    re.IGNORECASE,
+)
 SLACK_APP_TOKEN_RE = re.compile(r"^xapp-[A-Za-z0-9-]{10,}$")
 SLACK_BOT_TOKEN_RE = re.compile(r"^xoxb-[A-Za-z0-9-]{10,}$")
 GITHUB_TOKEN_RE = re.compile(r"^(gh[pousr]_[A-Za-z0-9._-]{20,}|github_pat_[A-Za-z0-9_]{20,})$")
-ALLOWED_COMMANDS = {"help", "status", "run-experiment"}
+ALLOWED_COMMANDS = {"help", "mvp-evidence", "status", "run-experiment"}
 ALLOWED_WORKFLOWS = {DEFAULT_WORKFLOW_FILE}
 RATE_LIMIT_LOCK_DIR = "rate_limit_claim"
 REJECTED_RATE_LIMIT_LOCK_DIR = "rejected_rate_limit_claim"
@@ -171,6 +178,41 @@ class OperatorCommand:
 
 
 @dataclass(frozen=True)
+class SlackSafeMessage:
+    """Deterministic operator message payload safe for Slack display."""
+
+    message_type: str
+    header: str
+    status_line: str
+    scope: str
+    evidence_summary: tuple[str, ...]
+    action_required: str
+    artifact_refs: tuple[str, ...] = ()
+    redaction_notice: str = (
+        "No sensitive user data, raw Slack identifiers, raw hypotheses, tokens, local paths, "
+        "oracle output, or patch text included."
+    )
+
+    def as_text(self) -> str:
+        """Render stable Slack mrkdwn text without untrusted formatting."""
+
+        artifact_lines = self.artifact_refs or ("none",)
+        evidence_lines = self.evidence_summary or ("none",)
+        sections = [
+            f"*{_slack_text(self.header)}*",
+            f"Status: `{_slack_text(self.status_line)}`",
+            f"Scope: {_slack_text(self.scope)}",
+            "Evidence summary:",
+            *(f"- {_slack_text(line)}" for line in evidence_lines),
+            "Artifact/reference:",
+            *(f"- `{_slack_text(line)}`" for line in artifact_lines),
+            f"Action required: {_slack_text(self.action_required)}",
+            f"Redaction: {_slack_text(self.redaction_notice)}",
+        ]
+        return _bounded_text("\n".join(sections))
+
+
+@dataclass(frozen=True)
 class BridgeDecision:
     """Bridge outcome safe to print as JSON."""
 
@@ -216,6 +258,223 @@ def _safe_hash(value: str | None) -> str | None:
     if value is None:
         return None
     return _sha256_text(value)
+
+
+def _bounded_text(value: str, *, limit: int = 2800) -> str:
+    """Bound Slack-visible text and make truncation explicit."""
+
+    if len(value) <= limit:
+        return value
+    return value[: limit - 20].rstrip() + "\n[truncated=true]"
+
+
+def _slack_text(value: Any, *, limit: int = 240) -> str:
+    """Escape untrusted values for Slack mrkdwn-ish display."""
+
+    text = CONTROL_CHAR_RE.sub(" ", str(value)).strip()
+    text = SECRET_SHAPED_RE.sub("[redacted-secret]", text)
+    text = SLACK_MENTION_RE.sub("[redacted-slack-id]", text)
+    text = SLACK_IDENTIFIER_RE.sub("[redacted-slack-id]", text)
+    text = LOCAL_PATH_RE.sub(" [redacted-path]", text)
+    text = PATCH_MARKER_RE.sub("[redacted-log]", text)
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("`", "'")
+    text = re.sub(r"@(here|channel|everyone)\b", "@[redacted-mention]", text, flags=re.I)
+    if not text:
+        text = "none"
+    if len(text) > limit:
+        text = text[: limit - 17].rstrip() + " [truncated=true]"
+    return text
+
+
+def _safe_artifact_ref(value: Any) -> str:
+    """Return a repo-relative artifact reference or a redacted placeholder."""
+
+    text = str(value or "").strip()
+    if not text or CONTROL_CHAR_RE.search(text) or SECRET_SHAPED_RE.search(text):
+        return "none" if not text else "[redacted-ref]"
+    path = Path(text)
+    if path.is_absolute() or "\\" in text or any(part == ".." for part in path.parts):
+        return "[redacted-ref]"
+    if not text.startswith("artifacts/orchestration/") and not text.startswith("docs/"):
+        return "[redacted-ref]"
+    return _slack_text(text, limit=180)
+
+
+def render_mvp_evidence_summary() -> SlackSafeMessage:
+    """Render static MVP evidence contract coverage from governed frontend event names."""
+
+    events = (
+        "guided_planning_viewed",
+        "planning_intent_selected",
+        "planning_time_selected",
+        "planning_preview_seen",
+        "tier_value_viewed",
+        "primary_planning_cta_clicked",
+        "wellness_boundary_viewed",
+        "planning_save_prompt_viewed",
+        "planning_auth_prompt_viewed",
+        "planning_progress_state_viewed",
+        "planning_save_clicked",
+        "planning_continue_clicked",
+    )
+    return SlackSafeMessage(
+        message_type="mvp_evidence_summary",
+        header="MVP evidence contract summary",
+        status_line="advisory_operator_summary",
+        scope=(
+            "Static Guided Planning Preview event contract from #1842-#1844; "
+            "no runtime analytics backend."
+        ),
+        evidence_summary=(
+            f"safe_event_count={len(events)}",
+            "route_path=/app",
+            "save_continue_progress_events=present",
+            "wellness_boundary_event=present",
+            "forbidden_user_data=omitted",
+        ),
+        action_required="Human review required for PR/merge decisions; Slack is display-only.",
+        artifact_refs=("frontend/src/lib/mvpObservability.ts", "frontend/src/pages/Home.tsx"),
+    )
+
+
+def render_experiment_runner_result(result: dict[str, Any]) -> SlackSafeMessage:
+    """Render a sanitized Experiment Runner result summary."""
+
+    status = str(result.get("status", "unknown"))
+    failure_class = str(result.get("failure_class") or "none")
+    oracle_results = result.get("oracle_results")
+    oracle_count = len(oracle_results) if isinstance(oracle_results, list) else 0
+    mutated_paths = result.get("mutated_paths")
+    mutated_count = len(mutated_paths) if isinstance(mutated_paths, list) else 0
+    return SlackSafeMessage(
+        message_type="experiment_runner_result",
+        header="Experiment Runner outcome",
+        status_line=status if status in {"accepted", "rejected"} else "unknown",
+        scope="Oracle-only/local result summary; not merge readiness.",
+        evidence_summary=(
+            f"failure_class={failure_class if failure_class in {'none', 'timeout', 'oom', 'metric_regression', 'guard_failure', 'policy_violation', 'unchanged_result', 'infra_flake'} else 'unknown'}",
+            f"oracle_count={oracle_count}",
+            f"mutated_path_count={mutated_count}",
+            f"shared_tree_untouched={str(bool(result.get('shared_tree_untouched', False))).lower()}",
+            f"promotion_ready={str(bool(result.get('promotion_ready', False))).lower()}",
+        ),
+        action_required="Inspect local artifact and repo gates before any PR decision.",
+        artifact_refs=(_safe_artifact_ref(result.get("artifact_ref", "")),),
+    )
+
+
+def render_kpp_decision(decision: dict[str, Any]) -> SlackSafeMessage:
+    """Render a sanitized KPP/promotion decision summary."""
+
+    disposition = str(decision.get("disposition", "unknown"))
+    if disposition not in {"promoted", "deferred", "discarded", "failed", "unknown"}:
+        disposition = "unknown"
+    failure_class = str(decision.get("failure_class") or "none")
+    return SlackSafeMessage(
+        message_type="kpp_decision",
+        header="KPP decision",
+        status_line=disposition,
+        scope="Promotion decision summary; Slack does not author KPP truth.",
+        evidence_summary=(
+            f"result_status={_slack_text(decision.get('result_status', 'unknown'))}",
+            f"failure_class={_slack_text(failure_class)}",
+            f"promotion_target={_slack_text(decision.get('promotion_target', 'unknown'))}",
+        ),
+        action_required="Use repo-reviewed promotion artifact as source of truth.",
+        artifact_refs=(_safe_artifact_ref(decision.get("durable_artifact_path", "")),),
+    )
+
+
+def render_failure_class_alert(*, failure_class: str, artifact_ref: str = "") -> SlackSafeMessage:
+    """Render a bounded failure-class alert."""
+
+    safe_failure = (
+        failure_class
+        if failure_class
+        in {
+            "timeout",
+            "oom",
+            "metric_regression",
+            "guard_failure",
+            "policy_violation",
+            "unchanged_result",
+            "infra_flake",
+        }
+        else "unknown"
+    )
+    return SlackSafeMessage(
+        message_type="failure_class_alert",
+        header="Failure class alert",
+        status_line=safe_failure,
+        scope="Operator alert only; no raw logs included.",
+        evidence_summary=(f"failure_class={safe_failure}",),
+        action_required="Triage local artifact and rerun focused gate after root-cause fix.",
+        artifact_refs=(_safe_artifact_ref(artifact_ref),),
+    )
+
+
+def render_dispatch_dry_run_preview(command: OperatorCommand) -> SlackSafeMessage:
+    """Render a dry-run-only dispatch preview without raw branch or hypothesis text."""
+
+    return SlackSafeMessage(
+        message_type="dispatch_dry_run_preview",
+        header="Dispatch dry-run preview",
+        status_line="dry_run_only",
+        scope="Fixed Experiment Runner dispatch workflow preview; no workflow sent by renderer.",
+        evidence_summary=(
+            f"workflow_file={DEFAULT_WORKFLOW_FILE}",
+            f"workflow_ref={DEFAULT_WORKFLOW_REF}",
+            f"branch_hash={_safe_hash(command.branch_ref) or 'none'}",
+            f"hypothesis_hash={_safe_hash(command.hypothesis) or 'none'}",
+            "dry_run=true",
+        ),
+        action_required="Human approval and existing execute-mode gate required for dispatch.",
+        artifact_refs=(".github/workflows/experiment-runner-dispatch.yml",),
+    )
+
+
+def render_operator_help_message() -> SlackSafeMessage:
+    """Render static operator help without authority claims."""
+
+    return SlackSafeMessage(
+        message_type="operator_help",
+        header="Experiment Runner Slack operator help",
+        status_line="display_only_commands",
+        scope="Allowlisted operator command boundary; not PR, review, merge, or Git identity authority.",
+        evidence_summary=(
+            "help: show this bounded command summary",
+            "status: show bridge status and authority boundary",
+            "mvp-evidence: show Guided Planning MVP evidence coverage summary",
+            "run-experiment <branch> <hypothesis>: dry-run-first fixed workflow preview/dispatch path",
+        ),
+        action_required="Use repo gates and GitHub review for all merge decisions.",
+        artifact_refs=("docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md",),
+    )
+
+
+def render_operator_status_message(config: BridgeConfig) -> SlackSafeMessage:
+    """Render sanitized bridge status without exposing runtime IDs or tokens."""
+
+    return SlackSafeMessage(
+        message_type="operator_status",
+        header="Experiment Runner Slack operator status",
+        status_line=(
+            "configured" if config.allowed_channels and config.allowed_users else "incomplete"
+        ),
+        scope="Operator bridge status; advisory only and not merge readiness.",
+        evidence_summary=(
+            f"dispatch_mode={config.dispatch_mode}",
+            f"workflow_file={config.workflow_file}",
+            f"workflow_ref={config.workflow_ref}",
+            f"channel_allowlist_present={str(bool(config.allowed_channels)).lower()}",
+            f"user_allowlist_present={str(bool(config.allowed_users)).lower()}",
+            f"team_allowlist_present={str(bool(config.allowed_teams)).lower()}",
+            f"rate_limit_seconds={config.min_interval_seconds}",
+            f"audit_retention_days={config.audit_retention_days}",
+        ),
+        action_required="Keep dry-run unless a reviewed PR promotes bounded execution.",
+        artifact_refs=("artifacts/orchestration/experiments/slack_socket_bridge",),
+    )
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
@@ -459,7 +718,7 @@ def parse_operator_command(text: str, *, command_hint: str | None = None) -> Ope
     verb, _separator, remainder = normalized.partition(" ")
     if verb not in ALLOWED_COMMANDS:
         raise SlackSocketCommandError("Slack operator command is invalid.")
-    if verb in {"help", "status"}:
+    if verb in {"help", "mvp-evidence", "status"}:
         if remainder.strip():
             raise SlackSocketCommandError("Slack operator command is invalid.")
         return OperatorCommand(kind=verb)
@@ -1247,11 +1506,14 @@ def run_socket_listener(config: BridgeConfig) -> int:
         ack()
         try:
             decision = process_payload(body, config)
-            respond(_format_operator_reply(decision))
+            event = normalize_slack_payload(body)
+            command = parse_operator_command(event.text, command_hint=event.command_hint)
+            respond(_format_command_reply(command, config, decision=decision))
         except SlackSocketBridgeError as exc:
             respond(f"Experiment Runner bridge rejected the request: {exc}")
 
     app.command("/run-experiment")(_handle_command)
+    app.command("/pulseplate-runner")(_handle_command)
     handler = SocketModeHandler(app, config.slack_app_token)
     handler.start()
     return 0
@@ -1263,6 +1525,40 @@ def _format_operator_reply(decision: BridgeDecision) -> str:
         f"{decision.status}; command={decision.command_kind}; "
         f"dispatch_mode={decision.dispatch_mode}; event={decision.event_hash[:12]}"
     )
+
+
+def _format_command_reply(
+    command: OperatorCommand,
+    config: BridgeConfig,
+    *,
+    decision: BridgeDecision | None = None,
+) -> str:
+    """Return the operator-visible reply for one processed command."""
+
+    if command.kind == "help":
+        return render_operator_help_message().as_text()
+    if command.kind == "status":
+        return render_operator_status_message(config).as_text()
+    if command.kind == "mvp-evidence":
+        return render_mvp_evidence_summary().as_text()
+    if command.kind == "run-experiment":
+        if decision is not None and decision.status == "dispatched":
+            return SlackSafeMessage(
+                message_type="dispatch_result",
+                header="Experiment Runner dispatch result",
+                status_line="dispatched",
+                scope="Fixed workflow dispatch was requested by an allowlisted operator.",
+                evidence_summary=(
+                    f"workflow_file={decision.workflow_file}",
+                    f"branch_hash={decision.branch_hash or 'none'}",
+                    f"hypothesis_hash={decision.hypothesis_hash or 'none'}",
+                    "workflow_input_dry_run=true",
+                ),
+                action_required="Inspect GitHub workflow result; Slack does not prove readiness.",
+                artifact_refs=(".github/workflows/experiment-runner-dispatch.yml",),
+            ).as_text()
+        return render_dispatch_dry_run_preview(command).as_text()
+    raise SlackSocketCommandError("Slack operator command is invalid.")
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1325,6 +1621,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=("none", "report", "cleanup"),
         default="none",
         help="Report or explicitly clean up expired local Slack audit artifacts.",
+    )
+    parser.add_argument(
+        "--reply-format",
+        choices=("payload", "text"),
+        default="payload",
+        help="For --event-json, print public payload JSON or the Slack-safe reply text.",
     )
     return parser.parse_args(argv)
 
@@ -1399,6 +1701,15 @@ def main(argv: list[str] | None = None) -> int:
     except SlackSocketBridgeError as exc:
         print(f"FAIL: {exc}")
         return 1
+    if args.reply_format == "text":
+        try:
+            event = normalize_slack_payload(payload)
+            command = parse_operator_command(event.text, command_hint=event.command_hint)
+            print(_format_command_reply(command, config, decision=decision))
+        except SlackSocketBridgeError as exc:
+            print(f"FAIL: {exc}")
+            return 1
+        return 0
     print(json.dumps(decision.public_payload(), indent=2, sort_keys=True))
     return 0
 

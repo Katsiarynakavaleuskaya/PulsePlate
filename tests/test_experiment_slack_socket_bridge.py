@@ -265,6 +265,208 @@ def test_dispatch_input_validation_alias_accepts_digest_without_echoing_values(
     assert "b" * 64 not in stdout
 
 
+def test_operator_help_status_and_mvp_evidence_renderers_are_slack_safe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+
+    outputs = [
+        bridge._format_command_reply(bridge.OperatorCommand(kind="help"), config),
+        bridge._format_command_reply(bridge.OperatorCommand(kind="status"), config),
+        bridge._format_command_reply(bridge.OperatorCommand(kind="mvp-evidence"), config),
+    ]
+    combined = "\n".join(outputs)
+
+    assert "MVP evidence contract summary" in combined
+    assert "Guided Planning Preview event contract" in combined
+    assert "display_only_commands" in combined
+    assert "advisory only" in combined
+    assert "C0ALERTS" not in combined
+    assert "U0OPERATOR" not in combined
+    assert "xox" not in combined
+    assert "xapp-" not in combined
+    assert "ghp_" not in combined
+    assert "/Users/" not in combined
+    assert "/tmp/" not in combined
+    assert "mergeable" not in combined.lower()
+    assert "review resolved" not in combined.lower()
+
+
+def test_dispatch_preview_hashes_branch_and_hypothesis_without_dispatching(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+    command = bridge.OperatorCommand(
+        kind="run-experiment",
+        branch_ref="feature/safe-branch",
+        hypothesis="Validate bounded operator evidence preview",
+    )
+
+    output = bridge._format_command_reply(command, config)
+
+    assert "Dispatch dry-run preview" in output
+    assert "dry_run=true" in output
+    assert bridge._sha256_text("feature/safe-branch") in output
+    assert bridge._sha256_text("Validate bounded operator evidence preview") in output
+    assert "feature/safe-branch" not in output
+    assert "Validate bounded operator evidence preview" not in output
+
+
+def test_slack_text_renderer_redacts_secret_mentions_and_paths() -> None:
+    message = bridge.SlackSafeMessage(
+        message_type="failure_class_alert",
+        header="@channel <@U0SECRET> `alert`",
+        status_line="guard_failure",
+        scope="Path /Users/alice/.ssh/id_rsa and token xoxb-secretsecretsecret",
+        evidence_summary=(
+            "webhook https://hooks.slack.com/services/AAA/BBB/CCCCCCCCCCCC",
+            "raw patch diff --git a/secret b/secret",
+        ),
+        action_required="Do not ping @here or <#C0SECRET>",
+    ).as_text()
+
+    assert "@[redacted-mention]" in message
+    assert "[redacted-slack-id]" in message
+    assert "[redacted-path]" in message
+    assert "[redacted-secret]" in message
+    assert "xoxb" not in message
+    assert "hooks.slack.com" not in message
+    assert "/Users/alice" not in message
+    assert "`alert`" not in message
+    assert "U0SECRET" not in message
+    assert "C0SECRET" not in message
+    assert "diff --git" not in message
+    assert "raw patch" not in message
+
+
+def test_result_kpp_and_failure_renderers_omit_raw_artifact_fields() -> None:
+    result_output = bridge.render_experiment_runner_result(
+        {
+            "status": "rejected",
+            "failure_class": "guard_failure",
+            "oracle_results": [
+                {
+                    "stdout": "xoxb-secret and /Users/alice/path should not render",
+                    "stderr": "raw stderr",
+                }
+            ],
+            "mutated_paths": ["scripts/orchestration/experiment_slack_socket_bridge.py"],
+            "shared_tree_untouched": True,
+            "promotion_ready": False,
+            "artifact_ref": "artifacts/orchestration/experiments/results/exp.json",
+        }
+    ).as_text()
+    kpp_output = bridge.render_kpp_decision(
+        {
+            "disposition": "promoted",
+            "result_status": "accepted",
+            "failure_class": None,
+            "promotion_target": "guard_test_proposal",
+            "durable_artifact_path": "docs/orchestration/experiment_guard_proposals/exp.md",
+        }
+    ).as_text()
+    failure_output = bridge.render_failure_class_alert(
+        failure_class="policy_violation",
+        artifact_ref="/Users/alice/artifacts/result.json",
+    ).as_text()
+    combined = "\n".join([result_output, kpp_output, failure_output])
+
+    assert "Experiment Runner outcome" in combined
+    assert "KPP decision" in combined
+    assert "Failure class alert" in combined
+    assert "oracle_count=1" in combined
+    assert "mutated_path_count=1" in combined
+    assert "raw stderr" not in combined
+    assert "xoxb" not in combined
+    assert "/Users/alice" not in combined
+    assert "[redacted-ref]" in combined
+
+
+def test_mvp_evidence_command_uses_existing_auth_audit_and_no_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(_event(command="/pulseplate-runner", text="mvp-evidence")),
+        encoding="utf-8",
+    )
+
+    assert (
+        bridge.main(
+            [
+                "--event-json",
+                str(event_path),
+                "--audit-dir",
+                str(audit_dir),
+                "--reply-format",
+                "text",
+            ]
+        )
+        == 0
+    )
+    stdout = capsys.readouterr().out
+
+    assert "MVP evidence contract summary" in stdout
+    assert "guided_planning_viewed" not in stdout
+    assert "C0ALERTS" not in stdout
+    audit_path = audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json"
+    audit_text = audit_path.read_text(encoding="utf-8")
+    audit = json.loads(audit_text)
+    assert audit["command_kind"] == "mvp-evidence"
+    assert audit["status"] == "dry_run"
+    assert "C0ALERTS" not in audit_text
+    assert "U0OPERATOR" not in audit_text
+
+
+def test_execute_mode_text_reply_reports_dispatch_not_dry_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "e" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "1")
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(_event(text="feature/test Validate bounded execution reply")),
+        encoding="utf-8",
+    )
+    calls: list[dict[str, Any]] = []
+
+    config = bridge.build_config(
+        dispatch_mode="execute",
+        audit_dir=str(audit_dir),
+        repo="Katsiarynakavaleuskaya/PulsePlate",
+    )
+    payload = json.loads(event_path.read_text(encoding="utf-8"))
+    decision = bridge.process_payload(
+        payload, config, dispatch_transport=lambda **kwargs: calls.append(kwargs)
+    )
+    event = bridge.normalize_slack_payload(payload)
+    command = bridge.parse_operator_command(event.text, command_hint=event.command_hint)
+    reply = bridge._format_command_reply(command, config, decision=decision)
+
+    assert len(calls) == 1
+    assert "Experiment Runner dispatch result" in reply
+    assert "Status: `dispatched`" in reply
+    assert "workflow_input_dry_run=true" in reply
+    assert "dry_run_only" not in reply
+    assert "feature/test" not in reply
+    assert "Validate bounded execution reply" not in reply
+    capsys.readouterr()
+
+
 @pytest.mark.parametrize(
     ("branch_ref", "hypothesis_sha256"),
     [
@@ -873,6 +1075,18 @@ def test_parser_rejects_unsafe_operator_text(text: str) -> None:
         bridge.parse_operator_command(text)
 
 
+def test_parser_accepts_bounded_pulseplate_runner_commands() -> None:
+    assert bridge.parse_operator_command("help").kind == "help"
+    assert bridge.parse_operator_command("status").kind == "status"
+    assert bridge.parse_operator_command("mvp-evidence").kind == "mvp-evidence"
+
+
+@pytest.mark.parametrize("text", ["status now", "mvp-evidence raw", "help please"])
+def test_parser_rejects_extra_args_for_read_only_commands(text: str) -> None:
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.parse_operator_command(text)
+
+
 def test_channel_and_user_allowlists_fail_closed_without_leaking_ids(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1472,7 +1686,13 @@ def test_slack_app_manifest_is_socket_mode_and_secret_free() -> None:
             ),
             "usage_hint": "<branch> <hypothesis>",
             "should_escape": False,
-        }
+        },
+        {
+            "command": "/pulseplate-runner",
+            "description": "Show bounded Experiment Runner status and MVP evidence summaries.",
+            "usage_hint": "help | status | mvp-evidence",
+            "should_escape": False,
+        },
     ]
     assert manifest["oauth_config"]["scopes"]["bot"] == ["commands", "chat:write"]
     assert "url" not in slash_commands[0]
@@ -1537,6 +1757,23 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert "|| true" not in workflow_text
     assert "gh pr" not in workflow_text
     assert "gh workflow run" not in workflow_text
+
+
+def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -> None:
+    runbook = (
+        REPO_ROOT / "docs" / "orchestration" / "EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md"
+    ).read_text(encoding="utf-8")
+
+    assert "/pulseplate-runner help" in runbook
+    assert "/pulseplate-runner status" in runbook
+    assert "/pulseplate-runner mvp-evidence" in runbook
+    assert "no raw user events" in runbook
+    assert "They do not create PRs" in runbook
+    assert "prove merge readiness" in runbook
+    assert "replace GitHub Actions/current-head truth" in runbook
+    assert "SLACK_SIGNING_SECRET" not in runbook
+    assert "hooks.slack.com" not in runbook
+    assert re.search(r"\b[ACDGTUW][A-Z0-9]{8,}\b", runbook) is None
 
 
 def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
