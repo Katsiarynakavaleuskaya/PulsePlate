@@ -703,15 +703,22 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 1. **Always BLOCK:** any `*.py` under `docs/pr/`
 2. **Runtime PRs only:** block planning docs in `docs/pr/`:
    `PR_<n>_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST).md`
-3. **Warnings (non-blocking):**
+3. **Tiered size policy:**
 
-- file count > ~15 (info), > ~30 (warning)
+- Micro PR: `<=5` changed files, no split justification required.
+- Standard governance/design PR: `<=20` changed files; normal `Scope`, `Out of scope`, and `Tests` sections required; `Split Justification` required when `>15` files.
+- Frontend vertical MVP PR: `<=30` changed files only with explicit `Operator approval: approved` plus `Frontend vertical MVP approval: approved` and `Split Justification`; must stay one vertical user flow and must not mix frontend UI with backend/API/AI runtime unless `Frontend/backend mix approval: approved` or an emergency exception is documented.
+- Privileged CI/security/workflow PR: target `<=10` files; hard cap `<=15` unless `Operator approval: approved` plus `Privileged scope exception: approved` is documented; cannot mix with frontend product implementation unless `Frontend/backend mix approval: approved` or an emergency exception is documented.
+- `>30` files fail closed unless explicit `Operator approval: approved` plus `Emergency exception: approved` is documented.
+- Closeout/mapping files such as `docs/review/PR_<N>_FIXED_MAPPING.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and narrow runbook/PR-body mirror docs tied to the PR are allowed in the same PR and still count for visibility.
+4. **Warnings (non-blocking):**
+
 - runtime PRs with >2 markdown files (mixed-concern signal)
 
 **How to pass**
 
 - Put tests in `tests/`, never under `docs/pr/`.
-- Keep runtime PRs focused: aim for `<15 files`, and limit docs to 1–2 contract/spec markdown files.
+- Keep runtime PRs focused; use the tiered PR scope policy and limit docs to 1–2 contract/spec markdown files unless they are same-PR closeout/mapping overhead.
 - If you need planning docs, move them to a separate docs-only PR.
 - For full rules and CI setup, see:
   - `docs/policy/PR_SCOPE_GUARD_CI_SETUP.md`

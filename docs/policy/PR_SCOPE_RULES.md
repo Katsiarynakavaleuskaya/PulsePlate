@@ -1,7 +1,7 @@
 # PR Scope Rules (Runtime vs Docs Separation)
 
 **Status:** Mandatory
-**Last updated:** 2026-01-08 (after PR-494 analysis)
+**Last updated:** 2026-05-27 (tiered PR-scope policy for governance/design/frontend MVP lanes)
 **Applies to:** All contributors, agents, CI reviewers
 
 **CI Enforcement:** Runtime PRs that include planning docs or `docs/pr/*.py` will be blocked.
@@ -121,34 +121,46 @@ PR-495:
 
 ## 5. PR Size Guidelines
 
-### Small PR (Ideal)
-- **1-5 files changed**
-- **<200 lines added/modified**
-- Single, focused change
-- Easy to review in 10-15 minutes
+### Micro PR
 
-### Medium PR (Acceptable)
-- **5-15 files changed**
-- **200-500 lines added/modified**
-- Related changes (e.g., feature + tests + minimal docs)
-- Reviewable in 30-45 minutes
-- **Hard gate:** Runtime PR must achieve **100% diff-coverage** on touched lines (CI enforced)
+- **≤5 files changed**
+- No split justification required
+- Examples: typo, single guard fix, small test repair
 
-### Large PR (Warning Sign)
-- **15-30 files changed**
-- **500-1000 lines added/modified**
-- **Action:** Review scope, consider splitting
+### Standard Governance / Design PR
 
-### Bloat PR (Must Split)
-- **30+ files changed**
-- **1000+ lines added/modified**
-- **Action:** **STOP** and split immediately
+- **≤20 files changed**
+- Requires normal `Scope`, `Out of scope`, and `Tests` sections
+- Requires `Split Justification` only when **>15 files**
+- Same-PR closeout/mapping overhead is allowed when directly tied to the PR
+
+### Frontend Vertical MVP PR
+
+- **≤30 files changed**
+- Requires explicit `Operator approval: approved` and `Frontend vertical MVP approval: approved` in the PR body
+- Requires `Split Justification`
+- Must remain one vertical user flow
+- Must not mix frontend UI with backend/API/AI runtime unless `Frontend/backend mix approval: approved` or an emergency exception is documented
+
+### Privileged CI / Security / Workflow PR
+
+- Target **≤10 files changed**
+- Hard cap **≤15 files changed** unless `Operator approval: approved` plus `Privileged scope exception: approved` is documented
+- Requires security review and bug-hunter pass
+- Cannot mix with frontend product implementation unless `Frontend/backend mix approval: approved` or an emergency exception is documented
+
+The file-count guard enforces the privileged lane cap and mixed-scope boundary. The security review and bug-hunter proof are enforced by coordinator-owned PR lifecycle review, fixed mapping, and merge-readiness governance rather than by the file-count helper alone.
+
+### Oversized PR
+
+- **>30 files changed** fails closed
+- Must split unless `Operator approval: approved` plus `Emergency exception: approved` is documented
 
 ---
 
 ## 6. Enforcement Checklist (Before Opening PR)
 
-**CI Guard:** The scope guard runs automatically in CI. See [`../../scripts/ci/pr_scope_guard.sh`](../../scripts/ci/pr_scope_guard.sh) for implementation.
+**CI Guards:** The scope guard job runs automatically in CI. [`../../scripts/ci/pr_scope_guard.sh`](../../scripts/ci/pr_scope_guard.sh) enforces forbidden `docs/pr` patterns; [`../../scripts/ci/check_pr_size_governance.py`](../../scripts/ci/check_pr_size_governance.py) enforces tiered file-count and approval policy.
 
 Run this before opening any PR:
 
@@ -178,7 +190,7 @@ git diff --stat origin/main...HEAD
 ```
 
 **Red flags:**
-- File count > 30 → **STOP, split PR**
+- File count > 30 without an emergency/operator exception → **STOP, split PR**
 - Both `.md` and `.py` files + `.md` count > 2 → **Review scope**
 - Planning docs (`ROADMAP`, `HANDOFF`, etc.) in runtime PR → **Remove them**
 - Diff-coverage < 100% on touched lines → **Add tests or reduce scope**
@@ -252,10 +264,12 @@ This policy exists because:
 
 ## 11. Quick Reference
 
-| PR Type | Allowed Files | Max Files | Max Lines | Diff-Coverage |
-|---------|--------------|-----------|-----------|---------------|
-| Runtime | `.py` (app/core/tests) + 1-2 contract `.md` | 15 (target: Small/Medium) | 500 | 100% (hard gate) |
-| Docs-only | `.md` only | 30 | 1000 | N/A |
-| Mixed | ❌ **Forbidden** | - | - | - |
+| PR Type | Max Files | Required Proof | Enforcement |
+|---------|-----------|----------------|-------------|
+| Micro | ≤5 | No split justification; governance/security docs still need `Scope`, `Out of scope`, `Tests` | `check_pr_size_governance.py` |
+| Standard governance/design | ≤20 | `Scope`, `Out of scope`, `Tests`; `Split Justification` if >15 files | `check_pr_size_governance.py` |
+| Frontend vertical MVP | ≤30 | `Operator approval: approved`, `Frontend vertical MVP approval: approved`, `Split Justification`; add `Frontend/backend mix approval: approved` when frontend mixes with backend/API/AI runtime | `check_pr_size_governance.py` |
+| Privileged CI/security/workflow | target ≤10, hard cap ≤15 | `Operator approval: approved` plus `Privileged scope exception: approved` if >15 files; role review proof via PR lifecycle | `check_pr_size_governance.py` + review governance |
+| Oversized | >30 | Split, unless `Emergency exception: approved` with operator approval | `check_pr_size_governance.py` |
 
-**If your PR doesn't fit these categories, split it.**
+**If your PR doesn't fit these categories, split it or get an explicit operator-approved exception before opening review.**
