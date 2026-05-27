@@ -9,8 +9,15 @@ import {
 const allowedPayloadKeys = ['surface', 'componentId', 'routePath', 'optionId', 'tierLabel'];
 
 describe('mvpObservability', () => {
+  const originalSendBeacon = navigator.sendBeacon;
+
   afterEach(() => {
     setGuidedPlanningEventSink(null);
+    vi.unstubAllGlobals();
+    Object.defineProperty(navigator, 'sendBeacon', {
+      configurable: true,
+      value: originalSendBeacon,
+    });
     vi.restoreAllMocks();
   });
 
