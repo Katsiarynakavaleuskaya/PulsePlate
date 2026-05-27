@@ -57,11 +57,12 @@ SECRET_SHAPED_RE = re.compile(
     r"https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,}|sk-[A-Za-z0-9_-]{12,})",
     re.IGNORECASE,
 )
-SLACK_IDENTIFIER_RE = re.compile(r"\b[ACDGTUW][A-Z0-9]{2,}\b")
+SLACK_IDENTIFIER_RE = re.compile(r"\b[ACDEGTUW][A-Z0-9]{7,}\b")
 SLACK_MENTION_RE = re.compile(r"<[@#!]?[A-Z0-9][A-Z0-9_-]{1,79}(?:\|[^>]+)?>")
 PATCH_MARKER_RE = re.compile(
     r"(diff\s+--git|^@@\s|^\+\+\+\s|^---\s|raw\s+patch|patch\s+text|"
-    r"oracle\s+stdout|oracle\s+stderr|\bstdout\b|\bstderr\b)",
+    r"oracle\s+stdout|oracle\s+stderr|raw\s+stdout|raw\s+stderr|"
+    r"stdout\s*:|stderr\s*:)",
     re.IGNORECASE,
 )
 SLACK_APP_TOKEN_RE = re.compile(r"^xapp-[A-Za-z0-9-]{10,}$")
