@@ -11,7 +11,8 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 
 ## Lane Start Provenance
 
-- Packet: `artifacts/orchestration/task_packets/eade287dd930.json` (local artifact, not committed)
+- Packet: `artifacts/orchestration/task_packets/eade287dd930.json`
+- Note: lane-start packet is a local artifact and is not committed.
 - Starter: `scripts/orchestration/start_pr_lane.sh` is supplemental only; this lane used direct `task_bootstrap.py` because the operator prompt supplied the exact command.
 
 ## Orchestration Source Of Truth Note
@@ -20,16 +21,18 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 - Role execution was performed explicitly by the model/operator and recorded in the PR body Agent Execution Log.
 - `qoder_dispatch_bridge` is adapter-only. When its advisory manifest conflicted with the operator-declared role order and omitted `ios-engineer`, this PR followed `AGENTS.md`, scoped `AGENTS.md`, and the task packet/operator-declared order.
 - No separate orchestration PR is opened in this lane. Follow-up candidate if the drift recurs: `fix(orchestration): clarify task bootstrap as canonical role packet and demote Qoder bridge to adapter`.
+- `pulseplate-pr-review` is required pre-open and after the first bot-review/current-head review cycle. Pre-open is recorded; post-open/after-bot remains pending.
+- Changed file count remains within the 20-file design governance scope cap, with no runtime/frontend/iOS/backend/token/generated-asset scope.
+- No default closeout PR is opened for this lane; ledger/mapping closeout stays inside PR #1840 unless bot or human review creates a tracked follow-up.
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/design-token-runtime-parity-boundary-oracle-result.json` (local artifact, not committed)
+- Artifact: `artifacts/orchestration/experiments/results/design-token-runtime-parity-boundary-oracle-result.json`
+- Note: Experiment Runner evidence is a local artifact and is not committed.
 - Contribution: oracle-only governance review shaped validation, gate admission, and commit decision
 - Co-author trailer included in commit `ab9fef130`
 
 ## Fixed in Commit Mapping
-
-### Fixed in Commit Mapping
 
 - No actionable review comments
 
