@@ -34,7 +34,11 @@ export function trackGuidedPlanningEvent(
   name: GuidedPlanningEventName,
   payload: GuidedPlanningEventPayload
 ): void {
-  guidedPlanningEventSink?.({ name, payload });
+  try {
+    guidedPlanningEventSink?.({ name, payload });
+  } catch {
+    // Observability evidence must never break the user-facing MVP flow.
+  }
 }
 
 export const guidedPlanningObservabilitySensitiveFields = [

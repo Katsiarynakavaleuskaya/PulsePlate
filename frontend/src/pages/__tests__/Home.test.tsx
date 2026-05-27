@@ -94,9 +94,13 @@ describe('Home Guided Planning Preview', () => {
     );
 
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByTestId('guided-planning-preview')).toBeInTheDocument();
+    const guidedPlanningContainer = screen.getByTestId('guided-planning-preview');
+    expect(guidedPlanningContainer).toBeInTheDocument();
     expect(screen.getByTestId('mvp-accessibility-evidence')).toHaveTextContent(/selector groups/i);
     expect(screen.getByTestId('mvp-observability-evidence')).toHaveTextContent(/frontend-only interaction evidence/i);
+    expect(guidedPlanningContainer.getAttribute('aria-describedby')?.split(' ')).toEqual(
+      expect.arrayContaining(['mvp-accessibility-evidence', 'mvp-observability-evidence'])
+    );
     expect(screen.getByRole('heading', { level: 1, name: 'Turn a check-in into practical meal decisions.' })).toBeInTheDocument();
     expect(screen.getByText('check-in')).toBeInTheDocument();
     expect(screen.getByText('targets')).toBeInTheDocument();
@@ -289,7 +293,11 @@ describe('Home Guided Planning Preview', () => {
       </MemoryRouter>
     );
 
-    const results = await axe(container.querySelector('[data-testid="guided-planning-preview"]') as HTMLElement);
+    const guidedPlanningSection = container.querySelector('[data-testid="guided-planning-preview"]');
+    if (!(guidedPlanningSection instanceof HTMLElement)) {
+      throw new Error('Guided planning preview section not found');
+    }
+    const results = await axe(guidedPlanningSection);
 
     expect(results).toHaveNoViolations();
   });

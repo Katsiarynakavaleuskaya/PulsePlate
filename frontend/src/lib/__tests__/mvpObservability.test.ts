@@ -45,6 +45,20 @@ describe('mvpObservability', () => {
     ]);
   });
 
+  it('keeps faulty evidence sinks from breaking the user flow', () => {
+    setGuidedPlanningEventSink(() => {
+      throw new Error('sink failure');
+    });
+
+    expect(() =>
+      trackGuidedPlanningEvent('guided_planning_viewed', {
+        surface: 'app',
+        componentId: 'guided-planning-preview',
+        routePath: '/app',
+      })
+    ).not.toThrow();
+  });
+
   it('keeps MVP event payloads allowlisted and free of sensitive field names', () => {
     const events: Array<{ payload: GuidedPlanningEventPayload }> = [];
     setGuidedPlanningEventSink((event) => events.push(event));
