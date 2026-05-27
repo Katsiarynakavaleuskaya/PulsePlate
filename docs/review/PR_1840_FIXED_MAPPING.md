@@ -72,6 +72,11 @@ Evidence: `docs/review/PR_1840_FIXED_MAPPING.md:36` and `docs/review/PR_1840_FIX
 - `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-design-token-runtime-parity-boundary/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-design-token-runtime-parity-boundary/.venv/bin/python make validate-changed` -> PASS.
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-design-token-runtime-parity-boundary/.venv/bin:$PATH pre-commit run --all-files` -> PASS after Black hook reformatted two new Python files and rerun passed.
 
+## Post-open Premortem
+
+- Post-open premortem at `3b06e2aec`: proceed with changes.
+- Remaining closure items: current-head CI completion, final bot/actionable disposition confirmation, and next-MVP admission must run the token/runtime parity boundary validator as a blocking gate.
+
 ## Deferred / Follow-ups
 
 - Next PR: `feat(frontend): implement first governed MVP product slice`.
