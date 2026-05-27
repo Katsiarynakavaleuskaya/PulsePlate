@@ -10,7 +10,10 @@ No actionable GitHub review threads exist as of this mapping update. Future acti
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1843#discussion_r3310684860 -> 21c7eca34
+Disposition: FIXED
+Commit: 21c7eca34
+Evidence: `docs/review/PR_1843_FIXED_MAPPING.md` includes the required checked Phase2 checklist items under `## Discussion Thread Pass`.
 
 ## Experiment Runner Evidence
 
