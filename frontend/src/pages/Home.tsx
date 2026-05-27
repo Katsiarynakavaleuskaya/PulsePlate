@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, Hero, StatsCard, buttonClasses } from '../components/ui';
+import { trackGuidedPlanningEvent } from '../lib/mvpObservability';
 
 type PlanningIntentId = 'consistent' | 'balanced' | 'decision_fatigue' | 'shopping';
 type PlanningTimeId = 'quick' | 'standard' | 'batch' | 'flexible';
@@ -115,17 +116,20 @@ function OptionButton({
   isSelected,
   label,
   helper,
+  controls,
   onClick,
 }: {
   isSelected: boolean;
   label: string;
   helper: string;
+  controls: string;
   onClick: () => void;
 }): JSX.Element {
   return (
     <button
       type="button"
       aria-pressed={isSelected}
+      aria-controls={controls}
       onClick={onClick}
       className={[
         'min-h-[5.5rem] rounded-2xl border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] motion-reduce:transition-none',
@@ -169,13 +173,77 @@ export default function Home(): JSX.Element {
     timeNotes[selectedTime],
   ].join(' ');
 
+  useEffect(() => {
+    trackGuidedPlanningEvent('guided_planning_viewed', {
+      surface: 'app',
+      componentId: 'guided-planning-preview',
+      routePath: '/app',
+    });
+    trackGuidedPlanningEvent('planning_preview_seen', {
+      surface: 'app',
+      componentId: 'planning-preview-card',
+      routePath: '/app',
+    });
+    (['FREE', 'PRO', 'VIP'] as const).forEach((tierLabel) => {
+      trackGuidedPlanningEvent('tier_value_viewed', {
+        surface: 'app',
+        componentId: 'tier-value-rail',
+        routePath: '/app',
+        tierLabel,
+      });
+    });
+    trackGuidedPlanningEvent('wellness_boundary_viewed', {
+      surface: 'app',
+      componentId: 'wellness-boundary-note',
+      routePath: '/app',
+    });
+  }, []);
+
   if (forbiddenMedicalClaimPattern.test(copyCorpus)) {
     throw new Error('Guided Planning Preview contains forbidden medical claim copy.');
   }
 
+  function selectIntent(intentId: PlanningIntentId): void {
+    setSelectedIntent(intentId);
+    trackGuidedPlanningEvent('planning_intent_selected', {
+      surface: 'app',
+      componentId: 'planning-intent-selector',
+      routePath: '/app',
+      optionId: intentId,
+    });
+  }
+
+  function selectTime(timeId: PlanningTimeId): void {
+    setSelectedTime(timeId);
+    trackGuidedPlanningEvent('planning_time_selected', {
+      surface: 'app',
+      componentId: 'planning-time-selector',
+      routePath: '/app',
+      optionId: timeId,
+    });
+  }
+
+  function trackPrimaryPlanningCta(): void {
+    trackGuidedPlanningEvent('primary_planning_cta_clicked', {
+      surface: 'app',
+      componentId: 'primary-planning-cta',
+      routePath: '/setup',
+    });
+  }
+
   return (
     <main className="min-h-screen bg-[var(--pp-navy)] px-4 py-6 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-8" data-testid="guided-planning-preview">
+      <div
+        className="mx-auto max-w-6xl space-y-8"
+        data-testid="guided-planning-preview"
+        aria-describedby="mvp-accessibility-evidence mvp-observability-evidence"
+      >
+        <p id="mvp-accessibility-evidence" className="sr-only" data-testid="mvp-accessibility-evidence">
+          Guided Planning Preview exposes named selector groups, selected states, preview landmarks, and a wellness-only boundary for assistive technology.
+        </p>
+        <p id="mvp-observability-evidence" className="sr-only" data-testid="mvp-observability-evidence">
+          Guided Planning Preview emits frontend-only interaction evidence without backend analytics, cookies, storage, or health identifiers.
+        </p>
         <Hero
           eyebrow="Guided Planning Preview"
           title="Turn a check-in into practical meal decisions."
@@ -198,6 +266,7 @@ export default function Home(): JSX.Element {
               <Link
                 to="/setup"
                 data-testid="primary-planning-cta"
+                onClick={trackPrimaryPlanningCta}
                 className={buttonClasses({
                   className: 'rounded-2xl text-[var(--color-primary-foreground)]',
                   size: 'lg',
@@ -246,19 +315,20 @@ export default function Home(): JSX.Element {
               <CardContent className="space-y-4 p-5 sm:p-6" data-testid="planning-intent-selector">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/46">Step 1</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Choose your planning intent</h2>
+                  <h2 id="planning-intent-heading" className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Choose your planning intent</h2>
                   <p className="mt-2 text-sm leading-6 text-white/64">
                     Start with the reason you opened PulsePlate today.
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2" role="group" aria-labelledby="planning-intent-heading">
                   {planningIntents.map((intent) => (
                     <OptionButton
                       key={intent.id}
                       isSelected={selectedIntent === intent.id}
                       label={intent.label}
                       helper={intent.helper}
-                      onClick={() => setSelectedIntent(intent.id)}
+                      controls="planning-preview-card-region"
+                      onClick={() => selectIntent(intent.id)}
                     />
                   ))}
                 </div>
@@ -269,19 +339,20 @@ export default function Home(): JSX.Element {
               <CardContent className="space-y-4 p-5 sm:p-6" data-testid="planning-time-selector">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/46">Step 2</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Pick a practical constraint</h2>
+                  <h2 id="planning-time-heading" className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Pick a practical constraint</h2>
                   <p className="mt-2 text-sm leading-6 text-white/64">
                     The preview adapts its planning language to your cooking window.
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2" role="group" aria-labelledby="planning-time-heading">
                   {planningTimes.map((time) => (
                     <OptionButton
                       key={time.id}
                       isSelected={selectedTime === time.id}
                       label={time.label}
                       helper={time.helper}
-                      onClick={() => setSelectedTime(time.id)}
+                      controls="planning-preview-card-region"
+                      onClick={() => selectTime(time.id)}
                     />
                   ))}
                 </div>
@@ -291,11 +362,17 @@ export default function Home(): JSX.Element {
 
           <div className="space-y-6">
             <Card className="rounded-[2rem] border-[var(--color-primary)]/45 bg-[var(--color-primary)]/12 text-white shadow-[0_30px_70px_rgba(51,159,255,0.14)]">
-              <CardContent className="space-y-5 p-5 sm:p-6" data-testid="planning-preview-card">
+              <CardContent
+                id="planning-preview-card-region"
+                role="region"
+                aria-labelledby="planning-preview-heading"
+                className="space-y-5 p-5 sm:p-6"
+                data-testid="planning-preview-card"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/52">Planning preview</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Your next meal rhythm</h2>
+                    <h2 id="planning-preview-heading" className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Your next meal rhythm</h2>
                   </div>
                   <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-semibold text-white/78">
                     Preview example
@@ -393,11 +470,13 @@ export default function Home(): JSX.Element {
 
             <Card
               id="wellness-boundary"
+              role="note"
+              aria-labelledby="wellness-boundary-heading"
               className="rounded-[2rem] border-white/12 bg-white/[0.06] text-white shadow-none"
             >
               <CardContent className="space-y-3 p-5" data-testid="wellness-boundary-note">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/46">Wellness boundary</p>
-                <h2 className="text-xl font-semibold text-white">Wellness planning support only. Not medical advice.</h2>
+                <h2 id="wellness-boundary-heading" className="text-xl font-semibold text-white">Wellness planning support only. Not medical advice.</h2>
                 <p className="text-sm leading-6 text-white/66">
                   This preview helps organize meal decisions in a wellness context. It is not clinical guidance and is not a substitute for qualified professional care.
                 </p>

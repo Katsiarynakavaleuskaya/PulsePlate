@@ -3,9 +3,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { axe } from 'jest-axe';
 import Home from '../Home';
 import { RequireKey } from '../../auth/RequireKey';
 import { routes, type RoutePath } from '../../config/routes';
+import {
+  guidedPlanningObservabilitySensitiveFields,
+  setGuidedPlanningEventSink,
+  type GuidedPlanningEvent,
+} from '../../lib/mvpObservability';
 
 vi.mock('../../lib/auth', () => ({
   useAuth: vi.fn(),
@@ -58,7 +64,11 @@ function renderHomeRoutes(): ReturnType<typeof render> {
 }
 
 describe('Home Guided Planning Preview', () => {
+  const guidedPlanningEvents: GuidedPlanningEvent[] = [];
+
   beforeEach(() => {
+    guidedPlanningEvents.length = 0;
+    setGuidedPlanningEventSink((event) => guidedPlanningEvents.push(event));
     vi.mocked(useAuth).mockReturnValue({
       apiKey: null,
       isAuthenticated: false,
@@ -71,6 +81,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   afterEach(() => {
+    setGuidedPlanningEventSink(null);
     cleanup();
     vi.clearAllMocks();
   });
@@ -84,6 +95,8 @@ describe('Home Guided Planning Preview', () => {
 
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByTestId('guided-planning-preview')).toBeInTheDocument();
+    expect(screen.getByTestId('mvp-accessibility-evidence')).toHaveTextContent(/selector groups/i);
+    expect(screen.getByTestId('mvp-observability-evidence')).toHaveTextContent(/frontend-only interaction evidence/i);
     expect(screen.getByRole('heading', { level: 1, name: 'Turn a check-in into practical meal decisions.' })).toBeInTheDocument();
     expect(screen.getByText('check-in')).toBeInTheDocument();
     expect(screen.getByText('targets')).toBeInTheDocument();
@@ -107,6 +120,61 @@ describe('Home Guided Planning Preview', () => {
     expect(screen.getByTestId('primary-planning-cta')).toBeInTheDocument();
   });
 
+  it('emits safe frontend-only MVP view evidence on render', () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(guidedPlanningEvents.map((event) => event.name)).toEqual([
+      'guided_planning_viewed',
+      'planning_preview_seen',
+      'tier_value_viewed',
+      'tier_value_viewed',
+      'tier_value_viewed',
+      'wellness_boundary_viewed',
+    ]);
+    expect(guidedPlanningEvents).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'guided_planning_viewed',
+          payload: { surface: 'app', componentId: 'guided-planning-preview', routePath: '/app' },
+        },
+        {
+          name: 'planning_preview_seen',
+          payload: { surface: 'app', componentId: 'planning-preview-card', routePath: '/app' },
+        },
+        {
+          name: 'wellness_boundary_viewed',
+          payload: { surface: 'app', componentId: 'wellness-boundary-note', routePath: '/app' },
+        },
+      ])
+    );
+    expect(guidedPlanningEvents.filter((event) => event.name === 'tier_value_viewed').map((event) => event.payload.tierLabel)).toEqual([
+      'FREE',
+      'PRO',
+      'VIP',
+    ]);
+  });
+
+  it('keeps emitted MVP event payloads free of sensitive fields', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
+    await user.click(screen.getByRole('button', { name: /Batch prep/i }));
+    await user.click(screen.getByTestId('primary-planning-cta'));
+
+    const payloadKeys = guidedPlanningEvents.flatMap((event) => Object.keys(event.payload));
+    expect(payloadKeys).not.toEqual(expect.arrayContaining([...guidedPlanningObservabilitySensitiveFields]));
+    expect(guidedPlanningEvents.every((event) => event.payload.surface === 'app')).toBe(true);
+  });
+
   it('lets users choose planning intent and practical time constraint', async () => {
     const user = userEvent.setup();
     render(
@@ -118,10 +186,39 @@ describe('Home Guided Planning Preview', () => {
     await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
     await user.click(screen.getByRole('button', { name: /Batch prep/i }));
 
+    expect(screen.getByRole('group', { name: 'Choose your planning intent' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Pick a practical constraint' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Shopping-list planning/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: /Batch prep/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /More consistent meals/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /Shopping-list planning/i })).toHaveAttribute(
+      'aria-controls',
+      'planning-preview-card-region'
+    );
     expect(screen.getByText('Translate check-in intent into meal anchors first, then shop around those anchors.')).toBeInTheDocument();
     expect(screen.getByText('Batch-prep mode highlights repeatable proteins, grains, and produce that can be reused.')).toBeInTheDocument();
+    expect(guidedPlanningEvents).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'planning_intent_selected',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-intent-selector',
+            routePath: '/app',
+            optionId: 'shopping',
+          },
+        },
+        {
+          name: 'planning_time_selected',
+          payload: {
+            surface: 'app',
+            componentId: 'planning-time-selector',
+            routePath: '/app',
+            optionId: 'batch',
+          },
+        },
+      ])
+    );
   });
 
   it('shows the FREE PRO VIP value ladder honestly', () => {
@@ -145,6 +242,7 @@ describe('Home Guided Planning Preview', () => {
     );
 
     expect(screen.getByText('Wellness planning support only. Not medical advice.')).toBeInTheDocument();
+    expect(screen.getByRole('note', { name: 'Wellness planning support only. Not medical advice.' })).toBeInTheDocument();
     expect(container).not.toHaveTextContent(
       /diagnose|treat|cure|guaranteed weight loss|AI doctor|personalized medical recommendation|clinically proven|prescription|disease management|medical-grade|therapeutic recommendation/i
     );
@@ -158,6 +256,7 @@ describe('Home Guided Planning Preview', () => {
     );
 
     expect(screen.getByTestId('primary-planning-cta')).toHaveAttribute('href', '/setup');
+    expect(screen.getByRole('link', { name: 'Continue planning' })).toHaveAttribute('href', '/setup');
     expect(screen.getByRole('link', { name: 'Learn why this is wellness-only' })).toHaveAttribute(
       'href',
       '#wellness-boundary'
@@ -173,6 +272,26 @@ describe('Home Guided Planning Preview', () => {
 
     expect(screen.getByTestId('setup-route')).toBeInTheDocument();
     expect(screen.queryByTestId('enter-key-probe')).not.toBeInTheDocument();
+    expect(guidedPlanningEvents).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'primary_planning_cta_clicked',
+          payload: { surface: 'app', componentId: 'primary-planning-cta', routePath: '/setup' },
+        },
+      ])
+    );
+  });
+
+  it('has no targeted axe violations in the guided planning MVP section', async () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    const results = await axe(container.querySelector('[data-testid="guided-planning-preview"]') as HTMLElement);
+
+    expect(results).toHaveNoViolations();
   });
 
   it('redirects protected planning CTAs when session key is missing', async () => {
