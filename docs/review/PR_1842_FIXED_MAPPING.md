@@ -30,13 +30,9 @@ Disposition: NOT-A-BUG
 Evidence: Codex and CodeRabbit comments are usage/rate-limit notices and contain no requested code change. CodeRabbit walkthrough/docstring warning is non-blocking for this frontend slice and does not identify a concrete implementation defect.
 Reason: No code, test, security, accessibility, or wellness-safety action is required.
 
-- Sourcery review `PRR_kwDOPi-pts8AAAABBJJiKQ`
-
 Disposition: NOT-A-BUG
 Evidence: Sourcery review is a weekly rate-limit notice and contains no requested code change.
 Reason: No implementation action is required.
-
-- Cubic review `PRR_kwDOPi-pts8AAAABBJLYgQ`
 
 Disposition: NOT-A-BUG
 Evidence: Cubic reported “No issues found” across 2 files.
