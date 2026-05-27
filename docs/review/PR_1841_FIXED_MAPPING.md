@@ -43,8 +43,8 @@ Evidence: `docs/policy/PR_SCOPE_RULES.md` Quick Reference now requires `Operator
 - `.venv/bin/python scripts/orchestration/check_agent_consistency.py` passed.
 - `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` passed.
 - `.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py` passed.
-- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-ci-pr-scope-guard-policy-v2/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-ci-pr-scope-guard-policy-v2/.venv/bin/python make validate-changed` passed.
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-ci-pr-scope-guard-policy-v2/.venv/bin:$PATH pre-commit run --all-files` passed.
+- `DEV_PYTHON=$PWD/.venv/bin/python VENV_PYTHON=$PWD/.venv/bin/python make validate-changed` passed.
+- `PATH=$PWD/.venv/bin:$PATH pre-commit run --all-files` passed.
 
 ## Machine-Heavy Local Verify Deferral
 
