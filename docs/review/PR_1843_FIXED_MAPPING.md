@@ -21,6 +21,16 @@ Disposition: FIXED
 Commit: 3d5c36dcc
 Evidence: `frontend/src/lib/mvpObservability.ts` catches sink failures, `frontend/src/lib/__tests__/mvpObservability.test.ts` covers no-throw behavior, and `frontend/src/pages/__tests__/Home.test.tsx` asserts `aria-describedby` evidence wiring.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1843#discussion_r3310685576 -> 3d5c36dcc
+Disposition: FIXED
+Commit: 3d5c36dcc
+Evidence: `frontend/src/lib/mvpObservability.ts` catches sink failures and `frontend/src/lib/__tests__/mvpObservability.test.ts` covers no-throw behavior.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1843#discussion_r3310685578 -> 3d5c36dcc
+Disposition: FIXED
+Commit: 3d5c36dcc
+Evidence: `frontend/src/pages/__tests__/Home.test.tsx` asserts `aria-describedby` evidence wiring.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1843#pullrequestreview-4372221637 -> 3d5c36dcc
 Disposition: FIXED
 Commit: 3d5c36dcc
