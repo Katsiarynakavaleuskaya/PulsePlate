@@ -11,7 +11,7 @@
 
 - Lane implementation commit: `dfe77693c`
 - Post-open QA gap fixes: `334821cbb`
-- Bot/review disposition fixes: `<pending>`
+- Bot/review disposition fixes: `fec9a108c`
 - Disposition: FIXED
 - Evidence:
   - `scripts/orchestration/experiment_slack_socket_bridge.py`: extends existing Slack Socket Mode bridge with bounded `/pulseplate-runner` display commands and Slack-safe renderers.
