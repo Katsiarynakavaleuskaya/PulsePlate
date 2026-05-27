@@ -16,6 +16,16 @@ Disposition: FIXED
 Commit: e9b29f1fc
 Evidence: `docs/review/PR_1843_FIXED_MAPPING.md` includes the required checked Phase2 checklist items under `## Discussion Thread Pass`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1843#pullrequestreview-4372222684 -> 3d5c36dcc
+Disposition: FIXED
+Commit: 3d5c36dcc
+Evidence: `frontend/src/lib/mvpObservability.ts` catches sink failures, `frontend/src/lib/__tests__/mvpObservability.test.ts` covers no-throw behavior, and `frontend/src/pages/__tests__/Home.test.tsx` asserts `aria-describedby` evidence wiring.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1843#pullrequestreview-4372221637 -> 3d5c36dcc
+Disposition: FIXED
+Commit: 3d5c36dcc
+Evidence: `frontend/src/pages/__tests__/Home.test.tsx` null-checks the Guided Planning Preview element before passing it to `axe(...)`.
+
 ## Experiment Runner Evidence
 
 Artifact: `artifacts/orchestration/experiments/results/frontend-mvp-observability-a11y-hooks-oracle-result.json`
