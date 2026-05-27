@@ -11,9 +11,9 @@ The checked checklist items above are required by `scripts/orchestration/review_
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1843#discussion_r3310684860 -> 21c7eca34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1843#discussion_r3310684860 -> e9b29f1fc
 Disposition: FIXED
-Commit: 21c7eca34
+Commit: e9b29f1fc
 Evidence: `docs/review/PR_1843_FIXED_MAPPING.md` includes the required checked Phase2 checklist items under `## Discussion Thread Pass`.
 
 ## Experiment Runner Evidence
