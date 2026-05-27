@@ -18,10 +18,15 @@ Disposition: FIXED
 Commit: af04ca326
 Evidence: `docs/policy/PR_SCOPE_RULES.md` Quick Reference now requires `Operator approval: approved` plus `Privileged scope exception: approved` for privileged PRs over the hard cap.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1841#pullrequestreview-3294277962 -> 62a5b19a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1841#discussion_r3310205948 -> 62a5b19a
 Disposition: FIXED
 Commit: 62a5b19a
 Evidence: `scripts/ci/check_pr_size_governance.py` evaluates frontend/backend mixed scope before the micro threshold; `tests/test_check_pr_size_governance.py` covers a two-file frontend/backend mix that must classify as `frontend_vertical_mvp`, not `micro`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1841#pullrequestreview-4371616259 -> 62a5b19a
+Disposition: FIXED
+Commit: 62a5b19a
+Evidence: Parent CodeRabbit review summarized the same actionable `classify_pr_scope` micro frontend/backend mix issue fixed by commit `62a5b19a`; `tests/test_check_pr_size_governance.py` covers the regression.
 
 ## Experiment Runner Evidence
 
