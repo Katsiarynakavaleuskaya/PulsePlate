@@ -11,39 +11,10 @@ vi.mock('../../lib/auth', () => ({
   useAuth: vi.fn(),
 }));
 
-vi.mock('../../lib/usePremium', () => ({
-  usePremium: vi.fn(),
-}));
-
-vi.mock('../../api/premium', async () => {
-  const actual = await vi.importActual<typeof import('../../api/premium')>('../../api/premium');
-  return {
-    ...actual,
-    getCbtInsight: vi.fn(),
-  };
-});
-
 import { useAuth } from '../../lib/auth';
-import { usePremium } from '../../lib/usePremium';
-import { UnauthorizedError } from '../../api/client';
-import { getCbtInsight } from '../../api/premium';
 
 interface EnterKeyLocationState {
   from?: { pathname?: string };
-}
-
-function deferredPromise<T>(): {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason?: unknown) => void;
-} {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
 }
 
 function EnterKeyProbe(): JSX.Element {
@@ -78,13 +49,15 @@ function renderHomeRoutes(): ReturnType<typeof render> {
           path="/progress"
           element={renderConfiguredRoute('/progress', <div data-testid="progress-route">Progress route</div>)}
         />
+        <Route path="/bmi" element={renderConfiguredRoute('/bmi', <div data-testid="bmi-route">BMI route</div>)} />
+        <Route path="/pro" element={renderConfiguredRoute('/pro', <div data-testid="pro-route">Pro route</div>)} />
         <Route path="/enter-key" element={renderConfiguredRoute('/enter-key', <EnterKeyProbe />)} />
       </Routes>
     </MemoryRouter>
   );
 }
 
-describe('Home', () => {
+describe('Home Guided Planning Preview', () => {
   beforeEach(() => {
     vi.mocked(useAuth).mockReturnValue({
       apiKey: null,
@@ -95,8 +68,6 @@ describe('Home', () => {
       showAuthPrompt: false,
       setShowAuthPrompt: vi.fn(),
     });
-    vi.mocked(usePremium).mockReturnValue(false);
-    vi.mocked(getCbtInsight).mockReset();
   });
 
   afterEach(() => {
@@ -104,7 +75,7 @@ describe('Home', () => {
     vi.clearAllMocks();
   });
 
-  it('renders home page content', () => {
+  it('renders the planning-first MVP surface on /app', () => {
     render(
       <MemoryRouter>
         <Home />
@@ -112,134 +83,31 @@ describe('Home', () => {
     );
 
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1, name: 'PulsePlate Home' })).toBeInTheDocument();
-    expect(screen.getByText('Quick actions')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Setup Tune your nutrition inputs' })).toHaveAttribute('href', '/setup');
-    expect(screen.getByRole('link', { name: 'Meal Log Log today’s meals' })).toHaveAttribute('href', '/plate');
-    expect(screen.getByRole('link', { name: 'Progress Review weekly charts' })).toHaveAttribute('href', '/progress');
-    expect(screen.getByRole('link', { name: 'AI Coach Premium guidance and summaries' })).toHaveAttribute('href', '/pro');
+    expect(screen.getByTestId('guided-planning-preview')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Turn a check-in into practical meal decisions.' })).toBeInTheDocument();
+    expect(screen.getByText('check-in')).toBeInTheDocument();
+    expect(screen.getByText('targets')).toBeInTheDocument();
+    expect(screen.getByText('daily plate')).toBeInTheDocument();
+    expect(screen.getByText('weekly plan')).toBeInTheDocument();
+    expect(screen.getByText('shopping list')).toBeInTheDocument();
   });
 
-  it('shows connected API status from authenticated session', () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-
+  it('renders required observability anchors', () => {
     render(
       <MemoryRouter>
         <Home />
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Connected')).toBeInTheDocument();
-    expect(screen.getByText('Session Connected')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-intent-selector')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-time-selector')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-preview-card')).toBeInTheDocument();
+    expect(screen.getByTestId('tier-value-rail')).toBeInTheDocument();
+    expect(screen.getByTestId('wellness-boundary-note')).toBeInTheDocument();
+    expect(screen.getByTestId('primary-planning-cta')).toBeInTheDocument();
   });
 
-  it('shows AI session CTA when user is not authenticated', () => {
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByRole('heading', { level: 2, name: 'AI Insight' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Connect secure session' })).toHaveAttribute('href', '/enter-key');
-  });
-
-  it('shows upgrade CTA for authenticated non-premium users', () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(false);
-
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByRole('link', { name: 'Upgrade to Pro' })).toHaveAttribute('href', '/pro');
-    expect(screen.queryByRole('button', { name: 'Generate insight' })).not.toBeInTheDocument();
-  });
-
-  it('lets premium users submit AI query and renders reliability metadata', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(true);
-    vi.mocked(getCbtInsight).mockResolvedValue({
-      insight: 'Focus on consistent protein intake and simpler meal repetition.',
-      confidence: 0.93,
-      uncertainty: 0.07,
-      rag_used: true,
-      sources: [
-        {
-          chunk_id: 'chunk-1',
-          file: 'docs/cbt/foundation.md',
-          preview: 'Track the trigger before rewriting the pattern.',
-          score: 0.98,
-        },
-      ],
-      warnings: ['Monitor stress-linked snacking patterns.'],
-      mode: 'auto-safe',
-      quota_state: 'consumed',
-    });
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    await user.type(screen.getByLabelText('Ask one question'), 'What should I focus on this week?');
-    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
-
-    expect(vi.mocked(getCbtInsight)).toHaveBeenCalledWith({ query: 'What should I focus on this week?' });
-    expect(
-      await screen.findByText('Focus on consistent protein intake and simpler meal repetition.')
-    ).toBeInTheDocument();
-    expect(screen.getByText('Mode: auto-safe')).toBeInTheDocument();
-    expect(screen.getByText('Quota: consumed')).toBeInTheDocument();
-    expect(screen.getByText('RAG: Used')).toBeInTheDocument();
-    expect(screen.getByText('Confidence: 0.93')).toBeInTheDocument();
-    expect(screen.getByText('Uncertainty: 0.07')).toBeInTheDocument();
-    expect(screen.getByText('Monitor stress-linked snacking patterns.')).toBeInTheDocument();
-    expect(screen.getByText('foundation.md: Track the trigger before rewriting the pattern.')).toBeInTheDocument();
-    expect(screen.queryByText('Apply')).not.toBeInTheDocument();
-    expect(screen.queryByText('Review')).not.toBeInTheDocument();
-  });
-
-  it('clamps AI query input to the configured max length', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(true);
-
+  it('lets users choose planning intent and practical time constraint', async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -247,14 +115,80 @@ describe('Home', () => {
       </MemoryRouter>
     );
 
-    const longQuery = 'a'.repeat(550);
-    const queryInput = screen.getByLabelText('Ask one question');
-    await user.type(queryInput, longQuery);
+    await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
+    await user.click(screen.getByRole('button', { name: /Batch prep/i }));
 
-    expect(queryInput).toHaveValue('a'.repeat(500));
+    expect(screen.getByRole('button', { name: /Shopping-list planning/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Batch prep/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Translate check-in intent into meal anchors first, then shop around those anchors.')).toBeInTheDocument();
+    expect(screen.getByText('Batch-prep mode highlights repeatable proteins, grains, and produce that can be reused.')).toBeInTheDocument();
   });
 
-  it('renders friendly AI error state without breaking existing CTAs', async () => {
+  it('shows the FREE PRO VIP value ladder honestly', () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Check-in and baseline preview')).toBeInTheDocument();
+    expect(screen.getByText('Targets, daily plate, saved weekly plan')).toBeInTheDocument();
+    expect(screen.getAllByText('Recipes, menu flows, shopping/export')).toHaveLength(2);
+    expect(screen.getByText('Preview example')).toBeInTheDocument();
+  });
+
+  it('shows wellness boundary and avoids forbidden medical claim copy', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Wellness planning support only. Not medical advice.')).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(
+      /diagnose|treat|cure|guaranteed weight loss|AI doctor|personalized medical recommendation|clinically proven|prescription|disease management|medical-grade|therapeutic recommendation/i
+    );
+  });
+
+  it('links primary and secondary planning CTAs to safe existing routes', () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('primary-planning-cta')).toHaveAttribute('href', '/setup');
+    expect(screen.getByRole('link', { name: 'Learn why this is wellness-only' })).toHaveAttribute(
+      'href',
+      '#wellness-boundary'
+    );
+  });
+
+  it('navigates to setup flow from the primary CTA', async () => {
+    const user = userEvent.setup();
+
+    renderHomeRoutes();
+
+    await user.click(screen.getByTestId('primary-planning-cta'));
+
+    expect(screen.getByTestId('setup-route')).toBeInTheDocument();
+    expect(screen.queryByTestId('enter-key-probe')).not.toBeInTheDocument();
+  });
+
+  it('redirects protected planning CTAs when session key is missing', async () => {
+    const user = userEvent.setup();
+
+    const firstRender = renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: /Continue into the plate flow/i }));
+    expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/plate');
+    firstRender.unmount();
+
+    renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: /Use progress check-ins/i }));
+    expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/progress');
+  });
+
+  it('opens protected planning CTAs when secure session exists', async () => {
     vi.mocked(useAuth).mockReturnValue({
       apiKey: null,
       isAuthenticated: true,
@@ -264,230 +198,19 @@ describe('Home', () => {
       showAuthPrompt: false,
       setShowAuthPrompt: vi.fn(),
     });
-    vi.mocked(usePremium).mockReturnValue(true);
-    vi.mocked(getCbtInsight).mockRejectedValue(
-      new Error('API /api/v1/pro/cbt/insight failed: HTTP 503\nResponse body: internal trace')
-    );
     const user = userEvent.setup();
 
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    const firstRender = renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: /Continue into the plate flow/i }));
+    expect(screen.getByTestId('plate-route')).toBeInTheDocument();
+    firstRender.unmount();
 
-    await user.type(screen.getByLabelText('Ask one question'), 'Need a quick summary');
-    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'AI insight is temporarily unavailable. Please try again later.'
-    );
-    expect(screen.getByRole('link', { name: 'Meal Log Log today’s meals' })).toHaveAttribute('href', '/plate');
+    renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: /Use progress check-ins/i }));
+    expect(screen.getByTestId('progress-route')).toBeInTheDocument();
   });
 
-  it('renders duplicate warnings without collapsing repeated entries', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(true);
-    vi.mocked(getCbtInsight).mockResolvedValue({
-      insight: 'Stay consistent with one reliable next step.',
-      confidence: 0.81,
-      uncertainty: 0.19,
-      rag_used: false,
-      sources: [],
-      warnings: ['Repeated warning', 'Repeated warning'],
-      mode: 'auto-safe',
-      quota_state: 'consumed',
-    });
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    await user.type(screen.getByLabelText('Ask one question'), 'Do duplicate warnings render safely?');
-    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
-
-    expect(screen.getAllByText('Repeated warning')).toHaveLength(2);
-    expect(screen.getByText('Meals')).toBeInTheDocument();
-    expect(screen.getByText('Goals')).toBeInTheDocument();
-  });
-
-  it('disables the submit control and prevents duplicate AI requests while loading', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(true);
-    const pendingInsight = deferredPromise<Awaited<ReturnType<typeof getCbtInsight>>>();
-    vi.mocked(getCbtInsight).mockReturnValue(pendingInsight.promise);
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    const queryInput = screen.getByLabelText('Ask one question');
-    await user.type(queryInput, 'Prevent duplicate requests');
-    const submitButton = screen.getByRole('button', { name: 'Generate insight' });
-    expect(submitButton).not.toBeDisabled();
-
-    await user.click(submitButton);
-
-    expect(vi.mocked(getCbtInsight)).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Generate insight' })).toBeDisabled();
-
-    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
-
-    expect(vi.mocked(getCbtInsight)).toHaveBeenCalledTimes(1);
-
-    pendingInsight.resolve({
-      insight: 'One request at a time.',
-      confidence: 0.88,
-      uncertainty: 0.12,
-      rag_used: false,
-      sources: [],
-      warnings: [],
-      mode: 'auto-safe',
-      quota_state: 'consumed',
-    });
-
-    expect(await screen.findByText('One request at a time.')).toBeInTheDocument();
-  });
-
-  it('maps rate limit failures to a user-facing message', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(true);
-    vi.mocked(getCbtInsight).mockRejectedValue(
-      new Error('API /api/v1/pro/cbt/insight failed: HTTP 429\nResponse body: rate limited')
-    );
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    await user.type(screen.getByLabelText('Ask one question'), 'Need another AI insight');
-    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
-
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'You’ve reached the limit for AI insights. Please try again in a few minutes.'
-    );
-  });
-
-  it('maps validation failures to a user-facing message', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(true);
-    vi.mocked(getCbtInsight).mockRejectedValue(
-      new Error('API /api/v1/pro/cbt/insight failed: HTTP 422\nResponse body: invalid query')
-    );
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    await user.type(screen.getByLabelText('Ask one question'), 'Invalid payload');
-    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
-
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'We could not validate that question. Please rephrase it and try again.'
-    );
-  });
-
-  it('maps forbidden failures to a reconnect message', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(true);
-    vi.mocked(getCbtInsight).mockRejectedValue(
-      new Error('API /api/v1/pro/cbt/insight failed: HTTP 403\nResponse body: forbidden')
-    );
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    await user.type(screen.getByLabelText('Ask one question'), 'Need access restored');
-    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
-
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Your secure session is no longer valid. Reconnect and try again.'
-    );
-  });
-
-  it('maps expired session failures to a reconnect message', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    vi.mocked(usePremium).mockReturnValue(true);
-    vi.mocked(getCbtInsight).mockRejectedValue(new UnauthorizedError('Session invalid or expired (401).'));
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    await user.type(screen.getByLabelText('Ask one question'), 'Need a refreshed summary');
-    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Your secure session expired. Reconnect and try again.');
-  });
-
-  it('has correct CSS classes', () => {
+  it('keeps the page token-backed and tabbar-compatible', () => {
     render(
       <MemoryRouter>
         <Home />
@@ -497,51 +220,5 @@ describe('Home', () => {
     const main = screen.getByRole('main');
     expect(main).toHaveClass('min-h-screen');
     expect(main).toHaveClass('bg-[var(--pp-navy)]');
-  });
-
-  it('navigates to setup flow from the primary CTA', async () => {
-    const user = userEvent.setup();
-
-    renderHomeRoutes();
-
-    await user.click(screen.getByRole('link', { name: 'Setup Tune your nutrition inputs' }));
-
-    expect(screen.getByTestId('setup-route')).toBeInTheDocument();
-    expect(screen.queryByTestId('enter-key-probe')).not.toBeInTheDocument();
-  });
-
-  it('redirects Home auth-gated CTAs to enter-key when session key is missing', async () => {
-    const user = userEvent.setup();
-
-    const firstRender = renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: 'Meal Log Log today’s meals' }));
-    expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/plate');
-    firstRender.unmount();
-
-    renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: 'Progress Review weekly charts' }));
-    expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/progress');
-  });
-
-  it('opens Home auth-gated CTAs when secure session exists', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
-    const user = userEvent.setup();
-
-    const firstRender = renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: 'Meal Log Log today’s meals' }));
-    expect(screen.getByTestId('plate-route')).toBeInTheDocument();
-    firstRender.unmount();
-
-    renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: 'Progress Review weekly charts' }));
-    expect(screen.getByTestId('progress-route')).toBeInTheDocument();
   });
 });
