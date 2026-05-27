@@ -34,14 +34,17 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1840#discussion_r3309205089 -> c49ba0095
+
+Disposition: FIXED
+Evidence: `docs/review/PR_1840_FIXED_MAPPING.md:36` and `docs/review/PR_1840_FIXED_MAPPING.md:37` use the canonical checked markers; local Phase2 fallback passed after PR body mirror update.
 
 ## Discussion Thread Pass
 
 - [x] No human or bot review threads existed at artifact creation time.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Re-check after first bot review.
+- [x] Re-check after first bot review.
 - [ ] Map every actionable comment before resolving any thread.
 
 ## Merge Readiness
@@ -74,3 +77,4 @@ This artifact is the canonical fixed-mapping source for review dispositions.
 - Slack/Experiment Runner operator bridge remains after MVP observability exists, not before.
 - Ledger: `docs/roadmap/BACKLOG_LEDGER.md` Design token/runtime parity boundary item.
 - Follow-up proposal only if orchestration drift recurs or bots require it: `fix(orchestration): clarify task bootstrap as canonical role packet and demote Qoder bridge to adapter`.
+- Bot status at post-open mapping update: Codex quota comment has no actionable code change; Sourcery rate-limit comment has no actionable code change; Cubic reported no issues on the initial review; CodeRabbit actionable mapping-marker comment is mapped above and addressed by `c49ba0095`.
