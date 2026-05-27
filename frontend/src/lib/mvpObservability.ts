@@ -5,7 +5,12 @@ export type GuidedPlanningEventName =
   | 'planning_preview_seen'
   | 'tier_value_viewed'
   | 'primary_planning_cta_clicked'
-  | 'wellness_boundary_viewed';
+  | 'wellness_boundary_viewed'
+  | 'planning_save_prompt_viewed'
+  | 'planning_auth_prompt_viewed'
+  | 'planning_progress_state_viewed'
+  | 'planning_save_clicked'
+  | 'planning_continue_clicked';
 
 export type GuidedPlanningSurface = 'app';
 
@@ -15,6 +20,7 @@ export interface GuidedPlanningEventPayload {
   routePath: '/app' | '/setup' | '/plate' | '/progress' | '/pro';
   optionId?: string;
   tierLabel?: 'FREE' | 'PRO' | 'VIP';
+  authState?: 'authenticated' | 'unauthenticated' | 'unknown';
 }
 
 export interface GuidedPlanningEvent {
