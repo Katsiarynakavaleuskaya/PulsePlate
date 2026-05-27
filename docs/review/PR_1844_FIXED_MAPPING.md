@@ -2,17 +2,17 @@
 
 ## Discussion Thread Pass
 
-- No review threads existed at PR open.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- No line-level review threads existed at PR open.
+- Sourcery posted high-level actionable review feedback after PR open; fixed in commit `134c5979d`.
 
 ## Fixed in Commit Mapping
 
-- No external review threads have been resolved yet.
-- Pre-open role-agent findings were fixed before PR open in commit `9f867f383`:
-  - `frontend-engineer`: CTA copy and auth-loading state corrected.
-  - `creative-designer`: screen-local mark copy and duplicate `/plate` CTA corrected.
-  - `architecture-specialist`: component-local mark semantics and observability option id corrected.
-  - `qa-engineer-agent`: authenticated and secondary continuation event coverage added.
-  - `bug-hunter`: mark reset, prompt-view dedupe, and same-selection no-op behavior fixed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1844#pullrequestreview-3153735664 -> 134c5979d
+Disposition: FIXED
+Commit: 134c5979d
+Evidence: frontend/src/pages/Home.tsx:1, frontend/src/pages/Home.tsx:9, frontend/src/pages/Home.tsx:169, frontend/src/pages/Home.tsx:242, frontend/src/pages/__tests__/Home.test.tsx:66
 
 ## Merge Readiness
 
@@ -21,8 +21,8 @@
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/frontend-guided-planning-save-progress-flow-oracle-portable-result.json` (local-only, not committed)
-- Status: accepted
+- Artifact: `artifacts/orchestration/experiments/results/frontend-guided-planning-save-progress-flow-oracle-portable-result.json`
+- Status: accepted; local-only and not committed
 
 ## Deferred / Follow-ups
 
