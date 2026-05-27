@@ -63,6 +63,26 @@ function renderHomeRoutes(): ReturnType<typeof render> {
   );
 }
 
+function rerenderHomeWithAuthState(
+  renderedHome: ReturnType<typeof render>,
+  authState: { isAuthenticated: boolean; isLoading: boolean }
+): void {
+  vi.mocked(useAuth).mockReturnValue({
+    apiKey: null,
+    isAuthenticated: authState.isAuthenticated,
+    isLoading: authState.isLoading,
+    setApiKey: vi.fn(),
+    clearApiKey: vi.fn(),
+    showAuthPrompt: false,
+    setShowAuthPrompt: vi.fn(),
+  });
+  renderedHome.rerender(
+    <MemoryRouter>
+      <Home />
+    </MemoryRouter>
+  );
+}
+
 describe('Home Guided Planning Preview', () => {
   const guidedPlanningEvents: GuidedPlanningEvent[] = [];
 
@@ -366,6 +386,38 @@ describe('Home Guided Planning Preview', () => {
       (event) => event.name === 'planning_save_prompt_viewed' || event.name === 'planning_auth_prompt_viewed'
     );
     expect(promptViewsAfterSelection).toHaveLength(2);
+  });
+
+  it('emits unauthenticated prompt viewed events once per page view across auth transitions', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: false,
+      isLoading: true,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    const renderedHome = render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(
+      guidedPlanningEvents.filter(
+        (event) => event.name === 'planning_save_prompt_viewed' || event.name === 'planning_auth_prompt_viewed'
+      )
+    ).toHaveLength(0);
+
+    rerenderHomeWithAuthState(renderedHome, { isAuthenticated: false, isLoading: false });
+    rerenderHomeWithAuthState(renderedHome, { isAuthenticated: false, isLoading: true });
+    rerenderHomeWithAuthState(renderedHome, { isAuthenticated: false, isLoading: false });
+
+    const promptViewsAfterAuthTransitions = guidedPlanningEvents.filter(
+      (event) => event.name === 'planning_save_prompt_viewed' || event.name === 'planning_auth_prompt_viewed'
+    );
+    expect(promptViewsAfterAuthTransitions).toHaveLength(2);
   });
 
   it('uses neutral save copy while auth state is loading', () => {

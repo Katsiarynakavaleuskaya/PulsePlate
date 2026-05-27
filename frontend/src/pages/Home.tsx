@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, Hero, StatsCard, buttonClasses } from '../components/ui';
 import { useAuth } from '../lib/auth';
-import { trackGuidedPlanningEvent } from '../lib/mvpObservability';
+import { trackGuidedPlanningEvent, type GuidedPlanningEventPayload } from '../lib/mvpObservability';
 
 type PlanningIntentId = 'consistent' | 'balanced' | 'decision_fatigue' | 'shopping';
 type PlanningTimeId = 'quick' | 'standard' | 'batch' | 'flexible';
-type PlanningAuthState = 'authenticated' | 'unauthenticated' | 'unknown';
+type PlanningAuthState = NonNullable<GuidedPlanningEventPayload['authState']>;
 
 interface PlanningIntent {
   id: PlanningIntentId;
@@ -166,6 +166,7 @@ export default function Home(): JSX.Element {
   const [selectedIntent, setSelectedIntent] = useState<PlanningIntentId>('consistent');
   const [selectedTime, setSelectedTime] = useState<PlanningTimeId>('standard');
   const [isPreviewSaved, setIsPreviewSaved] = useState(false);
+  const unauthenticatedPromptViewedRef = useRef(false);
   const preview = previewByIntent[selectedIntent];
   const authState: PlanningAuthState = isLoading ? 'unknown' : isAuthenticated ? 'authenticated' : 'unauthenticated';
   const isKnownAuthenticated = authState === 'authenticated';
@@ -240,7 +241,8 @@ export default function Home(): JSX.Element {
   }, [authState, isPreviewSaved]);
 
   useEffect(() => {
-    if (authState === 'unauthenticated') {
+    if (authState === 'unauthenticated' && !unauthenticatedPromptViewedRef.current) {
+      unauthenticatedPromptViewedRef.current = true;
       trackGuidedPlanningEvent('planning_save_prompt_viewed', {
         surface: 'app',
         componentId: 'planning-save-auth-prompt',
