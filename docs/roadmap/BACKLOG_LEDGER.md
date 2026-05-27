@@ -1270,9 +1270,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Priority: P1
     - Target PR: `docs(design): open PR-9 design system automation lane for web+iOS runtime parity`, branch `codex/design-runtime-pr9-design-system-automation-docs`
     - Reason: The completed PR-0 through PR-8 design runtime train has strong governance, Storybook parity, token discipline, and evidence automation, but future web+iOS implementation needs machine-readable design infrastructure before runtime slices can safely start.
-    - Required sequence: component contract registry -> bridge coverage inventory -> visual regression decision gate -> accessibility regression decision gate -> token/runtime parity boundary -> later web+iOS implementation slices.
+    - Required sequence: component contract registry -> bridge coverage inventory -> visual regression decision gate -> accessibility regression decision gate -> token/runtime parity boundary -> first bounded frontend MVP product slice.
     - Links: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md`, `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
     - DoD: PR-9 packet, design-system automation spec, component contract registry contract, workflow/template pointers, deterministic docs guards, fixed-mapping governance, and any narrow orchestration preflight bugfix discovered by required agents exist; the lane remains governance/tests only and does not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma/Canva/Penpot writes, screenshots, Code Connect activation, backend, OpenAPI, auth, billing, StoreKit, or HealthKit behavior.
+  - [ ] P1: Design token/runtime parity boundary:
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P1
+    - Status: active
+    - Target PR: `feat/design-token-runtime-parity-boundary` (`feat(design): add token/runtime parity boundary`)
+    - Reason: The accessibility regression decision gate must be followed by one final fail-closed token/runtime parity contract before PulsePlate stops accumulating design governance and moves into the first bounded frontend MVP product slice.
+    - Links: `docs/orchestration/contracts/design_token_runtime_parity_boundary.v1.json`, `scripts/design/design_token_runtime_parity_boundary.py`, `docs/orchestration/contracts/design_accessibility_regression_decisions.v1.json`, `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`
+    - Required sequence: registry -> bridge coverage -> visual regression decision -> accessibility regression decision -> token/runtime parity boundary -> first bounded frontend MVP product slice
+    - DoD: Machine-readable token/runtime parity boundary exists; validator exists; tests exist; every registry/bridge component is represented exactly once; generated mirrors remain derived runtime evidence and are not token authoring truth; missing visual or accessibility decision evidence keeps implementation readiness `blocked`; frontend implementation is still blocked until this boundary lands; next PR is the first bounded frontend MVP product slice; Slack/Experiment Runner operator bridge remains after MVP observability, not before; no runtime, token value, generated mirror, Storybook, Figma/Canva/Penpot/Kimi, backend, OpenAPI, billing, auth, deploy, screenshot, binary, or iOS implementation change is included.
   - Kimi prototype intake modernization bridge tracking:
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1

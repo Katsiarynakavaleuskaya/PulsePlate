@@ -26,6 +26,15 @@ VISUAL_DECISIONS = (
     REPO_ROOT / "docs/orchestration/contracts/design_visual_regression_decisions.v1.json"
 )
 VISUAL_DECISIONS_VALIDATOR = REPO_ROOT / "scripts/design/design_visual_regression_decisions.py"
+ACCESSIBILITY_DECISIONS = (
+    REPO_ROOT / "docs/orchestration/contracts/design_accessibility_regression_decisions.v1.json"
+)
+TOKEN_RUNTIME_BOUNDARY = (
+    REPO_ROOT / "docs/orchestration/contracts/design_token_runtime_parity_boundary.v1.json"
+)
+TOKEN_RUNTIME_BOUNDARY_VALIDATOR = (
+    REPO_ROOT / "scripts/design/design_token_runtime_parity_boundary.py"
+)
 KIMI_PROTOCOL = (
     REPO_ROOT / "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md"
 )
@@ -545,7 +554,7 @@ def test_pr9_design_system_automation_sequence_is_locked() -> None:
         "Visual regression decision gate",
         "Accessibility regression decision gate",
         "Token/runtime parity boundary",
-        "Later web+iOS implementation slices",
+        "First bounded frontend MVP product slice",
     ]
 
     for phrase in sequence:
@@ -739,6 +748,75 @@ def test_pr9_preserves_token_runtime_and_bridge_authority_boundaries() -> None:
 
     for phrase in required:
         assert phrase in corpus
+
+
+def test_token_runtime_parity_boundary_is_final_gate_before_frontend_mvp() -> None:
+    """Require token/runtime parity to unlock only the first bounded frontend MVP slice."""
+    corpus = "\n".join([_read(PR9_PACKET), _read(PR9_SPEC), _read(PR9_REGISTRY), _read(LEDGER)])
+
+    required = [
+        "docs/orchestration/contracts/design_token_runtime_parity_boundary.v1.json",
+        "scripts/design/design_token_runtime_parity_boundary.py",
+        "token/runtime parity boundary -> first bounded frontend MVP product slice",
+        "final design-governance gate before frontend MVP",
+        "next PR is the first bounded frontend MVP product slice",
+        "frontend implementation is still blocked until this boundary lands",
+        "Slack/Experiment Runner operator bridge remains after MVP observability",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+    assert TOKEN_RUNTIME_BOUNDARY.exists()
+    assert TOKEN_RUNTIME_BOUNDARY_VALIDATOR.exists()
+
+
+def test_design_docs_sequence_has_no_extra_governance_layer_before_mvp() -> None:
+    """Keep the design automation sequence linear and finite before MVP work."""
+    corpus = "\n".join([_read(PR9_PACKET), _read(PR9_SPEC), _read(PR9_REGISTRY), _read(LEDGER)])
+    explicit_sequence = (
+        "registry -> bridge coverage -> visual regression decision -> accessibility regression "
+        "decision -> token/runtime parity boundary -> first bounded frontend MVP product slice"
+    )
+
+    assert explicit_sequence in corpus
+
+    forbidden = [
+        "another design-governance layer is required before MVP",
+        "another design governance layer is required before MVP",
+        "additional design-governance gate before frontend MVP",
+        "Slack/Experiment Runner operator bridge before MVP observability",
+    ]
+    for phrase in forbidden:
+        assert phrase not in corpus
+
+
+def test_design_docs_keep_frontend_blocked_until_boundary_lands() -> None:
+    """Require implementation admission to depend on the new boundary contract."""
+    corpus = "\n".join([_read(PR9_PACKET), _read(PR9_SPEC), _read(PR9_REGISTRY), _read(LEDGER)])
+
+    required = [
+        "frontend implementation is still blocked until this boundary lands",
+        "This PR does not implement frontend or iOS runtime.",
+        "Generated mirrors remain derived runtime evidence and are not token authoring truth.",
+        "Missing visual or accessibility decision evidence keeps implementation readiness `blocked`.",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+
+def test_docs_sequence_registry_to_boundary_to_frontend_mvp() -> None:
+    """Require the exact docs sequencing named by the current lane."""
+    corpus = "\n".join([_read(PR9_PACKET), _read(PR9_SPEC), _read(PR9_REGISTRY), _read(LEDGER)])
+    sequence = [
+        "registry -> bridge coverage -> visual regression decision -> accessibility regression decision -> token/runtime parity boundary -> first bounded frontend MVP product slice",
+    ]
+
+    for phrase in sequence:
+        assert phrase in corpus
+
+    assert ACCESSIBILITY_DECISIONS.exists()
 
 
 def test_kimi_prototype_intake_protocol_exists_and_records_evidence() -> None:
@@ -957,12 +1035,15 @@ def test_kimi_protocol_current_diff_stays_docs_only() -> None:
                 "docs/orchestration/contracts/design_component_registry.v1.json",
                 "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json",
                 "docs/orchestration/contracts/design_visual_regression_decisions.v1.json",
+                "docs/orchestration/contracts/design_token_runtime_parity_boundary.v1.json",
                 "scripts/design/design_component_registry.py",
                 "scripts/design/design_bridge_coverage_inventory.py",
                 "scripts/design/design_visual_regression_decisions.py",
+                "scripts/design/design_token_runtime_parity_boundary.py",
                 "tests/test_design_component_registry.py",
                 "tests/test_design_bridge_coverage_inventory.py",
                 "tests/test_design_visual_regression_decisions.py",
+                "tests/test_design_token_runtime_parity_boundary.py",
             }
         )
     allowed_review = re.compile(r"^docs/review/PR_\d+_FIXED_MAPPING\.md$")
@@ -1041,7 +1122,7 @@ def test_kimi_modernization_bridge_sequence_stays_behind_pr9_gates() -> None:
         "Visual regression decision gate",
         "Accessibility regression decision gate",
         "Token/runtime parity boundary",
-        "Later web+iOS implementation slices",
+        "First bounded frontend MVP product slice",
     ]
 
     for phrase in sequence:
