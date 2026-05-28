@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import http.client
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -40,6 +41,8 @@ SLACK_TEAM_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"
 BRIDGE_MIN_INTERVAL_ENV = "EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS"
 BRIDGE_TIMEOUT_ENV = "EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS"
 BRIDGE_AUDIT_RETENTION_DAYS_ENV = "EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS"
+BRIDGE_EXECUTE_ENABLED_ENV = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED"
+BRIDGE_EXECUTE_ENABLED_VALUE = "reviewed-dry-run-dispatch"
 GITHUB_API_HOST = "api.github.com"
 SLACK_API_HOST = "slack.com"
 DEFAULT_WORKFLOW_FILE = "experiment-runner-dispatch.yml"
@@ -80,12 +83,14 @@ LIVE_SECRET_PRESENCE_ENV = (
     SLACK_BOT_AUTH_ENV,
     SLACK_CHANNEL_ALLOWLIST_ENV,
     SLACK_USER_ALLOWLIST_ENV,
+    SLACK_TEAM_ALLOWLIST_ENV,
 )
 LIVE_SMOKE_BRANCH_REF_ENV = "EXPERIMENT_SLACK_SOCKET_BRANCH_REF"
 LIVE_SMOKE_HYPOTHESIS_SHA256_ENV = "EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"
 SHA256_HEX_RE = re.compile(r"^[A-Fa-f0-9]{64}$")
 SLACK_LIVE_SMOKE_METHODS = {"apps.connections.open", "auth.test"}
 SAFE_SLACK_ERROR_CODE_RE = re.compile(r"^[a-z0-9_]{1,80}$")
+LOGGER = logging.getLogger(__name__)
 
 
 class SlackSocketBridgeError(RuntimeError):
@@ -607,9 +612,12 @@ def _is_safe_ref(value: str) -> bool:
         or ".." in value
         or "//" in value
         or "@{" in value
+        or value.startswith("refs/")
     ):
         return False
-    return all(part not in {"", ".", ".."} for part in value.split("/"))
+    return all(
+        part not in {"", ".", ".."} and not part.startswith(".") for part in value.split("/")
+    )
 
 
 def _validate_hypothesis(value: str) -> str:
@@ -1123,6 +1131,10 @@ def _check_rate_limit(config: BridgeConfig) -> None:
 
 
 def _require_execute_config(config: BridgeConfig) -> tuple[str, str]:
+    if os.environ.get(BRIDGE_EXECUTE_ENABLED_ENV, "").strip() != BRIDGE_EXECUTE_ENABLED_VALUE:
+        raise SlackSocketConfigError("Slack execute-mode promotion gate is not enabled.")
+    if not config.allowed_teams:
+        raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
     if not config.repo or not config.github_token:
         raise SlackSocketConfigError("GitHub dispatch configuration is incomplete.")
     return config.repo, config.github_token
@@ -1222,10 +1234,16 @@ def _require_slack_ok_response(payload: dict[str, Any], *, check_name: str) -> N
         )
 
 
+def _require_socket_mode_url(payload: dict[str, Any]) -> None:
+    socket_url = payload.get("url")
+    if not isinstance(socket_url, str) or not socket_url.startswith("wss://"):
+        raise SlackSocketConfigError("Slack live smoke Socket Mode validation failed.")
+
+
 def _require_live_smoke_runtime(config: BridgeConfig) -> None:
     if config.slack_app_token is None or config.slack_bot_token is None:
         raise SlackSocketConfigError("Slack Socket Mode configuration is incomplete.")
-    if not config.allowed_channels or not config.allowed_users:
+    if not config.allowed_channels or not config.allowed_users or not config.allowed_teams:
         raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
 
 
@@ -1252,6 +1270,7 @@ def validate_live_smoke(
         timeout_seconds=config.timeout_seconds,
     )
     _require_slack_ok_response(socket_payload, check_name="Socket Mode")
+    _require_socket_mode_url(socket_payload)
     bot_payload = transport(
         method="auth.test",
         token=slack_bot_token,
@@ -1402,7 +1421,7 @@ def process_payload(
 def _require_live_socket_runtime(config: BridgeConfig) -> None:
     if config.slack_app_token is None or config.slack_bot_token is None:
         raise SlackSocketConfigError("Slack Socket Mode configuration is incomplete.")
-    if not config.allowed_channels or not config.allowed_users:
+    if not config.allowed_channels or not config.allowed_users or not config.allowed_teams:
         raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
     _load_slack_bolt()
 
@@ -1435,7 +1454,11 @@ def run_socket_listener(config: BridgeConfig) -> int:
             command = parse_operator_command(event.text, command_hint=event.command_hint)
             respond(_format_command_reply(command, config, decision=decision))
         except SlackSocketBridgeError as exc:
-            respond(f"Experiment Runner bridge rejected the request: {exc}")
+            LOGGER.warning(
+                "Experiment Runner bridge rejected Slack request: failure_class=%s",
+                exc.__class__.__name__,
+            )
+            respond("Experiment Runner bridge rejected the request. No sensitive details included.")
 
     app.command("/run-experiment")(_handle_command)
     app.command("/pulseplate-runner")(_handle_command)

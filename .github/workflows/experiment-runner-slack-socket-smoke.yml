@@ -32,6 +32,11 @@ on:
         required: true
         type: string
         default: ""
+      team_allowlist:
+        description: "Comma-separated runtime Slack workspace/team allowlist"
+        required: true
+        type: string
+        default: ""
       audit_retention_days:
         description: "Local Slack audit retention window in days for report-only smoke checks"
         required: true
@@ -63,7 +68,7 @@ jobs:
           def _escape_workflow_command_value(value: str) -> str:
               return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
-          for key in ("channel_allowlist", "user_allowlist", "hypothesis_sha256"):
+          for key in ("branch_ref", "channel_allowlist", "user_allowlist", "team_allowlist", "hypothesis_sha256"):
               value = str(inputs.get(key, "")).strip()
               if value:
                   print(f"::add-mask::{_escape_workflow_command_value(value)}")
@@ -113,16 +118,19 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
           EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST: ${{ inputs.team_allowlist }}
         run: |
           set -euo pipefail
           slack_app_status="${{ secrets.SLACK_APP_TOKEN != '' && 'present' || 'missing' }}"
           slack_bot_status="${{ secrets.SLACK_BOT_TOKEN != '' && 'present' || 'missing' }}"
           channel_allowlist_status="${{ inputs.channel_allowlist != '' && 'present' || 'missing' }}"
           user_allowlist_status="${{ inputs.user_allowlist != '' && 'present' || 'missing' }}"
+          team_allowlist_status="${{ inputs.team_allowlist != '' && 'present' || 'missing' }}"
           printf 'SLACK_APP_TOKEN=%s\n' "$slack_app_status"
           printf 'SLACK_BOT_TOKEN=%s\n' "$slack_bot_status"
           printf 'EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s\n' "$channel_allowlist_status"
           printf 'EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s\n' "$user_allowlist_status"
+          printf 'EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST=%s\n' "$team_allowlist_status"
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-secret-presence
 
@@ -133,6 +141,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
           EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST: ${{ inputs.team_allowlist }}
           EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
           EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
           EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
@@ -152,6 +161,7 @@ jobs:
             printf -- '- secret names: checked as present/missing only\n'
             printf -- '- channel_allowlist: present\n'
             printf -- '- user_allowlist: present\n'
+            printf -- '- team_allowlist: present\n'
             printf -- '- audit_retention: report-first\n'
             printf -- '- redaction: raw tokens, token prefixes, Slack IDs, hypotheses, payloads, and local paths are not emitted by workflow steps\n'
           } >> "$GITHUB_STEP_SUMMARY"

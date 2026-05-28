@@ -45,6 +45,25 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Mask typed dispatch inputs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          inputs = event.get("inputs", {})
+          def _escape_workflow_command_value(value: str) -> str:
+              return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+          for key in ("branch_ref", "hypothesis_sha256"):
+              value = str(inputs.get(key, "")).strip()
+              if value:
+                  print(f"::add-mask::{_escape_workflow_command_value(value)}")
+          PY
+
       - name: Validate typed dispatch inputs without raw echo
         env:
           EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
