@@ -27,6 +27,26 @@ Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-2911
 Disposition: FIXED
 Commit: 92a2b5c13
 Evidence: `docs/review/PR_1846_FIXED_MAPPING.md`; fixed mapping was expanded after the review comment timestamp.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#pullrequestreview-4380245206 -> 8084d2717
+Disposition: FIXED
+Commit: 8084d2717
+Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-29111-systemd.md`, `docs/security/CVE-2026-4878-libcap2.md`; Sourcery actionable doc comments were fixed or made stale by removing test-only/active-suppression wording.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#pullrequestreview-4380298335 -> 8084d2717
+Disposition: FIXED
+Commit: 8084d2717
+Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-29111-systemd.md`, `docs/security/CVE-2026-4878-libcap2.md`, `docs/roadmap/BACKLOG_LEDGER.md`; CodeRabbit comments were fixed in docs and mapping.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#issuecomment-4563326856 -> 8084d2717
+Disposition: FIXED
+Commit: 8084d2717
+Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-29111-systemd.md`, `docs/security/CVE-2026-4878-libcap2.md`, `docs/roadmap/BACKLOG_LEDGER.md`; CodeRabbit summary actionables were fixed in docs and mapping.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#pullrequestreview-4380804411 -> 92a2b5c13
+Disposition: FIXED
+Commit: 92a2b5c13
+Evidence: `docs/review/PR_1846_FIXED_MAPPING.md`; latest CodeRabbit review-thread mapping was added after the comment timestamp.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#issuecomment-4564093996 -> 92a2b5c13
+Disposition: FIXED
+Commit: 92a2b5c13
+Evidence: `docs/review/PR_1846_FIXED_MAPPING.md`; latest CodeRabbit summary mapping was added after the comment timestamp.
 
 ## Review Dispositions
 
