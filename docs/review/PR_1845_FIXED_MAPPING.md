@@ -28,6 +28,11 @@
 - Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py`, `docs/review/PR_1845_FIXED_MAPPING.md`
 - Reason: Bot review feedback fixed: required mapping checkboxes, merge-readiness checklist shape, Enterprise Slack ID redaction, and narrower stdout/stderr log redaction.
 
+- Disposition: FIXED
+- Commit: `<pending>`
+- Evidence: `trivy/ignore-policy.rego`, `docs/security/*`, `scripts/ci/check_trivy_ignore_policy_expiry.py`, `scripts/ci/check_docs_phase1_gates.py`
+- Reason: Operator-approved blocker fix refreshed existing Trivy suppression expiry/review windows to unblock current-head CI without adding new suppressions.
+
 ### Not A Bug
 
 - Disposition: NOT-A-BUG
