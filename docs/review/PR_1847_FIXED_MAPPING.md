@@ -5,6 +5,8 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+
 ### Post-open review findings disposition
 
 #### qa-engineer-agent
@@ -67,7 +69,7 @@
 - **coderabbitai[bot] review:** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1847#pullrequestreview-4383681953
   - **Thread (docs-only policy violation):** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1847#discussion_r3319931548
     - **Disposition:** NOT-A-BUG
-    - **Evidence:** This is a **security fix PR**, not a docs-only PR. The `Dockerfile` change is required to remediate CVE-2026-4878 (libcap2). The `.trivyignore` additions are security suppression artifacts with detailed rationale. The claim that this PR "violates the docs-only policy" is a false positive from the bot's heuristic pattern matcher.
+    - **Evidence:** This is a **security fix PR**, not a docs-only PR. The `Dockerfile` change is required to remediate CVE-2026-4878 (libcap2). The claim that this PR "violates the docs-only policy" is a false positive from the bot's heuristic pattern matcher.
   - **Issue comment (completion marker):** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1847#issuecomment-4567176538
     - **Disposition:** NOT-A-BUG
     - **Evidence:** Automated completion marker. No actionable content.
@@ -77,6 +79,10 @@
     - **Disposition:** FIXED
     - **Commit:** a0e7c304f
     - **Evidence:** Same typo as sourcery thread above. Fixed in `docs/roadmap/BACKLOG_LEDGER.md:29`.
+
+## Fixed in Commit Mapping
+
+- [x] Fixed in commit mapping completed
 
 ## Merge Readiness
 
