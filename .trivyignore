@@ -1,18 +1,18 @@
 ## Trivy vulnerability ignore list
 ##
 ## Last reviewed: 2026-05-28
-## Base image: python:3.13.6-slim (Debian 12 bookworm)
+## Base image: python:3.13.13-slim-bookworm (Debian 12 bookworm)
 ## Next review: 2026-06-27
 ## Review process: Re-verify versions when base image updates or quarterly
 ##
-## IMPORTANT: Container uses python:3.13.6-slim based on Debian bookworm.
-## Actual versions: Python 3.13.6, pip 25.1.1, glibc 2.36-9+deb12u13,
+## IMPORTANT: Container uses python:3.13.13-slim-bookworm based on Debian bookworm.
+## Actual versions: Python 3.13.13, pip 25.1.1+, glibc 2.36-9+deb12u13,
 ## PAM 1.5.2-6+deb12u1. Many CVEs below reference "trixie" due to historical
 ## confusion - actual base is bookworm. Verify versions before trusting comments.
 ##
 ## DECISION LOG:
 ## - CVE-2025-68973 (gpgv armor_filter) accepted as documented risk (no attack surface)
-## - Base image updated from 3.13.5 to 3.13.6 for latest security patches
+## - Base image updated from 3.13.6 to 3.13.13 for latest security patches
 ## - gpgv retained as Debian system dependency (removal breaks apt)
 ## - All Trivy workflows configured with trivyignores: '.trivyignore'
 ##
@@ -654,7 +654,7 @@ CVE-2025-48385
 ##
 ## CURRENT STATUS:
 ##   ⚠️  Container uses PAM 1.5.2-6+deb12u1 (bookworm, VULNERABLE)
-##   $ docker run --rm python:3.13.6-slim dpkg -l | grep libpam0g
+##   $ docker run --rm python:3.13.13-slim-bookworm dpkg -l | grep libpam0g
 ##   ii  libpam0g:arm64  1.5.2-6+deb12u1  arm64
 ##
 ## This container package version IS vulnerable, BUT application does NOT
@@ -681,7 +681,7 @@ CVE-2025-48385
 ##   - bookworm (1.5.2-6+deb12u1): vulnerable, <no-dsa> (fix via point release)
 ##   - Acceptable to ignore: application never uses PAM, pam_namespace not configured
 ##
-## MAINTENANCE NOTE: When python:3.13.6-slim updates to include fixed PAM version
+## MAINTENANCE NOTE: When python:3.13.13-slim-bookworm updates to include fixed PAM version
 ## (or when base image migrates to trixie/sid with PAM 1.7.0-5), this entry can
 ## be removed. Next review: 2026-03-30.
 
@@ -886,7 +886,7 @@ CVE-2023-50495
 ## without PEP 706. Our application is NOT vulnerable:
 ##
 ## 1. Container uses pip 25.1.1 (base image includes pip >= 25.1.1)
-## 2. Python 3.13.6 implements PEP 706 (secure tar extraction)
+## 2. Python 3.13.13 implements PEP 706 (secure tar extraction)
 ## 3. CVE fixed in pip 25.3, but PEP 706 provides primary mitigation
 ##
 ## Vulnerability details:
@@ -895,16 +895,16 @@ CVE-2023-50495
 ##   - Can allow symlink attacks during sdist installation
 ##
 ## Why we are NOT vulnerable:
-##   - Python 3.13.6 implements PEP 706 → secure tarfile by default
+##   - Python 3.13.13 implements PEP 706 → secure tarfile by default
 ##   - pip 25.1.1 DOES contain vulnerable fallback code (unfixed until 25.3)
-##   - BUT Python 3.13.6's PEP 706 prevents fallback code from being used
+##   - BUT Python 3.13.13's PEP 706 prevents fallback code from being used
 ##   - PEP 706 provides interpreter-level protection at tarfile module
 ##   - Production installs from wheels, not sdists
 ##   - Controlled dependencies from PyPI (no untrusted sources)
 ##
 ## Debian/upstream status:
 ##   - NVD advisory recommends pip 25.3 OR Python with PEP 706
-##   - We have Python 3.13.6 (PEP 706) → primary mitigation satisfied
+##   - We have Python 3.13.13 (PEP 706) → primary mitigation satisfied
 ##   - pip 25.1.1 < 25.3 but fallback code never executes
 ##
 ## Defense in depth layers:
@@ -912,7 +912,7 @@ CVE-2023-50495
 ##   2. ✅ Wheels-only production deployments
 ##   3. ✅ Controlled dependency sources
 ##
-## Container is NOT vulnerable - Python 3.13.6 with PEP 706 prevents exploitation.
+## Container is NOT vulnerable - Python 3.13.13 with PEP 706 prevents exploitation.
 
 CVE-2025-8869
 
@@ -988,9 +988,9 @@ CVE-2024-10041
 ##   - Container runs as single non-root user (pulseplate:pulseplate)
 ##   - No PAM-based authentication mechanisms active
 ##   - No shell access for untrusted users
-##   - Monitoring: Check for python:3.13.6-slim updates with pam 1.6.0+
+##   - Monitoring: Check for python:3.13.13-slim-bookworm updates with pam 1.6.0+
 ##
-## MAINTENANCE NOTE: When python:3.13.6-slim updates to include PAM 1.6.0+,
+## MAINTENANCE NOTE: When python:3.13.13-slim-bookworm updates to include PAM 1.6.0+,
 ## this entry can be removed. Next review: 2026-03-30.
 ##
 ## Attack surface: ZERO - no PAM logins, single-user container model.
@@ -1001,7 +1001,7 @@ CVE-2024-22365
 ##
 ## This CVE affects GnuPG <2.5.5 certificate import. NOT vulnerable:
 ##
-## 1. gpgv/gnupg NOT installed in python:3.13.6-slim (verified)
+## 1. gpgv/gnupg NOT installed in python:3.13.13-slim-bookworm (verified)
 ## 2. Application does NOT use GPG/PGP signature verification
 ## 3. No GPG dependencies in requirements.txt
 ##
@@ -1047,7 +1047,7 @@ CVE-2025-30258
 ##   - Application runtime does not invoke shell tools with user-controlled patterns
 ##
 ## Mitigation plan:
-##   - Monitor for python:3.13.6-slim update with glibc 2.36-9+deb12u13
+##   - Monitor for python:3.13.13-slim-bookworm update with glibc 2.36-9+deb12u13
 ##   - Or explicitly upgrade libc6 in Dockerfile: RUN apt-get update && apt-get install -y libc6
 ##   - Review this entry at next quarterly review (2026-03-30)
 ##
@@ -1055,3 +1055,37 @@ CVE-2025-30258
 ## requires malloc failure and application does not expose attack surface.
 
 CVE-2025-8058
+
+## CVE-2026-9538, CVE-2026-42497, CVE-2026-8376, CVE-2026-42496 – Perl / Archive::Tar
+##
+## These four CVEs affect perl-base and perl-modules-5.36 (Archive::Tar) in Debian bookworm.
+## Debian Security Tracker explicitly marks bookworm perl 5.36.0-7+deb12u3 as VULNERABLE
+## with no fixed version available in any Debian release (unfixed in unstable).
+##
+## Upstream fixes:
+##   - CVE-2026-9538: Archive::Tar 3.10 (not in Debian)
+##   - CVE-2026-42497 / CVE-2026-42496: Archive::Tar 3.08 (not in Debian)
+##   - CVE-2026-8376: Perl 5.43.10+ (not in Debian)
+##
+## Our application:
+##   - Is a Python FastAPI backend; does NOT ship or execute Perl code
+##   - Does NOT use Archive::Tar for archive extraction
+##   - Does NOT invoke tar, cpan, or any Perl-based tooling at runtime
+##   - Perl is present only as a Debian essential OS package dependency
+##
+## Exploitation requires:
+##   - Processing attacker-controlled tar archives via Archive::Tar, OR
+##   - Compiling attacker-controlled regular expressions on a 32-bit Perl build
+##   - Neither condition is possible in our Python-only runtime
+##
+## Removal condition: Re-evaluate within 90 days. If no upstream Debian fix is
+## available by 2026-08-27, escalate to base-image migration decision
+## (e.g., evaluate python:3.13.x-slim-trixie or distroless alternatives).
+## Do not passively extend beyond 90 days without an active remediation plan.
+## Monitor: https://security-tracker.debian.org/tracker/source-package/perl
+## Review-by: 2026-06-27
+
+CVE-2026-9538
+CVE-2026-42497
+CVE-2026-8376
+CVE-2026-42496

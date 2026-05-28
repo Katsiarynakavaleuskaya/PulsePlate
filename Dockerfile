@@ -6,7 +6,7 @@
 ARG PIP_VERSION_RANGE="pip>=26.0,<27.0"
 
 # Stage 1: Build stage
-FROM python:3.13.6-slim-bookworm AS builder
+FROM python:3.13.13-slim-bookworm AS builder
 
 # Set build arguments
 ARG BUILDPLATFORM
@@ -110,7 +110,7 @@ PY
 
 # Stage 2: Runtime base stage
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
-FROM python:3.13.6-slim-bookworm AS runtime-base
+FROM python:3.13.13-slim-bookworm AS runtime-base
 
 # Re-declare build arg in this stage.
 ARG PIP_VERSION_RANGE
@@ -162,7 +162,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Security hardening:
 # Explicitly install libgnutls30, alongside the existing OpenSSL packages, to pull
 # the latest available version from bookworm-security. The
-# python:3.13.6-slim-bookworm base image is expected to ship bookworm-security
+# python:3.13.13-slim-bookworm base image is expected to ship bookworm-security
 # apt sources; if Debian advances libgnutls30, keep this unpinned install on the
 # newest security package and update the exact-version Rego waiver only after
 # checking the new package's CVE status. A mismatch between image inventory and
