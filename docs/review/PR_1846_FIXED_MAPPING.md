@@ -23,6 +23,11 @@
 - Evidence: `docs/security/CVE-2026-0915-glibc.md`, `docs/security/CVE-2026-33845-gnutls.md`, `docs/security/CVE-2026-33846-gnutls.md`, `docs/security/CVE-2025-14831-gnutls.md`, `docs/roadmap/BACKLOG_LEDGER.md`, `scripts/ci/check_docs_phase1_gates.py`
 - Reason: Post-open QA/security doc consistency findings fixed; removed suppressions now use historical wording and retained suppressions remain tracked.
 
+- Disposition: FIXED
+- Commit: `8084d2717`
+- Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-29111-systemd.md`, `docs/security/CVE-2026-4878-libcap2.md`
+- Reason: CodeRabbit/Sourcery review comments addressed with historical suppression wording, immutable mapping evidence, and typo fix.
+
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/d3b39ff0308a.json`
