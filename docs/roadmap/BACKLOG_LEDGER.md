@@ -4661,10 +4661,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
     - Trivy Code Scanning alerts remain closed on `main`
 
-- [ ] Remove Trivy suppression for systemd-family CVE (CVE-2026-29111)
+- [x] Remove Trivy suppression for systemd-family CVE (CVE-2026-29111)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (follow-up after upstream fix)
+  - Target PR: PR #1846
+  - Status: Closed by PR #1846 after the Rego suppression was removed instead of extended.
   - Reason: Trivy reports Debian bookworm `systemd` family packages
     (`libsystemd0`, `libudev1`) as vulnerable at `252.38-1~deb12u1` with no
     actionable fixed version in the current bookworm image line as of
@@ -4701,11 +4702,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
       `main`
 
-- [ ] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
+- [x] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (follow-up after upstream fix)
-  - Status: Open
+  - Target PR: PR #1846
+  - Status: Closed by PR #1846 after the Rego suppression was removed instead of extended.
   - Area: security / base-image / code-scanning
   - Finding Type: container base image vulnerability
   - Reason: `build.yml:publish` on `main` currently reports open Trivy alert `#586` on
@@ -4765,11 +4766,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Billing activation/persistence closeout remains explicitly out of scope for this CVE
     - Alerts `#579` and `#580` are closed or formally covered by the approved suppression policy
 
-- [ ] Remove Trivy suppression for libcap2 CVE-2026-4878
+- [x] Remove Trivy suppression for libcap2 CVE-2026-4878
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (follow-up after upstream fix)
-  - Status: Open
+  - Target PR: PR #1846
+  - Status: Closed by PR #1846 after the Rego suppression was removed instead of extended.
   - Area: security / base-image / code-scanning
   - Finding Type: container base image vulnerability
   - Reason: GitHub Code Scanning alert #588 reports `libcap2` `CVE-2026-4878` at `1:2.66-4+deb12u1` with no fixed version reported by Trivy/GitHub at triage time. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` while monitoring Debian/Trivy fixed-version metadata.
@@ -4785,14 +4786,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alert #588 remains closed on `main`
 
 <a id="ledger-p1-remove-trivy-suppression-gnutls-cve-2026-33845"></a>
-- [ ] Remove Trivy suppression for libgnutls30 CVE-2026-33845
+- [x] Remove Trivy suppression for libgnutls30 CVE-2026-33845
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (follow-up after upstream fix)
-  - Status: Open
+  - Target PR: PR #1846
+  - Status: Closed by PR #1846 after the Rego suppression was removed instead of extended.
   - Area: security / base-image / code-scanning
   - Finding Type: container base image vulnerability
-  - Reason: GitHub Code Scanning alert #589 reports `libgnutls30` `CVE-2026-33845` at `3.7.9-2+deb12u5`. The CVE-2026-33846 PR upgrades the production image to the latest available bookworm-security package (`3.7.9-2+deb12u6`), but Debian still marks bookworm/bookworm-security vulnerable and reports a fixed version only for unstable `3.8.13-1` at triage time. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` while monitoring Debian/Trivy fixed-version metadata.
+  - Reason: GitHub Code Scanning alert #589 reports `libgnutls30` `CVE-2026-33845` at `3.7.9-2+deb12u5`. PR #1846 removed the Rego suppression instead of extending the expired review window; current-head Trivy must verify scanner state.
   - Links:
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/589
     - docs/security/CVE-2026-33845-gnutls.md
@@ -4804,14 +4805,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alert #589 remains closed on `main`
 
 <a id="ledger-p1-remove-trivy-suppression-gnutls-cve-2026-33846"></a>
-- [ ] Remove Trivy suppression for libgnutls30 CVE-2026-33846
+- [x] Remove Trivy suppression for libgnutls30 CVE-2026-33846
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (follow-up after upstream bookworm fix)
-  - Status: Open
+  - Target PR: PR #1846
+  - Status: Closed by PR #1846 after the Rego suppression was removed instead of extended.
   - Area: security / base-image / code-scanning
   - Finding Type: container base image vulnerability
-  - Reason: GitHub Code Scanning alert #590 reports `libgnutls30` `CVE-2026-33846` at `3.7.9-2+deb12u5`. This PR upgrades the production image to the latest available bookworm-security package (`3.7.9-2+deb12u6`), but Debian still marks bookworm/bookworm-security vulnerable and reports a fixed version only for unstable `3.8.13-1` at triage time. The remaining risk is covered by a narrow temporary suppression in `trivy/ignore-policy.rego`.
+  - Reason: GitHub Code Scanning alert #590 reports `libgnutls30` `CVE-2026-33846` at `3.7.9-2+deb12u5`. PR #1846 removed the Rego suppression instead of extending the expired review window; current-head Trivy must verify scanner state.
   - Links:
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/590
     - docs/security/CVE-2026-33846-gnutls.md
