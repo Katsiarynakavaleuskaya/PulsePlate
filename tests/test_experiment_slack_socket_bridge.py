@@ -1272,6 +1272,8 @@ def test_team_allowlist_rejects_mismatched_workspace_before_dispatch(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "1")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "g" * 24)
     config = _config(dispatch_mode="execute", audit_dir=audit_dir)
     calls: list[dict[str, Any]] = []
 

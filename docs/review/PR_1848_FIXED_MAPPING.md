@@ -5,15 +5,31 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads existed at PR creation time. This artifact must be updated before any thread is resolved.
+Review threads were reviewed after bot feedback. All actionable bot findings currently known are mapped below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1848#pullrequestreview-4383789325 -> 663d44dc3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1848#discussion_r3320004379 -> 663d44dc3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1848#pullrequestreview-4383833882 -> 80c1257d4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1848#discussion_r3320032704 -> 663d44dc3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1848#discussion_r3320032709 -> 80c1257d4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1848#pullrequestreview-4383855754 -> 663d44dc3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1848#discussion_r3320046107 -> 663d44dc3
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: scripts/orchestration/experiment_slack_socket_bridge.py logs sanitized failure class before sending a redacted Slack response; tests/test_experiment_slack_socket_bridge.py covers redacted reply and log content. docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md keeps a single canonical `SLACK_SIGNING_SECRET` applicability sentence. docs/review/PR_1848_FIXED_MAPPING.md includes the required checked Discussion Thread Pass and Fixed in Commit Mapping checklist items. tests/test_experiment_slack_socket_bridge.py sets the execute promotion gate and GitHub token before building execute-mode config in the workspace allowlist rejection test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1848#discussion_r3320046137
+
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/experiment_slack_socket_bridge.py:_is_safe_ref rejects `refs/*`; tests/test_experiment_slack_socket_bridge.py explicitly covers `refs/pull/1/head` rejection.
+Reason: Slack operator branch input is intentionally a narrow branch-name input for dry-run dispatch previews, not a full Git ref transport. The dispatch workflow does not checkout operator-provided refs, and accepting `refs/*` would widen the command surface beyond this PR's dry-run allowlisted contract.
 
 ## Dispositions
 
-No external review comments have been dispositioned yet.
+Known Sourcery, CodeRabbit, and Cubic actionable comments are mapped above as FIXED or NOT-A-BUG.
 
 ## Experiment Runner Evidence
 
@@ -32,6 +48,10 @@ Bootstrap packet generation did not execute role agents; role execution was expl
 Commit `367e4088f` hardens the existing Slack Experiment Runner dry-run dispatch bridge/workflows/tests/docs after PR #1845.
 
 Commit `6112a7395` adds this PR fixed-mapping artifact.
+
+Commit `80c1257d4` aligns this artifact with Phase2 mapping gates.
+
+Commit `663d44dc3` addresses Sourcery, CodeRabbit, and Cubic actionable review feedback.
 
 ## Merge Readiness
 
