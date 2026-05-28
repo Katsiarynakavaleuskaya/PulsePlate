@@ -204,6 +204,31 @@ def test_evaluate_guard_state_flags_requirements_test_only_regression() -> None:
     )
 
 
+def test_evaluate_guard_state_flags_rag_vector_pin_regression() -> None:
+    pins = {
+        "requirements-docker-runtime.txt": "2.19.3",
+        "requirements.txt": "2.19.3",
+        "requirements-ci-lite.txt": "2.19.3",
+        "requirements-dev.txt": "2.19.3",
+        "requirements-lock.txt": "2.19.3",
+        "requirements-rag-vector.txt": "2.19.2",
+        "requirements-rag-vector-cpu.txt": "2.19.3",
+        "requirements-test.txt": "2.19.3",
+    }
+
+    errors = guard.evaluate_guard_state(
+        alerts=None,
+        advisory_patched_versions={"2.19.3"},
+        pins=pins,
+        exception_present=False,
+    )
+
+    assert errors == [
+        "Dependabot reports a patched release for GHSA-5239-wwwm-4pmq (2.19.3), "
+        "but tracked requirement pins are still unresolved: requirements-rag-vector.txt=2.19.2."
+    ]
+
+
 def test_evaluate_guard_state_treats_equivalent_release_tuples_as_equal() -> None:
     pins = {
         "requirements-docker-runtime.txt": "2.19.0",
@@ -310,3 +335,59 @@ def test_public_api_request_retries_without_token_on_auth_error(
 
     assert payload == {"ok": True}
     assert calls == ["token", None]
+
+
+def test_documented_patched_version_matches_security_note() -> None:
+    security_note = guard.REPO_ROOT / "docs/security/GHSA-5239-wwwm-4pmq-pygments.md"
+
+    assert (
+        f"Patched repo version on the remediation branch: `{guard.DOCUMENTED_PATCHED_VERSION}`"
+        in security_note.read_text(encoding="utf-8")
+    )
+
+
+def test_advisory_patched_versions_uses_documented_floor_on_404(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_fetch_public_global_advisory(*, token: str | None) -> dict[str, object]:
+        raise urllib.error.HTTPError(
+            "https://api.github.com/advisories/GHSA-5239-wwwm-4pmq",
+            404,
+            "Not Found",
+            Message(),
+            None,
+        )
+
+    monkeypatch.setattr(
+        guard,
+        "_fetch_public_global_advisory",
+        fake_fetch_public_global_advisory,
+    )
+
+    patched_versions = guard._advisory_patched_versions_with_documented_fallback(token="token")
+
+    assert patched_versions == {guard.DOCUMENTED_PATCHED_VERSION}
+    assert "using the repo-documented patched floor" in capsys.readouterr().out
+
+
+def test_advisory_patched_versions_preserves_non_404_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_fetch_public_global_advisory(*, token: str | None) -> dict[str, object]:
+        raise urllib.error.HTTPError(
+            "https://api.github.com/advisories/GHSA-5239-wwwm-4pmq",
+            500,
+            "Server Error",
+            Message(),
+            None,
+        )
+
+    monkeypatch.setattr(
+        guard,
+        "_fetch_public_global_advisory",
+        fake_fetch_public_global_advisory,
+    )
+
+    with pytest.raises(urllib.error.HTTPError):
+        guard._advisory_patched_versions_with_documented_fallback(token="token")
