@@ -10,6 +10,10 @@ Configure these outside the repository, for example as GitHub Actions secrets:
 
 - `SLACK_APP_TOKEN`: Slack app-level Socket Mode credential.
 - `SLACK_BOT_TOKEN`: Slack bot credential used by the optional live bridge.
+- Optional `GH_TOKEN` / `GITHUB_TOKEN`: GitHub dispatch credential for the
+  execute-mode dry-run dispatch preview only. Execute mode also requires
+  `EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=reviewed-dry-run-dispatch` and must
+  still send the fixed workflow with `dry_run: true`.
 
 Do not commit token values, token prefixes, Slack webhook URLs, raw Slack
 payloads, or real workspace channel/user IDs as repository defaults.
@@ -24,7 +28,8 @@ time:
 - `EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST`: comma-separated Slack user IDs
   approved to issue the bounded command.
 - `EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST`: optional workspace/team ID
-  allowlist for local live runs.
+  allowlist for local dry-run config checks, and required for live-smoke,
+  live-listener, and execute-mode paths.
 
 Use the approved `#experiment-runner` channel ID only as a runtime input. The
 repository must not hardcode it as a default.
@@ -46,6 +51,12 @@ operator allowlists. App-level Socket Mode token creation and the
 `connections:write` scope remain external operator setup, stored only in the
 runtime secret store.
 
+This bridge intentionally uses Slack Socket Mode and does not expose an HTTP
+request URL. `SLACK_SIGNING_SECRET` is therefore not used by this PR.
+SLACK_SIGNING_SECRET is therefore not used by this PR. Any future HTTP Slack
+ingress must add Slack signature verification, timestamp freshness checks, and
+replay protection before parsing a payload.
+
 ## Manual Live Smoke
 
 Run `.github/workflows/experiment-runner-slack-socket-smoke.yml` manually with
@@ -58,6 +69,7 @@ For bounded live-smoke validation, set `dry_run` to `false` and provide:
 
 - runtime channel allowlist,
 - runtime user allowlist,
+- runtime workspace/team allowlist,
 - a safe branch reference,
 - a SHA256 digest of the hypothesis, not raw Slack text,
 - audit retention days.
@@ -84,6 +96,7 @@ Committed PR evidence may record only:
 - job names and pass/fail conclusion,
 - secret names as `present` / `missing`,
 - `channel_allowlist=present` and `user_allowlist=present`,
+- `team_allowlist=present`,
 - audit retention report status,
 - redaction assertion status.
 
@@ -99,6 +112,8 @@ prefixes, GitHub tokens, local absolute paths, oracle output, or patch text.
   repository.
 - Missing channel or user allowlist: provide runtime allowlist inputs; this is
   a fail-closed operator configuration issue.
+- Missing team allowlist: provide the runtime workspace/team allowlist for live
+  smoke, live listener, or execute-mode dry-run dispatch.
 - Optional Slack SDK unavailable: install the operator Slack SDK runtime only
   for the explicit long-running listener path. Bounded manual live smoke uses
   fixed Slack Web API checks and must not require the SDK.
@@ -148,6 +163,11 @@ Allowed operator display commands are bounded and redacted:
   hypotheses, local paths, Slack IDs, or provider logs.
 - `/run-experiment <branch> <hypothesis>`: existing dry-run-first fixed workflow
   path; Slack-visible preview uses hashes for branch and hypothesis values.
+
+Operators must not put emails, names, phone numbers, BMI/weight/height values,
+health conditions, diagnostic claims, payment state, raw user wellness text, or
+other sensitive user data into Slack hypotheses. Use repo artifact references or
+hashes instead.
 
 These commands are operator convenience views only. They do not create PRs,
 resolve reviews, satisfy fixed-mapping evidence, prove merge readiness, or

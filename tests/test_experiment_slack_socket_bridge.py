@@ -46,6 +46,7 @@ def _configure_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 def _configure_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", "T0TEAM")
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "60")
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS", "5")
 
@@ -55,6 +56,7 @@ def _event(
     event_id: str = "Ev0SLACK01",
     channel: str = "C0ALERTS",
     user: str = "U0OPERATOR",
+    team_id: str = "T0TEAM",
     command: str = "/run-experiment",
     text: str = "feature/test Improve oracle evidence throughput",
 ) -> dict[str, object]:
@@ -62,7 +64,7 @@ def _event(
         "channel_id": channel,
         "command": command,
         "envelope_id": event_id,
-        "team_id": "T0TEAM",
+        "team_id": team_id,
         "text": text,
         "user_id": user,
     }
@@ -421,6 +423,7 @@ def test_execute_mode_text_reply_reports_dispatch_not_dry_run(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     monkeypatch.setenv("GH_TOKEN", "ghp_" + "e" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "1")
     event_path = tmp_path / "event.json"
     event_path.write_text(
@@ -637,6 +640,36 @@ def test_bounded_live_smoke_failure_suppresses_unsafe_error_code(
     assert "xapp-" not in stdout
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"ok": True},
+        {"ok": True, "url": "https://wss.example.invalid/link/?ticket=secret"},
+    ],
+)
+def test_bounded_live_smoke_requires_socket_mode_wss_url_without_echoing_it(
+    payload: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", "main")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", "f" * 64)
+    monkeypatch.setattr(bridge, "_send_slack_api_request", lambda **_kwargs: payload)
+
+    assert bridge.main(["--validate-live-smoke"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "Slack live smoke Socket Mode validation failed" in stdout
+    assert "wss.example.invalid" not in stdout
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+
+
 def test_live_socket_validation_reports_missing_sdk_without_import_time_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -697,6 +730,7 @@ def test_execute_runtime_validation_requires_github_auth(
 ) -> None:
     _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
@@ -706,6 +740,28 @@ def test_execute_runtime_validation_requires_github_auth(
     assert "GitHub dispatch configuration is incomplete" in stdout
     assert "GH_TOKEN" not in stdout
     assert "GITHUB_TOKEN" not in stdout
+
+
+def test_execute_runtime_validation_requires_reviewed_promotion_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "g" * 24)
+
+    assert (
+        bridge.main(
+            ["--validate-runtime", "--dispatch-mode", "execute", "--audit-dir", str(audit_dir)]
+        )
+        == 1
+    )
+    stdout = capsys.readouterr().out
+
+    assert "GitHub dispatch configuration is incomplete" in stdout
+    assert "reviewed-dry-run-dispatch" not in stdout
+    assert "ghp_" not in stdout
 
 
 @pytest.mark.parametrize(
@@ -731,6 +787,7 @@ def test_execute_runtime_accepts_github_token_classes_without_leaking_token(
     _configure_env(monkeypatch)
     monkeypatch.setenv("GITHUB_REPOSITORY", "Katsiarynakavaleuskaya/PulsePlate")
     monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
 
     assert (
         bridge.main(
@@ -774,6 +831,7 @@ def test_execute_runtime_rejects_non_github_token_classes(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     monkeypatch.setenv("GH_TOKEN", token)
 
     assert (
@@ -813,6 +871,7 @@ def test_execute_runtime_rejects_unsafe_or_non_github_token_shapes(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     monkeypatch.setenv("GH_TOKEN", token)
 
     assert (
@@ -838,6 +897,7 @@ def test_live_socket_validation_requires_channel_and_user_allowlists(
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
     monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", raising=False)
     monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", raising=False)
+    monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", raising=False)
 
     assert bridge.main(["--validate-runtime", "--run-socket"]) == 1
     stdout = capsys.readouterr().out
@@ -847,11 +907,32 @@ def test_live_socket_validation_requires_channel_and_user_allowlists(
     assert "xoxb-" not in stdout
 
 
+def test_live_socket_validation_requires_team_allowlist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", raising=False)
+
+    assert bridge.main(["--validate-runtime", "--run-socket"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "allowlist configuration is incomplete" in stdout
+    assert "T0TEAM" not in stdout
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+
+
 @pytest.mark.parametrize(
     ("env_name", "value"),
     [
         ("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS, ,C0OPS"),
         ("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR, ,U0REVIEWER"),
+        ("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", "T0TEAM, ,T0ALT"),
     ],
 )
 def test_allowlists_reject_empty_comma_segments(
@@ -1015,6 +1096,7 @@ def test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     monkeypatch.setenv("GH_TOKEN", "ghp_" + "c" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     config = _config_without_rate_limit(
         monkeypatch=monkeypatch,
         dispatch_mode="execute",
@@ -1061,6 +1143,7 @@ def test_execute_mode_requires_github_auth_before_dispatch(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     config = _config_without_rate_limit(
@@ -1100,6 +1183,59 @@ def test_parser_rejects_unsafe_operator_text(text: str) -> None:
         bridge.parse_operator_command(text)
 
 
+@pytest.mark.parametrize(
+    "branch_ref",
+    [
+        "refs/pull/1/head",
+        "feature/.hidden",
+        "feature/trailing.",
+        "feature//double",
+        "main@{1}",
+        "-bad",
+        "/bad",
+        "feature\\bad",
+        "feature%0Abad",
+        "feature\nbad",
+    ],
+)
+def test_branch_ref_validation_rejects_unsafe_refs_without_echoing_values(
+    branch_ref: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    assert bridge._is_safe_ref(branch_ref) is False
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", branch_ref)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", "a" * 64)
+
+    assert bridge.main(["--validate-dispatch-inputs"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "Slack live smoke input configuration is invalid" in stdout
+    assert branch_ref not in stdout
+
+
+def test_team_allowlist_rejects_mismatched_workspace_before_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "1")
+    config = _config(dispatch_mode="execute", audit_dir=audit_dir)
+    calls: list[dict[str, Any]] = []
+
+    with pytest.raises(bridge.SlackSocketCommandError, match="workspace is not allowed"):
+        bridge.process_payload(
+            _event(team_id="T0DENIED"),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
+
+
 def test_parser_accepts_bounded_pulseplate_runner_commands() -> None:
     assert bridge.parse_operator_command("help").kind == "help"
     assert bridge.parse_operator_command("status").kind == "status"
@@ -1137,6 +1273,7 @@ def test_duplicate_event_is_blocked_before_second_dispatch(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     monkeypatch.setenv("GH_TOKEN", "ghp_" + "d" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     config = _config_without_rate_limit(
         monkeypatch=monkeypatch,
         dispatch_mode="execute",
@@ -1279,6 +1416,7 @@ def test_recent_audit_rate_limit_blocks_before_dispatch(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "3600")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     config = _config(dispatch_mode="execute", audit_dir=audit_dir)
     audit_dir.mkdir(parents=True)
     (audit_dir / "previous.json").write_text(
@@ -1308,6 +1446,7 @@ def test_atomic_rate_limit_claim_blocks_concurrent_unique_events(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     monkeypatch.setenv("GH_TOKEN", "ghp_" + "e" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     config = _config(dispatch_mode="execute", audit_dir=audit_dir)
     calls: list[dict[str, Any]] = []
     errors: list[BaseException] = []
@@ -1422,6 +1561,7 @@ def test_rate_limit_claim_retry_loop_is_bounded(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "1")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     config = _config(dispatch_mode="execute", audit_dir=audit_dir)
     lock_dir = audit_dir / bridge.RATE_LIMIT_LOCK_DIR
     lock_dir.mkdir(parents=True)
@@ -1596,6 +1736,7 @@ def test_malformed_existing_audit_blocks_before_dispatch(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
     config = _config(dispatch_mode="execute", audit_dir=audit_dir)
     audit_dir.mkdir(parents=True)
     (audit_dir / "bad.json").write_text("not-json", encoding="utf-8")
@@ -1729,7 +1870,7 @@ def test_slack_app_manifest_is_socket_mode_and_secret_free() -> None:
     assert "SLACK_BOT_TOKEN" not in manifest_text
     assert "/Users/" not in manifest_text
     assert "/tmp/" not in manifest_text
-    assert re.search(r"\b[ACDGTUW][A-Z0-9]{8,}\b", manifest_text) is None
+    assert bridge.SLACK_IDENTIFIER_RE.search(manifest_text) is None
 
 
 def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
@@ -1750,6 +1891,7 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert inputs["dry_run"]["default"] == "true"
     assert inputs["dry_run"]["options"] == ["true", "false"]
     steps = job["steps"]
+    mask_step = next(step for step in steps if step["name"] == "Mask typed dispatch inputs")
     input_step = next(
         step for step in steps if step["name"] == "Validate typed dispatch inputs without raw echo"
     )
@@ -1761,6 +1903,11 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     summary_step = next(
         step for step in steps if step["name"] == "Record sanitized dispatch contract summary"
     )
+    assert steps.index(mask_step) < steps.index(input_step)
+    assert '"branch_ref", "hypothesis_sha256"' in mask_step["run"]
+    assert "::add-mask::" in mask_step["run"]
+    assert "_escape_workflow_command_value" in mask_step["run"]
+    assert 'return value.replace("%", "%25")' in mask_step["run"]
     assert input_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
     assert (
         input_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
@@ -1782,6 +1929,9 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert "|| true" not in workflow_text
     assert "gh pr" not in workflow_text
     assert "gh workflow run" not in workflow_text
+    assert "repository_dispatch" not in workflow_text
+    assert "github.event.inputs.branch_ref" not in workflow_text
+    assert "ref: ${{ inputs.branch_ref }}" not in workflow_text
 
 
 def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -> None:
@@ -1796,9 +1946,15 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "They do not create PRs" in runbook
     assert "prove merge readiness" in runbook
     assert "replace GitHub Actions/current-head truth" in runbook
-    assert "SLACK_SIGNING_SECRET" not in runbook
+    assert "SLACK_SIGNING_SECRET is therefore not used" in runbook
+    assert "Any future HTTP Slack" in runbook
+    assert "ingress must add Slack signature verification" in runbook
+    execute_gate = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=" + "reviewed-dry-run-dispatch"
+    assert execute_gate in runbook
+    assert "Operators must not put emails, names, phone numbers" in runbook
+    assert "SLACK_SIGNING_SECRET=" not in runbook
     assert "hooks.slack.com" not in runbook
-    assert re.search(r"\b[ACDGTUW][A-Z0-9]{8,}\b", runbook) is None
+    assert bridge.SLACK_IDENTIFIER_RE.search(runbook) is None
 
 
 def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
@@ -1820,6 +1976,7 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         "channel_allowlist",
         "dry_run",
         "hypothesis_sha256",
+        "team_allowlist",
         "user_allowlist",
     }
     assert inputs["dry_run"]["default"] == "true"
@@ -1848,8 +2005,16 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         presence_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"]
         == "${{ inputs.user_allowlist }}"
     )
+    assert (
+        presence_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"]
+        == "${{ inputs.team_allowlist }}"
+    )
     assert runtime_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
     assert runtime_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
+    assert (
+        runtime_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"]
+        == "${{ inputs.team_allowlist }}"
+    )
     assert input_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
     assert (
         input_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
@@ -1875,11 +2040,15 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "SLACK_BOT_TOKEN=%s" in workflow_text
     assert "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s" in workflow_text
     assert "EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s" in workflow_text
+    assert "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST=%s" in workflow_text
     assert "slack-bolt" not in workflow_text
     assert steps.index(mask_step) < steps.index(presence_step)
     assert steps.index(mask_step) < steps.index(runtime_step)
     assert 'os.environ["GITHUB_EVENT_PATH"]' in mask_step["run"]
-    assert '"channel_allowlist", "user_allowlist", "hypothesis_sha256"' in mask_step["run"]
+    assert (
+        '"branch_ref", "channel_allowlist", "user_allowlist", "team_allowlist", '
+        '"hypothesis_sha256"' in mask_step["run"]
+    )
     assert "::add-mask::" in mask_step["run"]
     assert "_escape_workflow_command_value" in mask_step["run"]
     assert 'return value.replace("%", "%25")' in mask_step["run"]
@@ -1904,6 +2073,7 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "issues:" not in workflow_text
     assert "id-token:" not in workflow_text
     assert "packages:" not in workflow_text
+    assert "repository_dispatch" not in workflow_text
 
 
 def test_audit_dir_rejects_symlinked_artifact_ancestor(
