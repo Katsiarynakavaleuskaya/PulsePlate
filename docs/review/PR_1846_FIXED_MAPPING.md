@@ -23,10 +23,10 @@ Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-2911
 Disposition: FIXED
 Commit: 8084d2717
 Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-29111-systemd.md`, `docs/security/CVE-2026-4878-libcap2.md`, `docs/roadmap/BACKLOG_LEDGER.md`; local `scripts/ci/check_docs_phase1_gates.py` passed for changed security docs.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#discussion_r3317656226 -> 8084d2717
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#discussion_r3317656226 -> 008c4979c
 Disposition: FIXED
-Commit: 8084d2717
-Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-29111-systemd.md`, `docs/security/CVE-2026-4878-libcap2.md`; local `scripts/ci/check_docs_phase1_gates.py` passed for changed security docs.
+Commit: 008c4979c
+Evidence: `docs/review/PR_1846_FIXED_MAPPING.md`; fixed mapping updated after the review comment timestamp.
 
 ## Review Dispositions
 
