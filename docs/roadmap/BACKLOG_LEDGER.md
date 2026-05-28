@@ -4730,20 +4730,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: security
   - Finding Type: policy exception
   - Locations:
-    - `trivy/ignore-policy.rego` — Suppression expires: 2026-05-27
-    - `.trivyignore` — CVE-2026-0861 expires: 2026-05-27
-  - Reason: Upstream glibc CVEs unfixed; suppressions have expiry dates
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-06-27 for retained residual suppressions
+    - `.trivyignore` — Last reviewed: 2026-05-28; next review: 2026-06-27; CVE-2026-0861 entry removed
+  - Reason: Retained residual unfixed/non-applicable distro CVEs require short review windows; fixed/resolved suppressions were removed instead of extended
   - Links:
-    - docs/security/CVE-2026-0861-glibc.md
-    - docs/security/CVE-2025-15281-glibc.md
-    - docs/security/CVE-2026-4878-libcap2.md
+    - docs/security/CVE-2026-27171-zlib1g.md
+    - docs/security/CVE-2026-3184-util-linux.md
+    - docs/security/CVE-2025-69720-ncurses.md
   - DoD:
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Last reviewed: 2026-02-27**
+  - **Last reviewed: 2026-05-28**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
+    - PR-TBD: Removed expired/fixed/resolved suppressions and retained only residual suppressions through 2026-06-27
 
 - [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
   - Owner: @katsiaryna_kavaleuskaya
