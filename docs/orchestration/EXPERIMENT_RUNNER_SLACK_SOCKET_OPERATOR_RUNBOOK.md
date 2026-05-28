@@ -53,9 +53,8 @@ runtime secret store.
 
 This bridge intentionally uses Slack Socket Mode and does not expose an HTTP
 request URL. `SLACK_SIGNING_SECRET` is therefore not used by this PR.
-SLACK_SIGNING_SECRET is therefore not used by this PR. Any future HTTP Slack
-ingress must add Slack signature verification, timestamp freshness checks, and
-replay protection before parsing a payload.
+Any future HTTP Slack ingress must add Slack signature verification, timestamp
+freshness checks, and replay protection before parsing a payload.
 
 ## Manual Live Smoke
 

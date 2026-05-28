@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import http.client
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -88,6 +89,7 @@ LIVE_SMOKE_HYPOTHESIS_SHA256_ENV = "EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"
 SHA256_HEX_RE = re.compile(r"^[A-Fa-f0-9]{64}$")
 SLACK_LIVE_SMOKE_METHODS = {"apps.connections.open", "auth.test"}
 SAFE_SLACK_ERROR_CODE_RE = re.compile(r"^[a-z0-9_]{1,80}$")
+LOGGER = logging.getLogger(__name__)
 
 
 class SlackSocketBridgeError(RuntimeError):
@@ -1129,7 +1131,7 @@ def _check_rate_limit(config: BridgeConfig) -> None:
 
 def _require_execute_config(config: BridgeConfig) -> tuple[str, str]:
     if os.environ.get(BRIDGE_EXECUTE_ENABLED_ENV, "").strip() != BRIDGE_EXECUTE_ENABLED_VALUE:
-        raise SlackSocketConfigError("GitHub dispatch configuration is incomplete.")
+        raise SlackSocketConfigError("Slack execute-mode promotion gate is not enabled.")
     if not config.allowed_teams:
         raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
     if not config.repo or not config.github_token:
@@ -1450,7 +1452,11 @@ def run_socket_listener(config: BridgeConfig) -> int:
             event = normalize_slack_payload(body)
             command = parse_operator_command(event.text, command_hint=event.command_hint)
             respond(_format_command_reply(command, config, decision=decision))
-        except SlackSocketBridgeError:
+        except SlackSocketBridgeError as exc:
+            LOGGER.warning(
+                "Experiment Runner bridge rejected Slack request: failure_class=%s",
+                exc.__class__.__name__,
+            )
             respond("Experiment Runner bridge rejected the request. No sensitive details included.")
 
     app.command("/run-experiment")(_handle_command)

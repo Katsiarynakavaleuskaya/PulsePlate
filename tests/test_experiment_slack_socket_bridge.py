@@ -495,6 +495,55 @@ def test_run_socket_listener_registers_runner_and_experiment_commands(
     assert registered == ["/run-experiment", "/pulseplate-runner"]
 
 
+def test_run_socket_listener_rejection_reply_is_redacted_and_logs_failure_class(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    responses: list[str] = []
+
+    class FakeApp:
+        handler: Any = None
+
+        def __init__(self, token: str) -> None:
+            assert token.startswith("xoxb-")
+
+        def command(self, _command_name: str) -> Any:
+            def decorator(handler: object) -> object:
+                FakeApp.handler = handler
+                return handler
+
+            return decorator
+
+    class FakeSocketModeHandler:
+        def __init__(self, app: FakeApp, token: str) -> None:
+            assert token.startswith("xapp-")
+
+        def start(self) -> None:
+            assert FakeApp.handler is not None
+            FakeApp.handler(
+                lambda: None,
+                _event(text="run-experiment feature/test xoxb-secretsecretsecret"),
+                responses.append,
+            )
+
+    monkeypatch.setattr(bridge, "_load_slack_bolt", lambda: (FakeApp, FakeSocketModeHandler))
+
+    with caplog.at_level("WARNING", logger=bridge.__name__):
+        assert bridge.run_socket_listener(_config(audit_dir=audit_dir)) == 0
+
+    assert responses == [
+        "Experiment Runner bridge rejected the request. No sensitive details included."
+    ]
+    assert "SlackSocketCommandError" in caplog.text
+    assert "xoxb-" not in caplog.text
+    assert "feature/test" not in caplog.text
+
+
 @pytest.mark.parametrize(
     ("branch_ref", "hypothesis_sha256"),
     [
@@ -759,7 +808,7 @@ def test_execute_runtime_validation_requires_reviewed_promotion_gate(
     )
     stdout = capsys.readouterr().out
 
-    assert "GitHub dispatch configuration is incomplete" in stdout
+    assert "Slack execute-mode promotion gate is not enabled" in stdout
     assert "reviewed-dry-run-dispatch" not in stdout
     assert "ghp_" not in stdout
 
@@ -1946,7 +1995,7 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "They do not create PRs" in runbook
     assert "prove merge readiness" in runbook
     assert "replace GitHub Actions/current-head truth" in runbook
-    assert "SLACK_SIGNING_SECRET is therefore not used" in runbook
+    assert "`SLACK_SIGNING_SECRET` is therefore not used" in runbook
     assert "Any future HTTP Slack" in runbook
     assert "ingress must add Slack signature verification" in runbook
     execute_gate = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=" + "reviewed-dry-run-dispatch"
