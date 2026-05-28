@@ -26,11 +26,11 @@ Evidence: docs/security/CVE-2025-69720-ncurses.md:24, .tool-versions:1, .python-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1847#pullrequestreview-4383835520 -> d0caf28f8
 
 Disposition: FIXED
-Commit: f17353905
+Commit: 4d79b7847
 Evidence: docs/review/PR_1847_FIXED_MAPPING.md (canonical mapping restructuring)
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1847#pullrequestreview-4384192557 -> f17353905
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1847#discussion_r3320254506 -> f17353905
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1847#pullrequestreview-4384192557 -> 4d79b7847
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1847#discussion_r3320254506 -> 4d79b7847
 
 Disposition: NOT-A-BUG
 Evidence: Dockerfile change is a security fix (CVE-2026-4878), not docs-only; semver tag policy is intentional for automatic Debian security rebuilds; CodeRabbit completion marker contains zero actionable comments
