@@ -30,10 +30,13 @@ TRACKED_REQUIREMENTS = (
     "requirements-ci-lite.txt",
     "requirements-dev.txt",
     "requirements-lock.txt",
+    "requirements-rag-vector.txt",
+    "requirements-rag-vector-cpu.txt",
     "requirements-test.txt",
 )
 PRE_COMMIT_PATH = ".pre-commit-config.yaml"
 DEPENDABOT_ALERTS_PER_PAGE = 100
+DOCUMENTED_PATCHED_VERSION = "2.20.0"
 
 _PIN_RE = re.compile(r"^\s*pygments==(?P<version>[^\s#]+)", re.IGNORECASE)
 _IGNORE_SEAM_RE = re.compile(
@@ -290,6 +293,21 @@ def _fetch_public_global_advisory(*, token: str | None) -> dict[str, Any]:
     return payload
 
 
+def _advisory_patched_versions_with_documented_fallback(*, token: str | None) -> set[str]:
+    """Return public advisory patch metadata, falling back to the repo's documented floor."""
+    try:
+        advisory_payload = _fetch_public_global_advisory(token=token)
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise
+        print(
+            "WARN: public GHSA advisory endpoint returned 404; using the repo-documented "
+            f"patched floor for {ADVISORY_ID}: {DOCUMENTED_PATCHED_VERSION}."
+        )
+        return {DOCUMENTED_PATCHED_VERSION}
+    return _advisory_first_patched_versions(advisory_payload)
+
+
 def main() -> int:
     """Run the CI guard and return a process status code."""
     parser = argparse.ArgumentParser(
@@ -325,7 +343,7 @@ def main() -> int:
         return 1 if in_ci else 0
 
     try:
-        advisory_payload = _fetch_public_global_advisory(token=token)
+        advisory_patched_versions = _advisory_patched_versions_with_documented_fallback(token=token)
     except (urllib.error.HTTPError, OSError, ValueError) as exc:
         print(f"ERROR: failed to query public GHSA advisory: {exc}")
         return 1 if in_ci else 0
@@ -334,7 +352,7 @@ def main() -> int:
     exception_present = _has_exception_seam(REPO_ROOT)
     errors = evaluate_guard_state(
         alerts=alerts,
-        advisory_patched_versions=_advisory_first_patched_versions(advisory_payload),
+        advisory_patched_versions=advisory_patched_versions,
         pins=pins,
         exception_present=exception_present,
     )
@@ -344,7 +362,7 @@ def main() -> int:
             print(f"- {error}")
         return 1
 
-    print("OK: Pygments exception seam remains upstream-blocked; no removal required yet.")
+    print("OK: Pygments exception guard passed; no seam or pin remediation required.")
     return 0
 
 
