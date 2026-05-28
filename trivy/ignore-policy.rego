@@ -9,7 +9,7 @@ default ignore := false
 # - Limit to the installed versions reported at time of suppression
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
-# Suppression expires: 2026-06-27 (manual removal)
+# Suppression expires: 2026-05-27 (manual removal)
 # Last reviewed: 2026-04-02
 # Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2026-4046-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2026-33845-gnutls.md, docs/security/CVE-2026-33846-gnutls.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-29111-systemd.md, docs/security/CVE-2026-4878-libcap2.md
 
@@ -28,7 +28,7 @@ ignore if {
 }
 
 # CVE-2026-4046 (glibc) - upstream unfixed in Debian bookworm at triage time
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Trivy code-scanning alerts on main report empty Fixed Version for libc6/libc-bin in the
 #   Debian bookworm base image; repo code cannot patch glibc in the upstream image layer
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-4046
@@ -62,7 +62,7 @@ ignore if {
 }
 
 # CVE-2025-15281 (glibc) - upstream unfixed in GitHub runner base image
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Upstream unfixed; GitHub runner base image (deb12u10/deb12u13); no actionable remediation in repo
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-15281
 # Documented in: docs/security/CVE-2025-15281-glibc.md
@@ -102,7 +102,7 @@ ignore if {
 }
 
 # CVE-2026-27171 (zlib1g) - upstream unfixed in Debian bookworm
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Unfixed distro CVE; no fixed version reported in Trivy metadata for bookworm at time of triage
 # Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-27171
@@ -127,7 +127,7 @@ ignore if {
 }
 
 # CVE-2026-41989 (libgcrypt20) - no fixed release for observed Debian package at triage time
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Trivy security scan reports libgcrypt20 fixed-version unknown for `1.10.1-3` in base image; no repository-level remediation path exists right now.
 # Monitor: https://avd.aquasec.com/nvd/cve-2026-41989
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-41989
@@ -166,7 +166,7 @@ ignore if {
 }
 
 # CVE-2025-14831 (gnutls) - base image not yet updated to fixed version
-# Review-by: 2026-06-27 (check if base image updated to deb12u6)
+# Review-by: 2026-05-27 (check if base image updated to deb12u6)
 # Rationale: Fix available in 3.7.9-2+deb12u6 but base image still has deb12u5
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-14831
 # Documented in: docs/security/CVE-2025-14831-gnutls.md
@@ -180,7 +180,7 @@ ignore if {
 
 # anchor:cve-2026-33845-gnutls-suppression
 # CVE-2026-33845 (GnuTLS) - no fixed release for Debian bookworm at triage time
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Trivy code-scanning alert #589 reports libgnutls30 fixed-version unknown
 #   in the production image. The Dockerfile now explicitly installs libgnutls30
 #   from bookworm-security so the image does not retain stale `3.7.9-2+deb12u5`,
@@ -227,7 +227,7 @@ ignore if {
 
 # anchor:cve-2026-33846-gnutls-suppression
 # CVE-2026-33846 (GnuTLS) - no fixed release for Debian bookworm at triage time
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: GitHub Code Scanning alert #590 reports libgnutls30 CVE-2026-33846
 #   in the production image. The Dockerfile now explicitly installs libgnutls30
 #   from bookworm-security so the image does not retain stale `3.7.9-2+deb12u5`,
@@ -274,7 +274,7 @@ ignore if {
 }
 
 # CVE-2026-3184 (util-linux family) - upstream unfixed in Debian bookworm
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Unfixed distro CVE; access control bypass via hostname canonicalization; LOW severity
 # Affects all binary packages from util-linux source: bsdutils, libblkid1, libmount1,
 #   libsmartcols1, libuuid1, mount, util-linux, util-linux-extra
@@ -304,7 +304,7 @@ ignore if {
 }
 
 # CVE-2026-29111 (systemd family) - upstream unfixed in Debian bookworm
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Debian bookworm remains vulnerable; fix is published only in forky/sid at triage time
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-29111
 # Documented in: docs/security/CVE-2026-29111-systemd.md
@@ -337,7 +337,7 @@ ignore if {
 }
 
 # CVE-2025-69720 (ncurses family) - upstream unfixed in Debian bookworm
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Debian bookworm remains vulnerable; fix is published only in forky/sid at triage time
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-69720
 # Documented in: docs/security/CVE-2025-69720-ncurses.md
@@ -376,7 +376,7 @@ ignore if {
 }
 
 # CVE-2026-4878 (libcap2) - no fixed release for observed Debian package at triage time
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Trivy code-scanning alert #588 reports libcap2 fixed-version unknown
 #   for `1:2.66-4+deb12u1` in the production image. No repository-level
 #   remediation path exists until Debian publishes a fixed package line or
