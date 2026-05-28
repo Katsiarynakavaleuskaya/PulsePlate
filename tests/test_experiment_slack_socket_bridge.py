@@ -170,8 +170,34 @@ def test_secret_presence_validation_passes_without_leaking_values(
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", "T0TEAM")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", "T0TEAM")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", "T0TEAM")
 
     assert bridge.main(["--validate-secret-presence"]) == 0
+    stdout = capsys.readouterr().out
+
+    assert stdout == ""
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert "T0TEAM" not in stdout
+
+
+def test_secret_presence_validation_requires_team_allowlist_without_leaking_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-" + "a" * 24)
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+    monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", raising=False)
+
+    assert bridge.main(["--validate-secret-presence"]) == 1
     stdout = capsys.readouterr().out
 
     assert stdout == ""
@@ -191,6 +217,7 @@ def test_secret_presence_validation_rejects_malformed_runtime_env(
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", "T0TEAM")
 
     assert bridge.main(["--validate-secret-presence"]) == 1
     stdout = capsys.readouterr().out
@@ -212,6 +239,7 @@ def test_secret_presence_validation_rejects_malformed_allowlist_env(
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-" + "b" * 24)
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "/tmp/channel")
     monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", "T0TEAM")
 
     assert bridge.main(["--validate-secret-presence"]) == 1
     stdout = capsys.readouterr().out
