@@ -26,7 +26,7 @@ If it is not recorded here — it does not exist.
 
 <a id="ledger-p1-container-perl-cve-remediation"></a>
 - [ ] P1: Container image Perl/Archive::Tar CVE remediation (CVE-2026-9538, CVE-2026-42497, CVE-2026-8376, CVE-2026-42496)
-  - Owner: @katsiarynakavaleuskaya (Security/SRE)
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
   - Target PR: TBD (evaluation deadline 2026-08-27)
   - Status: Open
