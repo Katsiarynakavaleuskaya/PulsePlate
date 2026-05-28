@@ -315,6 +315,8 @@ def test_mvp_evidence_event_contract_matches_frontend_source() -> None:
         )
     )
 
+    assert frontend_events
+    assert bridge_events
     assert bridge_events == frontend_events
     assert "email" not in bridge_events
     assert "weight" not in bridge_events
