@@ -7,7 +7,14 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#discussion_r3317184753 -> 8084d2717
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#discussion_r3317231922 -> 8084d2717
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#discussion_r3317231930 -> 8084d2717
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1846#discussion_r3317231935 -> 8084d2717
+
+Disposition: FIXED
+Commit: `8084d2717`
+Evidence: `docs/security/CVE-2025-14831-gnutls.md`, `docs/security/CVE-2026-29111-systemd.md`, `docs/security/CVE-2026-4878-libcap2.md`, `docs/roadmap/BACKLOG_LEDGER.md`; local `scripts/ci/check_docs_phase1_gates.py` passed for changed security docs.
 
 ## Review Dispositions
 
