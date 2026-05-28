@@ -42,15 +42,15 @@
   Evidence: `docs/review/PR_1845_FIXED_MAPPING.md:3`, `scripts/orchestration/experiment_slack_socket_bridge.py`
   Reason: CodeRabbit's actionable review comments from that review were fixed or explicitly dispositioned in this mapping artifact.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1845#discussion_r3313925399 -> PENDING
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1845#discussion_r3313925399 -> 4b3d7880e
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 4b3d7880e
   Evidence: `tests/test_experiment_slack_socket_bridge.py:318`
   Reason: Added non-empty assertions for frontend and bridge event extraction before comparing the contract sets.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1845#pullrequestreview-4376153223 -> PENDING
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1845#pullrequestreview-4376153223 -> 4b3d7880e
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 4b3d7880e
   Evidence: `tests/test_experiment_slack_socket_bridge.py:318`
   Reason: The review's actionable nitpick is the non-empty guard thread and is fixed by the same test assertion.
 
