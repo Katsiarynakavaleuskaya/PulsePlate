@@ -4,6 +4,11 @@
 
 All pre-open and post-open agent findings are dispositioned below.
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ### Agent findings
 
 | Finding | Role | Disposition | Evidence |
@@ -23,17 +28,22 @@ All pre-open and post-open agent findings are dispositioned below.
 | Premortem "both workflows" inaccuracy | cursor-specialist-agent | FIXED | Commit `d2194cbd5` — changed to "the dispatch workflow" |
 | Premortem duplicate explanations | cursor-specialist-agent | FIXED | Commit `d2194cbd5` — removed duplicate digest computation from revised plan; references runbook instead |
 | Premortem not linked from runbook | cursor-specialist-agent | FIXED | Commit `d2194cbd5` — added "See also" link to premortem from runbook Live-Dispatch Approval Gate section |
+| `SlackSocketConfigError` leak in `--validate-live-approval` CLI | sourcery-ai | FIXED | Commit `dae9fd3af` — wrapped `_live_approval_sha256()` in `try/except SlackSocketConfigError` in `main()` |
+| Duplicated `approval_hash` prefix logic | sourcery-ai | FIXED | Commit `dae9fd3af` — extracted `_approval_prefix(config, command)` helper used by `_audit_payload` and `process_operator_event` |
+| Missing `approval_ref` default assertion in contract test | sourcery-ai | FIXED | Commit `dae9fd3af` — added `monkeypatch.delenv(LIVE_APPROVAL_SHA256_ENV)` and `assert dispatch_inputs["approval_ref"] == "none"` |
+| Missing "## Discussion Thread Pass" section | coderabbitai | FIXED | Commit `dae9fd3af` — added required section with two checked checkboxes |
+| Prematurely checked merge-readiness checkboxes | coderabbitai | FIXED | Commit `dae9fd3af` — unchecked all merge-readiness items until final merge cycle |
 
 ### Merge readiness
 
-- [x] Pre-open agents: agent-coordinator, cursor-specialist-agent, security-auditor, architecture-specialist
-- [x] Post-open agents: qa-engineer-agent, bug-hunter
-- [x] `make validate-changed` passed
-- [x] `make test-fast` passed
-- [x] `pre-commit run --all-files` passed
-- [x] `python3 scripts/orchestration/check_preflight.py` passed
-- [x] `python3 scripts/orchestration/check_agent_consistency.py` passed
-- [x] PR review dry-run report generated (`/tmp/pulseplate_pr_review_context.json`)
+- [ ] Pre-open agents: agent-coordinator, cursor-specialist-agent, security-auditor, architecture-specialist
+- [ ] Post-open agents: qa-engineer-agent, bug-hunter
+- [ ] `make validate-changed` passed
+- [ ] `make test-fast` passed
+- [ ] `pre-commit run --all-files` passed
+- [ ] `python3 scripts/orchestration/check_preflight.py` passed
+- [ ] `python3 scripts/orchestration/check_agent_consistency.py` passed
+- [ ] PR review dry-run report generated (`/tmp/pulseplate_pr_review_context.json`)
 - [ ] Full `make verify` — operator-approved machine-heavy PR deferral (focused checks used)
 
 ### Experiment Runner evidence

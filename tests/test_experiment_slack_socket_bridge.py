@@ -15,6 +15,7 @@ import yaml
 
 import scripts.orchestration.context_pack as context_pack
 from scripts.orchestration import experiment_slack_socket_bridge as bridge
+from scripts.orchestration.experiment_slack_socket_bridge import LIVE_APPROVAL_SHA256_ENV
 from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1210,6 +1211,9 @@ def test_dispatch_inputs_match_manual_workflow_contract(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
+    # Ensure this contract test always exercises the dry-run branch and does not
+    # depend on ambient LIVE_APPROVAL_SHA256 env state.
+    monkeypatch.delenv(LIVE_APPROVAL_SHA256_ENV, raising=False)
     workflow = _load_workflow(DISPATCH_WORKFLOW_PATH)
     triggers = _workflow_on(workflow)
     workflow_inputs = set(triggers["workflow_dispatch"]["inputs"])
@@ -1220,7 +1224,9 @@ def test_dispatch_inputs_match_manual_workflow_contract(
     )
     config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
 
-    assert set(bridge._github_dispatch_inputs(command, config=config)) <= workflow_inputs
+    dispatch_inputs = bridge._github_dispatch_inputs(command, config=config)
+    assert set(dispatch_inputs) <= workflow_inputs
+    assert dispatch_inputs["approval_ref"] == "none"
 
 
 def test_execute_mode_requires_github_auth_before_dispatch(

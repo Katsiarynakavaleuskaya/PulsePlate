@@ -847,6 +847,17 @@ def _ensure_event_not_processed(path: Path, *, config: BridgeConfig) -> None:
     raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
 
 
+def _approval_prefix(config: BridgeConfig, command: OperatorCommand) -> str | None:
+    """Return a truncated approval hash prefix for run-experiment commands.
+
+    Returns None when live approval is not configured or command is not
+    run-experiment, so callers can distinguish dry-run from live dispatch.
+    """
+    if config.live_approval_sha256 is not None and command.kind == "run-experiment":
+        return config.live_approval_sha256[:16]
+    return None
+
+
 def _audit_payload(
     *,
     event: OperatorEvent,
@@ -855,11 +866,8 @@ def _audit_payload(
     status: str,
     failure_class: str | None,
 ) -> dict[str, Any]:
-    approval_hash = "none"
-    if config.live_approval_sha256 is not None and command.kind == "run-experiment":
-        approval_hash = config.live_approval_sha256[:16]
     return {
-        "approval_hash": approval_hash,
+        "approval_hash": _approval_prefix(config, command) or "none",
         "branch_hash": _safe_hash(command.branch_ref),
         "channel_hash": _sha256_text(event.channel_id),
         "command_kind": command.kind,
@@ -1429,9 +1437,6 @@ def process_operator_event(
         )
         raise SlackSocketDispatchError("Slack operator dispatch failed.") from exc
     _write_audit(path=audit_path, event=event, command=command, config=config, status=status)
-    approval_hash = None
-    if config.live_approval_sha256 is not None and command.kind == "run-experiment":
-        approval_hash = config.live_approval_sha256[:16]
     return BridgeDecision(
         status=status,
         command_kind=command.kind,
@@ -1443,7 +1448,7 @@ def process_operator_event(
         workflow_file=config.workflow_file,
         branch_hash=_safe_hash(command.branch_ref),
         hypothesis_hash=_safe_hash(command.hypothesis),
-        approval_hash=approval_hash,
+        approval_hash=_approval_prefix(config, command),
         failure_class=failure_class,
     )
 
@@ -1643,7 +1648,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.validate_secret_presence:
             return 0 if validate_secret_presence()["status"] == "pass" else 1
         if args.validate_live_approval:
-            approval = _live_approval_sha256()
+            try:
+                approval = _live_approval_sha256()
+            except SlackSocketConfigError:
+                print("FAIL: Slack live-dispatch approval is missing or invalid.")
+                return 1
             if approval is None:
                 print("FAIL: Slack live-dispatch approval is missing or invalid.")
                 return 1
