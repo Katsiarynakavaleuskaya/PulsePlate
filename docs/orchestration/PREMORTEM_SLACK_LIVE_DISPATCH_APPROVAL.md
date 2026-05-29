@@ -68,15 +68,15 @@ The approval digest is treated as a long-lived shared secret between the reviewi
 
 ### Revised plan
 
-1. **Bridge:** Compute `SHA256(branch_ref + "\0" + hypothesis)` and compare with `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`. Reject with `SlackSocketDispatchError` on mismatch. Never log the env var or computed hash.
-2. **Workflow:** Add `approval_ref` input with default `"none"`. Validate SHA256 hex shape. Only allow `dry_run: false` when `approval_ref` matches the expected pattern and `inputs.dry_run == 'false'`. Mask `approval_ref` in `::add-mask::`.
-3. **Audit:** Add `approval_hash` field to every dispatch audit. Store `"none"` when dry-run, a truncated hash prefix when live-approved.
-4. **Tests:** Add parameterized unsafe-input tests for the live-dispatch path. Add explicit tests for approval mismatch, approval match, and missing approval env.
+1. **Bridge:** Compute `SHA256(branch_ref + "\0" + hypothesis)` and compare with `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`. Reject with `SlackSocketDispatchError` on mismatch. Never log the env var or computed hash. See runbook for operator digest generation instructions.
+2. **Workflow:** Add `approval_ref` input with default `"none"`. Validate SHA256 hex shape via bridge CLI `--validate-live-approval`. Only allow `dry_run: false` when `approval_ref` is valid and `inputs.dry_run == 'false'`. Mask `approval_ref` in `::add-mask::`.
+3. **Audit:** Add `approval_hash` field to run-experiment dispatch audits only. Store `"none"` when dry-run, a truncated hash prefix when live-approved.
+4. **Tests:** Add parameterized unsafe-input tests for the live-dispatch path. Add explicit tests for approval mismatch, approval match, missing approval env, case normalization, and sentinel `"none"`.
 5. **Runbook:** Document that approval digests are operator-managed secrets, single-use per dispatch is recommended, and leaked digests must be rotated immediately.
 
 ### Pre-merge checklist
 
-- [ ] `::add-mask::` covers `approval_ref` in both workflows.
+- [ ] `::add-mask::` covers `approval_ref` in the dispatch workflow.
 - [ ] No raw `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256` appears in stdout, stderr, audit artifacts, or step summaries.
 - [ ] Tests prove `dry_run: false` is rejected without approval.
 - [ ] Tests prove `dry_run: false` is accepted with matching approval.

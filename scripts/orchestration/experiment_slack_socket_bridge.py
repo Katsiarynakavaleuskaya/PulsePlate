@@ -459,14 +459,20 @@ def _github_token() -> str | None:
 def _live_approval_sha256() -> str | None:
     """Read and validate the live-dispatch approval digest from runtime env.
 
-    Returns None if absent; raises on malformed shape to prevent injection.
+    Returns None if absent or the literal sentinel "none".
+    Normalizes to lowercase hex; raises on malformed shape to prevent injection.
     """
     raw = os.environ.get(LIVE_APPROVAL_SHA256_ENV, "").strip()
-    if not raw:
+    if not raw or raw.lower() == "none":
         return None
-    if CONTROL_CHAR_RE.search(raw) or "`" in raw or SHA256_HEX_RE.fullmatch(raw) is None:
+    normalized = raw.lower()
+    if (
+        CONTROL_CHAR_RE.search(normalized)
+        or "`" in normalized
+        or SHA256_HEX_RE.fullmatch(normalized) is None
+    ):
         raise SlackSocketConfigError("Slack live-dispatch approval configuration is invalid.")
-    return raw
+    return normalized
 
 
 def _compute_live_approval_digest(branch_ref: str, hypothesis: str) -> str:
@@ -850,7 +856,7 @@ def _audit_payload(
     failure_class: str | None,
 ) -> dict[str, Any]:
     approval_hash = "none"
-    if config.live_approval_sha256 is not None:
+    if config.live_approval_sha256 is not None and command.kind == "run-experiment":
         approval_hash = config.live_approval_sha256[:16]
     return {
         "approval_hash": approval_hash,
@@ -1424,7 +1430,7 @@ def process_operator_event(
         raise SlackSocketDispatchError("Slack operator dispatch failed.") from exc
     _write_audit(path=audit_path, event=event, command=command, config=config, status=status)
     approval_hash = None
-    if config.live_approval_sha256 is not None:
+    if config.live_approval_sha256 is not None and command.kind == "run-experiment":
         approval_hash = config.live_approval_sha256[:16]
     return BridgeDecision(
         status=status,

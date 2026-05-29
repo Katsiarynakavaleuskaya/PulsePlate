@@ -154,6 +154,9 @@ Dry-run remains the default when the approval env is absent or does not match.
 Operators must not post raw approval digests, branch names, or hypotheses into
 Slack.
 
+See also: `docs/orchestration/PREMORTEM_SLACK_LIVE_DISPATCH_APPROVAL.md` for
+reviewed risk analysis and failure modes.
+
 ## Audit Retention
 
 Slack bridge audit artifacts live under

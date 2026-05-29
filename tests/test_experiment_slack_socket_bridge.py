@@ -2369,3 +2369,258 @@ def test_event_claim_rejects_parent_traversal_before_mkdir(
         )
 
     assert not (audit_dir.parent / "outside").exists()
+
+
+def test_live_approval_sha256_returns_none_for_absent_and_none_sentinel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.delenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", raising=False)
+
+    assert bridge._live_approval_sha256() is None
+
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", "none")
+    assert bridge._live_approval_sha256() is None
+
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", "NONE")
+    assert bridge._live_approval_sha256() is None
+
+
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        "not-a-digest",
+        "xoxb-" + "a" * 24,
+        "ghp_" + "a" * 24,
+        "short",
+        "g" * 64,
+        "G" * 64 + "!",
+        "a" * 63,
+        "a" * 65,
+        "abc\ndef",
+        "abc`def",
+        "../etc/passwd",
+    ],
+)
+def test_live_approval_sha256_rejects_malformed_without_echoing(
+    bad_value: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", bad_value)
+
+    assert bridge.main(["--validate-live-approval"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "FAIL: Slack live-dispatch approval" in stdout
+    assert bad_value not in stdout
+
+
+def test_live_approval_sha256_normalizes_uppercase_to_lowercase(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    upper = "ABCDEF" + "0" * 58
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", upper)
+
+    result = bridge._live_approval_sha256()
+
+    assert result is not None
+    assert result == upper.lower()
+    assert result == "abcdef" + "0" * 58
+
+
+def test_compute_live_approval_digest_is_deterministic_and_uses_null_separator() -> None:
+    digest = bridge._compute_live_approval_digest("feature/test", "Validate bounded execution")
+    expected = bridge._sha256_text("feature/test\0Validate bounded execution")
+    assert digest == expected
+    assert len(digest) == 64
+    assert all(c in "0123456789abcdef" for c in digest)
+
+
+def test_validate_live_approval_cli_passes_for_valid_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", "a" * 64)
+
+    assert bridge.main(["--validate-live-approval"]) == 0
+    stdout = capsys.readouterr().out
+    payload = json.loads(stdout)
+
+    assert payload == {"approval_status": "valid", "status": "pass"}
+    assert "a" * 64 not in stdout
+
+
+def test_execute_mode_with_matching_live_approval_dispatches_dry_run_false(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "h" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    branch = "feature/live-test"
+    hypothesis = "Live dispatch approval gate validation"
+    approval = bridge._compute_live_approval_digest(branch, hypothesis)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", approval)
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+    )
+    calls: list[dict[str, Any]] = []
+
+    decision = bridge.process_payload(
+        _event(text=f"{branch} {hypothesis}"),
+        config,
+        dispatch_transport=lambda **kwargs: calls.append(kwargs),
+    )
+
+    assert decision.status == "dispatched"
+    assert len(calls) == 1
+    assert calls[0]["inputs"]["dry_run"] == "false"
+    assert calls[0]["inputs"]["approval_ref"] == approval
+    assert calls[0]["inputs"]["branch_ref"] == branch
+    assert calls[0]["inputs"]["hypothesis_sha256"] == bridge._sha256_text(hypothesis)
+
+
+def test_execute_mode_with_mismatched_live_approval_rejects_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "i" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    monkeypatch.setenv(
+        "EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256",
+        bridge._compute_live_approval_digest("feature/other", "Other hypothesis"),
+    )
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+    )
+    calls: list[dict[str, Any]] = []
+
+    with pytest.raises(bridge.SlackSocketDispatchError):
+        bridge.process_payload(
+            _event(text="feature/live-test Live dispatch approval gate validation"),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
+    audit = json.loads((audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json").read_text())
+    assert audit["status"] == "failed"
+    assert audit["failure_class"] == "dispatch_failed"
+
+
+def test_live_approval_audit_contains_truncated_hash_for_live_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "j" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    branch = "feature/audit-test"
+    hypothesis = "Audit hash validation"
+    approval = bridge._compute_live_approval_digest(branch, hypothesis)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", approval)
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+    )
+
+    decision = bridge.process_payload(
+        _event(text=f"{branch} {hypothesis}"),
+        config,
+        dispatch_transport=lambda **kwargs: None,
+    )
+
+    audit = json.loads(decision.audit_path.read_text())
+    assert audit["approval_hash"] == approval[:16]
+    assert decision.approval_hash == approval[:16]
+    assert decision.public_payload()["approval_hash"] == approval[:16]
+
+
+def test_dry_run_audit_contains_none_approval_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+
+    decision = bridge.process_payload(_event(), config)
+
+    assert decision.status == "dry_run"
+    audit = json.loads(decision.audit_path.read_text())
+    assert audit["approval_hash"] == "none"
+    assert decision.approval_hash is None
+    assert decision.public_payload()["approval_hash"] == "none"
+
+
+def test_live_dispatch_reply_shows_dry_run_false_and_approval_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "k" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    branch = "feature/reply-test"
+    hypothesis = "Reply format validation"
+    approval = bridge._compute_live_approval_digest(branch, hypothesis)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", approval)
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+    )
+
+    decision = bridge.process_payload(
+        _event(text=f"{branch} {hypothesis}"),
+        config,
+        dispatch_transport=lambda **kwargs: None,
+    )
+    command = bridge.OperatorCommand(
+        kind="run-experiment",
+        branch_ref=branch,
+        hypothesis=hypothesis,
+    )
+    reply = bridge._format_command_reply(command, config, decision=decision)
+
+    assert "workflow_input_dry_run=false" in reply
+    assert f"approval_hash={approval[:16]}" in reply
+    assert branch not in reply
+    assert hypothesis not in reply
+
+
+def test_non_dispatch_command_does_not_carry_approval_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", "a" * 64)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+
+    decision = bridge.process_payload(
+        _event(text="help", command="/pulseplate-runner"),
+        config,
+    )
+
+    assert decision.status == "dry_run"
+    assert decision.approval_hash is None
+    audit = json.loads(decision.audit_path.read_text())
+    assert audit["approval_hash"] == "none"
