@@ -14,9 +14,16 @@ Configure these outside the repository, for example as GitHub Actions secrets:
   execute-mode dry-run dispatch preview only. Execute mode also requires
   `EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=reviewed-dry-run-dispatch` and must
   still send the fixed workflow with `dry_run: true`.
+- Optional `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`: SHA256 digest that
+  authorizes a single reviewed live dispatch for one specific
+  `branch_ref` + `hypothesis` pair. When absent, dispatch defaults to
+  `dry_run: true`. When present, the bridge computes
+  `SHA256(branch_ref + "\0" + hypothesis)` and allows `dry_run: false`
+  only on exact match.
 
-Do not commit token values, token prefixes, Slack webhook URLs, raw Slack
-payloads, or real workspace channel/user IDs as repository defaults.
+Do not commit token values, token prefixes, approval digests, Slack webhook
+URLs, raw Slack payloads, or real workspace channel/user IDs as repository
+defaults.
 
 ## Runtime Allowlists
 
@@ -124,6 +131,28 @@ prefixes, GitHub tokens, local absolute paths, oracle output, or patch text.
   runtime variable.
 - Rate limit active or duplicate event: the bridge already recorded a recent or
   duplicate operator event; wait or inspect the local hash-only audit artifact.
+
+## Live-Dispatch Approval Gate
+
+Live Experiment Runner dispatch (workflow input `dry_run: false`) is gated by a
+reviewed approval digest.
+
+1. A human reviewer generates the approval digest offline:
+   ```python
+   import hashlib
+   digest = hashlib.sha256((branch_ref + "\0" + hypothesis).encode("utf-8")).hexdigest()
+   ```
+2. The digest is supplied to the runtime environment as
+   `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`.
+3. The bridge computes the same digest from the Slack operator command and
+   allows `dry_run: false` only on exact match.
+4. A mismatch rejects the command with a clear error and writes an audit record.
+5. The digest is treated as a single-use secret: rotate it after each live
+dispatch or when leaked.
+
+Dry-run remains the default when the approval env is absent or does not match.
+Operators must not post raw approval digests, branch names, or hypotheses into
+Slack.
 
 ## Audit Retention
 

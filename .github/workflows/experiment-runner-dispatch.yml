@@ -22,6 +22,11 @@ on:
         options:
           - "true"
           - "false"
+      approval_ref:
+        description: "SHA256 approval digest for live dispatch; default 'none' for dry-run"
+        required: true
+        type: string
+        default: "none"
 
 permissions:
   contents: read
@@ -58,7 +63,7 @@ jobs:
           def _escape_workflow_command_value(value: str) -> str:
               return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
-          for key in ("branch_ref", "hypothesis_sha256"):
+          for key in ("branch_ref", "hypothesis_sha256", "approval_ref"):
               value = str(inputs.get(key, "")).strip()
               if value:
                   print(f"::add-mask::{_escape_workflow_command_value(value)}")
@@ -73,12 +78,14 @@ jobs:
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-dispatch-inputs
 
-      - name: Fail closed until bounded live dispatch is promoted
+      - name: Validate live-dispatch approval reference
         if: inputs.dry_run == 'false'
+        env:
+          EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256: ${{ inputs.approval_ref }}
         run: |
           set -euo pipefail
-          printf 'Experiment Runner live dispatch is deferred to a later governed PR.\n'
-          exit 1
+          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --validate-live-approval
 
       - name: Record sanitized dispatch contract summary
         if: inputs.dry_run == 'true'
@@ -90,5 +97,6 @@ jobs:
             printf -- '- dry_run: true\n'
             printf -- '- branch_ref: validated without raw echo\n'
             printf -- '- hypothesis_sha256: validated without raw echo\n'
+            printf -- '- approval_ref: none (dry-run default)\n'
             printf -- '- authority: no PR creation, review disposition, merge readiness, or arbitrary workflow dispatch\n'
           } >> "$GITHUB_STEP_SUMMARY"

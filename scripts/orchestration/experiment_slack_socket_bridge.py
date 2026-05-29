@@ -47,6 +47,7 @@ BRIDGE_TIMEOUT_ENV = "EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS"
 BRIDGE_AUDIT_RETENTION_DAYS_ENV = "EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS"
 BRIDGE_EXECUTE_ENABLED_ENV = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED"
 BRIDGE_EXECUTE_ENABLED_VALUE = "reviewed-dry-run-dispatch"
+LIVE_APPROVAL_SHA256_ENV = "EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256"
 GITHUB_API_HOST = "api.github.com"
 SLACK_API_HOST = "slack.com"
 DEFAULT_WORKFLOW_FILE = "experiment-runner-dispatch.yml"
@@ -155,6 +156,7 @@ class BridgeConfig:
     slack_app_token: str | None
     slack_bot_token: str | None
     github_token: str | None
+    live_approval_sha256: str | None
 
 
 @dataclass(frozen=True)
@@ -227,12 +229,14 @@ class BridgeDecision:
     workflow_file: str
     branch_hash: str | None = None
     hypothesis_hash: str | None = None
+    approval_hash: str | None = None
     failure_class: str | None = None
 
     def public_payload(self) -> dict[str, Any]:
         """Return a sanitized payload for stdout or tests."""
 
         return {
+            "approval_hash": self.approval_hash or "none",
             "audit": normalize_repo_path(self.audit_path),
             "branch_hash": self.branch_hash,
             "channel_hash": self.channel_hash,
@@ -452,6 +456,24 @@ def _github_token() -> str | None:
     return token
 
 
+def _live_approval_sha256() -> str | None:
+    """Read and validate the live-dispatch approval digest from runtime env.
+
+    Returns None if absent; raises on malformed shape to prevent injection.
+    """
+    raw = os.environ.get(LIVE_APPROVAL_SHA256_ENV, "").strip()
+    if not raw:
+        return None
+    if CONTROL_CHAR_RE.search(raw) or "`" in raw or SHA256_HEX_RE.fullmatch(raw) is None:
+        raise SlackSocketConfigError("Slack live-dispatch approval configuration is invalid.")
+    return raw
+
+
+def _compute_live_approval_digest(branch_ref: str, hypothesis: str) -> str:
+    """Compute the canonical approval digest for a branch + hypothesis pair."""
+    return _sha256_text(branch_ref + "\0" + hypothesis)
+
+
 def _positive_int_from_env(env_name: str, default: int, *, maximum: int) -> int:
     raw = os.environ.get(env_name, str(default)).strip()
     try:
@@ -589,6 +611,7 @@ def build_config(
         slack_app_token=_optional_token(SLACK_APP_AUTH_ENV),
         slack_bot_token=_optional_token(SLACK_BOT_AUTH_ENV),
         github_token=_github_token(),
+        live_approval_sha256=_live_approval_sha256(),
     )
 
 
@@ -826,7 +849,11 @@ def _audit_payload(
     status: str,
     failure_class: str | None,
 ) -> dict[str, Any]:
+    approval_hash = "none"
+    if config.live_approval_sha256 is not None:
+        approval_hash = config.live_approval_sha256[:16]
     return {
+        "approval_hash": approval_hash,
         "branch_hash": _safe_hash(command.branch_ref),
         "channel_hash": _sha256_text(event.channel_id),
         "command_kind": command.kind,
@@ -1131,13 +1158,27 @@ def _require_execute_config(config: BridgeConfig) -> tuple[str, str]:
     return config.repo, config.github_token
 
 
-def _github_dispatch_inputs(command: OperatorCommand) -> dict[str, str]:
+def _github_dispatch_inputs(command: OperatorCommand, *, config: BridgeConfig) -> dict[str, str]:
     if command.kind != "run-experiment" or command.branch_ref is None or command.hypothesis is None:
         raise SlackSocketDispatchError("Slack operator command is not dispatchable.")
+    if config.live_approval_sha256 is not None:
+        digest = _compute_live_approval_digest(command.branch_ref, command.hypothesis)
+        if digest != config.live_approval_sha256:
+            raise SlackSocketDispatchError(
+                "Slack live-dispatch approval mismatch. "
+                "The requested branch and hypothesis do not match the reviewed approval digest."
+            )
+        return {
+            "branch_ref": command.branch_ref,
+            "dry_run": "false",
+            "hypothesis_sha256": _sha256_text(command.hypothesis),
+            "approval_ref": config.live_approval_sha256,
+        }
     return {
         "branch_ref": command.branch_ref,
         "dry_run": "true",
         "hypothesis_sha256": _sha256_text(command.hypothesis),
+        "approval_ref": "none",
     }
 
 
@@ -1363,7 +1404,7 @@ def process_operator_event(
                 repo=repo,
                 workflow_file=config.workflow_file,
                 ref=config.workflow_ref,
-                inputs=_github_dispatch_inputs(command),
+                inputs=_github_dispatch_inputs(command, config=config),
                 token=token,
                 timeout_seconds=config.timeout_seconds,
             )
@@ -1382,6 +1423,9 @@ def process_operator_event(
         )
         raise SlackSocketDispatchError("Slack operator dispatch failed.") from exc
     _write_audit(path=audit_path, event=event, command=command, config=config, status=status)
+    approval_hash = None
+    if config.live_approval_sha256 is not None:
+        approval_hash = config.live_approval_sha256[:16]
     return BridgeDecision(
         status=status,
         command_kind=command.kind,
@@ -1393,6 +1437,7 @@ def process_operator_event(
         workflow_file=config.workflow_file,
         branch_hash=_safe_hash(command.branch_ref),
         hypothesis_hash=_safe_hash(command.hypothesis),
+        approval_hash=approval_hash,
         failure_class=failure_class,
     )
 
@@ -1476,6 +1521,7 @@ def _format_command_reply(
         return render_mvp_evidence_summary().as_text()
     if command.kind == "run-experiment":
         if decision is not None and decision.status == "dispatched":
+            dry_run_flag = "true" if decision.approval_hash is None else "false"
             return SlackSafeMessage(
                 message_type="dispatch_result",
                 header="Experiment Runner dispatch result",
@@ -1485,7 +1531,8 @@ def _format_command_reply(
                     f"workflow_file={decision.workflow_file}",
                     f"branch_hash={decision.branch_hash or 'none'}",
                     f"hypothesis_hash={decision.hypothesis_hash or 'none'}",
-                    "workflow_input_dry_run=true",
+                    f"workflow_input_dry_run={dry_run_flag}",
+                    f"approval_hash={decision.approval_hash or 'none'}",
                 ),
                 action_required="Inspect GitHub workflow result; Slack does not prove readiness.",
                 artifact_refs=(".github/workflows/experiment-runner-dispatch.yml",),
@@ -1540,6 +1587,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Alias for validating bounded dispatch branch/digest inputs.",
     )
     parser.add_argument(
+        "--validate-live-approval",
+        action="store_true",
+        dest="validate_live_approval",
+        help="Validate live-dispatch approval digest without printing the raw value.",
+    )
+    parser.add_argument(
         "--branch-ref",
         default=None,
         help="Manual smoke branch ref; if omitted, read runtime env.",
@@ -1583,6 +1636,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.validate_secret_presence:
             return 0 if validate_secret_presence()["status"] == "pass" else 1
+        if args.validate_live_approval:
+            approval = _live_approval_sha256()
+            if approval is None:
+                print("FAIL: Slack live-dispatch approval is missing or invalid.")
+                return 1
+            print(json.dumps({"approval_status": "valid", "status": "pass"}, sort_keys=True))
+            return 0
         config = build_config(
             dispatch_mode=args.dispatch_mode,
             audit_dir=args.audit_dir,

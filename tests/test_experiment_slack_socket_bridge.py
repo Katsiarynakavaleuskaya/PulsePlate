@@ -108,6 +108,7 @@ def _config_without_rate_limit(
         slack_app_token=config.slack_app_token,
         slack_bot_token=config.slack_bot_token,
         github_token=config.github_token,
+        live_approval_sha256=config.live_approval_sha256,
     )
 
 
@@ -1194,6 +1195,7 @@ def test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs(
     assert calls[0]["workflow_file"] == "experiment-runner-dispatch.yml"
     assert calls[0]["ref"] == "main"
     assert calls[0]["inputs"] == {
+        "approval_ref": "none",
         "branch_ref": "release/smoke",
         "dry_run": "true",
         "hypothesis_sha256": bridge._sha256_text("Validate bounded Slack operator bridge"),
@@ -1202,7 +1204,12 @@ def test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs(
     assert bridge.ALLOWED_WORKFLOWS == {"experiment-runner-dispatch.yml"}
 
 
-def test_dispatch_inputs_match_manual_workflow_contract() -> None:
+def test_dispatch_inputs_match_manual_workflow_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
     workflow = _load_workflow(DISPATCH_WORKFLOW_PATH)
     triggers = _workflow_on(workflow)
     workflow_inputs = set(triggers["workflow_dispatch"]["inputs"])
@@ -1211,8 +1218,9 @@ def test_dispatch_inputs_match_manual_workflow_contract() -> None:
         branch_ref="release/smoke",
         hypothesis="Validate bounded Slack operator bridge",
     )
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
 
-    assert set(bridge._github_dispatch_inputs(command)) <= workflow_inputs
+    assert set(bridge._github_dispatch_inputs(command, config=config)) <= workflow_inputs
 
 
 def test_execute_mode_requires_github_auth_before_dispatch(
@@ -1969,24 +1977,24 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     job = workflow["jobs"]["experiment-runner-dispatch-contract"]
     assert job["timeout-minutes"] == 10
     inputs = triggers["workflow_dispatch"]["inputs"]
-    assert set(inputs) == {"branch_ref", "hypothesis_sha256", "dry_run"}
+    assert set(inputs) == {"approval_ref", "branch_ref", "hypothesis_sha256", "dry_run"}
     assert inputs["dry_run"]["default"] == "true"
     assert inputs["dry_run"]["options"] == ["true", "false"]
+    assert inputs["approval_ref"]["default"] == "none"
+    assert inputs["approval_ref"]["type"] == "string"
     steps = job["steps"]
     mask_step = next(step for step in steps if step["name"] == "Mask typed dispatch inputs")
     input_step = next(
         step for step in steps if step["name"] == "Validate typed dispatch inputs without raw echo"
     )
-    fail_closed_step = next(
-        step
-        for step in steps
-        if step["name"] == "Fail closed until bounded live dispatch is promoted"
+    approval_step = next(
+        step for step in steps if step["name"] == "Validate live-dispatch approval reference"
     )
     summary_step = next(
         step for step in steps if step["name"] == "Record sanitized dispatch contract summary"
     )
     assert steps.index(mask_step) < steps.index(input_step)
-    assert '"branch_ref", "hypothesis_sha256"' in mask_step["run"]
+    assert '"branch_ref", "hypothesis_sha256", "approval_ref"' in mask_step["run"]
     assert "::add-mask::" in mask_step["run"]
     assert "_escape_workflow_command_value" in mask_step["run"]
     assert 'return value.replace("%", "%25")' in mask_step["run"]
@@ -1997,8 +2005,8 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     )
     assert "--validate-dispatch-inputs" in input_step["run"]
     assert "--validate-smoke-inputs" not in workflow_text
-    assert fail_closed_step["if"] == "inputs.dry_run == 'false'"
-    assert "exit 1" in fail_closed_step["run"]
+    assert approval_step["if"] == "inputs.dry_run == 'false'"
+    assert "--validate-live-approval" in approval_step["run"]
     assert summary_step["if"] == "inputs.dry_run == 'true'"
     assert "$GITHUB_STEP_SUMMARY" in summary_step["run"]
     assert "SLACK_APP_TOKEN" not in workflow_text
