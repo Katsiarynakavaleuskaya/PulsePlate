@@ -41,7 +41,8 @@ The secret-free operator setup manifest lives at
 
 The manifest documents the repo-approved Socket Mode shape only: Experiment
 Runner app identity, Slack-safe bot display `experiment-runner`,
-`/run-experiment`, `/pulseplate-runner`, bot scopes `commands` and `chat:write`,
+`/run-experiment`, `/pulseplate-runner` (with `help | status | kpp-status |
+mvp-evidence`), bot scopes `commands` and `chat:write`,
 `socket_mode_enabled: true`, `org_deploy_enabled: false`, and `is_hosted:
 false`.
 

@@ -15,6 +15,7 @@ import yaml
 
 import scripts.orchestration.context_pack as context_pack
 from scripts.orchestration import experiment_slack_socket_bridge as bridge
+from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SMOKE_WORKFLOW_PATH = (
@@ -1934,8 +1935,8 @@ def test_slack_app_manifest_is_socket_mode_and_secret_free() -> None:
         },
         {
             "command": "/pulseplate-runner",
-            "description": "Show bounded Experiment Runner status and MVP evidence summaries.",
-            "usage_hint": "help | status | mvp-evidence",
+            "description": "Show bounded Experiment Runner status, KPP outcome catalog, and MVP evidence summaries.",
+            "usage_hint": "help | status | kpp-status | mvp-evidence",
             "should_escape": False,
         },
     ]
@@ -1949,7 +1950,7 @@ def test_slack_app_manifest_is_socket_mode_and_secret_free() -> None:
     assert "SLACK_BOT_TOKEN" not in manifest_text
     assert "/Users/" not in manifest_text
     assert "/tmp/" not in manifest_text
-    assert bridge.SLACK_IDENTIFIER_RE.search(manifest_text) is None
+    assert SLACK_IDENTIFIER_RE.search(manifest_text) is None
 
 
 def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
@@ -2033,7 +2034,7 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "Operators must not put emails, names, phone numbers" in runbook
     assert "SLACK_SIGNING_SECRET=" not in runbook
     assert "hooks.slack.com" not in runbook
-    assert bridge.SLACK_IDENTIFIER_RE.search(runbook) is None
+    assert SLACK_IDENTIFIER_RE.search(runbook) is None
 
 
 def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:

@@ -257,6 +257,7 @@ class FakeSlackTransport:
         channel: str,
         text: str,
         timeout_seconds: int,
+        blocks: str | None = None,
     ) -> None:
         FakeSlackTransport.calls.append(
             {
@@ -264,6 +265,7 @@ class FakeSlackTransport:
                 "text": text,
                 "timeout_seconds": timeout_seconds,
                 "token_seen": bool(token),
+                "blocks": blocks,
             }
         )
 
@@ -276,6 +278,7 @@ class FailingSlackTransport(FakeSlackTransport):
         channel: str,
         text: str,
         timeout_seconds: int,
+        blocks: str | None = None,
     ) -> None:
         raise experiment_notify.ExperimentSlackDeliveryError(
             "Slack delivery failed for /Users/alice/.ssh/id_rsa and xoxb-secret"
@@ -290,6 +293,7 @@ class OSErrorSlackTransport(FakeSlackTransport):
         channel: str,
         text: str,
         timeout_seconds: int,
+        blocks: str | None = None,
     ) -> None:
         raise OSError("/Users/alice/.ssh/id_rsa and xoxb-secret")
 
