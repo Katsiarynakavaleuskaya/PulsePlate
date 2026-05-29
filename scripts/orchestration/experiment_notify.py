@@ -37,6 +37,7 @@ try:
         validate_experiment_result,
     )
     from scripts.orchestration.experiment_slack_kpp_renderer import (
+        KPPRenderError,
         KPPSlackBlockMessage,
         render_kpp_block_message,
         route_kpp_outcome_from_result,
@@ -681,6 +682,7 @@ def render_notification_markdown(
 def render_kpp_slack_blocks(
     packet: dict[str, Any],
     result: dict[str, Any],
+    promotion: dict[str, Any] | None = None,
 ) -> str:
     """Render deterministic Slack Block Kit JSON for a KPP outcome.
 
@@ -692,7 +694,7 @@ def render_kpp_slack_blocks(
     """
 
     experiment_id = str(packet.get("experiment_id", "unknown"))
-    kpp_outcome = route_kpp_outcome_from_result(result)
+    kpp_outcome = route_kpp_outcome_from_result(result, promotion)
     failure_class = result.get("failure_class")
     scope = "Experiment Runner KPP outcome; Slack display-only boundary."
     evidence_summary = tuple(_oracle_lines(result)) or ("No oracle summary available.",)
@@ -1509,7 +1511,10 @@ def main(argv: list[str] | None = None) -> int:
                 source_sha256=source_sha256,
             )
         if args.slack and slack_channel is not None:
-            blocks = render_kpp_slack_blocks(packet, result)
+            try:
+                blocks = render_kpp_slack_blocks(packet, result, promotion)
+            except (KPPRenderError, TypeError):
+                blocks = None
             slack_audit_path = _deliver_slack_notification(
                 output_path=output_path,
                 experiment_id=packet["experiment_id"],

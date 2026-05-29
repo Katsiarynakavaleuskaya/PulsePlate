@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import re
 import threading
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -27,12 +27,12 @@ SLACK_MANIFEST_PATH = (
 )
 
 
-def _workflow_on(workflow: dict[str, Any]) -> dict[str, Any]:
-    return workflow.get("on") or workflow[True]
+def _workflow_on(workflow: dict[Any, Any]) -> dict[str, Any]:
+    return cast(dict[str, Any], workflow.get("on") or workflow[True])
 
 
-def _load_workflow(path: Path = SMOKE_WORKFLOW_PATH) -> dict[str, Any]:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+def _load_workflow(path: Path = SMOKE_WORKFLOW_PATH) -> dict[Any, Any]:
+    return cast(dict[Any, Any], yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
 def _configure_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
@@ -1250,6 +1250,8 @@ def test_execute_mode_requires_github_auth_before_dispatch(
         "run-experiment ../main Improve oracle evidence throughput",
         "run-experiment feature/test A=1 should not parse",
         "run-experiment feature/test cat /Users/alice/.ssh/id_rsa",
+        "run-experiment feature/test cat /home/alice/.ssh/id_rsa",
+        "run-experiment feature/test cat /var/log/pulseplate/runner.log",
         "run-experiment feature/test Improve; rm -rf repo",
         "run-experiment feature/test xapp-" + "a" * 24,
         "run-experiment feature/test ghs_header.payload.signature" + "a" * 24,

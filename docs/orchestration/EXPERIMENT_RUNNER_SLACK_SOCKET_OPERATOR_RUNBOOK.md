@@ -158,6 +158,9 @@ Allowed operator display commands are bounded and redacted:
 - `/pulseplate-runner help`: static command summary and authority boundary.
 - `/pulseplate-runner status`: bridge mode, allowlist presence, fixed workflow
   metadata, rate-limit setting, and local audit-retention setting only.
+- `/pulseplate-runner kpp-status`: static KPP outcome catalog and
+  security-sensitive routing note; no experiment artifacts, local paths, Slack
+  IDs, hypotheses, or provider logs.
 - `/pulseplate-runner mvp-evidence`: static Guided Planning MVP evidence contract
   coverage summary for #1842-#1844 event hooks; no raw user events, PII, health data,
   hypotheses, local paths, Slack IDs, or provider logs.

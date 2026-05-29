@@ -269,7 +269,10 @@ def render_kpp_block_message(
     )
 
 
-def route_kpp_outcome_from_result(result: dict[str, Any]) -> str:
+def route_kpp_outcome_from_result(
+    result: dict[str, Any],
+    promotion: dict[str, Any] | None = None,
+) -> str:
     """Map an experiment result dict to a canonical KPP outcome string.
 
     RU: Определяет KPP outcome на основе result статуса, failure_class и
@@ -281,6 +284,9 @@ def route_kpp_outcome_from_result(result: dict[str, Any]) -> str:
     status = str(result.get("status", "")).strip()
     failure_class = result.get("failure_class")
     failure_class_str = str(failure_class).strip() if failure_class is not None else ""
+    promotion_disposition = ""
+    if promotion is not None:
+        promotion_disposition = str(promotion.get("disposition", "")).strip().lower()
 
     runner_mode = str(result.get("runner_mode", "")).strip()
     mutated_paths = result.get("mutated_paths", [])
@@ -303,6 +309,8 @@ def route_kpp_outcome_from_result(result: dict[str, Any]) -> str:
         return KPP_PROMOTE
 
     if status == "rejected":
+        if promotion_disposition == "deferred":
+            return KPP_DEFER
         if failure_class_str in {"unchanged_result", "metric_regression"}:
             return KPP_DISCARD
         if failure_class_str in {"timeout", "oom", "guard_failure", "infra_flake"}:

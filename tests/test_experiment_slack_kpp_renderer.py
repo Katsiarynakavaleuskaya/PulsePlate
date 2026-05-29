@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-import re
-from unittest.mock import MagicMock
+from typing import Any
 
 import pytest
 
 from scripts.orchestration.experiment_contract import FAILURE_CLASSES
+import scripts.orchestration.experiment_notify as experiment_notify
+from scripts.orchestration.experiment_slack_redaction import safe_artifact_ref
 from scripts.orchestration.experiment_slack_kpp_renderer import (
     ACTION_REQUIRED_COPY,
     ARTIFACT_REFERENCE_COPY,
@@ -20,7 +21,6 @@ from scripts.orchestration.experiment_slack_kpp_renderer import (
     KPP_SURFACE_BREACH,
     KPP_OUTCOMES,
     KPPRenderError,
-    KPPSlackBlockMessage,
     NO_MERGE_ACTION_COPY,
     NO_SENSITIVE_DATA_COPY,
     REDACTION_NOTICE,
@@ -52,6 +52,8 @@ from scripts.orchestration.experiment_slack_kpp_renderer import (
         ("<#C12345678|channel>", "[redacted-slack-id]"),
         ("U12345678", "[redacted-slack-id]"),
         ("/Users/alice/project", "[redacted-path]"),
+        ("/home/alice/project", "[redacted-path]"),
+        ("/var/log/pulseplate/runner.log", "[redacted-path]"),
         ("diff --git a/file b/file", "[redacted-log] a/file b/file"),
         ("@@ -1,3 +1,5 @@", "[redacted-log]-1,3 +1,5 @@"),
         ("@here please review", "@[redacted-mention] please review"),
@@ -74,6 +76,35 @@ def test_slack_text_truncation() -> None:
     assert len(result) <= 100
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "/Users/alice/project/artifact.json",
+        "/home/alice/project/artifact.json",
+        "/var/log/pulseplate/runner.log",
+        "/etc/passwd",
+        "../outside.json",
+        "docs/audit/../secret.json",
+        "C:\\Users\\alice\\secret.txt",
+        "\\\\server\\share\\secret.txt",
+        "docs/audit/xoxb-secret-secret-secret",
+        "unknown/path.json",
+    ],
+)
+def test_safe_artifact_ref_rejects_unsafe_refs(raw: str) -> None:
+    assert safe_artifact_ref(raw) == "[redacted-ref]"
+
+
+def test_safe_artifact_ref_allows_known_repo_refs_and_hashes() -> None:
+    assert safe_artifact_ref("docs/audit/EXPERIMENT_EXP_NOTIFY.md") == (
+        "docs/audit/EXPERIMENT_EXP_NOTIFY.md"
+    )
+    assert safe_artifact_ref("artifacts/orchestration/experiments/results/exp-042.json") == (
+        "artifacts/orchestration/experiments/results/exp-042.json"
+    )
+    assert safe_artifact_ref("11111111222222223333333344444444") == "1111111122222222"
+
+
 # ============================================================================
 # Validation
 # ============================================================================
@@ -89,7 +120,7 @@ def test_validate_kpp_outcome_success() -> None:
     "bad",
     ["", "  ", "unknown", "PROMOTE_EXTRA", 123],
 )
-def test_validate_kpp_outcome_failure(bad: str | int) -> None:
+def test_validate_kpp_outcome_failure(bad: Any) -> None:
     with pytest.raises(KPPRenderError, match=r"KPP outcome must be one of"):
         _validate_kpp_outcome(bad)
 
@@ -321,6 +352,12 @@ def test_route_fail_guard() -> None:
     assert route_kpp_outcome_from_result(result) == KPP_FAIL
 
 
+def test_route_defer_from_promotion_disposition() -> None:
+    result = {"status": "rejected", "failure_class": "guard_failure"}
+    promotion = {"disposition": "deferred"}
+    assert route_kpp_outcome_from_result(result, promotion) == KPP_DEFER
+
+
 def test_route_fail_infra_flake() -> None:
     result = {"status": "rejected", "failure_class": "infra_flake"}
     assert route_kpp_outcome_from_result(result) == KPP_FAIL
@@ -364,7 +401,7 @@ def test_route_default_fail_for_rejected_no_failure_class() -> None:
 
 
 def test_route_default_fail_for_empty_dict() -> None:
-    result = {}
+    result: dict[str, Any] = {}
     assert route_kpp_outcome_from_result(result) == KPP_FAIL
 
 
@@ -482,3 +519,61 @@ def test_render_fail_on_empty_experiment_id() -> None:
             kpp_outcome=KPP_PROMOTE,
             experiment_id="",
         )
+
+
+# ============================================================================
+# Oracle-audit regression guards (PR #1849)
+# ============================================================================
+
+
+def test_render_kpp_slack_blocks_oracle_violation_redacts_sensitive_output() -> None:
+    """Oracle-only governance reviewer with policy violation must render
+    ORACLE_VIOLATION / SECURITY ALERT and must not leak raw stdout/stderr,
+    local paths, tokens, or patch markers."""
+    packet = {
+        "experiment_id": "exp-oracle-audit",
+        "runner_mode": "oracle_only_governance_reviewer",
+    }
+    result = {
+        "status": "rejected",
+        "failure_class": "policy_violation",
+        "runner_mode": "oracle_only_governance_reviewer",
+        "mutated_paths": [],
+        "oracle_results": [
+            {
+                "command": 'python3 -c "import sys; sys.exit(1)"',
+                "returncode": 1,
+                "timed_out": False,
+                "truncated": False,
+                "stdout": "Leak: /Users/alice/.ssh/id_rsa and xoxb-secret-token",
+                "stderr": "diff --git a/secret b/secret\nraw patch text",
+                "cwd": "/Users/alice/local/repo",
+            }
+        ],
+    }
+    blocks_json = experiment_notify.render_kpp_slack_blocks(packet, result)
+    assert "ORACLE_VIOLATION" in blocks_json
+    assert "SECURITY ALERT" in blocks_json
+    assert "/Users/alice" not in blocks_json
+    assert "xoxb-secret-token" not in blocks_json
+    assert "diff --git" not in blocks_json
+    assert "raw patch" not in blocks_json
+
+
+def test_render_kpp_slack_blocks_surface_breach_for_candidate_patch() -> None:
+    """Candidate patch with policy violation and mutated_paths must render
+    SURFACE_BREACH, not ORACLE_VIOLATION."""
+    packet = {
+        "experiment_id": "exp-surface-audit",
+        "runner_mode": "candidate_patch",
+    }
+    result = {
+        "status": "rejected",
+        "failure_class": "policy_violation",
+        "runner_mode": "candidate_patch",
+        "mutated_paths": ["core/rag/allowed.py"],
+        "oracle_results": [],
+    }
+    blocks_json = experiment_notify.render_kpp_slack_blocks(packet, result)
+    assert "SURFACE_BREACH" in blocks_json
+    assert "ORACLE_VIOLATION" not in blocks_json

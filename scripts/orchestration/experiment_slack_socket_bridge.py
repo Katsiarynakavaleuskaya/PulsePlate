@@ -19,7 +19,10 @@ from typing import Any, Protocol, cast
 
 try:
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
-    from scripts.orchestration.experiment_slack_redaction import slack_text as _slack_text
+    from scripts.orchestration.experiment_slack_redaction import (
+        LOCAL_PATH_RE,
+        slack_text as _slack_text,
+    )
 except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocation guard.
     if exc.name != "scripts":
         raise
@@ -53,7 +56,6 @@ SAFE_SLACK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$")
 SAFE_BRANCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
 SHELL_META_RE = re.compile(r"[;&|`$<>\\\\]")
-LOCAL_PATH_RE = re.compile(r"(^|\s)(/Users/|/private/|/tmp/|\.{1,2}/|[A-Za-z]:\\|\\\\)")
 ENV_ASSIGNMENT_RE = re.compile(r"(^|\s)[A-Za-z_][A-Za-z0-9_]*=")
 SECRET_SHAPED_RE = re.compile(
     r"(xapp-[A-Za-z0-9-]{10,}|xox[abcprs]-[A-Za-z0-9-]{10,}|"
