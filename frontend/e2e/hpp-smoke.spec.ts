@@ -11,9 +11,15 @@ async function expectProtectedRouteOrAuthPrompt(routeHeading: Locator, authField
 }
 
 test('home shell renders', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Configure Setup' })).toBeVisible();
+  // Canonical in-app Home lives at /app; / is the marketing landing (hideTabBar).
+  await page.goto('/app');
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: 'Turn a check-in into practical meal decisions.',
+    })
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Continue planning' })).toBeVisible();
   await expect(page.getByRole('tablist', { name: 'Main tabs' })).toBeVisible();
 });
 
