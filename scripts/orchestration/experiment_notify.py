@@ -37,6 +37,7 @@ try:
         validate_experiment_result,
     )
     from scripts.orchestration.experiment_slack_kpp_renderer import (
+        KPPSlackBlockMessage,
         render_kpp_block_message,
         route_kpp_outcome_from_result,
     )
@@ -700,7 +701,7 @@ def render_kpp_slack_blocks(
         artifact_refs = tuple(
             f"mutated: {_safe_repo_path(path)}" for path in result["mutated_paths"]
         )
-    message = render_kpp_block_message(
+    message: KPPSlackBlockMessage = render_kpp_block_message(
         kpp_outcome=kpp_outcome,
         experiment_id=experiment_id,
         failure_class=failure_class,
