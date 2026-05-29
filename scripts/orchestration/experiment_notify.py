@@ -709,6 +709,8 @@ def render_kpp_slack_blocks(
         evidence_summary=evidence_summary,
         artifact_refs=artifact_refs,
     )
+    if not isinstance(message, KPPSlackBlockMessage):
+        raise TypeError(f"Expected KPPSlackBlockMessage, got {type(message).__name__}")
     return message.as_blocks_json()
 
 
