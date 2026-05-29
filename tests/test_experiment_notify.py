@@ -257,6 +257,7 @@ class FakeSlackTransport:
         channel: str,
         text: str,
         timeout_seconds: int,
+        blocks: str | None = None,
     ) -> None:
         FakeSlackTransport.calls.append(
             {
@@ -264,6 +265,7 @@ class FakeSlackTransport:
                 "text": text,
                 "timeout_seconds": timeout_seconds,
                 "token_seen": bool(token),
+                "blocks": blocks,
             }
         )
 
@@ -276,6 +278,7 @@ class FailingSlackTransport(FakeSlackTransport):
         channel: str,
         text: str,
         timeout_seconds: int,
+        blocks: str | None = None,
     ) -> None:
         raise experiment_notify.ExperimentSlackDeliveryError(
             "Slack delivery failed for /Users/alice/.ssh/id_rsa and xoxb-secret"
@@ -290,6 +293,7 @@ class OSErrorSlackTransport(FakeSlackTransport):
         channel: str,
         text: str,
         timeout_seconds: int,
+        blocks: str | None = None,
     ) -> None:
         raise OSError("/Users/alice/.ssh/id_rsa and xoxb-secret")
 
@@ -2687,3 +2691,101 @@ def test_github_step_summary_write_failure_redacts_unsafe_path(
     assert ".ssh" not in captured.out
     assert "id_rsa" not in captured.out
     assert str(tmp_path) not in captured.out
+
+
+def test_slack_delivery_receives_non_empty_blocks_and_fallback_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Slack fake transport receives non-empty Block Kit JSON while fallback
+    markdown text remains non-empty (PR #1849 oracle-audit guard)."""
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    _reset_fake_slack()
+    fake_slack = FakeSlackTransport()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", fake_slack)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert len(FakeSlackTransport.calls) == 1
+    call = FakeSlackTransport.calls[0]
+    assert call["channel"] == "C0ALERTS"
+    blocks = call.get("blocks")
+    assert blocks is not None
+    assert isinstance(blocks, str)
+    assert len(blocks) > 0
+    parsed = json.loads(blocks)
+    assert "blocks" in parsed
+    assert isinstance(parsed["blocks"], list)
+    assert len(parsed["blocks"]) > 0
+    text = str(call["text"])
+    assert len(text) > 0
+    assert "Experiment Result Notification" in text
+
+
+def test_render_kpp_slack_blocks_uses_deferred_promotion_disposition() -> None:
+    result = _result(status="rejected", failure_class="guard_failure")
+    promotion = _promotion()
+    promotion["disposition"] = "deferred"
+
+    blocks = experiment_notify.render_kpp_slack_blocks(_packet(), result, promotion)
+
+    assert '"KPP DEFER: exp-notify"' in blocks
+    assert "`DEFER`" in blocks
+
+
+def test_slack_delivery_falls_back_to_text_when_kpp_rendering_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_slack_env(monkeypatch)
+    _reset_fake_slack()
+    fake_slack = FakeSlackTransport()
+    monkeypatch.setattr(experiment_notify, "_send_slack_api_message", fake_slack)
+
+    def fail_render(
+        packet: dict[str, Any],
+        result: dict[str, Any],
+        promotion: dict[str, Any] | None = None,
+    ) -> str:
+        raise experiment_notify.KPPRenderError("invalid KPP render")
+
+    monkeypatch.setattr(experiment_notify, "render_kpp_slack_blocks", fail_render)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--slack",
+            "--slack-channel",
+            "C0ALERTS",
+        ]
+    )
+
+    assert exit_code == 0
+    assert len(FakeSlackTransport.calls) == 1
+    call = FakeSlackTransport.calls[0]
+    assert call["text"]
+    assert call["blocks"] is None

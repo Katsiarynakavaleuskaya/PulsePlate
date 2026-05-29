@@ -14,8 +14,8 @@ features:
       usage_hint: "<branch> <hypothesis>"
       should_escape: false
     - command: /pulseplate-runner
-      description: Show bounded Experiment Runner status and MVP evidence summaries.
-      usage_hint: "help | status | mvp-evidence"
+      description: Show bounded Experiment Runner status, KPP outcome catalog, and MVP evidence summaries.
+      usage_hint: "help | status | kpp-status | mvp-evidence"
       should_escape: false
 oauth_config:
   scopes:

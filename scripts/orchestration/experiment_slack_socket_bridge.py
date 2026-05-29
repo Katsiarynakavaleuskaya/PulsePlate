@@ -19,6 +19,10 @@ from typing import Any, Protocol, cast
 
 try:
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
+    from scripts.orchestration.experiment_slack_redaction import (
+        LOCAL_PATH_RE,
+        slack_text as _slack_text,
+    )
 except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocation guard.
     if exc.name != "scripts":
         raise
@@ -52,7 +56,6 @@ SAFE_SLACK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$")
 SAFE_BRANCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
 SHELL_META_RE = re.compile(r"[;&|`$<>\\\\]")
-LOCAL_PATH_RE = re.compile(r"(^|\s)(/Users/|/private/|/tmp/|\.{1,2}/|[A-Za-z]:\\|\\\\)")
 ENV_ASSIGNMENT_RE = re.compile(r"(^|\s)[A-Za-z_][A-Za-z0-9_]*=")
 SECRET_SHAPED_RE = re.compile(
     r"(xapp-[A-Za-z0-9-]{10,}|xox[abcprs]-[A-Za-z0-9-]{10,}|"
@@ -60,18 +63,10 @@ SECRET_SHAPED_RE = re.compile(
     r"https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,}|sk-[A-Za-z0-9_-]{12,})",
     re.IGNORECASE,
 )
-SLACK_IDENTIFIER_RE = re.compile(r"\b[ACDEGTUW][A-Z0-9]{7,}\b")
-SLACK_MENTION_RE = re.compile(r"<[@#!]?[A-Z0-9][A-Z0-9_-]{1,79}(?:\|[^>]+)?>")
-PATCH_MARKER_RE = re.compile(
-    r"(diff\s+--git|^@@\s|^\+\+\+\s|^---\s|raw\s+patch|patch\s+text|"
-    r"oracle\s+stdout|oracle\s+stderr|raw\s+stdout|raw\s+stderr|"
-    r"stdout\s*:|stderr\s*:)",
-    re.IGNORECASE,
-)
 SLACK_APP_TOKEN_RE = re.compile(r"^xapp-[A-Za-z0-9-]{10,}$")
 SLACK_BOT_TOKEN_RE = re.compile(r"^xoxb-[A-Za-z0-9-]{10,}$")
 GITHUB_TOKEN_RE = re.compile(r"^(gh[pousr]_[A-Za-z0-9._-]{20,}|github_pat_[A-Za-z0-9_]{20,})$")
-ALLOWED_COMMANDS = {"help", "mvp-evidence", "status", "run-experiment"}
+ALLOWED_COMMANDS = {"help", "kpp-status", "mvp-evidence", "status", "run-experiment"}
 ALLOWED_WORKFLOWS = {DEFAULT_WORKFLOW_FILE}
 RATE_LIMIT_LOCK_DIR = "rate_limit_claim"
 REJECTED_RATE_LIMIT_LOCK_DIR = "rejected_rate_limit_claim"
@@ -274,38 +269,6 @@ def _bounded_text(value: str, *, limit: int = 2800) -> str:
     return value[: limit - 20].rstrip() + "\n[truncated=true]"
 
 
-def _slack_text(value: Any, *, limit: int = 240) -> str:
-    """Escape untrusted values for Slack mrkdwn-ish display."""
-
-    text = CONTROL_CHAR_RE.sub(" ", str(value)).strip()
-    text = SECRET_SHAPED_RE.sub("[redacted-secret]", text)
-    text = SLACK_MENTION_RE.sub("[redacted-slack-id]", text)
-    text = SLACK_IDENTIFIER_RE.sub("[redacted-slack-id]", text)
-    text = LOCAL_PATH_RE.sub(" [redacted-path]", text)
-    text = PATCH_MARKER_RE.sub("[redacted-log]", text)
-    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("`", "'")
-    text = re.sub(r"@(here|channel|everyone)\b", "@[redacted-mention]", text, flags=re.I)
-    if not text:
-        text = "none"
-    if len(text) > limit:
-        text = text[: limit - 17].rstrip() + " [truncated=true]"
-    return text
-
-
-def _safe_artifact_ref(value: Any) -> str:
-    """Return a repo-relative artifact reference or a redacted placeholder."""
-
-    text = str(value or "").strip()
-    if not text or CONTROL_CHAR_RE.search(text) or SECRET_SHAPED_RE.search(text):
-        return "none" if not text else "[redacted-ref]"
-    path = Path(text)
-    if path.is_absolute() or "\\" in text or any(part == ".." for part in path.parts):
-        return "[redacted-ref]"
-    if not text.startswith("artifacts/orchestration/") and not text.startswith("docs/"):
-        return "[redacted-ref]"
-    return _slack_text(text, limit=180)
-
-
 def render_mvp_evidence_summary() -> SlackSafeMessage:
     """Render static MVP evidence contract coverage from governed frontend event names."""
 
@@ -374,6 +337,7 @@ def render_operator_help_message() -> SlackSafeMessage:
         evidence_summary=(
             "help: show this bounded command summary",
             "status: show bridge status and authority boundary",
+            "kpp-status: show KPP outcome catalog and routing summary",
             "mvp-evidence: show Guided Planning MVP evidence coverage summary",
             "run-experiment <branch> <hypothesis>: dry-run-first fixed workflow preview/dispatch path",
         ),
@@ -404,6 +368,33 @@ def render_operator_status_message(config: BridgeConfig) -> SlackSafeMessage:
         ),
         action_required="Keep dry-run unless a reviewed PR promotes bounded execution.",
         artifact_refs=("artifacts/orchestration/experiments/slack_socket_bridge",),
+    )
+
+
+def render_kpp_status_overview() -> SlackSafeMessage:
+    """Render bounded KPP outcome catalog for operator awareness.
+
+    RU: Текстовый overview KPP outcomes для bridge; Block Kit JSON генерируется
+    отдельно через experiment_slack_kpp_renderer при необходимости.
+    EN: Text-only KPP outcome overview for the bridge; Block Kit JSON is
+    generated separately via experiment_slack_kpp_renderer when needed.
+    """
+
+    return SlackSafeMessage(
+        message_type="kpp_status_overview",
+        header="Experiment Runner KPP outcome catalog",
+        status_line="display_only",
+        scope="KPP routing outcomes are deterministic and redacted before Slack display.",
+        evidence_summary=(
+            "PROMOTE: high-signal result ready for promotion review",
+            "DEFER: result deferred to backlog or follow-up lane",
+            "DISCARD: falsification or no-signal outcome",
+            "FAIL: experiment failed; inspect failure_class and artifact reference",
+            "ORACLE_VIOLATION: oracle contract violation (security-sensitive)",
+            "SURFACE_BREACH: mutation outside allowed surface (security-sensitive)",
+        ),
+        action_required="Use kpp-status for awareness only; all promotion decisions run through repo gates.",
+        artifact_refs=("scripts/orchestration/experiment_slack_kpp_renderer.py",),
     )
 
 
@@ -651,7 +642,7 @@ def parse_operator_command(text: str, *, command_hint: str | None = None) -> Ope
     verb, _separator, remainder = normalized.partition(" ")
     if verb not in ALLOWED_COMMANDS:
         raise SlackSocketCommandError("Slack operator command is invalid.")
-    if verb in {"help", "mvp-evidence", "status"}:
+    if verb in {"help", "kpp-status", "mvp-evidence", "status"}:
         if remainder.strip():
             raise SlackSocketCommandError("Slack operator command is invalid.")
         return OperatorCommand(kind=verb)
@@ -1479,6 +1470,8 @@ def _format_command_reply(
         return render_operator_help_message().as_text()
     if command.kind == "status":
         return render_operator_status_message(config).as_text()
+    if command.kind == "kpp-status":
+        return render_kpp_status_overview().as_text()
     if command.kind == "mvp-evidence":
         return render_mvp_evidence_summary().as_text()
     if command.kind == "run-experiment":

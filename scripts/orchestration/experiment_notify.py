@@ -36,6 +36,12 @@ try:
         validate_experiment_packet,
         validate_experiment_result,
     )
+    from scripts.orchestration.experiment_slack_kpp_renderer import (
+        KPPRenderError,
+        KPPSlackBlockMessage,
+        render_kpp_block_message,
+        route_kpp_outcome_from_result,
+    )
 except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocation guard.
     if exc.name != "scripts":
         raise
@@ -111,6 +117,7 @@ class SlackTransport(Protocol):
         channel: str,
         text: str,
         timeout_seconds: int,
+        blocks: str | None = None,
     ) -> None:
         """Send a redacted Slack notification."""
 
@@ -672,6 +679,43 @@ def render_notification_markdown(
     )
 
 
+def render_kpp_slack_blocks(
+    packet: dict[str, Any],
+    result: dict[str, Any],
+    promotion: dict[str, Any] | None = None,
+) -> str:
+    """Render deterministic Slack Block Kit JSON for a KPP outcome.
+
+    RU: Обертка над experiment_slack_kpp_renderer для notify seam.
+    Вызывает routing, затем рендерит Block Kit JSON. Не отправляет сетевые
+    запросы.
+    EN: Wrapper around experiment_slack_kpp_renderer for the notify seam.
+    Calls routing, then renders Block Kit JSON. Performs no network requests.
+    """
+
+    experiment_id = str(packet.get("experiment_id", "unknown"))
+    kpp_outcome = route_kpp_outcome_from_result(result, promotion)
+    failure_class = result.get("failure_class")
+    scope = "Experiment Runner KPP outcome; Slack display-only boundary."
+    evidence_summary = tuple(_oracle_lines(result)) or ("No oracle summary available.",)
+    artifact_refs: tuple[str, ...] = ()
+    if result.get("mutated_paths"):
+        artifact_refs = tuple(
+            f"mutated: {_safe_repo_path(path)}" for path in result["mutated_paths"]
+        )
+    message: KPPSlackBlockMessage = render_kpp_block_message(
+        kpp_outcome=kpp_outcome,
+        experiment_id=experiment_id,
+        failure_class=failure_class,
+        scope=scope,
+        evidence_summary=evidence_summary,
+        artifact_refs=artifact_refs,
+    )
+    if not isinstance(message, KPPSlackBlockMessage):
+        raise TypeError(f"Expected KPPSlackBlockMessage, got {type(message).__name__}")
+    return str(message.as_blocks_json())
+
+
 def _append_github_step_summary(markdown: str) -> None:
     """Append markdown to GitHub step summary only when explicitly requested."""
 
@@ -1229,10 +1273,25 @@ def _send_slack_api_message(
     channel: str,
     text: str,
     timeout_seconds: int,
+    blocks: str | None = None,
 ) -> None:
-    """Send the already-redacted markdown notification through Slack Web API."""
+    """Send the already-redacted markdown notification through Slack Web API.
 
-    payload = json.dumps({"channel": channel, "text": text, "mrkdwn": True}).encode("utf-8")
+    When *blocks* is provided, it is sent as the Block Kit payload and *text*
+    becomes the fallback plain-text message.
+    """
+
+    body: dict[str, Any] = {"channel": channel, "text": text, "mrkdwn": True}
+    if blocks is not None:
+        try:
+            parsed_blocks = json.loads(blocks)
+        except json.JSONDecodeError as exc:
+            raise ExperimentSlackDeliveryError("Slack blocks JSON is invalid.") from exc
+        if "blocks" in parsed_blocks:
+            body["blocks"] = parsed_blocks["blocks"]
+        else:
+            body["blocks"] = parsed_blocks
+    payload = json.dumps(body).encode("utf-8")
     connection: http.client.HTTPSConnection | None = None
     try:
         connection = http.client.HTTPSConnection(SLACK_API_HOST, timeout=timeout_seconds)
@@ -1265,8 +1324,13 @@ def _deliver_slack_notification(
     source_paths: dict[str, Path | None],
     source_sha256: dict[str, str | None],
     transport: SlackTransport | None = None,
+    blocks: str | None = None,
 ) -> Path:
-    """Send an explicit Slack notification and record a local audit artifact."""
+    """Send an explicit Slack notification and record a local audit artifact.
+
+    When *blocks* is provided, it is passed to the Slack transport as Block Kit
+    JSON while *markdown* remains the fallback plain-text message.
+    """
 
     config = _slack_config()
     audit_path = _resolve_slack_audit_path(experiment_id)
@@ -1290,6 +1354,7 @@ def _deliver_slack_notification(
             channel=channel,
             text=markdown,
             timeout_seconds=int(config["timeout_seconds"]),
+            blocks=blocks,
         )
     except Exception as exc:
         _write_slack_audit(
@@ -1446,6 +1511,10 @@ def main(argv: list[str] | None = None) -> int:
                 source_sha256=source_sha256,
             )
         if args.slack and slack_channel is not None:
+            try:
+                blocks = render_kpp_slack_blocks(packet, result, promotion)
+            except (KPPRenderError, TypeError):
+                blocks = None
             slack_audit_path = _deliver_slack_notification(
                 output_path=output_path,
                 experiment_id=packet["experiment_id"],
@@ -1453,6 +1522,7 @@ def main(argv: list[str] | None = None) -> int:
                 markdown=markdown,
                 source_paths=source_paths,
                 source_sha256=source_sha256,
+                blocks=blocks,
             )
     except OSError:
         print("FAIL: unable to write experiment notification.")
