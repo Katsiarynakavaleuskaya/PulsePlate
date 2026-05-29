@@ -12,15 +12,7 @@ actionable bot findings currently known are mapped below.
 
 Disposition: FIXED
 Commit: da1d16f0f418
-Evidence: `scripts/orchestration/experiment_slack_redaction.py` makes artifact
-references fail closed for absolute, traversal, secret-shaped, and unknown
-paths; `scripts/orchestration/experiment_notify.py` falls back to text-only
-Slack delivery if KPP Block Kit rendering fails; KPP DEFER routing is covered
-through promotion disposition in
-`scripts/orchestration/experiment_slack_kpp_renderer.py`; regression coverage
-lives in `tests/test_experiment_slack_kpp_renderer.py`,
-`tests/test_experiment_notify.py`, and
-`tests/test_experiment_slack_socket_bridge.py`.
+Evidence: `scripts/orchestration/experiment_slack_redaction.py`, `scripts/orchestration/experiment_notify.py`, `scripts/orchestration/experiment_slack_kpp_renderer.py`, `tests/test_experiment_slack_kpp_renderer.py`, `tests/test_experiment_notify.py`, `tests/test_experiment_slack_socket_bridge.py`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1849#pullrequestreview-4387267794 -> da1d16f0f418
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1849#pullrequestreview-4387297808 -> da1d16f0f418
@@ -35,10 +27,7 @@ lives in `tests/test_experiment_slack_kpp_renderer.py`,
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1849#discussion_r3323179269 -> da1d16f0f418
 
 Disposition: NOT-A-BUG
-Evidence: Sourcery reviewer guide and CodeRabbit paused-review/walkthrough
-comments are PR metadata summaries, not review-thread findings requiring code
-changes. CodeRabbit's docstring coverage item is advisory in its pre-merge
-summary and is not a PulsePlate required gate for this PR lane.
+Evidence: Sourcery reviewer guide and CodeRabbit paused-review/walkthrough comments are PR metadata summaries, not review-thread findings requiring code changes; CodeRabbit docstring coverage item is advisory in its pre-merge summary and is not a PulsePlate required gate for this PR lane.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1849#issuecomment-4571650372
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1849#issuecomment-4571656709
