@@ -33,6 +33,12 @@ Evidence: `scripts/orchestration/experiment_slack_kpp_renderer.py:312` (`failure
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1849#discussion_r3322611459 -> da1d16f0f418
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1849#discussion_r3324238772 -> 4927f7800
 
+Disposition: FIXED
+Commit: 4b90280a8
+Evidence: `scripts/orchestration/experiment_slack_kpp_renderer.py:301-306` (`status == "rejected"` guard added to KPP_SURFACE_BREACH branch).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1849#pullrequestreview-4388006085 -> 4b90280a8
+
 Disposition: NOT-A-BUG
 Evidence: Sourcery reviewer guide and CodeRabbit paused-review/walkthrough comments are PR metadata summaries, not review-thread findings requiring code changes; CodeRabbit docstring coverage item is advisory in its pre-merge summary and is not a PulsePlate required gate for this PR lane.
 
