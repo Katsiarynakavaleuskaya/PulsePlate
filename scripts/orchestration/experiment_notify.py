@@ -711,7 +711,7 @@ def render_kpp_slack_blocks(
     )
     if not isinstance(message, KPPSlackBlockMessage):
         raise TypeError(f"Expected KPPSlackBlockMessage, got {type(message).__name__}")
-    return message.as_blocks_json()
+    return str(message.as_blocks_json())
 
 
 def _append_github_step_summary(markdown: str) -> None:
