@@ -299,7 +299,8 @@ def route_kpp_outcome_from_result(
         return KPP_ORACLE_VIOLATION
 
     if (
-        failure_class_str == "policy_violation"
+        status == "rejected"
+        and failure_class_str == "policy_violation"
         and isinstance(mutated_paths, list)
         and len(mutated_paths) > 0
     ):
