@@ -2624,3 +2624,39 @@ def test_non_dispatch_command_does_not_carry_approval_hash(
     assert decision.approval_hash is None
     audit = json.loads(decision.audit_path.read_text())
     assert audit["approval_hash"] == "none"
+
+
+@pytest.mark.parametrize(
+    "unsafe_text",
+    [
+        "run-experiment ../main Improve oracle evidence throughput",
+        "run-experiment feature/test Improve; rm -rf repo",
+        "run-experiment feature/test A=1 should not parse",
+        "run-experiment feature/test short",
+    ],
+)
+def test_live_dispatch_path_rejects_unsafe_inputs_via_existing_parser(
+    unsafe_text: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "m" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", "a" * 64)
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+    )
+    calls: list[dict[str, Any]] = []
+
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.process_payload(
+            _event(text=unsafe_text, command=None),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
