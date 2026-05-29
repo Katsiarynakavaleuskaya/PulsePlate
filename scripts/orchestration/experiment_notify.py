@@ -115,6 +115,7 @@ class SlackTransport(Protocol):
         channel: str,
         text: str,
         timeout_seconds: int,
+        blocks: str | None = None,
     ) -> None:
         """Send a redacted Slack notification."""
 
