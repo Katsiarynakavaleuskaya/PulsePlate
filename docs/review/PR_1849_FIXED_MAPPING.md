@@ -11,9 +11,6 @@ No review threads or actionable bot comments at PR open time.
 
 - No actionable review comments
 
-Disposition: NOT-A-BUG
-Evidence: No review threads or actionable bot comments at PR open time.
-
 ## Merge Readiness
 
 - [ ] CI current-head checks green.
