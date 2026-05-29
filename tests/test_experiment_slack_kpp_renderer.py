@@ -390,6 +390,16 @@ def test_route_surface_breach_with_empty_mutated_paths() -> None:
     assert route_kpp_outcome_from_result(result) == KPP_SURFACE_BREACH
 
 
+def test_route_surface_breach_overrides_deferred_for_policy_violation() -> None:
+    result = {
+        "status": "rejected",
+        "failure_class": "policy_violation",
+        "mutated_paths": [],
+    }
+    promotion = {"disposition": "deferred"}
+    assert route_kpp_outcome_from_result(result, promotion) == KPP_SURFACE_BREACH
+
+
 def test_route_default_fail_for_unknown_status() -> None:
     result = {"status": "unknown"}
     assert route_kpp_outcome_from_result(result) == KPP_FAIL

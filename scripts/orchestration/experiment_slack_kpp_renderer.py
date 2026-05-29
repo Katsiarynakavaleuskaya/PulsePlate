@@ -309,7 +309,7 @@ def route_kpp_outcome_from_result(
         return KPP_PROMOTE
 
     if status == "rejected":
-        if promotion_disposition == "deferred":
+        if promotion_disposition == "deferred" and failure_class_str != "policy_violation":
             return KPP_DEFER
         if failure_class_str in {"unchanged_result", "metric_regression"}:
             return KPP_DISCARD
