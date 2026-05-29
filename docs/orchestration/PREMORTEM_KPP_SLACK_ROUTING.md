@@ -49,7 +49,7 @@
 - Code review comments note "this path looks safe" without a redaction test.
 - New artifact ref fields added without regression in `test_experiment_slack_kpp_renderer.py`.
 
-**Containment action:** Require every new artifact-ref field to include a redaction test in the same PR. Use `_safe_artifact_ref()` (existing bridge helper) for all artifact references.
+**Containment action:** Require every new artifact-ref field to include a redaction test in the same PR. Use `safe_artifact_ref()` (existing bridge helper) for all artifact references.
 
 ### 4. Over-notification fatigue (KPP noise)
 
@@ -97,7 +97,7 @@ The single biggest unchallenged assumption is that **the KPP renderer is a passi
 |--------------|----------|
 | #1 Schema drift | Add `test_kpp_routing_covers_all_failure_classes` that iterates `experiment_contract.FAILURE_CLASSES` and asserts every class maps to a valid KPP outcome. |
 | #2 Security misrouting | Add `SECURITY_SENSITIVE_OUTCOMES` constant; add test proving security outcomes can be distinguished at render time; document channel segregation in runbook. |
-| #3 Redaction bypass | Reuse `_safe_artifact_ref()` from bridge for all artifact refs; add test with simulated path injection. |
+| #3 Redaction bypass | Reuse `safe_artifact_ref()` from bridge for all artifact refs; add test with simulated path injection. |
 | #4 Over-notification | Keep renderer display-only; do not auto-post KPP blocks from runner results. Delivery must be explicit operator command or workflow opt-in. |
 | #5 Runner budget | Run `make validate-changed` before push; include new module in runner evidence if it touches `scripts/orchestration/`. |
 

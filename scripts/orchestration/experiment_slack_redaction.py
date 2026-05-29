@@ -25,7 +25,9 @@ SLACK_IDENTIFIER_RE = re.compile(r"\b[ACDEGTUW][A-Z0-9]{7,}\b")
 # Backward-compat alias used by legacy bridge imports before extraction.
 _SLACK_IDENTIFIER_RE = SLACK_IDENTIFIER_RE
 _SLACK_MENTION_RE = re.compile(r"<[@#!]?[A-Z0-9][A-Z0-9_-]{1,79}(?:\|[^>]+)?>")
-_LOCAL_PATH_RE = re.compile(r"(^|\s)(/Users/|/private/|/tmp/|\.{1,2}/|[A-Za-z]:\\|\\\\)")
+_LOCAL_PATH_RE = re.compile(
+    r"(^|\s)(/Users/[^\s]+|/private/[^\s]+|/tmp/[^\s]+|\.{1,2}/[^\s]+|[A-Za-z]:\\[^\s]+|\\\\[^\s]+)"
+)
 _PATCH_MARKER_RE = re.compile(
     r"(diff\s+--git|^@@\s|^\+\+\+\s|^---\s|raw\s+patch|patch\s+text|"
     r"oracle\s+stdout|oracle\s+stderr|raw\s+stdout|raw\s+stderr|"
@@ -47,7 +49,7 @@ def slack_text(value: Any, *, limit: int = 240) -> str:
     text = _SECRET_SHAPED_RE.sub("[redacted-secret]", text)
     text = _SLACK_MENTION_RE.sub("[redacted-slack-id]", text)
     text = _SLACK_IDENTIFIER_RE.sub("[redacted-slack-id]", text)
-    text = _LOCAL_PATH_RE.sub(" [redacted-path]", text)
+    text = _LOCAL_PATH_RE.sub(r"\1[redacted-path]", text)
     text = _PATCH_MARKER_RE.sub("[redacted-log]", text)
     # Note: we intentionally do NOT HTML-escape & < > here. Slack Block Kit JSON
     # handles its own escaping via json.dumps; bridge as_text() outputs plain
@@ -70,7 +72,8 @@ def safe_artifact_ref(value: Any) -> str:
     secrets.
     """
     text = str(value).strip()
-    # Strip absolute prefixes
+    # Strip any remaining Unix absolute path before specific prefixes
+    text = re.sub(r"^/[^\s]+", "[redacted-path]", text)
     text = re.sub(r"^/Users/[^/]+/", "", text)
     text = re.sub(r"^/private/", "", text)
     text = re.sub(r"^/tmp/", "", text)

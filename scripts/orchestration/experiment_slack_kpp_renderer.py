@@ -285,7 +285,11 @@ def route_kpp_outcome_from_result(result: dict[str, Any]) -> str:
     runner_mode = str(result.get("runner_mode", "")).strip()
     mutated_paths = result.get("mutated_paths", [])
 
-    if runner_mode == "oracle_only_governance_reviewer" and failure_class_str == "policy_violation":
+    if (
+        runner_mode == "oracle_only_governance_reviewer"
+        and status == "rejected"
+        and failure_class_str == "policy_violation"
+    ):
         return KPP_ORACLE_VIOLATION
 
     if (

@@ -1509,6 +1509,7 @@ def main(argv: list[str] | None = None) -> int:
                 source_sha256=source_sha256,
             )
         if args.slack and slack_channel is not None:
+            blocks = render_kpp_slack_blocks(packet, result)
             slack_audit_path = _deliver_slack_notification(
                 output_path=output_path,
                 experiment_id=packet["experiment_id"],
@@ -1516,6 +1517,7 @@ def main(argv: list[str] | None = None) -> int:
                 markdown=markdown,
                 source_paths=source_paths,
                 source_sha256=source_sha256,
+                blocks=blocks,
             )
     except OSError:
         print("FAIL: unable to write experiment notification.")

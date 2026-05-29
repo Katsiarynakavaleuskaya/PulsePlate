@@ -51,7 +51,7 @@ from scripts.orchestration.experiment_slack_kpp_renderer import (
         ("<@U12345678>", "[redacted-slack-id]"),
         ("<#C12345678|channel>", "[redacted-slack-id]"),
         ("U12345678", "[redacted-slack-id]"),
-        ("/Users/alice/project", " [redacted-path]alice/project"),
+        ("/Users/alice/project", "[redacted-path]"),
         ("diff --git a/file b/file", "[redacted-log] a/file b/file"),
         ("@@ -1,3 +1,5 @@", "[redacted-log]-1,3 +1,5 @@"),
         ("@here please review", "@[redacted-mention] please review"),
