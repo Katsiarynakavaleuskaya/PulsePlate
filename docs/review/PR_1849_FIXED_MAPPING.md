@@ -5,11 +5,14 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads or actionable bot comments at PR open time. Mapping will be updated as review threads arrive.
+No review threads or actionable bot comments at PR open time.
 
 ## Fixed in Commit Mapping
 
-No threads to map yet.
+- No actionable review comments
+
+Disposition: NOT-A-BUG
+Evidence: No review threads or actionable bot comments at PR open time.
 
 ## Merge Readiness
 
