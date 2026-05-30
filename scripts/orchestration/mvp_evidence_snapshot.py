@@ -100,6 +100,7 @@ _DENYLIST_KEY_FRAGMENTS: tuple[str, ...] = (
 
 _VALID_ROUTE_PATHS: frozenset[str] = frozenset({"/app", "/setup", "/plate", "/progress", "/pro"})
 _VALID_AUTH_STATES: frozenset[str] = frozenset({"authenticated", "unauthenticated", "unknown"})
+_SUPPORTED_POLICY_VERSIONS: frozenset[SnapshotPolicyVersion] = frozenset({"2026-05-30-v1"})
 
 _SNAPSHOT_FILENAME_RE = re.compile(
     r"^mvp_evidence_snapshot_(?P<produced_at>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}(?:\.[0-9]+)?\+[0-9]{2}-[0-9]{2})_(?P<idempotency_key>[a-f0-9]{24})\.json$"
@@ -333,14 +334,23 @@ def read_latest_snapshot_line(
     if not snapshot_files:
         return None
 
+    def _safe_mtime(p: Path) -> float:
+        try:
+            return p.stat().st_mtime
+        except OSError:
+            return 0.0
+
     # Sort by mtime descending; tie-break by filename for determinism.
-    snapshot_files.sort(key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
+    snapshot_files.sort(key=lambda p: (_safe_mtime(p), p.name), reverse=True)
     latest = snapshot_files[0]
     _reject_symlinked_path(latest, anchor=anchor)
 
     try:
         with open(latest, "r", encoding="utf-8") as f:
             data = json.load(f)
+        # Policy version validation (fail closed on unknown versions)
+        if data.get("policy_version") not in _SUPPORTED_POLICY_VERSIONS:
+            return None
         # Runtime type validation
         if not (
             isinstance(data.get("event_aggregates"), dict)
@@ -389,8 +399,11 @@ def cleanup_expired_snapshots(
 ) -> dict[str, Any]:
     """Delete snapshot files older than retention_days.
 
+    Raises ValueError if retention_days is not positive.
     Returns a summary dict without exposing local paths.
     """
+    if retention_days <= 0:
+        raise ValueError("retention_days must be positive")
     raw_dir = base_dir or _snapshot_dir()
     anchor = (_repo_root() / "artifacts" / "orchestration").resolve()
     _reject_symlinked_path(raw_dir, anchor=anchor)

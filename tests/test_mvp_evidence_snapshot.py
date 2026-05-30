@@ -453,3 +453,40 @@ def test_non_string_payload_values_ignored() -> None:
     assert line.event_aggregates["guided_planning_viewed"] == 1
     assert line.route_buckets == ("/app",)
     assert line.auth_state_buckets == ("authenticated",)
+
+
+def test_cleanup_expired_snapshots_rejects_non_positive_retention() -> None:
+    with pytest.raises(ValueError, match="retention_days must be positive"):
+        cleanup_expired_snapshots(retention_days=0)
+    with pytest.raises(ValueError, match="retention_days must be positive"):
+        cleanup_expired_snapshots(retention_days=-1)
+
+
+def test_read_latest_rejects_unknown_policy_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _configure_repo(monkeypatch, tmp_path)
+    snap_dir = repo / "artifacts" / "orchestration" / "mvp_evidence_snapshots"
+    snap_dir.mkdir(parents=True)
+    bad = (
+        snap_dir
+        / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_000000000000000000000000.json"
+    )
+    bad.write_text(
+        json.dumps(
+            {
+                "idempotency_key": "000000000000000000000000",
+                "fingerprint": "sha256:abcd",
+                "produced_at": "2026-05-30T00:00:00.000000+00:00",
+                "producer_name": "test",
+                "producer_version": "1.0.0",
+                "policy_version": "unknown-version",
+                "event_aggregates": {},
+                "route_buckets": [],
+                "auth_state_buckets": [],
+                "coverage_flags": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert read_latest_snapshot_line() is None

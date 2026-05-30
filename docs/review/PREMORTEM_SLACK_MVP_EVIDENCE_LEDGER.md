@@ -32,7 +32,7 @@ It is 6 months from now. The `/pulseplate-runner mvp-evidence` Slack command ret
 
 ### 5. Snapshot lacks schema version, breaking backward compatibility
 - **Story:** A follow-up PR added `latency_ms` to `MvpEvidenceSnapshot`. The bridge on an older branch could not read the new field and raised `TypeError` on deserialization. The Slack command failed on half the operator workstations.
-- **Assumption:** All consumers update atomously with producers.
+- **Assumption:** All consumers update atomically with producers.
 - **Warning signs:** Dataclass deserialization uses `**json.load(...)` without a schema version check.
 - **Containment:** Include a `snapshot_schema_version: str` field (e.g., `"v1"`) and fail closed on unknown versions.
 
