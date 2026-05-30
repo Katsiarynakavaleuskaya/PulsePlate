@@ -282,7 +282,7 @@ def render_mvp_evidence_summary() -> SlackSafeMessage:
 
     try:
         snapshot = _read_latest_snapshot_line()
-    except Exception:
+    except (ValueError, OSError, TypeError):
         snapshot = None
 
     if snapshot is not None:

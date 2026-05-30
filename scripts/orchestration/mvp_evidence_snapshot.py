@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -97,8 +98,11 @@ _DENYLIST_KEY_FRAGMENTS: tuple[str, ...] = (
     "jwt",
 )
 
+_VALID_ROUTE_PATHS: frozenset[str] = frozenset({"/app", "/setup", "/plate", "/progress", "/pro"})
+_VALID_AUTH_STATES: frozenset[str] = frozenset({"authenticated", "unauthenticated", "unknown"})
+
 _SNAPSHOT_FILENAME_RE = re.compile(
-    r"^mvp_evidence_snapshot_(?P<produced_at>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}\.[0-9]+\+[0-9]{2}-[0-9]{2})_(?P<idempotency_key>[a-f0-9]{24})\.json$"
+    r"^mvp_evidence_snapshot_(?P<produced_at>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}(?:\.[0-9]+)?\+[0-9]{2}-[0-9]{2})_(?P<idempotency_key>[a-f0-9]{24})\.json$"
 )
 
 
@@ -158,7 +162,7 @@ def _fingerprint_payload(payload: Any) -> str:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def _sanitize_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -167,10 +171,12 @@ def _sanitize_payload(payload: dict[str, Any]) -> dict[str, Any]:
     for key, value in payload.items():
         if not isinstance(key, str):
             continue
+        # Allowlist first
+        if key not in ALLOWED_PAYLOAD_KEYS:
+            continue
+        # Denylist defense-in-depth
         lowered = key.lower()
         if any(fragment in lowered for fragment in _DENYLIST_KEY_FRAGMENTS):
-            continue
-        if key not in ALLOWED_PAYLOAD_KEYS:
             continue
         sanitized[key] = value
     return sanitized
@@ -203,10 +209,10 @@ def build_snapshot_line(
             event.get("payload", {}) if isinstance(event.get("payload"), dict) else {}
         )
         route_path = payload.get("routePath")
-        if isinstance(route_path, str):
+        if isinstance(route_path, str) and route_path in _VALID_ROUTE_PATHS:
             route_buckets.add(route_path)
         auth_state = payload.get("authState")
-        if isinstance(auth_state, str):
+        if isinstance(auth_state, str) and auth_state in _VALID_AUTH_STATES:
             auth_state_buckets.add(auth_state)
 
     coverage_flags = tuple(
@@ -287,11 +293,16 @@ def write_snapshot_line(
     target_dir.mkdir(parents=True, exist_ok=True)
     snapshot_file = target_dir / _snapshot_filename(line)
     record = _canonical_json_bytes(_snapshot_line_to_dict(line))
-    temp_file = snapshot_file.with_suffix(".tmp")
-    with open(temp_file, "wb") as f:
-        f.write(record)
-        f.flush()
-    temp_file.replace(snapshot_file)
+    temp_file = snapshot_file.with_suffix(f".tmp.{os.getpid()}")
+    try:
+        with open(temp_file, "wb") as f:
+            f.write(record)
+            f.flush()
+            os.fsync(f.fileno())
+        temp_file.replace(snapshot_file)
+    finally:
+        if temp_file.exists():
+            temp_file.unlink()
     return snapshot_file
 
 
@@ -330,6 +341,31 @@ def read_latest_snapshot_line(
     try:
         with open(latest, "r", encoding="utf-8") as f:
             data = json.load(f)
+        # Runtime type validation
+        if not (
+            isinstance(data.get("event_aggregates"), dict)
+            and isinstance(data.get("route_buckets"), list)
+            and isinstance(data.get("auth_state_buckets"), list)
+            and isinstance(data.get("coverage_flags"), list)
+            and all(isinstance(v, int) for v in data["event_aggregates"].values())
+            and all(isinstance(s, str) for s in data["route_buckets"])
+            and all(isinstance(s, str) for s in data["auth_state_buckets"])
+            and all(isinstance(s, str) for s in data["coverage_flags"])
+        ):
+            return None
+        # Fingerprint verification
+        recomputed_payload = {
+            "event_aggregates": dict(data["event_aggregates"]),
+            "route_buckets": sorted(data["route_buckets"]),
+            "auth_state_buckets": sorted(data["auth_state_buckets"]),
+            "coverage_flags": list(data["coverage_flags"]),
+            "policy_version": data["policy_version"],
+            "producer_name": data["producer_name"],
+            "producer_version": data["producer_version"],
+            "produced_at": data["produced_at"],
+        }
+        if data["fingerprint"] != _fingerprint_payload(recomputed_payload):
+            return None
         return MvpEvidenceSnapshotLine(
             idempotency_key=data["idempotency_key"],
             fingerprint=data["fingerprint"],
@@ -342,7 +378,7 @@ def read_latest_snapshot_line(
             auth_state_buckets=tuple(data["auth_state_buckets"]),
             coverage_flags=tuple(data["coverage_flags"]),
         )
-    except (json.JSONDecodeError, KeyError, TypeError):
+    except (json.JSONDecodeError, KeyError, TypeError, UnicodeDecodeError, OSError):
         return None
 
 
@@ -373,6 +409,20 @@ def cleanup_expired_snapshots(
     deleted_count = 0
     for entry in target_dir.iterdir():
         if not entry.is_file():
+            continue
+        # Clean up stale temp files
+        if entry.suffix == ".tmp":
+            try:
+                mtime = entry.stat().st_mtime
+            except OSError:
+                continue
+            if mtime < threshold:
+                expired_count += 1
+                try:
+                    entry.unlink()
+                    deleted_count += 1
+                except OSError:
+                    pass
             continue
         match = _SNAPSHOT_FILENAME_RE.match(entry.name)
         if not match:

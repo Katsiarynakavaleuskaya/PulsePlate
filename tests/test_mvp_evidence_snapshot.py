@@ -193,7 +193,10 @@ def test_read_latest_returns_none_on_corrupt_file(
     repo = _configure_repo(monkeypatch, tmp_path)
     snap_dir = repo / "artifacts" / "orchestration" / "mvp_evidence_snapshots"
     snap_dir.mkdir(parents=True)
-    corrupt = snap_dir / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_deadbeef.json"
+    corrupt = (
+        snap_dir
+        / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_000000000000000000000000.json"
+    )
     corrupt.write_text("not json", encoding="utf-8")
     assert read_latest_snapshot_line() is None
 
@@ -308,3 +311,145 @@ def test_allowed_payload_keys_subset_of_frontend_payload() -> None:
     # ALLOWED_PAYLOAD_KEYS must be a subset of frontend payload keys
     extra = ALLOWED_PAYLOAD_KEYS - frontend_keys
     assert not extra, f"ALLOWED_PAYLOAD_KEYS contains keys not in frontend payload: {sorted(extra)}"
+
+
+def test_read_latest_rejects_symlinked_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _configure_repo(monkeypatch, tmp_path)
+    snap_dir = repo / "artifacts" / "orchestration" / "mvp_evidence_snapshots"
+    snap_dir.mkdir(parents=True)
+    real_file = (
+        snap_dir
+        / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_000000000000000000000000.json"
+    )
+    real_file.write_text("{}", encoding="utf-8")
+    symlink_file = (
+        snap_dir
+        / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_111111111111111111111111.json"
+    )
+    symlink_file.symlink_to(real_file)
+    with pytest.raises(ValueError, match="symlink"):
+        read_latest_snapshot_line()
+
+
+def test_read_latest_rejects_path_traversal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="must stay under"):
+        read_latest_snapshot_line(base_dir=tmp_path / "outside")
+
+
+def test_cleanup_rejects_path_traversal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="must stay under"):
+        cleanup_expired_snapshots(base_dir=tmp_path / "outside")
+
+
+def test_render_mvp_evidence_summary_fallback_on_read_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+
+    def _raise() -> None:
+        raise OSError("simulated read failure")
+
+    monkeypatch.setattr(bridge, "_read_latest_snapshot_line", _raise)
+    msg = bridge.render_mvp_evidence_summary()
+    assert msg.status_line == "advisory_operator_summary"
+    assert "safe_event_count=12" in msg.as_text()
+
+
+def test_cleanup_missing_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    result = cleanup_expired_snapshots()
+    assert result == {
+        "deleted_count": 0,
+        "expired_count": 0,
+        "retention_days": 30,
+        "status": "pass",
+    }
+
+
+def test_render_mvp_evidence_summary_empty_buckets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _configure_repo(monkeypatch, tmp_path)
+    line = build_snapshot_line([], producer_name="test", producer_version="1.0.0")
+    write_snapshot_line(line)
+    msg = bridge.render_mvp_evidence_summary()
+    assert msg.status_line == "snapshot_backed"
+    text = msg.as_text()
+    assert "route_buckets=none" in text
+    assert "auth_state_buckets=none" in text
+
+
+def test_render_mvp_evidence_summary_no_events_observed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _configure_repo(monkeypatch, tmp_path)
+    line = build_snapshot_line([], producer_name="test", producer_version="1.0.0")
+    write_snapshot_line(line)
+    msg = bridge.render_mvp_evidence_summary()
+    assert msg.status_line == "snapshot_backed"
+    text = msg.as_text()
+    assert "coverage_preview=no_events_observed" in text
+
+
+def test_fingerprint_verification_on_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = _configure_repo(monkeypatch, tmp_path)
+    events = _sample_events()
+    line = build_snapshot_line(events, producer_name="test", producer_version="1.0.0")
+    write_snapshot_line(line)
+    # Tamper with the file: change a count
+    latest = read_latest_snapshot_line()
+    assert latest is not None
+    snap_dir = repo / "artifacts" / "orchestration" / "mvp_evidence_snapshots"
+    files = list(snap_dir.iterdir())
+    assert files
+    with open(files[0], "r", encoding="utf-8") as f:
+        data = json.load(f)
+    data["event_aggregates"]["guided_planning_viewed"] = 999
+    with open(files[0], "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    assert read_latest_snapshot_line() is None
+
+
+def test_zero_microsecond_filename_regex() -> None:
+    # Regex must match filenames without fractional seconds
+    filename = "mvp_evidence_snapshot_2026-05-30T00-00-00+00-00_000000000000000000000000.json"
+    match = snapshot._SNAPSHOT_FILENAME_RE.match(filename)
+    assert match is not None
+    assert match.group("idempotency_key") == "000000000000000000000000"
+
+
+def test_invalid_utf8_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = _configure_repo(monkeypatch, tmp_path)
+    snap_dir = repo / "artifacts" / "orchestration" / "mvp_evidence_snapshots"
+    snap_dir.mkdir(parents=True)
+    bad = (
+        snap_dir
+        / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_000000000000000000000000.json"
+    )
+    bad.write_bytes(b"\xff\xfe not utf8")
+    assert read_latest_snapshot_line() is None
+
+
+def test_non_string_payload_values_ignored() -> None:
+    events = [
+        {
+            "name": "guided_planning_viewed",
+            "payload": {
+                "surface": "app",
+                "routePath": "/app",
+                "authState": "authenticated",
+                "optionId": 123,
+                "componentId": ["nested"],
+            },
+        },
+    ]
+    line = build_snapshot_line(events, producer_name="test", producer_version="1.0.0")
+    assert line.event_aggregates["guided_planning_viewed"] == 1
+    assert line.route_buckets == ("/app",)
+    assert line.auth_state_buckets == ("authenticated",)
