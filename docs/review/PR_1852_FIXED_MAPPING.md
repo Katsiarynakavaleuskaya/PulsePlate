@@ -32,11 +32,11 @@ Evidence: `scripts/orchestration/mvp_evidence_snapshot.py` — temp file cleanup
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#discussion_r3328593729 -> cc7bf459d
 
 Disposition: FIXED
-Commit: TBD
+Commit: 52dfeab76
 Evidence: `scripts/orchestration/mvp_evidence_snapshot.py` — added `eq=False` to `MvpEvidenceSnapshotLine` dataclass to avoid implicit `__hash__` generation failure due to unhashable `dict[str, int]` field; `tests/test_mvp_evidence_snapshot.py` — updated `test_read_latest_rejects_unknown_policy_version` to use a valid fingerprint computed via `_fingerprint_payload` so rejection is proven to come from policy_version validation, not fingerprint mismatch
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#discussion_r3328571595 -> TBD
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#pullrequestreview-4395198767 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#discussion_r3328571595 -> 52dfeab76
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#pullrequestreview-4395198767 -> 52dfeab76
 
 Disposition: NOT-A-BUG
 Reason: `routePath` and `authState` are frontend-controlled enum-like strings from the MVP observability contract. The snapshot is aggregate-only (event name counts) and values are preserved as opaque identifiers for operator diagnostics. Server-side enum enforcement would add coupling to frontend routing internals without security benefit for this aggregate-only, sanitized surface.
@@ -58,6 +58,8 @@ Evidence: `scripts/orchestration/mvp_evidence_snapshot.py:ALLOWED_PAYLOAD_KEYS` 
 | Broad `except Exception` masks guard failures | cubic-dev-ai | FIXED | Commit `ec72bdf7c` |
 | `p.stat().st_mtime` OSError outside try block | cubic-dev-ai | FIXED | Commit `ec72bdf7c` |
 | Stale temp cleanup won't match `.tmp.{pid}` | cubic-dev-ai | FIXED | Commit `cc7bf459d` |
+| Dataclass hashability with dict field | coderabbitai | FIXED | Commit `52dfeab76` |
+| Test policy_version guarantee weakened by invalid fingerprint | coderabbitai | FIXED | Commit `52dfeab76` |
 | `routePath`/`authState` arbitrary strings | cubic-dev-ai | NOT-A-BUG | Aggregate-only, frontend-controlled contract |
 
 ## Merge Readiness
