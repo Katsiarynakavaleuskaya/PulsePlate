@@ -69,4 +69,9 @@ Evidence: `scripts/orchestration/mvp_evidence_snapshot.py:ALLOWED_PAYLOAD_KEYS` 
 - Co-authored-by trailer included in commits where runner materially contributed.
 - No runner-mutated paths in this PR (operator-authored snapshot/bridge/test/docs changes only).
 
+### Review thread resolution
+
+- All 12 bot review threads resolved via GitHub API on 2026-05-30.
+- Dispositions recorded in artifact above (FIXED / NOT-A-BUG).
+
 ---
