@@ -496,11 +496,26 @@ def test_read_latest_rejects_unknown_policy_version(
         snap_dir
         / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_000000000000000000000000.json"
     )
+    # Use a valid fingerprint so the rejection is proven to come from
+    # policy_version validation, not fingerprint mismatch.
+    from scripts.orchestration.mvp_evidence_snapshot import _fingerprint_payload
+
+    fake_payload = {
+        "event_aggregates": {},
+        "route_buckets": [],
+        "auth_state_buckets": [],
+        "coverage_flags": [],
+        "policy_version": "unknown-version",
+        "producer_name": "test",
+        "producer_version": "1.0.0",
+        "produced_at": "2026-05-30T00:00:00.000000+00:00",
+    }
+    valid_fingerprint = _fingerprint_payload(fake_payload)
     bad.write_text(
         json.dumps(
             {
                 "idempotency_key": "000000000000000000000000",
-                "fingerprint": "sha256:abcd",
+                "fingerprint": valid_fingerprint,
                 "produced_at": "2026-05-30T00:00:00.000000+00:00",
                 "producer_name": "test",
                 "producer_version": "1.0.0",

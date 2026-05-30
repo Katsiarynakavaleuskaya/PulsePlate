@@ -31,6 +31,13 @@ Evidence: `scripts/orchestration/mvp_evidence_snapshot.py` — temp file cleanup
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#discussion_r3328593729 -> cc7bf459d
 
+Disposition: FIXED
+Commit: TBD
+Evidence: `scripts/orchestration/mvp_evidence_snapshot.py` — added `eq=False` to `MvpEvidenceSnapshotLine` dataclass to avoid implicit `__hash__` generation failure due to unhashable `dict[str, int]` field; `tests/test_mvp_evidence_snapshot.py` — updated `test_read_latest_rejects_unknown_policy_version` to use a valid fingerprint computed via `_fingerprint_payload` so rejection is proven to come from policy_version validation, not fingerprint mismatch
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#discussion_r3328571595 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#pullrequestreview-4395198767 -> TBD
+
 Disposition: NOT-A-BUG
 Reason: `routePath` and `authState` are frontend-controlled enum-like strings from the MVP observability contract. The snapshot is aggregate-only (event name counts) and values are preserved as opaque identifiers for operator diagnostics. Server-side enum enforcement would add coupling to frontend routing internals without security benefit for this aggregate-only, sanitized surface.
 Evidence: `scripts/orchestration/mvp_evidence_snapshot.py:ALLOWED_PAYLOAD_KEYS` defines the allowlist; payload values are never used for authorization or sensitive decisions; snapshot schema is explicitly aggregate-only with no PII.

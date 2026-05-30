@@ -131,7 +131,7 @@ def _reject_symlinked_path(candidate: Path, *, anchor: Path) -> None:
         raise ValueError(f"Snapshot path must stay under {resolved_anchor}.") from exc
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class MvpEvidenceSnapshotLine:
     """Single immutable snapshot line with idempotency and fingerprint."""
 
