@@ -2,32 +2,32 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after all current-head bot/human reviews arrive
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
 Commit: 486baf3aa
 Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` remains the compatibility facade and CLI/socket entrypoint; bounded internals moved to `scripts/orchestration/experiment_slack_bridge_constants.py`, `experiment_slack_bridge_models.py`, `experiment_slack_bridge_config.py`, `experiment_slack_bridge_commands.py`, `experiment_slack_bridge_rendering.py`, `experiment_slack_bridge_audit.py`, `experiment_slack_bridge_dispatch.py`, and `experiment_slack_bridge_transport.py`.
 
-- Pre-open architecture/security/QA/bug-hunter facade compatibility finding -> 486baf3aa
-- Pre-open lazy optional Slack SDK finding -> 486baf3aa
-- Pre-open hash-only audit and execute-gate drift finding -> 486baf3aa
-- Pre-open mandatory role execution evidence finding -> 486baf3aa
-- Backlog PR #1852 landed + bridge split + root artifact hygiene follow-up finding -> 486baf3aa
-
 Disposition: FIXED
 Commit: 486baf3aa
 Evidence: `docs/review/PREMORTEM_SLACK_BRIDGE_SPLIT.md` records preflight/bootstrap evidence, mandatory pre-open role-agent ids/results, cursor manifest-order drift disposition, premortem findings, Experiment Runner oracle result `exp-5e8c86e3b72e`, and the governed co-author requirement.
 
-- Mandatory pre-open orchestration contract -> 486baf3aa
-- Premortem finding closure contract -> 486baf3aa
-- Experiment Runner oracle/advisory review requirement -> 486baf3aa
+## Experiment Runner Evidence
 
-Disposition: FIXED
-Commit: 486baf3aa
-Evidence: Local validation before push:
+Artifact: `artifacts/orchestration/experiments/results/exp-5e8c86e3b72e.json`
+
+## Lane Start Provenance
+
+Packet: `artifacts/orchestration/task_packets/49d34bea88dc.json`
+
+## Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration/experiment_slack_socket_bridge.py --path scripts/orchestration/experiment_slack_bridge_audit.py --path scripts/orchestration/experiment_slack_bridge_config.py --path docs/review/PREMORTEM_SLACK_BRIDGE_SPLIT.md --path docs/roadmap/BACKLOG_LEDGER.md --path tests/test_experiment_slack_socket_bridge.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
