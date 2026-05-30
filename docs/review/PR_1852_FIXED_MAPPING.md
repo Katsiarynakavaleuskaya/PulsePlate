@@ -26,10 +26,10 @@ Evidence: `scripts/orchestration/mvp_evidence_snapshot.py` — added `policy_ver
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#discussion_r3328591979 -> ec72bdf7c
 
 Disposition: FIXED
-Commit: TBD
+Commit: cc7bf459d
 Evidence: `scripts/orchestration/mvp_evidence_snapshot.py` — temp file cleanup now matches `.tmp.{pid}` pattern via `".tmp" in entry.suffixes` instead of `entry.suffix == ".tmp"`; `tests/test_mvp_evidence_snapshot.py` — added `test_cleanup_removes_stale_temp_files_with_pid_suffix` and updated `test_render_mvp_evidence_summary_fallback_on_read_exception` to prove exception path was exercised with `nonlocal called` flag
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#discussion_r3328593729 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1852#discussion_r3328593729 -> cc7bf459d
 
 Disposition: NOT-A-BUG
 Reason: `routePath` and `authState` are frontend-controlled enum-like strings from the MVP observability contract. The snapshot is aggregate-only (event name counts) and values are preserved as opaque identifiers for operator diagnostics. Server-side enum enforcement would add coupling to frontend routing internals without security benefit for this aggregate-only, sanitized surface.
@@ -47,10 +47,10 @@ Evidence: `scripts/orchestration/mvp_evidence_snapshot.py:ALLOWED_PAYLOAD_KEYS` 
 | Typo `atomously` → `atomically` | coderabbitai | FIXED | Commit `ec72bdf7c` |
 | Filesystem race in `read_latest_snapshot_line` | coderabbitai | FIXED | Commit `ec72bdf7c` |
 | Unknown `policy_version` not rejected | coderabbitai | FIXED | Commit `ec72bdf7c` |
-| Test can't prove exception path exercised | coderabbitai | FIXED | Commit `TBD` |
+| Test can't prove exception path exercised | coderabbitai | FIXED | Commit `cc7bf459d` |
 | Broad `except Exception` masks guard failures | cubic-dev-ai | FIXED | Commit `ec72bdf7c` |
 | `p.stat().st_mtime` OSError outside try block | cubic-dev-ai | FIXED | Commit `ec72bdf7c` |
-| Stale temp cleanup won't match `.tmp.{pid}` | cubic-dev-ai | FIXED | Commit `TBD` |
+| Stale temp cleanup won't match `.tmp.{pid}` | cubic-dev-ai | FIXED | Commit `cc7bf459d` |
 | `routePath`/`authState` arbitrary strings | cubic-dev-ai | NOT-A-BUG | Aggregate-only, frontend-controlled contract |
 
 ## Merge Readiness
