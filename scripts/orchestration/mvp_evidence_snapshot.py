@@ -423,8 +423,8 @@ def cleanup_expired_snapshots(
     for entry in target_dir.iterdir():
         if not entry.is_file():
             continue
-        # Clean up stale temp files
-        if entry.suffix == ".tmp":
+        # Clean up stale temp files (pattern: *.tmp or *.tmp.{pid})
+        if ".tmp" in entry.suffixes:
             try:
                 mtime = entry.stat().st_mtime
             except OSError:

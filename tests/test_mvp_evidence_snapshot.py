@@ -251,6 +251,26 @@ def test_cleanup_expired_snapshots(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert not old_file.exists()
 
 
+def test_cleanup_removes_stale_temp_files_with_pid_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import os
+
+    repo = _configure_repo(monkeypatch, tmp_path)
+    snap_dir = repo / "artifacts" / "orchestration" / "mvp_evidence_snapshots"
+    snap_dir.mkdir(parents=True)
+    temp_file = snap_dir / "snapshot_2020-01-01T00-00-00.000000+00-00_abc123.tmp.12345"
+    temp_file.write_text("{}", encoding="utf-8")
+    old_mtime = 1577836800.0  # 2020-01-01T00:00:00 UTC
+    os.utime(str(temp_file), (old_mtime, old_mtime))
+
+    result = cleanup_expired_snapshots(retention_days=1)
+    assert result["status"] == "pass"
+    assert result["deleted_count"] == 1
+    assert result["expired_count"] == 1
+    assert not temp_file.exists()
+
+
 def test_path_traversal_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo = _configure_repo(monkeypatch, tmp_path)
     line = build_snapshot_line([], producer_name="test", producer_version="1.0.0")
@@ -351,12 +371,16 @@ def test_render_mvp_evidence_summary_fallback_on_read_exception(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _configure_repo(monkeypatch, tmp_path)
+    called = False
 
     def _raise() -> None:
+        nonlocal called
+        called = True
         raise OSError("simulated read failure")
 
     monkeypatch.setattr(bridge, "_read_latest_snapshot_line", _raise)
     msg = bridge.render_mvp_evidence_summary()
+    assert called is True
     assert msg.status_line == "advisory_operator_summary"
     assert "safe_event_count=12" in msg.as_text()
 
