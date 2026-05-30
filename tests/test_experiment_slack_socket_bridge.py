@@ -336,24 +336,16 @@ def test_mvp_evidence_event_contract_matches_frontend_source() -> None:
         ";", 1
     )[0]
     frontend_events = set(re.findall(r"\| '([^']+)'", event_type_block))
-    bridge_source = (
-        REPO_ROOT / "scripts" / "orchestration" / "experiment_slack_socket_bridge.py"
-    ).read_text(encoding="utf-8")
-    bridge_events = set(
-        re.findall(
-            r'"([a-z]+(?:_[a-z]+)+)"',
-            bridge_source.split("def render_mvp_evidence_summary", 1)[1].split(
-                "return SlackSafeMessage", 1
-            )[0],
-        )
-    )
+    from scripts.orchestration.mvp_evidence_snapshot import ALLOWED_EVENT_NAMES
+
+    snapshot_events = set(ALLOWED_EVENT_NAMES)
 
     assert frontend_events
-    assert bridge_events
-    assert bridge_events == frontend_events
-    assert "email" not in bridge_events
-    assert "weight" not in bridge_events
-    assert "bmi" not in bridge_events
+    assert snapshot_events
+    assert snapshot_events == frontend_events
+    assert "email" not in snapshot_events
+    assert "weight" not in snapshot_events
+    assert "bmi" not in snapshot_events
 
 
 def test_dispatch_preview_hashes_branch_and_hypothesis_without_dispatching(

@@ -23,6 +23,10 @@ try:
         LOCAL_PATH_RE,
         slack_text as _slack_text,
     )
+    from scripts.orchestration.mvp_evidence_snapshot import (
+        ALLOWED_EVENT_NAMES as _MVP_ALLOWED_EVENT_NAMES,
+        read_latest_snapshot_line as _read_latest_snapshot_line,
+    )
 except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocation guard.
     if exc.name != "scripts":
         raise
@@ -274,22 +278,45 @@ def _bounded_text(value: str, *, limit: int = 2800) -> str:
 
 
 def render_mvp_evidence_summary() -> SlackSafeMessage:
-    """Render static MVP evidence contract coverage from governed frontend event names."""
+    """Render MVP evidence summary from latest snapshot, falling back to static contract."""
 
-    events = (
-        "guided_planning_viewed",
-        "planning_intent_selected",
-        "planning_time_selected",
-        "planning_preview_seen",
-        "tier_value_viewed",
-        "primary_planning_cta_clicked",
-        "wellness_boundary_viewed",
-        "planning_save_prompt_viewed",
-        "planning_auth_prompt_viewed",
-        "planning_progress_state_viewed",
-        "planning_save_clicked",
-        "planning_continue_clicked",
-    )
+    try:
+        snapshot = _read_latest_snapshot_line()
+    except (ValueError, OSError, TypeError):
+        snapshot = None
+
+    if snapshot is not None:
+        present_count = sum(1 for v in snapshot.event_aggregates.values() if v > 0)
+        route_str = ",".join(snapshot.route_buckets) if snapshot.route_buckets else "none"
+        auth_str = ",".join(snapshot.auth_state_buckets) if snapshot.auth_state_buckets else "none"
+        coverage_preview = "; ".join(
+            flag for flag in snapshot.coverage_flags if flag.endswith("=present")
+        )
+        if not coverage_preview:
+            coverage_preview = "no_events_observed"
+        return SlackSafeMessage(
+            message_type="mvp_evidence_summary",
+            header="MVP evidence snapshot summary",
+            status_line="snapshot_backed",
+            scope=(
+                "Dynamic Guided Planning Preview snapshot; aggregate-only; "
+                "no runtime analytics backend."
+            ),
+            evidence_summary=(
+                f"present_event_count={present_count}",
+                f"route_buckets={_slack_text(route_str)}",
+                f"auth_state_buckets={_slack_text(auth_str)}",
+                f"coverage_preview={_slack_text(coverage_preview)}",
+                f"policy_version={snapshot.policy_version}",
+            ),
+            action_required="Human review required for PR/merge decisions; Slack is display-only.",
+            artifact_refs=(
+                "frontend/src/lib/mvpObservability.ts",
+                "scripts/orchestration/mvp_evidence_snapshot.py",
+            ),
+        )
+
+    events = _MVP_ALLOWED_EVENT_NAMES
     return SlackSafeMessage(
         message_type="mvp_evidence_summary",
         header="MVP evidence contract summary",
