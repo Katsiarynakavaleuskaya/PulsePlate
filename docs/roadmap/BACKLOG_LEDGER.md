@@ -5057,6 +5057,64 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links: `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md`, `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
   - DoD: The governed Slack boundary defines runtime-only bot credentials, channel allowlist, redacted message body contract, local audit artifact, rate/timeout/idempotency behavior, and deterministic tests proving no secrets, raw patch text, oracle stdout/stderr, or user data are posted.
 
+<a id="ledger-p2-slack-mvp-evidence-ledger-snapshot"></a>
+- [x] P2: Guided Planning MVP evidence ledger snapshot for Slack bridge
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1852 (`codex/slack-guided-planning-mvp-evidence-summaries`)
+  - Status: Completed and landed in PR #1852.
+  - Area: orchestration / Slack bridge / MVP evidence
+  - Reason: The `/pulseplate-runner mvp-evidence` operator command needed a durable, sanitized, aggregate-only snapshot path so Slack could summarize Guided Planning MVP evidence without becoming analytics, review, or merge authority.
+  - Links:
+    - `scripts/orchestration/mvp_evidence_snapshot.py`
+    - `scripts/orchestration/experiment_slack_socket_bridge.py`
+    - `docs/review/PR_1852_FIXED_MAPPING.md`
+    - `docs/review/PREMORTEM_SLACK_MVP_EVIDENCE_LEDGER.md`
+  - DoD:
+    - Snapshot reads and corrupt/missing snapshot fallback are deterministic and test-covered
+    - Snapshot artifacts remain aggregate-only and sanitized
+    - Slack output remains display-only and redacted
+
+<a id="ledger-p2-experiment-runner-slack-bridge-module-boundaries"></a>
+- [ ] P2: Split Experiment Runner Slack bridge into bounded modules
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: `codex/slack-bridge-module-boundaries`
+  - Status: Active lane after PR #1852 landed.
+  - Area: orchestration / Slack bridge / maintainability / security
+  - Finding Type: module-boundary refactor
+  - Reason: `scripts/orchestration/experiment_slack_socket_bridge.py` grew into a single large operator boundary that mixes config/runtime validation, parsing/rendering, audit/idempotency/rate limiting, dispatch/live approval, optional Slack transport, and CLI. The next PR should split internals without changing `python3 -m scripts.orchestration.experiment_slack_socket_bridge`, command semantics, dry-run defaults, or security boundaries.
+  - Links:
+    - `scripts/orchestration/experiment_slack_socket_bridge.py`
+    - `tests/test_experiment_slack_socket_bridge.py`
+    - `tests/test_mvp_evidence_snapshot.py`
+    - `docs/review/PREMORTEM_SLACK_BRIDGE_SPLIT.md`
+  - DoD:
+    - Bridge internals are split into bounded modules for config, parsing/rendering, audit/idempotency/rate limiting, dispatch/live approval, and optional Slack transport
+    - Facade/CLI compatibility remains intact for existing imports and `python3 -m scripts.orchestration.experiment_slack_socket_bridge`
+    - Optional Slack SDK imports stay lazy; dry-run validation and `--help` require no Slack packages
+    - Hash-only audit, idempotency, rate-limit, allowlist, execute-mode, workflow allowlist, and live-approval behavior remain test-covered
+    - Mandatory pre-open and post-open role-agent passes, premortem, Experiment Runner oracle review, and Codex Security scan are recorded in review artifacts and PR body mirror
+
+<a id="ledger-p2-root-artifact-hygiene-follow-up"></a>
+- [ ] P2: Root-level artifact hygiene follow-up after Slack bridge split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: `PR-TBD-ROOT-ARTIFACT-HYGIENE`
+  - Status: Planned follow-up; explicitly out of scope for the Slack bridge split PR.
+  - Area: repo hygiene / docs / scripts
+  - Finding Type: repository organization debt
+  - Reason: Current root-level clutter and generated/test artifacts should be classified and either deleted, moved to existing folders, or explicitly kept at root through a separate governance lane. This must not be bundled into the Slack bridge module-boundary PR because broad root moves would obscure security-sensitive Slack bridge behavior.
+  - Links:
+    - `AGENTS.md`
+    - `RUNBOOK_AGENT.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - Root-level files are classified into keep/delete/move/defer with evidence
+    - Local/generated artifacts are removed or ignored without committing `artifacts/`, `worktrees/`, caches, coverage files, or report outputs
+    - Any file moves preserve import/CLI contracts and include focused tests or explicit docs evidence
+    - The PR avoids runtime/provider/OpenAPI changes unless separately scoped
+
 <a id="ledger-p2-pulseplate-pr-review-context-collector"></a>
 - [x] P2: Add read-only context collector for PulsePlate PR review skill
   - Owner: @katsiaryna_kavaleuskaya
