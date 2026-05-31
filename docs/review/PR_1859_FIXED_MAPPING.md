@@ -37,6 +37,21 @@ Disposition: NOT-A-BUG
 Evidence: `.python-version:1` and `.tool-versions:1` intentionally pin local Python to `3.13.6`, matching the operator-approved runtime target and current CI `PYTHON_VERSION`; local validation on this host reports `python3 --version` as `Python 3.13.6` and `pyenv versions --bare` includes `3.13.6`.
 Reason: A checkout whose pyenv has not installed the repo-pinned patch will fail until the developer installs the declared version; reverting local pins to `3.13.13` would reintroduce the exact local/CI drift this PR exists to close.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1859#discussion_r3330754983 -> 7fc34a1d4
+Disposition: FIXED
+Commit: 7fc34a1d4
+Evidence: `docs/review/PR_1859_FIXED_MAPPING.md` no longer claims `No actionable review comments`; it maps the Sourcery and Codex actionable review comments with FIXED or NOT-A-BUG dispositions and proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1859#discussion_r3330754987 -> a25636fe9
+Disposition: FIXED
+Commit: a25636fe9
+Evidence: `tests/test_runtime_toolchain_alignment.py:57` parses `.tool-versions` by tool key, while `tests/test_runtime_toolchain_alignment.py:70` / `tests/test_runtime_toolchain_alignment.py:72` assert both Python and Ruby entries instead of freezing `.tool-versions` to one Python-only line.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1859#discussion_r3330754988
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 123b7e7aa HEAD` exited 0 locally at branch head `7fc34a1d4`, proving the primary implementation commit recorded in this artifact is reachable from the current PR branch history.
+Reason: The reviewed connector SHA was a synthetic merge/review view, not the canonical PR branch head. The artifact records implementation and mapping proof commits that are reachable from the actual PR branch.
+
 ## Implementation Evidence
 
 Disposition: FIXED
