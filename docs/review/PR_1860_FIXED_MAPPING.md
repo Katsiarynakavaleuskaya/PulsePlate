@@ -2,17 +2,11 @@
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed at PR open
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-Disposition: NOT-A-BUG
-Evidence: PR opened with no actionable review comments yet. This artifact is
-the canonical mapping surface for PR #1860 and will be updated before any
-thread resolution if bot, human, role-agent, premortem, Experiment Runner,
-Codex Security, or `pulseplate-pr-review` findings appear.
-Reason: There were no actionable review threads at PR-open baseline.
 - No actionable review comments
 
 ## Pre-Open Finding Disposition Evidence
