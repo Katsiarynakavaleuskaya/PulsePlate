@@ -1478,6 +1478,32 @@ def test_roles_flag_explicit_list() -> None:
     assert manifest["mode"] == "analysis"
 
 
+def test_roles_flag_preserves_explicit_pre_open_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The public --roles fallback must not silently apply post-open tail sorting."""
+
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = [
+        "agent-coordinator",
+        "architecture-specialist",
+        "frontend-engineer",
+        "cursor-specialist-agent",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+    ]
+    for slug in slugs:
+        if not (agents_dir / f"{slug}.md").is_file():
+            pytest.skip(f"Agent definition not found: {slug}")
+
+    result = role_dispatch_bridge.main(["--roles", *slugs, "--pretty"])
+
+    assert result == 0
+    manifest = json.loads(capsys.readouterr().out)
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == slugs
+
+
 # ---------------------------------------------------------------------------
 # 8. test_packet_without_role_section_errors
 # ---------------------------------------------------------------------------

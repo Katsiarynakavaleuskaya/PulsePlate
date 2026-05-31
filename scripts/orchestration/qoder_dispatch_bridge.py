@@ -1066,6 +1066,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
     else:
         role_slugs = list(args.roles)
+        enforce_mandatory_post_open_tail = False
 
     if not role_slugs:
         print("FAIL: No role slugs provided.", file=sys.stderr)
