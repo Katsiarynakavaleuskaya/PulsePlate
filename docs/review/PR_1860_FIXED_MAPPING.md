@@ -13,6 +13,24 @@ Evidence: `scripts/orchestration/qoder_dispatch_bridge.py`, `scripts/orchestrati
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#pullrequestreview-4397426846 -> 60d4f06da21d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330770888 -> 60d4f06da21d
 
+Disposition: FIXED
+Commit: bd10ddd9819c
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now inserts the repo
+root into `sys.path` before importing `scripts.orchestration.requested_agents`,
+and `tests/test_qoder_dispatch_bridge.py` covers direct legacy script `--help`
+execution. Focused bridge/bootstrap pytest passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330843335 -> bd10ddd9819c
+
+Disposition: FIXED
+Commit: bd10ddd9819c
+Evidence: explicit `--roles` dispatch now accepts `--pr-phase`; phase-less
+dispatch fails closed for an out-of-order full post-open role set, while
+`--pr-phase post_open_review` enforces
+`qa-engineer-agent -> bug-hunter -> security-auditor` and `--pr-phase pre_open`
+preserves the coordinator pre-open order. `tests/test_qoder_dispatch_bridge.py`
+covers all three paths; focused bridge/bootstrap pytest passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330843338 -> bd10ddd9819c
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
@@ -85,6 +103,7 @@ Pre-open role order executed:
 - `python scripts/orchestration/check_agent_consistency.py` - PASS
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_orchestration_preflight.py tests/test_local_session_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py tests/test_experiment_pipeline.py tests/test_philosophy_alignment_ledger_closeout.py` - PASS
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py` - PASS after Sourcery review fix
+- `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py` - PASS after Codex connector review fixes
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS
@@ -202,7 +221,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
-- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`
+- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`
 
 ## Merge Readiness
 
