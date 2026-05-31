@@ -12,13 +12,40 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1859#pullrequestreview-4397396260 -> a25636fe9
+Disposition: FIXED
+Commit: a25636fe9
+Evidence: The aggregate Sourcery review asked for a shared Python version constant and broader workflow scanning; `tests/runtime_toolchain_versions.py:3` now defines `CANONICAL_PYTHON`, `tests/test_python_supply_chain_controls.py:15` imports it, and `tests/test_runtime_toolchain_alignment.py:117` scans both `.yml` and `.yaml` workflow files.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1859#discussion_r3330742616 -> a25636fe9
+Disposition: FIXED
+Commit: a25636fe9
+Evidence: `tests/runtime_toolchain_versions.py:3` defines `CANONICAL_PYTHON`, and `tests/test_python_supply_chain_controls.py:308` / `tests/test_python_supply_chain_controls.py:330` use it instead of hardcoded `3.13.6` workflow assertions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1859#discussion_r3330742620 -> a25636fe9
+Disposition: FIXED
+Commit: a25636fe9
+Evidence: `tests/test_runtime_toolchain_alignment.py:117` builds the workflow scan from both `*.yml` and `*.yaml` patterns before checking for bare `3.13` setup-python pins.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1859#discussion_r3330747454 -> a25636fe9
+Disposition: FIXED
+Commit: a25636fe9
+Evidence: `.tool-versions:2` now pins `ruby 3.1`, and `tests/test_runtime_toolchain_alignment.py:70` / `tests/test_runtime_toolchain_alignment.py:72` assert the parsed `.tool-versions` Ruby entry matches the canonical Ruby pin.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1859#discussion_r3330747452
+Disposition: NOT-A-BUG
+Evidence: `.python-version:1` and `.tool-versions:1` intentionally pin local Python to `3.13.6`, matching the operator-approved runtime target and current CI `PYTHON_VERSION`; local validation on this host reports `python3 --version` as `Python 3.13.6` and `pyenv versions --bare` includes `3.13.6`.
+Reason: A checkout whose pyenv has not installed the repo-pinned patch will fail until the developer installs the declared version; reverting local pins to `3.13.13` would reintroduce the exact local/CI drift this PR exists to close.
 
 ## Implementation Evidence
 
 Disposition: FIXED
 Commit: 123b7e7aa
 Evidence: `.python-version` and `.tool-versions` pin the local Python runtime to `3.13.6`, matching the canonical CI env used by `.github/workflows/ci.yml` and `.github/workflows/frontend-ci.yml`.
+
+Disposition: FIXED
+Commit: a25636fe9
+Evidence: `.tool-versions` now also pins `ruby 3.1`, so mise/asdf-managed local checkouts use the same Ruby family as `.ruby-version` and the CI/Fastlane workflows.
 
 Disposition: FIXED
 Commit: 123b7e7aa
@@ -35,6 +62,10 @@ Evidence: Auxiliary workflow setup-python pins in `.github/workflows/build-equiv
 Disposition: FIXED
 Commit: 123b7e7aa
 Evidence: `tests/test_runtime_toolchain_alignment.py` verifies local Python/Ruby sources, visible CI label preservation, auxiliary setup-python pins, and Fastlane/Gemfile.lock parity.
+
+Disposition: FIXED
+Commit: a25636fe9
+Evidence: `tests/test_runtime_toolchain_alignment.py` now parses `.tool-versions` by tool key and scans both `.github/workflows/*.yml` and `.github/workflows/*.yaml`, while `tests/runtime_toolchain_versions.py` centralizes the canonical test constants.
 
 Disposition: FIXED
 Commit: 123b7e7aa
@@ -82,6 +113,8 @@ Evidence: `docs/review/PR_RUNTIME_TOOLCHAIN_ALIGNMENT_PREMORTEM.md` records the 
 - `python scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python -m pytest -q tests/test_runtime_toolchain_alignment.py tests/test_python_supply_chain_controls.py::test_nightly_workflow_jobs_use_runtime_dev_direct_proxy_setup tests/test_jwt_fastlane_unblock_guard.py` - PASS.
 - `python -m pytest -q tests/test_runtime_toolchain_alignment.py tests/test_python_supply_chain_controls.py tests/test_jwt_fastlane_unblock_guard.py tests/test_current_head_pr_checks.py tests/test_build_equivalence_evidence_workflow.py tests/test_release_manifest_evidence_workflow.py tests/test_release_control_plane_evidence_publication_workflow.py` - PASS.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_runtime_toolchain_alignment.py tests/test_python_supply_chain_controls.py tests/test_jwt_fastlane_unblock_guard.py` - PASS after Sourcery/Codex review fixes.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/ruff check tests/test_runtime_toolchain_alignment.py tests/test_python_supply_chain_controls.py tests/runtime_toolchain_versions.py` - PASS after Sourcery/Codex review fixes.
 - `ruff check tests/test_runtime_toolchain_alignment.py tests/test_python_supply_chain_controls.py` - PASS.
 - `git diff --check` - PASS.
 - `make validate-changed` - PASS (`49 passed` after commit).
