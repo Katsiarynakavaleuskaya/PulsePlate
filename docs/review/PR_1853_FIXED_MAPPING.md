@@ -26,6 +26,11 @@ Reason: These connector comments were based on stale reviewed head `1fbbc5c`; th
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329450562
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329450563
 
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:151` now states that Experiment Runner evidence is a hard gate for every non-trivial PR, while `advisory` remains only a CI/local wrapper fallback mode for gitignored local artifacts. CodeRabbit marked the thread addressed after current-head review.
+Reason: The current document already has one canonical rule: repo process hard gate, with explicit advisory fallback semantics only for wrapper enforcement mode.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329857110
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
