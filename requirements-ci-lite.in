@@ -45,5 +45,5 @@ setuptools>=78.1.1,<79.0.0
 # Control-plane CI tooling only.
 pre-commit~=4.6.0
 bandit>=1.8.6
-diff-cover~=10.2.1
+diff-cover~=10.3.0
 pytest~=9.0.3

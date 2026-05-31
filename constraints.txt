@@ -25,7 +25,7 @@ safety>=3.7.0
 # Dev tools - allow minor updates
 pre-commit>=4.6.0
 sourcery>=2.0.0
-diff-cover>=10.2.1  # Updated to match requirements-dev.txt
+diff-cover>=10.3.0  # Updated to match requirements-dev.txt
 
 # Production runtime packages (mirror requirements.txt minimums)
 fastapi>=0.122.0
