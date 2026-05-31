@@ -5,10 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
+import tempfile
+import time
 from typing import Any, cast
 
 from scripts.orchestration.experiment_slack_bridge_config import (
+    _normalized_absolute_path,
     _reject_symlinked_output_components,
 )
 from scripts.orchestration.experiment_slack_bridge_constants import (
@@ -25,6 +29,62 @@ from scripts.orchestration.experiment_slack_bridge_models import (
     _sha256_text,
     _utcnow,
 )
+
+PARTIAL_CLAIM_RETRY_BACKOFF_SECONDS = 0.05
+
+
+def _repo_root_from_audit_dir(config: BridgeConfig, repo_root: Path | None) -> Path:
+    if repo_root is not None:
+        return repo_root
+    audit_dir = _normalized_absolute_path(Path(config.audit_dir))
+    parts = audit_dir.parts
+    for index in range(len(parts) - 1):
+        if parts[index : index + 2] == ("artifacts", "orchestration"):
+            return Path(*parts[:index])
+    return audit_dir.parent
+
+
+def _fsync_directory(directory: Path) -> None:
+    directory_fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _unlink_if_exists(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _atomic_publish_json(path: Path, payload: dict[str, Any], *, exclusive: bool) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+        text=True,
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as temp_file:
+            temp_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        if exclusive:
+            os.link(temp_path, path)
+            _unlink_if_exists(temp_path)
+            temp_path = None
+        else:
+            os.replace(temp_path, path)
+            temp_path = None
+        _fsync_directory(path.parent)
+    finally:
+        if temp_path is not None:
+            _unlink_if_exists(temp_path)
 
 
 def _audit_path(config: BridgeConfig, event: OperatorEvent) -> Path:
@@ -60,15 +120,16 @@ def audit_retention_summary(
     config: BridgeConfig,
     *,
     cleanup: bool,
-    repo_root: Path,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """Report or delete expired Slack audit JSON files without exposing paths."""
 
+    effective_repo_root = _repo_root_from_audit_dir(config, repo_root)
     mode = "cleanup" if cleanup else "report"
     _reject_symlinked_output_components(
         (config.audit_dir / "retention-check.json").absolute(),
         artifact_dir=Path(config.audit_dir).absolute(),
-        repo_root=repo_root,
+        repo_root=effective_repo_root,
     )
     if not config.audit_dir.exists():
         return {
@@ -88,7 +149,7 @@ def audit_retention_summary(
         _reject_symlinked_output_components(
             audit_path.absolute(),
             artifact_dir=Path(config.audit_dir).absolute(),
-            repo_root=repo_root,
+            repo_root=effective_repo_root,
         )
         audit = _read_audit(audit_path)
         if audit is None:
@@ -114,9 +175,14 @@ def audit_retention_summary(
     }
 
 
-def _ensure_event_not_processed(path: Path, *, config: BridgeConfig, repo_root: Path) -> None:
+def _ensure_event_not_processed(
+    path: Path, *, config: BridgeConfig, repo_root: Path | None = None
+) -> None:
+    effective_repo_root = _repo_root_from_audit_dir(config, repo_root)
     _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute(), repo_root=repo_root
+        path.absolute(),
+        artifact_dir=Path(config.audit_dir).absolute(),
+        repo_root=effective_repo_root,
     )
     existing = _read_audit(path)
     if existing is None:
@@ -166,29 +232,27 @@ def _write_audit(
     event: OperatorEvent,
     command: OperatorCommand,
     config: BridgeConfig,
-    repo_root: Path,
+    repo_root: Path | None = None,
     status: str,
     failure_class: str | None = None,
 ) -> None:
+    effective_repo_root = _repo_root_from_audit_dir(config, repo_root)
     _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute(), repo_root=repo_root
+        path.absolute(),
+        artifact_dir=Path(config.audit_dir).absolute(),
+        repo_root=effective_repo_root,
     )
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(
-                _audit_payload(
-                    event=event,
-                    command=command,
-                    config=config,
-                    status=status,
-                    failure_class=failure_class,
-                ),
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
+        _atomic_publish_json(
+            path,
+            _audit_payload(
+                event=event,
+                command=command,
+                config=config,
+                status=status,
+                failure_class=failure_class,
+            ),
+            exclusive=False,
         )
     except OSError as exc:
         raise SlackSocketAuditError("Unable to write Slack operator audit artifact.") from exc
@@ -200,19 +264,16 @@ def _write_audit_exclusive(
     event: OperatorEvent,
     command: OperatorCommand,
     config: BridgeConfig,
-    repo_root: Path,
+    repo_root: Path | None = None,
     status: str,
     failure_class: str | None = None,
 ) -> None:
+    effective_repo_root = _repo_root_from_audit_dir(config, repo_root)
     _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute(), repo_root=repo_root
+        path.absolute(),
+        artifact_dir=Path(config.audit_dir).absolute(),
+        repo_root=effective_repo_root,
     )
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to prepare Slack operator audit artifact path."
-        ) from exc
     payload = _audit_payload(
         event=event,
         command=command,
@@ -221,8 +282,7 @@ def _write_audit_exclusive(
         failure_class=failure_class,
     )
     try:
-        with path.open("x", encoding="utf-8") as audit_file:
-            audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        _atomic_publish_json(path, payload, exclusive=True)
     except FileExistsError:
         existing = _read_audit(path)
         if existing is None:
@@ -238,10 +298,13 @@ def _claim_event(
     event: OperatorEvent,
     command: OperatorCommand,
     config: BridgeConfig,
-    repo_root: Path,
+    repo_root: Path | None = None,
 ) -> None:
+    effective_repo_root = _repo_root_from_audit_dir(config, repo_root)
     _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute(), repo_root=repo_root
+        path.absolute(),
+        artifact_dir=Path(config.audit_dir).absolute(),
+        repo_root=effective_repo_root,
     )
     payload = _audit_payload(
         event=event,
@@ -251,14 +314,7 @@ def _claim_event(
         failure_class=None,
     )
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to prepare Slack operator audit artifact path."
-        ) from exc
-    try:
-        with path.open("x", encoding="utf-8") as audit_file:
-            audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        _atomic_publish_json(path, payload, exclusive=True)
         return
     except FileExistsError:
         existing = _read_audit(path)
@@ -352,17 +408,18 @@ def _claim_rate_limit(
     config: BridgeConfig,
     event: OperatorEvent,
     *,
-    repo_root: Path,
+    repo_root: Path | None = None,
     lock_dir_name: str = RATE_LIMIT_LOCK_DIR,
     remove_stale_rate_limit_claim: Callable[[Path], None] = _remove_stale_rate_limit_claim,
 ) -> None:
     if config.min_interval_seconds <= 0:
         return
+    effective_repo_root = _repo_root_from_audit_dir(config, repo_root)
     lock_dir = _rate_limit_claim_dir(config, lock_dir_name=lock_dir_name)
     _reject_symlinked_output_components(
         (lock_dir / "claim.json").absolute(),
         artifact_dir=Path(config.audit_dir).absolute(),
-        repo_root=repo_root,
+        repo_root=effective_repo_root,
     )
     try:
         config.audit_dir.mkdir(parents=True, exist_ok=True)
@@ -377,11 +434,13 @@ def _claim_rate_limit(
             _reject_symlinked_output_components(
                 (lock_dir / "claim.json").absolute(),
                 artifact_dir=Path(config.audit_dir).absolute(),
-                repo_root=repo_root,
+                repo_root=effective_repo_root,
             )
             if not (lock_dir / "claim.json").exists():
                 if _partial_rate_limit_claim_is_stale(lock_dir, config=config):
                     remove_stale_rate_limit_claim(lock_dir)
+                else:
+                    time.sleep(PARTIAL_CLAIM_RETRY_BACKOFF_SECONDS)
                 continue
             timestamp = _read_rate_limit_claim(lock_dir)
             age_seconds = (_utcnow() - timestamp).total_seconds()
@@ -400,10 +459,7 @@ def _claim_rate_limit(
             "timestamp": _utcnow().isoformat(),
         }
         try:
-            (lock_dir / "claim.json").write_text(
-                json.dumps(claim, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
+            _atomic_publish_json(lock_dir / "claim.json", claim, exclusive=False)
         except OSError as exc:
             _cleanup_partial_rate_limit_claim(lock_dir)
             raise SlackSocketAuditError(
@@ -417,7 +473,7 @@ def _claim_rejected_event_audit_throttle(
     config: BridgeConfig,
     event: OperatorEvent,
     *,
-    repo_root: Path,
+    repo_root: Path | None = None,
     claim_rate_limit: Callable[..., None] = _claim_rate_limit,
 ) -> None:
     """Bound rejected audit writes without consuming the main operator throttle."""

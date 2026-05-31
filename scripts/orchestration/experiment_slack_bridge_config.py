@@ -293,17 +293,25 @@ def validate_secret_presence(
 
     present = {env_name: bool(os.environ.get(env_name, "").strip()) for env_name in required_env}
     missing = [env_name for env_name, is_present in present.items() if not is_present]
+    status = "pass" if not missing else "fail"
     if not missing:
-        config = config_builder(dispatch_mode="dry-run")
-        if (
-            config.slack_app_token is None
-            or config.slack_bot_token is None
-            or not config.allowed_channels
-            or not config.allowed_users
-        ):
+        try:
+            config = config_builder(dispatch_mode="dry-run")
+        except (SlackSocketAuditError, SlackSocketConfigError):
             missing = list(required_env)
+            status = "fail"
+        else:
+            if (
+                config.slack_app_token is None
+                or config.slack_bot_token is None
+                or not config.allowed_channels
+                or not config.allowed_users
+                or not config.allowed_teams
+            ):
+                missing = list(required_env)
+                status = "fail"
     return {
         "missing_env": missing,
         "required_env_present": present,
-        "status": "pass" if not missing else "fail",
+        "status": status,
     }

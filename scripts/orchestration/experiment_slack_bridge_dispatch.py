@@ -26,7 +26,7 @@ from scripts.orchestration.experiment_slack_bridge_models import (
 def _require_execute_config(config: BridgeConfig) -> tuple[str, str]:
     if os.environ.get(BRIDGE_EXECUTE_ENABLED_ENV, "").strip() != BRIDGE_EXECUTE_ENABLED_VALUE:
         raise SlackSocketConfigError("Slack execute-mode promotion gate is not enabled.")
-    if not config.allowed_teams:
+    if not config.allowed_channels or not config.allowed_users or not config.allowed_teams:
         raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
     if not config.repo or not config.github_token:
         raise SlackSocketConfigError("GitHub dispatch configuration is incomplete.")

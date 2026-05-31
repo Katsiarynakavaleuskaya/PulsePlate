@@ -128,7 +128,9 @@ def render_operator_status_message(config: BridgeConfig) -> SlackSafeMessage:
         message_type="operator_status",
         header="Experiment Runner Slack operator status",
         status_line=(
-            "configured" if config.allowed_channels and config.allowed_users else "incomplete"
+            "configured"
+            if config.allowed_channels and config.allowed_users and config.allowed_teams
+            else "incomplete"
         ),
         scope="Operator bridge status; advisory only and not merge readiness.",
         evidence_summary=(

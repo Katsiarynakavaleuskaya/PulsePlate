@@ -23,6 +23,7 @@ from scripts.orchestration.experiment_slack_bridge_models import (
     OperatorCommand,
     OperatorEvent,
     SlackSocketCommandError,
+    SlackSocketConfigError,
     _sha256_text,
 )
 from scripts.orchestration.experiment_slack_redaction import LOCAL_PATH_RE
@@ -106,11 +107,14 @@ def normalize_slack_payload(payload: dict[str, Any]) -> OperatorEvent:
     command_hint = str(body.get("command") or "").strip() or None
     if not event_id or not channel or not user:
         raise SlackSocketCommandError("Slack operator event payload is invalid.")
-    _normalize_slack_id(event_id, label="event")
-    _normalize_slack_id(channel, label="channel")
-    _normalize_slack_id(user, label="user")
-    if team is not None:
-        _normalize_slack_id(team, label="team")
+    try:
+        _normalize_slack_id(event_id, label="event")
+        _normalize_slack_id(channel, label="channel")
+        _normalize_slack_id(user, label="user")
+        if team is not None:
+            _normalize_slack_id(team, label="team")
+    except SlackSocketConfigError as exc:
+        raise SlackSocketCommandError("Slack operator event payload is invalid.") from exc
     return OperatorEvent(
         event_id=event_id,
         channel_id=channel,
