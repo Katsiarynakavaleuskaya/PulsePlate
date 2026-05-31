@@ -10,6 +10,7 @@
 Disposition: FIXED
 Commit: 8e5aeadbd4b479afabb4b8c4cca42f2028420c35
 Evidence: `scripts/orchestration/experiment_slack_bridge_audit.py`, `scripts/orchestration/experiment_slack_bridge_commands.py`, `scripts/orchestration/experiment_slack_bridge_config.py`, `scripts/orchestration/experiment_slack_bridge_dispatch.py`, `scripts/orchestration/experiment_slack_bridge_rendering.py`, `scripts/orchestration/experiment_slack_socket_bridge.py`, and `tests/test_experiment_slack_socket_bridge.py` fix CodeRabbit findings for backward-compatible helper signatures, atomic JSON publication, bounded partial-claim retry backoff, malformed payload ID classification, secret-presence failure reporting, execute allowlist validation, status rendering, and explicit facade compatibility exports. Verified with `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_slack_socket_bridge.py` after the fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#pullrequestreview-4396112056 -> 8e5aeadbd4b479afabb4b8c4cca42f2028420c35
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329441218 -> 8e5aeadbd4b479afabb4b8c4cca42f2028420c35
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329441219 -> 8e5aeadbd4b479afabb4b8c4cca42f2028420c35
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329441220 -> 8e5aeadbd4b479afabb4b8c4cca42f2028420c35
