@@ -61,6 +61,11 @@ Commit: 8a9536e41c498942379c7d43f99703b81ea6f936
 Evidence: `scripts/orchestration/experiment_slack_bridge_audit.py:360` now removes bounded `.claim.json.*.tmp` files before removing a stale rate-limit claim directory; `tests/test_experiment_slack_socket_bridge.py` verifies stale empty locks with leftover claim temp files recover into a fresh claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3330351430 -> 8a9536e41c498942379c7d43f99703b81ea6f936
 
+Disposition: FIXED
+Commit: 0632eebcdc346aac203b5be40a9a7ba244acad49
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py:515` now treats requested post-open order as preserved only when `bug-hunter` is immediately after `qa-engineer-agent` and `security-auditor` is immediately after `bug-hunter`; `tests/test_qoder_dispatch_bridge.py:514` covers the interleaved `qa-engineer-agent -> architecture-specialist -> bug-hunter -> security-auditor` false-positive case. Verified with `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_qoder_dispatch_bridge.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3330388531 -> 0632eebcdc346aac203b5be40a9a7ba244acad49
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
