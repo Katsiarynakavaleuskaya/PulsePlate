@@ -99,9 +99,24 @@ Pre-open role order executed:
 | Mixed `mandatory_post_open` compatibility field | security-auditor | FIXED | `scripts/orchestration/qoder_dispatch_bridge.py`, `tests/test_philosophy_alignment_ledger_closeout.py` |
 | Active backlog DoD still named old bridge command | security-auditor | FIXED | `docs/roadmap/BACKLOG_LEDGER.md` |
 
+## Post-Open Finding Disposition Evidence
+
+Disposition: FIXED
+Commit: 528a8a748
+Evidence: `docs/review/PR_1860_FIXED_MAPPING.md` now uses the exact Phase2
+checkbox labels and keeps `- No actionable review comments` as the only
+canonical fixed-mapping entry while no GitHub review threads exist. Local
+validation passed with
+`python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1860 --body "$(gh pr view 1860 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode advisory`.
+Role: `qa-engineer-agent`
+Reason: The post-open QA pass correctly found that GitHub still pointed at the
+previous head where the artifact mixed detail lines with the no-actionable
+marker and used non-canonical checkbox wording. The fix commit existed locally
+before the QA pass and is being mapped before push.
+
 ## Post-Open Review Tracking
 
-- [ ] `qa-engineer-agent` post-open pass
+- [x] `qa-engineer-agent` post-open pass - BLOCK finding fixed by `528a8a748`
 - [ ] `bug-hunter` post-open pass
 - [ ] `security-auditor` post-open pass
 - [ ] Codex Security diff scan / finding discovery
