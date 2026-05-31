@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 import scripts.ci.install_locked_python_requirements as locked_installer
+from tests.runtime_toolchain_versions import CANONICAL_PYTHON
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
@@ -304,7 +305,7 @@ def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:
 def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
     setup_step = _python_setup_step(".github/workflows/security.yml", "bandit")
 
-    assert setup_step["with"]["python-version"] == "3.13.6"
+    assert setup_step["with"]["python-version"] == CANONICAL_PYTHON
     assert setup_step["with"]["requirements-profile"] == "ci-lite"
     assert setup_step["with"]["install-mode"] == "direct-proxy"
 
@@ -326,7 +327,7 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
 def test_nightly_workflow_jobs_use_runtime_dev_direct_proxy_setup(job_name: str) -> None:
     setup_step = _python_setup_step(".github/workflows/nightly.yml", job_name)
 
-    assert setup_step["with"]["python-version"] == "3.13"
+    assert setup_step["with"]["python-version"] == CANONICAL_PYTHON
     assert setup_step["with"]["requirements-profile"] == "runtime-dev"
     assert setup_step["with"]["install-mode"] == "direct-proxy"
 
