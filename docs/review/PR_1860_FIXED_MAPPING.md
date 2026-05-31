@@ -7,7 +7,11 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 60d4f06da21d
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py`, `scripts/orchestration/requested_agents.py`, and `tests/test_qoder_dispatch_bridge.py`; focused bridge/bootstrap pytest passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#pullrequestreview-4397426846 -> 60d4f06da21d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330770888 -> 60d4f06da21d
 
 ## Pre-Open Finding Disposition Evidence
 
@@ -80,6 +84,7 @@ Pre-open role order executed:
 - `python scripts/orchestration/check_preflight.py --mode analyze --path ...` - PASS
 - `python scripts/orchestration/check_agent_consistency.py` - PASS
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_orchestration_preflight.py tests/test_local_session_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py tests/test_experiment_pipeline.py tests/test_philosophy_alignment_ledger_closeout.py` - PASS
+- `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py` - PASS after Sourcery review fix
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS
@@ -175,6 +180,21 @@ Reason: The wide diff is an operator-approved governance-contract alignment
 touching mirrored role/runbook/test surfaces in one closeout PR; no
 code/security/test regression was identified by the review report.
 
+Disposition: FIXED
+Commit: 60d4f06da21d
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now validates
+`requested_agents` as a list of string role slugs before allowing pre-open order
+bypass, `tests/test_qoder_dispatch_bridge.py` covers malformed pre-open
+payloads, and repeated post-open gate labels plus implementation-owner slugs are
+centralized in `scripts/orchestration/requested_agents.py` for bridge/bootstrap
+reuse. Focused validation passed with
+`python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py`
+using the repo `.venv/bin/python`.
+Role: Sourcery review
+Reason: Sourcery identified a real bug risk where non-post-open phases could
+return `True` before validating `requested_agents`, plus drift risk from repeated
+gate labels and mixed implementation-owner shapes.
+
 ## Post-Open Review Tracking
 
 - [x] `qa-engineer-agent` post-open pass - BLOCK finding fixed by `528a8a748`
@@ -182,7 +202,7 @@ code/security/test regression was identified by the review report.
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
-- [ ] Bot/human review thread disposition pass
+- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`
 
 ## Merge Readiness
 
@@ -194,7 +214,7 @@ code/security/test regression was identified by the review report.
 - [x] pre-push hooks passed
 - [x] Post-open review sequence completed
 - [ ] Current-head CI checked
-- [ ] Bot/human review comments dispositioned
+- [x] Bot/human review comments dispositioned
 - [ ] Strict merge-readiness wrapper passed
 
 No merge-readiness claim is made by this artifact.
