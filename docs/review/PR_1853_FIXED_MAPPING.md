@@ -66,6 +66,11 @@ Commit: 0632eebcdc346aac203b5be40a9a7ba244acad49
 Evidence: `scripts/orchestration/qoder_dispatch_bridge.py:515` now treats requested post-open order as preserved only when `bug-hunter` is immediately after `qa-engineer-agent` and `security-auditor` is immediately after `bug-hunter`; `tests/test_qoder_dispatch_bridge.py:514` covers the interleaved `qa-engineer-agent -> architecture-specialist -> bug-hunter -> security-auditor` false-positive case. Verified with `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_qoder_dispatch_bridge.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3330388531 -> 0632eebcdc346aac203b5be40a9a7ba244acad49
 
+Disposition: NOT-A-BUG
+Evidence: Current PR branch head `70453beb513c3a73e21c0b978c1caaaefcd9fa10` contains the material Experiment Runner commit `486baf3aade8b53a04e17c12efa5d6cf14484d3f` (`git merge-base --is-ancestor 486baf3aade8b53a04e17c12efa5d6cf14484d3f HEAD` returned 0 locally), and `git show -s --format='%H%n%B' 486baf3aade8b53a04e17c12efa5d6cf14484d3f` shows `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`. `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1853 --body "$(gh pr view 1853 --repo Katsiarynakavaleuskaya/PulsePlate --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` passed after the body/mapping update.
+Reason: The connector comment evaluates a synthetic reviewed commit SHA (`ab2a337eaa87307a39cc5c345a6c44c0ec2720f1`) instead of the actual PR branch history used by repo governance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3330451006
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
