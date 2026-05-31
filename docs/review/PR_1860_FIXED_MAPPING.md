@@ -19,6 +19,12 @@ Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` inserts repo root bef
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330843335 -> bd10ddd9819c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330843338 -> bd10ddd9819c
 
+Disposition: FIXED
+Commit: 3af133b45
+Evidence: `docs/review/PR_1860_FIXED_MAPPING.md` groups both `bd10ddd9819c` review-comment mappings under one Disposition/Commit/Evidence block, matching the canonical parser contract; Phase2 mapping validation passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#pullrequestreview-4397549924 -> 3af133b45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330886836 -> 3af133b45
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
@@ -210,6 +216,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
 - [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`
+- [x] Cubic review - duplicate FIXED block mapping format fixed by `3af133b45`
 
 ## Merge Readiness
 
