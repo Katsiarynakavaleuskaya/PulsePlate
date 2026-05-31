@@ -3,15 +3,15 @@
 # Keep security tools (bandit, pip-audit) with >= for latest vulnerability feeds
 pytest~=9.0.3
 pytest-cov~=7.1.0
-pytest-asyncio~=1.3.0
+pytest-asyncio~=1.4.0
 pytest-xdist~=3.8.0
 pytest-picked~=0.5.0
 pytest-split~=0.11.0
-hypothesis~=6.152.9
+hypothesis~=6.155.1
 faker~=40.19.1  # Test data generation (40.11.1 yanked / unavailable on PyPI)
 # coverage and diff-cover: use compatible release for stability
-coverage~=7.14.0
-diff-cover~=10.2.1
+coverage~=7.14.1
+diff-cover~=10.3.0
 # Code quality tools: use compatible release for stability
 flake8~=7.3.0
 bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
@@ -31,5 +31,5 @@ mypy==2.1.0
 types-pyyaml~=6.0.12
 yamllint~=1.38.0
 black~=26.5.1
-ruff~=0.15.14
+ruff~=0.15.15
 nh3>=0.3.2  # HTML sanitization (required for data_sanitizer security tests)

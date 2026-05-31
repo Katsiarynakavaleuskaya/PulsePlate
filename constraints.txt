@@ -7,8 +7,8 @@
 # Testing - allow minor/patch updates for bug fixes
 pytest>=9.0.3
 pytest-cov>=7.0.0
-pytest-asyncio>=1.2.0
-coverage>=7.14.0  # Must match requirements-dev.txt minimum
+pytest-asyncio>=1.4.0
+coverage>=7.14.1  # Must match requirements-dev.txt minimum
 
 # Code quality - allow updates for new features/fixes
 # Note: Project uses Black for formatting; flake8 removed in favor of ruff for linting
@@ -16,16 +16,16 @@ black>=26.5.1
 # mypy 1.13.x adds support for typing.ReadOnly (PEP 742).
 # Type-parameter defaults are available only when using the legacy TypeVar-like syntax.
 mypy>=2.1.0,<3.0.0
-ruff>=0.15.14  # Primary linter (replaces flake8)
+ruff>=0.15.15  # Primary linter (replaces flake8)
 
 # Security - allow patch updates for vulnerability fixes
 bandit>=1.8.6
-safety>=3.7.0
+safety>=3.8.1
 
 # Dev tools - allow minor updates
 pre-commit>=4.6.0
 sourcery>=2.0.0
-diff-cover>=10.2.1  # Updated to match requirements-dev.txt
+diff-cover>=10.3.0  # Updated to match requirements-dev.txt
 
 # Production runtime packages (mirror requirements.txt minimums)
 fastapi>=0.122.0
