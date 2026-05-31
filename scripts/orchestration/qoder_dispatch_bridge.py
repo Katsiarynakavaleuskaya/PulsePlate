@@ -32,6 +32,10 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from scripts.orchestration.requested_agents import (
     IMPLEMENTATION_OWNER_SLUGS,
     MANDATORY_POST_OPEN_GATES,
@@ -39,7 +43,16 @@ from scripts.orchestration.requested_agents import (
     normalize_implementation_owner_slugs,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+PR_PHASE_NONE = "none"
+PR_PHASE_PRE_OPEN = "pre_open"
+PR_PHASE_POST_OPEN_REVIEW = "post_open_review"
+PR_PHASE_MERGE_READY = "merge_ready"
+PR_PHASES = (
+    PR_PHASE_NONE,
+    PR_PHASE_PRE_OPEN,
+    PR_PHASE_POST_OPEN_REVIEW,
+    PR_PHASE_MERGE_READY,
+)
 
 # ---------------------------------------------------------------------------
 # Optional imports with graceful fallback
@@ -865,6 +878,14 @@ def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
     return ordered
 
 
+def _explicit_roles_need_pr_phase(role_slugs: List[str]) -> bool:
+    """Return whether explicit roles are ambiguous without a PR phase."""
+
+    if any(slug not in role_slugs for slug in MANDATORY_POST_OPEN_ORDER):
+        return False
+    return _enforce_mandatory_post_open_order(list(role_slugs)) != role_slugs
+
+
 def build_dispatch_manifest(
     *,
     role_slugs: List[str],
@@ -1027,6 +1048,15 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Pretty-print JSON output.",
     )
     parser.add_argument(
+        "--pr-phase",
+        choices=PR_PHASES,
+        default=PR_PHASE_NONE,
+        help=(
+            "Optional PR lifecycle phase. Explicit --roles post-open review dispatch "
+            "enforces the mandatory QA -> bug-hunter -> security-auditor order."
+        ),
+    )
+    parser.add_argument(
         "--implementation-owner",
         action="append",
         choices=sorted(IMPLEMENTATION_OWNER_SLUGS),
@@ -1074,7 +1104,31 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
     else:
         role_slugs = list(args.roles)
-        enforce_mandatory_post_open_tail = False
+        if args.pr_phase == PR_PHASE_POST_OPEN_REVIEW:
+            missing_post_open_roles = [
+                slug for slug in MANDATORY_POST_OPEN_ORDER if slug not in role_slugs
+            ]
+            if missing_post_open_roles:
+                print(
+                    "FAIL: --pr-phase post_open_review requires role slugs: "
+                    + ", ".join(MANDATORY_POST_OPEN_ORDER)
+                    + ". Missing: "
+                    + ", ".join(missing_post_open_roles),
+                    file=sys.stderr,
+                )
+                return 1
+            enforce_mandatory_post_open_tail = True
+        elif args.pr_phase == PR_PHASE_NONE and _explicit_roles_need_pr_phase(role_slugs):
+            print(
+                "FAIL: explicit --roles contains the full mandatory post-open role set "
+                "out of order. Pass --pr-phase pre_open to preserve coordinator "
+                "pre-open order, or --pr-phase post_open_review to enforce "
+                "qa-engineer-agent -> bug-hunter -> security-auditor.",
+                file=sys.stderr,
+            )
+            return 1
+        else:
+            enforce_mandatory_post_open_tail = False
 
     if not role_slugs:
         print("FAIL: No role slugs provided.", file=sys.stderr)

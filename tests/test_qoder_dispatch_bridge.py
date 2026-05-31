@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -50,6 +52,25 @@ REQUIRED_ENTRY_KEYS = {
 def test_role_dispatch_bridge_exports_compatibility_main() -> None:
     """The neutral CLI keeps the historical qoder bridge implementation."""
     assert role_dispatch_bridge.main is qoder_dispatch_bridge.main
+
+
+def test_legacy_qoder_dispatch_bridge_script_help_importable() -> None:
+    """Direct legacy script execution must install repo root before package imports."""
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "orchestration" / "qoder_dispatch_bridge.py"),
+            "--help",
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert "usage: role_dispatch_bridge" in result.stdout
+    assert "ModuleNotFoundError" not in result.stderr
 
 
 def test_role_dispatch_bridge_help_uses_neutral_name(capsys: pytest.CaptureFixture[str]) -> None:
@@ -1512,11 +1533,60 @@ def test_roles_flag_preserves_explicit_pre_open_order(
         if not (agents_dir / f"{slug}.md").is_file():
             pytest.skip(f"Agent definition not found: {slug}")
 
-    result = role_dispatch_bridge.main(["--roles", *slugs, "--pretty"])
+    result = role_dispatch_bridge.main(["--roles", *slugs, "--pr-phase", "pre_open", "--pretty"])
 
     assert result == 0
     manifest = json.loads(capsys.readouterr().out)
     assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == slugs
+
+
+def test_roles_flag_rejects_ambiguous_post_open_order_without_phase(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A full post-open role set cannot bypass ordering via phase-less --roles."""
+
+    result = role_dispatch_bridge.main(
+        [
+            "--roles",
+            "qa-engineer-agent",
+            "security-auditor",
+            "bug-hunter",
+        ]
+    )
+
+    assert result == 1
+    captured = capsys.readouterr()
+    assert "Pass --pr-phase pre_open" in captured.err
+    assert "--pr-phase post_open_review" in captured.err
+
+
+def test_roles_flag_post_open_phase_enforces_mandatory_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Phase-aware explicit post-open dispatch keeps QA -> bug -> security."""
+
+    result = role_dispatch_bridge.main(
+        [
+            "--roles",
+            "qa-engineer-agent",
+            "security-auditor",
+            "bug-hunter",
+            "--pr-phase",
+            "post_open_review",
+            "--pretty",
+        ]
+    )
+
+    assert result == 0
+    manifest = json.loads(capsys.readouterr().out)
+    dispatch = manifest["dispatch_sequence"]
+    assert [entry["role_slug"] for entry in dispatch] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    assert dispatch[1]["depends_on_previous"] is True
+    assert dispatch[2]["depends_on_previous"] is True
 
 
 # ---------------------------------------------------------------------------
