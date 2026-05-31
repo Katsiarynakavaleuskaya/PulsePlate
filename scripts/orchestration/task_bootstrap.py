@@ -74,7 +74,15 @@ from scripts.orchestration.routing_graph_loader import (
     load_routing_graph,
     require_bootstrap_lane_activation,
 )
-from scripts.orchestration.requested_agents import normalize_requested_agents
+from scripts.orchestration.requested_agents import (
+    MANDATORY_POST_OPEN_ORDER,
+    POST_OPEN_BUG_HUNTER_AGENT,
+    POST_OPEN_CODEX_SECURITY_SCAN,
+    POST_OPEN_PULSEPLATE_PR_REVIEW,
+    POST_OPEN_QA_AGENT,
+    POST_OPEN_SECURITY_AUDITOR_AGENT,
+    normalize_requested_agents,
+)
 from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills
 
 SCHEMA_VERSION = "2.0"
@@ -103,16 +111,7 @@ PR_PHASES: tuple[str, ...] = (
     PR_PHASE_MERGE_READY,
 )
 NATIVE_BRIDGE_TRANSPORTS: tuple[str, ...] = (*BRIDGE_TRANSPORTS,)
-POST_OPEN_QA_AGENT = "qa-engineer-agent"
-POST_OPEN_BUG_HUNTER_AGENT = "bug-hunter"
-POST_OPEN_SECURITY_AUDITOR_AGENT = "security-auditor"
-POST_OPEN_REVIEW_LANE: tuple[str, ...] = (
-    POST_OPEN_QA_AGENT,
-    POST_OPEN_BUG_HUNTER_AGENT,
-    POST_OPEN_SECURITY_AUDITOR_AGENT,
-)
-POST_OPEN_CODEX_SECURITY_SCAN = "Codex Security diff scan / finding discovery"
-POST_OPEN_PULSEPLATE_PR_REVIEW = "pulseplate-pr-review"
+POST_OPEN_REVIEW_LANE: tuple[str, ...] = MANDATORY_POST_OPEN_ORDER
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.py"

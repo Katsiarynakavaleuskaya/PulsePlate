@@ -582,6 +582,21 @@ def test_pre_open_packet_preserves_requested_custom_role_order() -> None:
     )
 
 
+def test_pre_open_packet_rejects_malformed_requested_agents_before_bypass() -> None:
+    """Pre-open order bypass still validates requested_agents is a slug list."""
+
+    malformed_payloads = [
+        {"pr_phase": "pre_open", "requested_agents": "frontend-engineer"},
+        {"pr_phase": "pre_open", "requested_agents": ["frontend-engineer", 42]},
+        {"pr_phase": "pre_open", "requested_agents": ["frontend engineer"]},
+    ]
+
+    for payload in malformed_payloads:
+        assert not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+            payload
+        )
+
+
 def test_parse_task_bootstrap_json_packet_limits_duplicate_requested_roles_to_spawnable_slots(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

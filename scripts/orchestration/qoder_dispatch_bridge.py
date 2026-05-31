@@ -30,7 +30,14 @@ import sys
 from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+from scripts.orchestration.requested_agents import (
+    IMPLEMENTATION_OWNER_SLUGS,
+    MANDATORY_POST_OPEN_GATES,
+    MANDATORY_POST_OPEN_ORDER,
+    normalize_implementation_owner_slugs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -332,16 +339,11 @@ def _parse_context_map() -> Dict[str, List[str]]:
 # ---------------------------------------------------------------------------
 
 
-IMPLEMENTATION_OWNER_SLUGS: frozenset[str] = frozenset(
-    ("backend-engineer", "frontend-engineer", "dev-operator")
-)
-
-
 def resolve_qoder_type(
     agent_def: Dict[str, Any],
     mode: str,
     is_reviewer: bool,
-    implementation_owners: Optional[set[str]] = None,
+    implementation_owners: Optional[Iterable[str]] = None,
 ) -> str:
     """Map an agent definition + task mode to a Qoder subagent type.
 
@@ -357,7 +359,7 @@ def resolve_qoder_type(
         return "CodeReview"
 
     slug = agent_def.get("slug") or agent_def.get("name", "")
-    explicit_owners = implementation_owners or set()
+    explicit_owners = normalize_implementation_owner_slugs(implementation_owners)
 
     if slug in ("qa-engineer-agent", "bug-hunter"):
         return "Verify"
@@ -512,10 +514,27 @@ def _json_packet_has_requested_order(packet_path: Path) -> bool:
     payload = _load_json_packet(resolved_packet_path)
     if payload is None:
         return False
+    requested_order = _requested_agent_order_from_payload(payload)
+    return bool(requested_order)
+
+
+def _requested_agent_order_from_payload(payload: Dict[str, Any]) -> Optional[List[str]]:
+    """Return validated requested-agent slugs, or None for malformed payloads."""
+
     requested_agents = payload.get("requested_agents")
     if not isinstance(requested_agents, list):
-        return False
-    return any(str(agent).strip() for agent in requested_agents)
+        return None
+    requested_order: List[str] = []
+    for raw_agent in requested_agents:
+        if not isinstance(raw_agent, str):
+            return None
+        slug = raw_agent.strip()
+        if not slug:
+            continue
+        if not _ROLE_SLUG_RE.fullmatch(slug):
+            return None
+        requested_order.append(slug)
+    return requested_order
 
 
 def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, Any]) -> bool:
@@ -526,14 +545,14 @@ def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, An
     order exactly so explicitly requested agents are not silently reordered.
     """
 
+    requested_order = _requested_agent_order_from_payload(payload)
+    if requested_order is None:
+        return False
+
     pr_phase = str(payload.get("pr_phase", "")).strip().lower()
     if pr_phase and pr_phase not in ("post_open_review", "merge_ready"):
         return True
 
-    requested_agents = payload.get("requested_agents")
-    if not isinstance(requested_agents, list):
-        return False
-    requested_order = [str(agent).strip() for agent in requested_agents if str(agent).strip()]
     try:
         qa_index = requested_order.index("qa-engineer-agent")
         bug_index = requested_order.index("bug-hunter")
@@ -829,17 +848,6 @@ def _recommend_skills(slug: str) -> List[str]:
 # Manifest builder
 # ---------------------------------------------------------------------------
 
-MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = (
-    "qa-engineer-agent",
-    "bug-hunter",
-    "security-auditor",
-)
-MANDATORY_POST_OPEN_GATES: tuple[str, ...] = (
-    *MANDATORY_POST_OPEN_ORDER,
-    "Codex Security diff scan / finding discovery",
-    "pulseplate-pr-review",
-)
-
 
 def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
     """Keep the canonical post-open QA -> bug-hunter -> security pass adjacent."""
@@ -865,7 +873,7 @@ def build_dispatch_manifest(
     bracket_groups: Optional[List[List[str]]] = None,
     chained_successors: Optional[set[str]] = None,
     enforce_mandatory_post_open_tail: bool = True,
-    implementation_owners: Optional[set[str]] = None,
+    implementation_owners: Optional[Iterable[str]] = None,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
     context_map = _parse_context_map()
@@ -889,7 +897,7 @@ def build_dispatch_manifest(
     total_roles = len(loaded_agents)
     previous_slug: Optional[str] = None
 
-    explicit_implementation_owners = implementation_owners or set()
+    explicit_implementation_owners = normalize_implementation_owner_slugs(implementation_owners)
 
     for order_idx, (slug, agent_def) in enumerate(loaded_agents, start=1):
         is_reviewer = _dispatch_is_reviewer_slot(
@@ -1087,7 +1095,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         bracket_groups=packet_bracket_groups,
         chained_successors=packet_chained_successors,
         enforce_mandatory_post_open_tail=enforce_mandatory_post_open_tail,
-        implementation_owners=set(args.implementation_owner or []),
+        implementation_owners=normalize_implementation_owner_slugs(args.implementation_owner),
     )
     if manifest.get("missing_agents"):
         print(
