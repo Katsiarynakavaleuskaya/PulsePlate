@@ -68,10 +68,13 @@ Packet: `artifacts/orchestration/task_packets/49d34bea88dc.json`
 
 ## Post-Open Review Tracking
 
-- [ ] `qa-engineer-agent` post-open pass
+- [x] `agent-coordinator` post-open pass - BLOCK findings fixed by `8fb07051d`
+- [x] `qa-engineer-agent` post-open pass - BLOCK findings fixed by `8fb07051d`
 - [ ] `bug-hunter` post-open pass
 - [ ] `security-auditor` post-open pass
+- [ ] `cursor-specialist-agent` post-open pass
 - [ ] Codex Security diff scan / finding discovery
+- [ ] `pulseplate-pr-review` pass
 - [ ] Bot/human review thread disposition pass
 
 ## Merge Readiness
@@ -82,7 +85,9 @@ Packet: `artifacts/orchestration/task_packets/49d34bea88dc.json`
 - [x] `make validate-changed` passed after commit
 - [x] `pre-commit run --all-files` passed before push
 - [x] pre-push hooks passed
-- [ ] Post-open agents and Codex Security scan complete
+- [x] Post-open packet generated: `artifacts/orchestration/task_packets/eb57005b7e6c.json`
+- [x] Post-open coordinator and QA passes completed; initial BLOCK findings fixed by `8fb07051d`
+- [ ] Remaining post-open agents and Codex Security scan complete
 - [ ] Current-head CI checked
 - [ ] Bot/human review comments dispositioned
 - [ ] Strict merge-readiness wrapper passed
