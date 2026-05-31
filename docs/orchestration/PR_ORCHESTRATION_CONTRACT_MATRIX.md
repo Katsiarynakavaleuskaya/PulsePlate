@@ -48,9 +48,9 @@ PR body **may mirror** the same review-governance sections for human review and 
 - `### Fixed in Commit Mapping`
 - completed checkboxes matching the artifact
 - full URL→SHA mapping lines are required only in the canonical artifact when `pr_number` is available
-- advisory `## Experiment Runner Evidence` in the PR body mirror or canonical artifact:
-  non-trivial PRs should include an artifact by default, and `Not applicable`
-  requires an explicit reason
+- required `## Experiment Runner Evidence` in the PR body mirror or canonical artifact:
+  non-trivial PRs must include an oracle-only artifact by default, and
+  `Not applicable` requires an explicit coordinator/operator reason
 
 Canonical runtime behavior is artifact-first when `pr_number` is available.
 PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context. When `pr_number` is available, Phase 2 treats the artifact as authoritative and the PR body as an optional mirror-only surface.
@@ -66,13 +66,21 @@ Exit criteria for removing PR-body fallback:
 2. Local tooling supports deterministic artifact lookup without PR-body parsing.
 3. The fallback branch in `scripts/ci/check_pr_body_phase2_gates.py` can be removed without losing local validation ergonomics.
 
-Phase 2 sections and advisory evidence:
+Phase 2 sections and required orchestration evidence:
 
 - `## Discussion Thread Pass`
 - Checkbox contract (completed / mapping completed)
 - `## Fixed in Commit Mapping` in the canonical artifact
 - `### Fixed in Commit Mapping` in the optional PR-body mirror
-- Advisory `## Experiment Runner Evidence` with `Artifact: artifacts/orchestration/experiments/results/<id>.json` or `Not applicable: <reason>` in either the PR body mirror or canonical artifact. Non-trivial PRs should create oracle-only evidence by default; missing evidence is advisory until a later PR promotes it to a hard gate, while malformed evidence is rejected.
+- Required `## Experiment Runner Evidence` with `Artifact: artifacts/orchestration/experiments/results/<id>.json` or `Not applicable: <reason>` in either the PR body mirror or canonical artifact. Non-trivial PRs must create oracle-only evidence by default; local artifact load/write failures are infrastructure blockers and are not valid `Not applicable` reasons. Malformed evidence is rejected.
+- Required premortem evidence for non-trivial PRs: `pulseplate-premortem-risk-review`
+  must run against the actual diff before PR open, and every finding must be
+  `FIXED`, `NOT-A-BUG`, or `DEFERRED` with evidence/backlog proof.
+- Required bootstrap role-agent evidence: `task_bootstrap.py` packet creation
+  does not execute roles. The packet/runbook-declared role order must be run in
+  order before implementation or before the phase it governs; missing role
+  execution blocks readiness unless `agent-coordinator` records an explicit
+  disposition with evidence.
 
 Valid mapping forms in the canonical artifact:
 
@@ -103,8 +111,10 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
   but both phases still use current-head truth and the canonical artifact
   `docs/review/PR_<N>_FIXED_MAPPING.md`
 - `post_open_review` is the packet-level phase where the canonical
-  `qa-engineer-agent -> bug-hunter` lane is synthesized; `merge_ready` keeps the
-  current-head merge-wrapper contract explicit without widening the review lane
+  `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized,
+  with Codex Security diff scan / finding discovery as the plugin scan that
+  follows role review; `merge_ready` keeps the current-head merge-wrapper
+  contract explicit without widening the review lane
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
@@ -180,6 +190,10 @@ Canonical lane matrix:
 | ----------- | ----------------- | ----- | ------------- |
 | Local       | `pre-commit run --all-files` | Hard gate | Must pass before push; hook modifications must be committed |
 | Local       | `make verify` | Hard gate | Canonical code-quality bundle for merge claims |
+| Local / PR process | `task_bootstrap.py` role-agent dispatch | Hard gate | Packet creation is not execution; every bootstrap/runbook assigned role must run in declared order or carry an explicit coordinator disposition with evidence |
+| Local / PR process | `pulseplate-premortem-risk-review` | Hard gate | Every non-trivial PR must run premortem on the actual diff before PR open; findings require FIXED / NOT-A-BUG / DEFERRED evidence |
+| Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
+| Post-open review | `qa-engineer-agent -> bug-hunter -> security-auditor` plus Codex Security | Hard gate | Role passes and Codex Security diff scan / finding discovery must complete; any finding must be fixed or dispositioned before merge-readiness claims |
 | Local / PR CI | Operator-approved machine-heavy deferral | Hard gate | Local `make verify` may be deferred only when PR body and fixed mapping document the deferral, PR-scoped narrow gates pass, canonical current-head CI parity is green (`lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks), and the strict merge wrapper passes |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |
 | PR CI       | GitHub branch-protection required checks on current HEAD | Hard gate | Pending/failed current-head required jobs block merge |

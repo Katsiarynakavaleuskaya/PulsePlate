@@ -95,6 +95,15 @@ Before the final checklist above, coordinator should run the full PR lifecycle e
      present, but cannot satisfy provenance alone. Missing provenance is
      diagnostic dry-run in this hardening wave; malformed provenance is an
      error because it creates false proof.
+   - Execute every role-agent pass assigned by the bootstrap packet/runbook in
+     declared order. `task_bootstrap.py` packet creation does not execute role
+     agents; missing role execution blocks readiness unless `agent-coordinator`
+     records an explicit disposition with evidence.
+   - Run `pulseplate-premortem-risk-review` and Experiment Runner oracle-only
+     evidence before PR open for every non-trivial PR. Premortem findings must
+     be fixed or dispositioned, and Experiment Runner artifact load/write
+     failures are infrastructure blockers rather than valid `Not applicable`
+     reasons.
    - Open non-draft by default once scope, initial artifacts, and first local gates are coherent so bot review and current-head checks run.
    - Use draft only with an explicit operator exception when review/check suppression is intentional.
 2. **Control each push cycle**
@@ -115,7 +124,14 @@ This lifecycle is mandatory operating behavior, not just a recommendation. The f
 
 - `## Discussion Thread Pass` with checkboxes completed.
 - `### Fixed in Commit Mapping` present as a mirror section for human review.
-- `## Experiment Runner Evidence` with either a local result artifact path or an explicit `Not applicable:` reason. Non-trivial PRs should create oracle-only evidence by default; `Not applicable` requires a concrete reason. Missing evidence is advisory in the first hardening wave; malformed evidence is a Phase2 error.
+- `## Experiment Runner Evidence` with either a local result artifact path or an explicit `Not applicable:` reason. Non-trivial PRs must create oracle-only evidence by default; `Not applicable` requires a concrete reason. Artifact load/write failures are infrastructure blockers, not a valid `Not applicable` reason. Malformed evidence is a Phase2 error.
+- Premortem evidence showing `pulseplate-premortem-risk-review` ran on the
+  actual diff and every finding is `FIXED`, `NOT-A-BUG`, or `DEFERRED` with
+  evidence/backlog proof.
+- Bootstrap role-agent evidence showing the packet/runbook role order was run
+  in order; post-open PR review must include
+  `qa-engineer-agent -> bug-hunter -> security-auditor`, Codex Security diff
+  scan / finding discovery, and any requested PR-review skill before readiness.
 - `## Lane Start Provenance` with a bootstrap packet or a narrow documented
   exception. `start_pr_lane.sh` may be listed as supplemental evidence, but not
   as the only proof. Missing provenance is diagnostic dry-run in this wave and

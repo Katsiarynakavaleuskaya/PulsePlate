@@ -225,7 +225,8 @@ def test_secret_presence_validation_rejects_malformed_runtime_env(
     assert bridge.main(["--validate-secret-presence"]) == 1
     stdout = capsys.readouterr().out
 
-    assert "SLACK_APP_TOKEN token class is invalid" in stdout
+    assert stdout == ""
+    assert "SLACK_APP_TOKEN token class is invalid" not in stdout
     assert "present-but-not-an-app-token" not in stdout
     assert "xoxb-" not in stdout
     assert "C0ALERTS" not in stdout
@@ -247,7 +248,8 @@ def test_secret_presence_validation_rejects_malformed_allowlist_env(
     assert bridge.main(["--validate-secret-presence"]) == 1
     stdout = capsys.readouterr().out
 
-    assert "channel allowlist is invalid" in stdout
+    assert stdout == ""
+    assert "channel allowlist is invalid" not in stdout
     assert "xapp-" not in stdout
     assert "xoxb-" not in stdout
     assert "/tmp/channel" not in stdout
@@ -326,6 +328,22 @@ def test_operator_help_status_and_mvp_evidence_renderers_are_slack_safe(
     assert "/tmp/" not in combined
     assert "mergeable" not in combined.lower()
     assert "review resolved" not in combined.lower()
+
+
+def test_operator_status_requires_team_allowlist_for_configured_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", "C0ALERTS")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", "U0OPERATOR")
+    monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", raising=False)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+
+    output = bridge._format_command_reply(bridge.OperatorCommand(kind="status"), config)
+
+    assert "Status: `incomplete`" in output
+    assert "team_allowlist_present=false" in output
 
 
 def test_mvp_evidence_event_contract_matches_frontend_source() -> None:
@@ -814,6 +832,26 @@ def test_execute_runtime_validation_requires_github_auth(
     assert "GITHUB_TOKEN" not in stdout
 
 
+def test_execute_runtime_validation_requires_channel_user_and_team_allowlists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST", "T0TEAM")
+    monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST", raising=False)
+    monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST", raising=False)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "g" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+
+    assert bridge.main(["--validate-runtime", "--dispatch-mode", "execute"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "Slack Socket Mode allowlist configuration is incomplete" in stdout
+    assert "T0TEAM" not in stdout
+    assert "ghp_" not in stdout
+
+
 def test_execute_runtime_validation_requires_reviewed_promotion_gate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1159,6 +1197,18 @@ def test_bolt_command_body_uses_trigger_id_as_fallback_event_id(
 
     assert decision.status == "dry_run"
     assert decision.event_hash == bridge._sha256_text(fallback_event_id)
+
+
+def test_malformed_payload_ids_are_command_errors_not_config_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+
+    with pytest.raises(bridge.SlackSocketCommandError, match="payload is invalid"):
+        bridge.process_payload(_event(event_id="/tmp/not-a-slack-id"), config)
 
 
 def test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs(
@@ -1687,6 +1737,8 @@ def test_rate_limit_claim_recovers_empty_stale_lock(
     config = _config(audit_dir=audit_dir)
     lock_dir = audit_dir / bridge.RATE_LIMIT_LOCK_DIR
     lock_dir.mkdir(parents=True)
+    temp_path = lock_dir / ".claim.json.leftover.tmp"
+    temp_path.write_text("partial", encoding="utf-8")
     old_timestamp = datetime.fromtimestamp(0, tz=timezone.utc).timestamp()
     os.utime(lock_dir, (old_timestamp, old_timestamp))
 
@@ -1703,6 +1755,7 @@ def test_rate_limit_claim_recovers_empty_stale_lock(
 
     claim = json.loads((lock_dir / "claim.json").read_text(encoding="utf-8"))
     assert claim["event_hash"] == bridge._sha256_text("Ev0STALELOCK")
+    assert not temp_path.exists()
 
 
 def test_rate_limit_claim_keeps_fresh_partial_lock_instead_of_stealing_it(
@@ -1714,6 +1767,8 @@ def test_rate_limit_claim_keeps_fresh_partial_lock_instead_of_stealing_it(
     config = _config(audit_dir=audit_dir)
     lock_dir = audit_dir / bridge.RATE_LIMIT_LOCK_DIR
     lock_dir.mkdir(parents=True)
+    sleeps: list[float] = []
+    monkeypatch.setattr(bridge._audit.time, "sleep", lambda seconds: sleeps.append(seconds))
 
     with pytest.raises(bridge.SlackSocketAuditError, match="Unable to acquire"):
         bridge._claim_rate_limit(
@@ -1729,6 +1784,11 @@ def test_rate_limit_claim_keeps_fresh_partial_lock_instead_of_stealing_it(
 
     assert lock_dir.exists()
     assert not (lock_dir / "claim.json").exists()
+    assert (
+        sleeps
+        == [bridge._audit.PARTIAL_CLAIM_RETRY_BACKOFF_SECONDS]
+        * bridge.RATE_LIMIT_CLAIM_MAX_ATTEMPTS
+    )
 
 
 def test_rate_limit_claim_wraps_lock_creation_failure(
@@ -1767,14 +1827,14 @@ def test_rate_limit_claim_cleans_partial_lock_on_write_failure(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     config = _config(audit_dir=audit_dir)
-    original_write_text = Path.write_text
+    original_publish = bridge._audit._atomic_publish_json
 
-    def fail_claim_write(path: Path, *args: Any, **kwargs: Any) -> int:
+    def fail_claim_write(path: Path, payload: dict[str, Any], *, exclusive: bool) -> None:
         if path.name == "claim.json":
             raise OSError("disk full")
-        return original_write_text(path, *args, **kwargs)
+        original_publish(path, payload, exclusive=exclusive)
 
-    monkeypatch.setattr(Path, "write_text", fail_claim_write)
+    monkeypatch.setattr(bridge._audit, "_atomic_publish_json", fail_claim_write)
 
     with pytest.raises(bridge.SlackSocketAuditError, match="Unable to record"):
         bridge._claim_rate_limit(
@@ -1798,14 +1858,14 @@ def test_rejected_rate_limit_claim_cleans_partial_lock_on_write_failure(
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
     config = _config(audit_dir=audit_dir)
-    original_write_text = Path.write_text
+    original_publish = bridge._audit._atomic_publish_json
 
-    def fail_claim_write(path: Path, *args: Any, **kwargs: Any) -> int:
+    def fail_claim_write(path: Path, payload: dict[str, Any], *, exclusive: bool) -> None:
         if path.name == "claim.json":
             raise OSError("disk full")
-        return original_write_text(path, *args, **kwargs)
+        original_publish(path, payload, exclusive=exclusive)
 
-    monkeypatch.setattr(Path, "write_text", fail_claim_write)
+    monkeypatch.setattr(bridge._audit, "_atomic_publish_json", fail_claim_write)
 
     with pytest.raises(bridge.SlackSocketAuditError, match="Unable to record"):
         bridge.process_payload(
@@ -2257,14 +2317,14 @@ def test_audit_write_wraps_io_failure(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
-    original_write_text = Path.write_text
+    original_publish = bridge._audit._atomic_publish_json
 
-    def fail_audit_write(path: Path, *args: Any, **kwargs: Any) -> int:
+    def fail_audit_write(path: Path, payload: dict[str, Any], *, exclusive: bool) -> None:
         if path.name == "audit.json":
             raise OSError("disk full")
-        return original_write_text(path, *args, **kwargs)
+        original_publish(path, payload, exclusive=exclusive)
 
-    monkeypatch.setattr(Path, "write_text", fail_audit_write)
+    monkeypatch.setattr(bridge._audit, "_atomic_publish_json", fail_audit_write)
 
     with pytest.raises(bridge.SlackSocketAuditError, match="Unable to write"):
         bridge._write_audit(
@@ -2288,14 +2348,14 @@ def test_audit_exclusive_write_wraps_io_failure(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
-    original_open = Path.open
+    original_publish = bridge._audit._atomic_publish_json
 
-    def fail_audit_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+    def fail_audit_open(path: Path, payload: dict[str, Any], *, exclusive: bool) -> None:
         if path.name == "audit.json":
             raise OSError("disk full")
-        return original_open(path, *args, **kwargs)
+        original_publish(path, payload, exclusive=exclusive)
 
-    monkeypatch.setattr(Path, "open", fail_audit_open)
+    monkeypatch.setattr(bridge._audit, "_atomic_publish_json", fail_audit_open)
 
     with pytest.raises(bridge.SlackSocketAuditError, match="Unable to write"):
         bridge._write_audit_exclusive(
@@ -2319,14 +2379,14 @@ def test_event_claim_wraps_io_failure(
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
-    original_open = Path.open
+    original_publish = bridge._audit._atomic_publish_json
 
-    def fail_claim_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+    def fail_claim_open(path: Path, payload: dict[str, Any], *, exclusive: bool) -> None:
         if path.name == "audit.json":
             raise OSError("disk full")
-        return original_open(path, *args, **kwargs)
+        original_publish(path, payload, exclusive=exclusive)
 
-    monkeypatch.setattr(Path, "open", fail_claim_open)
+    monkeypatch.setattr(bridge._audit, "_atomic_publish_json", fail_claim_open)
 
     with pytest.raises(bridge.SlackSocketAuditError, match="Unable to claim"):
         bridge._claim_event(

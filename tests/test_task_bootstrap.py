@@ -114,6 +114,8 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "requires_pr": False,
         "post_open_review_required": False,
         "review_lane": [],
+        "post_open_codex_security_scan_required": False,
+        "post_open_codex_security_scan": "",
         "artifact_template": "",
         "current_head_required": False,
         "current_head_truth": "not-applicable",
@@ -122,11 +124,13 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["role_agent_dispatch_contract"] == {
         "packet_creation_executes_roles": False,
         "role_agent_dispatch_required": True,
+        "role_agent_dispatch_hard_gate": True,
         "dispatch_manifest_entrypoint": "scripts/orchestration/qoder_dispatch_bridge.py",
         "dispatch_manifest_command": (
             "scripts/orchestration/qoder_dispatch_bridge.py --packet <packet> --pretty"
         ),
         "must_execute_dispatch_sequence_in_order": True,
+        "missing_role_execution_blocks_readiness": True,
     }
     assert packet["design_lane_mode"] == "disabled"
     assert packet["design_lane_contract"] == {
@@ -324,7 +328,7 @@ def test_task_bootstrap_requires_existing_figma_metadata_for_non_implement_creat
 
 
 def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
-    """Post-open review packets must synthesize the canonical QA -> bug-hunter lane."""
+    """Post-open packets must synthesize the canonical QA -> bug -> security lane."""
 
     packet = build_task_packet(
         goal="Prepare post-open PR review loop for orchestration automation",
@@ -338,15 +342,21 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
     assert packet["pr_lifecycle_contract"] == {
         "requires_pr": True,
         "post_open_review_required": True,
-        "review_lane": ["qa-engineer-agent", "bug-hunter"],
+        "review_lane": ["qa-engineer-agent", "bug-hunter", "security-auditor"],
+        "post_open_codex_security_scan_required": True,
+        "post_open_codex_security_scan": "Codex Security diff scan / finding discovery",
         "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
         "current_head_required": True,
         "current_head_truth": "latest-current-head",
         "merge_readiness_entrypoint": "",
     }
-    assert packet["reviewer"] == "qa-engineer-agent"
-    assert "bug-hunter" in packet["secondary_agents"]
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["reviewer"] == "architecture-specialist"
+    assert packet["secondary_agents"][:2] == ["bug-hunter", "security-auditor"]
     assert "bug-hunter" in {
+        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+    }
+    assert "security-auditor" in {
         binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
     }
 
@@ -439,7 +449,7 @@ def test_task_bootstrap_preserves_qa_then_bug_hunter_order_in_qa_post_open_lane(
 
     assert packet["primary_agent"] == "qa-engineer-agent"
     assert packet["reviewer"] == "agent-coordinator"
-    assert packet["secondary_agents"] == ["bug-hunter"]
+    assert packet["secondary_agents"] == ["bug-hunter", "security-auditor"]
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "bug-hunter",
@@ -467,7 +477,7 @@ def test_post_open_review_path_keeps_bug_hunter_executable_when_primary_was_bug_
 
     assert primary_agent == "qa-engineer-agent"
     assert reviewer == "agent-coordinator"
-    assert normalized_secondary_agents == ["bug-hunter"]
+    assert normalized_secondary_agents == ["bug-hunter", "security-auditor"]
 
 
 def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane() -> None:
@@ -481,13 +491,14 @@ def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane()
         pr_phase="post_open_review",
     )
 
-    assert packet["reviewer"] == "qa-engineer-agent"
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["reviewer"] == "architecture-specialist"
     assert "qa-engineer-agent" not in packet["secondary_agents"]
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "qa-engineer-agent",
-            "status": "honored_reviewer",
-            "reason": "Requested agent stayed honored as reviewer after PR lifecycle synthesis.",
+            "status": "honored_primary",
+            "reason": "Requested agent stayed honored as primary after PR lifecycle synthesis.",
         }
     ]
 
@@ -585,6 +596,8 @@ def test_task_bootstrap_sets_merge_ready_contract_without_post_open_lane() -> No
         "requires_pr": True,
         "post_open_review_required": False,
         "review_lane": [],
+        "post_open_codex_security_scan_required": False,
+        "post_open_codex_security_scan": "",
         "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
         "current_head_required": True,
         "current_head_truth": "latest-current-head",
@@ -1057,24 +1070,22 @@ def test_task_bootstrap_keeps_displaced_requested_reviewer_required_post_open() 
         pr_phase="post_open_review",
     )
 
-    assert packet["primary_agent"] == "agent-coordinator"
-    assert packet["reviewer"] == "qa-engineer-agent"
-    assert "architecture-specialist" in packet["secondary_agents"]
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["reviewer"] == "architecture-specialist"
+    assert "agent-coordinator" in packet["secondary_agents"]
     assert "architecture-specialist" in {
-        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+        packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"]
     }
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "agent-coordinator",
-            "status": "honored_primary",
-            "reason": "Requested agent already matches the routed primary.",
+            "status": "honored_secondary",
+            "reason": "Requested agent stayed honored in secondary after PR lifecycle synthesis.",
         },
         {
             "agent": "architecture-specialist",
-            "status": "honored_secondary",
-            "reason": (
-                "Requested reviewer remains a required role pass after PR lifecycle synthesis."
-            ),
+            "status": "honored_reviewer",
+            "reason": "Requested agent stayed honored as reviewer after PR lifecycle synthesis.",
         },
     ]
 
@@ -1913,6 +1924,8 @@ def test_main_passes_design_lane_flags(
                 "requires_pr": False,
                 "post_open_review_required": False,
                 "review_lane": [],
+                "post_open_codex_security_scan_required": False,
+                "post_open_codex_security_scan": "",
                 "artifact_template": "",
                 "current_head_required": False,
                 "current_head_truth": "not-applicable",

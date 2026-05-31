@@ -298,7 +298,9 @@ def _print_merge_ready_bundle(*, experiment_runner_evidence_mode: str = "advisor
     else:
         print(
             "- Experiment Runner Evidence mode=advisory; Phase2 reports missing "
-            "oracle-only artifact or not-applicable reason without blocking merge readiness"
+            "oracle-only artifact or not-applicable reason without blocking this "
+            "script, but non-trivial PRs remain process-blocked until required "
+            "evidence or an explicit coordinator/operator exception is recorded"
         )
     print(
         "- Lane Start Provenance is diagnostic dry-run in this phase; Phase2 reports "

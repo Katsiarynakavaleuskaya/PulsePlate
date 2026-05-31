@@ -5,23 +5,122 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-import hashlib
-import http.client
 import json
 import logging
-import os
 from pathlib import Path
-import re
 import sys
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
 try:
-    from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
-    from scripts.orchestration.experiment_slack_redaction import (
-        LOCAL_PATH_RE,
-        slack_text as _slack_text,
+    from scripts.orchestration.context_pack import REPO_ROOT
+except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocation guard.
+    if exc.name != "scripts":
+        raise
+    print(
+        "FAIL: run as `python -m scripts.orchestration.experiment_slack_socket_bridge` "
+        "from repo root.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2) from exc
+
+try:
+    from scripts.orchestration import experiment_slack_bridge_audit as _audit
+    from scripts.orchestration import experiment_slack_bridge_config as _config
+    from scripts.orchestration import experiment_slack_bridge_dispatch as _dispatch
+    from scripts.orchestration import experiment_slack_bridge_rendering as _rendering
+    from scripts.orchestration import experiment_slack_bridge_transport as _transport
+    from scripts.orchestration.experiment_slack_bridge_commands import (
+        _read_json_object,
+        _require_authorized_event,
+        _validate_hypothesis,
+        normalize_slack_payload,
+        parse_operator_command,
+    )
+    from scripts.orchestration.experiment_slack_bridge_config import (
+        _allowlist_from_env,
+        _compute_live_approval_digest,
+        _github_token,
+        _is_safe_ref,
+        _live_approval_sha256,
+        _normalize_slack_id,
+        _normalized_absolute_path,
+        _optional_token,
+        _positive_int_from_env,
+        _reject_symlinked_existing_path,
+        _validate_repo,
+        _validate_workflow_file,
+        _validate_workflow_ref,
+    )
+    from scripts.orchestration.experiment_slack_bridge_constants import (
+        ALLOWED_COMMANDS,
+        ALLOWED_WORKFLOW_REFS,
+        ALLOWED_WORKFLOWS,
+        BRIDGE_AUDIT_RETENTION_DAYS_ENV,
+        BRIDGE_EXECUTE_ENABLED_ENV,
+        BRIDGE_EXECUTE_ENABLED_VALUE,
+        BRIDGE_MIN_INTERVAL_ENV,
+        BRIDGE_TIMEOUT_ENV,
+        CONTROL_CHAR_RE,
+        DEFAULT_AUDIT_RETENTION_DAYS,
+        DEFAULT_WORKFLOW_FILE,
+        DEFAULT_WORKFLOW_REF,
+        ENV_ASSIGNMENT_RE,
+        GITHUB_API_HOST,
+        GITHUB_TOKEN_RE,
+        LIVE_APPROVAL_SHA256_ENV,
+        LIVE_SECRET_PRESENCE_ENV,
+        LIVE_SMOKE_BRANCH_REF_ENV,
+        LIVE_SMOKE_HYPOTHESIS_SHA256_ENV,
+        MAX_AUDIT_RETENTION_DAYS,
+        RATE_LIMIT_CLAIM_MAX_ATTEMPTS,
+        RATE_LIMIT_LOCK_DIR,
+        REJECTED_RATE_LIMIT_LOCK_DIR,
+        SAFE_BRANCH_RE,
+        SAFE_SLACK_ERROR_CODE_RE,
+        SAFE_SLACK_ID_RE,
+        SECRET_SHAPED_RE,
+        SHA256_HEX_RE,
+        SHELL_META_RE,
+        SLACK_API_HOST,
+        SLACK_APP_AUTH_ENV,
+        SLACK_APP_TOKEN_RE,
+        SLACK_BOT_AUTH_ENV,
+        SLACK_BOT_TOKEN_RE,
+        SLACK_CHANNEL_ALLOWLIST_ENV,
+        SLACK_LIVE_SMOKE_METHODS,
+        SLACK_TEAM_ALLOWLIST_ENV,
+        SLACK_USER_ALLOWLIST_ENV,
+        default_audit_artifact_dir,
+    )
+    from scripts.orchestration.experiment_slack_bridge_models import (
+        BridgeConfig,
+        BridgeDecision,
+        OperatorCommand,
+        OperatorEvent,
+        SlackApiTransport,
+        SlackSafeMessage,
+        SlackSocketAuditError,
+        SlackSocketBridgeError,
+        SlackSocketCommandError,
+        SlackSocketConfigError,
+        SlackSocketDispatchError,
+        WorkflowDispatchTransport,
+        _bounded_text,
+        _safe_hash,
+        _sha256_text,
+        _utcnow,
+    )
+    from scripts.orchestration.experiment_slack_bridge_rendering import (
+        render_dispatch_dry_run_preview,
+        render_kpp_status_overview,
+        render_operator_help_message,
+        render_operator_status_message,
+    )
+    from scripts.orchestration.experiment_slack_bridge_transport import (
+        _require_slack_ok_response,
+        _require_socket_mode_url,
+        _safe_slack_error_code,
+        validate_live_smoke_inputs,
     )
     from scripts.orchestration.mvp_evidence_snapshot import (
         ALLOWED_EVENT_NAMES as _MVP_ALLOWED_EVENT_NAMES,
@@ -37,576 +136,146 @@ except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocatio
     )
     raise SystemExit(2) from exc
 
+__all__ = (
+    "ALLOWED_COMMANDS",
+    "ALLOWED_WORKFLOW_REFS",
+    "ALLOWED_WORKFLOWS",
+    "AUDIT_ARTIFACT_DIR",
+    "BRIDGE_AUDIT_RETENTION_DAYS_ENV",
+    "BRIDGE_EXECUTE_ENABLED_ENV",
+    "BRIDGE_EXECUTE_ENABLED_VALUE",
+    "BRIDGE_MIN_INTERVAL_ENV",
+    "BRIDGE_TIMEOUT_ENV",
+    "BridgeConfig",
+    "BridgeDecision",
+    "CONTROL_CHAR_RE",
+    "DEFAULT_AUDIT_RETENTION_DAYS",
+    "DEFAULT_WORKFLOW_FILE",
+    "DEFAULT_WORKFLOW_REF",
+    "ENV_ASSIGNMENT_RE",
+    "GITHUB_API_HOST",
+    "GITHUB_TOKEN_RE",
+    "LIVE_APPROVAL_SHA256_ENV",
+    "LIVE_SECRET_PRESENCE_ENV",
+    "LIVE_SMOKE_BRANCH_REF_ENV",
+    "LIVE_SMOKE_HYPOTHESIS_SHA256_ENV",
+    "MAX_AUDIT_RETENTION_DAYS",
+    "OperatorCommand",
+    "OperatorEvent",
+    "RATE_LIMIT_CLAIM_MAX_ATTEMPTS",
+    "RATE_LIMIT_LOCK_DIR",
+    "REJECTED_RATE_LIMIT_LOCK_DIR",
+    "SAFE_BRANCH_RE",
+    "SAFE_SLACK_ERROR_CODE_RE",
+    "SAFE_SLACK_ID_RE",
+    "SECRET_SHAPED_RE",
+    "SHA256_HEX_RE",
+    "SHELL_META_RE",
+    "SLACK_API_HOST",
+    "SLACK_APP_AUTH_ENV",
+    "SLACK_APP_TOKEN_RE",
+    "SLACK_BOT_AUTH_ENV",
+    "SLACK_BOT_TOKEN_RE",
+    "SLACK_CHANNEL_ALLOWLIST_ENV",
+    "SLACK_LIVE_SMOKE_METHODS",
+    "SLACK_TEAM_ALLOWLIST_ENV",
+    "SLACK_USER_ALLOWLIST_ENV",
+    "SlackApiTransport",
+    "SlackSafeMessage",
+    "SlackSocketAuditError",
+    "SlackSocketBridgeError",
+    "SlackSocketCommandError",
+    "SlackSocketConfigError",
+    "SlackSocketDispatchError",
+    "WorkflowDispatchTransport",
+    "_allowlist_from_env",
+    "_approval_prefix",
+    "_audit_payload",
+    "_audit_path",
+    "_audit_timestamp",
+    "_bounded_text",
+    "_check_rate_limit",
+    "_claim_event",
+    "_claim_rate_limit",
+    "_claim_rejected_event_audit_throttle",
+    "_cleanup_partial_rate_limit_claim",
+    "_compute_live_approval_digest",
+    "_format_command_reply",
+    "_github_dispatch_inputs",
+    "_github_token",
+    "_is_safe_ref",
+    "_live_approval_sha256",
+    "_load_slack_bolt",
+    "_normalize_slack_id",
+    "_normalized_absolute_path",
+    "_optional_token",
+    "_partial_rate_limit_claim_is_stale",
+    "_positive_int_from_env",
+    "_read_audit",
+    "_read_json_object",
+    "_read_latest_snapshot_line",
+    "_read_rate_limit_claim",
+    "_reject_symlinked_existing_path",
+    "_reject_symlinked_output_components",
+    "_remove_stale_rate_limit_claim",
+    "_require_authorized_event",
+    "_require_execute_config",
+    "_require_live_smoke_runtime",
+    "_require_slack_ok_response",
+    "_require_socket_mode_url",
+    "_resolve_audit_dir",
+    "_safe_hash",
+    "_safe_slack_error_code",
+    "_send_github_workflow_dispatch",
+    "_send_slack_api_request",
+    "_sha256_text",
+    "_utcnow",
+    "_validate_hypothesis",
+    "_validate_repo",
+    "_validate_workflow_file",
+    "_validate_workflow_ref",
+    "_write_audit",
+    "_write_audit_exclusive",
+    "audit_retention_summary",
+    "build_config",
+    "default_audit_artifact_dir",
+    "main",
+    "normalize_slack_payload",
+    "parse_operator_command",
+    "process_operator_event",
+    "process_payload",
+    "render_dispatch_dry_run_preview",
+    "render_kpp_status_overview",
+    "render_mvp_evidence_summary",
+    "render_operator_help_message",
+    "render_operator_status_message",
+    "run_socket_listener",
+    "validate_live_smoke",
+    "validate_live_smoke_inputs",
+    "validate_secret_presence",
+)
 
-AUDIT_ARTIFACT_DIR = (
-    REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "slack_socket_bridge"
-)
-SLACK_APP_AUTH_ENV = "SLACK_APP_" + "".join(("TO", "KEN"))
-SLACK_BOT_AUTH_ENV = "SLACK_BOT_" + "".join(("TO", "KEN"))
-SLACK_CHANNEL_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"
-SLACK_USER_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"
-SLACK_TEAM_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"
-BRIDGE_MIN_INTERVAL_ENV = "EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS"
-BRIDGE_TIMEOUT_ENV = "EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS"
-BRIDGE_AUDIT_RETENTION_DAYS_ENV = "EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS"
-BRIDGE_EXECUTE_ENABLED_ENV = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED"
-BRIDGE_EXECUTE_ENABLED_VALUE = "reviewed-dry-run-dispatch"
-LIVE_APPROVAL_SHA256_ENV = "EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256"
-GITHUB_API_HOST = "api.github.com"
-SLACK_API_HOST = "slack.com"
-DEFAULT_WORKFLOW_FILE = "experiment-runner-dispatch.yml"
-DEFAULT_WORKFLOW_REF = "main"
-ALLOWED_WORKFLOW_REFS = {DEFAULT_WORKFLOW_REF}
-SAFE_SLACK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$")
-SAFE_BRANCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
-CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
-SHELL_META_RE = re.compile(r"[;&|`$<>\\\\]")
-ENV_ASSIGNMENT_RE = re.compile(r"(^|\s)[A-Za-z_][A-Za-z0-9_]*=")
-SECRET_SHAPED_RE = re.compile(
-    r"(xapp-[A-Za-z0-9-]{10,}|xox[abcprs]-[A-Za-z0-9-]{10,}|"
-    r"gh[pousr]_[A-Za-z0-9._-]{20,}|github_pat_[A-Za-z0-9_]{20,}|"
-    r"https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,}|sk-[A-Za-z0-9_-]{12,})",
-    re.IGNORECASE,
-)
-SLACK_APP_TOKEN_RE = re.compile(r"^xapp-[A-Za-z0-9-]{10,}$")
-SLACK_BOT_TOKEN_RE = re.compile(r"^xoxb-[A-Za-z0-9-]{10,}$")
-GITHUB_TOKEN_RE = re.compile(r"^(gh[pousr]_[A-Za-z0-9._-]{20,}|github_pat_[A-Za-z0-9_]{20,})$")
-ALLOWED_COMMANDS = {"help", "kpp-status", "mvp-evidence", "status", "run-experiment"}
-ALLOWED_WORKFLOWS = {DEFAULT_WORKFLOW_FILE}
-RATE_LIMIT_LOCK_DIR = "rate_limit_claim"
-REJECTED_RATE_LIMIT_LOCK_DIR = "rejected_rate_limit_claim"
-RATE_LIMIT_CLAIM_MAX_ATTEMPTS = 10
-DEFAULT_AUDIT_RETENTION_DAYS = 14
-MAX_AUDIT_RETENTION_DAYS = 366
-LIVE_SECRET_PRESENCE_ENV = (
-    SLACK_APP_AUTH_ENV,
-    SLACK_BOT_AUTH_ENV,
-    SLACK_CHANNEL_ALLOWLIST_ENV,
-    SLACK_USER_ALLOWLIST_ENV,
-    SLACK_TEAM_ALLOWLIST_ENV,
-)
-LIVE_SMOKE_BRANCH_REF_ENV = "EXPERIMENT_SLACK_SOCKET_BRANCH_REF"
-LIVE_SMOKE_HYPOTHESIS_SHA256_ENV = "EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"
-SHA256_HEX_RE = re.compile(r"^[A-Fa-f0-9]{64}$")
-SLACK_LIVE_SMOKE_METHODS = {"apps.connections.open", "auth.test"}
-SAFE_SLACK_ERROR_CODE_RE = re.compile(r"^[a-z0-9_]{1,80}$")
+AUDIT_ARTIFACT_DIR = default_audit_artifact_dir(REPO_ROOT)
 LOGGER = logging.getLogger(__name__)
 
 
-class SlackSocketBridgeError(RuntimeError):
-    """Bridge failures with sanitized diagnostics."""
-
-
-class SlackSocketConfigError(SlackSocketBridgeError):
-    """Runtime configuration is missing or invalid."""
-
-
-class SlackSocketCommandError(SlackSocketBridgeError):
-    """Operator command payload is malformed or unauthorized."""
-
-
-class SlackSocketAuditError(SlackSocketBridgeError):
-    """Local audit state blocks safe execution."""
-
-
-class SlackSocketDispatchError(SlackSocketBridgeError):
-    """GitHub workflow dispatch failed without exposing provider details."""
-
-
-class WorkflowDispatchTransport(Protocol):
-    """Fakeable GitHub workflow dispatch transport."""
-
-    def __call__(
-        self,
-        *,
-        repo: str,
-        workflow_file: str,
-        ref: str,
-        inputs: dict[str, str],
-        token: str,
-        timeout_seconds: int,
-    ) -> None:
-        """Dispatch a fixed workflow with sanitized typed inputs."""
-
-
-class SlackApiTransport(Protocol):
-    """Fakeable Slack Web API transport for bounded live-smoke checks."""
-
-    def __call__(
-        self,
-        *,
-        method: str,
-        token: str,
-        timeout_seconds: int,
-    ) -> dict[str, Any]:
-        """Call one fixed Slack Web API method and return parsed JSON."""
-
-
-@dataclass(frozen=True)
-class BridgeConfig:
-    """Runtime configuration for one bridge event or validation pass."""
-
-    dispatch_mode: str
-    allowed_channels: frozenset[str]
-    allowed_users: frozenset[str]
-    allowed_teams: frozenset[str]
-    audit_dir: Path
-    repo: str | None
-    workflow_file: str
-    workflow_ref: str
-    timeout_seconds: int
-    min_interval_seconds: int
-    audit_retention_days: int
-    slack_app_token: str | None
-    slack_bot_token: str | None
-    github_token: str | None
-    live_approval_sha256: str | None
-
-
-@dataclass(frozen=True)
-class OperatorEvent:
-    """Normalized Slack operator event with raw fields kept out of audits."""
-
-    event_id: str
-    channel_id: str
-    user_id: str
-    team_id: str | None
-    text: str
-    command_hint: str | None = None
-
-
-@dataclass(frozen=True)
-class OperatorCommand:
-    """Typed, validated bridge command."""
-
-    kind: str
-    branch_ref: str | None = None
-    hypothesis: str | None = None
-
-
-@dataclass(frozen=True)
-class SlackSafeMessage:
-    """Deterministic operator message payload safe for Slack display."""
-
-    message_type: str
-    header: str
-    status_line: str
-    scope: str
-    evidence_summary: tuple[str, ...]
-    action_required: str
-    artifact_refs: tuple[str, ...] = ()
-    redaction_notice: str = (
-        "No sensitive user data, raw Slack identifiers, raw hypotheses, tokens, local paths, "
-        "oracle output, or patch text included."
-    )
-
-    def as_text(self) -> str:
-        """Render stable Slack mrkdwn text without untrusted formatting."""
-
-        artifact_lines = self.artifact_refs or ("none",)
-        evidence_lines = self.evidence_summary or ("none",)
-        sections = [
-            f"*{_slack_text(self.header)}*",
-            f"Status: `{_slack_text(self.status_line)}`",
-            f"Scope: {_slack_text(self.scope)}",
-            "Evidence summary:",
-            *(f"- {_slack_text(line)}" for line in evidence_lines),
-            "Artifact/reference:",
-            *(f"- `{_slack_text(line)}`" for line in artifact_lines),
-            f"Action required: {_slack_text(self.action_required)}",
-            f"Redaction: {_slack_text(self.redaction_notice)}",
-        ]
-        return _bounded_text("\n".join(sections))
-
-
-@dataclass(frozen=True)
-class BridgeDecision:
-    """Bridge outcome safe to print as JSON."""
-
-    status: str
-    command_kind: str
-    dispatch_mode: str
-    audit_path: Path
-    event_hash: str
-    channel_hash: str
-    user_hash: str
-    workflow_file: str
-    branch_hash: str | None = None
-    hypothesis_hash: str | None = None
-    approval_hash: str | None = None
-    failure_class: str | None = None
-
-    def public_payload(self) -> dict[str, Any]:
-        """Return a sanitized payload for stdout or tests."""
-
-        return {
-            "approval_hash": self.approval_hash or "none",
-            "audit": normalize_repo_path(self.audit_path),
-            "branch_hash": self.branch_hash,
-            "channel_hash": self.channel_hash,
-            "command_kind": self.command_kind,
-            "dispatch_mode": self.dispatch_mode,
-            "event_hash": self.event_hash,
-            "failure_class": self.failure_class or "none",
-            "hypothesis_hash": self.hypothesis_hash,
-            "status": self.status,
-            "user_hash": self.user_hash,
-            "workflow_file": self.workflow_file,
-        }
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(microsecond=0)
-
-
-def _sha256_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _safe_hash(value: str | None) -> str | None:
-    if value is None:
-        return None
-    return _sha256_text(value)
-
-
-def _bounded_text(value: str, *, limit: int = 2800) -> str:
-    """Bound Slack-visible text and make truncation explicit."""
-
-    if len(value) <= limit:
-        return value
-    return value[: limit - 20].rstrip() + "\n[truncated=true]"
-
-
-def render_mvp_evidence_summary() -> SlackSafeMessage:
-    """Render MVP evidence summary from latest snapshot, falling back to static contract."""
-
-    try:
-        snapshot = _read_latest_snapshot_line()
-    except (ValueError, OSError, TypeError):
-        snapshot = None
-
-    if snapshot is not None:
-        present_count = sum(1 for v in snapshot.event_aggregates.values() if v > 0)
-        route_str = ",".join(snapshot.route_buckets) if snapshot.route_buckets else "none"
-        auth_str = ",".join(snapshot.auth_state_buckets) if snapshot.auth_state_buckets else "none"
-        coverage_preview = "; ".join(
-            flag for flag in snapshot.coverage_flags if flag.endswith("=present")
-        )
-        if not coverage_preview:
-            coverage_preview = "no_events_observed"
-        return SlackSafeMessage(
-            message_type="mvp_evidence_summary",
-            header="MVP evidence snapshot summary",
-            status_line="snapshot_backed",
-            scope=(
-                "Dynamic Guided Planning Preview snapshot; aggregate-only; "
-                "no runtime analytics backend."
-            ),
-            evidence_summary=(
-                f"present_event_count={present_count}",
-                f"route_buckets={_slack_text(route_str)}",
-                f"auth_state_buckets={_slack_text(auth_str)}",
-                f"coverage_preview={_slack_text(coverage_preview)}",
-                f"policy_version={snapshot.policy_version}",
-            ),
-            action_required="Human review required for PR/merge decisions; Slack is display-only.",
-            artifact_refs=(
-                "frontend/src/lib/mvpObservability.ts",
-                "scripts/orchestration/mvp_evidence_snapshot.py",
-            ),
-        )
-
-    events = _MVP_ALLOWED_EVENT_NAMES
-    return SlackSafeMessage(
-        message_type="mvp_evidence_summary",
-        header="MVP evidence contract summary",
-        status_line="advisory_operator_summary",
-        scope=(
-            "Static Guided Planning Preview event contract from #1842-#1844; "
-            "no runtime analytics backend."
-        ),
-        evidence_summary=(
-            f"safe_event_count={len(events)}",
-            "route_path=/app",
-            "save_continue_progress_events=present",
-            "wellness_boundary_event=present",
-            "forbidden_user_data=omitted",
-        ),
-        action_required="Human review required for PR/merge decisions; Slack is display-only.",
-        artifact_refs=("frontend/src/lib/mvpObservability.ts", "frontend/src/pages/Home.tsx"),
-    )
-
-
-def render_dispatch_dry_run_preview(command: OperatorCommand) -> SlackSafeMessage:
-    """Render a dry-run-only dispatch preview without raw branch or hypothesis text."""
-
-    return SlackSafeMessage(
-        message_type="dispatch_dry_run_preview",
-        header="Dispatch dry-run preview",
-        status_line="dry_run_only",
-        scope="Fixed Experiment Runner dispatch workflow preview; no workflow sent by renderer.",
-        evidence_summary=(
-            f"workflow_file={DEFAULT_WORKFLOW_FILE}",
-            f"workflow_ref={DEFAULT_WORKFLOW_REF}",
-            f"branch_hash={_safe_hash(command.branch_ref) or 'none'}",
-            f"hypothesis_hash={_safe_hash(command.hypothesis) or 'none'}",
-            "dry_run=true",
-        ),
-        action_required="Human approval and existing execute-mode gate required for dispatch.",
-        artifact_refs=(".github/workflows/experiment-runner-dispatch.yml",),
-    )
-
-
-def render_operator_help_message() -> SlackSafeMessage:
-    """Render static operator help without authority claims."""
-
-    return SlackSafeMessage(
-        message_type="operator_help",
-        header="Experiment Runner Slack operator help",
-        status_line="display_only_commands",
-        scope="Allowlisted operator command boundary; not PR, review, merge, or Git identity authority.",
-        evidence_summary=(
-            "help: show this bounded command summary",
-            "status: show bridge status and authority boundary",
-            "kpp-status: show KPP outcome catalog and routing summary",
-            "mvp-evidence: show Guided Planning MVP evidence coverage summary",
-            "run-experiment <branch> <hypothesis>: dry-run-first fixed workflow preview/dispatch path",
-        ),
-        action_required="Use repo gates and GitHub review for all merge decisions.",
-        artifact_refs=("docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md",),
-    )
-
-
-def render_operator_status_message(config: BridgeConfig) -> SlackSafeMessage:
-    """Render sanitized bridge status without exposing runtime IDs or tokens."""
-
-    return SlackSafeMessage(
-        message_type="operator_status",
-        header="Experiment Runner Slack operator status",
-        status_line=(
-            "configured" if config.allowed_channels and config.allowed_users else "incomplete"
-        ),
-        scope="Operator bridge status; advisory only and not merge readiness.",
-        evidence_summary=(
-            f"dispatch_mode={config.dispatch_mode}",
-            f"workflow_file={config.workflow_file}",
-            f"workflow_ref={config.workflow_ref}",
-            f"channel_allowlist_present={str(bool(config.allowed_channels)).lower()}",
-            f"user_allowlist_present={str(bool(config.allowed_users)).lower()}",
-            f"team_allowlist_present={str(bool(config.allowed_teams)).lower()}",
-            f"rate_limit_seconds={config.min_interval_seconds}",
-            f"audit_retention_days={config.audit_retention_days}",
-        ),
-        action_required="Keep dry-run unless a reviewed PR promotes bounded execution.",
-        artifact_refs=("artifacts/orchestration/experiments/slack_socket_bridge",),
-    )
-
-
-def render_kpp_status_overview() -> SlackSafeMessage:
-    """Render bounded KPP outcome catalog for operator awareness.
-
-    RU: Текстовый overview KPP outcomes для bridge; Block Kit JSON генерируется
-    отдельно через experiment_slack_kpp_renderer при необходимости.
-    EN: Text-only KPP outcome overview for the bridge; Block Kit JSON is
-    generated separately via experiment_slack_kpp_renderer when needed.
-    """
-
-    return SlackSafeMessage(
-        message_type="kpp_status_overview",
-        header="Experiment Runner KPP outcome catalog",
-        status_line="display_only",
-        scope="KPP routing outcomes are deterministic and redacted before Slack display.",
-        evidence_summary=(
-            "PROMOTE: high-signal result ready for promotion review",
-            "DEFER: result deferred to backlog or follow-up lane",
-            "DISCARD: falsification or no-signal outcome",
-            "FAIL: experiment failed; inspect failure_class and artifact reference",
-            "ORACLE_VIOLATION: oracle contract violation (security-sensitive)",
-            "SURFACE_BREACH: mutation outside allowed surface (security-sensitive)",
-        ),
-        action_required="Use kpp-status for awareness only; all promotion decisions run through repo gates.",
-        artifact_refs=("scripts/orchestration/experiment_slack_kpp_renderer.py",),
-    )
-
-
-def _read_json_object(path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SlackSocketCommandError("Slack operator event payload is invalid.") from exc
-    if not isinstance(payload, dict):
-        raise SlackSocketCommandError("Slack operator event payload is invalid.")
-    return payload
-
-
-def _normalize_slack_id(raw_value: str, *, label: str) -> str:
-    value = raw_value.strip()
-    if not value or CONTROL_CHAR_RE.search(value) or not SAFE_SLACK_ID_RE.fullmatch(value):
-        raise SlackSocketConfigError(f"{label} allowlist is invalid.")
-    return value
-
-
-def _allowlist_from_env(env_name: str, *, label: str) -> frozenset[str]:
-    raw = os.environ.get(env_name, "")
-    if not raw.strip():
-        return frozenset()
-    values: set[str] = set()
-    for candidate in raw.split(","):
-        candidate = candidate.strip()
-        if not candidate:
-            raise SlackSocketConfigError(f"{label} allowlist is invalid.")
-        values.add(_normalize_slack_id(candidate, label=label))
-    return frozenset(values)
-
-
-def _optional_token(env_name: str) -> str | None:
-    token = os.environ.get(env_name, "").strip()
-    if not token:
-        return None
-    token_pattern = {
-        SLACK_APP_AUTH_ENV: SLACK_APP_TOKEN_RE,
-        SLACK_BOT_AUTH_ENV: SLACK_BOT_TOKEN_RE,
-    }.get(env_name)
-    if token_pattern is None:
-        raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
-    if CONTROL_CHAR_RE.search(token) or "`" in token or token_pattern.fullmatch(token) is None:
-        raise SlackSocketConfigError(f"{env_name} token class is invalid.")
-    return token
-
-
-def _github_token() -> str | None:
-    token = os.environ.get("GH_TOKEN", "").strip() or os.environ.get("GITHUB_TOKEN", "").strip()
-    if not token:
-        return None
-    if CONTROL_CHAR_RE.search(token) or "`" in token or GITHUB_TOKEN_RE.fullmatch(token) is None:
-        raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
-    return token
-
-
-def _live_approval_sha256() -> str | None:
-    """Read and validate the live-dispatch approval digest from runtime env.
-
-    Returns None if absent or the literal sentinel "none".
-    Normalizes to lowercase hex; raises on malformed shape to prevent injection.
-    """
-    raw = os.environ.get(LIVE_APPROVAL_SHA256_ENV, "").strip()
-    if not raw or raw.lower() == "none":
-        return None
-    normalized = raw.lower()
-    if (
-        CONTROL_CHAR_RE.search(normalized)
-        or "`" in normalized
-        or SHA256_HEX_RE.fullmatch(normalized) is None
-    ):
-        raise SlackSocketConfigError("Slack live-dispatch approval configuration is invalid.")
-    return normalized
-
-
-def _compute_live_approval_digest(branch_ref: str, hypothesis: str) -> str:
-    """Compute the canonical approval digest for a branch + hypothesis pair."""
-    return _sha256_text(branch_ref + "\0" + hypothesis)
-
-
-def _positive_int_from_env(env_name: str, default: int, *, maximum: int) -> int:
-    raw = os.environ.get(env_name, str(default)).strip()
-    try:
-        value = int(raw)
-    except ValueError as exc:
-        raise SlackSocketConfigError("Slack operator bridge configuration is invalid.") from exc
-    if value <= 0 or value > maximum:
-        raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
-    return value
-
-
-def _normalized_absolute_path(path: Path) -> Path:
-    return Path(os.path.abspath(os.fspath(path)))
-
-
-def _reject_symlinked_existing_path(root: Path, candidate: Path, *, message: str) -> None:
-    current = root
-    if current.is_symlink():
-        raise SlackSocketAuditError(message)
-    for part in candidate.relative_to(root).parts:
-        current = current / part
-        if current.is_symlink():
-            raise SlackSocketAuditError(message)
-
-
 def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
-    repo_root = _normalized_absolute_path(Path(REPO_ROOT))
-    artifact_root = _normalized_absolute_path(repo_root / "artifacts" / "orchestration")
-    artifact_dir = _normalized_absolute_path(artifact_dir)
-    candidate = _normalized_absolute_path(candidate)
-    try:
-        artifact_root.relative_to(repo_root)
-    except ValueError as exc:
-        raise SlackSocketAuditError(
-            "Slack operator audit directory must stay under artifacts/orchestration."
-        ) from exc
-    _reject_symlinked_existing_path(
-        repo_root,
-        artifact_root,
-        message="Slack operator audit ancestors must not be symlinks.",
-    )
-    try:
-        artifact_dir.relative_to(artifact_root)
-    except ValueError as exc:
-        raise SlackSocketAuditError(
-            "Slack operator audit directory must stay under artifacts/orchestration."
-        ) from exc
-    _reject_symlinked_existing_path(
-        artifact_root,
-        artifact_dir,
-        message="Slack operator audit ancestors must not be symlinks.",
-    )
-    try:
-        candidate.relative_to(artifact_dir)
-    except ValueError as exc:
-        raise SlackSocketAuditError(
-            "Slack operator audit directory must stay under artifacts/orchestration."
-        ) from exc
-    _reject_symlinked_existing_path(
-        artifact_dir,
+    _config._reject_symlinked_output_components(
         candidate,
-        message="Slack operator audit path must not traverse a symlink.",
+        artifact_dir=artifact_dir,
+        repo_root=Path(REPO_ROOT),
     )
 
 
 def _resolve_audit_dir(raw_audit_dir: str | None) -> Path:
-    base_dir = _normalized_absolute_path(Path(AUDIT_ARTIFACT_DIR))
-    candidate: Path = Path(raw_audit_dir).expanduser() if raw_audit_dir else base_dir
-    if not candidate.is_absolute():
-        candidate = _normalized_absolute_path(REPO_ROOT / candidate)
-    else:
-        candidate = _normalized_absolute_path(candidate)
-    try:
-        candidate.relative_to(_normalized_absolute_path(REPO_ROOT / "artifacts" / "orchestration"))
-    except ValueError as exc:
-        raise SlackSocketAuditError(
-            "Slack operator bridge audit directory must stay under artifacts/orchestration."
-        ) from exc
-    return candidate
-
-
-def _validate_workflow_ref(ref: str) -> str:
-    if ref not in ALLOWED_WORKFLOW_REFS or not _is_safe_ref(ref):
-        raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
-    return ref
-
-
-def _validate_workflow_file(workflow_file: str) -> str:
-    if workflow_file not in ALLOWED_WORKFLOWS:
-        raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
-    return workflow_file
-
-
-def _validate_repo(raw_repo: str | None) -> str | None:
-    if raw_repo is None or not raw_repo.strip():
-        return None
-    repo = raw_repo.strip()
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
-        raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
-    return repo
+    return cast(
+        Path,
+        _config._resolve_audit_dir(
+            raw_audit_dir,
+            repo_root=Path(REPO_ROOT),
+            audit_artifact_dir=Path(AUDIT_ARTIFACT_DIR),
+        ),
+    )
 
 
 def build_config(
@@ -619,270 +288,67 @@ def build_config(
 ) -> BridgeConfig:
     """Read sanitized bridge config from runtime env."""
 
-    if dispatch_mode not in {"dry-run", "execute"}:
-        raise SlackSocketConfigError("Slack operator bridge dispatch mode is invalid.")
-    return BridgeConfig(
+    return _config.build_config(
         dispatch_mode=dispatch_mode,
-        allowed_channels=_allowlist_from_env(SLACK_CHANNEL_ALLOWLIST_ENV, label="channel"),
-        allowed_users=_allowlist_from_env(SLACK_USER_ALLOWLIST_ENV, label="user"),
-        allowed_teams=_allowlist_from_env(SLACK_TEAM_ALLOWLIST_ENV, label="team"),
-        audit_dir=_resolve_audit_dir(audit_dir),
-        repo=_validate_repo(repo or os.environ.get("GITHUB_REPOSITORY")),
-        workflow_file=_validate_workflow_file(workflow_file),
-        workflow_ref=_validate_workflow_ref(workflow_ref),
-        timeout_seconds=_positive_int_from_env(BRIDGE_TIMEOUT_ENV, 10, maximum=30),
-        min_interval_seconds=_positive_int_from_env(
-            BRIDGE_MIN_INTERVAL_ENV,
-            60,
-            maximum=3600,
-        ),
-        audit_retention_days=_positive_int_from_env(
-            BRIDGE_AUDIT_RETENTION_DAYS_ENV,
-            DEFAULT_AUDIT_RETENTION_DAYS,
-            maximum=MAX_AUDIT_RETENTION_DAYS,
-        ),
-        slack_app_token=_optional_token(SLACK_APP_AUTH_ENV),
-        slack_bot_token=_optional_token(SLACK_BOT_AUTH_ENV),
-        github_token=_github_token(),
-        live_approval_sha256=_live_approval_sha256(),
+        repo_root=Path(REPO_ROOT),
+        audit_artifact_dir=Path(AUDIT_ARTIFACT_DIR),
+        audit_dir=audit_dir,
+        repo=repo,
+        workflow_file=workflow_file,
+        workflow_ref=workflow_ref,
     )
-
-
-def _is_safe_ref(value: str) -> bool:
-    if (
-        not value
-        or CONTROL_CHAR_RE.search(value)
-        or SHELL_META_RE.search(value)
-        or not SAFE_BRANCH_RE.fullmatch(value)
-        or value.startswith(("-", "/", "."))
-        or value.endswith(("/", "."))
-        or ".." in value
-        or "//" in value
-        or "@{" in value
-        or value.startswith("refs/")
-    ):
-        return False
-    return all(
-        part not in {"", ".", ".."} and not part.startswith(".") for part in value.split("/")
-    )
-
-
-def _validate_hypothesis(value: str) -> str:
-    hypothesis = value.strip()
-    if (
-        len(hypothesis) < 8
-        or len(hypothesis) > 280
-        or CONTROL_CHAR_RE.search(hypothesis)
-        or SHELL_META_RE.search(hypothesis)
-        or '"' in hypothesis
-        or "'" in hypothesis
-        or LOCAL_PATH_RE.search(hypothesis)
-        or ENV_ASSIGNMENT_RE.search(hypothesis)
-        or SECRET_SHAPED_RE.search(hypothesis)
-    ):
-        raise SlackSocketCommandError("Slack operator command is invalid.")
-    return hypothesis
-
-
-def parse_operator_command(text: str, *, command_hint: str | None = None) -> OperatorCommand:
-    """Parse one bounded Slack operator command."""
-
-    normalized = CONTROL_CHAR_RE.sub(" ", text).strip()
-    normalized = re.sub(r"^(<@[A-Za-z0-9_-]+>\s*)+", "", normalized).strip()
-    if command_hint == "/run-experiment":
-        normalized = f"run-experiment {normalized}".strip()
-    if normalized.startswith("/"):
-        normalized = normalized[1:]
-    if not normalized:
-        raise SlackSocketCommandError("Slack operator command is invalid.")
-    verb, _separator, remainder = normalized.partition(" ")
-    if verb not in ALLOWED_COMMANDS:
-        raise SlackSocketCommandError("Slack operator command is invalid.")
-    if verb in {"help", "kpp-status", "mvp-evidence", "status"}:
-        if remainder.strip():
-            raise SlackSocketCommandError("Slack operator command is invalid.")
-        return OperatorCommand(kind=verb)
-    branch, separator, hypothesis = remainder.strip().partition(" ")
-    if not separator or not _is_safe_ref(branch):
-        raise SlackSocketCommandError("Slack operator command is invalid.")
-    return OperatorCommand(
-        kind="run-experiment",
-        branch_ref=branch,
-        hypothesis=_validate_hypothesis(hypothesis),
-    )
-
-
-def normalize_slack_payload(payload: dict[str, Any]) -> OperatorEvent:
-    """Normalize slash-command or app-mention payloads into one event shape."""
-
-    raw_body = payload.get("payload")
-    body: dict[str, Any] = raw_body if isinstance(raw_body, dict) else payload
-    raw_event = body.get("event")
-    event: dict[str, Any] = raw_event if isinstance(raw_event, dict) else {}
-    raw_event_id = (
-        payload.get("envelope_id")
-        or body.get("envelope_id")
-        or body.get("event_id")
-        or event.get("client_msg_id")
-    )
-    if raw_event_id is None and body.get("trigger_id"):
-        raw_event_id = f"trigger-{_sha256_text(str(body['trigger_id']))[:32]}"
-    event_id = str(raw_event_id or "").strip()
-    channel = str(body.get("channel_id") or event.get("channel") or "").strip()
-    user = str(body.get("user_id") or event.get("user") or "").strip()
-    team = str(body.get("team_id") or event.get("team") or "").strip() or None
-    text = str(body.get("text") or event.get("text") or "").strip()
-    command_hint = str(body.get("command") or "").strip() or None
-    if not event_id or not channel or not user:
-        raise SlackSocketCommandError("Slack operator event payload is invalid.")
-    _normalize_slack_id(event_id, label="event")
-    _normalize_slack_id(channel, label="channel")
-    _normalize_slack_id(user, label="user")
-    if team is not None:
-        _normalize_slack_id(team, label="team")
-    return OperatorEvent(
-        event_id=event_id,
-        channel_id=channel,
-        user_id=user,
-        team_id=team,
-        text=text,
-        command_hint=command_hint,
-    )
-
-
-def _require_authorized_event(event: OperatorEvent, config: BridgeConfig) -> None:
-    if not config.allowed_channels or event.channel_id not in config.allowed_channels:
-        raise SlackSocketCommandError("Slack operator channel is not allowed.")
-    if not config.allowed_users or event.user_id not in config.allowed_users:
-        raise SlackSocketCommandError("Slack operator user is not allowed.")
-    if config.allowed_teams and event.team_id not in config.allowed_teams:
-        raise SlackSocketCommandError("Slack operator workspace is not allowed.")
-
-
-def _audit_path(config: BridgeConfig, event: OperatorEvent) -> Path:
-    return config.audit_dir / f"{_sha256_text(event.event_id)}.json"
-
-
-def _read_audit(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.") from exc
-    if not isinstance(payload, dict):
-        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
-    return payload
 
 
 def validate_secret_presence(
     required_env: tuple[str, ...] = LIVE_SECRET_PRESENCE_ENV,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Return a value-free live-smoke secret/allowlist presence report."""
 
-    present = {env_name: bool(os.environ.get(env_name, "").strip()) for env_name in required_env}
-    missing = [env_name for env_name, is_present in present.items() if not is_present]
-    if not missing:
-        config = build_config(dispatch_mode="dry-run")
-        if (
-            config.slack_app_token is None
-            or config.slack_bot_token is None
-            or not config.allowed_channels
-            or not config.allowed_users
-        ):
-            missing = list(required_env)
-    return {
-        "missing_env": missing,
-        "required_env_present": present,
-        "status": "pass" if not missing else "fail",
-    }
+    return cast(
+        dict[str, object],
+        _config.validate_secret_presence(
+            config_builder=build_config,
+            required_env=required_env,
+        ),
+    )
 
 
-def _audit_timestamp(audit: dict[str, Any]) -> datetime:
-    timestamp_raw = audit.get("timestamp")
-    if not isinstance(timestamp_raw, str):
-        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
-    try:
-        timestamp = datetime.fromisoformat(timestamp_raw)
-    except ValueError as exc:
-        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.") from exc
-    if timestamp.tzinfo is None:
-        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
-    return timestamp.astimezone(timezone.utc)
+def render_mvp_evidence_summary() -> SlackSafeMessage:
+    """Render MVP evidence summary with facade-level snapshot reader compatibility."""
+
+    return _rendering.render_mvp_evidence_summary(
+        snapshot_reader=_read_latest_snapshot_line,
+        allowed_event_names=_MVP_ALLOWED_EVENT_NAMES,
+    )
+
+
+def _audit_path(config: BridgeConfig, event: OperatorEvent) -> Path:
+    return cast(Path, _audit._audit_path(config, event))
+
+
+def _read_audit(path: Path) -> dict[str, Any] | None:
+    return cast(dict[str, Any] | None, _audit._read_audit(path))
+
+
+def _audit_timestamp(audit: dict[str, Any]) -> Any:
+    return _audit._audit_timestamp(audit)
 
 
 def audit_retention_summary(config: BridgeConfig, *, cleanup: bool) -> dict[str, Any]:
     """Report or delete expired Slack audit JSON files without exposing paths."""
 
-    mode = "cleanup" if cleanup else "report"
-    _reject_symlinked_output_components(
-        (config.audit_dir / "retention-check.json").absolute(),
-        artifact_dir=Path(config.audit_dir).absolute(),
+    return cast(
+        dict[str, Any],
+        _audit.audit_retention_summary(config, cleanup=cleanup, repo_root=Path(REPO_ROOT)),
     )
-    if not config.audit_dir.exists():
-        return {
-            "deleted_count": 0,
-            "expired_count": 0,
-            "mode": mode,
-            "retention_days": config.audit_retention_days,
-            "status": "pass",
-        }
-    threshold = _utcnow() - timedelta(days=config.audit_retention_days)
-    expired_paths: list[Path] = []
-    try:
-        audit_paths = sorted(config.audit_dir.glob("*.json"))
-    except OSError as exc:
-        raise SlackSocketAuditError("Unable to inspect Slack operator audit artifacts.") from exc
-    for audit_path in audit_paths:
-        _reject_symlinked_output_components(
-            audit_path.absolute(),
-            artifact_dir=Path(config.audit_dir).absolute(),
-        )
-        audit = _read_audit(audit_path)
-        if audit is None:
-            continue
-        if _audit_timestamp(audit) < threshold:
-            expired_paths.append(audit_path)
-    deleted_count = 0
-    if cleanup:
-        for audit_path in expired_paths:
-            try:
-                audit_path.unlink()
-            except OSError as exc:
-                raise SlackSocketAuditError(
-                    "Unable to clean up Slack operator audit artifact."
-                ) from exc
-            deleted_count += 1
-    return {
-        "deleted_count": deleted_count,
-        "expired_count": len(expired_paths),
-        "mode": mode,
-        "retention_days": config.audit_retention_days,
-        "status": "pass",
-    }
 
 
 def _ensure_event_not_processed(path: Path, *, config: BridgeConfig) -> None:
-    _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
-    )
-    existing = _read_audit(path)
-    if existing is None:
-        return
-    if existing.get("status") in {"claimed", "dry_run", "dispatched", "failed", "rejected"}:
-        raise SlackSocketAuditError("Slack operator event was already processed.")
-    raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
+    _audit._ensure_event_not_processed(path, config=config, repo_root=Path(REPO_ROOT))
 
 
 def _approval_prefix(config: BridgeConfig, command: OperatorCommand) -> str | None:
-    """Return a truncated approval hash prefix for run-experiment commands.
-
-    Returns None when live approval is not configured or command is not
-    run-experiment, so callers can distinguish dry-run from live dispatch.
-    """
-    if config.live_approval_sha256 is not None and command.kind == "run-experiment":
-        return config.live_approval_sha256[:16]
-    return None
+    return cast(str | None, _audit._approval_prefix(config, command))
 
 
 def _audit_payload(
@@ -893,22 +359,16 @@ def _audit_payload(
     status: str,
     failure_class: str | None,
 ) -> dict[str, Any]:
-    return {
-        "approval_hash": _approval_prefix(config, command) or "none",
-        "branch_hash": _safe_hash(command.branch_ref),
-        "channel_hash": _sha256_text(event.channel_id),
-        "command_kind": command.kind,
-        "dispatch_mode": config.dispatch_mode,
-        "event_hash": _sha256_text(event.event_id),
-        "failure_class": failure_class or "none",
-        "hypothesis_hash": _safe_hash(command.hypothesis),
-        "provider_type": "slack_socket_mode",
-        "status": status,
-        "team_hash": _safe_hash(event.team_id),
-        "timestamp": _utcnow().isoformat(),
-        "user_hash": _sha256_text(event.user_id),
-        "workflow_file": config.workflow_file,
-    }
+    return cast(
+        dict[str, Any],
+        _audit._audit_payload(
+            event=event,
+            command=command,
+            config=config,
+            status=status,
+            failure_class=failure_class,
+        ),
+    )
 
 
 def _write_audit(
@@ -920,28 +380,15 @@ def _write_audit(
     status: str,
     failure_class: str | None = None,
 ) -> None:
-    _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
+    _audit._write_audit(
+        path=path,
+        event=event,
+        command=command,
+        config=config,
+        repo_root=Path(REPO_ROOT),
+        status=status,
+        failure_class=failure_class,
     )
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(
-                _audit_payload(
-                    event=event,
-                    command=command,
-                    config=config,
-                    status=status,
-                    failure_class=failure_class,
-                ),
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-    except OSError as exc:
-        raise SlackSocketAuditError("Unable to write Slack operator audit artifact.") from exc
 
 
 def _write_audit_exclusive(
@@ -953,143 +400,49 @@ def _write_audit_exclusive(
     status: str,
     failure_class: str | None = None,
 ) -> None:
-    _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
-    )
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to prepare Slack operator audit artifact path."
-        ) from exc
-    payload = _audit_payload(
+    _audit._write_audit_exclusive(
+        path=path,
         event=event,
         command=command,
         config=config,
+        repo_root=Path(REPO_ROOT),
         status=status,
         failure_class=failure_class,
     )
-    try:
-        with path.open("x", encoding="utf-8") as audit_file:
-            audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    except FileExistsError:
-        existing = _read_audit(path)
-        if existing is None:
-            raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
-        raise SlackSocketAuditError("Slack operator event was already processed.")
-    except OSError as exc:
-        raise SlackSocketAuditError("Unable to write Slack operator audit artifact.") from exc
 
 
 def _claim_event(
     path: Path, *, event: OperatorEvent, command: OperatorCommand, config: BridgeConfig
 ) -> None:
-    _reject_symlinked_output_components(
-        path.absolute(), artifact_dir=Path(config.audit_dir).absolute()
-    )
-    payload = _audit_payload(
+    _audit._claim_event(
+        path,
         event=event,
         command=command,
         config=config,
-        status="claimed",
-        failure_class=None,
+        repo_root=Path(REPO_ROOT),
     )
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to prepare Slack operator audit artifact path."
-        ) from exc
-    try:
-        with path.open("x", encoding="utf-8") as audit_file:
-            audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-        return
-    except FileExistsError:
-        existing = _read_audit(path)
-    except OSError as exc:
-        raise SlackSocketAuditError("Unable to claim Slack operator event audit artifact.") from exc
-    if existing is None or existing.get("status") not in {
-        "claimed",
-        "dry_run",
-        "dispatched",
-        "failed",
-        "rejected",
-    }:
-        raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
-    raise SlackSocketAuditError("Slack operator event was already processed.")
 
 
 def _rate_limit_claim_dir(
     config: BridgeConfig, *, lock_dir_name: str = RATE_LIMIT_LOCK_DIR
 ) -> Path:
-    return config.audit_dir / lock_dir_name
+    return cast(Path, _audit._rate_limit_claim_dir(config, lock_dir_name=lock_dir_name))
 
 
-def _read_rate_limit_claim(lock_dir: Path) -> datetime:
-    claim_path = lock_dir / "claim.json"
-    try:
-        payload = json.loads(claim_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SlackSocketAuditError("Existing Slack operator rate-limit claim is invalid.") from exc
-    if not isinstance(payload, dict):
-        raise SlackSocketAuditError("Existing Slack operator rate-limit claim is invalid.")
-    timestamp_raw = payload.get("timestamp")
-    if not isinstance(timestamp_raw, str):
-        raise SlackSocketAuditError("Existing Slack operator rate-limit claim is invalid.")
-    try:
-        timestamp = datetime.fromisoformat(timestamp_raw)
-    except ValueError as exc:
-        raise SlackSocketAuditError("Existing Slack operator rate-limit claim is invalid.") from exc
-    if timestamp.tzinfo is None:
-        raise SlackSocketAuditError("Existing Slack operator rate-limit claim is invalid.")
-    return timestamp.astimezone(timezone.utc)
+def _read_rate_limit_claim(lock_dir: Path) -> Any:
+    return _audit._read_rate_limit_claim(lock_dir)
 
 
 def _remove_stale_rate_limit_claim(lock_dir: Path) -> None:
-    try:
-        (lock_dir / "claim.json").unlink()
-    except FileNotFoundError:
-        pass
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to clear stale Slack operator rate-limit claim."
-        ) from exc
-    try:
-        lock_dir.rmdir()
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to clear stale Slack operator rate-limit claim."
-        ) from exc
+    _audit._remove_stale_rate_limit_claim(lock_dir)
 
 
 def _partial_rate_limit_claim_is_stale(lock_dir: Path, *, config: BridgeConfig) -> bool:
-    """Return whether an incomplete rate-limit claim is old enough to clean."""
-
-    try:
-        modified_at = datetime.fromtimestamp(lock_dir.stat().st_mtime, tz=timezone.utc)
-    except OSError as exc:
-        raise SlackSocketAuditError("Unable to inspect Slack operator rate-limit claim.") from exc
-    return (_utcnow() - modified_at).total_seconds() >= config.timeout_seconds
+    return cast(bool, _audit._partial_rate_limit_claim_is_stale(lock_dir, config=config))
 
 
 def _cleanup_partial_rate_limit_claim(lock_dir: Path) -> None:
-    claim_path = lock_dir / "claim.json"
-    try:
-        claim_path.unlink()
-    except FileNotFoundError:
-        pass
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to clean up partial Slack operator rate-limit claim."
-        ) from exc
-    try:
-        lock_dir.rmdir()
-    except FileNotFoundError:
-        pass
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to clean up partial Slack operator rate-limit claim."
-        ) from exc
+    _audit._cleanup_partial_rate_limit_claim(lock_dir)
 
 
 def _claim_rate_limit(
@@ -1098,59 +451,13 @@ def _claim_rate_limit(
     *,
     lock_dir_name: str = RATE_LIMIT_LOCK_DIR,
 ) -> None:
-    if config.min_interval_seconds <= 0:
-        return
-    lock_dir = _rate_limit_claim_dir(config, lock_dir_name=lock_dir_name)
-    _reject_symlinked_output_components(
-        (lock_dir / "claim.json").absolute(),
-        artifact_dir=Path(config.audit_dir).absolute(),
+    _audit._claim_rate_limit(
+        config,
+        event,
+        repo_root=Path(REPO_ROOT),
+        lock_dir_name=lock_dir_name,
+        remove_stale_rate_limit_claim=_remove_stale_rate_limit_claim,
     )
-    try:
-        config.audit_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise SlackSocketAuditError(
-            "Unable to prepare Slack operator rate-limit claim path."
-        ) from exc
-    for _ in range(RATE_LIMIT_CLAIM_MAX_ATTEMPTS):
-        try:
-            lock_dir.mkdir()
-        except FileExistsError:
-            _reject_symlinked_output_components(
-                (lock_dir / "claim.json").absolute(),
-                artifact_dir=Path(config.audit_dir).absolute(),
-            )
-            if not (lock_dir / "claim.json").exists():
-                if _partial_rate_limit_claim_is_stale(lock_dir, config=config):
-                    _remove_stale_rate_limit_claim(lock_dir)
-                continue
-            timestamp = _read_rate_limit_claim(lock_dir)
-            age_seconds = (_utcnow() - timestamp).total_seconds()
-            if 0 <= age_seconds < config.min_interval_seconds:
-                raise SlackSocketAuditError("Slack operator bridge rate limit is active.")
-            _remove_stale_rate_limit_claim(lock_dir)
-            continue
-        except OSError as exc:
-            raise SlackSocketAuditError(
-                "Unable to create Slack operator rate-limit claim."
-            ) from exc
-        claim = {
-            "event_hash": _sha256_text(event.event_id),
-            "provider_type": "slack_socket_mode",
-            "status": "claimed",
-            "timestamp": _utcnow().isoformat(),
-        }
-        try:
-            (lock_dir / "claim.json").write_text(
-                json.dumps(claim, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-        except OSError as exc:
-            _cleanup_partial_rate_limit_claim(lock_dir)
-            raise SlackSocketAuditError(
-                "Unable to record Slack operator rate-limit claim."
-            ) from exc
-        return
-    raise SlackSocketAuditError("Unable to acquire Slack operator rate-limit claim.")
 
 
 def _claim_rejected_event_audit_throttle(config: BridgeConfig, event: OperatorEvent) -> None:
@@ -1160,204 +467,15 @@ def _claim_rejected_event_audit_throttle(config: BridgeConfig, event: OperatorEv
 
 
 def _check_rate_limit(config: BridgeConfig) -> None:
-    if not config.audit_dir.exists():
-        return
-    now = _utcnow()
-    try:
-        audit_paths = sorted(config.audit_dir.glob("*.json"))
-    except OSError as exc:
-        raise SlackSocketAuditError("Unable to inspect Slack operator audit artifacts.") from exc
-    for audit_path in audit_paths:
-        audit = _read_audit(audit_path)
-        if audit is None or audit.get("status") not in {"dry_run", "dispatched"}:
-            continue
-        if config.min_interval_seconds <= 0:
-            continue
-        timestamp_raw = audit.get("timestamp")
-        if not isinstance(timestamp_raw, str):
-            raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
-        try:
-            timestamp = datetime.fromisoformat(timestamp_raw)
-        except ValueError as exc:
-            raise SlackSocketAuditError(
-                "Existing Slack operator audit artifact is invalid."
-            ) from exc
-        if timestamp.tzinfo is None:
-            raise SlackSocketAuditError("Existing Slack operator audit artifact is invalid.")
-        age_seconds = (now - timestamp.astimezone(timezone.utc)).total_seconds()
-        if 0 <= age_seconds < config.min_interval_seconds:
-            raise SlackSocketAuditError("Slack operator bridge rate limit is active.")
+    _audit._check_rate_limit(config)
 
 
 def _require_execute_config(config: BridgeConfig) -> tuple[str, str]:
-    if os.environ.get(BRIDGE_EXECUTE_ENABLED_ENV, "").strip() != BRIDGE_EXECUTE_ENABLED_VALUE:
-        raise SlackSocketConfigError("Slack execute-mode promotion gate is not enabled.")
-    if not config.allowed_teams:
-        raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
-    if not config.repo or not config.github_token:
-        raise SlackSocketConfigError("GitHub dispatch configuration is incomplete.")
-    return config.repo, config.github_token
+    return cast(tuple[str, str], _dispatch._require_execute_config(config))
 
 
 def _github_dispatch_inputs(command: OperatorCommand, *, config: BridgeConfig) -> dict[str, str]:
-    if command.kind != "run-experiment" or command.branch_ref is None or command.hypothesis is None:
-        raise SlackSocketDispatchError("Slack operator command is not dispatchable.")
-    if config.live_approval_sha256 is not None:
-        digest = _compute_live_approval_digest(command.branch_ref, command.hypothesis)
-        if digest != config.live_approval_sha256:
-            raise SlackSocketDispatchError(
-                "Slack live-dispatch approval mismatch. "
-                "The requested branch and hypothesis do not match the reviewed approval digest."
-            )
-        return {
-            "branch_ref": command.branch_ref,
-            "dry_run": "false",
-            "hypothesis_sha256": _sha256_text(command.hypothesis),
-            "approval_ref": config.live_approval_sha256,
-        }
-    return {
-        "branch_ref": command.branch_ref,
-        "dry_run": "true",
-        "hypothesis_sha256": _sha256_text(command.hypothesis),
-        "approval_ref": "none",
-    }
-
-
-def validate_live_smoke_inputs(
-    *,
-    branch_ref: str | None = None,
-    hypothesis_sha256: str | None = None,
-) -> dict[str, str]:
-    """Validate manual workflow smoke inputs without printing raw values."""
-
-    raw_branch_ref = (
-        branch_ref if branch_ref is not None else os.environ.get(LIVE_SMOKE_BRANCH_REF_ENV, "")
-    ).strip()
-    raw_hypothesis_sha256 = (
-        hypothesis_sha256
-        if hypothesis_sha256 is not None
-        else os.environ.get(LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "")
-    ).strip()
-    if not _is_safe_ref(raw_branch_ref):
-        raise SlackSocketConfigError("Slack live smoke input configuration is invalid.")
-    if SHA256_HEX_RE.fullmatch(raw_hypothesis_sha256) is None:
-        raise SlackSocketConfigError("Slack live smoke input configuration is invalid.")
-    return {
-        "branch_ref_status": "valid",
-        "hypothesis_sha256_status": "valid",
-    }
-
-
-def _send_slack_api_request(
-    *,
-    method: str,
-    token: str,
-    timeout_seconds: int,
-) -> dict[str, Any]:
-    """Call a fixed Slack Web API method for bounded smoke validation."""
-
-    if method not in SLACK_LIVE_SMOKE_METHODS:
-        raise SlackSocketConfigError("Slack live smoke method is invalid.")
-    connection: http.client.HTTPSConnection | None = None
-    try:
-        connection = http.client.HTTPSConnection(SLACK_API_HOST, timeout=timeout_seconds)
-        connection.request(
-            "POST",
-            f"/api/{method}",
-            body=b"{}",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json; charset=utf-8",
-                "User-Agent": "pulseplate-experiment-runner-slack-bridge",
-            },
-        )
-        response = connection.getresponse()
-        response_body = response.read()
-    except (OSError, http.client.HTTPException) as exc:
-        raise SlackSocketConfigError("Slack live smoke validation failed.") from exc
-    finally:
-        if connection is not None:
-            connection.close()
-    if response.status not in {200, 201, 202}:
-        raise SlackSocketConfigError("Slack live smoke validation failed.")
-    try:
-        payload = json.loads(response_body.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SlackSocketConfigError("Slack live smoke validation failed.") from exc
-    if not isinstance(payload, dict):
-        raise SlackSocketConfigError("Slack live smoke validation failed.")
-    return payload
-
-
-def _safe_slack_error_code(payload: dict[str, Any]) -> str:
-    raw_error = payload.get("error")
-    if not isinstance(raw_error, str):
-        return "unknown"
-    error = raw_error.strip()
-    if SAFE_SLACK_ERROR_CODE_RE.fullmatch(error) is None:
-        return "unknown"
-    return error
-
-
-def _require_slack_ok_response(payload: dict[str, Any], *, check_name: str) -> None:
-    if payload.get("ok") is not True:
-        error_code = _safe_slack_error_code(payload)
-        raise SlackSocketConfigError(
-            f"Slack live smoke {check_name} validation failed: {error_code}."
-        )
-
-
-def _require_socket_mode_url(payload: dict[str, Any]) -> None:
-    socket_url = payload.get("url")
-    if not isinstance(socket_url, str) or not socket_url.startswith("wss://"):
-        raise SlackSocketConfigError("Slack live smoke Socket Mode validation failed.")
-
-
-def _require_live_smoke_runtime(config: BridgeConfig) -> None:
-    if config.slack_app_token is None or config.slack_bot_token is None:
-        raise SlackSocketConfigError("Slack Socket Mode configuration is incomplete.")
-    if not config.allowed_channels or not config.allowed_users or not config.allowed_teams:
-        raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
-
-
-def validate_live_smoke(
-    config: BridgeConfig,
-    *,
-    branch_ref: str | None = None,
-    hypothesis_sha256: str | None = None,
-    slack_api_transport: SlackApiTransport | None = None,
-) -> dict[str, Any]:
-    """Run bounded live-smoke checks and return a redacted status payload."""
-
-    _require_live_smoke_runtime(config)
-    input_status = validate_live_smoke_inputs(
-        branch_ref=branch_ref,
-        hypothesis_sha256=hypothesis_sha256,
-    )
-    transport = slack_api_transport or _send_slack_api_request
-    slack_app_token = cast(str, config.slack_app_token)
-    slack_bot_token = cast(str, config.slack_bot_token)
-    socket_payload = transport(
-        method="apps.connections.open",
-        token=slack_app_token,
-        timeout_seconds=config.timeout_seconds,
-    )
-    _require_slack_ok_response(socket_payload, check_name="Socket Mode")
-    _require_socket_mode_url(socket_payload)
-    bot_payload = transport(
-        method="auth.test",
-        token=slack_bot_token,
-        timeout_seconds=config.timeout_seconds,
-    )
-    _require_slack_ok_response(bot_payload, check_name="bot auth")
-    return {
-        **input_status,
-        "allowlist_status": "present",
-        "bot_auth_status": "validated",
-        "dispatch_mode": config.dispatch_mode,
-        "socket_mode_status": "validated",
-        "status": "pass",
-    }
+    return cast(dict[str, str], _dispatch._github_dispatch_inputs(command, config=config))
 
 
 def _send_github_workflow_dispatch(
@@ -1369,31 +487,54 @@ def _send_github_workflow_dispatch(
     token: str,
     timeout_seconds: int,
 ) -> None:
-    payload = json.dumps({"ref": ref, "inputs": inputs}).encode("utf-8")
-    connection: http.client.HTTPSConnection | None = None
-    try:
-        connection = http.client.HTTPSConnection(GITHUB_API_HOST, timeout=timeout_seconds)
-        connection.request(
-            "POST",
-            f"/repos/{repo}/actions/workflows/{workflow_file}/dispatches",
-            body=payload,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json; charset=utf-8",
-                "User-Agent": "pulseplate-experiment-runner-slack-bridge",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        )
-        response = connection.getresponse()
-        response.read()
-    except (OSError, http.client.HTTPException) as exc:
-        raise SlackSocketDispatchError("GitHub workflow dispatch failed.") from exc
-    finally:
-        if connection is not None:
-            connection.close()
-    if response.status not in {200, 201, 202, 204}:
-        raise SlackSocketDispatchError("GitHub workflow dispatch failed.")
+    _dispatch._send_github_workflow_dispatch(
+        repo=repo,
+        workflow_file=workflow_file,
+        ref=ref,
+        inputs=inputs,
+        token=token,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def _send_slack_api_request(
+    *,
+    method: str,
+    token: str,
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        _transport._send_slack_api_request(
+            method=method,
+            token=token,
+            timeout_seconds=timeout_seconds,
+        ),
+    )
+
+
+def _require_live_smoke_runtime(config: BridgeConfig) -> None:
+    _transport._require_live_smoke_runtime(config)
+
+
+def validate_live_smoke(
+    config: BridgeConfig,
+    *,
+    branch_ref: str | None = None,
+    hypothesis_sha256: str | None = None,
+    slack_api_transport: SlackApiTransport | None = None,
+) -> dict[str, Any]:
+    """Run bounded live-smoke checks and return a redacted status payload."""
+
+    return cast(
+        dict[str, Any],
+        _transport.validate_live_smoke(
+            config,
+            branch_ref=branch_ref,
+            hypothesis_sha256=hypothesis_sha256,
+            slack_api_transport=slack_api_transport or _send_slack_api_request,
+        ),
+    )
 
 
 def process_operator_event(
@@ -1501,14 +642,7 @@ def _require_live_socket_runtime(config: BridgeConfig) -> None:
 
 
 def _load_slack_bolt() -> tuple[Any, Any]:
-    try:
-        from slack_bolt import App
-        from slack_bolt.adapter.socket_mode import SocketModeHandler
-    except ModuleNotFoundError as exc:
-        raise SlackSocketConfigError(
-            "Slack Socket Mode SDK is unavailable. Install the optional operator Slack SDK runtime."
-        ) from exc
-    return App, SocketModeHandler
+    return cast(tuple[Any, Any], _transport._load_slack_bolt())
 
 
 def run_socket_listener(config: BridgeConfig) -> int:
@@ -1550,32 +684,35 @@ def _format_command_reply(
     """Return the operator-visible reply for one processed command."""
 
     if command.kind == "help":
-        return render_operator_help_message().as_text()
+        return cast(str, render_operator_help_message().as_text())
     if command.kind == "status":
-        return render_operator_status_message(config).as_text()
+        return cast(str, render_operator_status_message(config).as_text())
     if command.kind == "kpp-status":
-        return render_kpp_status_overview().as_text()
+        return cast(str, render_kpp_status_overview().as_text())
     if command.kind == "mvp-evidence":
-        return render_mvp_evidence_summary().as_text()
+        return cast(str, render_mvp_evidence_summary().as_text())
     if command.kind == "run-experiment":
         if decision is not None and decision.status == "dispatched":
             dry_run_flag = "true" if decision.approval_hash is None else "false"
-            return SlackSafeMessage(
-                message_type="dispatch_result",
-                header="Experiment Runner dispatch result",
-                status_line="dispatched",
-                scope="Fixed workflow dispatch was requested by an allowlisted operator.",
-                evidence_summary=(
-                    f"workflow_file={decision.workflow_file}",
-                    f"branch_hash={decision.branch_hash or 'none'}",
-                    f"hypothesis_hash={decision.hypothesis_hash or 'none'}",
-                    f"workflow_input_dry_run={dry_run_flag}",
-                    f"approval_hash={decision.approval_hash or 'none'}",
-                ),
-                action_required="Inspect GitHub workflow result; Slack does not prove readiness.",
-                artifact_refs=(".github/workflows/experiment-runner-dispatch.yml",),
-            ).as_text()
-        return render_dispatch_dry_run_preview(command).as_text()
+            return cast(
+                str,
+                SlackSafeMessage(
+                    message_type="dispatch_result",
+                    header="Experiment Runner dispatch result",
+                    status_line="dispatched",
+                    scope="Fixed workflow dispatch was requested by an allowlisted operator.",
+                    evidence_summary=(
+                        f"workflow_file={decision.workflow_file}",
+                        f"branch_hash={decision.branch_hash or 'none'}",
+                        f"hypothesis_hash={decision.hypothesis_hash or 'none'}",
+                        f"workflow_input_dry_run={dry_run_flag}",
+                        f"approval_hash={decision.approval_hash or 'none'}",
+                    ),
+                    action_required="Inspect GitHub workflow result; Slack does not prove readiness.",
+                    artifact_refs=(".github/workflows/experiment-runner-dispatch.yml",),
+                ).as_text(),
+            )
+        return cast(str, render_dispatch_dry_run_preview(command).as_text())
     raise SlackSocketCommandError("Slack operator command is invalid.")
 
 

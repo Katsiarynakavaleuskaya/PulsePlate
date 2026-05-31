@@ -444,8 +444,31 @@ Rules:
   slug in the prompt (for example, "You are PulsePlate custom role
   `security-auditor`"). The transport name is adapter-only; the repo role slug and
   bootstrap packet remain the authority for the pass.
-- Privileged-surface lanes must still include the canonical mandatory post-open
-  `qa-engineer-agent -> bug-hunter` pass even when earlier reviewers already participated.
+- Missing execution of a bootstrap-assigned role is a hard gate: do not implement,
+  push, or claim readiness until the role has run in order or the coordinator
+  records an explicit disposition with evidence in the packet/runbook.
+- Coordinator-owned PR lanes must include the canonical mandatory post-open
+  `qa-engineer-agent -> bug-hunter -> security-auditor` pass, followed by a
+  Codex Security diff scan / finding discovery when the Codex Security plugin is
+  available. These post-open passes do not replace pre-open role agents.
+
+### Mandatory PR Orchestration Gates
+
+For every non-trivial PR:
+
+- Run `pulseplate-premortem-risk-review` against the actual diff before PR open.
+  Every finding must be fixed in code/docs/tests or dispositioned as
+  `NOT-A-BUG` / `DEFERRED` with evidence or backlog proof before mapping or merge
+  readiness.
+- Run Experiment Runner in oracle/advisory mode after the first coherent diff
+  and before PR open. Local artifact load/write failures are infrastructure
+  blockers, not a valid `Not applicable` reason. If the result materially shapes
+  code, tests, docs, mapping, or commit decisions, use the governed co-author
+  trailer.
+- After PR open, repeat the review loop through the declared post-open role
+  agents, Codex Security diff scan / finding discovery, and any explicitly
+  requested PR-review skill such as `pulseplate-pr-review`. Fix or disposition
+  every finding before updating fixed mapping or claiming readiness.
 
 ### PR Handling Lifecycle (Coordinator-Owned)
 
@@ -486,7 +509,7 @@ Operational procedure lives in `RUNBOOK_AGENT.md` and `docs/orchestration/COORDI
 - Any temporary provider fallback MUST be explicit and env-selected. Rollout notes MUST include rollback instructions, exit criteria, backlog link, and a remove-by date.
 
 **Provider PR-open context (hard):**
-- When a provider modernization PR is opened, the coordinator MUST attach the context packet to the declared role agents for review context. This context step does not replace the canonical mandatory post-open `qa-engineer-agent -> bug-hunter` lane.
+- When a provider modernization PR is opened, the coordinator MUST attach the context packet to the declared role agents for review context. This context step does not replace the canonical mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` lane.
 
 **Agent docs consistency:** Agent docs MUST stay consistent: routing ⊆ inventory ⊆ capability. Run `python scripts/orchestration/check_agent_consistency.py` (must PASS before merge readiness).
 

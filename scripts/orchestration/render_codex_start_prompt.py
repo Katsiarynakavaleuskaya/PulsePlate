@@ -42,6 +42,12 @@ ROLE_DISPATCH_GUIDANCE = (
     "each `dispatch_sequence` role in order. Do not treat task_bootstrap.py "
     "packet creation as role-agent execution."
 )
+POST_OPEN_REVIEW_GUIDANCE = (
+    "After the PR opens, run the mandatory post-open review gate in order: "
+    "`qa-engineer-agent -> bug-hunter -> security-auditor`, then run Codex "
+    "Security diff scan / finding discovery and `pulseplate-pr-review` when "
+    "requested. Fix or disposition every finding before merge-readiness checks."
+)
 
 
 class PromptError(ValueError):
@@ -231,6 +237,7 @@ def render_packet_prompt(
             f"Packet role dispatch contract: packet_creation_executes_roles={packet_creation_executes_roles}; role_agent_dispatch_required={role_agent_dispatch_required}.",
             f"Next role-agent dispatch command: $VENV_PYTHON scripts/orchestration/qoder_dispatch_bridge.py --packet {_shell_quote(packet_path)} --pretty",
             ROLE_DISPATCH_GUIDANCE,
+            POST_OPEN_REVIEW_GUIDANCE,
             "Experiment Runner evidence: for every non-trivial PR, create oracle-only evidence by default and record `## Experiment Runner Evidence` as `Artifact: artifacts/orchestration/experiments/results/<id>.json`; use `Not applicable: <reason>` only when the runner result is genuinely unused or inapplicable.",
             "Lane start provenance: record `## Lane Start Provenance` with `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow documented cleanup/emergency `Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` is supplemental and cannot be used alone.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
@@ -284,6 +291,7 @@ def render_recipe_prompt(
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
             "After task_bootstrap.py returns a packet, run `$VENV_PYTHON scripts/orchestration/qoder_dispatch_bridge.py --packet <packet> --pretty` and execute the manifest `dispatch_sequence` in order.",
             ROLE_DISPATCH_GUIDANCE,
+            POST_OPEN_REVIEW_GUIDANCE,
             "After coordinator bootstrap, create oracle-only Experiment Runner evidence by default for non-trivial PRs; the runner joins the lane and must not replace agent-coordinator.",
             "Record `## Experiment Runner Evidence` as `Artifact: artifacts/orchestration/experiments/results/<id>.json`; use `Not applicable: <reason>` only when the runner result is genuinely unused or inapplicable.",
             "Record `## Lane Start Provenance` with `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow documented cleanup/emergency `Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` is supplemental and cannot be used alone.",

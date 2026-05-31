@@ -148,9 +148,11 @@ Rules:
   `Artifact: artifacts/orchestration/experiments/results/<id>.json` or
   `Not applicable: <reason>`. Phase2 validation supports two rollout modes:
   `advisory` reports missing evidence without blocking, while `required` fails
-  closed when valid evidence is absent. The default remains advisory until the
-  coordinator deliberately promotes the lane; rollback is setting the Phase2
-  CLI/env mode back to `advisory`. Malformed evidence is a normal gate error in
+  closed when valid evidence is absent. Repo process treats Experiment Runner
+  evidence as a hard gate for every non-trivial PR even when a CI/local wrapper
+  runs in advisory fallback mode for gitignored local artifacts; rollback is
+  setting the Phase2 CLI/env mode back to `advisory` plus recording the explicit
+  coordinator/operator exception. Malformed evidence is a normal gate error in
   every mode because it creates false governance proof.
 - PR body mirrors or fixed-mapping artifacts should also include
   `## Lane Start Provenance` with the repo bootstrap packet or a narrow
