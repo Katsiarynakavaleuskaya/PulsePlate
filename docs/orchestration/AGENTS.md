@@ -6,13 +6,17 @@ Scope: `docs/orchestration/**`
 - [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](./AUTOMATION_READINESS_MATRIX.md) is the scope-level SoT for what is policy-only vs launcher-enforced vs host-runtime-constrained automation.
 - When a PR changes workflow or agent behavior only for an orchestration/docs lane, update this scoped file instead of broadcasting initiative-specific routing into root `AGENTS.md`.
 - PR-local orchestration packets are the canonical field-level contract for their lane. Higher-level chain docs should keep only the invariant and link back to the packet.
+- Repo-global post-open review gates supersede historical scoped lane shorthand:
+  every current non-trivial PR must run
+  `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff scan / finding discovery -> pulseplate-pr-review`
+  unless the coordinator records an explicit evidence-backed disposition.
 - For the design-agent runtime realignment bridge:
   - primary: `agent-coordinator`
   - secondary: `cursor-specialist-agent`
   - reviewer: `qa-engineer-agent`
   - advisory: `architecture-specialist`
   - optional consult: `creative-designer`, `frontend-engineer`
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - mandatory post-open lane: repo-global post-open review gates
 - For the design-bridge operationalization lane (`PR21` evidence pipeline):
   - primary: `agent-coordinator`
   - execution order:
@@ -21,7 +25,7 @@ Scope: `docs/orchestration/**`
     - `qa-engineer-agent`
   - advisory: `cursor-specialist-agent`
   - optional consult: `architecture-specialist`
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - mandatory post-open lane: repo-global post-open review gates
   - canonical packet:
     - [`docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`](./DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md)
 - For the design runtime system web+iOS PR series:
@@ -31,7 +35,7 @@ Scope: `docs/orchestration/**`
     - `frontend-engineer`
   - advisory: `cursor-specialist-agent`
   - reviewer: `architecture-specialist`
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - mandatory post-open lane: repo-global post-open review gates
   - invariants:
     - `PR-0` is docs-only governance and must not widen runtime/API/UI behavior
     - the lane stays downstream of merged design-runtime, design-bridge, and
@@ -71,7 +75,7 @@ Scope: `docs/orchestration/**`
     - `qa-engineer-agent`
     - `frontend-engineer`
     - `bug-hunter`
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter -> security-auditor`
+  - mandatory post-open lane: repo-global post-open review gates
   - invariants:
     - Kimi page, Google Drive folder, desktop code bundle, Figma, Canva, screenshots, and generated code remain read-only evidence/reference inputs only
     - Kimi evidence must normalize into repo vocabulary, component contracts, bridge coverage, fail-closed visual/accessibility decisions, and token/runtime parity boundaries before any web or iOS implementation
@@ -84,14 +88,14 @@ Scope: `docs/orchestration/**`
   - secondary: `backend-engineer`
   - reviewer: `security-auditor`
   - execution helper: `dev-operator`
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - mandatory post-open lane: repo-global post-open review gates
   - canonical packet/runbook:
     - [`docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`](./TIER1_CI_CD_TASK_PACKET_2026-03-26.md)
     - [`docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)
 - For the Tier 4 scientific / creative cell lane (org tier; maps to `creative_research` / `experiment` classifiers only):
   - primary: `agent-coordinator`
   - execution model: phased role order is required; field-level phase contract, optional consults, and execution-record links live in the Tier 4 canonical packet (not duplicated here).
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - mandatory post-open lane: repo-global post-open review gates
   - invariants:
     - no new `task_classification` label; Tier 4 is an organizational name over existing `creative_research` / `experiment` labels per `AGENT_SKILL_ROUTING_POLICY.md` §2a
     - no runtime autonomy, no autonomous merge, no merge-readiness claims from skills alone
@@ -107,7 +111,7 @@ Scope: `docs/orchestration/**`
     - `security-auditor`
     - `backend-engineer`
     - `dev-operator`
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - mandatory post-open lane: repo-global post-open review gates
   - invariants:
     - root `.dockerignore` remains a strict allowlist unless a narrower documented correction is required
     - production topology stays split: backend image via `IMAGE_REF`, frontend/Caddy via `frontend/Dockerfile.caddy-spa`
@@ -124,7 +128,7 @@ Scope: `docs/orchestration/**`
   - execution helper: `dev-operator`
   - optional consult: `data-scientist-agent`, `epistemology-discovery-agent`, `tutor-mentor-agent`, `cursor-specialist-agent` (only if `.cursor/**` edits)
   - backend: `backend-engineer` only on explicit non-user ingest ticket (not Epic 1 default)
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - mandatory post-open lane: repo-global post-open review gates
   - canonical packet:
     - [`docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md`](./METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md)
   - related runbook: [`docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md`](./METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md)
@@ -140,7 +144,7 @@ Scope: `docs/orchestration/**`
     - `qa-engineer-agent`
     - `bug-hunter`
     - `app-store-release-agent`
-  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - mandatory post-open lane: repo-global post-open review gates
   - invariant: preserve the public endpoint, DTO/wire schema, and client transport contract unless a versioned migration packet explicitly changes them
   - canonical references:
     - root `AGENTS.md` provider migration wire-compatibility rule is the repo-global invariant

@@ -531,13 +531,18 @@ depends on those gates.
 For non-trivial PRs:
 1. execute every bootstrap-requested or coordinator-assigned custom role in the
    declared manifest order through `role_dispatch_bridge.py`
-2. do not normalize pre-open requested role order into the post-open
-   `qa-engineer-agent -> bug-hunter -> security-auditor` tail
-3. run `pulseplate-premortem-risk-review` and Experiment Runner oracle-only
+2. do not normalize pre-open requested role order or explicit `--roles` fallback
+   dispatch into the post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
+   tail
+3. scoped `AGENTS.md` files must not narrow the repo-global post-open review
+   gate; use a superseding repo-global reference when historical lane bullets
+   would otherwise omit `security-auditor`, Codex Security, or
+   `pulseplate-pr-review`
+4. run `pulseplate-premortem-risk-review` and Experiment Runner oracle-only
    evidence before PR open
-4. after PR open, run `qa-engineer-agent -> bug-hunter -> security-auditor`,
+5. after PR open, run `qa-engineer-agent -> bug-hunter -> security-auditor`,
    Codex Security diff scan / finding discovery, and `pulseplate-pr-review`
-5. when a recurring governance rule emerges, update the smallest authoritative
+6. when a recurring governance rule emerges, update the smallest authoritative
    instruction surfaces in the same PR: scoped/root `AGENTS.md`, `RUNBOOK_AGENT.md`,
    workflow/contract docs, and this lessons file
 

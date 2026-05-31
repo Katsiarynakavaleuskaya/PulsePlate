@@ -107,7 +107,7 @@ Evidence: `docs/review/PR_1860_FIXED_MAPPING.md` now uses the exact Phase2
 checkbox labels and keeps `- No actionable review comments` as the only
 canonical fixed-mapping entry while no GitHub review threads exist. Local
 validation passed with
-`python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1860 --body "$(gh pr view 1860 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode advisory`.
+`python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1860 --body "$(gh pr view 1860 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required`.
 Role: `qa-engineer-agent`
 Reason: The post-open QA pass correctly found that GitHub still pointed at the
 previous head where the artifact mixed detail lines with the no-actionable
