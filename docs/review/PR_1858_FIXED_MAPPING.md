@@ -12,7 +12,25 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#discussion_r3330511250 -> 8a77fea69
+Disposition: FIXED
+Commit: 8a77fea69
+Evidence: `requirements-all.txt:14` updates the disabled `safety` comment from `safety>=3.2` to `safety>=3.8.1`, matching the governed floor in `constraints.txt`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#pullrequestreview-4397171888 -> 8a77fea69
+Disposition: FIXED
+Commit: 8a77fea69
+Evidence: The aggregate CodeRabbit review reported the same stale disabled `safety` comment as `discussion_r3330511250`; `requirements-all.txt:14` fixes that actionable item.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#pullrequestreview-4397167074
+Disposition: NOT-A-BUG
+Evidence: `requirements-dev.in`, `requirements-dev.txt`, `requirements-lock.txt`, `requirements-test.in`, `requirements-test.txt`, `constraints.txt`, and `docs/review/PR_DEPENDENCY_CONSOLIDATION_PREMORTEM.md` intentionally name exact dependency pins as the auditable source and validation evidence for this narrow Dependabot consolidation lane.
+Reason: Sourcery's centralization suggestion is valid maintainability feedback, but implementing a new dependency-version source of truth would widen this PR beyond consolidating `#1854`-`#1857`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#pullrequestreview-4397176966
+Disposition: NOT-A-BUG
+Evidence: Cubic reported "No issues found" and did not request a code, test, documentation, or governance change.
+Reason: No actionable Cubic finding exists to fix in this PR.
 
 ## Implementation Evidence
 
@@ -53,6 +71,9 @@ Evidence: `docs/review/PR_DEPENDENCY_CONSOLIDATION_PREMORTEM.md` records depende
 - `qa-engineer-agent` - completed; required ruff lock parity, unsafe pip removal, and focused dependency guard validation.
 - `bug-hunter` - completed; confirmed the same ruff parity, staged pip, and premortem packet issues before they were fixed.
 - `security-auditor` - completed; confirmed no direct dependency security stop after unsafe pip and ruff parity fixes, with private-index validation still required.
+- Post-open `qa-engineer-agent` - completed; confirmed the CodeRabbit safety-comment finding was valid and in scope.
+- Post-open `bug-hunter` - completed; confirmed the local safety-comment fix needed a new post-comment commit and mapping update.
+- Post-open `security-auditor` - completed; confirmed the safety-comment fix was adequate, Sourcery centralization is NOT-A-BUG for this lane, and no security/supply-chain blocker remains after mapping.
 - `pulseplate-premortem-risk-review` - completed in `docs/review/PR_DEPENDENCY_CONSOLIDATION_PREMORTEM.md`.
 
 ## Lane Start Provenance
@@ -80,6 +101,10 @@ Evidence: `docs/review/PR_DEPENDENCY_CONSOLIDATION_PREMORTEM.md` records depende
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS after `.secrets.baseline` was refreshed by `detect-secrets`.
 - Pre-push hooks - PASS, including pip-audit, backend tests, full-repo bandit, and docker build test.
+- Post-open focused validation after CodeRabbit fix:
+  - `python3 scripts/orchestration/check_preflight.py --path requirements-all.txt --path docs/review/PR_1858_FIXED_MAPPING.md` - PASS.
+  - `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py::test_repo_quality_tooling_profile_matches_dependabot_replacement_contract tests/test_dependency_security_guard.py::test_repo_managed_lock_surfaces_do_not_pin_pip tests/test_python_supply_chain_controls.py::test_test_dependency_profile_is_split_from_dev_tooling` - PASS.
+  - `make validate-changed` - PASS.
 
 ## Machine-Heavy Gate Deferral
 
