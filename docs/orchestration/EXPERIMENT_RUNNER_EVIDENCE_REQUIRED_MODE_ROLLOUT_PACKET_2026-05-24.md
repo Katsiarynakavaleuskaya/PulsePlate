@@ -4,9 +4,10 @@ Date: 2026-05-24
 
 ## Status
 
-Required-mode mechanics are implemented, but the repo default remains advisory.
-This packet closes the ledger drift after PR #1800 and reserves the default flip
-for a separate rollout PR.
+Required-mode mechanics are implemented. Repo process now treats Experiment
+Runner evidence as mandatory for every non-trivial PR; the CI/default
+required-mode flip remains a separate rollout because raw runner artifacts are
+local-only and gitignored unless a tracked evidence mirror is added.
 
 ## Current Mechanics
 
@@ -15,7 +16,8 @@ for a separate rollout PR.
 - `scripts/orchestration/check_merge_ready.py` forwards the selected mode into
   Phase2 validation.
 - Required mode fails closed on missing or malformed Experiment Runner evidence.
-- Advisory mode remains the rollback-safe default.
+- Advisory mode remains the rollback-safe machine default for local-only
+  artifact availability, not permission to skip the PR process gate.
 
 ## Activation Preconditions
 
@@ -24,6 +26,8 @@ for a separate rollout PR.
 - `Not applicable:` remains narrow and must include a reason.
 - Experiment Runner artifact load/write failures are treated as infra blockers,
   not valid `Not applicable` reasons.
+- Tracked evidence mirror support exists for CI-required mode when local
+  `artifacts/orchestration/experiments/results/` files are unavailable.
 - The activation PR proves rollback to advisory mode through CLI/env coverage.
 
 ## Rollback

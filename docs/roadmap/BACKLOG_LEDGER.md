@@ -10309,10 +10309,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (controlled rollout after hard-gate mechanics)
   - Target PR: future required-mode activation PR
-  - Status: Deferred until the rollout packet is reviewed and current-head CI/review governance remains stable.
+  - Status: Process hard gate active for non-trivial PRs; machine-default required-mode activation remains deferred until tracked evidence mirror support exists for gitignored local runner artifacts.
   - Dependencies:
     - [P2: Promote Experiment Runner PR evidence from advisory to hard gate](#ledger-p2-experiment-runner-pr-evidence-hard-gate)
-  - Reason (EN): Required-mode mechanics exist, but the repo default should flip only in a separate controlled PR that can isolate false positives, rollback behavior, and non-trivial lane classification.
+  - Reason (EN): Required-mode mechanics exist and non-trivial PRs must run Experiment Runner evidence by process, but the repo default should flip only in a separate controlled PR that can isolate false positives, rollback behavior, non-trivial lane classification, and CI handling for local-only runner artifacts.
   - DoD:
     - Default required-mode activation is scoped to non-trivial PR lanes
     - Rollback path to advisory mode is documented and tested

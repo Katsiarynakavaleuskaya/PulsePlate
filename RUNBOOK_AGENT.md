@@ -52,7 +52,11 @@ the assigned role agents in that order.
 Rules:
 - Do not skip an assigned role agent without an explicit coordinator update to the packet.
 - Do not replace the declared order with an ad-hoc internal stack.
-- The canonical post-open `qa-engineer-agent -> bug-hunter` lane remains mandatory for PR work.
+- Missing execution of a bootstrap-assigned role is a hard gate for PR work:
+  packet creation is provenance only and never counts as role execution.
+- The canonical post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
+  lane remains mandatory for PR work, followed by Codex Security diff scan /
+  finding discovery when the plugin is available.
 Source of truth: the active lane packet or runbook at the canonical packet path for the current
 lane, which contains the enforced role-agent sequence for that task or PR.
 
@@ -90,10 +94,15 @@ instructions still match the live contract:
   and stabilize `main` first.
 - If the active lane packet or runbook defines an explicit role-agent order, execute the
   assigned role agents in that exact order.
+- Run `pulseplate-premortem-risk-review` and Experiment Runner oracle evidence for
+  every non-trivial PR before opening unless the coordinator records a narrow
+  `Not applicable` reason. Premortem findings must be fixed or dispositioned;
+  Experiment Runner artifact load/write failures are infrastructure blockers.
 - For PR lifecycle packets, bootstrap may now accept `--pr-phase`:
   - `pre_open` for pre-PR scope lock without review-lane synthesis
   - `post_open_review` after PR creation to surface the mandatory
-    `qa-engineer-agent -> bug-hunter` lane
+    `qa-engineer-agent -> bug-hunter -> security-auditor` lane and Codex
+    Security diff-scan expectation
   - `merge_ready` for explicit current-head merge-preparation packets
 - `post_open_review` remains deterministic once invoked; it is not a raw-session
   or host-runtime auto-trigger by itself.
@@ -430,7 +439,10 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Create or confirm the canonical artifact path `docs/review/PR_<N>_FIXED_MAPPING.md`
 3. **Post-open review entry**
    - Once the PR exists, run the mandatory post-open reviewer path declared by the lane packet/runbook before calling the lane stable
-   - When the lane declares `qa-engineer-agent -> bug-hunter`, that pass happens after PR open, not as a substitute for pre-PR local gates
+   - When the lane declares `qa-engineer-agent -> bug-hunter -> security-auditor`, that pass happens after PR open, not as a substitute for pre-PR local gates
+   - Run Codex Security diff scan / finding discovery and any requested PR-review
+     skill such as `pulseplate-pr-review`; fix or disposition every finding before
+     fixed-mapping and merge-readiness checks
 4. **Before each push**
    - Run `pre-commit run --all-files`
    - Run the required local gates for the touched scope; for normal merge claims this still means `make verify`

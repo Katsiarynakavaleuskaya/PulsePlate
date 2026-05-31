@@ -21,7 +21,7 @@ Evidence: `scripts/orchestration/experiment_slack_bridge_audit.py`, `scripts/orc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329441229 -> 8e5aeadbd4b479afabb4b8c4cca42f2028420c35
 
 Disposition: NOT-A-BUG
-Evidence: Current branch head `12c0fa51c6e8256cfc6d0a54d811fdad3c211bde` contains `486baf3aade8b53a04e17c12efa5d6cf14484d3f` (`git merge-base --is-ancestor 486baf3aa HEAD` returned 0 locally), and `git show -s --format='%H%n%B' 486baf3aa` shows the required `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on the material Experiment Runner commit. `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1853 --body "$(gh pr view 1853 --json body --jq .body)" --commit-range origin/main..HEAD` passed after the mapping update.
+Evidence: Current PR branch history contains `486baf3aade8b53a04e17c12efa5d6cf14484d3f` (`git merge-base --is-ancestor 486baf3aa HEAD` returned 0 locally), and `git show -s --format='%H%n%B' 486baf3aa` shows the required `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on the material Experiment Runner commit. `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1853 --body "$(gh pr view 1853 --json body --jq .body)" --commit-range origin/main..HEAD` passed after the mapping update.
 Reason: These connector comments were based on stale reviewed head `1fbbc5c`; the current PR branch contains the referenced fix commit and the governed Experiment Runner attribution trailer.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329450562
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329450563

@@ -103,7 +103,15 @@ PR_PHASES: tuple[str, ...] = (
     PR_PHASE_MERGE_READY,
 )
 NATIVE_BRIDGE_TRANSPORTS: tuple[str, ...] = (*BRIDGE_TRANSPORTS,)
-POST_OPEN_REVIEW_LANE: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
+POST_OPEN_QA_AGENT = "qa-engineer-agent"
+POST_OPEN_BUG_HUNTER_AGENT = "bug-hunter"
+POST_OPEN_SECURITY_AUDITOR_AGENT = "security-auditor"
+POST_OPEN_REVIEW_LANE: tuple[str, ...] = (
+    POST_OPEN_QA_AGENT,
+    POST_OPEN_BUG_HUNTER_AGENT,
+    POST_OPEN_SECURITY_AUDITOR_AGENT,
+)
+POST_OPEN_CODEX_SECURITY_SCAN = "Codex Security diff scan / finding discovery"
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/qoder_dispatch_bridge.py"
@@ -350,6 +358,10 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
         "requires_pr": requires_pr,
         "post_open_review_required": pr_phase == PR_PHASE_POST_OPEN_REVIEW,
         "review_lane": review_lane,
+        "post_open_codex_security_scan_required": pr_phase == PR_PHASE_POST_OPEN_REVIEW,
+        "post_open_codex_security_scan": (
+            POST_OPEN_CODEX_SECURITY_SCAN if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
+        ),
         "artifact_template": PR_REVIEW_ARTIFACT_TEMPLATE if requires_pr else "",
         "current_head_required": requires_current_head,
         "current_head_truth": "latest-current-head" if requires_current_head else "not-applicable",
@@ -365,11 +377,13 @@ def _build_role_agent_dispatch_contract() -> dict[str, Any]:
     return {
         "packet_creation_executes_roles": False,
         "role_agent_dispatch_required": True,
+        "role_agent_dispatch_hard_gate": True,
         "dispatch_manifest_entrypoint": ROLE_DISPATCH_MANIFEST_ENTRYPOINT,
         "dispatch_manifest_command": (
             f"{ROLE_DISPATCH_MANIFEST_ENTRYPOINT} --packet <packet> --pretty"
         ),
         "must_execute_dispatch_sequence_in_order": True,
+        "missing_role_execution_blocks_readiness": True,
     }
 
 
@@ -382,8 +396,10 @@ def _apply_pr_lifecycle_review_path(
 ) -> tuple[str, list[str], str]:
     """Inject the canonical post-open review lane for PR lifecycle work.
 
-    RU: post-open review обязан держать `qa-engineer-agent -> bug-hunter`.
-    EN: post-open review must keep `qa-engineer-agent -> bug-hunter`.
+    RU: post-open review обязан держать
+    `qa-engineer-agent -> bug-hunter -> security-auditor`.
+    EN: post-open review must keep
+    `qa-engineer-agent -> bug-hunter -> security-auditor`.
     """
 
     if pr_phase != PR_PHASE_POST_OPEN_REVIEW:
@@ -392,7 +408,9 @@ def _apply_pr_lifecycle_review_path(
     adjusted_primary_agent = primary_agent
     adjusted_secondary_agents = list(secondary_agents)
     adjusted_reviewer = reviewer
-    qa_agent, bug_hunter_agent = POST_OPEN_REVIEW_LANE
+    qa_agent = POST_OPEN_QA_AGENT
+    bug_hunter_agent = POST_OPEN_BUG_HUNTER_AGENT
+    post_open_secondary_tail = list(POST_OPEN_REVIEW_LANE[1:])
 
     if primary_agent == bug_hunter_agent:
         adjusted_primary_agent = qa_agent
@@ -402,18 +420,18 @@ def _apply_pr_lifecycle_review_path(
             canonical_secondary=bug_hunter_agent,
             previous_primary=primary_agent,
         )
-        if adjusted_reviewer == bug_hunter_agent:
+        if adjusted_reviewer in post_open_secondary_tail:
             adjusted_reviewer = "agent-coordinator"
         adjusted_secondary_agents = [
             candidate
-            for candidate in [bug_hunter_agent, *adjusted_secondary_agents]
+            for candidate in [*post_open_secondary_tail, *adjusted_secondary_agents]
             if candidate != adjusted_primary_agent
         ]
     elif primary_agent == qa_agent:
-        adjusted_secondary_agents = [bug_hunter_agent, *adjusted_secondary_agents]
+        adjusted_secondary_agents = [*post_open_secondary_tail, *adjusted_secondary_agents]
     else:
         adjusted_reviewer = qa_agent
-        adjusted_secondary_agents = [bug_hunter_agent, *adjusted_secondary_agents]
+        adjusted_secondary_agents = [*post_open_secondary_tail, *adjusted_secondary_agents]
 
     return adjusted_primary_agent, adjusted_secondary_agents, adjusted_reviewer
 

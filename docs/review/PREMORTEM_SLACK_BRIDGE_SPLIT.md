@@ -81,6 +81,48 @@ The generated dispatch manifest listed `qa-engineer-agent -> bug-hunter -> secur
 - **Disposition:** FIXED
 - **Evidence:** `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-root-artifact-hygiene-follow-up` tracks the separate hygiene lane.
 
+### 6. New hard-gate wording drifts from executable bootstrap behavior
+
+- **Failure story:** The PR says role-agent launch is mandatory, but
+  `task_bootstrap.py` still synthesizes only `qa-engineer-agent -> bug-hunter`
+  for post-open review. Later lanes follow the packet, skip the security-auditor
+  pass, and treat Codex Security as a replacement for repo role review.
+- **Underlying assumption:** Updating AGENTS/RUNBOOK wording is enough when the
+  packet schema still emits the older review lane.
+- **Early warning signs:** `pr_lifecycle_contract.review_lane` lacks
+  `security-auditor`; `role_agent_dispatch_contract` says required but does not
+  say missing execution blocks readiness.
+- **Containment:** Update the packet contract and tests so post-open review
+  includes `qa-engineer-agent -> bug-hunter -> security-auditor`, records the
+  Codex Security scan expectation, and marks role dispatch as a hard gate.
+- **Disposition:** FIXED
+- **Evidence:** `scripts/orchestration/task_bootstrap.py` now emits the expanded
+  post-open lane plus hard-gate metadata; `tests/test_task_bootstrap.py` covers
+  the contract.
+
+### 7. Experiment Runner hard gate is misread as a CI-local artifact upload rule
+
+- **Failure story:** A future PR flips CI to required mode while only recording
+  gitignored `artifacts/orchestration/experiments/results/*.json` paths. CI then
+  fails every valid PR because local runner artifacts are intentionally not
+  committed, so maintainers roll back the whole Experiment Runner evidence
+  requirement.
+- **Underlying assumption:** Process hard gate and CI artifact availability are
+  the same problem.
+- **Early warning signs:** Docs say "hard gate" without explaining local-only
+  runner artifacts; `check_merge_ready.py` advisory-mode output suggests missing
+  evidence is harmless.
+- **Containment:** Make the PR process gate mandatory now, but keep machine
+  default activation tracked until a CI-safe evidence mirror exists. Clarify the
+  distinction in the experimentation protocol, rollout packet, ledger, and merge
+  wrapper output.
+- **Disposition:** FIXED
+- **Evidence:** `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`,
+  `docs/orchestration/EXPERIMENT_RUNNER_EVIDENCE_REQUIRED_MODE_ROLLOUT_PACKET_2026-05-24.md`,
+  `docs/roadmap/BACKLOG_LEDGER.md`, and
+  `scripts/orchestration/check_merge_ready.py` now preserve the process hard
+  gate without requiring committed local runner artifacts.
+
 ## Pre-Open Checklist
 
 - [x] Preflight and agent consistency checks passed before implementation
