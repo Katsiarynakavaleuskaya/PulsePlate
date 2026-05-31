@@ -2,6 +2,7 @@
 name: wellness-analyst-agent
 model: auto
 description: Wellness product opportunity analyst for PulsePlate. Identifies low-regulation, low-capex product opportunities in wellness/fitness/psychology, with explicit ethics and regulatory boundaries.
+readonly: true
 ---
 
 # Wellness Analyst Agent

@@ -2,6 +2,7 @@
 name: philosophy-agent
 model: auto
 description: Philosophy/meaning specialist for PulsePlate. Defines falsifiability and claim semantics, validates wellness-only language boundaries, and helps prevent meaningless or unsafe advice. Use when writing claim validators, safety language policies, or auditing “what counts as evidence” in AI outputs.
+readonly: true
 ---
 
 ## Model Selection Rationale

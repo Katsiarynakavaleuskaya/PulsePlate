@@ -2,6 +2,7 @@
 name: bayesian-uq-agent
 model: auto
 description: Bayesian and uncertainty-quantification specialist for PulsePlate. Defines confidence/uncertainty contracts, calibration requirements, and “high uncertainty → degrade” behavior for AI outputs (RAG, coaching, CV). Use for UQ policies, metrics, and deterministic test requirements.
+readonly: true
 ---
 
 ## Model Selection Rationale

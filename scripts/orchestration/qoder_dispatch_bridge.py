@@ -329,7 +329,17 @@ def _parse_context_map() -> Dict[str, List[str]]:
 # ---------------------------------------------------------------------------
 
 
-def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) -> str:
+IMPLEMENTATION_OWNER_SLUGS: frozenset[str] = frozenset(
+    ("backend-engineer", "frontend-engineer", "dev-operator")
+)
+
+
+def resolve_qoder_type(
+    agent_def: Dict[str, Any],
+    mode: str,
+    is_reviewer: bool,
+    implementation_owners: Optional[set[str]] = None,
+) -> str:
     """Map an agent definition + task mode to a Qoder subagent type.
 
     Type mapping:
@@ -344,12 +354,18 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
         return "CodeReview"
 
     slug = agent_def.get("slug") or agent_def.get("name", "")
+    explicit_owners = implementation_owners or set()
 
     if slug in ("qa-engineer-agent", "bug-hunter"):
         return "Verify"
 
     if is_reviewer:
         return "CodeReview"
+
+    if mode == "runtime" and slug in explicit_owners and slug in IMPLEMENTATION_OWNER_SLUGS:
+        if slug == "frontend-engineer":
+            return "Browser"
+        return "Coding"
 
     if agent_def.get("readonly") or mode in ("analysis", "docs-only"):
         return "Research"
@@ -359,7 +375,7 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
         return "Browser"
 
     # Then generic implementation roles
-    if slug in ("backend-engineer", "frontend-engineer", "dev-operator"):
+    if slug in IMPLEMENTATION_OWNER_SLUGS:
         return "Coding"
 
     return "Research"  # Safe fallback
@@ -832,6 +848,7 @@ def build_dispatch_manifest(
     bracket_groups: Optional[List[List[str]]] = None,
     chained_successors: Optional[set[str]] = None,
     enforce_mandatory_post_open_tail: bool = True,
+    implementation_owners: Optional[set[str]] = None,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
     context_map = _parse_context_map()
@@ -855,6 +872,8 @@ def build_dispatch_manifest(
     total_roles = len(loaded_agents)
     previous_slug: Optional[str] = None
 
+    explicit_implementation_owners = implementation_owners or set()
+
     for order_idx, (slug, agent_def) in enumerate(loaded_agents, start=1):
         is_reviewer = _dispatch_is_reviewer_slot(
             slug,
@@ -863,12 +882,25 @@ def build_dispatch_manifest(
             primary_slugs=primary_slugs,
             reviewer_slugs=reviewer_slugs,
         )
-        qoder_type = resolve_qoder_type(agent_def, mode, is_reviewer)
+        qoder_type = resolve_qoder_type(
+            agent_def,
+            mode,
+            is_reviewer,
+            implementation_owners=explicit_implementation_owners,
+        )
         context_paths = context_map.get(slug, [])
         skills = _recommend_skills(slug)
 
+        implementation_owner_override = (
+            mode == "runtime"
+            and slug in explicit_implementation_owners
+            and slug in IMPLEMENTATION_OWNER_SLUGS
+            and qoder_type in ("Browser", "Coding")
+        )
         # Derive readonly: use agent frontmatter if explicitly set, else infer from Qoder type
-        if agent_def.get("readonly_explicit"):
+        if implementation_owner_override:
+            readonly = False
+        elif agent_def.get("readonly_explicit"):
             readonly = agent_def["readonly"]
         else:
             readonly = qoder_type in ("Research", "CodeReview", "Verify")
@@ -887,6 +919,7 @@ def build_dispatch_manifest(
             "system_prompt_excerpt": body_excerpt,
             "description": agent_def["description"],
             "readonly": readonly,
+            "implementation_owner_override": implementation_owner_override,
             "constraints": [],
             "depends_on_previous": _depends_on_previous(
                 slug, agent_def, previous_slug, chained_successors
@@ -969,6 +1002,17 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=False,
         help="Pretty-print JSON output.",
     )
+    parser.add_argument(
+        "--implementation-owner",
+        action="append",
+        choices=sorted(IMPLEMENTATION_OWNER_SLUGS),
+        default=[],
+        help=(
+            "Explicit runtime write-capable implementation owner. Repeat for multiple "
+            "owners. Required to route a frontmatter-readonly implementation role to "
+            "Browser/Coding in runtime mode."
+        ),
+    )
 
     return parser.parse_args(argv)
 
@@ -1010,6 +1054,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not role_slugs:
         print("FAIL: No role slugs provided.", file=sys.stderr)
         return 1
+    if args.implementation_owner and not args.packet:
+        print(
+            "FAIL: --implementation-owner requires --packet so runtime ownership "
+            "stays tied to coordinator-governed dispatch evidence.",
+            file=sys.stderr,
+        )
+        return 1
 
     # Build manifest
     manifest = build_dispatch_manifest(
@@ -1019,6 +1070,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         bracket_groups=packet_bracket_groups,
         chained_successors=packet_chained_successors,
         enforce_mandatory_post_open_tail=enforce_mandatory_post_open_tail,
+        implementation_owners=set(args.implementation_owner or []),
     )
     if manifest.get("missing_agents"):
         print(

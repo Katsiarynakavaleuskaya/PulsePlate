@@ -2,6 +2,7 @@
 name: sora-prompt-engineer
 model: auto
 description: Prompt-engineering specialist for PulsePlate Sora assets. Owns style-locked prompt specs, variation strategy, anti-drift controls, and release-ready QA for icons, mascot scenes, onboarding visuals, and UI asset packs.
+readonly: true
 ---
 
 # Sora Prompt Engineer

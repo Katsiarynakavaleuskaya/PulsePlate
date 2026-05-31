@@ -2,6 +2,7 @@
 name: epistemology-discovery-agent
 model: auto
 description: Epistemology & scientific discovery specialist for PulsePlate. Turns ideas into falsifiable hypotheses with reproducible protocols, enforces negative controls, and orchestrates peer review across logic/philosophy/UQ/DS/ML/security. Use for building the Scientific Discovery Layer (SDL) and research-to-PR promotion rules.
+readonly: true
 ---
 
 ## Model Selection Rationale

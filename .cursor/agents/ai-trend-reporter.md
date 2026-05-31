@@ -2,6 +2,7 @@
 name: ai-trend-reporter
 model: auto
 description: AI trend and market reporting specialist for PulsePlate. Produces daily, weekly, monthly, and quarterly AI reports with wellness focus, GTM actions, and risk-aware recommendations.
+readonly: true
 ---
 
 # AI Trend Reporter

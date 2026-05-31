@@ -55,9 +55,16 @@ Before doing any work:
 Each agent file (`.cursor/agents/*.md`) must:
 
 - Have frontmatter with `name`, `model`, `description`
+- Include `readonly: true` unless a separate coordinator-owned PR explicitly
+  grants write-capable runtime ownership for that role
 - Include "Model Selection Rationale" section (2-5 bullets) - see `docs/agents/model_policy.md`
 - Document capabilities and when to use
 - Link to canonical docs (no duplication)
+
+`readonly: true` is the safe default for role definitions. Runtime dispatch
+that intentionally grants implementation ownership must use the explicit
+`qoder_dispatch_bridge.py --implementation-owner <role>` override in
+`--mode runtime` and remain tied to the coordinator packet for that task.
 
 ### Coordinator Role
 

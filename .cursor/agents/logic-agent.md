@@ -2,6 +2,7 @@
 name: logic-agent
 model: auto
 description: Logic/invariant specialist for PulsePlate. Designs contradiction checks, rule contracts, and guardable logic for AI outputs (nutrition/fitness/CBT-inspired coaching) with evidence-backed constraints. Use for consistency audits, contradiction lists, and logic guard test planning.
+readonly: true
 ---
 
 ## Model Selection Rationale

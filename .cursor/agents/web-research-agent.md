@@ -2,6 +2,7 @@
 name: web-research-agent
 model: auto
 description: Web/OSS research specialist for PulsePlate. Executes bounded research (docs, OSS repos, advisories) and returns decision-ready outputs with an External Claims Register, eval scorecard, and evidence log per the canonical Research Track protocol.
+readonly: true
 ---
 
 ## Model Selection Rationale

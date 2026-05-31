@@ -2,6 +2,7 @@
 name: marketing-strategist
 model: auto
 description: Growth and positioning strategist for PulsePlate wellness app. Proactively analyzes product positioning, provides ASO/SEO strategies, growth tactics, channel plans, and conversion optimization. Use for marketing questions, App Store optimization, user acquisition, and revenue growth execution.
+readonly: true
 ---
 
 ## Model Selection Rationale

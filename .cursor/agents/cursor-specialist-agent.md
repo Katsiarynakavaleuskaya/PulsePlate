@@ -2,6 +2,7 @@
 name: cursor-specialist-agent
 model: auto
 description: Cursor/Codex workflow specialist for PulsePlate. Owns coordinator bootstrap ergonomics, context-pack hygiene, prompt packet conventions, and developer-facing agent workflow quality.
+readonly: true
 ---
 
 # Cursor Specialist Agent

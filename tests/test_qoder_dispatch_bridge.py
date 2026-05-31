@@ -798,6 +798,21 @@ class TestRoleToQoderTypeMapping:
         )
         assert result == "Coding"
 
+    def test_readonly_backend_engineer_runtime_requires_owner_override(self) -> None:
+        agent_def = {"slug": "backend-engineer", "name": "backend-engineer", "readonly": True}
+        result = qoder_dispatch_bridge.resolve_qoder_type(
+            agent_def, mode="runtime", is_reviewer=False
+        )
+        assert result == "Research"
+
+        owned_result = qoder_dispatch_bridge.resolve_qoder_type(
+            agent_def,
+            mode="runtime",
+            is_reviewer=False,
+            implementation_owners={"backend-engineer"},
+        )
+        assert owned_result == "Coding"
+
     def test_qa_engineer_agent(self) -> None:
         agent_def = {"slug": "qa-engineer-agent", "name": "qa-engineer-agent", "readonly": True}
         result = qoder_dispatch_bridge.resolve_qoder_type(
@@ -853,6 +868,17 @@ class TestRoleToQoderTypeMapping:
             agent_def, mode="analysis", is_reviewer=False
         )
         assert result == "Research"
+
+    def test_readonly_frontend_engineer_runtime_owner_returns_browser(self) -> None:
+        """Runtime Browser dispatch for a readonly frontend role requires explicit ownership."""
+        agent_def = {"slug": "frontend-engineer", "name": "frontend-engineer", "readonly": True}
+        result = qoder_dispatch_bridge.resolve_qoder_type(
+            agent_def,
+            mode="runtime",
+            is_reviewer=False,
+            implementation_owners={"frontend-engineer"},
+        )
+        assert result == "Browser"
 
     def test_unknown_agent_fallback(self) -> None:
         agent_def = {"slug": "nonexistent-agent", "name": "nonexistent-agent", "readonly": False}
@@ -1150,6 +1176,135 @@ def test_verify_agents_are_readonly_when_frontmatter_omits_readonly(
         "Verify",
     ]
     assert all(item["readonly"] for item in manifest["dispatch_sequence"])
+
+
+def test_runtime_implementation_owner_override_clears_frontmatter_readonly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit runtime ownership is required to dispatch readonly implementation roles."""
+
+    def fake_load_agent_definition(slug: str) -> Dict[str, Any]:
+        return {
+            "slug": slug,
+            "name": slug,
+            "description": "",
+            "readonly": True,
+            "readonly_explicit": True,
+            "body": "",
+            "definition_path": f".cursor/agents/{slug}.md",
+        }
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "_load_agent_definition", fake_load_agent_definition)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=["backend-engineer", "frontend-engineer"],
+        mode="runtime",
+        packet_source="test",
+        implementation_owners={"backend-engineer", "frontend-engineer"},
+    )
+
+    by_slug = {entry["role_slug"]: entry for entry in manifest["dispatch_sequence"]}
+    assert by_slug["backend-engineer"]["qoder_subagent_type"] == "Coding"
+    assert by_slug["frontend-engineer"]["qoder_subagent_type"] == "Browser"
+    assert by_slug["backend-engineer"]["readonly"] is False
+    assert by_slug["frontend-engineer"]["readonly"] is False
+    assert by_slug["backend-engineer"]["implementation_owner_override"] is True
+    assert by_slug["frontend-engineer"]["implementation_owner_override"] is True
+
+
+def test_runtime_implementation_owner_cli_requires_packet(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Ad-hoc role lists cannot grant runtime write-capable ownership."""
+    result = qoder_dispatch_bridge.main(
+        [
+            "--roles",
+            "backend-engineer",
+            "--mode",
+            "runtime",
+            "--implementation-owner",
+            "backend-engineer",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "--implementation-owner requires --packet" in captured.err
+
+
+def test_runtime_implementation_owner_cli_packet_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Packet-bound CLI owner override emits a write-capable manifest entry."""
+    agents_dir = tmp_path / ".cursor" / "agents"
+    agents_dir.mkdir(parents=True)
+    coordinator_file = agents_dir / "agent-coordinator.md"
+    coordinator_file.write_text(
+        "---\n"
+        "name: agent-coordinator\n"
+        "model: auto\n"
+        "description: Agent coordinator\n"
+        "readonly: true\n"
+        "---\n"
+        "\n"
+        "# Agent Coordinator\n",
+        encoding="utf-8",
+    )
+    agent_file = agents_dir / "frontend-engineer.md"
+    agent_file.write_text(
+        "---\n"
+        "name: frontend-engineer\n"
+        "model: auto\n"
+        "description: Frontend engineer\n"
+        "readonly: true\n"
+        "---\n"
+        "\n"
+        "# Frontend Engineer\n",
+        encoding="utf-8",
+    )
+    packet_file = tmp_path / "packet.json"
+    packet_file.write_text(
+        json.dumps(
+            {
+                "native_subagent_bridge": {
+                    "primary": {"repo_agent_slug": "frontend-engineer"},
+                    "secondary": [],
+                    "advisory": [],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet_file),
+            "--mode",
+            "runtime",
+            "--implementation-owner",
+            "frontend-engineer",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    manifest = json.loads(captured.out)
+    entry = next(
+        item for item in manifest["dispatch_sequence"] if item["role_slug"] == "frontend-engineer"
+    )
+    assert result == 0
+    assert manifest["missing_agents"] == []
+    assert entry["role_slug"] == "frontend-engineer"
+    assert entry["qoder_subagent_type"] == "Browser"
+    assert entry["readonly"] is False
+    assert entry["implementation_owner_override"] is True
 
 
 def test_coordinator_is_not_parallelized_with_readonly_reviewers() -> None:

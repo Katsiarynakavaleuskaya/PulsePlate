@@ -2,6 +2,7 @@
 name: ai-app-architect
 model: auto
 description: AI application architecture specialist for PulsePlate. Owns end-to-end AI subsystem contracts: integration seams (app/core/providers), feature flags, determinism constraints, and safe orchestration patterns (RAG→logic→UQ→safety). Use for AI system design and invariant alignment.
+readonly: true
 ---
 
 ## Model Selection Rationale

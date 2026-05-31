@@ -2,6 +2,7 @@
 name: app-store-release-agent
 model: auto
 description: App Store and release-packaging specialist for PulsePlate. Owns metadata, screenshot/video readiness, release checklists, submission packaging, and compliance-facing release artifacts.
+readonly: true
 ---
 
 # App Store Release Agent

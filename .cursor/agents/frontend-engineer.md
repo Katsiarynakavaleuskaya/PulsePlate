@@ -2,6 +2,7 @@
 name: frontend-engineer
 model: auto
 description: Frontend execution specialist for PulsePlate web. Implements UI and API-integration changes in project style using token SoT and thin HTTP adapter rules.
+readonly: true
 ---
 
 # Frontend Engineer

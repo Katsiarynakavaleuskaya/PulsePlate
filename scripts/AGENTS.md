@@ -69,6 +69,13 @@
 - `scripts/orchestration/check_experiment_runner_identity.py` validates the
   machine-readable identity policy. It must remain offline, deterministic, and
   must not generate, read, or persist signing key material.
+- `qoder_dispatch_bridge.py` treats `readonly: true` in `.cursor/agents/*.md`
+  as the safe default. In `--mode runtime`, write-capable implementation
+  dispatch for `backend-engineer`, `frontend-engineer`, or `dev-operator` must
+  be explicit via repeated `--implementation-owner <role>` flags on a
+  coordinator packet invocation (`--packet ...`); ad-hoc `--roles` invocations
+  must fail closed. The manifest records `implementation_owner_override: true`
+  for those entries.
 
 ## Pre-push backend tests (smart diff runner)
 

@@ -2,6 +2,7 @@
 name: nutritionist-agent
 model: auto
 description: Nutrition domain specialist for PulsePlate. Defines safe wellness-only nutrition constraints, forbidden medical claims, and rule-style requirements for meal planning/coaching outputs. Use for nutrition constraints, disclaimers, and domain taxonomy.
+readonly: true
 ---
 
 ## Model Selection Rationale

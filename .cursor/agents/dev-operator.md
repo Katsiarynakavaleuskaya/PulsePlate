@@ -2,6 +2,7 @@
 name: dev-operator
 model: auto
 description: Terminal-first autonomous operator for PulsePlate. Runs approved command sets, collects deterministic evidence, and returns decision-ready diagnostics without GUI automation.
+readonly: true
 ---
 
 # Dev Operator
