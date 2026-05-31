@@ -41,7 +41,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: '3.13'
+          python-version: '3.13.6'
           requirements-profile: runtime-dev
           install-mode: direct-proxy
 
@@ -261,7 +261,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: '3.13'
+          python-version: '3.13.6'
           requirements-profile: runtime-dev
           install-mode: direct-proxy
 
@@ -311,7 +311,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: '3.13'
+          python-version: '3.13.6'
           requirements-profile: runtime-dev
           install-mode: direct-proxy
 
@@ -349,7 +349,7 @@ jobs:
             echo ""
             echo "### Test Execution Summary"
             echo "- Total test time: ${TEST_DURATION} seconds"
-            echo "- Python version: 3.13"
+            echo "- Python version: 3.13.6"
             echo "- Parallel workers: auto"
           } > performance-report.md
 
@@ -375,7 +375,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: '3.13'
+          python-version: '3.13.6'
           requirements-profile: runtime-dev
           install-mode: direct-proxy
 

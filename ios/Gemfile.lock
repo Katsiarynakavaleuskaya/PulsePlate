@@ -234,7 +234,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  fastlane (~> 2.228)
+  fastlane (= 2.235.0)
   public_suffix (< 7)
 
 BUNDLED WITH

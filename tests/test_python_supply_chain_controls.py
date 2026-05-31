@@ -326,7 +326,7 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
 def test_nightly_workflow_jobs_use_runtime_dev_direct_proxy_setup(job_name: str) -> None:
     setup_step = _python_setup_step(".github/workflows/nightly.yml", job_name)
 
-    assert setup_step["with"]["python-version"] == "3.13"
+    assert setup_step["with"]["python-version"] == "3.13.6"
     assert setup_step["with"]["requirements-profile"] == "runtime-dev"
     assert setup_step["with"]["install-mode"] == "direct-proxy"
 
