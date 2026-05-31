@@ -15,20 +15,12 @@ Evidence: `scripts/orchestration/qoder_dispatch_bridge.py`, `scripts/orchestrati
 
 Disposition: FIXED
 Commit: bd10ddd9819c
-Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now inserts the repo
-root into `sys.path` before importing `scripts.orchestration.requested_agents`,
-and `tests/test_qoder_dispatch_bridge.py` covers direct legacy script `--help`
-execution. Focused bridge/bootstrap pytest passed.
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` inserts repo root before importing `scripts.orchestration.requested_agents`, and `tests/test_qoder_dispatch_bridge.py` covers direct legacy script `--help`; focused bridge/bootstrap pytest passed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330843335 -> bd10ddd9819c
 
 Disposition: FIXED
 Commit: bd10ddd9819c
-Evidence: explicit `--roles` dispatch now accepts `--pr-phase`; phase-less
-dispatch fails closed for an out-of-order full post-open role set, while
-`--pr-phase post_open_review` enforces
-`qa-engineer-agent -> bug-hunter -> security-auditor` and `--pr-phase pre_open`
-preserves the coordinator pre-open order. `tests/test_qoder_dispatch_bridge.py`
-covers all three paths; focused bridge/bootstrap pytest passed.
+Evidence: explicit `--roles` dispatch accepts `--pr-phase`; phase-less full post-open out-of-order dispatch fails closed, `post_open_review` enforces QA -> bug -> security, `pre_open` preserves coordinator order, and focused bridge/bootstrap pytest passed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330843338 -> bd10ddd9819c
 
 ## Pre-Open Finding Disposition Evidence
