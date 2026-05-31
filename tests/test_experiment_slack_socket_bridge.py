@@ -1737,6 +1737,8 @@ def test_rate_limit_claim_recovers_empty_stale_lock(
     config = _config(audit_dir=audit_dir)
     lock_dir = audit_dir / bridge.RATE_LIMIT_LOCK_DIR
     lock_dir.mkdir(parents=True)
+    temp_path = lock_dir / ".claim.json.leftover.tmp"
+    temp_path.write_text("partial", encoding="utf-8")
     old_timestamp = datetime.fromtimestamp(0, tz=timezone.utc).timestamp()
     os.utime(lock_dir, (old_timestamp, old_timestamp))
 
@@ -1753,6 +1755,7 @@ def test_rate_limit_claim_recovers_empty_stale_lock(
 
     claim = json.loads((lock_dir / "claim.json").read_text(encoding="utf-8"))
     assert claim["event_hash"] == bridge._sha256_text("Ev0STALELOCK")
+    assert not temp_path.exists()
 
 
 def test_rate_limit_claim_keeps_fresh_partial_lock_instead_of_stealing_it(

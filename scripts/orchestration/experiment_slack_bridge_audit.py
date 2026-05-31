@@ -367,6 +367,14 @@ def _remove_stale_rate_limit_claim(lock_dir: Path) -> None:
             "Unable to clear stale Slack operator rate-limit claim."
         ) from exc
     try:
+        for temp_path in lock_dir.glob(".claim.json.*.tmp"):
+            if temp_path.is_file() or temp_path.is_symlink():
+                temp_path.unlink()
+    except OSError as exc:
+        raise SlackSocketAuditError(
+            "Unable to clear stale Slack operator rate-limit claim."
+        ) from exc
+    try:
         lock_dir.rmdir()
     except OSError as exc:
         raise SlackSocketAuditError(

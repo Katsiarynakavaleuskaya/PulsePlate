@@ -509,13 +509,10 @@ def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, An
     try:
         qa_index = requested_order.index("qa-engineer-agent")
         bug_index = requested_order.index("bug-hunter")
+        security_index = requested_order.index("security-auditor")
     except ValueError:
         return False
-    if qa_index >= bug_index:
-        return False
-    if "security-auditor" not in requested_order:
-        return True
-    return bug_index < requested_order.index("security-auditor")
+    return qa_index < bug_index and security_index == bug_index + 1
 
 
 def _json_packet_requested_order_preserves_mandatory_tail(packet_path: Path) -> bool:

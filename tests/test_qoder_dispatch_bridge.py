@@ -357,9 +357,9 @@ def test_manifest_preserves_requested_order_from_json_packet(
         "requested_agents": [
             "agent-coordinator",
             "architecture-specialist",
-            "security-auditor",
             "qa-engineer-agent",
             "bug-hunter",
+            "security-auditor",
         ],
         "native_subagent_bridge": {
             "primary": {"repo_agent_slug": "agent-coordinator"},
@@ -506,6 +506,30 @@ def test_manifest_enforces_mandatory_tail_for_partial_requested_order_from_json_
         "bug-hunter",
         "security-auditor",
     ]
+
+
+def test_requested_order_must_include_security_immediately_after_bug_hunter() -> None:
+    """A partial QA -> bug request cannot disable security tail normalization."""
+
+    assert not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+        {
+            "requested_agents": [
+                "qa-engineer-agent",
+                "bug-hunter",
+                "architecture-specialist",
+            ]
+        }
+    )
+    assert qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+        {
+            "requested_agents": [
+                "qa-engineer-agent",
+                "bug-hunter",
+                "security-auditor",
+                "architecture-specialist",
+            ]
+        }
+    )
 
 
 def test_parse_task_bootstrap_json_packet_limits_duplicate_requested_roles_to_spawnable_slots(
