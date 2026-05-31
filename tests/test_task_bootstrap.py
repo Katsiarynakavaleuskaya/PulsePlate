@@ -350,9 +350,9 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
         "current_head_truth": "latest-current-head",
         "merge_readiness_entrypoint": "",
     }
-    assert packet["reviewer"] == "qa-engineer-agent"
-    assert "bug-hunter" in packet["secondary_agents"]
-    assert "security-auditor" in packet["secondary_agents"]
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["reviewer"] == "architecture-specialist"
+    assert packet["secondary_agents"][:2] == ["bug-hunter", "security-auditor"]
     assert "bug-hunter" in {
         binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
     }
@@ -491,13 +491,14 @@ def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane()
         pr_phase="post_open_review",
     )
 
-    assert packet["reviewer"] == "qa-engineer-agent"
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["reviewer"] == "architecture-specialist"
     assert "qa-engineer-agent" not in packet["secondary_agents"]
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "qa-engineer-agent",
-            "status": "honored_reviewer",
-            "reason": "Requested agent stayed honored as reviewer after PR lifecycle synthesis.",
+            "status": "honored_primary",
+            "reason": "Requested agent stayed honored as primary after PR lifecycle synthesis.",
         }
     ]
 
@@ -1069,24 +1070,22 @@ def test_task_bootstrap_keeps_displaced_requested_reviewer_required_post_open() 
         pr_phase="post_open_review",
     )
 
-    assert packet["primary_agent"] == "agent-coordinator"
-    assert packet["reviewer"] == "qa-engineer-agent"
-    assert "architecture-specialist" in packet["secondary_agents"]
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["reviewer"] == "architecture-specialist"
+    assert "agent-coordinator" in packet["secondary_agents"]
     assert "architecture-specialist" in {
-        binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]
+        packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"]
     }
     assert packet["requested_agent_disposition"] == [
         {
             "agent": "agent-coordinator",
-            "status": "honored_primary",
-            "reason": "Requested agent already matches the routed primary.",
+            "status": "honored_secondary",
+            "reason": "Requested agent stayed honored in secondary after PR lifecycle synthesis.",
         },
         {
             "agent": "architecture-specialist",
-            "status": "honored_secondary",
-            "reason": (
-                "Requested reviewer remains a required role pass after PR lifecycle synthesis."
-            ),
+            "status": "honored_reviewer",
+            "reason": "Requested agent stayed honored as reviewer after PR lifecycle synthesis.",
         },
     ]
 

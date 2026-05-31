@@ -430,8 +430,25 @@ def _apply_pr_lifecycle_review_path(
     elif primary_agent == qa_agent:
         adjusted_secondary_agents = [*post_open_secondary_tail, *adjusted_secondary_agents]
     else:
-        adjusted_reviewer = qa_agent
-        adjusted_secondary_agents = [*post_open_secondary_tail, *adjusted_secondary_agents]
+        previous_primary = primary_agent
+        adjusted_primary_agent = qa_agent
+        adjusted_reviewer = _select_independent_reviewer(
+            primary_agent=adjusted_primary_agent,
+            canonical_reviewer=reviewer,
+            canonical_secondary=bug_hunter_agent,
+            previous_primary=previous_primary,
+        )
+        if adjusted_reviewer in post_open_secondary_tail:
+            adjusted_reviewer = "agent-coordinator"
+        adjusted_secondary_agents = [
+            candidate
+            for candidate in [
+                *post_open_secondary_tail,
+                previous_primary,
+                *adjusted_secondary_agents,
+            ]
+            if candidate != adjusted_primary_agent
+        ]
 
     return adjusted_primary_agent, adjusted_secondary_agents, adjusted_reviewer
 
@@ -473,8 +490,13 @@ def _reconcile_requested_agent_dispositions(
         if status == REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN:
             continue
         if agent_slug == primary_agent:
+            if status != REQUESTED_AGENT_STATUS_HONORED_PRIMARY:
+                disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_PRIMARY
+                disposition["reason"] = (
+                    "Requested agent stayed honored as primary after PR lifecycle synthesis."
+                )
             continue
-        if agent_slug == reviewer and status != REQUESTED_AGENT_STATUS_HONORED_REVIEWER:
+        if agent_slug == reviewer:
             disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_REVIEWER
             disposition["reason"] = (
                 "Requested agent stayed honored as reviewer after PR lifecycle synthesis."
