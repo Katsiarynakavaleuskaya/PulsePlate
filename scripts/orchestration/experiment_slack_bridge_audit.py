@@ -36,7 +36,7 @@ PARTIAL_CLAIM_RETRY_BACKOFF_SECONDS = 0.05
 def _repo_root_from_audit_dir(config: BridgeConfig, repo_root: Path | None) -> Path:
     if repo_root is not None:
         return repo_root
-    audit_dir = _normalized_absolute_path(Path(config.audit_dir))
+    audit_dir = cast(Path, _normalized_absolute_path(Path(config.audit_dir)))
     parts = audit_dir.parts
     for index in range(len(parts) - 1):
         if parts[index : index + 2] == ("artifacts", "orchestration"):
