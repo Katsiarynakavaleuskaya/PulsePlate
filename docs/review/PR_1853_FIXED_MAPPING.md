@@ -46,6 +46,21 @@ Evidence: Current branch history contains `486baf3aade8b53a04e17c12efa5d6cf14484
 Reason: The governed Experiment Runner attribution exists on the material Experiment Runner commit; the connector comment is based on a synthetic/squashed reviewed commit SHA.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329862799
 
+Disposition: NOT-A-BUG
+Evidence: Current branch head contains `458440bdc868e7f607c8770e1e9688d36ddb411e` (`git merge-base --is-ancestor 458440bdc868e7f607c8770e1e9688d36ddb411e HEAD` returned 0 locally). Repo disposition governance verifies branch history, not the connector's synthetic reviewed commit SHA.
+Reason: The FIXED proof commit is in the actual PR branch history; the connector warning is based on a synthetic/squashed review SHA.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3330351424
+
+Disposition: FIXED
+Commit: 8a9536e41c498942379c7d43f99703b81ea6f936
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py:502` now treats requested order as preserved only when `qa-engineer-agent -> bug-hunter -> security-auditor` is present with `security-auditor` immediately after `bug-hunter`; `tests/test_qoder_dispatch_bridge.py` covers missing-security requested order and full ordered tail preservation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3330351427 -> 8a9536e41c498942379c7d43f99703b81ea6f936
+
+Disposition: FIXED
+Commit: 8a9536e41c498942379c7d43f99703b81ea6f936
+Evidence: `scripts/orchestration/experiment_slack_bridge_audit.py:360` now removes bounded `.claim.json.*.tmp` files before removing a stale rate-limit claim directory; `tests/test_experiment_slack_socket_bridge.py` verifies stale empty locks with leftover claim temp files recover into a fresh claim.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3330351430 -> 8a9536e41c498942379c7d43f99703b81ea6f936
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
