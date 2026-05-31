@@ -32,6 +32,16 @@ Disposition: NOT-A-BUG
 Evidence: Cubic reported "No issues found" and did not request a code, test, documentation, or governance change.
 Reason: No actionable Cubic finding exists to fix in this PR.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#discussion_r3330562319
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 8a77fea69 d93136f34d74a55b605db9f2b9313125591921ca` exits 0, proving the mapped CodeRabbit fix commit is reachable from the current PR head. Current-head `Merge readiness gate` also passed for run `26717975582`.
+Reason: The connector comment reviewed a stale synthetic commit view; the current branch head contains the mapped fix commit and the strict guard accepted the mapping.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#discussion_r3330562321
+Disposition: NOT-A-BUG
+Evidence: `git log --format=%B -2 71e38d29a 803bae53e` shows the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on the two commits materially shaped by the accepted Experiment Runner result.
+Reason: The later CodeRabbit fix and review-mapping commits were post-open governance/code-review responses, not Experiment Runner-shaped implementation commits, so omitting the trailer from those commits preserves the repo attribution invariant.
+
 ## Implementation Evidence
 
 Disposition: FIXED
@@ -86,7 +96,7 @@ Evidence: `docs/review/PR_DEPENDENCY_CONSOLIDATION_PREMORTEM.md` records depende
 - Artifact: `artifacts/orchestration/experiments/results/dependency-consolidation-oracle-result.json`
 - Mode: `oracle_only_governance_reviewer`
 - Result: accepted; 2/2 oracle commands passed; shared tree untouched; `coauthor_required=true`.
-- Commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on commit `803bae53e`.
+- Commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on commits `803bae53e` and `71e38d29a`.
 
 ## Local Validation
 
