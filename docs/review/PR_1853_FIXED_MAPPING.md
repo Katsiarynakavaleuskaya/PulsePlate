@@ -31,6 +31,21 @@ Evidence: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:151` now states 
 Reason: The current document already has one canonical rule: repo process hard gate, with explicit advisory fallback semantics only for wrapper enforcement mode.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329857110
 
+Disposition: FIXED
+Commit: 458440bdc868e7f607c8770e1e9688d36ddb411e
+Evidence: `scripts/orchestration/task_bootstrap.py:432` now promotes non-QA/non-bug post-open packets to `qa-engineer-agent` primary and keeps `bug-hunter -> security-auditor` as the first secondary review lane. `tests/test_task_bootstrap.py` covers the default post-open packet, explicit QA request, displaced coordinator/reviewer, and helper-level bug-hunter displacement cases. Verified with `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_task_bootstrap.py -q`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#pullrequestreview-4396519742 -> 458440bdc868e7f607c8770e1e9688d36ddb411e
+
+Disposition: NOT-A-BUG
+Evidence: Current branch head contains the referenced FIXED proof commits (`git merge-base --is-ancestor 8e5aeadbd4b479afabb4b8c4cca42f2028420c35 HEAD` returned 0 locally), and resolved-thread guard uses branch history plus canonical mapping rather than the connector's synthetic squashed review SHA.
+Reason: The connector comment is based on a synthetic/squashed reviewed commit SHA, not the actual PR branch history used by repo governance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329862798
+
+Disposition: NOT-A-BUG
+Evidence: Current branch history contains `486baf3aade8b53a04e17c12efa5d6cf14484d3f` and `git show -s --format='%H%n%B' 486baf3aade8b53a04e17c12efa5d6cf14484d3f` shows `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The governed Experiment Runner attribution exists on the material Experiment Runner commit; the connector comment is based on a synthetic/squashed reviewed commit SHA.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1853#discussion_r3329862799
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
