@@ -4,7 +4,7 @@
 #
 #    pip-compile --allow-unsafe --constraint=requirements.txt --output-file=requirements-test.txt requirements-test.in
 #
-coverage[toml]==7.14.0
+coverage[toml]==7.14.1
     # via
     #   -r requirements-test.in
     #   pytest-cov
@@ -12,7 +12,7 @@ execnet==2.1.2
     # via pytest-xdist
 faker==40.19.1
     # via -r requirements-test.in
-hypothesis==6.152.9
+hypothesis==6.155.1
     # via -r requirements-test.in
 iniconfig==2.3.0
     # via pytest
@@ -42,7 +42,7 @@ pytest==9.0.3
     #   pytest-picked
     #   pytest-split
     #   pytest-xdist
-pytest-asyncio==1.3.0
+pytest-asyncio==1.4.0
     # via -r requirements-test.in
 pytest-cov==7.1.0
     # via -r requirements-test.in
