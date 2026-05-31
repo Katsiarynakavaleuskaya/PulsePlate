@@ -114,10 +114,27 @@ previous head where the artifact mixed detail lines with the no-actionable
 marker and used non-canonical checkbox wording. The fix commit existed locally
 before the QA pass and is being mapped before push.
 
+Disposition: FIXED
+Commit: f3131376d869b70b7d9beb56ef2ee753f3b77ba5
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` disables
+mandatory post-open tail normalization for the public explicit `--roles`
+fallback path, while packet-based post-open normalization remains governed by
+packet phase/order metadata. `tests/test_qoder_dispatch_bridge.py` covers the
+operator pre-open order
+`agent-coordinator -> architecture-specialist -> frontend-engineer -> cursor-specialist-agent -> security-auditor -> qa-engineer-agent -> bug-hunter`.
+Validation passed with
+`python -m pytest -q tests/test_qoder_dispatch_bridge.py`,
+`role_dispatch_bridge.py --roles ... --pretty`, and
+`role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/1b91068a179d.json --pretty`.
+Role: `bug-hunter`
+Reason: The post-open bug-hunter pass found that explicit fallback dispatch
+could silently move `security-auditor` after QA/bug, contradicting the
+declared operator pre-open order.
+
 ## Post-Open Review Tracking
 
 - [x] `qa-engineer-agent` post-open pass - BLOCK finding fixed by `528a8a748`
-- [ ] `bug-hunter` post-open pass
+- [x] `bug-hunter` post-open pass - BLOCK finding fixed by `f3131376d`
 - [ ] `security-auditor` post-open pass
 - [ ] Codex Security diff scan / finding discovery
 - [ ] `pulseplate-pr-review`
