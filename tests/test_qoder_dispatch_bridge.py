@@ -515,6 +515,16 @@ def test_requested_order_must_include_security_immediately_after_bug_hunter() ->
         {
             "requested_agents": [
                 "qa-engineer-agent",
+                "architecture-specialist",
+                "bug-hunter",
+                "security-auditor",
+            ]
+        }
+    )
+    assert not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+        {
+            "requested_agents": [
+                "qa-engineer-agent",
                 "bug-hunter",
                 "architecture-specialist",
             ]

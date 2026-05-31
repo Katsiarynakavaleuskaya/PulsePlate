@@ -512,7 +512,7 @@ def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, An
         security_index = requested_order.index("security-auditor")
     except ValueError:
         return False
-    return qa_index < bug_index and security_index == bug_index + 1
+    return bug_index == qa_index + 1 and security_index == bug_index + 1
 
 
 def _json_packet_requested_order_preserves_mandatory_tail(packet_path: Path) -> bool:
