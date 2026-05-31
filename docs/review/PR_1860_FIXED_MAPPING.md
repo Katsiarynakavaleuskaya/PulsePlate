@@ -131,11 +131,29 @@ Reason: The post-open bug-hunter pass found that explicit fallback dispatch
 could silently move `security-auditor` after QA/bug, contradicting the
 declared operator pre-open order.
 
+Disposition: FIXED
+Commit: 35176844d7004c5586db0261b56f08b800000e11
+Evidence: `docs/orchestration/AGENTS.md` now states that repo-global
+post-open review gates supersede historical scoped shorthand and updates scoped
+lane bullets to reference those gates. `docs/ENGINEERING_LESSONS.md` records
+that scoped `AGENTS.md` files must not narrow the global post-open gate and
+that explicit `--roles` fallback dispatch must preserve declared order.
+`docs/review/PR_1860_FIXED_MAPPING.md` now records Phase2 validation in
+required Experiment Runner evidence mode. Validation passed with
+`rg -n "mandatory post-open lane: .*qa-engineer-agent -> bug-hunter" docs/orchestration/AGENTS.md`
+returning no matches,
+`python scripts/orchestration/check_agent_consistency.py`, and
+`python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1860 --body "$(gh pr view 1860 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required`.
+Role: `security-auditor`
+Reason: The post-open security-auditor pass found scoped orchestration rules
+that could narrow current mandatory post-open gates, plus advisory-mode
+evidence wording inconsistent with the mandatory Experiment Runner gate.
+
 ## Post-Open Review Tracking
 
 - [x] `qa-engineer-agent` post-open pass - BLOCK finding fixed by `528a8a748`
 - [x] `bug-hunter` post-open pass - BLOCK finding fixed by `f3131376d`
-- [ ] `security-auditor` post-open pass
+- [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [ ] Codex Security diff scan / finding discovery
 - [ ] `pulseplate-pr-review`
 - [ ] Bot/human review thread disposition pass
