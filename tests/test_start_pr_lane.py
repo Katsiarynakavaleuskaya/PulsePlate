@@ -151,7 +151,7 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Experiment Runner: joins after coordinator bootstrap as oracle-only evidence." in (
         result.stdout
     )
-    assert "qoder_dispatch_bridge.py --packet <packet> --pretty" in result.stdout
+    assert "role_dispatch_bridge.py --packet <packet> --pretty" in result.stdout
     assert "execute the manifest `dispatch_sequence` in order" in result.stdout
     assert "Role-agent dispatch is a required post-bootstrap step" in result.stdout
     assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in (
@@ -264,7 +264,7 @@ esac
     assert f"Task packet: {packet_path}" in result.stdout
     assert "packet_creation_executes_roles=false" in result.stdout
     assert "role_agent_dispatch_required=true" in result.stdout
-    assert "qoder_dispatch_bridge.py --packet" in result.stdout
+    assert "role_dispatch_bridge.py --packet" in result.stdout
     assert "packet\\ with\\ space.json" in result.stdout
     assert "Run the dispatch_sequence roles in order before implementation." in result.stdout
     assert (

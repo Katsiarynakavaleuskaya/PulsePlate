@@ -86,6 +86,12 @@ role passes. They use `execution_mode: "advisory_review"`,
 means analysis/review contribution type, not permission for the runtime to skip
 the agent.
 
+The runtime-neutral manifest entrypoint is
+`scripts/orchestration/role_dispatch_bridge.py`. The older
+`scripts/orchestration/qoder_dispatch_bridge.py` entrypoint remains a
+compatibility facade for historical packets; it is not Qoder-exclusive
+authority.
+
 ---
 
 ## 4. Dispatch rules
@@ -99,7 +105,8 @@ When the runtime is Kimi Code CLI:
 4. Load the instruction path listed in the bridge entry (from `.cursor/agents/`).
 5. Load `required_context` and `recommended_skills` from the same task packet.
 6. In updates, describe the work using the repo-agent slug.
-7. Execute required advisory role passes when `required_role_pass: true`.
+7. Execute required readonly/custom-role passes when `required_role_pass: true`;
+   these are mandatory custom-role passes, not optional notes.
 
 ---
 

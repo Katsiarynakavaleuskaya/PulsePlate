@@ -235,7 +235,7 @@ After every non-trivial bootstrap packet is created, generate the dispatch
 manifest and execute its `dispatch_sequence` in order:
 
 ```bash
-python scripts/orchestration/qoder_dispatch_bridge.py --packet <packet> --pretty
+python scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty
 ```
 
 Assigned role agents are mandatory lane steps unless the coordinator updates the
@@ -490,7 +490,8 @@ For Experiment Runner PR evidence:
 
 ### Use instead
 - explicit `contribution_kind`, `coauthor_required`, and `coauthor_reason` fields
-- advisory diagnostics before hard merge blocking
+- review-only diagnostics as supporting evidence, with mandatory execution for
+  non-trivial PRs
 - the governed trailer:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
@@ -515,6 +516,35 @@ already merged:
 - landed-symbol evidence plus fixed mapping artifacts
 - explicit benchmark-boundary wording for hypothesis targets
 - semantic-cache gate markers as machine-checkable invariants
+
+---
+
+## 22) Advisory wording must not make role gates skippable
+
+### Problem
+Bootstrap packets can carry readonly/custom-role bindings that older docs called
+advisory. Agents then risk treating assigned roles, premortem, Experiment
+Runner, or post-open review as optional commentary even though the PR lane
+depends on those gates.
+
+### Rule
+For non-trivial PRs:
+1. execute every bootstrap-requested or coordinator-assigned custom role in the
+   declared manifest order through `role_dispatch_bridge.py`
+2. do not normalize pre-open requested role order into the post-open
+   `qa-engineer-agent -> bug-hunter -> security-auditor` tail
+3. run `pulseplate-premortem-risk-review` and Experiment Runner oracle-only
+   evidence before PR open
+4. after PR open, run `qa-engineer-agent -> bug-hunter -> security-auditor`,
+   Codex Security diff scan / finding discovery, and `pulseplate-pr-review`
+5. when a recurring governance rule emerges, update the smallest authoritative
+   instruction surfaces in the same PR: scoped/root `AGENTS.md`, `RUNBOOK_AGENT.md`,
+   workflow/contract docs, and this lessons file
+
+### Use instead
+- "required readonly/custom-role pass" for mandatory role execution
+- explicit `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition for any finding
+- backlog evidence before intentionally deferring a real risk
 
 ---
 

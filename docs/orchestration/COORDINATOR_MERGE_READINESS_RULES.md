@@ -131,7 +131,7 @@ This lifecycle is mandatory operating behavior, not just a recommendation. The f
 - Bootstrap role-agent evidence showing the packet/runbook role order was run
   in order; post-open PR review must include
   `qa-engineer-agent -> bug-hunter -> security-auditor`, Codex Security diff
-  scan / finding discovery, and any requested PR-review skill before readiness.
+  scan / finding discovery, and `pulseplate-pr-review` before readiness.
 - `## Lane Start Provenance` with a bootstrap packet or a narrow documented
   exception. `start_pr_lane.sh` may be listed as supplemental evidence, but not
   as the only proof. Missing provenance is diagnostic dry-run in this wave and

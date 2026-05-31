@@ -108,10 +108,10 @@ Rules:
   before they can be treated as cryptographically attributable.
 - The Experiment Runner has no merge rights, review-thread resolution authority,
   or merge-readiness authority.
-- For non-trivial PR lanes, Experiment Runner participation is expected as
-  advisory evidence: either a local oracle-only result artifact or a documented
-  `not applicable` reason in the PR lane notes. This is not a merge-readiness
-  gate until a later hardening PR explicitly promotes it.
+- For non-trivial PR lanes, Experiment Runner participation is mandatory
+  oracle-only evidence by default: create a local result artifact or record a
+  narrow coordinator/operator `Not applicable` reason only when the runner
+  result is genuinely unused or inapplicable.
 - Experiment Runner participation joins after repo coordinator bootstrap. The
   runner must not replace `check_preflight.py`, `task_bootstrap.py`, or
   `agent-coordinator` as lane-start authority.
@@ -231,7 +231,7 @@ mode for tooling/governance lanes. In this mode the runner:
   or change canonical policy.
 
 Oracle-only packets still include `mutable_candidate_surface` for schema
-compatibility and to bind the advisory evidence to the PR's owned context
+compatibility and to bind the review evidence to the PR's owned context
 surface, including tooling/governance files. In this mode those paths are
 context, not mutation permission.
 

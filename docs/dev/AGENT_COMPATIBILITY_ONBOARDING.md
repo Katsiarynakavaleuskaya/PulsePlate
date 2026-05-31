@@ -16,7 +16,8 @@ Read these in order:
    implementation
 6. optional machine-local launcher (if installed on your host): see [`LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md) — **opt-in only**, not a global default
 7. coordinator bootstrap: `scripts/orchestration/check_preflight.py` then `scripts/orchestration/task_bootstrap.py` (or the printed recipe from `local_session_bootstrap.sh`)
-8. this guide for tool-specific setup notes
+8. role dispatch: run `scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty` and execute every `dispatch_sequence` role in order
+9. this guide for tool-specific setup notes
 
 ## Cursor
 
@@ -50,6 +51,9 @@ This creates the isolated worktree, runs analyze preflight, runs
 `task_bootstrap.py`, and prints the non-blocking plugin/runtime checklist, the
 bootstrap packet summary, and a Codex-ready coordinator-start prompt. It does
 not push, open a PR, install host plugins, or auto-start a raw Codex session.
+The printed role-dispatch command is mandatory for non-trivial PR lanes:
+execute every bootstrap-requested/custom role in order, then run premortem and
+Experiment Runner oracle-only evidence before opening the PR.
 When the branch is ready to publish, open the PR non-draft by default so bot
 review and current-head checks run; draft mode is an explicit operator
 exception.

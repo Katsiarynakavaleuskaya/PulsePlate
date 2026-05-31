@@ -477,7 +477,7 @@ Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOO
 
 - `python scripts/orchestration/task_bootstrap.py --goal "..." --task-class "..." --path ...`
 - `python scripts/orchestration/check_preflight.py --mode analyze|execute|merge ...`
-- `python scripts/orchestration/qoder_dispatch_bridge.py --packet <packet> --pretty`
+- `python scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty`
   must be run after `task_bootstrap.py` emits a packet; packet creation does
   not execute role agents. Use the emitted `dispatch_sequence` in order, and do
   not skip an assigned role without an explicit coordinator packet/runbook

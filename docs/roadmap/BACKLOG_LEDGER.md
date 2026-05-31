@@ -5041,6 +5041,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No phase of the sublane permits live runtime mutation, autonomous merge, or provider/network spend in wave 1
     - Result packet can only promote to `pr_packet` after a passing offline replay artifact exists
 
+<a id="ledger-p1-guided-planning-mvp-roadcut-quality-pass"></a>
+- [ ] P1: Guided Planning MVP roadcut quality pass
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (MVP value delivery after Slack/operator closeout)
+  - Target PR: PR-TBD-GUIDED-PLANNING-MVP-ROADCUT (`feat(frontend): carry guided planning roadcut through setup and progress`)
+  - Status: Selected next active product lane after PR #1853 closeout. Execution requires a fresh synced-main startup, preflight, task bootstrap, mandatory role-agent passes, premortem risk review, Experiment Runner oracle evidence, and post-open QA / bug-hunter / security / Codex Security / `pulseplate-pr-review` passes before readiness claims.
+  - Area: frontend / Guided Planning MVP / product roadcut
+  - Finding Type: MVP value-delivery gap
+  - Reason: PR #1842 through PR #1844 delivered the Guided Planning Preview, frontend-only observability/accessibility hooks, and save/progress flow. The next bounded product PR should carry the selected intent/time preview through the existing setup and result/progress route affordances so the user sees one coherent MVP roadcut, without turning frontend, Slack, Drive, or local evidence snapshots into product/runtime authority.
+  - Links:
+    - `frontend/src/pages/Home.tsx`
+    - `frontend/src/pages/NutritionSetup/index.tsx`
+    - `frontend/src/pages/NutritionSetup/ResultView.tsx`
+    - `frontend/src/pages/Progress.tsx`
+    - `frontend/src/lib/settings.tsx`
+    - `docs/review/PR_1842_FIXED_MAPPING.md`
+    - `docs/review/PR_1843_FIXED_MAPPING.md`
+    - `docs/review/PR_1844_FIXED_MAPPING.md`
+    - `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`
+  - DoD:
+    - Guided-planning intent/time/preview data is extracted from `Home.tsx` into a typed frontend module and reused by Home plus Nutrition Setup surfaces
+    - `SettingsProvider` has typed in-memory support for `setup` and `guidedPlanningDraft`; no localStorage, cookies, backend analytics, DB, OpenAPI, or health identifiers are added
+    - Home writes the guided-planning draft on save/continue; Nutrition Setup renders an accessible planning-direction panel when a draft exists; Result View renders a compact next-step rail to existing `/plate` and `/progress` routes
+    - Existing route/auth behavior is preserved: `/plate` and `/progress` remain protected by `RequireKey`, and unauthenticated users still reach the existing key prompt
+    - `/pulseplate-runner mvp-evidence` remains stable; no new Slack commands or MVP evidence event names are added unless a later implementation PR proves a contract change is required and updates tests/mapping
+    - Focused frontend tests, token checks, build, `make validate-changed`, `pre-commit run --all-files`, and final `make verify` pass before any merge-readiness claim
+
 ---
 
 
@@ -5097,33 +5124,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Hash-only audit, idempotency, rate-limit, allowlist, execute-mode, workflow allowlist, and live-approval behavior remain test-covered
     - Mandatory pre-open and post-open role-agent passes, premortem, Experiment Runner oracle review, and Codex Security scan are recorded in review artifacts and PR body mirror
 
-<a id="ledger-p1-guided-planning-mvp-roadcut-quality-pass"></a>
-- [ ] P1: Guided Planning MVP roadcut quality pass
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (MVP value delivery after Slack/operator closeout)
-  - Target PR: PR-TBD-GUIDED-PLANNING-MVP-ROADCUT (`feat(frontend): carry guided planning roadcut through setup and progress`)
-  - Status: Selected next active product lane after PR #1853 closeout. Execution requires a fresh synced-main startup, preflight, task bootstrap, mandatory role-agent passes, premortem risk review, Experiment Runner oracle evidence, and post-open QA / bug-hunter / security / Codex Security / `pulseplate-pr-review` passes before readiness claims.
-  - Area: frontend / Guided Planning MVP / product roadcut
-  - Finding Type: MVP value-delivery gap
-  - Reason: PR #1842 through PR #1844 delivered the Guided Planning Preview, frontend-only observability/accessibility hooks, and save/progress flow. The next bounded product PR should carry the selected intent/time preview through the existing setup and result/progress route affordances so the user sees one coherent MVP roadcut, without turning frontend, Slack, Drive, or local evidence snapshots into product/runtime authority.
-  - Links:
-    - `frontend/src/pages/Home.tsx`
-    - `frontend/src/pages/NutritionSetup/index.tsx`
-    - `frontend/src/pages/NutritionSetup/ResultView.tsx`
-    - `frontend/src/pages/Progress.tsx`
-    - `frontend/src/lib/settings.tsx`
-    - `docs/review/PR_1842_FIXED_MAPPING.md`
-    - `docs/review/PR_1843_FIXED_MAPPING.md`
-    - `docs/review/PR_1844_FIXED_MAPPING.md`
-    - `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`
-  - DoD:
-    - Guided-planning intent/time/preview data is extracted from `Home.tsx` into a typed frontend module and reused by Home plus Nutrition Setup surfaces
-    - `SettingsProvider` has typed in-memory support for `setup` and `guidedPlanningDraft`; no localStorage, cookies, backend analytics, DB, OpenAPI, or health identifiers are added
-    - Home writes the guided-planning draft on save/continue; Nutrition Setup renders an accessible planning-direction panel when a draft exists; Result View renders a compact next-step rail to existing `/plate` and `/progress` routes
-    - Existing route/auth behavior is preserved: `/plate` and `/progress` remain protected by `RequireKey`, and unauthenticated users still reach the existing key prompt
-    - `/pulseplate-runner mvp-evidence` remains stable; no new Slack commands or MVP evidence event names are added unless a later implementation PR proves a contract change is required and updates tests/mapping
-    - Focused frontend tests, token checks, build, `make validate-changed`, `pre-commit run --all-files`, and final `make verify` pass before any merge-readiness claim
-
 <a id="ledger-p2-root-artifact-hygiene-follow-up"></a>
 - [ ] P2: Root-level artifact hygiene follow-up after Slack bridge split
   - Owner: @katsiaryna_kavaleuskaya
@@ -5176,11 +5176,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.cursor/agents/qa-engineer-agent.md`
     - `.cursor/agents/bug-hunter.md`
     - `.cursor/agents/security-auditor.md`
-    - `scripts/orchestration/qoder_dispatch_bridge.py`
+    - `scripts/orchestration/role_dispatch_bridge.py`
+    - `scripts/orchestration/qoder_dispatch_bridge.py` (compatibility facade)
     - `tests/test_qoder_dispatch_bridge.py`
   - DoD:
     - Every checked-in `.cursor/agents/*.md` role file except scoped `.cursor/agents/AGENTS.md` includes `readonly: true` in frontmatter
-    - `qoder_dispatch_bridge.py --mode runtime` keeps frontmatter-readonly implementation roles read-only unless a coordinator packet invocation explicitly passes `--implementation-owner <role>`; ad-hoc `--roles` owner overrides fail closed
+    - `role_dispatch_bridge.py --mode runtime` keeps frontmatter-readonly implementation roles read-only unless a coordinator packet invocation explicitly passes `--implementation-owner <role>`; ad-hoc `--roles` owner overrides fail closed
     - Dispatch manifest entries record when an explicit implementation-owner override clears readonly routing for `backend-engineer`, `frontend-engineer`, or `dev-operator`
     - Agent docs consistency passes after the metadata update
     - No role capability prose, routing graph, capability matrix, or context map changes are bundled into this scope expansion

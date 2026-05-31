@@ -27,7 +27,7 @@ readonly: true
 - Keep context loading and task packets deterministic.
 - Reduce orchestration drift between docs, scripts, and actual agent usage.
 - Ensure bootstrap prompts distinguish packet creation from role-agent
-  execution, and surface the required `qoder_dispatch_bridge.py --packet
+  execution, and surface the required `role_dispatch_bridge.py --packet
   <packet> --pretty` manifest step before implementation.
 
 ## When Invoked

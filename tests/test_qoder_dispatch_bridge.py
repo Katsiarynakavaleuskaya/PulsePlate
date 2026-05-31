@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
-from scripts.orchestration import qoder_dispatch_bridge
+from scripts.orchestration import qoder_dispatch_bridge, role_dispatch_bridge
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -24,7 +24,11 @@ REQUIRED_TOP_LEVEL_KEYS = {
     "mode",
     "dispatch_sequence",
     "parallelizable_groups",
+    "parallel_execution_allowed",
+    "parallel_execution_reason",
     "mandatory_post_open",
+    "mandatory_post_open_gates",
+    "mandatory_post_open_role_agents",
 }
 
 REQUIRED_ENTRY_KEYS = {
@@ -41,6 +45,23 @@ REQUIRED_ENTRY_KEYS = {
     "constraints",
     "depends_on_previous",
 }
+
+
+def test_role_dispatch_bridge_exports_compatibility_main() -> None:
+    """The neutral CLI keeps the historical qoder bridge implementation."""
+    assert role_dispatch_bridge.main is qoder_dispatch_bridge.main
+
+
+def test_role_dispatch_bridge_help_uses_neutral_name(capsys: pytest.CaptureFixture[str]) -> None:
+    """The neutral CLI must not expose the old adapter name as the public command."""
+    with pytest.raises(SystemExit) as exc_info:
+        role_dispatch_bridge.main(["--help"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "usage: role_dispatch_bridge" in captured.out
+    assert "Generate a JSON role dispatch manifest" in captured.out
+    assert "Generate a JSON dispatch manifest for Qoder" not in captured.out
 
 
 def require_feature(feature_key: str) -> None:
@@ -538,6 +559,25 @@ def test_requested_order_must_include_security_immediately_after_bug_hunter() ->
                 "security-auditor",
                 "architecture-specialist",
             ]
+        }
+    )
+
+
+def test_pre_open_packet_preserves_requested_custom_role_order() -> None:
+    """Pre-open bootstrap order is mandatory and must not get post-open tail sorting."""
+
+    assert qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+        {
+            "pr_phase": "pre_open",
+            "requested_agents": [
+                "agent-coordinator",
+                "architecture-specialist",
+                "frontend-engineer",
+                "cursor-specialist-agent",
+                "security-auditor",
+                "qa-engineer-agent",
+                "bug-hunter",
+            ],
         }
     )
 
@@ -1100,7 +1140,9 @@ def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
 
     assert by_slug["architecture-specialist"]["depends_on_previous"] is False
     assert by_slug["philosophy-agent"]["depends_on_previous"] is False
-    assert ["architecture-specialist", "philosophy-agent"] in manifest["parallelizable_groups"]
+    assert manifest["parallelizable_groups"] == []
+    assert manifest["parallel_execution_allowed"] is False
+    assert "dispatch_sequence order" in manifest["parallel_execution_reason"]
     assert by_slug["qa-engineer-agent"]["qoder_subagent_type"] == "Verify"
     assert by_slug["qa-engineer-agent"]["depends_on_previous"] is False
     assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
@@ -1509,12 +1551,19 @@ def test_mandatory_post_open_detection() -> None:
         packet_source="test",
     )
 
-    # The bridge hardcodes mandatory_post_open
+    # The bridge keeps mandatory_post_open role-only for compatibility.
     assert "mandatory_post_open" in manifest
     post_open = manifest["mandatory_post_open"]
     assert isinstance(post_open, list)
-    assert "qa-engineer-agent" in post_open
-    assert "bug-hunter" in post_open
+    assert post_open == ["qa-engineer-agent", "bug-hunter", "security-auditor"]
+    post_open_gates = manifest["mandatory_post_open_gates"]
+    assert "Codex Security diff scan / finding discovery" in post_open_gates
+    assert "pulseplate-pr-review" in post_open_gates
+    assert manifest["mandatory_post_open_role_agents"] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
 
 
 def test_mandatory_post_open_bug_hunter_depends_on_qa() -> None:

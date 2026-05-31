@@ -225,6 +225,33 @@ def test_check_gate_evidence_resolves_relative_paths_against_root(
     assert preflight.check_gate_evidence(["evidence.log"]) is True
 
 
+def test_role_dispatch_bridge_smoke_fails_closed_when_required_bridge_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The canonical role dispatch bridge is a hard preflight dependency."""
+
+    monkeypatch.setattr(preflight, "ROOT", tmp_path)
+
+    assert preflight._role_dispatch_bridge_smoke() is False
+    assert "FAIL: required role_dispatch_bridge not found:" in capsys.readouterr().out
+
+
+def test_role_dispatch_bridge_smoke_warns_for_missing_compatibility_bridge(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The historical qoder entrypoint is compatibility-only."""
+
+    bridge_dir = tmp_path / "scripts" / "orchestration"
+    bridge_dir.mkdir(parents=True)
+    (bridge_dir / "role_dispatch_bridge.py").write_text("VALUE = 1\n", encoding="utf-8")
+    monkeypatch.setattr(preflight, "ROOT", tmp_path)
+
+    assert preflight._role_dispatch_bridge_smoke() is True
+    output = capsys.readouterr().out
+    assert "role_dispatch_bridge: importable" in output
+    assert "FAIL:" not in output
+
+
 @pytest.mark.slow
 def test_cli_invocation_works_without_pythonpath() -> None:
     """Plain script invocation must work from repo root without PYTHONPATH."""

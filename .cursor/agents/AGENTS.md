@@ -63,8 +63,9 @@ Each agent file (`.cursor/agents/*.md`) must:
 
 `readonly: true` is the safe default for role definitions. Runtime dispatch
 that intentionally grants implementation ownership must use the explicit
-`qoder_dispatch_bridge.py --implementation-owner <role>` override in
-`--mode runtime` and remain tied to the coordinator packet for that task.
+`role_dispatch_bridge.py --implementation-owner <role>` override in
+`--mode runtime` and remain tied to the coordinator packet for that task. The
+older `qoder_dispatch_bridge.py` name is compatibility-only.
 
 ### Coordinator Role
 

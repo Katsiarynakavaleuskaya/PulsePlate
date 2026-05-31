@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
         packet = _read_packet(packet_path)
         if packet.get("runner_mode") == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
             raise ExperimentPipelineError(
-                "Oracle-only governance reviewer packets are runner-only advisory evidence "
+                "Oracle-only governance reviewer packets are runner-only review evidence "
                 "and must not enter promotion pipeline."
             )
         experiment_id = packet["experiment_id"]

@@ -112,12 +112,12 @@ def test_packet_prompt_tolerates_null_native_bridge_role_lists() -> None:
     prompt = render_packet_prompt(packet, packet_path="packet.json")
 
     assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in prompt
-    assert "Executable advisory role passes: <none>" in prompt
-    assert "Closure-only/no-spawn advisory roles still require disposition input: <none>" in prompt
+    assert "Executable required custom-role passes: <none>" in prompt
+    assert "Closure-only/no-spawn custom roles still require disposition input: <none>" in prompt
 
 
 def test_packet_prompt_renders_manifest_dispatch_order_for_executable_advisory_roles() -> None:
-    """Prompt role order must match qoder dispatch bridge ordering semantics."""
+    """Prompt role order must match role dispatch bridge ordering semantics."""
 
     packet = _packet()
     packet["native_subagent_bridge"] = {
@@ -140,9 +140,9 @@ def test_packet_prompt_renders_manifest_dispatch_order_for_executable_advisory_r
     prompt = render_packet_prompt(packet, packet_path="packet.json")
 
     assert "Role order: agent-coordinator, ml-engineer-agent, architecture-specialist" in prompt
-    assert "Executable advisory role passes: ml-engineer-agent" in prompt
+    assert "Executable required custom-role passes: ml-engineer-agent" in prompt
     assert (
-        "Closure-only/no-spawn advisory roles still require disposition input: qa-engineer-agent"
+        "Closure-only/no-spawn custom roles still require disposition input: qa-engineer-agent"
         in prompt
     )
 
@@ -151,6 +151,7 @@ def test_packet_prompt_enforces_mandatory_tail_for_partial_requested_order() -> 
     """Prompt order must match manifest tail enforcement for partial requests."""
 
     packet = _packet()
+    packet["pr_phase"] = "post_open_review"
     packet["requested_agents"] = ["security-auditor"]
     packet["native_subagent_bridge"] = {
         "primary": {"repo_agent_slug": "agent-coordinator"},
@@ -174,6 +175,7 @@ def test_packet_prompt_normalizes_requested_order_when_security_precedes_bug_hun
     """Prompt order must not let explicit requests invert bug-hunter and security."""
 
     packet = _packet()
+    packet["pr_phase"] = "post_open_review"
     packet["requested_agents"] = [
         "agent-coordinator",
         "qa-engineer-agent",
@@ -218,9 +220,9 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
     assert "Worktree: worktrees/fix-codex-coordinator-start-bridge" in prompt
     assert "scripts/orchestration/start_pr_lane.sh" in prompt
     assert ("Role order: agent-coordinator, security-auditor, architecture-specialist") in prompt
-    assert "Executable advisory role passes: <none>" in prompt
+    assert "Executable required custom-role passes: <none>" in prompt
     assert (
-        "Closure-only/no-spawn advisory roles still require disposition input: "
+        "Closure-only/no-spawn custom roles still require disposition input: "
         "qa-engineer-agent, bug-hunter" in prompt
     )
     assert "Skills are passive/discovery-only" in prompt
@@ -234,7 +236,7 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
     ) in prompt
     assert (
         "Next role-agent dispatch command: $VENV_PYTHON "
-        "scripts/orchestration/qoder_dispatch_bridge.py --packet "
+        "scripts/orchestration/role_dispatch_bridge.py --packet "
         "artifacts/orchestration/task_packets/demo.json --pretty"
     ) in prompt
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
@@ -269,7 +271,7 @@ def test_packet_prompt_shell_quotes_dispatch_packet_path() -> None:
     prompt = render_packet_prompt(_packet(), packet_path=packet_path)
 
     assert (
-        "$VENV_PYTHON scripts/orchestration/qoder_dispatch_bridge.py --packet "
+        "$VENV_PYTHON scripts/orchestration/role_dispatch_bridge.py --packet "
         f"{shlex.quote(packet_path)} --pretty"
     ) in prompt
 
@@ -295,7 +297,7 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "Next required repo command: run task_bootstrap.py" in prompt
     assert "Host/Codex preflight is not authoritative lane provenance" in prompt
     assert "After task_bootstrap.py returns a packet, run `$VENV_PYTHON" in prompt
-    assert "qoder_dispatch_bridge.py --packet <packet> --pretty" in prompt
+    assert "role_dispatch_bridge.py --packet <packet> --pretty" in prompt
     assert "execute the manifest `dispatch_sequence` in order" in prompt
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
     assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt

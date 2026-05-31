@@ -439,6 +439,10 @@ Rules:
   role agents. After files exist, agents MUST explicitly run the declared role-agent
   passes and attach the bootstrap packet context to each pass because local
   `artifacts/` packets are gitignored and are not available in the branch by default.
+  Role bindings in the packet's legacy `advisory` collection remain mandatory
+  when their dispatch contract says `required_role_pass: true`; that collection
+  name is metadata only, not permission to skip a bootstrap-requested custom
+  role.
   When the host runtime does not expose native PulsePlate role subagents, use the
   available general-purpose subagent transport and state the canonical PulsePlate role
   slug in the prompt (for example, "You are PulsePlate custom role
@@ -450,7 +454,8 @@ Rules:
 - Coordinator-owned PR lanes must include the canonical mandatory post-open
   `qa-engineer-agent -> bug-hunter -> security-auditor` pass, followed by a
   Codex Security diff scan / finding discovery when the Codex Security plugin is
-  available. These post-open passes do not replace pre-open role agents.
+  available and `pulseplate-pr-review`. These post-open passes do not replace
+  pre-open role agents.
 
 ### Mandatory PR Orchestration Gates
 
@@ -460,15 +465,15 @@ For every non-trivial PR:
   Every finding must be fixed in code/docs/tests or dispositioned as
   `NOT-A-BUG` / `DEFERRED` with evidence or backlog proof before mapping or merge
   readiness.
-- Run Experiment Runner in oracle/advisory mode after the first coherent diff
+- Run Experiment Runner in oracle-only governance reviewer mode after the first coherent diff
   and before PR open. Local artifact load/write failures are infrastructure
   blockers, not a valid `Not applicable` reason. If the result materially shapes
   code, tests, docs, mapping, or commit decisions, use the governed co-author
   trailer.
 - After PR open, repeat the review loop through the declared post-open role
-  agents, Codex Security diff scan / finding discovery, and any explicitly
-  requested PR-review skill such as `pulseplate-pr-review`. Fix or disposition
-  every finding before updating fixed mapping or claiming readiness.
+  agents, Codex Security diff scan / finding discovery, and
+  `pulseplate-pr-review`. Fix or disposition every finding before updating
+  fixed mapping or claiming readiness.
 
 ### PR Handling Lifecycle (Coordinator-Owned)
 

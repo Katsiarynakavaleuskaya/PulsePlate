@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Qoder dispatch manifest generator.
+"""Compatibility facade for the PulsePlate role dispatch manifest generator.
 
 Reads a governance packet's role order (or explicit CLI role slugs), loads
 agent definitions from ``.cursor/agents/<slug>.md``, resolves context maps
 and routing metadata, and outputs a JSON dispatch manifest suitable for
-Qoder multi-agent orchestration.
+Codex, Kimi, Qoder-compatible, or other native subagent transports.
+
+This file keeps the historical ``qoder_dispatch_bridge.py`` entrypoint working.
+The canonical runtime-agnostic CLI is ``role_dispatch_bridge.py``.
 
 Usage examples::
 
@@ -516,7 +519,16 @@ def _json_packet_has_requested_order(packet_path: Path) -> bool:
 
 
 def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, Any]) -> bool:
-    """Return whether requested_agents explicitly keeps the canonical post-open tail."""
+    """Return whether requested order can bypass post-open tail normalization.
+
+    The QA -> bug-hunter -> security-auditor tail is a post-open / merge-ready
+    invariant. Pre-open packets preserve the bootstrap/requested custom-role
+    order exactly so explicitly requested agents are not silently reordered.
+    """
+
+    pr_phase = str(payload.get("pr_phase", "")).strip().lower()
+    if pr_phase and pr_phase not in ("post_open_review", "merge_ready"):
+        return True
 
     requested_agents = payload.get("requested_agents")
     if not isinstance(requested_agents, list):
@@ -822,6 +834,11 @@ MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = (
     "bug-hunter",
     "security-auditor",
 )
+MANDATORY_POST_OPEN_GATES: tuple[str, ...] = (
+    *MANDATORY_POST_OPEN_ORDER,
+    "Codex Security diff scan / finding discovery",
+    "pulseplate-pr-review",
+)
 
 
 def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
@@ -934,21 +951,20 @@ def build_dispatch_manifest(
             file=sys.stderr,
         )
 
-    parallel_groups = _detect_parallel_groups(dispatch_sequence, routing)
-    # Merge bracket groups from packet notation [slug-a, slug-b]
-    if bracket_groups:
-        for bg in _validated_bracket_groups(bracket_groups, dispatch_sequence):
-            if bg not in parallel_groups:
-                parallel_groups.append(bg)
-
     manifest: Dict[str, Any] = {
         "schema_version": "1.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "packet_source": packet_source or "",
         "mode": mode,
         "dispatch_sequence": dispatch_sequence,
-        "parallelizable_groups": parallel_groups,
+        "parallelizable_groups": [],
+        "parallel_execution_allowed": False,
+        "parallel_execution_reason": (
+            "Role-agent dispatch is a hard gate and must follow dispatch_sequence order."
+        ),
         "mandatory_post_open": list(MANDATORY_POST_OPEN_ORDER),
+        "mandatory_post_open_gates": list(MANDATORY_POST_OPEN_GATES),
+        "mandatory_post_open_role_agents": list(MANDATORY_POST_OPEN_ORDER),
         "missing_agents": missing_agents,
     }
 
@@ -962,10 +978,10 @@ def build_dispatch_manifest(
 
 def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="qoder_dispatch_bridge",
+        prog="role_dispatch_bridge",
         description=(
-            "Generate a JSON dispatch manifest for Qoder from a governance "
-            "packet or explicit role list."
+            "Generate a JSON role dispatch manifest from a governance packet "
+            "or explicit role list."
         ),
     )
 

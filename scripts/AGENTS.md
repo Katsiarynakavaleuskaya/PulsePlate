@@ -22,9 +22,9 @@
   `--packet <packet.json> [--output ...]` without `--candidate-patch`, runs only
   immutable oracle commands in an isolated checkout, applies the current tracked
   worktree diff to that checkout for evidence freshness, and writes a local
-  evidence artifact. This mode is advisory PR participation only and must not
-  promote, resolve review threads, claim merge readiness, or mutate governance
-  surfaces.
+  evidence artifact. This mode is mandatory evidence for non-trivial PRs, but
+  remains review-only authority: it must not promote, resolve review threads,
+  claim merge readiness, or mutate governance surfaces.
 - The runner must apply patches only inside an isolated temporary checkout and must leave the shared working tree untouched.
 - Mutable surfaces, immutable oracles, budgets, and promotion boundaries are defined by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or relax them here.
 - Runner mutation of `scripts/ci/**`, `docs/review/**`, `AGENTS.md`, merge
@@ -69,13 +69,16 @@
 - `scripts/orchestration/check_experiment_runner_identity.py` validates the
   machine-readable identity policy. It must remain offline, deterministic, and
   must not generate, read, or persist signing key material.
-- `qoder_dispatch_bridge.py` treats `readonly: true` in `.cursor/agents/*.md`
-  as the safe default. In `--mode runtime`, write-capable implementation
-  dispatch for `backend-engineer`, `frontend-engineer`, or `dev-operator` must
-  be explicit via repeated `--implementation-owner <role>` flags on a
-  coordinator packet invocation (`--packet ...`); ad-hoc `--roles` invocations
-  must fail closed. The manifest records `implementation_owner_override: true`
-  for those entries.
+- `role_dispatch_bridge.py` is the runtime-agnostic custom role dispatch
+  manifest CLI. The older `qoder_dispatch_bridge.py` filename is a compatibility
+  facade only; new packets should point at `role_dispatch_bridge.py`.
+- The role dispatch bridge treats `readonly: true` in `.cursor/agents/*.md` as
+  the safe default. In `--mode runtime`, write-capable implementation dispatch
+  for `backend-engineer`, `frontend-engineer`, or `dev-operator` must be
+  explicit via repeated `--implementation-owner <role>` flags on a coordinator
+  packet invocation (`--packet ...`); ad-hoc `--roles` invocations must fail
+  closed. The manifest records `implementation_owner_override: true` for those
+  entries.
 
 ## Pre-push backend tests (smart diff runner)
 
