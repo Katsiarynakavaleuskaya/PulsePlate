@@ -7,10 +7,9 @@ from typing import Any
 
 import yaml
 
+from tests.runtime_toolchain_versions import CANONICAL_PYTHON, CANONICAL_RUBY, FASTLANE_VERSION
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CANONICAL_PYTHON = "3.13.6"
-CANONICAL_RUBY = "3.1"
-FASTLANE_VERSION = "2.235.0"
 PYTHON_SETUP_USES = ("actions/setup-python@", "./.github/actions/python-setup")
 AUXILIARY_PY313_WORKFLOWS = (
     ".github/workflows/build-equivalence-evidence.yml",
@@ -55,11 +54,22 @@ def _python_version_input(step: dict[str, Any]) -> str:
     return version
 
 
+def _tool_versions() -> dict[str, str]:
+    entries: dict[str, str] = {}
+    for line in (REPO_ROOT / ".tool-versions").read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        tool, version, *_rest = stripped.split()
+        entries[tool] = version
+    return entries
+
+
 def test_local_python_and_ruby_version_sources_are_canonical() -> None:
     assert (REPO_ROOT / ".python-version").read_text(encoding="utf-8").strip() == (CANONICAL_PYTHON)
-    assert (REPO_ROOT / ".tool-versions").read_text(encoding="utf-8").strip() == (
-        f"python {CANONICAL_PYTHON}"
-    )
+    tool_versions = _tool_versions()
+    assert tool_versions["python"] == CANONICAL_PYTHON
+    assert tool_versions["ruby"] == CANONICAL_RUBY
     assert (REPO_ROOT / ".ruby-version").read_text(encoding="utf-8").strip() == CANONICAL_RUBY
 
 
@@ -103,7 +113,11 @@ def test_auxiliary_workflow_python_setup_pins_use_exact_patch_version() -> None:
 
 def test_no_python_setup_step_uses_bare_py313_runtime_pin() -> None:
     offenders: list[str] = []
-    for path in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+    workflow_dir = REPO_ROOT / ".github" / "workflows"
+    workflow_paths = sorted(
+        path for pattern in ("*.yml", "*.yaml") for path in workflow_dir.glob(pattern)
+    )
+    for path in workflow_paths:
         rel_path = path.relative_to(REPO_ROOT).as_posix()
         for job_name, step in _iter_python_setup_steps(rel_path):
             if _python_version_input(step) == "3.13":
