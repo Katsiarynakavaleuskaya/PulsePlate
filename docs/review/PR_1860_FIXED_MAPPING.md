@@ -149,13 +149,39 @@ Reason: The post-open security-auditor pass found scoped orchestration rules
 that could narrow current mandatory post-open gates, plus advisory-mode
 evidence wording inconsistent with the mandatory Experiment Runner gate.
 
+Disposition: NOT-A-BUG
+Evidence: Codex Security diff scan completed for PR #1860 with 7/7
+source-like `deep_review_input.csv` rows closed and no reportable findings.
+Final artifacts:
+`/tmp/codex-security-scans/pr1853-guided-planning-roadcut-closeout/192ef5430_20260531T192918Z/report.md`,
+`/tmp/codex-security-scans/pr1853-guided-planning-roadcut-closeout/192ef5430_20260531T192918Z/report.html`, and
+`/tmp/codex-security-scans/pr1853-guided-planning-roadcut-closeout/192ef5430_20260531T192918Z/artifacts/02_discovery/work_ledger.jsonl`.
+Validation passed with Codex Security report validator and HTML renderer;
+`deep_review_rows=7 ledger_completed=7 candidates=0`.
+Reason: The diff-scoped source review found no exploitable trust-boundary,
+secret exposure, unsafe subprocess, path traversal, or fail-open mandatory gate
+candidate after the QA, bug-hunter, and security-auditor fixes.
+
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` generated
+`/tmp/pulseplate_pr_1860_review_report.md` and
+`/tmp/pulseplate_pr_1860_review_report.json`. Its only finding was advisory
+large-diff risk with `NEEDS-HUMAN`; PR body records operator approval,
+emergency exception, privileged scope exception, and split justification, while
+Guided Planning implementation and root-artifact hygiene remain separate lanes.
+Local `check_pr_size_governance.py` passed with category
+`privileged_ci_security_workflow`.
+Reason: The wide diff is an operator-approved governance-contract alignment
+touching mirrored role/runbook/test surfaces in one closeout PR; no
+code/security/test regression was identified by the review report.
+
 ## Post-Open Review Tracking
 
 - [x] `qa-engineer-agent` post-open pass - BLOCK finding fixed by `528a8a748`
 - [x] `bug-hunter` post-open pass - BLOCK finding fixed by `f3131376d`
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
-- [ ] Codex Security diff scan / finding discovery
-- [ ] `pulseplate-pr-review`
+- [x] Codex Security diff scan / finding discovery - no reportable findings
+- [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
 - [ ] Bot/human review thread disposition pass
 
 ## Merge Readiness
@@ -166,7 +192,7 @@ evidence wording inconsistent with the mandatory Experiment Runner gate.
 - [x] `make validate-changed` passed
 - [x] `pre-commit run --all-files` passed
 - [x] pre-push hooks passed
-- [ ] Post-open review sequence completed
+- [x] Post-open review sequence completed
 - [ ] Current-head CI checked
 - [ ] Bot/human review comments dispositioned
 - [ ] Strict merge-readiness wrapper passed
