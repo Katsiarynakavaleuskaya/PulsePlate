@@ -34,13 +34,23 @@ Reason: No actionable Cubic finding exists to fix in this PR.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#discussion_r3330562319
 Disposition: NOT-A-BUG
-Evidence: `git merge-base --is-ancestor 8a77fea69 d93136f34d74a55b605db9f2b9313125591921ca` exits 0, proving the mapped CodeRabbit fix commit is reachable from the current PR head. Current-head `Merge readiness gate` also passed for run `26717975582`.
-Reason: The connector comment reviewed a stale synthetic commit view; the current branch head contains the mapped fix commit and the strict guard accepted the mapping.
+Evidence: Local branch-history checks and the current-head `Merge readiness gate` validate that the mapped CodeRabbit fix commit is reachable from the PR branch history. The connector's reviewed synthetic commit is not the canonical git-history surface used by the repo disposition guard.
+Reason: The connector comment reviewed a synthetic commit view; the current PR branch contains the mapped fix commit and the strict guard accepted the mapping.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#discussion_r3330562321
 Disposition: NOT-A-BUG
 Evidence: `git log --format=%B -2 71e38d29a 803bae53e` shows the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on the two commits materially shaped by the accepted Experiment Runner result.
 Reason: The later CodeRabbit fix and review-mapping commits were post-open governance/code-review responses, not Experiment Runner-shaped implementation commits, so omitting the trailer from those commits preserves the repo attribution invariant.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#discussion_r3330581171
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 8a77fea69 284462d51795ff5f3fd237f10dad3696127002f5` exited 0 before this mapping update, and current-head `Merge readiness gate` passed after the connector-disposition push.
+Reason: This is a duplicate of `discussion_r3330562319` against a connector synthetic commit view, not a real branch-history defect.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1858#discussion_r3330581174
+Disposition: NOT-A-BUG
+Evidence: `git log --format=%B -2 71e38d29a 803bae53e` shows the exact Experiment Runner co-author trailer on the two commits materially shaped by the accepted Experiment Runner result; the PR artifact now also records that squash-merge attribution must preserve that trailer.
+Reason: This duplicates `discussion_r3330562321`; post-open CodeRabbit and review-mapping commits were not Experiment Runner-shaped implementation commits.
 
 ## Implementation Evidence
 
@@ -97,6 +107,7 @@ Evidence: `docs/review/PR_DEPENDENCY_CONSOLIDATION_PREMORTEM.md` records depende
 - Mode: `oracle_only_governance_reviewer`
 - Result: accepted; 2/2 oracle commands passed; shared tree untouched; `coauthor_required=true`.
 - Commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on commits `803bae53e` and `71e38d29a`.
+- Squash-merge note: if this PR is squash-merged, preserve `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` in the final merge commit message.
 
 ## Local Validation
 
