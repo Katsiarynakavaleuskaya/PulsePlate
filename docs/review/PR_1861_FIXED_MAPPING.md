@@ -8,12 +8,12 @@ security-sensitive header test.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed for PR open state.
-- [x] Fixed in commit mapping completed for initial implementation.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No review threads existed when the PR opened.
+- No actionable review comments
 
 ## Implementation Evidence
 
@@ -49,7 +49,7 @@ parametrization, while production `SECURITY_SENSITIVE_OUTCOMES` remains a
 
 ## Lane Start Provenance
 
-- Task packet: `artifacts/orchestration/task_packets/b2abaffcd011.json`.
+- Packet: `artifacts/orchestration/task_packets/b2abaffcd011.json`
 - Branch start: synced `main` at `4d47c3b97`, then created
   `codex/nightly-xdist-security-outcomes-order`.
 - Colleague-owned `.cursor/agents/*.md` edits were stashed before branch work
@@ -59,8 +59,7 @@ parametrization, while production `SECURITY_SENSITIVE_OUTCOMES` remains a
 
 - Packet:
   `artifacts/orchestration/experiments/artifacts/orchestration/experiments/nightly-xdist-security-outcomes-oracle-packet.json`.
-- Artifact:
-  `artifacts/orchestration/experiments/results/nightly-xdist-security-outcomes-oracle-result.json`.
+- Artifact: `artifacts/orchestration/experiments/results/nightly-xdist-security-outcomes-oracle-result.json`
 - Mode: `oracle_only_governance_reviewer`.
 - Result: accepted; 2/2 oracle commands passed; shared tree untouched;
   `mutated_paths=[]`; `source_diff_paths=["tests/test_experiment_slack_kpp_renderer.py"]`;
