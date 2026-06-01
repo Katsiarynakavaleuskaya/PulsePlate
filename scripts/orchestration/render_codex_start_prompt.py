@@ -38,9 +38,10 @@ EXPERIMENT_RUNNER_ENV_GUIDANCE = (
 )
 ROLE_DISPATCH_GUIDANCE = (
     "Role-agent dispatch is a required post-bootstrap step: generate the "
-    "`role_dispatch_bridge.py --packet <packet> --pretty` manifest, then run "
-    "each `dispatch_sequence` role in order. Do not treat task_bootstrap.py "
-    "packet creation as role-agent execution."
+    "`$VENV_PYTHON scripts/orchestration/role_dispatch_bridge.py --packet "
+    "<packet> --pretty` manifest, then run each `dispatch_sequence` role in "
+    "order. Do not treat task_bootstrap.py packet creation as role-agent "
+    "execution."
 )
 POST_OPEN_REVIEW_GUIDANCE = (
     "After the PR opens, run the mandatory post-open review gate in order: "

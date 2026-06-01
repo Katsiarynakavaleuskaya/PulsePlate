@@ -114,7 +114,7 @@ Automation note:
   а repo-agent slug остаётся канонической идентичностью роли
 - [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honored,
   либо preserved as required readonly/custom role passes, либо отклонены с явной причиной
-- [ ] `role_dispatch_bridge.py --packet <packet> --pretty` выполнен, и все
+- [ ] `python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty` выполнен, и все
   bootstrap-requested/custom role passes из dispatch manifest выполнены;
   readonly/review-only contribution mode не даёт права пропуска
 - [ ] Для non-trivial PR lane запланированы обязательные gates:

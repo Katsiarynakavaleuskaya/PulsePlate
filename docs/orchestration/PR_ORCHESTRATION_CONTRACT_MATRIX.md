@@ -81,8 +81,9 @@ Phase 2 sections and required orchestration evidence:
   order before implementation or before the phase it governs; missing role
   execution blocks readiness unless `agent-coordinator` records an explicit
   disposition with evidence.
-- Required custom-role dispatch evidence: `role_dispatch_bridge.py --packet`
-  is the runtime-neutral manifest entrypoint. Historical
+- Required custom-role dispatch evidence:
+  `python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty`
+  is the runtime-neutral manifest command. Historical
   `qoder_dispatch_bridge.py` invocations are compatibility-only. Role bindings
   in the packet's legacy `advisory` collection with `required_role_pass: true`
   are mandatory custom-role passes; that collection name is metadata only, not

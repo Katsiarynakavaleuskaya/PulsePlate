@@ -16,7 +16,7 @@ Read these in order:
    implementation
 6. optional machine-local launcher (if installed on your host): see [`LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md) — **opt-in only**, not a global default
 7. coordinator bootstrap: `scripts/orchestration/check_preflight.py` then `scripts/orchestration/task_bootstrap.py` (or the printed recipe from `local_session_bootstrap.sh`)
-8. role dispatch: run `scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty` and execute every `dispatch_sequence` role in order
+8. role dispatch: run `python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty` and execute every `dispatch_sequence` role in order
 9. this guide for tool-specific setup notes
 
 ## Cursor
