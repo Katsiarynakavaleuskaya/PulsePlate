@@ -116,6 +116,9 @@ Evidence: Cubic marked the invalid multi-SHA `Commit:` proof finding as addresse
   before and during setup, while the result rail is a compact next-action CTA.
 - Cubic P2 merge-readiness checkbox stale finding: FIXED by `b8bb07688`.
 - Cubic P1 invalid multi-SHA `Commit:` proof finding: FIXED by `4b4ab2d32`.
+- Frontend CI long-string guard failure: FIXED by `0bdefa752`; Spanish
+  guided-planning next-step labels were shortened so
+  `ui-layout.test.ts` stays below `MAX_LONG_STRINGS`.
 - Security-auditor post-open pass: NOT-A-BUG / PASS. No new findings after
   the i18n, wellness-guard, and governance-format fixes. Evidence: guided
   planning remains in-memory only, no storage/network persistence was added,
@@ -229,6 +232,7 @@ Artifact: `artifacts/orchestration/experiments/results/exp-bc66ba464742.json`
 - `npm run build` - PASS; existing Vite chunk/import warnings only.
 - `make validate-changed` - PASS, no changed Python files.
 - `pre-commit run --all-files` - PASS.
+- `npm test -- --run src/locales/__tests__/ui-layout.test.ts src/locales/__tests__/locales.test.ts src/pages/NutritionSetup/__tests__/ResultView.test.tsx src/pages/NutritionSetup/__tests__/NutritionSetupPage.test.tsx` - PASS, 63 tests after frontend CI long-string fix.
 - `git diff --cached --check` - PASS before commit.
 - Push pre-push hooks - PASS, including pip-audit, backend tests, full-repo
   bandit, and applicable formatting/lint hooks.
