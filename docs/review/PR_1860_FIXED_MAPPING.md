@@ -25,6 +25,13 @@ Evidence: `docs/review/PR_1860_FIXED_MAPPING.md` groups both `bd10ddd9819c` revi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#pullrequestreview-4397549924 -> 3af133b45
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330886836 -> 3af133b45
 
+Disposition: FIXED
+Commit: 32b7aa18a
+Evidence: `docs/review/PR_1860_FIXED_MAPPING.md` now keeps merge-readiness checkboxes unchecked while making no final readiness claim, `scripts/orchestration/task_bootstrap.py` removes the unused post-open security import, `tests/test_qoder_dispatch_bridge.py` requires `implementation_owner_override`, and `docs/roadmap/BACKLOG_LEDGER.md` names the agent-consistency validation; focused bridge/bootstrap pytest and Phase2 mapping validation passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#pullrequestreview-4397612360 -> 32b7aa18a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330941088 -> 32b7aa18a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330941090 -> 32b7aa18a
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
@@ -217,6 +224,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
 - [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`
 - [x] Cubic review - duplicate FIXED block mapping format fixed by `3af133b45`
+- [x] CodeRabbit review - merge-readiness checklist, unused import, manifest schema key, and backlog DoD clarity fixed by `32b7aa18`
 
 ## Merge Readiness
 
