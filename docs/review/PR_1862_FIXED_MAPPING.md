@@ -60,6 +60,23 @@ Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now says `required focused cove
 - Bug-hunter P2 hardcoded guided-planning labels: FIXED by `ddaa37eac`.
 - Bug-hunter P2 narrow medical-claim guard: FIXED by `ddaa37eac`.
 - Bug-hunter P2 fixed-mapping wording issue: FIXED by `edba5baf4`.
+- Security-auditor post-open pass: NOT-A-BUG / PASS. No new findings after
+  the i18n, wellness-guard, and governance-format fixes. Evidence: guided
+  planning remains in-memory only, no storage/network persistence was added,
+  invalid draft ids are filtered before Setup rendering, and `/plate` /
+  `/progress` remain existing protected routes.
+- Codex Security diff scan / finding discovery: NOT-A-BUG / PASS. The scan
+  reviewed 13/13 diff worklist rows, produced zero candidates, and validated
+  the final report artifact. Evidence:
+  `/tmp/codex-security-scans/guided-planning-mvp-roadcut/7b08e8adc052_20260601T174140Z/report.md`.
+- PulsePlate PR review large-diff advisory: NOT-A-BUG. The review reported
+  only the standard large-diff planning note for 1121 changed lines. The PR
+  already includes split justification, the operator approved scoped changed
+  gates instead of full local `make verify` for the 10k+ test suite, and
+  `make validate-changed` passed. Evidence:
+  `/tmp/pulseplate_pr_review_1862.md` and
+  `python3 scripts/ci/check_pr_size_governance.py --base-sha origin/main
+  --head-sha HEAD --body "$BODY"` - PASS.
 
 ## Implementation Evidence
 
@@ -175,9 +192,9 @@ actionable bot findings, strict merge-readiness checks, and the wait window.
 
 ## Merge Readiness
 
-- [ ] Mandatory post-open role sequence completed and mapped.
-- [ ] Codex Security diff scan / finding discovery completed and mapped.
-- [ ] PulsePlate PR review completed and mapped.
+- [x] Mandatory post-open role sequence completed and mapped.
+- [x] Codex Security diff scan / finding discovery completed and mapped.
+- [x] PulsePlate PR review completed and mapped.
 - [ ] Current-head CI checked after the latest push.
 - [ ] No unresolved actionable review threads or bot findings remain.
 - [ ] Strict merge-readiness wrapper passes.
