@@ -92,6 +92,18 @@ Commit: 6d3634ea9
 Evidence: `scripts/orchestration/task_bootstrap.py` now suppresses runtime implementation-owner flags for `post_open_review` and `merge_ready` packets while preserving owner flags for implementation/pre-open lanes. `tests/test_task_bootstrap.py` covers post-open review packets keeping the default read-only dispatch command. Focused validation passed with `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3334188088 -> 6d3634ea9
 
+Disposition: FIXED
+Commit: 4801528d5
+Evidence: `.cursor/agents/agent-coordinator.md` now points operators at the
+packet-provided `role_agent_dispatch_contract.dispatch_manifest_command`
+instead of reconstructing a generic dispatch command, and
+`scripts/orchestration/render_codex_start_prompt.py` applies the same rule to
+recipe prompts. Focused validation passed with
+`python -m pytest -q tests/test_agent_docs_registry_guard.py tests/test_render_codex_start_prompt.py tests/test_local_session_bootstrap.py tests/test_start_pr_lane.py`
+and the broader orchestration bundle
+`python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py tests/test_local_session_bootstrap.py tests/test_agent_docs_registry_guard.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3334340889 -> 4801528d5
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
