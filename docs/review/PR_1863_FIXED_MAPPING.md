@@ -1,0 +1,210 @@
+# PR #1863 - Fixed in Commit Mapping
+
+**Title:** `fix(security): disposition Trivy perl-base CVE`
+**Branch:** `codex/security-trivy-cve-2026-48962-perl-base`
+**Scope:** Time-boxed Trivy Rego policy disposition for GitHub code-scanning
+alert #602 / `CVE-2026-48962` / `perl-base 5.36.0-7+deb12u3`.
+**Primary commit:** `afb1b2412962`
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Post-open bot/human review disposition completed
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863 -> afb1b2412962
+Disposition: FIXED
+Commit: afb1b2412962
+Evidence: `trivy/ignore-policy.rego` adds exact CVE/package/version/PkgID policy matching; `tests/test_trivy_ignore_policy_expiry.py` proves exact matching, no `.trivyignore` entry, and doc/ledger coupling; `docs/security/CVE-2026-48962-perl-base.md` documents alert evidence and removal conditions; `docs/roadmap/BACKLOG_LEDGER.md` tracks remediation debt.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335451980
+Disposition: NOT-A-BUG
+Evidence: Current `docs/review/PR_TRIVY_602_PREMORTEM.md` title uses `PR #1863`, and CodeRabbit marked the stale placeholder comment addressed after branch update.
+Reason: The comment was valid for the initial diff hunk but stale against current branch history; the canonical PR identifier is already present.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335451993 -> c7be0fb64169
+Disposition: FIXED
+Commit: c7be0fb64169
+Evidence: `docs/review/PR_TRIVY_602_PREMORTEM.md` now includes Discussion Thread Pass, Fixed in Commit Mapping, Merge Readiness, and the canonical `docs/review/PR_1863_FIXED_MAPPING.md` reference.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#pullrequestreview-4402674945 -> c7be0fb64169
+Disposition: FIXED
+Commit: c7be0fb64169
+Evidence: `tests/test_trivy_ignore_policy_expiry.py` now uses a safe fallback to the end of `BACKLOG_LEDGER.md` when no later anchor exists, and the premortem PR title/linkage feedback is addressed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335468861 -> c7be0fb64169
+Disposition: FIXED
+Commit: c7be0fb64169
+Evidence: `docs/review/PR_1863_FIXED_MAPPING.md` now says the validation plan required focus on Trivy policy guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#pullrequestreview-4402695151 -> c7be0fb64169
+Disposition: FIXED
+Commit: c7be0fb64169
+Evidence: CodeRabbit's review-level actionable surface is covered by the inline thread fix for `discussion_r3335468861`; `docs/review/PR_1863_FIXED_MAPPING.md` now says the validation plan required focus on Trivy policy guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335478528
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor afb1b2412962 HEAD` exits 0 on branch head `c7be0fb64169`, so the implementation SHA is reachable in the real PR branch history.
+Reason: The bot compared `afb1b2412962` to a synthetic reviewed commit surface rather than the current branch head; the mapping remains valid for the actual PR history.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335559556
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor afb1b2412962 HEAD`, `git merge-base --is-ancestor f604c5aae HEAD`, and `git merge-base --is-ancestor c7be0fb64169 HEAD` all exit 0 on the real local PR branch.
+Reason: The bot compared mapped SHAs to a synthetic reviewed commit surface, not the current PR branch history used by repo merge-readiness guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335559560 -> b543afe4e
+Disposition: FIXED
+Commit: b543afe4e
+Evidence: `trivy/ignore-policy.rego` now requires `cve_2026_48962_perl_base_fixed_version_unavailable`, which only matches when `FixedVersion` is absent, empty, or null; `tests/test_trivy_ignore_policy_expiry.py` and `docs/security/CVE-2026-48962-perl-base.md` document and assert this guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335559564
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B afb1b2412962` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and that is the implementation commit materially shaped by the Experiment Runner oracle result.
+Reason: Later fixed-mapping/review-disposition commits document or respond to post-open review feedback; they were not the oracle-shaped implementation commit and do not require retroactive Experiment Runner attribution.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3336675899
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor b543afe4e HEAD` exits 0 on the real local PR branch, and `git show -s --format=%B a4c3b7e9aa993ada372d0c54ebd481ddf0fe9d53` fails with `fatal: bad object a4c3b7e9aa993ada372d0c54ebd481ddf0fe9d53`.
+Reason: The bot compared the fixed-version guard SHA against a synthetic reviewed commit SHA, not the current PR branch history used by repo merge-readiness guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3336675906
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B afb1b2412962` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git show -s --format=%B a4c3b7e9aa993ada372d0c54ebd481ddf0fe9d53` fails with `fatal: bad object a4c3b7e9aa993ada372d0c54ebd481ddf0fe9d53`.
+Reason: The implementation commit materially shaped by Experiment Runner oracle evidence is `afb1b2412962`, which carries the required trailer; the reviewed synthetic SHA is not an actual branch commit requiring separate attribution.
+
+## Implementation Evidence
+
+Disposition: FIXED
+Commit: `afb1b2412962`
+Evidence:
+
+- `trivy/ignore-policy.rego:104` documents `Review-by: 2026-06-27` and removal
+  conditions for the CVE-specific policy rule.
+- `trivy/ignore-policy.rego:119` requires `input.VulnerabilityID`,
+  `input.PkgName`, `InstalledVersion`, and `PkgID` constraints before ignoring.
+- `tests/test_trivy_ignore_policy_expiry.py:136` asserts the exact policy
+  contract and single file-level expiry marker.
+- `tests/test_trivy_ignore_policy_expiry.py:150` asserts `CVE-2026-48962` is
+  not present in `.trivyignore`.
+- `tests/test_trivy_ignore_policy_expiry.py:156` asserts security-doc and
+  backlog coupling.
+- `docs/security/CVE-2026-48962-perl-base.md:13` states this is not upstream
+  remediation and keeps the vulnerable package debt visible.
+- `docs/security/CVE-2026-48962-perl-base.md:82` defines removal conditions.
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-container-perl-cve-remediation`
+  tracks the Perl-family remediation path.
+
+## Role-Agent / Premortem Pass
+
+Pre-open read-only role order completed before implementation:
+
+- `agent-coordinator` - completed; scope locked to Trivy alert #602 policy
+  disposition and required role order.
+- `dev-operator` - completed; validation plan required focus on Trivy policy
+  guards, docs gate, `make validate-changed`, pre-commit, and current-head
+  Docker/Trivy/SARIF follow-up.
+- `architecture-specialist` - completed; confirmed no API, runtime,
+  Dockerfile, workflow, frontend, iOS, or dependency changes.
+- `security-auditor` - completed; required exact Rego matching, no
+  `.trivyignore`, explicit expiry/review/removal conditions, and no remediation
+  overclaim.
+- `qa-engineer-agent` - completed; required static exactness tests,
+  doc/ledger coupling, and local-tooling limitation disclosure.
+- `bug-hunter` - completed; checked false-green, broad suppression, stale
+  metadata, and local Docker/Trivy availability risks.
+- `pulseplate-premortem-risk-review` - completed in
+  `docs/review/PR_TRIVY_602_PREMORTEM.md`; decision: proceed with changes.
+
+Post-open role order completed:
+
+- [x] `qa-engineer-agent` - completed; findings on Phase2 formatting,
+  commit-after-comment mapping, and unresolved threads were fixed or
+  dispositioned. Final pass left only merge-readiness/current-head evidence
+  checks.
+- [x] `bug-hunter` - completed; no scoped implementation defects found. It
+  preserved the readiness blocker for image-surface/SARIF evidence and
+  current-head checks until verified.
+- [x] `security-auditor` - completed; PASS for scoped security correctness on
+  exact Rego matching, fixed-version-unavailable guard, no `.trivyignore`
+  broad ignore, and no remediation overclaim.
+- [x] `pulseplate-pr-review` - completed in dry-run mode; the only advisory
+  finding was large-diff review risk, dispositioned as NOT-A-BUG because this
+  PR intentionally carries policy, docs, fixed mapping, and focused tests
+  together and passed scoped local and current-head gates.
+
+## Experiment Runner Evidence
+
+- Packet: `artifacts/orchestration/experiments/exp-ceb1c324038e.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-ceb1c324038e.json`
+- Mode: `oracle_only_governance_reviewer`
+- Result: accepted; 3/3 oracle commands passed; `mutated_paths=[]`;
+  `source_diff_paths` covered the five PR files; `coauthor_required=true`.
+- Commit trailer used on `afb1b2412962`:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/dbd80258a382.json`
+
+## Codex Security Diff Scan
+
+- Report: `/tmp/codex-security-scans/BMI-App_2025_clean/345ef2a8a791_20260601T154118Z/report.md`
+- HTML: `/tmp/codex-security-scans/BMI-App_2025_clean/345ef2a8a791_20260601T154118Z/report.html`
+- Result: no reportable findings.
+- Coverage: five staged PR files recorded in
+  `/tmp/codex-security-scans/BMI-App_2025_clean/345ef2a8a791_20260601T154118Z/artifacts/02_discovery/work_ledger.jsonl`.
+- Follow-up security review: post-open `security-auditor` passed after the
+  `FixedVersion` guard was added.
+
+## PulsePlate PR Review
+
+- Context: `/tmp/pulseplate_pr_1863_review_context.json`
+- Markdown dry-run report: generated with
+  `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1863_review_context.json --format markdown`.
+- JSON dry-run report: generated with
+  `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1863_review_context.json --format json`.
+- Result: one advisory `NEEDS-HUMAN` note for large-diff review risk.
+- Disposition: NOT-A-BUG for merge readiness because the diff is intentionally
+  the minimum coherent policy-disposition packet: Rego, security doc, backlog
+  ledger, focused tests, premortem, and fixed mapping.
+
+## Local Validation
+
+- `python3 scripts/orchestration/check_preflight.py --path docs/review/PR_TRIVY_602_PREMORTEM.md --path docs/roadmap/BACKLOG_LEDGER.md --path docs/security/CVE-2026-48962-perl-base.md --path tests/test_trivy_ignore_policy_expiry.py --path trivy/ignore-policy.rego` - PASS.
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- `python3 scripts/ci/check_trivy_ignore_policy_expiry.py` - PASS.
+- `.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py` - PASS.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-48962-perl-base.md` - PASS.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(gh pr view 1863 --json body --jq .body)" --pr-number 1863 --commit-range origin/main..HEAD` - PASS.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --require-auth --pr-number 1863` - PASS.
+- `TOKEN="$(gh auth token)" GH_TOKEN="$TOKEN" GITHUB_TOKEN="$TOKEN" python3 scripts/orchestration/check_merge_ready.py --pr-number 1863 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` - PASS.
+- `.venv/bin/python -m pytest tests/test_pr_review_report.py -q` - PASS.
+- `make validate-changed` - PASS.
+- `.venv/bin/pre-commit run --all-files` - PASS after Black reformatted
+  `tests/test_trivy_ignore_policy_expiry.py` and the hook was rerun.
+- Pre-push hooks - PASS, including pip-audit, backend tests, and full-repo
+  Bandit; Docker build hook skipped because no Docker-surface files changed.
+- `docker info` - unavailable locally because the Docker daemon socket was not
+  present.
+- `trivy`, `opa`, and `conftest` - unavailable locally.
+
+## Machine-Heavy Gate Deferral
+
+Full local `make verify` is not claimed for this security/container governance
+lane. This PR uses the operator-approved machine-heavy exception: all scoped
+local gates above passed, and current-head CI/Docker/Trivy/SARIF evidence must
+be checked before any readiness claim.
+
+## Merge Readiness
+
+Strict wrapper passed for the current head after all review-thread dispositions
+were resolved. Current-head CI checks passed, including PR Body Phase2 gates,
+Merge readiness gate, lint, security, test-pr, coverage-pr, diff-coverage,
+CodeQL, Trivy ignore-policy expiry, CodeRabbit, and Cubic.
+
+Remaining caveat before any final merge claim: PR image publish is skipped by
+workflow design, local Docker/Trivy image evidence is unavailable, and alert
+#602 remains a main/image SARIF alert until a main/current-head image scan
+updates it. Do not manually dismiss alert #602 without operator approval.

@@ -25,15 +25,15 @@ If it is not recorded here — it does not exist.
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
 <a id="ledger-p1-container-perl-cve-remediation"></a>
-- [ ] P1: Container image Perl/Archive::Tar CVE remediation (CVE-2026-9538, CVE-2026-42497, CVE-2026-8376, CVE-2026-42496)
+- [ ] P1: Container image Perl / IO::Compress / Archive::Tar CVE remediation (CVE-2026-9538, CVE-2026-42497, CVE-2026-8376, CVE-2026-42496, CVE-2026-48962)
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
   - Target PR: TBD (evaluation deadline 2026-08-27)
   - Status: Open
   - Area: security / container / supply-chain
-  - Reason (EN): Four Perl CVEs are suppressed in `.trivyignore` because Debian bookworm has no upstream fix (perl 5.36.0-7+deb12u3 marked vulnerable, unfixed in unstable). Our Python-only runtime does not execute Perl or process tar archives via Archive::Tar, so attack surface is nil, but suppression without remediation path is technical debt. This item tracks the 90-day re-evaluation trigger mandated by the security fix PR.
-  - Links: `.trivyignore` (Perl CVE block), `Dockerfile`, `docs/security/`
-  - DoD: Either (a) Debian bookworm publishes fixed perl-base/perl-modules-5.36 and `.trivyignore` entries are removed, or (b) project migrates to a base image that eliminates Perl from the runtime (e.g., `python:3.13.x-slim-trixie`, `gcr.io/distroless/python3`, or custom minimal image) with passing Trivy scan and green CI.
+  - Reason (EN): Perl-family CVEs are suppressed because Debian bookworm has no actionable upstream fix for the observed image package lines. Four Archive::Tar CVEs are currently tracked in `.trivyignore`; GitHub code-scanning alert #602 reports CVE-2026-48962 against `perl-base 5.36.0-7+deb12u3` with blank fixed version, covered by exact `trivy/ignore-policy.rego` matching. Our Python-only runtime does not execute Perl, Archive::Tar, or IO::Compress/File::GlobMapper on attacker-controlled input, but suppression without a remediation path is technical debt. This item tracks the 90-day re-evaluation trigger mandated by the security fix PRs.
+  - Links: `.trivyignore` (Perl CVE block), `trivy/ignore-policy.rego`, `Dockerfile`, `docs/security/CVE-2026-48962-perl-base.md`, `docs/security/`
+  - DoD: Either (a) Debian bookworm publishes fixed perl-base/perl-modules-5.36 / IO::Compress package lines and the `.trivyignore` / `trivy/ignore-policy.rego` entries are removed, or (b) project migrates to a base image that eliminates Perl from the runtime (e.g., `python:3.13.x-slim-trixie`, `gcr.io/distroless/python3`, or custom minimal image) with passing Trivy scan and green CI.
 
 <a id="ledger-p1-private-pypi-proxy-mirror-parity"></a>
 - [ ] P1: Private PyPI proxy mirror parity and origin stability (packages host only — marketing 521 stays intentional)
