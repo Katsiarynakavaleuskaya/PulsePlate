@@ -605,7 +605,10 @@ def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
     if isinstance(role_dispatch_contract, dict):
         contract_owners = role_dispatch_contract.get("runtime_implementation_owners")
         if isinstance(contract_owners, list):
-            return normalize_implementation_owner_slugs(contract_owners)
+            normalized_contract_owners: set[str] = normalize_implementation_owner_slugs(
+                contract_owners
+            )
+            return normalized_contract_owners
 
     bridge = payload.get("native_subagent_bridge")
     if not isinstance(bridge, dict):
