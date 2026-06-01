@@ -116,9 +116,22 @@ cve_2026_48962_perl_base_pkgid_match if {
 	startswith(input.PkgID, "perl-base@5.36.0-7+deb12u3")
 }
 
+cve_2026_48962_perl_base_fixed_version_unavailable if {
+	not input.FixedVersion
+}
+
+cve_2026_48962_perl_base_fixed_version_unavailable if {
+	input.FixedVersion == ""
+}
+
+cve_2026_48962_perl_base_fixed_version_unavailable if {
+	input.FixedVersion == null
+}
+
 ignore if {
 	input.VulnerabilityID == "CVE-2026-48962"
 	input.PkgName == "perl-base"
 	cve_2026_48962_perl_base_version_match
 	cve_2026_48962_perl_base_pkgid_match
+	cve_2026_48962_perl_base_fixed_version_unavailable
 }

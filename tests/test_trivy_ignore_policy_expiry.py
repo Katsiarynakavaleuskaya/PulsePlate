@@ -140,6 +140,10 @@ def test_cve_2026_48962_policy_is_exact_and_timeboxed() -> None:
     assert 'input.PkgName == "perl-base"' in block
     assert 'input.InstalledVersion == "5.36.0-7+deb12u3"' in block
     assert 'startswith(input.PkgID, "perl-base@5.36.0-7+deb12u3")' in block
+    assert "cve_2026_48962_perl_base_fixed_version_unavailable" in block
+    assert "not input.FixedVersion" in block
+    assert 'input.FixedVersion == ""' in block
+    assert "input.FixedVersion == null" in block
     assert "contains(input.PkgID" not in block
 
     policy = _policy_text()
@@ -161,6 +165,7 @@ def test_cve_2026_48962_doc_and_backlog_coupling() -> None:
     assert "policy disposition" in doc_text
     assert "Dockerfile:9" in doc_text
     assert ".github/workflows/build.yml:422" in doc_text
+    assert "fixed version remains unavailable" in doc_text
 
     ledger_start = backlog_text.index('<a id="ledger-p1-container-perl-cve-remediation"></a>')
     next_anchor = backlog_text.find("<a id=", ledger_start + 1)
