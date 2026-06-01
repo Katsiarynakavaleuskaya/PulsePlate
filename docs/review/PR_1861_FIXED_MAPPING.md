@@ -13,7 +13,35 @@ security-sensitive header test.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333825720 -> 99407267b
+Disposition: FIXED
+Commit: 99407267b
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md:16` now uses the exact `- No actionable review comments` sentinel accepted by the canonical mapping validator.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333843581 -> 99407267b
+Disposition: FIXED
+Commit: 99407267b
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md:16` now uses the exact `- No actionable review comments` sentinel accepted by the canonical mapping validator.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333825724
+Disposition: NOT-A-BUG
+Evidence: `git log --format=%B origin/main..HEAD` shows every current branch commit carries the required `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer; the reviewed `69e86dade6eb40450fba6b81a73794665c62c9bd` SHA is not present in the current branch history.
+Reason: The branch history preserves the required Experiment Runner trailer; the referenced SHA was a stale or synthetic review surface, not the current PR head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333829067 -> 137cb8378
+Disposition: FIXED
+Commit: 137cb8378
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md:36` now says `required hash-seed collection and validation checks`, removing the awkward phrase identified by CodeRabbit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333829084 -> 137cb8378
+Disposition: FIXED
+Commit: 137cb8378
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md:61` now references `artifacts/orchestration/experiments/nightly-xdist-security-outcomes-oracle-packet.json` without the duplicated `artifacts/orchestration/experiments/` segment.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333843593 -> 137cb8378
+Disposition: FIXED
+Commit: 137cb8378
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md:61` now references `artifacts/orchestration/experiments/nightly-xdist-security-outcomes-oracle-packet.json` without the duplicated `artifacts/orchestration/experiments/` segment.
 
 ## Implementation Evidence
 
