@@ -44,6 +44,7 @@ REQUIRED_ENTRY_KEYS = {
     "system_prompt_excerpt",
     "description",
     "readonly",
+    "implementation_owner_override",
     "constraints",
     "depends_on_previous",
 }

@@ -220,15 +220,15 @@ gate labels and mixed implementation-owner shapes.
 
 ## Merge Readiness
 
-- [x] Pre-open agents completed in declared order
-- [x] Premortem findings fixed/dispositioned
-- [x] Experiment Runner oracle-only review accepted
-- [x] `make validate-changed` passed
-- [x] `pre-commit run --all-files` passed
-- [x] pre-push hooks passed
-- [x] Post-open review sequence completed
+- [ ] Pre-open agents completed in declared order
+- [ ] Premortem findings fixed/dispositioned
+- [ ] Experiment Runner oracle-only review accepted
+- [ ] `make validate-changed` passed
+- [ ] `pre-commit run --all-files` passed
+- [ ] pre-push hooks passed
+- [ ] Post-open review sequence completed
 - [ ] Current-head CI checked
-- [x] Bot/human review comments dispositioned
+- [ ] Bot/human review comments dispositioned
 - [ ] Strict merge-readiness wrapper passed
 
 No merge-readiness claim is made by this artifact.

@@ -80,7 +80,6 @@ from scripts.orchestration.requested_agents import (
     POST_OPEN_CODEX_SECURITY_SCAN,
     POST_OPEN_PULSEPLATE_PR_REVIEW,
     POST_OPEN_QA_AGENT,
-    POST_OPEN_SECURITY_AUDITOR_AGENT,
     normalize_requested_agents,
 )
 from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills

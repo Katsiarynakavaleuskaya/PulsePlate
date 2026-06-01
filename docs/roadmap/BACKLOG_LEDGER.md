@@ -5183,7 +5183,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Every checked-in `.cursor/agents/*.md` role file except scoped `.cursor/agents/AGENTS.md` includes `readonly: true` in frontmatter
     - `role_dispatch_bridge.py --mode runtime` keeps frontmatter-readonly implementation roles read-only unless a coordinator packet invocation explicitly passes `--implementation-owner <role>`; ad-hoc `--roles` owner overrides fail closed
     - Dispatch manifest entries record when an explicit implementation-owner override clears readonly routing for `backend-engineer`, `frontend-engineer`, or `dev-operator`
-    - Agent docs consistency passes after the metadata update
+    - `python scripts/orchestration/check_agent_consistency.py` passes after the metadata update
     - No role capability prose, routing graph, capability matrix, or context map changes are bundled into this scope expansion
 
 <a id="ledger-p2-pulseplate-pr-review-dry-run-report-runner"></a>
