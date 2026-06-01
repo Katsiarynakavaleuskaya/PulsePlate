@@ -19,6 +19,31 @@ Disposition: FIXED
 Commit: afb1b2412962
 Evidence: `trivy/ignore-policy.rego` adds exact CVE/package/version/PkgID policy matching; `tests/test_trivy_ignore_policy_expiry.py` proves exact matching, no `.trivyignore` entry, and doc/ledger coupling; `docs/security/CVE-2026-48962-perl-base.md` documents alert evidence and removal conditions; `docs/roadmap/BACKLOG_LEDGER.md` tracks remediation debt.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335451980 -> f604c5aae
+Disposition: FIXED
+Commit: f604c5aae
+Evidence: `docs/review/PR_TRIVY_602_PREMORTEM.md` title now uses `PR #1863`, replacing the `PR TBD` placeholder.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335451993 -> c7be0fb64169
+Disposition: FIXED
+Commit: c7be0fb64169
+Evidence: `docs/review/PR_TRIVY_602_PREMORTEM.md` now includes Discussion Thread Pass, Fixed in Commit Mapping, Merge Readiness, and the canonical `docs/review/PR_1863_FIXED_MAPPING.md` reference.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#pullrequestreview-4402674945 -> c7be0fb64169
+Disposition: FIXED
+Commit: c7be0fb64169
+Evidence: `tests/test_trivy_ignore_policy_expiry.py` now uses a safe fallback to the end of `BACKLOG_LEDGER.md` when no later anchor exists, and the premortem PR title/linkage feedback is addressed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335468861 -> c7be0fb64169
+Disposition: FIXED
+Commit: c7be0fb64169
+Evidence: `docs/review/PR_1863_FIXED_MAPPING.md` now says the validation plan required focus on Trivy policy guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335478528
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor afb1b2412962 HEAD` exits 0 on branch head `c7be0fb64169`, so the implementation SHA is reachable in the real PR branch history.
+Reason: The bot compared `afb1b2412962` to a synthetic reviewed commit surface rather than the current branch head; the mapping remains valid for the actual PR history.
+
 ## Implementation Evidence
 
 Disposition: FIXED
@@ -78,6 +103,10 @@ Post-open role order is pending:
   `source_diff_paths` covered the five PR files; `coauthor_required=true`.
 - Commit trailer used on `afb1b2412962`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/dbd80258a382.json`
 
 ## Codex Security Diff Scan
 
