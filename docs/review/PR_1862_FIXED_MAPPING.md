@@ -40,7 +40,7 @@ Evidence: `frontend/src/locales/ru.json` now translates the guided-planning next
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#pullrequestreview-4402626749 -> 130d959c0
 Disposition: FIXED / NOT-A-BUG
-Commit: ddaa37eac, 130d959c0
+Commit: 130d959c0
 Evidence: `frontend/src/pages/NutritionSetup/ResultView.tsx` and `frontend/src/pages/NutritionSetup/index.tsx` localize guided-planning labels; `frontend/src/lib/settings.tsx` now adds explicit return types for `SettingsProvider` and `updateSetting`. The panel/result rail duplication note is NOT-A-BUG because the panel is setup context while the result rail is the result CTA.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335432681 -> edba5baf4
@@ -68,6 +68,16 @@ Disposition: FIXED
 Commit: b8bb07688
 Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` leaves merge-readiness checkboxes unchecked, and `frontend/src/pages/NutritionSetup/index.tsx` adds `: JSX.Element` to `NutritionSetupPage`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3336597822 -> b8bb07688
+Disposition: FIXED
+Commit: b8bb07688
+Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` leaves every merge-readiness checkbox unchecked until the actual final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#pullrequestreview-4403997544 -> b8bb07688
+Disposition: FIXED
+Commit: b8bb07688
+Evidence: Cubic marked the stale merge-readiness checkbox finding as addressed in `b8bb07688`; the current artifact keeps those checkboxes unchecked.
+
 ## Post-Open Role Findings
 
 - QA P1 Phase2 PR body/fixed-mapping governance: FIXED by normalizing this
@@ -94,6 +104,7 @@ Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` leaves merge-readiness checkbox
 - CodeRabbit settings explicit return-type nit: FIXED by `130d959c0`.
 - CodeRabbit duplicate panel/rail note: NOT-A-BUG; the setup panel is context
   before and during setup, while the result rail is a compact next-action CTA.
+- Cubic P2 merge-readiness checkbox stale finding: FIXED by `b8bb07688`.
 - Security-auditor post-open pass: NOT-A-BUG / PASS. No new findings after
   the i18n, wellness-guard, and governance-format fixes. Evidence: guided
   planning remains in-memory only, no storage/network persistence was added,
