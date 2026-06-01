@@ -13,6 +13,21 @@ security-sensitive header test.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401309577
+Disposition: NOT-A-BUG
+Evidence: PR #1861 is being merged with a merge commit, not squash-merged; the branch history contains the mapped proof commits, and each branch commit carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The reviewed `ec0624b` single-commit surface is a synthetic squash-review surface. It is not the landing history for this merge-commit closeout.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3334245949
+Disposition: NOT-A-BUG
+Evidence: This closeout uses a merge commit so proof commits such as `cc93bf72c`, `a96b31e50`, `d4157039d`, `99407267b`, `137cb8378`, and `59f94a63e` remain in the landing history.
+Reason: The comment is valid only for a squash-merge path. It does not apply to the governed merge-commit path selected here to preserve proof SHAs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3334245956
+Disposition: NOT-A-BUG
+Evidence: Branch commits include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and the PR will be merged with a merge commit preserving those commits rather than a synthetic squash commit.
+Reason: The root Experiment Runner attribution invariant is satisfied by preserving branch commit trailers in the merge-commit history.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401211080 -> cc93bf72c
 Disposition: FIXED
 Commit: cc93bf72c
