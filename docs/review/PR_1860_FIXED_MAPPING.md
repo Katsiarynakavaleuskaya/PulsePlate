@@ -42,6 +42,16 @@ Commit: 36579db20
 Evidence: `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`, `docs/orchestration/workflow.md`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`, and `scripts/orchestration/render_codex_start_prompt.py` now document interpreter-wrapped role-dispatch commands; focused prompt/bootstrap/mapping pytest passed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3331861068 -> 36579db20
 
+Disposition: FIXED
+Commit: 34d6a994d
+Evidence: `scripts/orchestration/task_bootstrap.py` derives packet-bound runtime implementation owners from the native subagent bridge, emits `--mode runtime --implementation-owner <role>` in the bootstrap `dispatch_manifest_command` for implementation-owner roles, and records the owner list in the role dispatch contract. `tests/test_task_bootstrap.py` covers the frontend implementation packet command. Focused validation passed with `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3331914876 -> 34d6a994d
+
+Disposition: FIXED
+Commit: 34d6a994d
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now treats explicit `--roles --pr-phase merge_ready` like post-open review for mandatory QA -> bug-hunter -> security-auditor ordering, and `tests/test_qoder_dispatch_bridge.py` covers the merge-ready explicit-role order. Focused validation passed with `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3331914883 -> 34d6a994d
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
@@ -117,6 +127,7 @@ Pre-open role order executed:
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py` - PASS after Codex connector review fixes
 - `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py` - PASS after Codex connector dispatch-command fix
 - `python -m pytest -q tests/test_render_codex_start_prompt.py tests/test_task_bootstrap.py tests/test_pr_body_phase2_gates.py tests/test_review_mapping_artifact.py` - PASS after Codex connector onboarding-command fix
+- `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py` - PASS after Codex connector runtime-owner and merge-ready order fixes
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS
@@ -234,7 +245,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
-- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, and `36579db20`
+- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, and `34d6a994d`
 - [x] Cubic review - duplicate FIXED block mapping format fixed by `3af133b45`
 - [x] CodeRabbit review - merge-readiness checklist, unused import, manifest schema key, and backlog DoD clarity fixed by `32b7aa18`
 
