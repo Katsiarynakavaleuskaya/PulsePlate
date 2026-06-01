@@ -16,12 +16,12 @@ security-sensitive header test.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401020366 -> a96b31e50
 Disposition: FIXED
 Commit: a96b31e50
-Evidence: Cubic's review-level actionable surface is covered by the stale-evidence fix below; `docs/review/PR_1861_FIXED_MAPPING.md` no longer claims the removed no-actionable sentinel is present.
+Evidence: Cubic's review-level actionable surface is covered by the stale-evidence fix below; `docs/review/PR_1861_FIXED_MAPPING.md` no longer claims the removed sentinel is present.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333983785 -> a96b31e50
 Disposition: FIXED
 Commit: a96b31e50
-Evidence: `docs/review/PR_1861_FIXED_MAPPING.md` now says the artifact uses explicit review-thread and review-level mappings, removing the stale `- No actionable review comments` evidence text Cubic identified.
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md` now says the artifact uses explicit review-thread and review-level mappings, removing the stale sentinel evidence text Cubic identified.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401024810
 Disposition: NOT-A-BUG
