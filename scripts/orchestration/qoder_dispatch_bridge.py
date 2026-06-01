@@ -563,7 +563,7 @@ def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, An
         return False
 
     pr_phase = str(payload.get("pr_phase", "")).strip().lower()
-    if pr_phase and pr_phase not in ("post_open_review", "merge_ready"):
+    if pr_phase == PR_PHASE_PRE_OPEN:
         return True
 
     try:
@@ -587,6 +587,43 @@ def _json_packet_requested_order_preserves_mandatory_tail(packet_path: Path) -> 
     if payload is None:
         return False
     return _json_payload_requested_order_preserves_mandatory_tail(payload)
+
+
+def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
+    """Return implementation owners explicitly granted by a JSON task packet."""
+
+    try:
+        resolved_packet_path = packet_path.resolve(strict=True)
+        resolved_packet_path.relative_to(REPO_ROOT.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return set()
+    payload = _load_json_packet(resolved_packet_path)
+    if payload is None:
+        return set()
+
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    if isinstance(role_dispatch_contract, dict):
+        contract_owners = role_dispatch_contract.get("runtime_implementation_owners")
+        if isinstance(contract_owners, list):
+            return normalize_implementation_owner_slugs(contract_owners)
+
+    bridge = payload.get("native_subagent_bridge")
+    if not isinstance(bridge, dict):
+        return set()
+    secondary_bindings = bridge.get("secondary", [])
+    if not isinstance(secondary_bindings, list):
+        secondary_bindings = []
+    owner_slugs: list[str] = []
+    for binding in [bridge.get("primary"), *secondary_bindings]:
+        if not isinstance(binding, dict):
+            continue
+        slug = str(binding.get("repo_agent_slug", "")).strip().lower()
+        if slug not in IMPLEMENTATION_OWNER_SLUGS or slug in owner_slugs:
+            continue
+        if binding.get("execution_mode") != "read_write":
+            continue
+        owner_slugs.append(slug)
+    return set(owner_slugs)
 
 
 def _parse_packet_roles(packet_path: Path) -> List[str]:
@@ -1133,13 +1170,25 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not role_slugs:
         print("FAIL: No role slugs provided.", file=sys.stderr)
         return 1
-    if args.implementation_owner and not args.packet:
+    implementation_owner_slugs = normalize_implementation_owner_slugs(args.implementation_owner)
+    if implementation_owner_slugs and not args.packet:
         print(
             "FAIL: --implementation-owner requires --packet so runtime ownership "
             "stays tied to coordinator-governed dispatch evidence.",
             file=sys.stderr,
         )
         return 1
+    if implementation_owner_slugs and args.packet:
+        allowed_owner_slugs = _json_packet_runtime_implementation_owners(packet_path)
+        ungranted_owner_slugs = sorted(implementation_owner_slugs - allowed_owner_slugs)
+        if ungranted_owner_slugs:
+            print(
+                "FAIL: --implementation-owner not granted by packet for: "
+                + ", ".join(ungranted_owner_slugs)
+                + ". Use the packet role_agent_dispatch_contract.dispatch_manifest_command.",
+                file=sys.stderr,
+            )
+            return 1
 
     # Build manifest
     manifest = build_dispatch_manifest(
@@ -1149,7 +1198,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         bracket_groups=packet_bracket_groups,
         chained_successors=packet_chained_successors,
         enforce_mandatory_post_open_tail=enforce_mandatory_post_open_tail,
-        implementation_owners=normalize_implementation_owner_slugs(args.implementation_owner),
+        implementation_owners=implementation_owner_slugs,
     )
     if manifest.get("missing_agents"):
         print(

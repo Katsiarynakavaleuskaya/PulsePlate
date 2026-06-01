@@ -276,6 +276,30 @@ def test_packet_prompt_shell_quotes_dispatch_packet_path() -> None:
     ) in prompt
 
 
+def test_packet_prompt_uses_packet_dispatch_command_runtime_owner_flags() -> None:
+    """Implementation packet prompts must preserve packet-granted owner flags."""
+
+    packet = _packet()
+    packet["role_agent_dispatch_contract"] = {
+        "dispatch_manifest_command": (
+            "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> "
+            "--mode runtime --implementation-owner frontend-engineer --pretty"
+        )
+    }
+
+    prompt = render_packet_prompt(
+        packet,
+        packet_path="artifacts/orchestration/task_packets/demo.json",
+    )
+
+    assert (
+        "Next role-agent dispatch command: $VENV_PYTHON "
+        "scripts/orchestration/role_dispatch_bridge.py --packet "
+        "artifacts/orchestration/task_packets/demo.json --mode runtime "
+        "--implementation-owner frontend-engineer --pretty"
+    ) in prompt
+
+
 def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     """The local helper prompt must not masquerade as task_bootstrap output."""
 

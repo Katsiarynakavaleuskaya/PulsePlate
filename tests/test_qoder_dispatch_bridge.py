@@ -604,6 +604,21 @@ def test_pre_open_packet_preserves_requested_custom_role_order() -> None:
     )
 
 
+def test_none_phase_packet_does_not_preserve_inverted_mandatory_tail() -> None:
+    """Default JSON packets must not bypass the QA -> bug -> security tail."""
+
+    assert not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+        {
+            "pr_phase": "none",
+            "requested_agents": [
+                "qa-engineer-agent",
+                "security-auditor",
+                "bug-hunter",
+            ],
+        }
+    )
+
+
 def test_pre_open_packet_rejects_malformed_requested_agents_before_bypass() -> None:
     """Pre-open order bypass still validates requested_agents is a slug list."""
 
@@ -1349,11 +1364,17 @@ def test_runtime_implementation_owner_cli_packet_success(
     packet_file.write_text(
         json.dumps(
             {
+                "role_agent_dispatch_contract": {
+                    "runtime_implementation_owners": ["frontend-engineer"]
+                },
                 "native_subagent_bridge": {
-                    "primary": {"repo_agent_slug": "frontend-engineer"},
+                    "primary": {
+                        "repo_agent_slug": "frontend-engineer",
+                        "execution_mode": "read_write",
+                    },
                     "secondary": [],
                     "advisory": [],
-                }
+                },
             }
         ),
         encoding="utf-8",
@@ -1384,6 +1405,70 @@ def test_runtime_implementation_owner_cli_packet_success(
     assert entry["qoder_subagent_type"] == "Browser"
     assert entry["readonly"] is False
     assert entry["implementation_owner_override"] is True
+
+
+def test_runtime_implementation_owner_cli_rejects_ungranted_packet_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Runtime owner flags must match packet-granted read-write owners."""
+
+    agents_dir = tmp_path / ".cursor" / "agents"
+    agents_dir.mkdir(parents=True)
+    for slug in ["agent-coordinator", "backend-engineer"]:
+        (agents_dir / f"{slug}.md").write_text(
+            "---\n"
+            f"name: {slug}\n"
+            "model: auto\n"
+            f"description: {slug}\n"
+            "readonly: true\n"
+            "---\n"
+            f"\n# {slug}\n",
+            encoding="utf-8",
+        )
+    packet_file = tmp_path / "packet.json"
+    packet_file.write_text(
+        json.dumps(
+            {
+                "role_agent_dispatch_contract": {"runtime_implementation_owners": []},
+                "native_subagent_bridge": {
+                    "primary": {"repo_agent_slug": "agent-coordinator"},
+                    "secondary": [],
+                    "advisory": [
+                        {
+                            "repo_agent_slug": "backend-engineer",
+                            "execution_mode": "advisory_review",
+                            "dispatch_contract": {
+                                "advisory_only": False,
+                                "spawn_with_native_subagent": True,
+                                "required_role_pass": True,
+                            },
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet_file),
+            "--mode",
+            "runtime",
+            "--implementation-owner",
+            "backend-engineer",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "--implementation-owner not granted by packet for: backend-engineer" in captured.err
 
 
 def test_coordinator_is_not_parallelized_with_readonly_reviewers() -> None:
