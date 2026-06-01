@@ -33,8 +33,8 @@ parametrization, while production `SECURITY_SENSITIVE_OUTCOMES` remains a
   xdist execution, `make validate-changed`, and `pre-commit run --all-files`.
 - `architecture-specialist` - completed; required test-only deterministic
   parametrization and preserving the production renderer contract.
-- `qa-engineer-agent` - completed; required fixed hash-seed collection checks,
-  xdist checks, full renderer module validation, and no skips or xfails.
+- `qa-engineer-agent` - completed; required hash-seed collection and validation
+  checks, xdist checks, full renderer module validation, and no skips or xfails.
 - `bug-hunter` - completed; confirmed the root cause as direct parametrization
   from a `frozenset` and classified the low coverage result as downstream
   collection-abort fallout.
@@ -57,8 +57,7 @@ parametrization, while production `SECURITY_SENSITIVE_OUTCOMES` remains a
 
 ## Experiment Runner Evidence
 
-- Packet:
-  `artifacts/orchestration/experiments/artifacts/orchestration/experiments/nightly-xdist-security-outcomes-oracle-packet.json`.
+- Packet: `artifacts/orchestration/experiments/nightly-xdist-security-outcomes-oracle-packet.json`.
 - Artifact: `artifacts/orchestration/experiments/results/nightly-xdist-security-outcomes-oracle-result.json`
 - Mode: `oracle_only_governance_reviewer`.
 - Result: accepted; 2/2 oracle commands passed; shared tree untouched;
