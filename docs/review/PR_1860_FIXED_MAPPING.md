@@ -52,6 +52,21 @@ Commit: 34d6a994d
 Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now treats explicit `--roles --pr-phase merge_ready` like post-open review for mandatory QA -> bug-hunter -> security-auditor ordering, and `tests/test_qoder_dispatch_bridge.py` covers the merge-ready explicit-role order. Focused validation passed with `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3331914883 -> 34d6a994d
 
+Disposition: FIXED
+Commit: d638ad6f3
+Evidence: `scripts/orchestration/render_codex_start_prompt.py` renders the packet-provided `role_agent_dispatch_contract.dispatch_manifest_command` with the actual packet path and `$VENV_PYTHON`, preserving runtime owner flags. `tests/test_render_codex_start_prompt.py` covers implementation packet prompt rendering. Focused validation passed with `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3332042078 -> d638ad6f3
+
+Disposition: FIXED
+Commit: d638ad6f3
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now validates `--implementation-owner` values against packet-granted `runtime_implementation_owners` or packet read-write primary/secondary bindings before building a runtime manifest. `tests/test_qoder_dispatch_bridge.py` covers rejecting advisory-only owner elevation. Focused validation passed with `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3332042081 -> d638ad6f3
+
+Disposition: FIXED
+Commit: d638ad6f3
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now preserves requested order only for explicit `pr_phase: pre_open`; default `pr_phase: none` packets still enforce QA -> bug-hunter -> security-auditor tail normalization. `tests/test_qoder_dispatch_bridge.py` covers the default-packet regression. Focused validation passed with `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3332042085 -> d638ad6f3
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
@@ -128,6 +143,7 @@ Pre-open role order executed:
 - `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py` - PASS after Codex connector dispatch-command fix
 - `python -m pytest -q tests/test_render_codex_start_prompt.py tests/test_task_bootstrap.py tests/test_pr_body_phase2_gates.py tests/test_review_mapping_artifact.py` - PASS after Codex connector onboarding-command fix
 - `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py` - PASS after Codex connector runtime-owner and merge-ready order fixes
+- `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py` - PASS after Codex connector packet dispatch ownership fixes
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS
@@ -245,7 +261,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
-- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, and `34d6a994d`
+- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, `34d6a994d`, and `d638ad6f`
 - [x] Cubic review - duplicate FIXED block mapping format fixed by `3af133b45`
 - [x] CodeRabbit review - merge-readiness checklist, unused import, manifest schema key, and backlog DoD clarity fixed by `32b7aa18`
 
