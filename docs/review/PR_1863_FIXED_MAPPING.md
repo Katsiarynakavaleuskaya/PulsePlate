@@ -64,6 +64,16 @@ Disposition: NOT-A-BUG
 Evidence: `git show -s --format=%B afb1b2412962` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and that is the implementation commit materially shaped by the Experiment Runner oracle result.
 Reason: Later fixed-mapping/review-disposition commits document or respond to post-open review feedback; they were not the oracle-shaped implementation commit and do not require retroactive Experiment Runner attribution.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3336675899
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor b543afe4e HEAD` exits 0 on the real local PR branch, and `git show -s --format=%B a4c3b7e9aa993ada372d0c54ebd481ddf0fe9d53` fails with `fatal: bad object a4c3b7e9aa993ada372d0c54ebd481ddf0fe9d53`.
+Reason: The bot compared the fixed-version guard SHA against a synthetic reviewed commit SHA, not the current PR branch history used by repo merge-readiness guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3336675906
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B afb1b2412962` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git show -s --format=%B a4c3b7e9aa993ada372d0c54ebd481ddf0fe9d53` fails with `fatal: bad object a4c3b7e9aa993ada372d0c54ebd481ddf0fe9d53`.
+Reason: The implementation commit materially shaped by Experiment Runner oracle evidence is `afb1b2412962`, which carries the required trailer; the reviewed synthetic SHA is not an actual branch commit requiring separate attribution.
+
 ## Implementation Evidence
 
 Disposition: FIXED
