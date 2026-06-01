@@ -445,12 +445,14 @@ def _build_role_dispatch_manifest_command(
 def _build_role_agent_dispatch_contract(
     *,
     native_subagent_bridge: dict[str, Any] | None = None,
+    pr_phase: str = PR_PHASE_NONE,
 ) -> dict[str, Any]:
     """Return deterministic metadata for the post-bootstrap role dispatch step."""
 
     implementation_owner_slugs = (
         _implementation_owner_slugs_from_bridge(native_subagent_bridge)
         if native_subagent_bridge
+        and pr_phase not in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}
         else []
     )
     return {
@@ -1126,6 +1128,7 @@ def build_task_packet(
         },
         "role_agent_dispatch_contract": _build_role_agent_dispatch_contract(
             native_subagent_bridge=native_subagent_bridge,
+            pr_phase=normalized_pr_phase,
         ),
         "pr_phase": normalized_pr_phase,
         "pr_lifecycle_contract": pr_lifecycle_contract,
@@ -1270,6 +1273,7 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(role_dispatch_contract, dict):
         role_dispatch_contract = _build_role_agent_dispatch_contract(
             native_subagent_bridge=packet.get("native_subagent_bridge"),
+            pr_phase=str(packet.get("pr_phase", PR_PHASE_NONE)),
         )
     print(
         json.dumps(

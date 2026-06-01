@@ -245,6 +245,25 @@ def test_task_bootstrap_dispatch_command_includes_security_owner_flags() -> None
     )
 
 
+def test_post_open_review_dispatch_command_suppresses_runtime_owner_flags() -> None:
+    """Post-open review packets must keep mandatory reviewers read-only by default."""
+
+    packet = build_task_packet(
+        goal="Run post-open review",
+        task_class="QA",
+        candidate_paths=["tests/test_qoder_dispatch_bridge.py"],
+        pr_phase="post_open_review",
+    )
+
+    dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert dispatch_contract["runtime_implementation_owner_flags_required"] is False
+    assert dispatch_contract["runtime_implementation_owners"] == []
+    assert dispatch_contract["dispatch_manifest_command"] == (
+        "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
+    )
+
+
 def test_task_bootstrap_exposes_skill_routing_explanation_and_connector_policy() -> None:
     """Bootstrap packets should carry the wave 2 explanation and connector contract."""
 
