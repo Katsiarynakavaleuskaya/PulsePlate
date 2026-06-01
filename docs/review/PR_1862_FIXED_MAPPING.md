@@ -8,12 +8,21 @@
 
 ## Discussion Thread Pass
 
-- [x] Initial PR-open discussion-thread pass completed.
-- [x] Initial fixed-in-commit mapping artifact created.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- Initial PR open has no review threads yet.
+- No actionable review comments
+
+## Post-Open Role Findings
+
+- QA P1 Phase2 PR body/fixed-mapping governance: FIXED by normalizing this
+  artifact to the canonical checkbox and no-actionable mapping format, adding
+  explicit Experiment Runner evidence, and syncing the PR body mirror.
+- QA P1 PR size governance missing `## Tests`: FIXED by replacing the PR body
+  `## Validation` section with `## Tests` and adding explicit split
+  justification for the frontend/governance bundle.
 
 ## Implementation Evidence
 
@@ -56,6 +65,11 @@ Evidence:
 - `pulseplate-premortem-risk-review` - completed before PR open; decision:
   proceed with closed findings.
 
+## Lane Start Provenance
+
+Packet: `artifacts/orchestration/task_packets/0a5a8b859f71.json`
+Starter: `scripts/orchestration/start_pr_lane.sh`
+
 ## Premortem Dispositions
 
 - Stale draft after changed intent/time selection: FIXED in `Home.tsx` and
@@ -74,6 +88,8 @@ Evidence:
   reference; repo/backlog/tests remain source of truth.
 
 ## Experiment Runner Evidence
+
+Artifact: `artifacts/orchestration/experiments/results/exp-bc66ba464742.json`
 
 - Packet: `artifacts/orchestration/experiments/exp-bc66ba464742.json`
 - Result artifact:
