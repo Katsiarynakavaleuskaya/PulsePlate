@@ -97,7 +97,7 @@ Post-open role order is pending:
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/exp-ceb1c324038e.json`
-- Result: `artifacts/orchestration/experiments/results/exp-ceb1c324038e.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-ceb1c324038e.json`
 - Mode: `oracle_only_governance_reviewer`
 - Result: accepted; 3/3 oracle commands passed; `mutated_paths=[]`;
   `source_diff_paths` covered the five PR files; `coauthor_required=true`.
