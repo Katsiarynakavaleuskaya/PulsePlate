@@ -32,6 +32,9 @@ from scripts.orchestration.experiment_slack_kpp_renderer import (
     route_kpp_outcome_from_result,
 )
 
+# Keep pytest-xdist collection stable across hash seeds and workers.
+SECURITY_SENSITIVE_OUTCOME_CASES = tuple(sorted(SECURITY_SENSITIVE_OUTCOMES))
+
 # ============================================================================
 # Redaction
 # ============================================================================
@@ -190,7 +193,7 @@ def test_kpp_class_values(outcome: str, expected_class: str) -> None:
 
 @pytest.mark.parametrize(
     "outcome",
-    SECURITY_SENSITIVE_OUTCOMES,
+    SECURITY_SENSITIVE_OUTCOME_CASES,
 )
 def test_security_sensitive_headers(outcome: str) -> None:
     message = render_kpp_block_message(
