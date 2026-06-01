@@ -1,9 +1,11 @@
 /** @vitest-environment jsdom */
+import { useEffect, useRef, type ReactNode } from 'react';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { SettingsProvider } from '../../../lib/settings';
+import { MemoryRouter } from 'react-router-dom';
+import { SettingsProvider, useSettings, type Settings } from '../../../lib/settings';
 import NutritionSetupPage from '../index';
 
 vi.mock('react-i18next', () => ({
@@ -38,6 +40,45 @@ vi.mock('../hooks', () => ({
   })),
 }));
 
+function SeedSettings({
+  children,
+  guidedPlanningDraft,
+}: {
+  children: ReactNode;
+  guidedPlanningDraft?: Settings['guidedPlanningDraft'];
+}) {
+  return (
+    <SettingsProvider>
+      <MemoryRouter>
+        <SettingsSeed guidedPlanningDraft={guidedPlanningDraft}>{children}</SettingsSeed>
+      </MemoryRouter>
+    </SettingsProvider>
+  );
+}
+
+function SettingsSeed({
+  children,
+  guidedPlanningDraft,
+}: {
+  children: ReactNode;
+  guidedPlanningDraft?: Settings['guidedPlanningDraft'];
+}) {
+  const { updateSetting } = useSettings();
+  const didSeed = useRef(false);
+
+  useEffect(() => {
+    if (didSeed.current) {
+      return;
+    }
+    if (guidedPlanningDraft !== undefined) {
+      updateSetting('guidedPlanningDraft', guidedPlanningDraft);
+    }
+    didSeed.current = true;
+  }, [guidedPlanningDraft, updateSetting]);
+
+  return <>{children}</>;
+}
+
 describe('NutritionSetupPage', () => {
   it('moves the governed stepper from profile to results after submit', async () => {
     const user = userEvent.setup();
@@ -58,5 +99,53 @@ describe('NutritionSetupPage', () => {
     });
 
     expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('nutritionSetup.steps.results.label');
+  });
+
+  it('shows planning direction from a valid guided planning draft and carries it to results', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SeedSettings
+        guidedPlanningDraft={{
+          intentId: 'shopping',
+          timeId: 'batch',
+          savedAt: '2026-06-01T00:00:00.000Z',
+        }}
+      >
+        <NutritionSetupPage />
+      </SeedSettings>
+    );
+
+    expect(await screen.findByTestId('planning-direction-panel')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Shopping-list planning' })).toBeInTheDocument();
+    expect(screen.getByText('Batch prep')).toBeInTheDocument();
+    expect(screen.getByText(/Translate check-in intent into meal anchors/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'nutritionSetup.calculateButton' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('navigation', { name: 'Guided planning next steps' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('link', { name: 'Continue to plate' })).toHaveAttribute('href', '/plate');
+    expect(screen.getByRole('link', { name: 'Open progress check-ins' })).toHaveAttribute('href', '/progress');
+  });
+
+  it('does not show planning direction when the guided planning draft is invalid', () => {
+    render(
+      <SeedSettings
+        guidedPlanningDraft={
+          {
+            intentId: 'invalid-intent',
+            timeId: 'batch',
+            savedAt: '2026-06-01T00:00:00.000Z',
+          } as unknown as Settings['guidedPlanningDraft']
+        }
+      >
+        <NutritionSetupPage />
+      </SeedSettings>
+    );
+
+    expect(screen.queryByTestId('planning-direction-panel')).not.toBeInTheDocument();
   });
 });

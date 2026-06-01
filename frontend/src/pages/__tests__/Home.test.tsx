@@ -1,4 +1,4 @@
-import { JSX } from 'react';
+import { JSX, useEffect } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -12,6 +12,7 @@ import {
   setGuidedPlanningEventSink,
   type GuidedPlanningEvent,
 } from '../../lib/mvpObservability';
+import { SettingsProvider, useSettings, type Settings } from '../../lib/settings';
 
 vi.mock('../../lib/auth', () => ({
   useAuth: vi.fn(),
@@ -38,28 +39,62 @@ function renderConfiguredRoute(path: RoutePath, element: JSX.Element): JSX.Eleme
   return routeConfig.requiresAuth ? <RequireKey>{element}</RequireKey> : element;
 }
 
-function renderHomeRoutes(): ReturnType<typeof render> {
+function SettingsProbe({ onSettings }: { onSettings?: (settings: Settings) => void }): JSX.Element | null {
+  const { settings } = useSettings();
+
+  useEffect(() => {
+    onSettings?.(settings);
+  }, [onSettings, settings]);
+
+  return null;
+}
+
+function renderHome(onSettings?: (settings: Settings) => void): ReturnType<typeof render> {
   return render(
-    <MemoryRouter initialEntries={['/app']}>
-      <Routes>
-        <Route path="/app" element={renderConfiguredRoute('/app', <Home />)} />
-        <Route
-          path="/setup"
-          element={renderConfiguredRoute('/setup', <div data-testid="setup-route">Nutrition Setup Flow</div>)}
-        />
-        <Route
-          path="/plate"
-          element={renderConfiguredRoute('/plate', <div data-testid="plate-route">Plate route</div>)}
-        />
-        <Route
-          path="/progress"
-          element={renderConfiguredRoute('/progress', <div data-testid="progress-route">Progress route</div>)}
-        />
-        <Route path="/bmi" element={renderConfiguredRoute('/bmi', <div data-testid="bmi-route">BMI route</div>)} />
-        <Route path="/pro" element={renderConfiguredRoute('/pro', <div data-testid="pro-route">Pro route</div>)} />
-        <Route path="/enter-key" element={renderConfiguredRoute('/enter-key', <EnterKeyProbe />)} />
-      </Routes>
-    </MemoryRouter>
+    <SettingsProvider>
+      <MemoryRouter>
+        <Home />
+        <SettingsProbe onSettings={onSettings} />
+      </MemoryRouter>
+    </SettingsProvider>
+  );
+}
+
+function renderHomeRoutes(onSettings?: (settings: Settings) => void): ReturnType<typeof render> {
+  return render(
+    <SettingsProvider>
+      <MemoryRouter initialEntries={['/app']}>
+        <Routes>
+          <Route path="/app" element={renderConfiguredRoute('/app', <Home />)} />
+          <Route
+            path="/setup"
+            element={renderConfiguredRoute('/setup', <div data-testid="setup-route">Nutrition Setup Flow</div>)}
+          />
+          <Route
+            path="/plate"
+            element={renderConfiguredRoute('/plate', <div data-testid="plate-route">Plate route</div>)}
+          />
+          <Route
+            path="/progress"
+            element={renderConfiguredRoute('/progress', <div data-testid="progress-route">Progress route</div>)}
+          />
+          <Route path="/bmi" element={renderConfiguredRoute('/bmi', <div data-testid="bmi-route">BMI route</div>)} />
+          <Route path="/pro" element={renderConfiguredRoute('/pro', <div data-testid="pro-route">Pro route</div>)} />
+          <Route path="/enter-key" element={renderConfiguredRoute('/enter-key', <EnterKeyProbe />)} />
+        </Routes>
+        <SettingsProbe onSettings={onSettings} />
+      </MemoryRouter>
+    </SettingsProvider>
+  );
+}
+
+function homeTestTree(): JSX.Element {
+  return (
+    <SettingsProvider>
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    </SettingsProvider>
   );
 }
 
@@ -76,11 +111,7 @@ function rerenderHomeWithAuthState(
     showAuthPrompt: false,
     setShowAuthPrompt: vi.fn(),
   });
-  renderedHome.rerender(
-    <MemoryRouter>
-      <Home />
-    </MemoryRouter>
-  );
+  renderedHome.rerender(homeTestTree());
 }
 
 describe('Home Guided Planning Preview', () => {
@@ -107,11 +138,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   it('renders the planning-first MVP surface on /app', () => {
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     expect(screen.getByRole('main')).toBeInTheDocument();
     const guidedPlanningContainer = screen.getByTestId('guided-planning-preview');
@@ -130,11 +157,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   it('renders required observability anchors', () => {
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     expect(screen.getByTestId('planning-intent-selector')).toBeInTheDocument();
     expect(screen.getByTestId('planning-time-selector')).toBeInTheDocument();
@@ -149,11 +172,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   it('emits safe frontend-only MVP view evidence on render', () => {
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     expect(guidedPlanningEvents.map((event) => event.name)).toEqual([
       'guided_planning_viewed',
@@ -210,11 +229,7 @@ describe('Home Guided Planning Preview', () => {
 
   it('keeps emitted MVP event payloads free of sensitive fields', async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
     await user.click(screen.getByRole('button', { name: /Batch prep/i }));
@@ -229,11 +244,7 @@ describe('Home Guided Planning Preview', () => {
 
   it('lets users choose planning intent and practical time constraint', async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
     await user.click(screen.getByRole('button', { name: /Batch prep/i }));
@@ -275,27 +286,30 @@ describe('Home Guided Planning Preview', () => {
 
   it('shows an honest unauthenticated session-local save and continuation state', async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    const settingsSnapshots: Settings[] = [];
+    renderHome((settings) => settingsSnapshots.push(settings));
 
     expect(screen.getByTestId('planning-save-auth-prompt')).toHaveTextContent(
-      'Without sign-in, PulsePlate can only mark this preview on this screen.'
+      'Without sign-in, PulsePlate can only mark this preview in the current app session.'
     );
     expect(screen.getByTestId('planning-progress-state')).toHaveTextContent(
       'Planning progress starts with your selected intent and practical cooking window.'
     );
     expect(screen.getByTestId('planning-progress-state')).toHaveAttribute('role', 'status');
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview here');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview for session');
     expect(screen.getByTestId('planning-continue-cta')).toHaveAttribute('href', '/plate');
 
     await user.click(screen.getByTestId('planning-save-cta'));
 
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+    const latestSettings = settingsSnapshots[settingsSnapshots.length - 1];
+    expect(latestSettings.guidedPlanningDraft).toMatchObject({
+      intentId: 'consistent',
+      timeId: 'standard',
+    });
+    expect(latestSettings.guidedPlanningDraft?.savedAt).toEqual(expect.any(String));
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked for session');
     expect(screen.getByTestId('planning-progress-state')).toHaveTextContent(
-      'Preview marked here. Continue when you are ready to turn this direction into weekly planning.'
+      'Preview marked for this app session. Continue when you are ready to turn this direction into weekly planning.'
     );
     expect(guidedPlanningEvents).toEqual(
       expect.arrayContaining([
@@ -323,56 +337,60 @@ describe('Home Guided Planning Preview', () => {
     );
   });
 
-  it('clears the screen-local preview mark when selections change', async () => {
+  it('clears the session preview draft when selections change', async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    const settingsSnapshots: Settings[] = [];
+    renderHome((settings) => settingsSnapshots.push(settings));
 
     await user.click(screen.getByTestId('planning-save-cta'));
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked for session');
+    expect(settingsSnapshots[settingsSnapshots.length - 1].guidedPlanningDraft).toMatchObject({
+      intentId: 'consistent',
+      timeId: 'standard',
+    });
 
     await user.click(screen.getByRole('button', { name: /Shopping-list planning/i }));
 
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview here');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview for session');
+    expect(settingsSnapshots[settingsSnapshots.length - 1].guidedPlanningDraft).toBeUndefined();
     expect(screen.getByTestId('planning-progress-state')).toHaveTextContent(
       'Planning progress starts with your selected intent and practical cooking window.'
     );
 
     await user.click(screen.getByTestId('planning-save-cta'));
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked for session');
+    expect(settingsSnapshots[settingsSnapshots.length - 1].guidedPlanningDraft).toMatchObject({
+      intentId: 'shopping',
+      timeId: 'standard',
+    });
 
     await user.click(screen.getByRole('button', { name: /Batch prep/i }));
 
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview here');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview for session');
+    expect(settingsSnapshots[settingsSnapshots.length - 1].guidedPlanningDraft).toBeUndefined();
   });
 
-  it('keeps the screen-local preview mark when the selected option is clicked again', async () => {
+  it('keeps the session preview draft when the selected option is clicked again', async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    const settingsSnapshots: Settings[] = [];
+    renderHome((settings) => settingsSnapshots.push(settings));
 
     await user.click(screen.getByTestId('planning-save-cta'));
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked for session');
 
     await user.click(screen.getByRole('button', { name: /More consistent meals/i }));
     await user.click(screen.getByRole('button', { name: /Standard meal window/i }));
 
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked here');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Preview marked for session');
+    expect(settingsSnapshots[settingsSnapshots.length - 1].guidedPlanningDraft).toMatchObject({
+      intentId: 'consistent',
+      timeId: 'standard',
+    });
   });
 
   it('does not re-emit prompt viewed events when only planning selections change', async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     const initialPromptViews = guidedPlanningEvents.filter(
       (event) => event.name === 'planning_save_prompt_viewed' || event.name === 'planning_auth_prompt_viewed'
@@ -398,11 +416,7 @@ describe('Home Guided Planning Preview', () => {
       showAuthPrompt: false,
       setShowAuthPrompt: vi.fn(),
     });
-    const renderedHome = render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    const renderedHome = renderHome();
 
     expect(
       guidedPlanningEvents.filter(
@@ -430,11 +444,7 @@ describe('Home Guided Planning Preview', () => {
       showAuthPrompt: false,
       setShowAuthPrompt: vi.fn(),
     });
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     expect(screen.getByTestId('planning-progress-state')).toHaveTextContent(
       'Checking your session before PulsePlate routes this preview into protected planning flows.'
@@ -468,21 +478,17 @@ describe('Home Guided Planning Preview', () => {
       showAuthPrompt: false,
       setShowAuthPrompt: vi.fn(),
     });
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     expect(screen.getByTestId('planning-save-auth-prompt')).toHaveTextContent('Your planning direction is ready');
-    expect(screen.getByTestId('planning-save-auth-prompt')).toHaveTextContent('on this screen');
-    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview ready here');
+    expect(screen.getByTestId('planning-save-auth-prompt')).toHaveTextContent('current app session');
+    expect(screen.getByTestId('planning-save-cta')).toHaveAccessibleName('Mark preview ready for session');
 
     await user.click(screen.getByTestId('planning-save-cta'));
 
     expect(screen.queryByText(/saved to your account/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('planning-save-auth-prompt')).not.toHaveTextContent(/saved weekly plan/i);
-    expect(screen.queryByText(/for the current session/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/current app session/i).length).toBeGreaterThan(0);
     expect(guidedPlanningEvents).toEqual(
       expect.arrayContaining([
         {
@@ -500,11 +506,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   it('shows the FREE PRO VIP value ladder honestly', () => {
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     expect(screen.getByText('Check-in and baseline preview')).toBeInTheDocument();
     expect(screen.getByText('Targets, daily plate, saved weekly plan')).toBeInTheDocument();
@@ -513,11 +515,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   it('shows wellness boundary and avoids forbidden medical claim copy', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    const { container } = renderHome();
 
     expect(screen.getByText('Wellness planning support only. Not medical advice.')).toBeInTheDocument();
     expect(screen.getByRole('note', { name: 'Wellness planning support only. Not medical advice.' })).toBeInTheDocument();
@@ -527,11 +525,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   it('links primary and secondary planning CTAs to safe existing routes', () => {
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     expect(screen.getByTestId('primary-planning-cta')).toHaveAttribute('href', '/setup');
     expect(screen.getByRole('link', { name: 'Continue planning' })).toHaveAttribute('href', '/setup');
@@ -544,13 +538,18 @@ describe('Home Guided Planning Preview', () => {
 
   it('navigates to setup flow from the primary CTA', async () => {
     const user = userEvent.setup();
+    const settingsSnapshots: Settings[] = [];
 
-    renderHomeRoutes();
+    renderHomeRoutes((settings) => settingsSnapshots.push(settings));
 
     await user.click(screen.getByTestId('primary-planning-cta'));
 
     expect(screen.getByTestId('setup-route')).toBeInTheDocument();
     expect(screen.queryByTestId('enter-key-probe')).not.toBeInTheDocument();
+    expect(settingsSnapshots[settingsSnapshots.length - 1].guidedPlanningDraft).toMatchObject({
+      intentId: 'consistent',
+      timeId: 'standard',
+    });
     expect(guidedPlanningEvents).toEqual(
       expect.arrayContaining([
         {
@@ -562,11 +561,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   it('has no targeted axe violations in the guided planning MVP section', async () => {
-    const { container } = render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    const { container } = renderHome();
 
     const guidedPlanningSection = container.querySelector('[data-testid="guided-planning-preview"]');
     if (!(guidedPlanningSection instanceof HTMLElement)) {
@@ -592,11 +587,16 @@ describe('Home Guided Planning Preview', () => {
 
   it('emits continue evidence before protected route redirects', async () => {
     const user = userEvent.setup();
+    const settingsSnapshots: Settings[] = [];
 
-    renderHomeRoutes();
+    renderHomeRoutes((settings) => settingsSnapshots.push(settings));
     await user.click(screen.getByTestId('planning-continue-cta'));
 
     expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/plate');
+    expect(settingsSnapshots[settingsSnapshots.length - 1].guidedPlanningDraft).toMatchObject({
+      intentId: 'consistent',
+      timeId: 'standard',
+    });
     expect(guidedPlanningEvents).toEqual(
       expect.arrayContaining([
         {
@@ -698,11 +698,7 @@ describe('Home Guided Planning Preview', () => {
   });
 
   it('keeps the page token-backed and tabbar-compatible', () => {
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
+    renderHome();
 
     const main = screen.getByRole('main');
     expect(main).toHaveClass('min-h-screen');

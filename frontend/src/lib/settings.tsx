@@ -1,7 +1,11 @@
 import { createContext, useContext, ReactNode, useState } from 'react';
+import type { GuidedPlanningDraft } from '../features/guidedPlanning/planningPreview';
+import type { SetupFormValues } from '../pages/NutritionSetup/schema';
 
-// Settings context for future use - currently no settings are implemented
-type Settings = Record<string, unknown>;
+export interface Settings {
+  setup?: SetupFormValues;
+  guidedPlanningDraft?: GuidedPlanningDraft;
+}
 
 interface SettingsContextType {
   settings: Settings;

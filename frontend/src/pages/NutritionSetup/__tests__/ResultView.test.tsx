@@ -7,6 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import ResultView from "../ResultView";
 import { mockPlateData } from "../mocks";
 import { mockValues } from "../test-utils";
+import type { GuidedPlanningDraft } from "../../../features/guidedPlanning/planningPreview";
 
 const translations: Record<string, string> = {
   "nutrition.macros.title": "Макронутриенты и калории",
@@ -71,10 +72,10 @@ const mockResolveSetupLang = setupHooks.resolveSetupLang as unknown as Mock;
 describe("ResultView", () => {
   const mockOnEdit = vi.fn();
 
-  const renderResult = () =>
+  const renderResult = (guidedPlanningDraft?: GuidedPlanningDraft) =>
     render(
       <MemoryRouter>
-        <ResultView values={mockValues} onEdit={mockOnEdit} />
+        <ResultView guidedPlanningDraft={guidedPlanningDraft} values={mockValues} onEdit={mockOnEdit} />
       </MemoryRouter>
     );
 
@@ -170,6 +171,32 @@ describe("ResultView", () => {
     expect(screen.getByText("Цель (ккал)")).toBeInTheDocument();
     expect(screen.getByText("Макронутриенты и калории")).toBeInTheDocument();
     expect(screen.getByText("Цели по микроэлементам")).toBeInTheDocument();
+  });
+
+  it("renders guided planning next-step rail only when a draft is present", () => {
+    const { rerender } = renderResult();
+
+    expect(screen.queryByRole("navigation", { name: "Guided planning next steps" })).not.toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <ResultView
+          guidedPlanningDraft={{
+            intentId: "balanced",
+            timeId: "flexible",
+            savedAt: "2026-06-01T00:00:00.000Z",
+          }}
+          values={mockValues}
+          onEdit={mockOnEdit}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("navigation", { name: "Guided planning next steps" })).toBeInTheDocument();
+    expect(screen.getByText("Balanced week")).toBeInTheDocument();
+    expect(screen.getByText(/Flexible cooking/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Continue to plate" })).toHaveAttribute("href", "/plate");
+    expect(screen.getByRole("link", { name: "Open progress check-ins" })).toHaveAttribute("href", "/progress");
   });
 
   it("displays BMR and TDEE values", () => {

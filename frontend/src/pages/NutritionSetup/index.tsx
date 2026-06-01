@@ -9,11 +9,53 @@ import { isValidSetupFormValues } from './schema';
 import { useSettings } from '../../lib/settings';
 import { Stepper } from '../../components/ui';
 import { useTranslation } from 'react-i18next';
+import {
+  getPlanningIntent,
+  getPlanningTime,
+  isValidGuidedPlanningDraft,
+  previewByIntent,
+  timeNotes,
+  type GuidedPlanningDraft,
+} from '../../features/guidedPlanning/planningPreview';
+
+function PlanningDirectionPanel({ draft }: { draft: GuidedPlanningDraft }): JSX.Element {
+  const intent = getPlanningIntent(draft.intentId);
+  const time = getPlanningTime(draft.timeId);
+  const preview = previewByIntent[draft.intentId];
+
+  return (
+    <section
+      aria-labelledby="planning-direction-heading"
+      className="mb-6 rounded-lg border border-primary/20 bg-white p-4 shadow-sm sm:p-5"
+      data-testid="planning-direction-panel"
+    >
+      <p className="text-xs font-semibold uppercase text-muted">Planning direction</p>
+      <h2 id="planning-direction-heading" className="mt-2 text-lg font-semibold text-text">
+        {intent.label}
+      </h2>
+      <p className="mt-2 text-sm leading-6 text-muted">{preview.plateDirection}</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-md bg-navy/5 p-3">
+          <p className="text-xs font-semibold uppercase text-muted">Cooking window</p>
+          <p className="mt-1 text-sm font-medium text-text">{time.label}</p>
+          <p className="mt-1 text-xs leading-5 text-muted">{timeNotes[draft.timeId]}</p>
+        </div>
+        <div className="rounded-md bg-navy/5 p-3">
+          <p className="text-xs font-semibold uppercase text-muted">Next step</p>
+          <p className="mt-1 text-sm leading-5 text-text">{preview.nextAction}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function NutritionSetupPage() {
   const { settings } = useSettings();
   const { t } = useTranslation();
   const [values, setValues] = useState<SetupFormValues | null>(null);
+  const guidedPlanningDraft = isValidGuidedPlanningDraft(settings.guidedPlanningDraft)
+    ? settings.guidedPlanningDraft
+    : undefined;
   const currentStep = values ? 1 : 0;
   const setupSteps = [
     {
@@ -49,10 +91,15 @@ export default function NutritionSetupPage() {
         })}
         steps={[...setupSteps]}
       />
+      {guidedPlanningDraft ? <PlanningDirectionPanel draft={guidedPlanningDraft} /> : null}
       {!values ? (
         <SetupForm onSubmit={setValues} />
       ) : (
-        <ResultView values={values} onEdit={() => setValues(null)} />
+        <ResultView
+          guidedPlanningDraft={guidedPlanningDraft}
+          values={values}
+          onEdit={() => setValues(null)}
+        />
       )}
     </div>
   );

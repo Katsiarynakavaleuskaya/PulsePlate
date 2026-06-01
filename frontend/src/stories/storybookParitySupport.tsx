@@ -202,9 +202,11 @@ export function HomeStorySurface({ sessionState }: { sessionState: StorySessionS
   return (
     <StorybookApiStub sessionState={sessionState}>
       <AuthProvider>
-        <MemoryRouter initialEntries={['/app']}>
-          <Home />
-        </MemoryRouter>
+        <SettingsProvider>
+          <MemoryRouter initialEntries={['/app']}>
+            <Home />
+          </MemoryRouter>
+        </SettingsProvider>
       </AuthProvider>
     </StorybookApiStub>
   );

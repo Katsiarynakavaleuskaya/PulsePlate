@@ -3,20 +3,67 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import * as setupHooks from './hooks';
 import PlateChart from './PlateChart';
 import MacroCards from './MacroCards';
 import WaterCard from './WaterCard';
 import MicrosGrid from './MicrosGrid';
 import type { SetupFormValues } from './schema';
-import { StatsCard } from '../../components/ui';
+import { buttonClasses, StatsCard } from '../../components/ui';
+import {
+  getPlanningIntent,
+  getPlanningTime,
+  previewByIntent,
+  type GuidedPlanningDraft,
+} from '../../features/guidedPlanning/planningPreview';
 
 interface ResultViewProps {
+  guidedPlanningDraft?: GuidedPlanningDraft;
   values: SetupFormValues;
   onEdit: () => void;
 }
 
-export default function ResultView({ values, onEdit }: ResultViewProps) {
+function GuidedPlanningNextSteps({ draft }: { draft: GuidedPlanningDraft }): JSX.Element {
+  const intent = getPlanningIntent(draft.intentId);
+  const time = getPlanningTime(draft.timeId);
+  const preview = previewByIntent[draft.intentId];
+
+  return (
+    <nav
+      aria-label="Guided planning next steps"
+      className="rounded-lg border border-primary/20 bg-white p-4 shadow-sm sm:p-5"
+      data-testid="guided-planning-next-steps"
+    >
+      <p className="text-xs font-semibold uppercase text-muted">Guided planning next steps</p>
+      <h2 className="mt-2 text-lg font-semibold text-text">{intent.label}</h2>
+      <p className="mt-2 text-sm leading-6 text-muted">
+        {time.label}: {preview.nextAction}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link
+          to="/plate"
+          className={buttonClasses({
+            className: 'rounded-lg text-navy',
+          })}
+        >
+          Continue to plate
+        </Link>
+        <Link
+          to="/progress"
+          className={buttonClasses({
+            variant: 'secondary',
+            className: 'rounded-lg',
+          })}
+        >
+          Open progress check-ins
+        </Link>
+      </div>
+    </nav>
+  );
+}
+
+export default function ResultView({ guidedPlanningDraft, values, onEdit }: ResultViewProps) {
   const { t, i18n } = useTranslation();
   const [retryKey, setRetryKey] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -117,6 +164,8 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
           <StatsCard align="center" label={t('nutrition.summary.method')} value={bmrData.method} />
         </div>
       </div>
+
+      {guidedPlanningDraft ? <GuidedPlanningNextSteps draft={guidedPlanningDraft} /> : null}
 
       {/* Plate Chart and Macros */}
       <div className="grid md:grid-cols-3 gap-6">
