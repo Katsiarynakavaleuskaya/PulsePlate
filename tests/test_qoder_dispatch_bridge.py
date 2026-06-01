@@ -1558,7 +1558,7 @@ def test_roles_flag_rejects_ambiguous_post_open_order_without_phase(
     assert result == 1
     captured = capsys.readouterr()
     assert "Pass --pr-phase pre_open" in captured.err
-    assert "--pr-phase post_open_review" in captured.err
+    assert "--pr-phase post_open_review/merge_ready" in captured.err
 
 
 def test_roles_flag_post_open_phase_enforces_mandatory_order(
@@ -1574,6 +1574,35 @@ def test_roles_flag_post_open_phase_enforces_mandatory_order(
             "bug-hunter",
             "--pr-phase",
             "post_open_review",
+            "--pretty",
+        ]
+    )
+
+    assert result == 0
+    manifest = json.loads(capsys.readouterr().out)
+    dispatch = manifest["dispatch_sequence"]
+    assert [entry["role_slug"] for entry in dispatch] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    assert dispatch[1]["depends_on_previous"] is True
+    assert dispatch[2]["depends_on_previous"] is True
+
+
+def test_roles_flag_merge_ready_phase_enforces_mandatory_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Merge-ready explicit role dispatch keeps QA -> bug -> security."""
+
+    result = role_dispatch_bridge.main(
+        [
+            "--roles",
+            "qa-engineer-agent",
+            "security-auditor",
+            "bug-hunter",
+            "--pr-phase",
+            "merge_ready",
             "--pretty",
         ]
     )

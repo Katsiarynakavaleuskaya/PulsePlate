@@ -1104,13 +1104,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
     else:
         role_slugs = list(args.roles)
-        if args.pr_phase == PR_PHASE_POST_OPEN_REVIEW:
+        if args.pr_phase in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}:
             missing_post_open_roles = [
                 slug for slug in MANDATORY_POST_OPEN_ORDER if slug not in role_slugs
             ]
             if missing_post_open_roles:
                 print(
-                    "FAIL: --pr-phase post_open_review requires role slugs: "
+                    "FAIL: --pr-phase post_open_review/merge_ready requires role slugs: "
                     + ", ".join(MANDATORY_POST_OPEN_ORDER)
                     + ". Missing: "
                     + ", ".join(missing_post_open_roles),
@@ -1122,8 +1122,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(
                 "FAIL: explicit --roles contains the full mandatory post-open role set "
                 "out of order. Pass --pr-phase pre_open to preserve coordinator "
-                "pre-open order, or --pr-phase post_open_review to enforce "
-                "qa-engineer-agent -> bug-hunter -> security-auditor.",
+                "pre-open order, or --pr-phase post_open_review/merge_ready to "
+                "enforce qa-engineer-agent -> bug-hunter -> security-auditor.",
                 file=sys.stderr,
             )
             return 1

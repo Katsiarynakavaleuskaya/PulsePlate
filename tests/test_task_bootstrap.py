@@ -134,6 +134,8 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "dispatch_manifest_command": (
             "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
         ),
+        "runtime_implementation_owner_flags_required": False,
+        "runtime_implementation_owners": [],
         "must_execute_dispatch_sequence_in_order": True,
         "advisory_role_passes_required": True,
         "requested_custom_roles_are_not_skippable": True,
@@ -204,6 +206,25 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False
+
+
+def test_task_bootstrap_dispatch_command_includes_runtime_owner_flags() -> None:
+    """Implementation packets should not emit a readonly-only dispatch command."""
+
+    packet = build_task_packet(
+        goal="Implement guided planning frontend roadcut",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Home.tsx"],
+        requested_agents=["frontend-engineer"],
+    )
+
+    dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert dispatch_contract["runtime_implementation_owner_flags_required"] is True
+    assert dispatch_contract["runtime_implementation_owners"] == ["frontend-engineer"]
+    assert dispatch_contract["dispatch_manifest_command"] == (
+        "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> "
+        "--mode runtime --implementation-owner frontend-engineer --pretty"
+    )
 
 
 def test_task_bootstrap_exposes_skill_routing_explanation_and_connector_policy() -> None:

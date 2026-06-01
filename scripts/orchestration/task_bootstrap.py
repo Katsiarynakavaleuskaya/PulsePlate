@@ -75,6 +75,7 @@ from scripts.orchestration.routing_graph_loader import (
     require_bootstrap_lane_activation,
 )
 from scripts.orchestration.requested_agents import (
+    IMPLEMENTATION_OWNER_SLUGS,
     MANDATORY_POST_OPEN_ORDER,
     POST_OPEN_BUG_HUNTER_AGENT,
     POST_OPEN_CODEX_SECURITY_SCAN,
@@ -114,9 +115,6 @@ POST_OPEN_REVIEW_LANE: tuple[str, ...] = MANDATORY_POST_OPEN_ORDER
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.py"
-ROLE_DISPATCH_MANIFEST_COMMAND = (
-    f"python3 {ROLE_DISPATCH_MANIFEST_ENTRYPOINT} --packet <packet> --pretty"
-)
 ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS = ("scripts/orchestration/qoder_dispatch_bridge.py",)
 MANDATORY_PRE_OPEN_GATES: tuple[dict[str, str], ...] = (
     {
@@ -404,9 +402,57 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
     }
 
 
-def _build_role_agent_dispatch_contract() -> dict[str, Any]:
+def _implementation_owner_slugs_from_bridge(
+    native_subagent_bridge: dict[str, Any],
+) -> list[str]:
+    """Return packet-bound implementation owners in dispatch order."""
+
+    ordered_owner_slugs: list[str] = []
+    secondary_bindings = native_subagent_bridge.get("secondary", [])
+    if not isinstance(secondary_bindings, list):
+        secondary_bindings = []
+    for binding in [native_subagent_bridge.get("primary"), *secondary_bindings]:
+        if not isinstance(binding, dict):
+            continue
+        slug = str(binding.get("repo_agent_slug", "")).strip().lower()
+        if slug not in IMPLEMENTATION_OWNER_SLUGS or slug in ordered_owner_slugs:
+            continue
+        if binding.get("execution_mode") != "read_write":
+            continue
+        ordered_owner_slugs.append(slug)
+    return ordered_owner_slugs
+
+
+def _build_role_dispatch_manifest_command(
+    implementation_owner_slugs: list[str],
+) -> str:
+    """Build the command operators should run after packet creation."""
+
+    command_parts = [
+        "python3",
+        ROLE_DISPATCH_MANIFEST_ENTRYPOINT,
+        "--packet",
+        "<packet>",
+    ]
+    if implementation_owner_slugs:
+        command_parts.extend(["--mode", "runtime"])
+        for owner_slug in implementation_owner_slugs:
+            command_parts.extend(["--implementation-owner", owner_slug])
+    command_parts.append("--pretty")
+    return " ".join(command_parts)
+
+
+def _build_role_agent_dispatch_contract(
+    *,
+    native_subagent_bridge: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return deterministic metadata for the post-bootstrap role dispatch step."""
 
+    implementation_owner_slugs = (
+        _implementation_owner_slugs_from_bridge(native_subagent_bridge)
+        if native_subagent_bridge
+        else []
+    )
     return {
         "packet_creation_executes_roles": False,
         "role_agent_dispatch_required": True,
@@ -415,7 +461,11 @@ def _build_role_agent_dispatch_contract() -> dict[str, Any]:
         "dispatch_manifest_compatibility_entrypoints": list(
             ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS
         ),
-        "dispatch_manifest_command": ROLE_DISPATCH_MANIFEST_COMMAND,
+        "dispatch_manifest_command": _build_role_dispatch_manifest_command(
+            implementation_owner_slugs
+        ),
+        "runtime_implementation_owner_flags_required": bool(implementation_owner_slugs),
+        "runtime_implementation_owners": implementation_owner_slugs,
         "must_execute_dispatch_sequence_in_order": True,
         "advisory_role_passes_required": True,
         "requested_custom_roles_are_not_skippable": True,
@@ -1074,7 +1124,9 @@ def build_task_packet(
             "pr_lifecycle_enabled": normalized_pr_phase != PR_PHASE_NONE,
             "design_lane_enabled": design_lane_enabled,
         },
-        "role_agent_dispatch_contract": _build_role_agent_dispatch_contract(),
+        "role_agent_dispatch_contract": _build_role_agent_dispatch_contract(
+            native_subagent_bridge=native_subagent_bridge,
+        ),
         "pr_phase": normalized_pr_phase,
         "pr_lifecycle_contract": pr_lifecycle_contract,
         "design_lane_mode": design_lane_mode,
@@ -1216,7 +1268,9 @@ def main(argv: list[str] | None = None) -> int:
         output_ref = str(out_path)
     role_dispatch_contract = packet.get("role_agent_dispatch_contract")
     if not isinstance(role_dispatch_contract, dict):
-        role_dispatch_contract = _build_role_agent_dispatch_contract()
+        role_dispatch_contract = _build_role_agent_dispatch_contract(
+            native_subagent_bridge=packet.get("native_subagent_bridge"),
+        )
     print(
         json.dumps(
             {
