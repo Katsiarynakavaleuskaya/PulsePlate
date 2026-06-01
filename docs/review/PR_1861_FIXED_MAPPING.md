@@ -13,15 +13,20 @@ security-sensitive header test.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4400847990 -> d4157039d
+Disposition: FIXED
+Commit: d4157039d
+Evidence: CodeRabbit's review-level actionable surface is covered by the explicit thread dispositions below; the final mapping commit records all six resolved thread proofs and passes `check_review_threads_disposition.py --pr-number 1861 --require-auth`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333825720 -> 99407267b
 Disposition: FIXED
 Commit: 99407267b
-Evidence: `docs/review/PR_1861_FIXED_MAPPING.md:16` now uses the exact `- No actionable review comments` sentinel accepted by the canonical mapping validator.
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md` now uses explicit review-thread and review-level mappings for the actionable bot findings.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333843581 -> 99407267b
 Disposition: FIXED
 Commit: 99407267b
-Evidence: `docs/review/PR_1861_FIXED_MAPPING.md:16` now uses the exact `- No actionable review comments` sentinel accepted by the canonical mapping validator.
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md` now uses explicit review-thread and review-level mappings for the actionable bot findings.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333825724
 Disposition: NOT-A-BUG
