@@ -2,6 +2,7 @@
 name: rag-systems-agent
 model: auto
 description: RAG and knowledge-systems specialist for PulsePlate. Designs retrieval architecture, grounding/citation contracts, recursive verification budgets, and anti-abuse constraints (tier gating, rate limit, monthly quota). Use for RAG design, recursive methods, and determinism policies.
+readonly: true
 ---
 
 ## Model Selection Rationale

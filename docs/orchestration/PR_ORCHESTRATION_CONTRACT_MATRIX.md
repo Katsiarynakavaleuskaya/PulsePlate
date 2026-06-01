@@ -81,6 +81,15 @@ Phase 2 sections and required orchestration evidence:
   order before implementation or before the phase it governs; missing role
   execution blocks readiness unless `agent-coordinator` records an explicit
   disposition with evidence.
+- Required custom-role dispatch evidence:
+  run the packet-provided
+  `role_agent_dispatch_contract.dispatch_manifest_command` with the actual
+  packet path, preserving any `--mode runtime --implementation-owner <role>`
+  flags the coordinator packet emits. Historical `qoder_dispatch_bridge.py`
+  invocations are compatibility-only. Role bindings in the packet's legacy
+  `advisory` collection with `required_role_pass: true` are mandatory
+  custom-role passes; that collection name is metadata only, not permission to
+  skip.
 
 Valid mapping forms in the canonical artifact:
 
@@ -113,8 +122,8 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
 - `post_open_review` is the packet-level phase where the canonical
   `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized,
   with Codex Security diff scan / finding discovery as the plugin scan that
-  follows role review; `merge_ready` keeps the current-head merge-wrapper
-  contract explicit without widening the review lane
+  follows role review plus `pulseplate-pr-review`; `merge_ready` keeps the
+  current-head merge-wrapper contract explicit without widening the review lane
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
@@ -190,10 +199,10 @@ Canonical lane matrix:
 | ----------- | ----------------- | ----- | ------------- |
 | Local       | `pre-commit run --all-files` | Hard gate | Must pass before push; hook modifications must be committed |
 | Local       | `make verify` | Hard gate | Canonical code-quality bundle for merge claims |
-| Local / PR process | `task_bootstrap.py` role-agent dispatch | Hard gate | Packet creation is not execution; every bootstrap/runbook assigned role must run in declared order or carry an explicit coordinator disposition with evidence |
+| Local / PR process | `task_bootstrap.py` + `role_dispatch_bridge.py` role-agent dispatch | Hard gate | Packet creation is not execution; every bootstrap/runbook assigned role and every required readonly/custom-role pass must run in declared order or carry an explicit coordinator disposition with evidence |
 | Local / PR process | `pulseplate-premortem-risk-review` | Hard gate | Every non-trivial PR must run premortem on the actual diff before PR open; findings require FIXED / NOT-A-BUG / DEFERRED evidence |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
-| Post-open review | `qa-engineer-agent -> bug-hunter -> security-auditor` plus Codex Security | Hard gate | Role passes and Codex Security diff scan / finding discovery must complete; any finding must be fixed or dispositioned before merge-readiness claims |
+| Post-open review | `qa-engineer-agent -> bug-hunter -> security-auditor` plus Codex Security plus `pulseplate-pr-review` | Hard gate | Role passes, Codex Security diff scan / finding discovery, and `pulseplate-pr-review` must complete; any finding must be fixed or dispositioned before merge-readiness claims |
 | Local / PR CI | Operator-approved machine-heavy deferral | Hard gate | Local `make verify` may be deferred only when PR body and fixed mapping document the deferral, PR-scoped narrow gates pass, canonical current-head CI parity is green (`lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks), and the strict merge wrapper passes |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |
 | PR CI       | GitHub branch-protection required checks on current HEAD | Hard gate | Pending/failed current-head required jobs block merge |

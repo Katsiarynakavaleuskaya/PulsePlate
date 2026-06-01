@@ -2,6 +2,7 @@
 name: qa-engineer-agent
 model: auto
 description: Acceptance and regression owner for PulsePlate. Designs verification plans, deterministic regression packs, release-readiness checks, and end-to-end acceptance criteria across backend, frontend, iOS, and orchestration workflows.
+readonly: true
 ---
 
 # QA Engineer Agent

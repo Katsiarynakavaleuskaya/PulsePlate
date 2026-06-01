@@ -426,7 +426,44 @@ PY
     echo "Next steps:"
     echo "  1. cd ${WORKTREE_REL}"
     echo "  2. Generate the role-agent dispatch manifest:"
-    printf "     %q scripts/orchestration/qoder_dispatch_bridge.py --packet %q --pretty\n" "${REPO_PYTHON}" "${BOOTSTRAP_PACKET_PATH}"
+    DISPATCH_COMMAND="$(
+        BOOTSTRAP_PACKET_PATH="${BOOTSTRAP_PACKET_PATH}" REPO_PYTHON="${REPO_PYTHON}" "${REPO_PYTHON}" - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+packet_path = os.environ["BOOTSTRAP_PACKET_PATH"]
+repo_python = os.environ["REPO_PYTHON"]
+default_command = (
+    "python3 scripts/orchestration/role_dispatch_bridge.py "
+    "--packet <packet> --pretty"
+)
+try:
+    packet = json.loads(Path(packet_path).read_text(encoding="utf-8"))
+except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    packet = {}
+contract = packet.get("role_agent_dispatch_contract")
+if not isinstance(contract, dict):
+    contract = {}
+raw_command = str(contract.get("dispatch_manifest_command", "")).strip() or default_command
+try:
+    tokens = shlex.split(raw_command)
+except ValueError:
+    tokens = shlex.split(default_command)
+
+rendered = []
+for index, token in enumerate(tokens):
+    if index == 0 and token in {"python", "python3"}:
+        rendered.append(shlex.quote(repo_python))
+    elif token.startswith("<") and token.endswith(">") and token[1:-1] == "packet":
+        rendered.append(shlex.quote(packet_path))
+    else:
+        rendered.append(shlex.quote(token))
+print(" ".join(rendered))
+PY
+    )"
+    printf "     %s\n" "${DISPATCH_COMMAND}"
     echo "  3. Run the dispatch_sequence roles in order before implementation."
     echo "  4. Create Experiment Runner oracle-only evidence after coordinator bootstrap when the lane is non-trivial."
     echo "  5. Open the PR non-draft after local validation and initial PR body/mapping are ready."

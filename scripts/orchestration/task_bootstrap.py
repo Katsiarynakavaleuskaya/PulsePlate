@@ -74,7 +74,15 @@ from scripts.orchestration.routing_graph_loader import (
     load_routing_graph,
     require_bootstrap_lane_activation,
 )
-from scripts.orchestration.requested_agents import normalize_requested_agents
+from scripts.orchestration.requested_agents import (
+    IMPLEMENTATION_OWNER_SLUGS,
+    MANDATORY_POST_OPEN_ORDER,
+    POST_OPEN_BUG_HUNTER_AGENT,
+    POST_OPEN_CODEX_SECURITY_SCAN,
+    POST_OPEN_PULSEPLATE_PR_REVIEW,
+    POST_OPEN_QA_AGENT,
+    normalize_requested_agents,
+)
 from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills
 
 SCHEMA_VERSION = "2.0"
@@ -103,18 +111,37 @@ PR_PHASES: tuple[str, ...] = (
     PR_PHASE_MERGE_READY,
 )
 NATIVE_BRIDGE_TRANSPORTS: tuple[str, ...] = (*BRIDGE_TRANSPORTS,)
-POST_OPEN_QA_AGENT = "qa-engineer-agent"
-POST_OPEN_BUG_HUNTER_AGENT = "bug-hunter"
-POST_OPEN_SECURITY_AUDITOR_AGENT = "security-auditor"
-POST_OPEN_REVIEW_LANE: tuple[str, ...] = (
-    POST_OPEN_QA_AGENT,
-    POST_OPEN_BUG_HUNTER_AGENT,
-    POST_OPEN_SECURITY_AUDITOR_AGENT,
-)
-POST_OPEN_CODEX_SECURITY_SCAN = "Codex Security diff scan / finding discovery"
+POST_OPEN_REVIEW_LANE: tuple[str, ...] = MANDATORY_POST_OPEN_ORDER
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
-ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/qoder_dispatch_bridge.py"
+ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.py"
+ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS = ("scripts/orchestration/qoder_dispatch_bridge.py",)
+MANDATORY_PRE_OPEN_GATES: tuple[dict[str, str], ...] = (
+    {
+        "gate": "custom-role-dispatch",
+        "entrypoint": ROLE_DISPATCH_MANIFEST_ENTRYPOINT,
+        "requirement": (
+            "Execute every bootstrap-requested/custom role pass from the dispatch "
+            "manifest, including review-only entries with required_role_pass=true."
+        ),
+    },
+    {
+        "gate": "premortem-risk-review",
+        "entrypoint": "pulseplate-premortem-risk-review",
+        "requirement": (
+            "Run premortem on the actual PR diff before PR open; every finding "
+            "must be FIXED, NOT-A-BUG, or DEFERRED with backlog evidence."
+        ),
+    },
+    {
+        "gate": "experiment-runner-oracle",
+        "entrypoint": "scripts/orchestration/experiment_runner.py",
+        "requirement": (
+            "Run Experiment Runner in oracle-only governance reviewer mode after "
+            "the first coherent diff and before PR open."
+        ),
+    },
+)
 MESSAGE_ENVELOPE_PROTOCOL_VERSION = "1.0"
 MESSAGE_ENVELOPE_DERIVED_VIEW = "TASK_PACKET_V1"
 ENVELOPE_ONLY_RESULT_REQUIREMENT = "AGENT_RESULT_V1 envelope only (no preamble)"
@@ -362,6 +389,10 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
         "post_open_codex_security_scan": (
             POST_OPEN_CODEX_SECURITY_SCAN if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
         ),
+        "post_open_pulseplate_pr_review_required": (pr_phase == PR_PHASE_POST_OPEN_REVIEW),
+        "post_open_pulseplate_pr_review": (
+            POST_OPEN_PULSEPLATE_PR_REVIEW if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
+        ),
         "artifact_template": PR_REVIEW_ARTIFACT_TEMPLATE if requires_pr else "",
         "current_head_required": requires_current_head,
         "current_head_truth": "latest-current-head" if requires_current_head else "not-applicable",
@@ -371,19 +402,77 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
     }
 
 
-def _build_role_agent_dispatch_contract() -> dict[str, Any]:
+def _implementation_owner_slugs_from_bridge(
+    native_subagent_bridge: dict[str, Any],
+) -> list[str]:
+    """Return packet-bound implementation owners in dispatch order."""
+
+    ordered_owner_slugs: list[str] = []
+    secondary_bindings = native_subagent_bridge.get("secondary", [])
+    if not isinstance(secondary_bindings, list):
+        secondary_bindings = []
+    for binding in [native_subagent_bridge.get("primary"), *secondary_bindings]:
+        if not isinstance(binding, dict):
+            continue
+        slug = str(binding.get("repo_agent_slug", "")).strip().lower()
+        if slug not in IMPLEMENTATION_OWNER_SLUGS or slug in ordered_owner_slugs:
+            continue
+        if binding.get("execution_mode") != "read_write":
+            continue
+        ordered_owner_slugs.append(slug)
+    return ordered_owner_slugs
+
+
+def _build_role_dispatch_manifest_command(
+    implementation_owner_slugs: list[str],
+) -> str:
+    """Build the command operators should run after packet creation."""
+
+    command_parts = [
+        "python3",
+        ROLE_DISPATCH_MANIFEST_ENTRYPOINT,
+        "--packet",
+        "<packet>",
+    ]
+    if implementation_owner_slugs:
+        command_parts.extend(["--mode", "runtime"])
+        for owner_slug in implementation_owner_slugs:
+            command_parts.extend(["--implementation-owner", owner_slug])
+    command_parts.append("--pretty")
+    return " ".join(command_parts)
+
+
+def _build_role_agent_dispatch_contract(
+    *,
+    native_subagent_bridge: dict[str, Any] | None = None,
+    pr_phase: str = PR_PHASE_NONE,
+) -> dict[str, Any]:
     """Return deterministic metadata for the post-bootstrap role dispatch step."""
 
+    implementation_owner_slugs = (
+        _implementation_owner_slugs_from_bridge(native_subagent_bridge)
+        if native_subagent_bridge
+        and pr_phase not in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}
+        else []
+    )
     return {
         "packet_creation_executes_roles": False,
         "role_agent_dispatch_required": True,
         "role_agent_dispatch_hard_gate": True,
         "dispatch_manifest_entrypoint": ROLE_DISPATCH_MANIFEST_ENTRYPOINT,
-        "dispatch_manifest_command": (
-            f"{ROLE_DISPATCH_MANIFEST_ENTRYPOINT} --packet <packet> --pretty"
+        "dispatch_manifest_compatibility_entrypoints": list(
+            ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS
         ),
+        "dispatch_manifest_command": _build_role_dispatch_manifest_command(
+            implementation_owner_slugs
+        ),
+        "runtime_implementation_owner_flags_required": bool(implementation_owner_slugs),
+        "runtime_implementation_owners": implementation_owner_slugs,
         "must_execute_dispatch_sequence_in_order": True,
+        "advisory_role_passes_required": True,
+        "requested_custom_roles_are_not_skippable": True,
         "missing_role_execution_blocks_readiness": True,
+        "mandatory_pre_open_gates": [dict(gate) for gate in MANDATORY_PRE_OPEN_GATES],
     }
 
 
@@ -515,11 +604,11 @@ def _partition_native_secondaries(
     requested_agent_disposition: list[dict[str, str]],
     forced_executable_agents: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Split secondaries from required advisory role-pass collaborators.
+    """Split secondaries from required custom-role collaborators.
 
-    RU: advisory describes contribution type, not permission to skip a requested
+    RU: review-only contribution metadata is not permission to skip a requested
     role pass.
-    EN: advisory describes contribution type, not permission to skip a requested
+    EN: review-only contribution metadata is not permission to skip a requested
     role pass.
     """
 
@@ -551,9 +640,9 @@ def _promote_forced_secondary_dispositions(
     """Keep dispositions aligned with forced executable secondaries.
 
     RU: Если привилегированный review-path требует агента, он не должен
-    оставаться advisory only в packet-disposition metadata.
+    оставаться review-only в packet-disposition metadata.
     EN: If the privileged review path requires an agent, it must not remain
-    advisory-only in packet disposition metadata.
+    review-only in packet disposition metadata.
     """
 
     advisory_statuses = {
@@ -735,7 +824,10 @@ def _apply_requested_agent_overrides(
                 _disposition(
                     agent,
                     REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
-                    "Agent is canonical but non-routable; kept as an advisory collaborator.",
+                    (
+                        "Agent is canonical but non-routable; kept as a required "
+                        "custom-role pass, not a skippable note."
+                    ),
                 )
             )
             continue
@@ -746,7 +838,10 @@ def _apply_requested_agent_overrides(
             _disposition(
                 agent,
                 REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
-                "Requested agent stays advisory because it is outside the routed domain slot set.",
+                (
+                    "Requested agent is outside the routed domain slot set; kept "
+                    "as a required custom-role pass, not a skippable note."
+                ),
             )
         )
 
@@ -1031,7 +1126,10 @@ def build_task_packet(
             "pr_lifecycle_enabled": normalized_pr_phase != PR_PHASE_NONE,
             "design_lane_enabled": design_lane_enabled,
         },
-        "role_agent_dispatch_contract": _build_role_agent_dispatch_contract(),
+        "role_agent_dispatch_contract": _build_role_agent_dispatch_contract(
+            native_subagent_bridge=native_subagent_bridge,
+            pr_phase=normalized_pr_phase,
+        ),
         "pr_phase": normalized_pr_phase,
         "pr_lifecycle_contract": pr_lifecycle_contract,
         "design_lane_mode": design_lane_mode,
@@ -1173,7 +1271,10 @@ def main(argv: list[str] | None = None) -> int:
         output_ref = str(out_path)
     role_dispatch_contract = packet.get("role_agent_dispatch_contract")
     if not isinstance(role_dispatch_contract, dict):
-        role_dispatch_contract = _build_role_agent_dispatch_contract()
+        role_dispatch_contract = _build_role_agent_dispatch_contract(
+            native_subagent_bridge=packet.get("native_subagent_bridge"),
+            pr_phase=str(packet.get("pr_phase", PR_PHASE_NONE)),
+        )
     print(
         json.dumps(
             {

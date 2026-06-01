@@ -369,7 +369,7 @@ def test_pipeline_rejects_oracle_only_packet_before_runner(
     captured = capsys.readouterr()
 
     assert exit_code == 1
-    assert "runner-only advisory evidence" in captured.out
+    assert "runner-only review evidence" in captured.out
     assert str(tmp_path) not in captured.out
 
 

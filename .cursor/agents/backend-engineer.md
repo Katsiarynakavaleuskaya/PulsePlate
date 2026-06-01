@@ -2,6 +2,7 @@
 name: backend-engineer
 model: auto
 description: Backend execution specialist for PulsePlate. Implements FastAPI and core-domain changes with strict adherence to architecture, rate-limit/quota policies, and repository quality gates.
+readonly: true
 ---
 
 # Backend Engineer

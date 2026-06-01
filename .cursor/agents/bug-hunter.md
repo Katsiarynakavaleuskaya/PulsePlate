@@ -2,6 +2,7 @@
 name: bug-hunter
 model: auto
 description: Expert bug detection specialist for PulsePlate project. Proactively finds bugs, test failures, architectural violations, and quality issues. Use immediately when code changes are made, before commits, or when CI fails.
+readonly: true
 ---
 
 ## Model Selection Rationale

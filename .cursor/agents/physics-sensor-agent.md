@@ -2,6 +2,7 @@
 name: physics-sensor-agent
 model: auto
 description: Physics & sensor modeling specialist for PulsePlate. Defines classical sensor priors and measurement invariants for multimodal inputs (camera/mic), proposes robustness/calibration tests, and ensures uncertainty is physically/plausibly grounded (no “quantum magic”). Use for CV/voice pipelines, portion/scale calibration, and sensor-robust eval design.
+readonly: true
 ---
 
 ## Model Selection Rationale

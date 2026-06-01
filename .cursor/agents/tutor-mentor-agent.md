@@ -2,6 +2,7 @@
 name: tutor-mentor-agent
 model: auto
 description: Explainability and onboarding specialist for PulsePlate. Turns architecture, process, and AI-system decisions into teachable guidance, onboarding aids, and role-review notes without changing canonical behavior.
+readonly: true
 ---
 
 # Tutor Mentor Agent

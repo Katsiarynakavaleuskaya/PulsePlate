@@ -2,6 +2,7 @@
 name: creative-designer
 model: auto
 description: Expert creative designer for PulsePlate wellness app across iOS, Web, Android, and social media. Proactively creates UI/UX designs, brand assets, icons, illustrations, animations, and social media graphics. Use immediately for design tasks, visual identity, UI components, app icons, screenshots, marketing visuals, and brand consistency across all platforms.
+readonly: true
 ---
 
 # Creative Designer

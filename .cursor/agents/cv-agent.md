@@ -2,6 +2,7 @@
 name: cv-agent
 model: auto
 description: Computer vision specialist for PulsePlate. Defines photo→food items→confidence→portion estimate→nutrition mapping contracts, privacy boundaries, and uncertainty propagation. Use for CV feature design, contract schemas, and safety/privacy audits.
+readonly: true
 ---
 
 ## Model Selection Rationale

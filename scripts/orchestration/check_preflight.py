@@ -135,25 +135,51 @@ def check_artifact_gitignore() -> bool:
     return True
 
 
-def _advisory_dispatch_bridge() -> None:
-    """Advisory smoke-test: verify qoder_dispatch_bridge imports if present."""
-    bridge = ROOT / "scripts" / "orchestration" / "qoder_dispatch_bridge.py"
-    if not bridge.exists():
-        return  # bridge is optional tooling — skip silently
-    try:
-        import importlib.util
+def _role_dispatch_bridge_smoke() -> bool:
+    """Smoke-test role dispatch bridge entrypoints."""
+    import importlib.util
 
-        spec = importlib.util.spec_from_file_location("qoder_dispatch_bridge", bridge)
-        if spec and spec.loader:
+    required_bridge = ROOT / "scripts" / "orchestration" / "role_dispatch_bridge.py"
+    compatibility_bridge = ROOT / "scripts" / "orchestration" / "qoder_dispatch_bridge.py"
+    ok = True
+
+    if not required_bridge.exists():
+        print(f"FAIL: required role_dispatch_bridge not found: {required_bridge}")
+        return False
+
+    for module_name, bridge, required in (
+        ("role_dispatch_bridge", required_bridge, True),
+        ("qoder_dispatch_bridge", compatibility_bridge, False),
+    ):
+        if not bridge.exists():
+            if required:
+                print(f"FAIL: required {module_name} not found: {bridge}")
+                ok = False
+            continue
+        spec = importlib.util.spec_from_file_location(module_name, bridge)
+        if not spec or not spec.loader:
+            message = f"{module_name}: spec/loader unavailable"
+            if required:
+                print(f"FAIL: {message}")
+                ok = False
+            else:
+                print(f"WARNING: {message}")
+            continue
+        try:
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            print("qoder_dispatch_bridge: importable \u2713 (advisory)")
-        else:
-            print(
-                "WARNING: qoder_dispatch_bridge: spec/loader unavailable (advisory, non-blocking)"
-            )
-    except Exception as exc:  # noqa: BLE001
-        print(f"WARNING: qoder_dispatch_bridge: import warning (advisory, non-blocking): {exc}")
+        except Exception as exc:  # noqa: BLE001
+            message = f"{module_name}: import failed: {exc}"
+            if required:
+                print(f"FAIL: {message}")
+                ok = False
+            else:
+                print(f"WARNING: compatibility {message}")
+            continue
+        suffix = "compatibility " if module_name == "qoder_dispatch_bridge" else ""
+        print(f"{module_name}: {suffix}importable \u2713")
+
+    return ok
 
 
 def check_working_tree_clean() -> bool:
@@ -340,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     ok &= check_worktrees_untracked()
     ok &= check_agent_consistency()
     check_artifact_gitignore()  # Soft guard: warning only, never fails
-    _advisory_dispatch_bridge()  # Advisory: bridge import smoke-test
+    ok &= _role_dispatch_bridge_smoke()  # Role dispatch bridge import smoke-test
 
     if mode == "analyze":
         if task_paths:

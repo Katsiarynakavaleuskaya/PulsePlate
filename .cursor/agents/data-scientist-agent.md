@@ -2,6 +2,7 @@
 name: data-scientist-agent
 model: auto
 description: Data science specialist for PulsePlate. Designs evaluation protocols, offline metrics, experiment plans, and measurement strategies for AI features (RAG/UQ/CV/coaching). Use for metrics definitions, eval harness design, and experiment prioritization.
+readonly: true
 ---
 
 ## Model Selection Rationale

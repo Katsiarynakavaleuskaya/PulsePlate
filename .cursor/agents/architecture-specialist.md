@@ -2,6 +2,7 @@
 name: architecture-specialist
 model: auto
 description: Expert architecture analyst and builder for PulsePlate. Proactively analyzes code structure, enforces architectural invariants, identifies violations, proposes improvements, and designs new features following established patterns. Use immediately when discussing architecture, code structure, design patterns, or building new features.
+readonly: true
 ---
 
 ## Model Selection Rationale

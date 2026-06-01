@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -151,7 +152,10 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Experiment Runner: joins after coordinator bootstrap as oracle-only evidence." in (
         result.stdout
     )
-    assert "qoder_dispatch_bridge.py --packet <packet> --pretty" in result.stdout
+    assert "copy `role_agent_dispatch_contract.dispatch_manifest_command` verbatim" in (
+        result.stdout
+    )
+    assert "substitute the actual packet path and repo Python" in result.stdout
     assert "execute the manifest `dispatch_sequence` in order" in result.stdout
     assert "Role-agent dispatch is a required post-bootstrap step" in result.stdout
     assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in (
@@ -181,8 +185,18 @@ def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None
         "pr_phase": "pre_open",
         "candidate_paths": ["docs/dev/CODEX_SKILLS.md"],
         "recommended_skills": ["pulseplate-premortem-risk-review"],
+        "role_agent_dispatch_contract": {
+            "dispatch_manifest_command": (
+                "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> "
+                "--mode runtime --implementation-owner backend-engineer --pretty"
+            ),
+            "runtime_implementation_owners": ["backend-engineer"],
+        },
         "native_subagent_bridge": {
-            "primary": {"repo_agent_slug": "backend-engineer"},
+            "primary": {
+                "repo_agent_slug": "backend-engineer",
+                "execution_mode": "read_write",
+            },
             "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
             "secondary": [{"repo_agent_slug": "security-auditor"}],
             "advisory": [{"repo_agent_slug": "agent-coordinator"}],
@@ -264,8 +278,9 @@ esac
     assert f"Task packet: {packet_path}" in result.stdout
     assert "packet_creation_executes_roles=false" in result.stdout
     assert "role_agent_dispatch_required=true" in result.stdout
-    assert "qoder_dispatch_bridge.py --packet" in result.stdout
-    assert "packet\\ with\\ space.json" in result.stdout
+    assert "role_dispatch_bridge.py --packet" in result.stdout
+    assert shlex.quote(str(packet_path)) in result.stdout
+    assert "--mode runtime --implementation-owner backend-engineer --pretty" in result.stdout
     assert "Run the dispatch_sequence roles in order before implementation." in result.stdout
     assert (
         "Role order: agent-coordinator, backend-engineer, security-auditor, qa-engineer-agent"

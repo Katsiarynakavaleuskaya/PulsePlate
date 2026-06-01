@@ -2,6 +2,7 @@
 name: cursor-specialist-agent
 model: auto
 description: Cursor/Codex workflow specialist for PulsePlate. Owns coordinator bootstrap ergonomics, context-pack hygiene, prompt packet conventions, and developer-facing agent workflow quality.
+readonly: true
 ---
 
 # Cursor Specialist Agent
@@ -26,7 +27,7 @@ description: Cursor/Codex workflow specialist for PulsePlate. Owns coordinator b
 - Keep context loading and task packets deterministic.
 - Reduce orchestration drift between docs, scripts, and actual agent usage.
 - Ensure bootstrap prompts distinguish packet creation from role-agent
-  execution, and surface the required `qoder_dispatch_bridge.py --packet
+  execution, and surface the required `role_dispatch_bridge.py --packet
   <packet> --pretty` manifest step before implementation.
 
 ## When Invoked

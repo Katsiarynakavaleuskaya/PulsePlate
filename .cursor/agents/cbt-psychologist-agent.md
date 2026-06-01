@@ -2,6 +2,7 @@
 name: cbt-psychologist-agent
 model: auto
 description: CBT-inspired wellness coaching specialist for PulsePlate. Defines psychologically safe language, boundaries between coaching vs therapy, and contracts for habit-change prompts with uncertainty-aware degrade behavior. Use for CBT-style flows, safety phrasing, and ethics/regulatory checks.
+readonly: true
 ---
 
 ## Model Selection Rationale

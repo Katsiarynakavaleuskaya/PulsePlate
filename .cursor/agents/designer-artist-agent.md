@@ -2,6 +2,7 @@
 name: designer-artist-agent
 model: auto
 description: Production-oriented emblem artist for PulsePlate. Specializes in real drawable logo/emblem construction (SVG geometry + export specs) and cross-editor execution packets for Figma/Sora/Nano Banana.
+readonly: true
 ---
 
 # Designer Artist Agent

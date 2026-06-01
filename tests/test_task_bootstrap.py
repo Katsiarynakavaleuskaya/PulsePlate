@@ -116,6 +116,8 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "review_lane": [],
         "post_open_codex_security_scan_required": False,
         "post_open_codex_security_scan": "",
+        "post_open_pulseplate_pr_review_required": False,
+        "post_open_pulseplate_pr_review": "",
         "artifact_template": "",
         "current_head_required": False,
         "current_head_truth": "not-applicable",
@@ -125,12 +127,45 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "packet_creation_executes_roles": False,
         "role_agent_dispatch_required": True,
         "role_agent_dispatch_hard_gate": True,
-        "dispatch_manifest_entrypoint": "scripts/orchestration/qoder_dispatch_bridge.py",
+        "dispatch_manifest_entrypoint": "scripts/orchestration/role_dispatch_bridge.py",
+        "dispatch_manifest_compatibility_entrypoints": [
+            "scripts/orchestration/qoder_dispatch_bridge.py"
+        ],
         "dispatch_manifest_command": (
-            "scripts/orchestration/qoder_dispatch_bridge.py --packet <packet> --pretty"
+            "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
         ),
+        "runtime_implementation_owner_flags_required": False,
+        "runtime_implementation_owners": [],
         "must_execute_dispatch_sequence_in_order": True,
+        "advisory_role_passes_required": True,
+        "requested_custom_roles_are_not_skippable": True,
         "missing_role_execution_blocks_readiness": True,
+        "mandatory_pre_open_gates": [
+            {
+                "gate": "custom-role-dispatch",
+                "entrypoint": "scripts/orchestration/role_dispatch_bridge.py",
+                "requirement": (
+                    "Execute every bootstrap-requested/custom role pass from the dispatch "
+                    "manifest, including review-only entries with required_role_pass=true."
+                ),
+            },
+            {
+                "gate": "premortem-risk-review",
+                "entrypoint": "pulseplate-premortem-risk-review",
+                "requirement": (
+                    "Run premortem on the actual PR diff before PR open; every finding "
+                    "must be FIXED, NOT-A-BUG, or DEFERRED with backlog evidence."
+                ),
+            },
+            {
+                "gate": "experiment-runner-oracle",
+                "entrypoint": "scripts/orchestration/experiment_runner.py",
+                "requirement": (
+                    "Run Experiment Runner in oracle-only governance reviewer mode after "
+                    "the first coherent diff and before PR open."
+                ),
+            },
+        ],
     }
     assert packet["design_lane_mode"] == "disabled"
     assert packet["design_lane_contract"] == {
@@ -171,6 +206,62 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False
+
+
+def test_task_bootstrap_dispatch_command_includes_runtime_owner_flags() -> None:
+    """Implementation packets should not emit a readonly-only dispatch command."""
+
+    packet = build_task_packet(
+        goal="Implement guided planning frontend roadcut",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Home.tsx"],
+        requested_agents=["frontend-engineer"],
+    )
+
+    dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert dispatch_contract["runtime_implementation_owner_flags_required"] is True
+    assert dispatch_contract["runtime_implementation_owners"] == ["frontend-engineer"]
+    assert dispatch_contract["dispatch_manifest_command"] == (
+        "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> "
+        "--mode runtime --implementation-owner frontend-engineer --pretty"
+    )
+
+
+def test_task_bootstrap_dispatch_command_includes_security_owner_flags() -> None:
+    """Every native read-write primary owner needs runtime owner flags."""
+
+    packet = build_task_packet(
+        goal="Harden security audit workflow",
+        task_class="Security",
+        candidate_paths=["app/security/rate_limit.py"],
+    )
+
+    dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert dispatch_contract["runtime_implementation_owner_flags_required"] is True
+    assert dispatch_contract["runtime_implementation_owners"] == ["security-auditor"]
+    assert dispatch_contract["dispatch_manifest_command"] == (
+        "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> "
+        "--mode runtime --implementation-owner security-auditor --pretty"
+    )
+
+
+def test_post_open_review_dispatch_command_suppresses_runtime_owner_flags() -> None:
+    """Post-open review packets must keep mandatory reviewers read-only by default."""
+
+    packet = build_task_packet(
+        goal="Run post-open review",
+        task_class="QA",
+        candidate_paths=["tests/test_qoder_dispatch_bridge.py"],
+        pr_phase="post_open_review",
+    )
+
+    dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert dispatch_contract["runtime_implementation_owner_flags_required"] is False
+    assert dispatch_contract["runtime_implementation_owners"] == []
+    assert dispatch_contract["dispatch_manifest_command"] == (
+        "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
+    )
 
 
 def test_task_bootstrap_exposes_skill_routing_explanation_and_connector_policy() -> None:
@@ -345,6 +436,8 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
         "review_lane": ["qa-engineer-agent", "bug-hunter", "security-auditor"],
         "post_open_codex_security_scan_required": True,
         "post_open_codex_security_scan": "Codex Security diff scan / finding discovery",
+        "post_open_pulseplate_pr_review_required": True,
+        "post_open_pulseplate_pr_review": "pulseplate-pr-review",
         "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
         "current_head_required": True,
         "current_head_truth": "latest-current-head",
@@ -504,10 +597,10 @@ def test_task_bootstrap_deduplicates_reviewer_from_secondary_in_post_open_lane()
 
 
 def test_task_bootstrap_keeps_non_routable_requested_agent_advisory_in_post_open_lane() -> None:
-    """Lifecycle reconciliation must keep advisory agents as required role passes."""
+    """Lifecycle reconciliation must keep requested custom roles as required passes."""
 
     packet = build_task_packet(
-        goal="Prepare ML post-open review packet with advisory collaborator",
+        goal="Prepare ML post-open review packet with custom-role collaborator",
         task_class="AI / ML",
         candidate_paths=["docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md"],
         requested_agents=["ml-engineer-agent"],
@@ -524,7 +617,10 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_advisory_in_post_open
         {
             "agent": "ml-engineer-agent",
             "status": "advisory_non_routable",
-            "reason": "Agent is canonical but non-routable; kept as an advisory collaborator.",
+            "reason": (
+                "Agent is canonical but non-routable; kept as a required custom-role "
+                "pass, not a skippable note."
+            ),
         }
     ]
 
@@ -555,7 +651,7 @@ def test_task_bootstrap_keeps_unknown_requested_agent_rejected_in_post_open_lane
 
 
 def test_task_bootstrap_keeps_domain_mismatch_requested_agent_advisory_in_post_open_lane() -> None:
-    """Post-open synthesis must preserve domain-mismatched requests as required advisory."""
+    """Post-open synthesis must preserve domain-mismatched requests as required passes."""
 
     packet = build_task_packet(
         goal="Prepare post-open review packet with frontend collaborator request",
@@ -575,7 +671,10 @@ def test_task_bootstrap_keeps_domain_mismatch_requested_agent_advisory_in_post_o
         {
             "agent": "frontend-engineer",
             "status": "advisory_domain_mismatch",
-            "reason": "Requested agent stays advisory because it is outside the routed domain slot set.",
+            "reason": (
+                "Requested agent is outside the routed domain slot set; kept as a "
+                "required custom-role pass, not a skippable note."
+            ),
         }
     ]
 
@@ -598,6 +697,8 @@ def test_task_bootstrap_sets_merge_ready_contract_without_post_open_lane() -> No
         "review_lane": [],
         "post_open_codex_security_scan_required": False,
         "post_open_codex_security_scan": "",
+        "post_open_pulseplate_pr_review_required": False,
+        "post_open_pulseplate_pr_review": "",
         "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
         "current_head_required": True,
         "current_head_truth": "latest-current-head",
@@ -841,7 +942,7 @@ def test_task_bootstrap_promotes_requested_routable_agent() -> None:
 
 
 def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None:
-    """Non-routable specialists should be preserved as required advisory passes."""
+    """Non-routable specialists should be preserved as required custom-role passes."""
 
     packet = build_task_packet(
         goal="Design AI reliability experiment packet",
@@ -865,7 +966,10 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None
         {
             "agent": "ml-engineer-agent",
             "status": "advisory_non_routable",
-            "reason": "Agent is canonical but non-routable; kept as an advisory collaborator.",
+            "reason": (
+                "Agent is canonical but non-routable; kept as a required custom-role "
+                "pass, not a skippable note."
+            ),
         }
     ]
 
@@ -895,7 +999,7 @@ def test_task_bootstrap_rejects_unknown_requested_agent_with_explicit_rationale(
 
 
 def test_task_bootstrap_keeps_domain_mismatch_requested_agent_as_advisory() -> None:
-    """Routable-but-mismatched requested agents stay required advisory passes."""
+    """Routable-but-mismatched requested agents stay required custom-role passes."""
 
     packet = build_task_packet(
         goal="Implement backend entitlement routing",
@@ -910,7 +1014,10 @@ def test_task_bootstrap_keeps_domain_mismatch_requested_agent_as_advisory() -> N
         {
             "agent": "frontend-engineer",
             "status": "advisory_domain_mismatch",
-            "reason": "Requested agent stays advisory because it is outside the routed domain slot set.",
+            "reason": (
+                "Requested agent is outside the routed domain slot set; kept as a "
+                "required custom-role pass, not a skippable note."
+            ),
         }
     ]
     assert {
@@ -1492,7 +1599,7 @@ def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
         assert stdout_payload["role_agent_dispatch_required"] is True
         assert (
             stdout_payload["dispatch_manifest_entrypoint"]
-            == "scripts/orchestration/qoder_dispatch_bridge.py"
+            == "scripts/orchestration/role_dispatch_bridge.py"
         )
     finally:
         if repo_output.exists():
@@ -1926,6 +2033,8 @@ def test_main_passes_design_lane_flags(
                 "review_lane": [],
                 "post_open_codex_security_scan_required": False,
                 "post_open_codex_security_scan": "",
+                "post_open_pulseplate_pr_review_required": False,
+                "post_open_pulseplate_pr_review": "",
                 "artifact_template": "",
                 "current_head_required": False,
                 "current_head_truth": "not-applicable",
@@ -2042,7 +2151,7 @@ def test_build_task_packet_rejects_unknown_requested_agent() -> None:
 
 
 def test_build_task_packet_non_routable_requested_agent_stays_advisory() -> None:
-    """Non-routable specialists outside domain slots stay required advisory passes."""
+    """Non-routable specialists outside domain slots stay required custom-role passes."""
 
     packet = build_task_packet(
         goal="Harden task bootstrap",
@@ -2081,7 +2190,7 @@ def test_build_task_packet_promotes_requested_agent_in_domain_slot_set() -> None
 
 
 def test_build_task_packet_routable_agent_domain_mismatch_stays_advisory() -> None:
-    """Routable agent outside routed domain slots becomes a required advisory pass."""
+    """Routable agent outside routed domain slots becomes a required custom-role pass."""
 
     packet = build_task_packet(
         goal="Docs routing only",

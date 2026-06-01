@@ -112,8 +112,15 @@ Automation note:
   `needs_backlog_update`, `needs_docs_sync`, `needs_agents_sync`
 - [ ] Если runtime использует native subagents, task packet содержит `native_subagent_bridge`,
   а repo-agent slug остаётся канонической идентичностью роли
-- [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honor/advisory,
-  либо отклонены с явной причиной
+- [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honored,
+  либо preserved as required readonly/custom role passes, либо отклонены с явной причиной
+- [ ] Команда из `role_agent_dispatch_contract.dispatch_manifest_command`
+  выполнена с actual packet path, включая packet-emitted runtime owner flags, и
+  все bootstrap-requested/custom role passes из dispatch manifest выполнены;
+  readonly/review-only contribution mode не даёт права пропуска
+- [ ] Для non-trivial PR lane запланированы обязательные gates:
+  `pulseplate-premortem-risk-review` на actual diff и Experiment Runner
+  oracle-only governance review после первого coherent diff до PR open
 - [ ] Для privilege-sensitive surfaces (`.github/workflows/**`, `ios/fastlane/**`,
   `scripts/orchestration/**`, merge-governance docs/scripts) включён security review path
 
@@ -139,7 +146,9 @@ derivable from existing inputs:
 - `pr_phase = "none"`
 - `pr_lifecycle_contract` is additive lifecycle metadata derived from the
   explicit `pr_phase`; `post_open_review` must surface the canonical
-  `qa-engineer-agent -> bug-hunter` lane and current-head preparation contract
+  `qa-engineer-agent -> bug-hunter -> security-auditor` lane, Codex Security
+  diff scan / finding discovery, `pulseplate-pr-review`, and current-head
+  preparation contract
 - `design_lane_mode = "disabled"` only when the task has no explicit design
   trigger; otherwise the packet must resolve to one of:
   - `read_only`

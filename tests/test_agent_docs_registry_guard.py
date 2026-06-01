@@ -187,3 +187,17 @@ def test_canonical_workflow_surfaces_reference_research_protocols() -> None:
     assert not missing_workflow, (
         "docs/orchestration/workflow.md missing canonical protocol refs: " f"{missing_workflow}"
     )
+
+
+def test_agent_coordinator_uses_packet_dispatch_manifest_command() -> None:
+    """Coordinator docs must not flatten packet runtime-owner dispatch flags."""
+
+    coordinator_md = _read(".cursor/agents/agent-coordinator.md")
+
+    assert "role_agent_dispatch_contract.dispatch_manifest_command" in coordinator_md
+    assert "`--mode runtime --implementation-owner ...`" in coordinator_md
+    assert "Do not reconstruct a generic bridge command" in coordinator_md
+    assert (
+        "python scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
+        not in coordinator_md
+    )

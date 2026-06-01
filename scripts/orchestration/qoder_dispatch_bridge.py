@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Qoder dispatch manifest generator.
+"""Compatibility facade for the PulsePlate role dispatch manifest generator.
 
 Reads a governance packet's role order (or explicit CLI role slugs), loads
 agent definitions from ``.cursor/agents/<slug>.md``, resolves context maps
 and routing metadata, and outputs a JSON dispatch manifest suitable for
-Qoder multi-agent orchestration.
+Codex, Kimi, Qoder-compatible, or other native subagent transports.
+
+This file keeps the historical ``qoder_dispatch_bridge.py`` entrypoint working.
+The canonical runtime-agnostic CLI is ``role_dispatch_bridge.py``.
 
 Usage examples::
 
@@ -27,9 +30,29 @@ import sys
 from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.requested_agents import (
+    IMPLEMENTATION_OWNER_SLUGS,
+    MANDATORY_POST_OPEN_GATES,
+    MANDATORY_POST_OPEN_ORDER,
+    normalize_implementation_owner_slugs,
+)
+
+PR_PHASE_NONE = "none"
+PR_PHASE_PRE_OPEN = "pre_open"
+PR_PHASE_POST_OPEN_REVIEW = "post_open_review"
+PR_PHASE_MERGE_READY = "merge_ready"
+PR_PHASES = (
+    PR_PHASE_NONE,
+    PR_PHASE_PRE_OPEN,
+    PR_PHASE_POST_OPEN_REVIEW,
+    PR_PHASE_MERGE_READY,
+)
 
 # ---------------------------------------------------------------------------
 # Optional imports with graceful fallback
@@ -329,7 +352,12 @@ def _parse_context_map() -> Dict[str, List[str]]:
 # ---------------------------------------------------------------------------
 
 
-def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) -> str:
+def resolve_qoder_type(
+    agent_def: Dict[str, Any],
+    mode: str,
+    is_reviewer: bool,
+    implementation_owners: Optional[Iterable[str]] = None,
+) -> str:
     """Map an agent definition + task mode to a Qoder subagent type.
 
     Type mapping:
@@ -344,12 +372,18 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
         return "CodeReview"
 
     slug = agent_def.get("slug") or agent_def.get("name", "")
+    explicit_owners = normalize_implementation_owner_slugs(implementation_owners)
 
     if slug in ("qa-engineer-agent", "bug-hunter"):
         return "Verify"
 
     if is_reviewer:
         return "CodeReview"
+
+    if mode == "runtime" and slug in explicit_owners and slug in IMPLEMENTATION_OWNER_SLUGS:
+        if slug == "frontend-engineer":
+            return "Browser"
+        return "Coding"
 
     if agent_def.get("readonly") or mode in ("analysis", "docs-only"):
         return "Research"
@@ -359,7 +393,7 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
         return "Browser"
 
     # Then generic implementation roles
-    if slug in ("backend-engineer", "frontend-engineer", "dev-operator"):
+    if slug in IMPLEMENTATION_OWNER_SLUGS:
         return "Coding"
 
     return "Research"  # Safe fallback
@@ -493,19 +527,45 @@ def _json_packet_has_requested_order(packet_path: Path) -> bool:
     payload = _load_json_packet(resolved_packet_path)
     if payload is None:
         return False
+    requested_order = _requested_agent_order_from_payload(payload)
+    return bool(requested_order)
+
+
+def _requested_agent_order_from_payload(payload: Dict[str, Any]) -> Optional[List[str]]:
+    """Return validated requested-agent slugs, or None for malformed payloads."""
+
     requested_agents = payload.get("requested_agents")
     if not isinstance(requested_agents, list):
-        return False
-    return any(str(agent).strip() for agent in requested_agents)
+        return None
+    requested_order: List[str] = []
+    for raw_agent in requested_agents:
+        if not isinstance(raw_agent, str):
+            return None
+        slug = raw_agent.strip()
+        if not slug:
+            continue
+        if not _ROLE_SLUG_RE.fullmatch(slug):
+            return None
+        requested_order.append(slug)
+    return requested_order
 
 
 def _json_payload_requested_order_preserves_mandatory_tail(payload: Dict[str, Any]) -> bool:
-    """Return whether requested_agents explicitly keeps the canonical post-open tail."""
+    """Return whether requested order can bypass post-open tail normalization.
 
-    requested_agents = payload.get("requested_agents")
-    if not isinstance(requested_agents, list):
+    The QA -> bug-hunter -> security-auditor tail is a post-open / merge-ready
+    invariant. Pre-open packets preserve the bootstrap/requested custom-role
+    order exactly so explicitly requested agents are not silently reordered.
+    """
+
+    requested_order = _requested_agent_order_from_payload(payload)
+    if requested_order is None:
         return False
-    requested_order = [str(agent).strip() for agent in requested_agents if str(agent).strip()]
+
+    pr_phase = str(payload.get("pr_phase", "")).strip().lower()
+    if pr_phase == PR_PHASE_PRE_OPEN:
+        return True
+
     try:
         qa_index = requested_order.index("qa-engineer-agent")
         bug_index = requested_order.index("bug-hunter")
@@ -527,6 +587,48 @@ def _json_packet_requested_order_preserves_mandatory_tail(packet_path: Path) -> 
     if payload is None:
         return False
     return _json_payload_requested_order_preserves_mandatory_tail(payload)
+
+
+def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
+    """Return implementation owners explicitly granted by a JSON task packet."""
+
+    try:
+        resolved_packet_path = packet_path.resolve(strict=True)
+        resolved_packet_path.relative_to(REPO_ROOT.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return set()
+    payload = _load_json_packet(resolved_packet_path)
+    if payload is None:
+        return set()
+
+    bridge = payload.get("native_subagent_bridge")
+    if not isinstance(bridge, dict):
+        return set()
+    secondary_bindings = bridge.get("secondary", [])
+    if not isinstance(secondary_bindings, list):
+        secondary_bindings = []
+    owner_slugs: list[str] = []
+    for binding in [bridge.get("primary"), *secondary_bindings]:
+        if not isinstance(binding, dict):
+            continue
+        slug = str(binding.get("repo_agent_slug", "")).strip().lower()
+        if slug not in IMPLEMENTATION_OWNER_SLUGS or slug in owner_slugs:
+            continue
+        if binding.get("execution_mode") != "read_write":
+            continue
+        owner_slugs.append(slug)
+    bridge_owner_slugs = set(owner_slugs)
+
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    if isinstance(role_dispatch_contract, dict):
+        contract_owners = role_dispatch_contract.get("runtime_implementation_owners")
+        if isinstance(contract_owners, list):
+            normalized_contract_owners: set[str] = normalize_implementation_owner_slugs(
+                contract_owners
+            )
+            return normalized_contract_owners.intersection(bridge_owner_slugs)
+
+    return bridge_owner_slugs
 
 
 def _parse_packet_roles(packet_path: Path) -> List[str]:
@@ -801,12 +903,6 @@ def _recommend_skills(slug: str) -> List[str]:
 # Manifest builder
 # ---------------------------------------------------------------------------
 
-MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = (
-    "qa-engineer-agent",
-    "bug-hunter",
-    "security-auditor",
-)
-
 
 def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
     """Keep the canonical post-open QA -> bug-hunter -> security pass adjacent."""
@@ -824,6 +920,14 @@ def _enforce_mandatory_post_open_order(role_slugs: List[str]) -> List[str]:
     return ordered
 
 
+def _explicit_roles_need_pr_phase(role_slugs: List[str]) -> bool:
+    """Return whether explicit roles are ambiguous without a PR phase."""
+
+    if any(slug not in role_slugs for slug in MANDATORY_POST_OPEN_ORDER):
+        return False
+    return _enforce_mandatory_post_open_order(list(role_slugs)) != role_slugs
+
+
 def build_dispatch_manifest(
     *,
     role_slugs: List[str],
@@ -832,6 +936,7 @@ def build_dispatch_manifest(
     bracket_groups: Optional[List[List[str]]] = None,
     chained_successors: Optional[set[str]] = None,
     enforce_mandatory_post_open_tail: bool = True,
+    implementation_owners: Optional[Iterable[str]] = None,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
     context_map = _parse_context_map()
@@ -855,6 +960,8 @@ def build_dispatch_manifest(
     total_roles = len(loaded_agents)
     previous_slug: Optional[str] = None
 
+    explicit_implementation_owners = normalize_implementation_owner_slugs(implementation_owners)
+
     for order_idx, (slug, agent_def) in enumerate(loaded_agents, start=1):
         is_reviewer = _dispatch_is_reviewer_slot(
             slug,
@@ -863,12 +970,25 @@ def build_dispatch_manifest(
             primary_slugs=primary_slugs,
             reviewer_slugs=reviewer_slugs,
         )
-        qoder_type = resolve_qoder_type(agent_def, mode, is_reviewer)
+        qoder_type = resolve_qoder_type(
+            agent_def,
+            mode,
+            is_reviewer,
+            implementation_owners=explicit_implementation_owners,
+        )
         context_paths = context_map.get(slug, [])
         skills = _recommend_skills(slug)
 
+        implementation_owner_override = (
+            mode == "runtime"
+            and slug in explicit_implementation_owners
+            and slug in IMPLEMENTATION_OWNER_SLUGS
+            and qoder_type in ("Browser", "Coding", "Verify")
+        )
         # Derive readonly: use agent frontmatter if explicitly set, else infer from Qoder type
-        if agent_def.get("readonly_explicit"):
+        if implementation_owner_override:
+            readonly = False
+        elif agent_def.get("readonly_explicit"):
             readonly = agent_def["readonly"]
         else:
             readonly = qoder_type in ("Research", "CodeReview", "Verify")
@@ -887,6 +1007,7 @@ def build_dispatch_manifest(
             "system_prompt_excerpt": body_excerpt,
             "description": agent_def["description"],
             "readonly": readonly,
+            "implementation_owner_override": implementation_owner_override,
             "constraints": [],
             "depends_on_previous": _depends_on_previous(
                 slug, agent_def, previous_slug, chained_successors
@@ -901,21 +1022,20 @@ def build_dispatch_manifest(
             file=sys.stderr,
         )
 
-    parallel_groups = _detect_parallel_groups(dispatch_sequence, routing)
-    # Merge bracket groups from packet notation [slug-a, slug-b]
-    if bracket_groups:
-        for bg in _validated_bracket_groups(bracket_groups, dispatch_sequence):
-            if bg not in parallel_groups:
-                parallel_groups.append(bg)
-
     manifest: Dict[str, Any] = {
         "schema_version": "1.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "packet_source": packet_source or "",
         "mode": mode,
         "dispatch_sequence": dispatch_sequence,
-        "parallelizable_groups": parallel_groups,
+        "parallelizable_groups": [],
+        "parallel_execution_allowed": False,
+        "parallel_execution_reason": (
+            "Role-agent dispatch is a hard gate and must follow dispatch_sequence order."
+        ),
         "mandatory_post_open": list(MANDATORY_POST_OPEN_ORDER),
+        "mandatory_post_open_gates": list(MANDATORY_POST_OPEN_GATES),
+        "mandatory_post_open_role_agents": list(MANDATORY_POST_OPEN_ORDER),
         "missing_agents": missing_agents,
     }
 
@@ -929,10 +1049,10 @@ def build_dispatch_manifest(
 
 def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="qoder_dispatch_bridge",
+        prog="role_dispatch_bridge",
         description=(
-            "Generate a JSON dispatch manifest for Qoder from a governance "
-            "packet or explicit role list."
+            "Generate a JSON role dispatch manifest from a governance packet "
+            "or explicit role list."
         ),
     )
 
@@ -968,6 +1088,26 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Pretty-print JSON output.",
+    )
+    parser.add_argument(
+        "--pr-phase",
+        choices=PR_PHASES,
+        default=PR_PHASE_NONE,
+        help=(
+            "Optional PR lifecycle phase. Explicit --roles post-open review dispatch "
+            "enforces the mandatory QA -> bug-hunter -> security-auditor order."
+        ),
+    )
+    parser.add_argument(
+        "--implementation-owner",
+        action="append",
+        choices=sorted(IMPLEMENTATION_OWNER_SLUGS),
+        default=[],
+        help=(
+            "Explicit runtime write-capable implementation owner. Repeat for multiple "
+            "owners. Required to route a frontmatter-readonly implementation role to "
+            "Browser/Coding in runtime mode."
+        ),
     )
 
     return parser.parse_args(argv)
@@ -1006,10 +1146,54 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
     else:
         role_slugs = list(args.roles)
+        if args.pr_phase in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}:
+            missing_post_open_roles = [
+                slug for slug in MANDATORY_POST_OPEN_ORDER if slug not in role_slugs
+            ]
+            if missing_post_open_roles:
+                print(
+                    "FAIL: --pr-phase post_open_review/merge_ready requires role slugs: "
+                    + ", ".join(MANDATORY_POST_OPEN_ORDER)
+                    + ". Missing: "
+                    + ", ".join(missing_post_open_roles),
+                    file=sys.stderr,
+                )
+                return 1
+            enforce_mandatory_post_open_tail = True
+        elif args.pr_phase == PR_PHASE_NONE and _explicit_roles_need_pr_phase(role_slugs):
+            print(
+                "FAIL: explicit --roles contains the full mandatory post-open role set "
+                "out of order. Pass --pr-phase pre_open to preserve coordinator "
+                "pre-open order, or --pr-phase post_open_review/merge_ready to "
+                "enforce qa-engineer-agent -> bug-hunter -> security-auditor.",
+                file=sys.stderr,
+            )
+            return 1
+        else:
+            enforce_mandatory_post_open_tail = False
 
     if not role_slugs:
         print("FAIL: No role slugs provided.", file=sys.stderr)
         return 1
+    implementation_owner_slugs = normalize_implementation_owner_slugs(args.implementation_owner)
+    if implementation_owner_slugs and not args.packet:
+        print(
+            "FAIL: --implementation-owner requires --packet so runtime ownership "
+            "stays tied to coordinator-governed dispatch evidence.",
+            file=sys.stderr,
+        )
+        return 1
+    if implementation_owner_slugs and args.packet:
+        allowed_owner_slugs = _json_packet_runtime_implementation_owners(packet_path)
+        ungranted_owner_slugs = sorted(implementation_owner_slugs - allowed_owner_slugs)
+        if ungranted_owner_slugs:
+            print(
+                "FAIL: --implementation-owner not granted by packet for: "
+                + ", ".join(ungranted_owner_slugs)
+                + ". Use the packet role_agent_dispatch_contract.dispatch_manifest_command.",
+                file=sys.stderr,
+            )
+            return 1
 
     # Build manifest
     manifest = build_dispatch_manifest(
@@ -1019,6 +1203,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         bracket_groups=packet_bracket_groups,
         chained_successors=packet_chained_successors,
         enforce_mandatory_post_open_tail=enforce_mandatory_post_open_tail,
+        implementation_owners=implementation_owner_slugs,
     )
     if manifest.get("missing_agents"):
         print(

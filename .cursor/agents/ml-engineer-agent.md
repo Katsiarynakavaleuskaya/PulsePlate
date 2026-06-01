@@ -2,6 +2,7 @@
 name: ml-engineer-agent
 model: auto
 description: ML engineering specialist for PulsePlate. Focuses on productionization constraints: latency/cost budgets, caching, concurrency, reliability, and deterministic testing for AI features (RAG/UQ/CV). Use when moving DS/AI ideas toward production-grade plans.
+readonly: true
 ---
 
 ## Model Selection Rationale

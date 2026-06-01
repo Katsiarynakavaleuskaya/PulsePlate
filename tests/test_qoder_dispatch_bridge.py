@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
-from scripts.orchestration import qoder_dispatch_bridge
+from scripts.orchestration import qoder_dispatch_bridge, role_dispatch_bridge
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -24,7 +26,11 @@ REQUIRED_TOP_LEVEL_KEYS = {
     "mode",
     "dispatch_sequence",
     "parallelizable_groups",
+    "parallel_execution_allowed",
+    "parallel_execution_reason",
     "mandatory_post_open",
+    "mandatory_post_open_gates",
+    "mandatory_post_open_role_agents",
 }
 
 REQUIRED_ENTRY_KEYS = {
@@ -38,9 +44,46 @@ REQUIRED_ENTRY_KEYS = {
     "system_prompt_excerpt",
     "description",
     "readonly",
+    "implementation_owner_override",
     "constraints",
     "depends_on_previous",
 }
+
+
+def test_role_dispatch_bridge_exports_compatibility_main() -> None:
+    """The neutral CLI keeps the historical qoder bridge implementation."""
+    assert role_dispatch_bridge.main is qoder_dispatch_bridge.main
+
+
+def test_legacy_qoder_dispatch_bridge_script_help_importable() -> None:
+    """Direct legacy script execution must install repo root before package imports."""
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "orchestration" / "qoder_dispatch_bridge.py"),
+            "--help",
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert "usage: role_dispatch_bridge" in result.stdout
+    assert "ModuleNotFoundError" not in result.stderr
+
+
+def test_role_dispatch_bridge_help_uses_neutral_name(capsys: pytest.CaptureFixture[str]) -> None:
+    """The neutral CLI must not expose the old adapter name as the public command."""
+    with pytest.raises(SystemExit) as exc_info:
+        role_dispatch_bridge.main(["--help"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "usage: role_dispatch_bridge" in captured.out
+    assert "Generate a JSON role dispatch manifest" in captured.out
+    assert "Generate a JSON dispatch manifest for Qoder" not in captured.out
 
 
 def require_feature(feature_key: str) -> None:
@@ -542,6 +585,55 @@ def test_requested_order_must_include_security_immediately_after_bug_hunter() ->
     )
 
 
+def test_pre_open_packet_preserves_requested_custom_role_order() -> None:
+    """Pre-open bootstrap order is mandatory and must not get post-open tail sorting."""
+
+    assert qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+        {
+            "pr_phase": "pre_open",
+            "requested_agents": [
+                "agent-coordinator",
+                "architecture-specialist",
+                "frontend-engineer",
+                "cursor-specialist-agent",
+                "security-auditor",
+                "qa-engineer-agent",
+                "bug-hunter",
+            ],
+        }
+    )
+
+
+def test_none_phase_packet_does_not_preserve_inverted_mandatory_tail() -> None:
+    """Default JSON packets must not bypass the QA -> bug -> security tail."""
+
+    assert not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+        {
+            "pr_phase": "none",
+            "requested_agents": [
+                "qa-engineer-agent",
+                "security-auditor",
+                "bug-hunter",
+            ],
+        }
+    )
+
+
+def test_pre_open_packet_rejects_malformed_requested_agents_before_bypass() -> None:
+    """Pre-open order bypass still validates requested_agents is a slug list."""
+
+    malformed_payloads = [
+        {"pr_phase": "pre_open", "requested_agents": "frontend-engineer"},
+        {"pr_phase": "pre_open", "requested_agents": ["frontend-engineer", 42]},
+        {"pr_phase": "pre_open", "requested_agents": ["frontend engineer"]},
+    ]
+
+    for payload in malformed_payloads:
+        assert not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
+            payload
+        )
+
+
 def test_parse_task_bootstrap_json_packet_limits_duplicate_requested_roles_to_spawnable_slots(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -798,6 +890,21 @@ class TestRoleToQoderTypeMapping:
         )
         assert result == "Coding"
 
+    def test_readonly_backend_engineer_runtime_requires_owner_override(self) -> None:
+        agent_def = {"slug": "backend-engineer", "name": "backend-engineer", "readonly": True}
+        result = qoder_dispatch_bridge.resolve_qoder_type(
+            agent_def, mode="runtime", is_reviewer=False
+        )
+        assert result == "Research"
+
+        owned_result = qoder_dispatch_bridge.resolve_qoder_type(
+            agent_def,
+            mode="runtime",
+            is_reviewer=False,
+            implementation_owners={"backend-engineer"},
+        )
+        assert owned_result == "Coding"
+
     def test_qa_engineer_agent(self) -> None:
         agent_def = {"slug": "qa-engineer-agent", "name": "qa-engineer-agent", "readonly": True}
         result = qoder_dispatch_bridge.resolve_qoder_type(
@@ -853,6 +960,17 @@ class TestRoleToQoderTypeMapping:
             agent_def, mode="analysis", is_reviewer=False
         )
         assert result == "Research"
+
+    def test_readonly_frontend_engineer_runtime_owner_returns_browser(self) -> None:
+        """Runtime Browser dispatch for a readonly frontend role requires explicit ownership."""
+        agent_def = {"slug": "frontend-engineer", "name": "frontend-engineer", "readonly": True}
+        result = qoder_dispatch_bridge.resolve_qoder_type(
+            agent_def,
+            mode="runtime",
+            is_reviewer=False,
+            implementation_owners={"frontend-engineer"},
+        )
+        assert result == "Browser"
 
     def test_unknown_agent_fallback(self) -> None:
         agent_def = {"slug": "nonexistent-agent", "name": "nonexistent-agent", "readonly": False}
@@ -1074,7 +1192,9 @@ def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
 
     assert by_slug["architecture-specialist"]["depends_on_previous"] is False
     assert by_slug["philosophy-agent"]["depends_on_previous"] is False
-    assert ["architecture-specialist", "philosophy-agent"] in manifest["parallelizable_groups"]
+    assert manifest["parallelizable_groups"] == []
+    assert manifest["parallel_execution_allowed"] is False
+    assert "dispatch_sequence order" in manifest["parallel_execution_reason"]
     assert by_slug["qa-engineer-agent"]["qoder_subagent_type"] == "Verify"
     assert by_slug["qa-engineer-agent"]["depends_on_previous"] is False
     assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
@@ -1150,6 +1270,243 @@ def test_verify_agents_are_readonly_when_frontmatter_omits_readonly(
         "Verify",
     ]
     assert all(item["readonly"] for item in manifest["dispatch_sequence"])
+
+
+def test_runtime_implementation_owner_override_clears_frontmatter_readonly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit runtime ownership is required to dispatch readonly implementation roles."""
+
+    def fake_load_agent_definition(slug: str) -> Dict[str, Any]:
+        return {
+            "slug": slug,
+            "name": slug,
+            "description": "",
+            "readonly": True,
+            "readonly_explicit": True,
+            "body": "",
+            "definition_path": f".cursor/agents/{slug}.md",
+        }
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "_load_agent_definition", fake_load_agent_definition)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=["backend-engineer", "frontend-engineer"],
+        mode="runtime",
+        packet_source="test",
+        implementation_owners={"backend-engineer", "frontend-engineer"},
+    )
+
+    by_slug = {entry["role_slug"]: entry for entry in manifest["dispatch_sequence"]}
+    assert by_slug["backend-engineer"]["qoder_subagent_type"] == "Coding"
+    assert by_slug["frontend-engineer"]["qoder_subagent_type"] == "Browser"
+    assert by_slug["backend-engineer"]["readonly"] is False
+    assert by_slug["frontend-engineer"]["readonly"] is False
+    assert by_slug["backend-engineer"]["implementation_owner_override"] is True
+    assert by_slug["frontend-engineer"]["implementation_owner_override"] is True
+
+
+def test_runtime_verify_owner_override_clears_frontmatter_readonly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Read-write QA/bug owner roles keep Verify type while clearing readonly."""
+
+    def fake_load_agent_definition(slug: str) -> Dict[str, Any]:
+        return {
+            "slug": slug,
+            "name": slug,
+            "description": "",
+            "readonly": True,
+            "readonly_explicit": True,
+            "body": "",
+            "definition_path": f".cursor/agents/{slug}.md",
+        }
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "_load_agent_definition", fake_load_agent_definition)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=["qa-engineer-agent", "bug-hunter"],
+        mode="runtime",
+        packet_source="test",
+        implementation_owners={"qa-engineer-agent", "bug-hunter"},
+    )
+
+    by_slug = {entry["role_slug"]: entry for entry in manifest["dispatch_sequence"]}
+    assert by_slug["qa-engineer-agent"]["qoder_subagent_type"] == "Verify"
+    assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
+    assert by_slug["qa-engineer-agent"]["readonly"] is False
+    assert by_slug["bug-hunter"]["readonly"] is False
+    assert by_slug["qa-engineer-agent"]["implementation_owner_override"] is True
+    assert by_slug["bug-hunter"]["implementation_owner_override"] is True
+
+
+def test_runtime_implementation_owner_cli_requires_packet(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Ad-hoc role lists cannot grant runtime write-capable ownership."""
+    result = qoder_dispatch_bridge.main(
+        [
+            "--roles",
+            "backend-engineer",
+            "--mode",
+            "runtime",
+            "--implementation-owner",
+            "backend-engineer",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "--implementation-owner requires --packet" in captured.err
+
+
+def test_runtime_implementation_owner_cli_packet_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Packet-bound CLI owner override emits a write-capable manifest entry."""
+    agents_dir = tmp_path / ".cursor" / "agents"
+    agents_dir.mkdir(parents=True)
+    coordinator_file = agents_dir / "agent-coordinator.md"
+    coordinator_file.write_text(
+        "---\n"
+        "name: agent-coordinator\n"
+        "model: auto\n"
+        "description: Agent coordinator\n"
+        "readonly: true\n"
+        "---\n"
+        "\n"
+        "# Agent Coordinator\n",
+        encoding="utf-8",
+    )
+    agent_file = agents_dir / "frontend-engineer.md"
+    agent_file.write_text(
+        "---\n"
+        "name: frontend-engineer\n"
+        "model: auto\n"
+        "description: Frontend engineer\n"
+        "readonly: true\n"
+        "---\n"
+        "\n"
+        "# Frontend Engineer\n",
+        encoding="utf-8",
+    )
+    packet_file = tmp_path / "packet.json"
+    packet_file.write_text(
+        json.dumps(
+            {
+                "role_agent_dispatch_contract": {
+                    "runtime_implementation_owners": ["frontend-engineer"]
+                },
+                "native_subagent_bridge": {
+                    "primary": {
+                        "repo_agent_slug": "frontend-engineer",
+                        "execution_mode": "read_write",
+                    },
+                    "secondary": [],
+                    "advisory": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet_file),
+            "--mode",
+            "runtime",
+            "--implementation-owner",
+            "frontend-engineer",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    manifest = json.loads(captured.out)
+    entry = next(
+        item for item in manifest["dispatch_sequence"] if item["role_slug"] == "frontend-engineer"
+    )
+    assert result == 0
+    assert manifest["missing_agents"] == []
+    assert entry["role_slug"] == "frontend-engineer"
+    assert entry["qoder_subagent_type"] == "Browser"
+    assert entry["readonly"] is False
+    assert entry["implementation_owner_override"] is True
+
+
+def test_runtime_implementation_owner_cli_rejects_ungranted_packet_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Runtime owner flags must match packet-granted read-write owners."""
+
+    agents_dir = tmp_path / ".cursor" / "agents"
+    agents_dir.mkdir(parents=True)
+    for slug in ["agent-coordinator", "backend-engineer"]:
+        (agents_dir / f"{slug}.md").write_text(
+            "---\n"
+            f"name: {slug}\n"
+            "model: auto\n"
+            f"description: {slug}\n"
+            "readonly: true\n"
+            "---\n"
+            f"\n# {slug}\n",
+            encoding="utf-8",
+        )
+    packet_file = tmp_path / "packet.json"
+    packet_file.write_text(
+        json.dumps(
+            {
+                "role_agent_dispatch_contract": {
+                    "runtime_implementation_owners": ["backend-engineer"]
+                },
+                "native_subagent_bridge": {
+                    "primary": {"repo_agent_slug": "agent-coordinator"},
+                    "secondary": [],
+                    "advisory": [
+                        {
+                            "repo_agent_slug": "backend-engineer",
+                            "execution_mode": "advisory_review",
+                            "dispatch_contract": {
+                                "advisory_only": False,
+                                "spawn_with_native_subagent": True,
+                                "required_role_pass": True,
+                            },
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet_file),
+            "--mode",
+            "runtime",
+            "--implementation-owner",
+            "backend-engineer",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "--implementation-owner not granted by packet for: backend-engineer" in captured.err
 
 
 def test_coordinator_is_not_parallelized_with_readonly_reviewers() -> None:
@@ -1281,6 +1638,110 @@ def test_roles_flag_explicit_list() -> None:
     assert manifest["mode"] == "analysis"
 
 
+def test_roles_flag_preserves_explicit_pre_open_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The public --roles fallback must not silently apply post-open tail sorting."""
+
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = [
+        "agent-coordinator",
+        "architecture-specialist",
+        "frontend-engineer",
+        "cursor-specialist-agent",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+    ]
+    for slug in slugs:
+        if not (agents_dir / f"{slug}.md").is_file():
+            pytest.skip(f"Agent definition not found: {slug}")
+
+    result = role_dispatch_bridge.main(["--roles", *slugs, "--pr-phase", "pre_open", "--pretty"])
+
+    assert result == 0
+    manifest = json.loads(capsys.readouterr().out)
+    assert [entry["role_slug"] for entry in manifest["dispatch_sequence"]] == slugs
+
+
+def test_roles_flag_rejects_ambiguous_post_open_order_without_phase(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A full post-open role set cannot bypass ordering via phase-less --roles."""
+
+    result = role_dispatch_bridge.main(
+        [
+            "--roles",
+            "qa-engineer-agent",
+            "security-auditor",
+            "bug-hunter",
+        ]
+    )
+
+    assert result == 1
+    captured = capsys.readouterr()
+    assert "Pass --pr-phase pre_open" in captured.err
+    assert "--pr-phase post_open_review/merge_ready" in captured.err
+
+
+def test_roles_flag_post_open_phase_enforces_mandatory_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Phase-aware explicit post-open dispatch keeps QA -> bug -> security."""
+
+    result = role_dispatch_bridge.main(
+        [
+            "--roles",
+            "qa-engineer-agent",
+            "security-auditor",
+            "bug-hunter",
+            "--pr-phase",
+            "post_open_review",
+            "--pretty",
+        ]
+    )
+
+    assert result == 0
+    manifest = json.loads(capsys.readouterr().out)
+    dispatch = manifest["dispatch_sequence"]
+    assert [entry["role_slug"] for entry in dispatch] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    assert dispatch[1]["depends_on_previous"] is True
+    assert dispatch[2]["depends_on_previous"] is True
+
+
+def test_roles_flag_merge_ready_phase_enforces_mandatory_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Merge-ready explicit role dispatch keeps QA -> bug -> security."""
+
+    result = role_dispatch_bridge.main(
+        [
+            "--roles",
+            "qa-engineer-agent",
+            "security-auditor",
+            "bug-hunter",
+            "--pr-phase",
+            "merge_ready",
+            "--pretty",
+        ]
+    )
+
+    assert result == 0
+    manifest = json.loads(capsys.readouterr().out)
+    dispatch = manifest["dispatch_sequence"]
+    assert [entry["role_slug"] for entry in dispatch] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    assert dispatch[1]["depends_on_previous"] is True
+    assert dispatch[2]["depends_on_previous"] is True
+
+
 # ---------------------------------------------------------------------------
 # 8. test_packet_without_role_section_errors
 # ---------------------------------------------------------------------------
@@ -1354,12 +1815,19 @@ def test_mandatory_post_open_detection() -> None:
         packet_source="test",
     )
 
-    # The bridge hardcodes mandatory_post_open
+    # The bridge keeps mandatory_post_open role-only for compatibility.
     assert "mandatory_post_open" in manifest
     post_open = manifest["mandatory_post_open"]
     assert isinstance(post_open, list)
-    assert "qa-engineer-agent" in post_open
-    assert "bug-hunter" in post_open
+    assert post_open == ["qa-engineer-agent", "bug-hunter", "security-auditor"]
+    post_open_gates = manifest["mandatory_post_open_gates"]
+    assert "Codex Security diff scan / finding discovery" in post_open_gates
+    assert "pulseplate-pr-review" in post_open_gates
+    assert manifest["mandatory_post_open_role_agents"] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
 
 
 def test_mandatory_post_open_bug_hunter_depends_on_qa() -> None:
