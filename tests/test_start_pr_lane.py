@@ -152,7 +152,10 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Experiment Runner: joins after coordinator bootstrap as oracle-only evidence." in (
         result.stdout
     )
-    assert "role_dispatch_bridge.py --packet <packet> --pretty" in result.stdout
+    assert "copy `role_agent_dispatch_contract.dispatch_manifest_command` verbatim" in (
+        result.stdout
+    )
+    assert "substitute the actual packet path and repo Python" in result.stdout
     assert "execute the manifest `dispatch_sequence` in order" in result.stdout
     assert "Role-agent dispatch is a required post-bootstrap step" in result.stdout
     assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in (

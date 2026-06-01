@@ -320,10 +320,11 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "Requested role order seed: agent-coordinator, qa-engineer-agent" in prompt
     assert "Next required repo command: run task_bootstrap.py" in prompt
     assert "Host/Codex preflight is not authoritative lane provenance" in prompt
-    assert "After task_bootstrap.py returns a packet, run `$VENV_PYTHON" in prompt
-    assert "role_dispatch_bridge.py --packet <packet> --pretty" in prompt
+    assert "copy `role_agent_dispatch_contract.dispatch_manifest_command` verbatim" in prompt
+    assert "substitute the actual packet path and repo Python" in prompt
     assert "execute the manifest `dispatch_sequence` in order" in prompt
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
+    assert "Do not reconstruct a generic bridge command" in prompt
     assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt
     assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in prompt
     assert "runner joins the lane and must not replace agent-coordinator" in prompt

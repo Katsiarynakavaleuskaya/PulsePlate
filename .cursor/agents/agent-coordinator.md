@@ -477,11 +477,14 @@ Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOO
 
 - `python scripts/orchestration/task_bootstrap.py --goal "..." --task-class "..." --path ...`
 - `python scripts/orchestration/check_preflight.py --mode analyze|execute|merge ...`
-- `python scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty`
-  must be run after `task_bootstrap.py` emits a packet; packet creation does
-  not execute role agents. Use the emitted `dispatch_sequence` in order, and do
-  not skip an assigned role without an explicit coordinator packet/runbook
-  update.
+- After `task_bootstrap.py` emits a packet, copy the packet's
+  `role_agent_dispatch_contract.dispatch_manifest_command` verbatim, replace
+  `<packet>` with the actual packet path, and use repo Python per
+  `RUNBOOK_AGENT.md`. Do not reconstruct a generic bridge command; runtime
+  implementation packets may carry `--mode runtime --implementation-owner ...`
+  flags. Packet creation does not execute role agents. Use the emitted
+  `dispatch_sequence` in order, and do not skip an assigned role without an
+  explicit coordinator packet/runbook update.
 
 These commands are the executable implementation of coordinator-first behavior for task start, execution handoff, and merge prep.
 

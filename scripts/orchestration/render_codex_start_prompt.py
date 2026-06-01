@@ -37,11 +37,12 @@ EXPERIMENT_RUNNER_ENV_GUIDANCE = (
     "infra blockers, not `Not applicable`."
 )
 ROLE_DISPATCH_GUIDANCE = (
-    "Role-agent dispatch is a required post-bootstrap step: generate the "
-    "`$VENV_PYTHON scripts/orchestration/role_dispatch_bridge.py --packet "
-    "<packet> --pretty` manifest, then run each `dispatch_sequence` role in "
-    "order. Do not treat task_bootstrap.py packet creation as role-agent "
-    "execution."
+    "Role-agent dispatch is a required post-bootstrap step: copy the packet's "
+    "`role_agent_dispatch_contract.dispatch_manifest_command` verbatim, replace "
+    "`<packet>` with the actual packet path, use repo Python per RUNBOOK, then "
+    "run each `dispatch_sequence` role in order. Do not reconstruct a generic "
+    "bridge command, because implementation packets may carry runtime owner "
+    "flags. Do not treat task_bootstrap.py packet creation as role-agent execution."
 )
 POST_OPEN_REVIEW_GUIDANCE = (
     "After the PR opens, run the mandatory post-open review gate in order: "
@@ -332,7 +333,7 @@ def render_recipe_prompt(
             "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
-            "After task_bootstrap.py returns a packet, run `$VENV_PYTHON scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty` and execute the manifest `dispatch_sequence` in order.",
+            "After task_bootstrap.py returns a packet, copy `role_agent_dispatch_contract.dispatch_manifest_command` verbatim, substitute the actual packet path and repo Python, then execute the manifest `dispatch_sequence` in order.",
             ROLE_DISPATCH_GUIDANCE,
             POST_OPEN_REVIEW_GUIDANCE,
             "After coordinator bootstrap, create oracle-only Experiment Runner evidence by default for non-trivial PRs; the runner joins the lane and must not replace agent-coordinator.",
