@@ -199,9 +199,9 @@ actionable bot findings, strict merge-readiness checks, and the wait window.
 
 ## Merge Readiness
 
-- [x] Mandatory post-open role sequence completed and mapped.
-- [x] Codex Security diff scan / finding discovery completed and mapped.
-- [x] PulsePlate PR review completed and mapped.
+- [ ] Mandatory post-open role sequence completed and mapped.
+- [ ] Codex Security diff scan / finding discovery completed and mapped.
+- [ ] PulsePlate PR review completed and mapped.
 - [ ] Current-head CI checked after the latest push.
 - [ ] No unresolved actionable review threads or bot findings remain.
 - [ ] Strict merge-readiness wrapper passes.

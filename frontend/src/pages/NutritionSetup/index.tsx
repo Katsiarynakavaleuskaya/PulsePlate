@@ -56,7 +56,7 @@ function PlanningDirectionPanel({ draft }: { draft: GuidedPlanningDraft }): JSX.
   );
 }
 
-export default function NutritionSetupPage() {
+export default function NutritionSetupPage(): JSX.Element {
   const { settings } = useSettings();
   const { t } = useTranslation();
   const [values, setValues] = useState<SetupFormValues | null>(null);
