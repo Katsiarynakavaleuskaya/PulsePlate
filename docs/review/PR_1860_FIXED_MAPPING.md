@@ -282,6 +282,24 @@ Reason: Sourcery identified a real bug risk where non-post-open phases could
 return `True` before validating `requested_agents`, plus drift risk from repeated
 gate labels and mixed implementation-owner shapes.
 
+Disposition: FIXED
+Commit: 4801528d5
+Evidence: `.cursor/agents/agent-coordinator.md` now instructs operators to
+copy `role_agent_dispatch_contract.dispatch_manifest_command` from the packet
+verbatim instead of reconstructing a generic bridge command.
+`scripts/orchestration/render_codex_start_prompt.py` applies the same rule to
+recipe prompts so runtime implementation-owner flags are preserved. Regression
+coverage added in `tests/test_agent_docs_registry_guard.py`,
+`tests/test_render_codex_start_prompt.py`, `tests/test_local_session_bootstrap.py`,
+and `tests/test_start_pr_lane.py`. Focused validation passed with
+`python -m pytest -q tests/test_agent_docs_registry_guard.py tests/test_render_codex_start_prompt.py tests/test_local_session_bootstrap.py tests/test_start_pr_lane.py`
+and the broader orchestration bundle
+`python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py tests/test_local_session_bootstrap.py tests/test_agent_docs_registry_guard.py`.
+Role: Codex connector review
+Reason: Codex connector found that the coordinator prompt still pointed at a
+generic role-dispatch command, which could omit packet-emitted `--mode runtime`
+and `--implementation-owner` flags for implementation-owner packets.
+
 ## Post-Open Review Tracking
 
 - [x] `qa-engineer-agent` post-open pass - BLOCK finding fixed by `528a8a748`
@@ -289,7 +307,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
-- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, `34d6a994d`, `d638ad6f`, `2309bc9b`, `fdea6278`, and `6d3634ea`
+- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, `34d6a994d`, `d638ad6f`, `2309bc9b`, `fdea6278`, `6d3634ea`, and `4801528d`
 - [x] Cubic review - duplicate FIXED block mapping format fixed by `3af133b45`
 - [x] CodeRabbit review - merge-readiness checklist, unused import, manifest schema key, and backlog DoD clarity fixed by `32b7aa18`
 
