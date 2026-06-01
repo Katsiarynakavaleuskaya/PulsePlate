@@ -20,10 +20,10 @@ interface SettingsProviderProps {
 
 const initialSettings: Settings = {};
 
-export function SettingsProvider({ children }: SettingsProviderProps) {
+export function SettingsProvider({ children }: SettingsProviderProps): JSX.Element {
   const [settings, setSettings] = useState<Settings>(initialSettings);
 
-  const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+  const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]): void => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
