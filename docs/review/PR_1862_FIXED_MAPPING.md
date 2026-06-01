@@ -13,16 +13,53 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335409220 -> ddaa37eac
+Disposition: FIXED
+Commit: ddaa37eac
+Evidence: `frontend/src/pages/NutritionSetup/ResultView.tsx` now uses `t('nutritionSetup.guidedPlanning.nextSteps.*')`, and `frontend/src/locales/en.json`, `frontend/src/locales/es.json`, and `frontend/src/locales/ru.json` define the matching keys.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335439000 -> ddaa37eac
+Disposition: FIXED
+Commit: ddaa37eac
+Evidence: `frontend/src/pages/NutritionSetup/ResultView.tsx` now localizes the guided-planning rail label, aria-label, detail text, and links through `nutritionSetup.guidedPlanning.nextSteps.*` keys.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335439007 -> ddaa37eac
+Disposition: FIXED
+Commit: ddaa37eac
+Evidence: `frontend/src/pages/NutritionSetup/index.tsx` now localizes the Planning direction panel labels through `nutritionSetup.guidedPlanning.direction.*` keys.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335439014 -> ddaa37eac
+Disposition: FIXED
+Commit: ddaa37eac
+Evidence: `frontend/src/features/guidedPlanning/planningPreview.ts` broadens `forbiddenMedicalClaimPattern` to catch simple inflections including diagnoses, treats, and cures; `frontend/src/pages/__tests__/Home.test.tsx` asserts the inflected phrase is rejected.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335432681 -> edba5baf4
+Disposition: FIXED
+Commit: edba5baf4
+Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now includes the canonical `## Discussion Thread Pass`, `## Fixed in Commit Mapping`, `## Experiment Runner Evidence`, `## Lane Start Provenance`, and `## Merge Readiness` sections; Phase2 validation passes with required Experiment Runner evidence.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335432684 -> edba5baf4
+Disposition: FIXED
+Commit: edba5baf4
+Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now says `required focused coverage for Home, Nutrition Setup, ResultView, and settings` instead of the awkward `required focused Home` phrasing.
 
 ## Post-Open Role Findings
 
 - QA P1 Phase2 PR body/fixed-mapping governance: FIXED by normalizing this
   artifact to the canonical checkbox and no-actionable mapping format, adding
   explicit Experiment Runner evidence, and syncing the PR body mirror.
+  Evidence: `a3b3ffb88`, `edba5baf4`;
+  `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1862 --body
+  "$BODY" --experiment-runner-evidence-mode required` - PASS.
 - QA P1 PR size governance missing `## Tests`: FIXED by replacing the PR body
   `## Validation` section with `## Tests` and adding explicit split
   justification for the frontend/governance bundle.
+  Evidence: `a3b3ffb88`;
+  `python3 scripts/ci/check_pr_size_governance.py --base-sha origin/main
+  --head-sha HEAD --body "$BODY"` - PASS.
+- Bug-hunter P2 hardcoded guided-planning labels: FIXED by `ddaa37eac`.
+- Bug-hunter P2 narrow medical-claim guard: FIXED by `ddaa37eac`.
+- Bug-hunter P2 fixed-mapping wording issue: FIXED by `edba5baf4`.
 
 ## Implementation Evidence
 
