@@ -44,6 +44,21 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor afb1b2412962 HEAD` exits 0 on branch head `c7be0fb64169`, so the implementation SHA is reachable in the real PR branch history.
 Reason: The bot compared `afb1b2412962` to a synthetic reviewed commit surface rather than the current branch head; the mapping remains valid for the actual PR history.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335559556
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor afb1b2412962 HEAD`, `git merge-base --is-ancestor f604c5aae HEAD`, and `git merge-base --is-ancestor c7be0fb64169 HEAD` all exit 0 on the real local PR branch.
+Reason: The bot compared mapped SHAs to a synthetic reviewed commit surface, not the current PR branch history used by repo merge-readiness guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335559560 -> b543afe4e
+Disposition: FIXED
+Commit: b543afe4e
+Evidence: `trivy/ignore-policy.rego` now requires `cve_2026_48962_perl_base_fixed_version_unavailable`, which only matches when `FixedVersion` is absent, empty, or null; `tests/test_trivy_ignore_policy_expiry.py` and `docs/security/CVE-2026-48962-perl-base.md` document and assert this guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335559564
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B afb1b2412962` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and that is the implementation commit materially shaped by the Experiment Runner oracle result.
+Reason: Later fixed-mapping/review-disposition commits document or respond to post-open review feedback; they were not the oracle-shaped implementation commit and do not require retroactive Experiment Runner attribution.
+
 ## Implementation Evidence
 
 Disposition: FIXED
