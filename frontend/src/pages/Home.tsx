@@ -1,118 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, Hero, StatsCard, buttonClasses } from '../components/ui';
+import {
+  forbiddenMedicalClaimPattern,
+  planningIntents,
+  planningTimes,
+  previewByIntent,
+  timeNotes,
+  type PlanningIntentId,
+  type PlanningTimeId,
+} from '../features/guidedPlanning/planningPreview';
 import { useAuth } from '../lib/auth';
 import { trackGuidedPlanningEvent, type GuidedPlanningEventPayload } from '../lib/mvpObservability';
+import { useSettings } from '../lib/settings';
 
-type PlanningIntentId = 'consistent' | 'balanced' | 'decision_fatigue' | 'shopping';
-type PlanningTimeId = 'quick' | 'standard' | 'batch' | 'flexible';
 type PlanningAuthState = NonNullable<GuidedPlanningEventPayload['authState']>;
-
-interface PlanningIntent {
-  id: PlanningIntentId;
-  label: string;
-  helper: string;
-}
-
-interface PlanningTime {
-  id: PlanningTimeId;
-  label: string;
-  helper: string;
-}
-
-interface PlanningPreview {
-  plateDirection: string;
-  weeklyStructure: string[];
-  shoppingDirection: string[];
-  nextAction: string;
-}
-
-const planningIntents: PlanningIntent[] = [
-  {
-    id: 'consistent',
-    label: 'More consistent meals',
-    helper: 'Build a repeatable baseline without overplanning.',
-  },
-  {
-    id: 'balanced',
-    label: 'Balanced week',
-    helper: 'See how daily plates connect into a weekly rhythm.',
-  },
-  {
-    id: 'decision_fatigue',
-    label: 'Less food decision fatigue',
-    helper: 'Reduce last-minute choices with simple anchors.',
-  },
-  {
-    id: 'shopping',
-    label: 'Shopping-list planning',
-    helper: 'Turn meal direction into a practical grocery pass.',
-  },
-];
-
-const planningTimes: PlanningTime[] = [
-  { id: 'quick', label: '10–15 min meals', helper: 'Smallest next step.' },
-  { id: 'standard', label: 'Standard meal window', helper: 'Balanced prep window.' },
-  { id: 'batch', label: 'Batch prep', helper: 'Repeatable anchors.' },
-  { id: 'flexible', label: 'Flexible cooking', helper: 'Loose weekly plan.' },
-];
-
-const previewByIntent: Record<PlanningIntentId, PlanningPreview> = {
-  consistent: {
-    plateDirection: 'Protein anchor + fiber/color side + simple grain, repeated until the routine feels easy.',
-    weeklyStructure: [
-      '3 repeatable breakfasts',
-      '2 flexible lunches',
-      '3 dinner anchors',
-      '1 batch-prep slot',
-    ],
-    shoppingDirection: ['core proteins', 'vegetables/fruit', 'grains/pantry', 'hydration routine'],
-    nextAction: 'Start with setup so PulsePlate can frame your baseline before deeper planning.',
-  },
-  balanced: {
-    plateDirection: 'Daily plate direction balances protein, color, grain, and a routine reminder.',
-    weeklyStructure: [
-      '2 simple breakfasts',
-      '2 plate-style lunches',
-      '3 flexible dinners',
-      '1 leftovers slot',
-    ],
-    shoppingDirection: ['protein variety', 'colorful produce', 'easy carbs', 'snacks with structure'],
-    nextAction: 'Continue into the plate flow when you want to see the day-level structure.',
-  },
-  decision_fatigue: {
-    plateDirection: 'Choose one reliable anchor first, then rotate sides instead of rebuilding meals.',
-    weeklyStructure: [
-      '1 default breakfast',
-      '2 lunch templates',
-      '2 no-decision dinners',
-      '1 flexible reset meal',
-    ],
-    shoppingDirection: ['ready proteins', 'pre-cut color', 'pantry fallback', 'routine reminders'],
-    nextAction: 'Save the preview direction, then use progress check-ins to refine the routine later.',
-  },
-  shopping: {
-    plateDirection: 'Translate check-in intent into meal anchors first, then shop around those anchors.',
-    weeklyStructure: [
-      '3 planned breakfasts',
-      '2 packable lunches',
-      '3 dinner anchors',
-      '1 shopping review slot',
-    ],
-    shoppingDirection: ['core proteins', 'vegetables/fruit', 'grains/pantry', 'batch-prep extras'],
-    nextAction: 'Unlock weekly planning when you are ready to save and reuse the plan structure.',
-  },
-};
-
-const timeNotes: Record<PlanningTimeId, string> = {
-  quick: 'Keep the preview light: fast anchors, low prep, no complicated cooking path.',
-  standard: 'Use the standard rhythm: enough prep for variety without turning the week into a project.',
-  batch: 'Batch-prep mode highlights repeatable proteins, grains, and produce that can be reused.',
-  flexible: 'Flexible cooking keeps the structure loose so you can adjust without losing the plan.',
-};
-
-const forbiddenMedicalClaimPattern =
-  /\b(diagnose|treat|cure|guaranteed weight loss|AI doctor|personalized medical recommendation|clinically proven|prescription|disease management|medical-grade|therapeutic recommendation)\b/i;
 
 function OptionButton({
   isSelected,
@@ -163,6 +65,7 @@ function ValueRailCard({ title, detail, badge }: { title: string; detail: string
 
 export default function Home(): JSX.Element {
   const { isAuthenticated, isLoading } = useAuth();
+  const { updateSetting } = useSettings();
   const [selectedIntent, setSelectedIntent] = useState<PlanningIntentId>('consistent');
   const [selectedTime, setSelectedTime] = useState<PlanningTimeId>('standard');
   const [isPreviewSaved, setIsPreviewSaved] = useState(false);
@@ -171,28 +74,28 @@ export default function Home(): JSX.Element {
   const authState: PlanningAuthState = isLoading ? 'unknown' : isAuthenticated ? 'authenticated' : 'unauthenticated';
   const isKnownAuthenticated = authState === 'authenticated';
   const progressMessage = isPreviewSaved
-    ? 'Preview marked here. Continue when you are ready to turn this direction into weekly planning.'
+    ? 'Preview marked for this app session. Continue when you are ready to turn this direction into weekly planning.'
     : 'Planning progress starts with your selected intent and practical cooking window.';
   const progressAuthMessage = isKnownAuthenticated
     ? 'Your signed-in session can continue this planning direction into protected PulsePlate flows.'
     : authState === 'unknown'
       ? 'Checking your session before PulsePlate routes this preview into protected planning flows.'
-      : 'Sign in to continue this planning direction through protected flows. This preview mark stays on this screen only.';
+      : 'Sign in to continue this planning direction through protected flows. This preview mark stays in the current app session only.';
   const savePromptLabel = isKnownAuthenticated
     ? 'Continue marked direction'
     : authState === 'unknown'
       ? 'Checking session'
       : 'Save preview';
   const savePromptCopy = isKnownAuthenticated
-    ? 'Your planning direction is ready. PulsePlate can mark this preview on this screen before you continue.'
+    ? 'Your planning direction is ready. PulsePlate can mark this preview in the current app session before you continue.'
     : authState === 'unknown'
       ? 'PulsePlate is checking whether this preview can continue through a signed-in planning session.'
-      : 'Without sign-in, PulsePlate can only mark this preview on this screen.';
+      : 'Without sign-in, PulsePlate can only mark this preview in the current app session.';
   const saveButtonLabel = isPreviewSaved
-    ? 'Preview marked here'
+    ? 'Preview marked for session'
     : isKnownAuthenticated
-      ? 'Mark preview ready here'
-      : 'Mark preview here';
+      ? 'Mark preview ready for session'
+      : 'Mark preview for session';
   const copyCorpus = [
     ...planningIntents.map((intent) => `${intent.label} ${intent.helper}`),
     ...planningTimes.map((time) => `${time.label} ${time.helper}`),
@@ -269,6 +172,7 @@ export default function Home(): JSX.Element {
   function selectIntent(intentId: PlanningIntentId): void {
     if (intentId !== selectedIntent) {
       setIsPreviewSaved(false);
+      updateSetting('guidedPlanningDraft', undefined);
     }
     setSelectedIntent(intentId);
     trackGuidedPlanningEvent('planning_intent_selected', {
@@ -282,6 +186,7 @@ export default function Home(): JSX.Element {
   function selectTime(timeId: PlanningTimeId): void {
     if (timeId !== selectedTime) {
       setIsPreviewSaved(false);
+      updateSetting('guidedPlanningDraft', undefined);
     }
     setSelectedTime(timeId);
     trackGuidedPlanningEvent('planning_time_selected', {
@@ -293,6 +198,7 @@ export default function Home(): JSX.Element {
   }
 
   function trackPrimaryPlanningCta(): void {
+    persistGuidedPlanningDraft();
     trackGuidedPlanningEvent('primary_planning_cta_clicked', {
       surface: 'app',
       componentId: 'primary-planning-cta',
@@ -302,6 +208,7 @@ export default function Home(): JSX.Element {
 
   function savePlanningPreview(): void {
     setIsPreviewSaved(true);
+    persistGuidedPlanningDraft();
     trackGuidedPlanningEvent('planning_save_clicked', {
       surface: 'app',
       componentId: 'planning-save-cta',
@@ -312,12 +219,21 @@ export default function Home(): JSX.Element {
   }
 
   function trackContinuePlanning(routePath: '/plate' | '/progress' | '/pro'): void {
+    persistGuidedPlanningDraft();
     trackGuidedPlanningEvent('planning_continue_clicked', {
       surface: 'app',
       componentId: 'planning-continue-cta',
       routePath,
       optionId: selectedTime,
       authState,
+    });
+  }
+
+  function persistGuidedPlanningDraft(): void {
+    updateSetting('guidedPlanningDraft', {
+      intentId: selectedIntent,
+      timeId: selectedTime,
+      savedAt: new Date().toISOString(),
     });
   }
 

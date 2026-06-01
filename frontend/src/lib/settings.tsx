@@ -1,7 +1,11 @@
 import { createContext, useContext, ReactNode, useState } from 'react';
+import type { GuidedPlanningDraft } from '../features/guidedPlanning/planningPreview';
+import type { SetupFormValues } from '../pages/NutritionSetup/schema';
 
-// Settings context for future use - currently no settings are implemented
-type Settings = Record<string, unknown>;
+export interface Settings {
+  setup?: SetupFormValues;
+  guidedPlanningDraft?: GuidedPlanningDraft;
+}
 
 interface SettingsContextType {
   settings: Settings;
@@ -16,10 +20,10 @@ interface SettingsProviderProps {
 
 const initialSettings: Settings = {};
 
-export function SettingsProvider({ children }: SettingsProviderProps) {
+export function SettingsProvider({ children }: SettingsProviderProps): JSX.Element {
   const [settings, setSettings] = useState<Settings>(initialSettings);
 
-  const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+  const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]): void => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 

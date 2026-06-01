@@ -7,6 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import ResultView from "../ResultView";
 import { mockPlateData } from "../mocks";
 import { mockValues } from "../test-utils";
+import type { GuidedPlanningDraft } from "../../../features/guidedPlanning/planningPreview";
 
 const translations: Record<string, string> = {
   "nutrition.macros.title": "Макронутриенты и калории",
@@ -41,11 +42,19 @@ const translations: Record<string, string> = {
   "nutrition.water.subtitle": "Рекомендуемое суточное потребление воды",
   "nutrition.water.unit": "л/день",
   "nutrition.water.tip": "💡 Совет: Пейте воду равномерно в течение дня. Увеличивайте потребление при физической активности или жаркой погоде.",
+  "nutritionSetup.guidedPlanning.nextSteps.ariaLabel": "Guided planning next steps",
+  "nutritionSetup.guidedPlanning.nextSteps.eyebrow": "Guided planning next steps",
+  "nutritionSetup.guidedPlanning.nextSteps.detail": "{{timeLabel}}: {{nextAction}}",
+  "nutritionSetup.guidedPlanning.nextSteps.plateLink": "Continue to plate",
+  "nutritionSetup.guidedPlanning.nextSteps.progressLink": "Open progress check-ins",
   "common.retrying": "Повторная попытка...",
   "common.tryAgain": "Попробовать снова",
 };
 
-const translate = (key: string) => translations[key] || key;
+const translate = (key: string, values?: Record<string, string>) => {
+  const value = translations[key] || key;
+  return value.replace(/{{(timeLabel|nextAction)}}/g, (_, token: string) => values?.[token] ?? '');
+};
 
 // Mock react-i18next
 vi.mock("react-i18next", () => ({
@@ -71,10 +80,10 @@ const mockResolveSetupLang = setupHooks.resolveSetupLang as unknown as Mock;
 describe("ResultView", () => {
   const mockOnEdit = vi.fn();
 
-  const renderResult = () =>
+  const renderResult = (guidedPlanningDraft?: GuidedPlanningDraft) =>
     render(
       <MemoryRouter>
-        <ResultView values={mockValues} onEdit={mockOnEdit} />
+        <ResultView guidedPlanningDraft={guidedPlanningDraft} values={mockValues} onEdit={mockOnEdit} />
       </MemoryRouter>
     );
 
@@ -170,6 +179,32 @@ describe("ResultView", () => {
     expect(screen.getByText("Цель (ккал)")).toBeInTheDocument();
     expect(screen.getByText("Макронутриенты и калории")).toBeInTheDocument();
     expect(screen.getByText("Цели по микроэлементам")).toBeInTheDocument();
+  });
+
+  it("renders guided planning next-step rail only when a draft is present", () => {
+    const { rerender } = renderResult();
+
+    expect(screen.queryByRole("navigation", { name: "Guided planning next steps" })).not.toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <ResultView
+          guidedPlanningDraft={{
+            intentId: "balanced",
+            timeId: "flexible",
+            savedAt: "2026-06-01T00:00:00.000Z",
+          }}
+          values={mockValues}
+          onEdit={mockOnEdit}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("navigation", { name: "Guided planning next steps" })).toBeInTheDocument();
+    expect(screen.getByText("Balanced week")).toBeInTheDocument();
+    expect(screen.getByText(/Flexible cooking/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Continue to plate" })).toHaveAttribute("href", "/plate");
+    expect(screen.getByRole("link", { name: "Open progress check-ins" })).toHaveAttribute("href", "/progress");
   });
 
   it("displays BMR and TDEE values", () => {
