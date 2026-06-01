@@ -25,20 +25,26 @@ interface ResultViewProps {
 }
 
 function GuidedPlanningNextSteps({ draft }: { draft: GuidedPlanningDraft }): JSX.Element {
+  const { t } = useTranslation();
   const intent = getPlanningIntent(draft.intentId);
   const time = getPlanningTime(draft.timeId);
   const preview = previewByIntent[draft.intentId];
 
   return (
     <nav
-      aria-label="Guided planning next steps"
+      aria-label={t('nutritionSetup.guidedPlanning.nextSteps.ariaLabel')}
       className="rounded-lg border border-primary/20 bg-white p-4 shadow-sm sm:p-5"
       data-testid="guided-planning-next-steps"
     >
-      <p className="text-xs font-semibold uppercase text-muted">Guided planning next steps</p>
+      <p className="text-xs font-semibold uppercase text-muted">
+        {t('nutritionSetup.guidedPlanning.nextSteps.eyebrow')}
+      </p>
       <h2 className="mt-2 text-lg font-semibold text-text">{intent.label}</h2>
       <p className="mt-2 text-sm leading-6 text-muted">
-        {time.label}: {preview.nextAction}
+        {t('nutritionSetup.guidedPlanning.nextSteps.detail', {
+          timeLabel: time.label,
+          nextAction: preview.nextAction,
+        })}
       </p>
       <div className="mt-4 flex flex-wrap gap-3">
         <Link
@@ -47,7 +53,7 @@ function GuidedPlanningNextSteps({ draft }: { draft: GuidedPlanningDraft }): JSX
             className: 'rounded-lg text-navy',
           })}
         >
-          Continue to plate
+          {t('nutritionSetup.guidedPlanning.nextSteps.plateLink')}
         </Link>
         <Link
           to="/progress"
@@ -56,7 +62,7 @@ function GuidedPlanningNextSteps({ draft }: { draft: GuidedPlanningDraft }): JSX
             className: 'rounded-lg',
           })}
         >
-          Open progress check-ins
+          {t('nutritionSetup.guidedPlanning.nextSteps.progressLink')}
         </Link>
       </div>
     </nav>

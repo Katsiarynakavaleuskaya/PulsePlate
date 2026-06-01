@@ -42,11 +42,19 @@ const translations: Record<string, string> = {
   "nutrition.water.subtitle": "Рекомендуемое суточное потребление воды",
   "nutrition.water.unit": "л/день",
   "nutrition.water.tip": "💡 Совет: Пейте воду равномерно в течение дня. Увеличивайте потребление при физической активности или жаркой погоде.",
+  "nutritionSetup.guidedPlanning.nextSteps.ariaLabel": "Guided planning next steps",
+  "nutritionSetup.guidedPlanning.nextSteps.eyebrow": "Guided planning next steps",
+  "nutritionSetup.guidedPlanning.nextSteps.detail": "{{timeLabel}}: {{nextAction}}",
+  "nutritionSetup.guidedPlanning.nextSteps.plateLink": "Continue to plate",
+  "nutritionSetup.guidedPlanning.nextSteps.progressLink": "Open progress check-ins",
   "common.retrying": "Повторная попытка...",
   "common.tryAgain": "Попробовать снова",
 };
 
-const translate = (key: string) => translations[key] || key;
+const translate = (key: string, values?: Record<string, string>) => {
+  const value = translations[key] || key;
+  return value.replace(/{{(timeLabel|nextAction)}}/g, (_, token: string) => values?.[token] ?? '');
+};
 
 // Mock react-i18next
 vi.mock("react-i18next", () => ({

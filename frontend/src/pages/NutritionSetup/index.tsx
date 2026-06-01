@@ -19,6 +19,7 @@ import {
 } from '../../features/guidedPlanning/planningPreview';
 
 function PlanningDirectionPanel({ draft }: { draft: GuidedPlanningDraft }): JSX.Element {
+  const { t } = useTranslation();
   const intent = getPlanningIntent(draft.intentId);
   const time = getPlanningTime(draft.timeId);
   const preview = previewByIntent[draft.intentId];
@@ -29,19 +30,25 @@ function PlanningDirectionPanel({ draft }: { draft: GuidedPlanningDraft }): JSX.
       className="mb-6 rounded-lg border border-primary/20 bg-white p-4 shadow-sm sm:p-5"
       data-testid="planning-direction-panel"
     >
-      <p className="text-xs font-semibold uppercase text-muted">Planning direction</p>
+      <p className="text-xs font-semibold uppercase text-muted">
+        {t('nutritionSetup.guidedPlanning.direction.eyebrow')}
+      </p>
       <h2 id="planning-direction-heading" className="mt-2 text-lg font-semibold text-text">
         {intent.label}
       </h2>
       <p className="mt-2 text-sm leading-6 text-muted">{preview.plateDirection}</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-md bg-navy/5 p-3">
-          <p className="text-xs font-semibold uppercase text-muted">Cooking window</p>
+          <p className="text-xs font-semibold uppercase text-muted">
+            {t('nutritionSetup.guidedPlanning.direction.cookingWindow')}
+          </p>
           <p className="mt-1 text-sm font-medium text-text">{time.label}</p>
           <p className="mt-1 text-xs leading-5 text-muted">{timeNotes[draft.timeId]}</p>
         </div>
         <div className="rounded-md bg-navy/5 p-3">
-          <p className="text-xs font-semibold uppercase text-muted">Next step</p>
+          <p className="text-xs font-semibold uppercase text-muted">
+            {t('nutritionSetup.guidedPlanning.direction.nextStep')}
+          </p>
           <p className="mt-1 text-sm leading-5 text-text">{preview.nextAction}</p>
         </div>
       </div>

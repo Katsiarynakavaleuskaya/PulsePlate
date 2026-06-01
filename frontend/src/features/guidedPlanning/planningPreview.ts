@@ -111,7 +111,7 @@ export const timeNotes: Record<PlanningTimeId, string> = {
 };
 
 export const forbiddenMedicalClaimPattern =
-  /\b(diagnose|treat|cure|guaranteed weight loss|AI doctor|personalized medical recommendation|clinically proven|prescription|disease management|medical-grade|therapeutic recommendation)\b/i;
+  /\b(diagnos(?:e|es|ed|ing|is)|treat(?:s|ed|ing)?|cure(?:s|d|ing)?|guaranteed weight loss|AI doctor|personalized medical recommendation(?:s)?|clinically proven|prescription(?:s)?|disease management|medical-grade|therapeutic recommendation(?:s)?)\b/i;
 
 export function getPlanningIntent(intentId: PlanningIntentId): PlanningIntent {
   return planningIntents.find((intent) => intent.id === intentId) ?? planningIntents[0];

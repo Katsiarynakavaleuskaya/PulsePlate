@@ -197,6 +197,20 @@
                 "label": "Результаты",
                 "description": "Проверьте макроцели и рекомендации"
             }
+        },
+        "guidedPlanning": {
+            "direction": {
+                "eyebrow": "Направление планирования",
+                "cookingWindow": "Окно готовки",
+                "nextStep": "Следующий шаг"
+            },
+            "nextSteps": {
+                "ariaLabel": "Следующие шаги guided planning",
+                "eyebrow": "Следующие шаги guided planning",
+                "detail": "{{timeLabel}}: {{nextAction}}",
+                "plateLink": "Перейти к тарелке",
+                "progressLink": "Открыть прогресс"
+            }
         }
     },
     "nutrition": {

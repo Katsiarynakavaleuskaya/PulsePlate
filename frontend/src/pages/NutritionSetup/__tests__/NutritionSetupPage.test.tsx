@@ -11,9 +11,22 @@ import NutritionSetupPage from '../index';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'en' },
-    t: (key: string, values?: Record<string, number>) => {
+    t: (key: string, values?: Record<string, number | string>) => {
       if (key === 'nutritionSetup.steps.progressLabel') {
         return `Step ${values?.current} of ${values?.total}`;
+      }
+      const translations: Record<string, string> = {
+        'nutritionSetup.guidedPlanning.direction.eyebrow': 'Planning direction',
+        'nutritionSetup.guidedPlanning.direction.cookingWindow': 'Cooking window',
+        'nutritionSetup.guidedPlanning.direction.nextStep': 'Next step',
+        'nutritionSetup.guidedPlanning.nextSteps.ariaLabel': 'Guided planning next steps',
+        'nutritionSetup.guidedPlanning.nextSteps.eyebrow': 'Guided planning next steps',
+        'nutritionSetup.guidedPlanning.nextSteps.detail': `${values?.timeLabel}: ${values?.nextAction}`,
+        'nutritionSetup.guidedPlanning.nextSteps.plateLink': 'Continue to plate',
+        'nutritionSetup.guidedPlanning.nextSteps.progressLink': 'Open progress check-ins',
+      };
+      if (key in translations) {
+        return translations[key];
       }
       return key;
     },

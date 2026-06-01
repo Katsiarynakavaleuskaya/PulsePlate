@@ -197,6 +197,20 @@
                 "label": "Results",
                 "description": "Review macros and targets"
             }
+        },
+        "guidedPlanning": {
+            "direction": {
+                "eyebrow": "Planning direction",
+                "cookingWindow": "Cooking window",
+                "nextStep": "Next step"
+            },
+            "nextSteps": {
+                "ariaLabel": "Guided planning next steps",
+                "eyebrow": "Guided planning next steps",
+                "detail": "{{timeLabel}}: {{nextAction}}",
+                "plateLink": "Continue to plate",
+                "progressLink": "Open progress check-ins"
+            }
         }
     },
     "nutrition": {

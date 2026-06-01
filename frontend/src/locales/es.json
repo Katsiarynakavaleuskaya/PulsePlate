@@ -197,6 +197,20 @@
                 "label": "Resultados",
                 "description": "Revise macros y objetivos"
             }
+        },
+        "guidedPlanning": {
+            "direction": {
+                "eyebrow": "Dirección de planificación",
+                "cookingWindow": "Tiempo de cocina",
+                "nextStep": "Siguiente paso"
+            },
+            "nextSteps": {
+                "ariaLabel": "Siguientes pasos de planificación guiada",
+                "eyebrow": "Siguientes pasos de planificación guiada",
+                "detail": "{{timeLabel}}: {{nextAction}}",
+                "plateLink": "Continuar al plato",
+                "progressLink": "Abrir controles de progreso"
+            }
         }
     },
     "nutrition": {

@@ -13,6 +13,7 @@ import {
   type GuidedPlanningEvent,
 } from '../../lib/mvpObservability';
 import { SettingsProvider, useSettings, type Settings } from '../../lib/settings';
+import { forbiddenMedicalClaimPattern } from '../../features/guidedPlanning/planningPreview';
 
 vi.mock('../../lib/auth', () => ({
   useAuth: vi.fn(),
@@ -519,9 +520,8 @@ describe('Home Guided Planning Preview', () => {
 
     expect(screen.getByText('Wellness planning support only. Not medical advice.')).toBeInTheDocument();
     expect(screen.getByRole('note', { name: 'Wellness planning support only. Not medical advice.' })).toBeInTheDocument();
-    expect(container).not.toHaveTextContent(
-      /diagnose|treat|cure|guaranteed weight loss|AI doctor|personalized medical recommendation|clinically proven|prescription|disease management|medical-grade|therapeutic recommendation/i
-    );
+    expect(container).not.toHaveTextContent(forbiddenMedicalClaimPattern);
+    expect('diagnoses, treats, and cures').toMatch(forbiddenMedicalClaimPattern);
   });
 
   it('links primary and secondary planning CTAs to safe existing routes', () => {
