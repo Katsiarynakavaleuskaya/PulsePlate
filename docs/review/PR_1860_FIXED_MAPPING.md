@@ -82,6 +82,11 @@ Commit: 2309bc9b1
 Evidence: `scripts/orchestration/start_pr_lane.sh` now reads the packet `role_agent_dispatch_contract.dispatch_manifest_command` and prints the actual packet path plus runtime owner flags in its final next-step command. `tests/test_start_pr_lane.py` covers owner flags in the start-lane summary. Focused validation passed with `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3333807798 -> 2309bc9b1
 
+Disposition: FIXED
+Commit: fdea62784
+Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`, `docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`, `docs/orchestration/workflow.md`, and `docs/ENGINEERING_LESSONS.md` now require operators to run the packet-provided `role_agent_dispatch_contract.dispatch_manifest_command` with the actual packet path, preserving packet-emitted runtime owner flags. Focused validation passed with `python -m pytest -q tests/test_pr_body_phase2_gates.py tests/test_review_mapping_artifact.py tests/test_ci_workflow_pr_size_governance_contract.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3333995131 -> fdea62784
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
@@ -160,6 +165,7 @@ Pre-open role order executed:
 - `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py` - PASS after Codex connector runtime-owner and merge-ready order fixes
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py` - PASS after Codex connector packet dispatch ownership fixes
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py` - PASS after Codex connector runtime owner alignment fixes
+- `python -m pytest -q tests/test_pr_body_phase2_gates.py tests/test_review_mapping_artifact.py tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after Codex connector contract-matrix dispatch-command fix
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS
@@ -277,7 +283,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
-- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, `34d6a994d`, `d638ad6f`, and `2309bc9b`
+- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, `34d6a994d`, `d638ad6f`, `2309bc9b`, and `fdea6278`
 - [x] Cubic review - duplicate FIXED block mapping format fixed by `3af133b45`
 - [x] CodeRabbit review - merge-readiness checklist, unused import, manifest schema key, and backlog DoD clarity fixed by `32b7aa18`
 
