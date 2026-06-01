@@ -19,10 +19,10 @@ Disposition: FIXED
 Commit: afb1b2412962
 Evidence: `trivy/ignore-policy.rego` adds exact CVE/package/version/PkgID policy matching; `tests/test_trivy_ignore_policy_expiry.py` proves exact matching, no `.trivyignore` entry, and doc/ledger coupling; `docs/security/CVE-2026-48962-perl-base.md` documents alert evidence and removal conditions; `docs/roadmap/BACKLOG_LEDGER.md` tracks remediation debt.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335451980 -> f604c5aae
-Disposition: FIXED
-Commit: f604c5aae
-Evidence: `docs/review/PR_TRIVY_602_PREMORTEM.md` title now uses `PR #1863`, replacing the `PR TBD` placeholder.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335451980
+Disposition: NOT-A-BUG
+Evidence: Current `docs/review/PR_TRIVY_602_PREMORTEM.md` title uses `PR #1863`, and CodeRabbit marked the stale placeholder comment addressed after branch update.
+Reason: The comment was valid for the initial diff hunk but stale against current branch history; the canonical PR identifier is already present.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335451993 -> c7be0fb64169
 Disposition: FIXED
