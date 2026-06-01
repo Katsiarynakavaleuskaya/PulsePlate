@@ -55,10 +55,11 @@ Evidence:
   or `docs/ENGINEERING_LESSONS.md` update is required for this implementation.
 - `security-auditor` - completed; required minimal in-memory draft only, with no
   localStorage/sessionStorage/cookies/backend analytics/health identifiers.
-- `qa-engineer-agent` - completed; required focused Home, Nutrition Setup,
-  ResultView, and settings coverage plus frontend token/build checks.
-- `bug-hunter` - completed; required invalid-draft negative coverage and
-  protection against stale draft state.
+- `qa-engineer-agent` - completed; required focused coverage for Home,
+  Nutrition Setup, ResultView, and settings plus frontend token/build checks.
+- `bug-hunter` - completed; required invalid-draft negative coverage,
+  protection against stale draft state, localized guided-planning labels, and
+  broader wellness-claim guard coverage.
 - `creative-designer` - completed because the dispatch manifest assigned it;
   constrained the design to compact panel/rail treatment with no prototype
   overreach.
@@ -134,3 +135,13 @@ This artifact does not claim merge readiness. Merge readiness still requires
 the mandatory post-open sequence, Codex Security diff scan / finding discovery,
 PulsePlate PR review, current-head CI, no unresolved review threads, no
 actionable bot findings, strict merge-readiness checks, and the wait window.
+
+## Merge Readiness
+
+- [ ] Mandatory post-open role sequence completed and mapped.
+- [ ] Codex Security diff scan / finding discovery completed and mapped.
+- [ ] PulsePlate PR review completed and mapped.
+- [ ] Current-head CI checked after the latest push.
+- [ ] No unresolved actionable review threads or bot findings remain.
+- [ ] Strict merge-readiness wrapper passes.
+- [ ] Mandatory wait window observed.
