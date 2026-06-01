@@ -132,6 +132,7 @@ parametrization, while production `SECURITY_SENSITIVE_OUTCOMES` remains a
 
 - Packet: `artifacts/orchestration/experiments/nightly-xdist-security-outcomes-oracle-packet.json`.
 - Artifact: `artifacts/orchestration/experiments/results/nightly-xdist-security-outcomes-oracle-result.json`
+- Committed summary: `docs/review/PR_1861_EXPERIMENT_RUNNER_EVIDENCE.md`
 - Mode: `oracle_only_governance_reviewer`.
 - Result: accepted; 2/2 oracle commands passed; shared tree untouched;
   `mutated_paths=[]`; `source_diff_paths=["tests/test_experiment_slack_kpp_renderer.py"]`;
