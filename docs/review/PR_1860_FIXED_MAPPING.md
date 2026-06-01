@@ -67,6 +67,21 @@ Commit: d638ad6f3
 Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now preserves requested order only for explicit `pr_phase: pre_open`; default `pr_phase: none` packets still enforce QA -> bug-hunter -> security-auditor tail normalization. `tests/test_qoder_dispatch_bridge.py` covers the default-packet regression. Focused validation passed with `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3332042085 -> d638ad6f3
 
+Disposition: FIXED
+Commit: 2309bc9b1
+Evidence: `scripts/orchestration/requested_agents.py` now keeps implementation-owner slugs aligned with native read-write profiles, `scripts/orchestration/task_bootstrap.py` emits runtime owner flags for those read-write primary/secondary roles, `scripts/orchestration/qoder_dispatch_bridge.py` clears readonly for read-write Verify owner roles, and `scripts/AGENTS.md` documents the rule. Focused validation passed with `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3333807791 -> 2309bc9b1
+
+Disposition: FIXED
+Commit: 2309bc9b1
+Evidence: `scripts/orchestration/qoder_dispatch_bridge.py` now intersects contract-provided `runtime_implementation_owners` with packet native bridge `execution_mode: read_write` primary/secondary bindings before accepting `--implementation-owner`, so advisory-only contract owner elevation fails closed. `tests/test_qoder_dispatch_bridge.py` covers the stale-contract advisory-owner bypass. Focused validation passed with `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3333807795 -> 2309bc9b1
+
+Disposition: FIXED
+Commit: 2309bc9b1
+Evidence: `scripts/orchestration/start_pr_lane.sh` now reads the packet `role_agent_dispatch_contract.dispatch_manifest_command` and prints the actual packet path plus runtime owner flags in its final next-step command. `tests/test_start_pr_lane.py` covers owner flags in the start-lane summary. Focused validation passed with `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3333807798 -> 2309bc9b1
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
@@ -144,6 +159,7 @@ Pre-open role order executed:
 - `python -m pytest -q tests/test_render_codex_start_prompt.py tests/test_task_bootstrap.py tests/test_pr_body_phase2_gates.py tests/test_review_mapping_artifact.py` - PASS after Codex connector onboarding-command fix
 - `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py` - PASS after Codex connector runtime-owner and merge-ready order fixes
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py` - PASS after Codex connector packet dispatch ownership fixes
+- `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py` - PASS after Codex connector runtime owner alignment fixes
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS
@@ -261,7 +277,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
-- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, `34d6a994d`, and `d638ad6f`
+- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`, `46df971cb`, `36579db20`, `34d6a994d`, `d638ad6f`, and `2309bc9b`
 - [x] Cubic review - duplicate FIXED block mapping format fixed by `3af133b45`
 - [x] CodeRabbit review - merge-readiness checklist, unused import, manifest schema key, and backlog DoD clarity fixed by `32b7aa18`
 
