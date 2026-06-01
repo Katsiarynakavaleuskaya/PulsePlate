@@ -94,14 +94,7 @@ Evidence: `scripts/orchestration/task_bootstrap.py` now suppresses runtime imple
 
 Disposition: FIXED
 Commit: 4801528d5
-Evidence: `.cursor/agents/agent-coordinator.md` now points operators at the
-packet-provided `role_agent_dispatch_contract.dispatch_manifest_command`
-instead of reconstructing a generic dispatch command, and
-`scripts/orchestration/render_codex_start_prompt.py` applies the same rule to
-recipe prompts. Focused validation passed with
-`python -m pytest -q tests/test_agent_docs_registry_guard.py tests/test_render_codex_start_prompt.py tests/test_local_session_bootstrap.py tests/test_start_pr_lane.py`
-and the broader orchestration bundle
-`python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py tests/test_local_session_bootstrap.py tests/test_agent_docs_registry_guard.py`.
+Evidence: `.cursor/agents/agent-coordinator.md` and `scripts/orchestration/render_codex_start_prompt.py` now require the packet-provided `role_agent_dispatch_contract.dispatch_manifest_command`; focused prompt/doc tests and the broader orchestration pytest bundle passed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3334340889 -> 4801528d5
 
 ## Pre-Open Finding Disposition Evidence
