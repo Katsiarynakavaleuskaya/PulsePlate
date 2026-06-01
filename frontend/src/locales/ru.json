@@ -205,8 +205,8 @@
                 "nextStep": "Следующий шаг"
             },
             "nextSteps": {
-                "ariaLabel": "Следующие шаги guided planning",
-                "eyebrow": "Следующие шаги guided planning",
+                "ariaLabel": "Следующие шаги планирования",
+                "eyebrow": "Следующие шаги планирования",
                 "detail": "{{timeLabel}}: {{nextAction}}",
                 "plateLink": "Перейти к тарелке",
                 "progressLink": "Открыть прогресс"
