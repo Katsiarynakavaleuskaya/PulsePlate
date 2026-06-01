@@ -78,6 +78,16 @@ Disposition: FIXED
 Commit: b8bb07688
 Evidence: Cubic marked the stale merge-readiness checkbox finding as addressed in `b8bb07688`; the current artifact keeps those checkboxes unchecked.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3336642791 -> 4b4ab2d32
+Disposition: FIXED
+Commit: 4b4ab2d32
+Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now uses a single valid `Commit: 130d959c0` proof value for the mixed CodeRabbit review rollup.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#pullrequestreview-4404047461 -> 4b4ab2d32
+Disposition: FIXED
+Commit: 4b4ab2d32
+Evidence: Cubic marked the invalid multi-SHA `Commit:` proof finding as addressed in `4b4ab2d32`; the current artifact uses validator-compatible single-SHA `Commit:` values.
+
 ## Post-Open Role Findings
 
 - QA P1 Phase2 PR body/fixed-mapping governance: FIXED by normalizing this
@@ -105,6 +115,7 @@ Evidence: Cubic marked the stale merge-readiness checkbox finding as addressed i
 - CodeRabbit duplicate panel/rail note: NOT-A-BUG; the setup panel is context
   before and during setup, while the result rail is a compact next-action CTA.
 - Cubic P2 merge-readiness checkbox stale finding: FIXED by `b8bb07688`.
+- Cubic P1 invalid multi-SHA `Commit:` proof finding: FIXED by `4b4ab2d32`.
 - Security-auditor post-open pass: NOT-A-BUG / PASS. No new findings after
   the i18n, wellness-guard, and governance-format fixes. Evidence: guided
   planning remains in-memory only, no storage/network persistence was added,
