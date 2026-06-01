@@ -11,7 +11,7 @@ default ignore := false
 #
 # Suppression expires: 2026-06-27 (manual removal)
 # Last reviewed: 2026-05-28
-# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md
+# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-48962-perl-base.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
 # Review-by: 2026-06-27 (manual removal)
@@ -99,4 +99,26 @@ ignore if {
 	cve_2025_69720_pkg_match
 	cve_2025_69720_version_match
 	cve_2025_69720_pkgid_match
+}
+
+# CVE-2026-48962 (perl-base / IO::Compress) - no fixed Debian bookworm perl source at review time
+# Review-by: 2026-06-27 (manual removal)
+# Rationale: Debian bookworm perl-base remains vulnerable with no actionable fixed version in this image context; Python runtime does not execute Perl IO::Compress/File::GlobMapper on attacker-controlled output globs.
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-48962
+# Documented in: docs/security/CVE-2026-48962-perl-base.md
+# Removal condition: Remove when Debian bookworm publishes a fixed perl/perl-base package, Trivy reports a fixed version for alert #602, or production removes perl-base with passing Docker/Trivy evidence.
+
+cve_2026_48962_perl_base_version_match if {
+	input.InstalledVersion == "5.36.0-7+deb12u3"
+}
+
+cve_2026_48962_perl_base_pkgid_match if {
+	startswith(input.PkgID, "perl-base@5.36.0-7+deb12u3")
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-48962"
+	input.PkgName == "perl-base"
+	cve_2026_48962_perl_base_version_match
+	cve_2026_48962_perl_base_pkgid_match
 }
