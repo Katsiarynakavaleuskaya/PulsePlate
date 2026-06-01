@@ -73,12 +73,14 @@
   manifest CLI. The older `qoder_dispatch_bridge.py` filename is a compatibility
   facade only; new packets should point at `role_dispatch_bridge.py`.
 - The role dispatch bridge treats `readonly: true` in `.cursor/agents/*.md` as
-  the safe default. In `--mode runtime`, write-capable implementation dispatch
-  for `backend-engineer`, `frontend-engineer`, or `dev-operator` must be
-  explicit via repeated `--implementation-owner <role>` flags on a coordinator
-  packet invocation (`--packet ...`); ad-hoc `--roles` invocations must fail
-  closed. The manifest records `implementation_owner_override: true` for those
-  entries.
+  the safe default. In `--mode runtime`, write-capable dispatch for a native
+  bridge `execution_mode: read_write` primary/secondary role must be explicit
+  via repeated `--implementation-owner <role>` flags on a coordinator packet
+  invocation (`--packet ...`); ad-hoc `--roles` invocations must fail closed.
+  The accepted owner slugs must stay aligned with native read-write profiles in
+  `scripts/orchestration/native_subagent_bridge.py`, and the CLI must validate
+  requested owners against the packet bridge bindings before clearing readonly.
+  The manifest records `implementation_owner_override: true` for those entries.
 
 ## Pre-push backend tests (smart diff runner)
 

@@ -601,15 +601,6 @@ def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
     if payload is None:
         return set()
 
-    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
-    if isinstance(role_dispatch_contract, dict):
-        contract_owners = role_dispatch_contract.get("runtime_implementation_owners")
-        if isinstance(contract_owners, list):
-            normalized_contract_owners: set[str] = normalize_implementation_owner_slugs(
-                contract_owners
-            )
-            return normalized_contract_owners
-
     bridge = payload.get("native_subagent_bridge")
     if not isinstance(bridge, dict):
         return set()
@@ -626,7 +617,18 @@ def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
         if binding.get("execution_mode") != "read_write":
             continue
         owner_slugs.append(slug)
-    return set(owner_slugs)
+    bridge_owner_slugs = set(owner_slugs)
+
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    if isinstance(role_dispatch_contract, dict):
+        contract_owners = role_dispatch_contract.get("runtime_implementation_owners")
+        if isinstance(contract_owners, list):
+            normalized_contract_owners: set[str] = normalize_implementation_owner_slugs(
+                contract_owners
+            )
+            return normalized_contract_owners.intersection(bridge_owner_slugs)
+
+    return bridge_owner_slugs
 
 
 def _parse_packet_roles(packet_path: Path) -> List[str]:
@@ -981,7 +983,7 @@ def build_dispatch_manifest(
             mode == "runtime"
             and slug in explicit_implementation_owners
             and slug in IMPLEMENTATION_OWNER_SLUGS
-            and qoder_type in ("Browser", "Coding")
+            and qoder_type in ("Browser", "Coding", "Verify")
         )
         # Derive readonly: use agent frontmatter if explicitly set, else infer from Qoder type
         if implementation_owner_override:

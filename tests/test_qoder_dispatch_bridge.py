@@ -1308,6 +1308,42 @@ def test_runtime_implementation_owner_override_clears_frontmatter_readonly(
     assert by_slug["frontend-engineer"]["implementation_owner_override"] is True
 
 
+def test_runtime_verify_owner_override_clears_frontmatter_readonly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Read-write QA/bug owner roles keep Verify type while clearing readonly."""
+
+    def fake_load_agent_definition(slug: str) -> Dict[str, Any]:
+        return {
+            "slug": slug,
+            "name": slug,
+            "description": "",
+            "readonly": True,
+            "readonly_explicit": True,
+            "body": "",
+            "definition_path": f".cursor/agents/{slug}.md",
+        }
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "_load_agent_definition", fake_load_agent_definition)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=["qa-engineer-agent", "bug-hunter"],
+        mode="runtime",
+        packet_source="test",
+        implementation_owners={"qa-engineer-agent", "bug-hunter"},
+    )
+
+    by_slug = {entry["role_slug"]: entry for entry in manifest["dispatch_sequence"]}
+    assert by_slug["qa-engineer-agent"]["qoder_subagent_type"] == "Verify"
+    assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
+    assert by_slug["qa-engineer-agent"]["readonly"] is False
+    assert by_slug["bug-hunter"]["readonly"] is False
+    assert by_slug["qa-engineer-agent"]["implementation_owner_override"] is True
+    assert by_slug["bug-hunter"]["implementation_owner_override"] is True
+
+
 def test_runtime_implementation_owner_cli_requires_packet(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -1431,7 +1467,9 @@ def test_runtime_implementation_owner_cli_rejects_ungranted_packet_owner(
     packet_file.write_text(
         json.dumps(
             {
-                "role_agent_dispatch_contract": {"runtime_implementation_owners": []},
+                "role_agent_dispatch_contract": {
+                    "runtime_implementation_owners": ["backend-engineer"]
+                },
                 "native_subagent_bridge": {
                     "primary": {"repo_agent_slug": "agent-coordinator"},
                     "secondary": [],

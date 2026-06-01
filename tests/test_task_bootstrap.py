@@ -227,6 +227,24 @@ def test_task_bootstrap_dispatch_command_includes_runtime_owner_flags() -> None:
     )
 
 
+def test_task_bootstrap_dispatch_command_includes_security_owner_flags() -> None:
+    """Every native read-write primary owner needs runtime owner flags."""
+
+    packet = build_task_packet(
+        goal="Harden security audit workflow",
+        task_class="Security",
+        candidate_paths=["app/security/rate_limit.py"],
+    )
+
+    dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert dispatch_contract["runtime_implementation_owner_flags_required"] is True
+    assert dispatch_contract["runtime_implementation_owners"] == ["security-auditor"]
+    assert dispatch_contract["dispatch_manifest_command"] == (
+        "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> "
+        "--mode runtime --implementation-owner security-auditor --pretty"
+    )
+
+
 def test_task_bootstrap_exposes_skill_routing_explanation_and_connector_policy() -> None:
     """Bootstrap packets should carry the wave 2 explanation and connector contract."""
 

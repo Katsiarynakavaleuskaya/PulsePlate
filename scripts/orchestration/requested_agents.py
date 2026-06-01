@@ -25,7 +25,16 @@ MANDATORY_POST_OPEN_GATES: tuple[str, ...] = (
     POST_OPEN_PULSEPLATE_PR_REVIEW,
 )
 IMPLEMENTATION_OWNER_SLUGS: frozenset[str] = frozenset(
-    ("backend-engineer", "frontend-engineer", "dev-operator")
+    (
+        "app-store-release-agent",
+        "backend-engineer",
+        "bug-hunter",
+        "dev-operator",
+        "frontend-engineer",
+        "ml-engineer-agent",
+        "qa-engineer-agent",
+        "security-auditor",
+    )
 )
 
 
