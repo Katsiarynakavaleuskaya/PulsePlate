@@ -13,10 +13,35 @@ security-sensitive header test.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401020366 -> a96b31e50
+Disposition: FIXED
+Commit: a96b31e50
+Evidence: Cubic's review-level actionable surface is covered by the stale-evidence fix below; `docs/review/PR_1861_FIXED_MAPPING.md` no longer claims the removed no-actionable sentinel is present.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333983785 -> a96b31e50
+Disposition: FIXED
+Commit: a96b31e50
+Evidence: `docs/review/PR_1861_FIXED_MAPPING.md` now says the artifact uses explicit review-thread and review-level mappings, removing the stale `- No actionable review comments` evidence text Cubic identified.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401024810
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 99407267b HEAD` exits 0 on the current branch, `git show -s --format=%B HEAD` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `dc10d2da688830ac169f7d509aa56d0644f413b6` is not present in local branch history.
+Reason: The review references a synthetic/non-branch SHA; current branch history preserves the mapped proof commits and required Experiment Runner trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333988227
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 99407267b HEAD` exits 0 on the current branch, proving the referenced FIXED proof commit is an ancestor of the branch head that will be pushed.
+Reason: The non-ancestor claim was based on `dc10d2da688830ac169f7d509aa56d0644f413b6`, which is not a current branch commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333988232
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B HEAD` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and the PR artifact keeps the squash-merge note to preserve the same trailer in the final merge commit.
+Reason: The reviewed `dc10d2da688830ac169f7d509aa56d0644f413b6` SHA is not present in current branch history; the branch head and merge instructions preserve attribution.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4400847990 -> d4157039d
 Disposition: FIXED
 Commit: d4157039d
-Evidence: CodeRabbit's review-level actionable surface is covered by the explicit thread dispositions below; the final mapping commit records all six resolved thread proofs and passes `check_review_threads_disposition.py --pr-number 1861 --require-auth`.
+Evidence: CodeRabbit's review-level actionable surface is covered by the explicit thread dispositions below; mapping commit `d4157039d` records all six earlier resolved thread proofs and passes `check_review_threads_disposition.py --pr-number 1861 --require-auth`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333825720 -> 99407267b
 Disposition: FIXED
