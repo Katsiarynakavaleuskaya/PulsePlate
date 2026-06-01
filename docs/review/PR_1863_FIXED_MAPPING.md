@@ -39,6 +39,11 @@ Disposition: FIXED
 Commit: c7be0fb64169
 Evidence: `docs/review/PR_1863_FIXED_MAPPING.md` now says the validation plan required focus on Trivy policy guards.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#pullrequestreview-4402695151 -> c7be0fb64169
+Disposition: FIXED
+Commit: c7be0fb64169
+Evidence: CodeRabbit's review-level actionable surface is covered by the inline thread fix for `discussion_r3335468861`; `docs/review/PR_1863_FIXED_MAPPING.md` now says the validation plan required focus on Trivy policy guards.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863#discussion_r3335478528
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor afb1b2412962 HEAD` exits 0 on branch head `c7be0fb64169`, so the implementation SHA is reachable in the real PR branch history.
