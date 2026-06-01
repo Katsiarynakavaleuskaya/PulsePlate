@@ -8,24 +8,16 @@ alert #602 / `CVE-2026-48962` / `perl-base 5.36.0-7+deb12u3`.
 
 ## Discussion Thread Pass
 
-- [x] Initial discussion-thread pass completed: no review threads existed at
-  PR open.
-- [x] Initial fixed-in-commit mapping completed.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Post-open bot/human review disposition pending.
 
 ## Fixed in Commit Mapping
 
-Initial implementation commit:
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1863 -> afb1b2412962
 Disposition: FIXED
 Commit: afb1b2412962
-Evidence: `trivy/ignore-policy.rego` adds an exact CVE/package/version/PkgID
-policy disposition for `CVE-2026-48962`; `tests/test_trivy_ignore_policy_expiry.py`
-proves exact matching, no `.trivyignore` entry, and doc/ledger coupling;
-`docs/security/CVE-2026-48962-perl-base.md` documents alert evidence,
-upstream status, runtime exposure, local Docker/Trivy limitations, and removal
-conditions; `docs/roadmap/BACKLOG_LEDGER.md` tracks the remediation debt.
+Evidence: `trivy/ignore-policy.rego` adds exact CVE/package/version/PkgID policy matching; `tests/test_trivy_ignore_policy_expiry.py` proves exact matching, no `.trivyignore` entry, and doc/ledger coupling; `docs/security/CVE-2026-48962-perl-base.md` documents alert evidence and removal conditions; `docs/roadmap/BACKLOG_LEDGER.md` tracks remediation debt.
 
 ## Implementation Evidence
 
@@ -55,7 +47,7 @@ Pre-open read-only role order completed before implementation:
 
 - `agent-coordinator` - completed; scope locked to Trivy alert #602 policy
   disposition and required role order.
-- `dev-operator` - completed; validation plan required focused Trivy policy
+- `dev-operator` - completed; validation plan required focus on Trivy policy
   guards, docs gate, `make validate-changed`, pre-commit, and current-head
   Docker/Trivy/SARIF follow-up.
 - `architecture-specialist` - completed; confirmed no API, runtime,

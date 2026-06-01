@@ -83,3 +83,17 @@ remediation.
 Proceed with changes. The plan is acceptable only as a narrow, time-boxed
 policy disposition with exact Rego matching, explicit local-tooling limitations,
 and current-head SARIF verification after push.
+
+## Discussion Thread Pass
+
+The canonical review-thread source of truth is
+`docs/review/PR_1863_FIXED_MAPPING.md`.
+
+### Fixed in Commit Mapping
+
+Canonical artifact: `docs/review/PR_1863_FIXED_MAPPING.md`.
+
+## Merge Readiness
+
+Not merge-ready. Current-head CI, post-open role passes, bot disposition,
+strict merge-readiness, and alert #602 SARIF verification remain pending.

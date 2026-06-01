@@ -163,7 +163,8 @@ def test_cve_2026_48962_doc_and_backlog_coupling() -> None:
     assert ".github/workflows/build.yml:422" in doc_text
 
     ledger_start = backlog_text.index('<a id="ledger-p1-container-perl-cve-remediation"></a>')
-    ledger_end = backlog_text.index("<a id=", ledger_start + 1)
+    next_anchor = backlog_text.find("<a id=", ledger_start + 1)
+    ledger_end = next_anchor if next_anchor != -1 else len(backlog_text)
     ledger_entry = backlog_text[ledger_start:ledger_end]
 
     assert "CVE-2026-48962" in ledger_entry
