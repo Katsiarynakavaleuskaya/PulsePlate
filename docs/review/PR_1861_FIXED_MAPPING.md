@@ -13,6 +13,26 @@ security-sensitive header test.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401211080 -> cc93bf72c
+Disposition: FIXED
+Commit: cc93bf72c
+Evidence: The review-level actionable surface is covered by the committed Experiment Runner summary in `docs/review/PR_1861_EXPERIMENT_RUNNER_EVIDENCE.md`; the synthetic-SHA proof comments are dispositioned as NOT-A-BUG below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3334153797
+Disposition: NOT-A-BUG
+Evidence: The real branch has every referenced FIXED proof commit as an ancestor of `HEAD`; `git merge-base --is-ancestor` exits 0 for `a96b31e50`, `d4157039d`, `99407267b`, `137cb8378`, and `59f94a63e` against the branch head.
+Reason: The reviewed `489c7ce2fe7cf8ee43cdf50b6828f507a366871c` SHA is a synthetic/non-branch review surface, not the branch history validated by repo merge-readiness guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3334153804
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B HEAD` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and the final merge-message requirement remains recorded in this artifact and `docs/review/PR_1861_EXPERIMENT_RUNNER_EVIDENCE.md`.
+Reason: The synthetic reviewed SHA does not replace the actual branch commit messages or the governed final merge-message requirement.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3334153812 -> cc93bf72c
+Disposition: FIXED
+Commit: cc93bf72c
+Evidence: `docs/review/PR_1861_EXPERIMENT_RUNNER_EVIDENCE.md` now records the local artifact path, SHA-256, accepted status, oracle commands, `coauthor_required=true`, and the required trailer while leaving raw `artifacts/` output untracked by repo policy.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401147244
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor a96b31e50 HEAD`, `git merge-base --is-ancestor d4157039d HEAD`, `git merge-base --is-ancestor 99407267b HEAD`, `git merge-base --is-ancestor 137cb8378 HEAD`, and `git merge-base --is-ancestor 59f94a63e HEAD` all exit 0 on the real branch; `git show -s --format=%B HEAD` includes the required Experiment Runner trailer.
