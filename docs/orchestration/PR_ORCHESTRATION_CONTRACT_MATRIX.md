@@ -82,12 +82,14 @@ Phase 2 sections and required orchestration evidence:
   execution blocks readiness unless `agent-coordinator` records an explicit
   disposition with evidence.
 - Required custom-role dispatch evidence:
-  `python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty`
-  is the runtime-neutral manifest command. Historical
-  `qoder_dispatch_bridge.py` invocations are compatibility-only. Role bindings
-  in the packet's legacy `advisory` collection with `required_role_pass: true`
-  are mandatory custom-role passes; that collection name is metadata only, not
-  permission to skip.
+  run the packet-provided
+  `role_agent_dispatch_contract.dispatch_manifest_command` with the actual
+  packet path, preserving any `--mode runtime --implementation-owner <role>`
+  flags the coordinator packet emits. Historical `qoder_dispatch_bridge.py`
+  invocations are compatibility-only. Role bindings in the packet's legacy
+  `advisory` collection with `required_role_pass: true` are mandatory
+  custom-role passes; that collection name is metadata only, not permission to
+  skip.
 
 Valid mapping forms in the canonical artifact:
 

@@ -114,8 +114,9 @@ Automation note:
   а repo-agent slug остаётся канонической идентичностью роли
 - [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honored,
   либо preserved as required readonly/custom role passes, либо отклонены с явной причиной
-- [ ] `python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty` выполнен, и все
-  bootstrap-requested/custom role passes из dispatch manifest выполнены;
+- [ ] Команда из `role_agent_dispatch_contract.dispatch_manifest_command`
+  выполнена с actual packet path, включая packet-emitted runtime owner flags, и
+  все bootstrap-requested/custom role passes из dispatch manifest выполнены;
   readonly/review-only contribution mode не даёт права пропуска
 - [ ] Для non-trivial PR lane запланированы обязательные gates:
   `pulseplate-premortem-risk-review` на actual diff и Experiment Runner

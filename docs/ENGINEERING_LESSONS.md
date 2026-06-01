@@ -232,11 +232,10 @@ formally bootstrapped.
 ### Rule
 
 After every non-trivial bootstrap packet is created, generate the dispatch
-manifest and execute its `dispatch_sequence` in order:
-
-```bash
-python scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty
-```
+manifest by running the packet's
+`role_agent_dispatch_contract.dispatch_manifest_command` with the actual packet
+path, preserving any packet-emitted runtime owner flags, then execute its
+`dispatch_sequence` in order.
 
 Assigned role agents are mandatory lane steps unless the coordinator updates the
 packet/runbook with an explicit disposition. Do not replace this with skills,
