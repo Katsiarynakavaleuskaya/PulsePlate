@@ -32,6 +32,11 @@ Evidence: `docs/review/PR_1860_FIXED_MAPPING.md` now keeps merge-readiness check
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330941088 -> 32b7aa18a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3330941090 -> 32b7aa18a
 
+Disposition: FIXED
+Commit: 46df971cb
+Evidence: `scripts/orchestration/task_bootstrap.py` now emits `python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty` as the packet `dispatch_manifest_command`, and `tests/test_task_bootstrap.py` covers the runnable interpreter-wrapped command; focused bridge/bootstrap pytest passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1860#discussion_r3331781427 -> 46df971cb
+
 ## Pre-Open Finding Disposition Evidence
 
 Disposition: FIXED
@@ -93,7 +98,7 @@ Summary: accepted oracle-only governance review, `mutated_paths=[]`,
 Packet: `artifacts/orchestration/task_packets/1b91068a179d.json`
 
 Role dispatch:
-`scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/1b91068a179d.json --pretty`
+`python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/1b91068a179d.json --pretty`
 
 Pre-open role order executed:
 `agent-coordinator -> architecture-specialist -> frontend-engineer -> cursor-specialist-agent -> security-auditor -> qa-engineer-agent -> bug-hunter`
@@ -105,6 +110,7 @@ Pre-open role order executed:
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py tests/test_orchestration_preflight.py tests/test_local_session_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_start_pr_lane.py tests/test_experiment_pipeline.py tests/test_philosophy_alignment_ledger_closeout.py` - PASS
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py` - PASS after Sourcery review fix
 - `python -m pytest -q tests/test_qoder_dispatch_bridge.py tests/test_task_bootstrap.py` - PASS after Codex connector review fixes
+- `python -m pytest -q tests/test_task_bootstrap.py tests/test_qoder_dispatch_bridge.py` - PASS after Codex connector dispatch-command fix
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS
@@ -222,7 +228,7 @@ gate labels and mixed implementation-owner shapes.
 - [x] `security-auditor` post-open pass - BLOCK findings fixed by `35176844`
 - [x] Codex Security diff scan / finding discovery - no reportable findings
 - [x] `pulseplate-pr-review` - large-diff risk dispositioned NOT-A-BUG
-- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9`
+- [x] Bot/human review thread disposition pass - Sourcery finding fixed by `60d4f06da`, Codex connector findings fixed by `bd10ddd9` and `46df971cb`
 - [x] Cubic review - duplicate FIXED block mapping format fixed by `3af133b45`
 - [x] CodeRabbit review - merge-readiness checklist, unused import, manifest schema key, and backlog DoD clarity fixed by `32b7aa18`
 
