@@ -132,7 +132,7 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
             "scripts/orchestration/qoder_dispatch_bridge.py"
         ],
         "dispatch_manifest_command": (
-            "scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
+            "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
         ),
         "must_execute_dispatch_sequence_in_order": True,
         "advisory_role_passes_required": True,

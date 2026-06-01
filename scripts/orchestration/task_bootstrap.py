@@ -114,6 +114,9 @@ POST_OPEN_REVIEW_LANE: tuple[str, ...] = MANDATORY_POST_OPEN_ORDER
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.py"
+ROLE_DISPATCH_MANIFEST_COMMAND = (
+    f"python3 {ROLE_DISPATCH_MANIFEST_ENTRYPOINT} --packet <packet> --pretty"
+)
 ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS = ("scripts/orchestration/qoder_dispatch_bridge.py",)
 MANDATORY_PRE_OPEN_GATES: tuple[dict[str, str], ...] = (
     {
@@ -412,9 +415,7 @@ def _build_role_agent_dispatch_contract() -> dict[str, Any]:
         "dispatch_manifest_compatibility_entrypoints": list(
             ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS
         ),
-        "dispatch_manifest_command": (
-            f"{ROLE_DISPATCH_MANIFEST_ENTRYPOINT} --packet <packet> --pretty"
-        ),
+        "dispatch_manifest_command": ROLE_DISPATCH_MANIFEST_COMMAND,
         "must_execute_dispatch_sequence_in_order": True,
         "advisory_role_passes_required": True,
         "requested_custom_roles_are_not_skippable": True,
