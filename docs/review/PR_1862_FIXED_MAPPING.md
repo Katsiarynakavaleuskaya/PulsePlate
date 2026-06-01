@@ -33,6 +33,11 @@ Disposition: FIXED
 Commit: ddaa37eac
 Evidence: `frontend/src/features/guidedPlanning/planningPreview.ts` broadens `forbiddenMedicalClaimPattern` to catch simple inflections including diagnoses, treats, and cures; `frontend/src/pages/__tests__/Home.test.tsx` asserts the inflected phrase is rejected.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335584415 -> bca6efb2b
+Disposition: FIXED
+Commit: bca6efb2b
+Evidence: `frontend/src/locales/ru.json` now translates the guided-planning next-steps aria label and eyebrow as `Следующие шаги планирования`; focused locale/setup/result tests pass.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335432681 -> edba5baf4
 Disposition: FIXED
 Commit: edba5baf4
@@ -60,6 +65,8 @@ Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now says `required focused cove
 - Bug-hunter P2 hardcoded guided-planning labels: FIXED by `ddaa37eac`.
 - Bug-hunter P2 narrow medical-claim guard: FIXED by `ddaa37eac`.
 - Bug-hunter P2 fixed-mapping wording issue: FIXED by `edba5baf4`.
+- Cubic P3 Russian mixed-language guided-planning label: FIXED by
+  `bca6efb2b`.
 - Security-auditor post-open pass: NOT-A-BUG / PASS. No new findings after
   the i18n, wellness-guard, and governance-format fixes. Evidence: guided
   planning remains in-memory only, no storage/network persistence was added,
