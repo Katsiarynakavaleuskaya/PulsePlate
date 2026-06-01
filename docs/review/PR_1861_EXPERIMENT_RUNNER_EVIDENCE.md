@@ -30,4 +30,6 @@ Every branch commit for this PR carries:
 
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
-The final merge message must preserve that exact trailer.
+PR #1861 is closed with a GitHub merge commit, not a squash merge, so the branch
+commits and their trailers remain in repository history. Synthetic single-commit
+review SHAs are not the selected landing history for this PR.

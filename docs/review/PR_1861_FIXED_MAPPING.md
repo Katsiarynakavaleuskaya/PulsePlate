@@ -13,6 +13,16 @@ security-sensitive header test.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3334581642
+Disposition: NOT-A-BUG
+Evidence: PR #1861 is closed through a GitHub merge commit, preserving branch proof commits including `cc93bf72c`, `a96b31e50`, `d4157039d`, `99407267b`, `137cb8378`, and `59f94a63e`; the referenced `74521c81e0fd809038609e520a2d6de7bb8f5fec` surface is a synthetic single-commit review surface, not the selected landing history.
+Reason: The non-ancestor finding is valid only for a squash/synthetic landing path. This PR deliberately uses a merge commit to keep the proof commits available in repository history.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3334581652
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1861_EXPERIMENT_RUNNER_EVIDENCE.md` records merge-commit preservation as the attribution mechanism, and every branch commit in `origin/main..HEAD` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The root attribution invariant is satisfied by preserving branch commit trailers through a merge commit; the synthetic `74521c81e0fd809038609e520a2d6de7bb8f5fec` review surface is not the landing commit for this PR.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401309577
 Disposition: NOT-A-BUG
 Evidence: PR #1861 is being merged with a merge commit, not squash-merged; the branch history contains the mapped proof commits, and each branch commit carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
@@ -60,7 +70,7 @@ Reason: The non-ancestor claim compares proof commits to a synthetic review SHA 
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3334098036
 Disposition: NOT-A-BUG
-Evidence: `git show -s --format=%B HEAD` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and the artifact still instructs the final squash merge to preserve that exact trailer.
+Evidence: `git show -s --format=%B HEAD` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and the artifact records that PR #1861 uses merge-commit preservation rather than a squash landing commit.
 Reason: The reviewed synthetic SHA does not replace the actual branch commit message or final merge-message requirement.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4401020366 -> a96b31e50
@@ -85,7 +95,7 @@ Reason: The non-ancestor claim was based on `dc10d2da688830ac169f7d509aa56d0644f
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#discussion_r3333988232
 Disposition: NOT-A-BUG
-Evidence: `git show -s --format=%B HEAD` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and the PR artifact keeps the squash-merge note to preserve the same trailer in the final merge commit.
+Evidence: `git show -s --format=%B HEAD` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and the PR artifact records merge-commit preservation as the attribution mechanism.
 Reason: The reviewed `dc10d2da688830ac169f7d509aa56d0644f413b6` SHA is not present in current branch history; the branch head and merge instructions preserve attribution.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1861#pullrequestreview-4400847990 -> d4157039d
