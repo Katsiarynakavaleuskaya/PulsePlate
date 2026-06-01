@@ -38,6 +38,11 @@ Disposition: FIXED
 Commit: bca6efb2b
 Evidence: `frontend/src/locales/ru.json` now translates the guided-planning next-steps aria label and eyebrow as `Следующие шаги планирования`; focused locale/setup/result tests pass.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#pullrequestreview-4402626749 -> 130d959c0
+Disposition: FIXED / NOT-A-BUG
+Commit: ddaa37eac, 130d959c0
+Evidence: `frontend/src/pages/NutritionSetup/ResultView.tsx` and `frontend/src/pages/NutritionSetup/index.tsx` localize guided-planning labels; `frontend/src/lib/settings.tsx` now adds explicit return types for `SettingsProvider` and `updateSetting`. The panel/result rail duplication note is NOT-A-BUG because the panel is setup context while the result rail is the result CTA.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3335432681 -> edba5baf4
 Disposition: FIXED
 Commit: edba5baf4
@@ -47,6 +52,21 @@ Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now includes the canonical `## 
 Disposition: FIXED
 Commit: edba5baf4
 Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now says `required focused coverage for Home, Nutrition Setup, ResultView, and settings` instead of the awkward `required focused Home` phrasing.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#pullrequestreview-4402652664 -> edba5baf4
+Disposition: FIXED
+Commit: edba5baf4
+Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` includes the canonical review sections and clearer focused-coverage wording required by the CodeRabbit review rollup.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#discussion_r3336584725 -> b8bb07688
+Disposition: FIXED
+Commit: b8bb07688
+Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now leaves all `## Merge Readiness` checkboxes unchecked until the actual final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1862#pullrequestreview-4403983134 -> b8bb07688
+Disposition: FIXED
+Commit: b8bb07688
+Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` leaves merge-readiness checkboxes unchecked, and `frontend/src/pages/NutritionSetup/index.tsx` adds `: JSX.Element` to `NutritionSetupPage`.
 
 ## Post-Open Role Findings
 
@@ -67,6 +87,13 @@ Evidence: `docs/review/PR_1862_FIXED_MAPPING.md` now says `required focused cove
 - Bug-hunter P2 fixed-mapping wording issue: FIXED by `edba5baf4`.
 - Cubic P3 Russian mixed-language guided-planning label: FIXED by
   `bca6efb2b`.
+- CodeRabbit P1 merge-readiness checkboxes must remain unchecked until final
+  merge cycle: FIXED by `b8bb07688`.
+- CodeRabbit P2 missing explicit return type on `NutritionSetupPage`: FIXED by
+  `b8bb07688`.
+- CodeRabbit settings explicit return-type nit: FIXED by `130d959c0`.
+- CodeRabbit duplicate panel/rail note: NOT-A-BUG; the setup panel is context
+  before and during setup, while the result rail is a compact next-action CTA.
 - Security-auditor post-open pass: NOT-A-BUG / PASS. No new findings after
   the i18n, wellness-guard, and governance-format fixes. Evidence: guided
   planning remains in-memory only, no storage/network persistence was added,
