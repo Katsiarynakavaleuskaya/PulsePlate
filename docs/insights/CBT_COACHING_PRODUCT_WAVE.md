@@ -113,6 +113,8 @@ reframing tool.
 - `warnings[]`
 - `transparency_notice_id`
 - `wellness_boundary`
+- `scenario`
+- `quota_state`
 
 ### Pillar C: Signal vs Noise Reports
 
