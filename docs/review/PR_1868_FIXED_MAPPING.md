@@ -6,7 +6,7 @@
 dependency graph can ingest the already-patched Vitest `4.1.8` frontend
 lockfile state for Dependabot alert `#153`.
 **Primary implementation commits:** `4cc76042c`, `4d7951f47`, `e705444ee`,
-`66de78461`, `2138af99e`
+`66de78461`, `2138af99e`, `a992afdca`
 
 ## Discussion Thread Pass
 
@@ -54,6 +54,16 @@ Evidence: Commit `4d7951f478c1bffb52c7750848a5cd185728d8dc` includes the canonic
 Disposition: FIXED
 Commit: e705444eeb151e9703245d99c9b4e5d2e3db91c7
 Evidence: Commit `e705444eeb151e9703245d99c9b4e5d2e3db91c7` replaces the stale `No actionable review comments` entry with explicit FIXED dispositions for the live review comments.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343928770 -> a992afdca30e095340ff7eb26220269dd9e7f676
+Disposition: FIXED
+Commit: a992afdca30e095340ff7eb26220269dd9e7f676
+Evidence: Commit `a992afdca30e095340ff7eb26220269dd9e7f676` adds explicit squash-attribution evidence and itself includes the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343928772 -> a992afdca30e095340ff7eb26220269dd9e7f676
+Disposition: FIXED
+Commit: a992afdca30e095340ff7eb26220269dd9e7f676
+Evidence: Commit `a992afdca30e095340ff7eb26220269dd9e7f676` corrects the invalid `e705444eec6976ec48c5bf7ef7042a38d8ebdc09` mapping typo to the real in-history commit `e705444eeb151e9703245d99c9b4e5d2e3db91c7` and records live-head ancestry checks for the mapping SHAs.
 
 ## Dependency Scope / Private-Index Notes
 
@@ -194,14 +204,19 @@ Pre-open role order from packet
 
 ## Squash Attribution / Live-Head Evidence
 
-- Live PR head at this review refresh:
+- Live PR head when the synthetic-head review was triaged:
   `2138af99ede4aed36b11f7eb4b5f36409e83eece`.
+- The synthetic reviewed commit `7d4d1ed0` is not the live branch head used for
+  local ancestry proof; `gh pr view 1868 --json headRefOid` returned
+  `2138af99ede4aed36b11f7eb4b5f36409e83eece` before this mapping hardening.
 - `git merge-base --is-ancestor 4d7951f478c1bffb52c7750848a5cd185728d8dc HEAD`
   passes.
 - `git merge-base --is-ancestor e705444eeb151e9703245d99c9b4e5d2e3db91c7 HEAD`
   passes.
 - `git merge-base --is-ancestor 66de784615442b2d27a6cc9c129c1884ae0b0246 HEAD`
   passes.
+- `git merge-base --is-ancestor a992afdca30e095340ff7eb26220269dd9e7f676 HEAD`
+  passes after the mapping hardening commit is applied.
 - `git cat-file -e e705444eeb151e9703245d99c9b4e5d2e3db91c7^{commit}`
   passes; the earlier `e705444eec6976ec48c5bf7ef7042a38d8ebdc09`
   mapping typo was invalid and has been corrected above.
