@@ -40,10 +40,10 @@ Disposition: FIXED
 Commit: b76c22a9cbf0452cc3b8277a25b2dd587848f482
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now inserts the repo root for direct script invocation, rejects Slack identifiers in artifact refs, treats missing derived keys as invalid local artifacts, rejects symlinked event files before reads, includes `operator_ledger_scope=local_only` on valid summaries, and catches CLI output write `OSError`; `tests/test_experiment_operator_ledger.py` and `tests/test_experiment_slack_socket_bridge.py` cover each regression.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343339194 -> 45f85b71d5979aac9817235078c54212fb1a586a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343339199 -> 45f85b71d5979aac9817235078c54212fb1a586a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343339194 -> 1627c5a6d2862a12bbdf04aab915faedbbae0b4c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343339199 -> 1627c5a6d2862a12bbdf04aab915faedbbae0b4c
 Disposition: FIXED
-Commit: 45f85b71d5979aac9817235078c54212fb1a586a
+Commit: 1627c5a6d2862a12bbdf04aab915faedbbae0b4c
 Evidence: `docs/review/PR_1867_FIXED_MAPPING.md` uses the `### Fixed in Commit Mapping` mirror heading, includes a live `## Merge Readiness` section, and corrects the `qa-engineer-agent` wording.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343286674
