@@ -37,7 +37,11 @@ DEFAULT_LEDGER_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" /
 IDEMPOTENCY_KEY_ITERATIONS = 120_000
 IDEMPOTENCY_KEY_NAMESPACE = b"pulseplate-operator-ledger-idempotency-v1"
 PII_SHAPED_ARTIFACT_RE = re.compile(
-    r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|" r"\b\+?\d[\d .()_-]{7,}\d\b)"
+    r"("
+    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+    r"|"
+    r"(?!\b\d{4}-\d{2}-\d{2}\b)\b\+?\d[\d .()_-]{7,}\d\b"
+    r")"
 )
 LOCAL_PATH_SEGMENT_RE = re.compile(
     r"(^|/)(Users|home|var|opt|tmp|private|Volumes|etc|usr|Library|System)(/|$)"
@@ -477,7 +481,12 @@ def write_operator_ledger_event(
     if target_dir.exists() and not target_dir.is_dir():
         raise OperatorLedgerError("Existing Experiment operator ledger directory is invalid.")
     event_dir = target_dir / "events"
-    event_dir.mkdir(parents=True, exist_ok=True)
+    if event_dir.exists() and not event_dir.is_dir():
+        raise OperatorLedgerError("Existing Experiment operator ledger event directory is invalid.")
+    try:
+        event_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise OperatorLedgerError("Unable to write Experiment operator ledger event.") from exc
     path = event_dir / f"{record.idempotency_key}.json"
     try:
         _atomic_publish_json(path, record.payload, exclusive=True)

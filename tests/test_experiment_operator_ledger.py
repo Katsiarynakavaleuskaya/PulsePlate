@@ -163,6 +163,21 @@ def test_operator_ledger_accepts_failed_status_with_failure_class() -> None:
     assert record.payload["failure_class"] == "dispatch_failed"
 
 
+def test_operator_ledger_accepts_date_like_artifact_filenames() -> None:
+    record = ledger.normalize_operator_ledger_event(
+        _event(
+            oracle_result_ref=(
+                "artifacts/orchestration/experiments/results/" "operator-summary-2026-06-02.md"
+            )
+        )
+    )
+
+    assert (
+        record.payload["oracle_result_ref"]
+        == "artifacts/orchestration/experiments/results/operator-summary-2026-06-02.md"
+    )
+
+
 def test_operator_ledger_report_and_status_summary_are_redacted(tmp_path: Path) -> None:
     ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
 
@@ -244,6 +259,15 @@ def test_operator_ledger_events_path_as_file_fails_closed(tmp_path: Path) -> Non
         "operator_ledger_scope=local_only",
         "operator_ledger_authority=display_only",
     )
+
+
+def test_operator_ledger_write_rejects_events_path_as_file(tmp_path: Path) -> None:
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.parent.mkdir(parents=True)
+    event_dir.write_text("not-a-directory", encoding="utf-8")
+
+    with pytest.raises(ledger.OperatorLedgerError, match="event directory"):
+        ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
 
 
 def test_operator_ledger_root_path_as_file_fails_closed(tmp_path: Path) -> None:
