@@ -144,7 +144,8 @@ Pre-open role order completed before implementation:
 - Raw local result: `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`
 - Mode: `oracle_only_governance_reviewer`
 - Result: accepted; 4/4 oracle commands passed.
-- `coauthor_required=true`; commit `554c0c00719a` includes:
+- `coauthor_required=true`; commits `554c0c00719a`, `d3313675c`,
+  `629f39132`, and `2c702517108f5183febb0ee9b5add8b68b6bbe30` include:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 ## Local Validation
@@ -158,6 +159,9 @@ Pre-open role order completed before implementation:
 - `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_philosophy_source_corpus_index.py` - PASS.
 - `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS.
 - `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_philosophy_source_corpus_index.py tests/guards/test_wellness_language_blockers_guard.py` - PASS after post-open QA fixes.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` - PASS after post-open bug-hunter fixes.
+- `python3 scripts/ci/check_philosophy_source_corpus_index.py --check` - PASS after post-open bug-hunter fixes.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_philosophy_source_corpus_index.py tests/guards/test_wellness_language_blockers_guard.py` - PASS after post-open bug-hunter fixes.
 - `make validate-changed` - PASS; no Python files changed.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push, and full
@@ -174,7 +178,13 @@ Mandatory sequence status:
   bootstrap symbol evidence, Distortion input contract drift, VIP lane widening,
   shifted visual/asset anchors, committed Experiment Runner evidence, and PR
   body SHA accuracy were fixed in `629f39132` or queued for this mapping/body sync.
-- [ ] `bug-hunter`
+- [x] `bug-hunter` - first pass completed.
+  Disposition: FIXED
+  Commit: `2c702517108f5183febb0ee9b5add8b68b6bbe30`
+  Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now separates
+  the landed PRO `/explain` surface from remaining future contract-frozen paths;
+  `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now uses stable FitChef router
+  and runtime symbol anchors instead of stale line-number evidence.
 - [ ] `security-auditor`
 - [ ] Codex Security diff scan / finding discovery
 - [ ] `pulseplate-pr-review`
