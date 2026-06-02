@@ -3146,11 +3146,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
 <a id="ledger-p1-philosophy-epic-v2-pr5-source-corpus-index"></a>
-- [ ] P1: Philosophy Epic V2 PR-5 philosophical source corpus / interdisciplinary synthesis index
+- [x] P1: Philosophy Epic V2 PR-5 philosophical source corpus / interdisciplinary synthesis index
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/philosophy-epic-v2-pr5-source-corpus-index`
-  - Status: Active branch. PR-5 preserves the six operator-provided philosophy PDFs as a governed source-corpus index before any later philosophy module or semantic-cache follow-up. PR-A2 remains a separate AI/runtime prerequisite line. Semantic-cache runtime handoff remains blocked: all machine markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before any runtime semantic-cache work can begin.
+  - Target PR: PR #1822 (merged 2026-05-26 from `codex/philosophy-epic-v2-pr5-source-corpus-index`)
+  - Status: Complete via PR #1822, merged 2026-05-26 with merge commit `740a64fb7d87d404076117698bee5d4bee71f390`. PR-5 preserves the six operator-provided philosophy PDFs as a governed source-corpus index before any later philosophy module or semantic-cache follow-up. PR-A2 remains a separate AI/runtime prerequisite line. Semantic-cache runtime handoff remains blocked: all machine markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before any runtime semantic-cache work can begin.
   - Area: AI / RAG / philosophy / source corpus / interdisciplinary governance / test infrastructure
   - Finding Type: corpus-preservation, source-boundary policy, interdisciplinary synthesis index
   - Reason (EN): PR-0 through PR-4.2 made the philosophy semantic-cache admission line deterministic and gate-closed, but the expanded operator PDF corpus now spans Socratic method, Leibniz and information theory, analytical/linguistic philosophy, CBT-coaching correlations, and plan-adaptation concepts. PR-5 prevents those documents from being lost or accidentally treated as runtime truth by adding a canonical source index, schema, guard, tests, and packet that preserve source identity while keeping semantic-cache and runtime activation blocked.
