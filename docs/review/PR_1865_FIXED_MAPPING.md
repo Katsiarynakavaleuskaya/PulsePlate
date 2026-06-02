@@ -239,6 +239,21 @@ Disposition: FIXED
 Commit: 1bdf25e55
 Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now lists one `scenario` and one `quota_state` field in the landed Distortion Simulator output direction.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343388457
+Disposition: NOT-A-BUG
+Evidence: The referenced `425afcf51564dc1f93dda86a1e88c0ec9db7edfb` is not a local branch object (`git cat-file -t ...` fails), while the latest commits that touch Experiment Runner proof handling carry the governed co-author trailer.
+Reason: The comment evaluates a non-local review-tool commit, not the committed PR branch history or repo disposition guard proof surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343388467
+Disposition: NOT-A-BUG
+Evidence: The referenced `425afcf51564dc1f93dda86a1e88c0ec9db7edfb` is not a local branch object; this artifact explicitly excludes synthetic or review-tool evaluated SHAs not present in the local PR branch as canonical proof targets.
+Reason: The comment evaluates non-local review-tool history rather than the committed PR branch and repo disposition guard proof surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343388476 -> 0f1fe7a70
+Disposition: FIXED
+Commit: 0f1fe7a70
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the Identity Loop Mapper output direction.
+
 ## Carryover
 
 Disposition: FIXED
