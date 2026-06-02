@@ -63,7 +63,6 @@ reframing tool.
 - `automatic_thought`
 - `emotion`
 - `goal?`
-- `trigger_context?`
 
 **Output direction:**
 

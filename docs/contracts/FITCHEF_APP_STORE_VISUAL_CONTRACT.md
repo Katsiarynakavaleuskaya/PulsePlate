@@ -249,7 +249,7 @@ Rules:
 ## Evidence anchors
 
 - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:59`
-- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:108`
+- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#artifact-and-asset-governance`
 - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:15`
 - `docs/design/TOKENS_SOT.md:18`
 - `docs/design/TOKENS_SOT.md:28`

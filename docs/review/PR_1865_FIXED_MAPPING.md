@@ -109,7 +109,9 @@ Pre-open role order completed before implementation:
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`
+- Not applicable: committing raw Experiment Runner JSON under `artifacts/` is forbidden by repo local-artifact policy; the committed summary below records the accepted oracle result, SHA-256, commands, and attribution.
+- Committed summary: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md`
+- Raw local result: `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`
 - Mode: `oracle_only_governance_reviewer`
 - Result: accepted; 4/4 oracle commands passed.
 - `coauthor_required=true`; commit `554c0c00719a` includes:

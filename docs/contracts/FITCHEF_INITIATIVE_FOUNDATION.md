@@ -150,7 +150,7 @@ are governed.
 - `app.routers.fitchef_insight.fitchef_weekly_reflection`
 - `app.routers.fitchef_insight.fitchef_slip_support`
 - `app.routers.fitchef_structured.fitchef_distortion_simulator`
-- `app.main.include_optional_routers`
+- `app.main.ensure_canonical_app_bootstrap`
 - `app.services.fitchef_runtime.run_mascot_insight_task`
 - `app.services.fitchef_runtime.run_weekly_reflection_task`
 - `app.services.fitchef_runtime.run_slip_support_task`

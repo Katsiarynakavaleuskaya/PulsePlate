@@ -251,6 +251,12 @@ Future structured coach implementation must:
 ### Next active VIP runtime lane
 
 - `POST /api/v1/vip/fitchef/insight`
+
+This is the bounded Identity Loop Mapper target for the next substantive VIP
+runtime PR.
+
+### Later VIP structured follow-ups
+
 - `POST /api/v1/vip/fitchef/chat`
 - `POST /api/v1/vip/fitchef/week-repair`
 - entitlement, quota, and degraded-mode guarantees
@@ -268,7 +274,7 @@ Future structured coach implementation must:
 Use stable symbols rather than line-number evidence for long-lived contract
 truth:
 
-- `app.main.include_optional_routers`
+- `app.main.ensure_canonical_app_bootstrap`
 - `app.routers.fitchef_structured.fitchef_distortion_simulator`
 - `app.routers.fitchef_insight.router`
 - `app.routers.fitchef_insight.fitchef_mascot_insight`
