@@ -179,12 +179,11 @@ describe('WeeklyPlanViewer', () => {
 
   it('preserves localized day labels for non-English users', async () => {
     mockGetClientLocale.mockReturnValue('ru');
-    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
-      () =>
-        ({
-          format: () => 'понедельник',
-        }) as Intl.DateTimeFormat
-    );
+    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function DateTimeFormat() {
+      return {
+        format: () => 'понедельник',
+      } as Intl.DateTimeFormat;
+    });
     mockUseWeeklyPlan.mockReturnValue({
       data: WEEK_PLAN_VM,
       loading: false,
@@ -205,18 +204,17 @@ describe('WeeklyPlanViewer', () => {
 
   it('uses the normalized day number for sparse localized plans', async () => {
     mockGetClientLocale.mockReturnValue('ru');
-    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
-      () =>
-        ({
-          format: (date: Date) => {
-            const weekday = date.getUTCDay();
-            if (weekday === 3) {
-              return 'среда';
-            }
-            return 'понедельник';
-          },
-        }) as Intl.DateTimeFormat
-    );
+    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function DateTimeFormat() {
+      return {
+        format: (date: Date) => {
+          const weekday = date.getUTCDay();
+          if (weekday === 3) {
+            return 'среда';
+          }
+          return 'понедельник';
+        },
+      } as Intl.DateTimeFormat;
+    });
     mockUseWeeklyPlan.mockReturnValue({
       data: SPARSE_WEEK_PLAN_VM,
       loading: false,
