@@ -33,6 +33,8 @@ REDACTION_VERSION = "experiment-slack-redaction-v1"
 DEFAULT_RETENTION_DAYS = 30
 PROVIDER_TYPE = "experiment_runner_operator_plane"
 DEFAULT_LEDGER_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "operator_ledger"
+IDEMPOTENCY_KEY_ITERATIONS = 120_000
+IDEMPOTENCY_KEY_NAMESPACE = b"pulseplate-operator-ledger-idempotency-v1"
 
 ALLOWED_COMMAND_KINDS = frozenset(
     {"help", "kpp-status", "mvp-evidence", "status", "run-experiment", "oracle-review"}
@@ -264,7 +266,13 @@ def _idempotency_key(payload: dict[str, Any]) -> str:
             "task_packet_id",
         )
     }
-    return hashlib.sha256(_canonical_json_bytes(stable)).hexdigest()[:24]
+    return hashlib.pbkdf2_hmac(
+        "sha256",
+        _canonical_json_bytes(stable),
+        IDEMPOTENCY_KEY_NAMESPACE,
+        IDEMPOTENCY_KEY_ITERATIONS,
+        dklen=16,
+    ).hex()[:24]
 
 
 def normalize_operator_ledger_event(payload: dict[str, Any]) -> OperatorLedgerRecord:
