@@ -107,6 +107,14 @@ Disposition: FIXED
 Commit: 242ae45bd922cedf5f5a17e0b42ce4f5f1708972
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` rejects any summary output path containing an `events` path segment under `artifacts/orchestration/experiments/`, while still validating the requested ledger directory; `tests/test_experiment_operator_ledger.py` covers a custom `custom_a` ledger attempting to write into `custom_b/events/report.json`. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344146482 -> 148260df88b7f8c08df4a1c72448092b7a0d6222
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344146486 -> 148260df88b7f8c08df4a1c72448092b7a0d6222
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344146491 -> 148260df88b7f8c08df4a1c72448092b7a0d6222
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344146494 -> 148260df88b7f8c08df4a1c72448092b7a0d6222
+Disposition: FIXED
+Commit: 148260df88b7f8c08df4a1c72448092b7a0d6222
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now stores and verifies a cheap persisted `content_hash`, filters expired records from status/report reads, fails closed on unexpected non-JSON files in the reserved event store, and requires real SHA-256 hashes for mandatory Slack identity fields (`channel_hash`, `event_hash`, `user_hash`); `tests/test_experiment_operator_ledger.py` covers all four regressions. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
 ## Implementation Evidence
 
 Security-auditor post-open ledger-integrity finding:
@@ -206,6 +214,10 @@ Premortem:
 - `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after generic event-store output rejection fix.
 - `make validate-changed` - PASS after generic event-store output rejection fix.
 - `pre-commit run --all-files` - PASS after generic event-store output rejection fix.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` - PASS after operator-ledger event integrity hardening.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after operator-ledger event integrity hardening.
+- `make validate-changed` - PASS after operator-ledger event integrity hardening.
+- `pre-commit run --all-files` - PASS after operator-ledger event integrity hardening.
 - `git push -u origin codex/experiment-runner-operator-plane` pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full Bandit, and Docker build test.
 - Codex Security report-format validation command against the local markdown report - PASS.
 - Codex Security HTML render command against the local markdown report - PASS.
