@@ -46,10 +46,10 @@ Disposition: FIXED
 Commit: 1627c5a6d2862a12bbdf04aab915faedbbae0b4c
 Evidence: `docs/review/PR_1867_FIXED_MAPPING.md` uses the `### Fixed in Commit Mapping` mirror heading, includes a live `## Merge Readiness` section, and corrects the `qa-engineer-agent` wording.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343286674
-Disposition: NOT-A-BUG
-Evidence: `scripts/orchestration/experiment_operator_ledger.py` builds `_idempotency_key` from canonical local ledger metadata and already-hashed fields only; `tests/test_experiment_operator_ledger.py` asserts raw Slack IDs, raw hypotheses, local paths, secrets, patch text, and merge-readiness claims do not render or persist.
-Reason: The CodeQL comment classifies SHA-256 as password hashing, but this digest is a local idempotency key, not password or credential storage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343286674 -> 2a0a1f0cd48e53213292175841f863ea3a3e01d5
+Disposition: FIXED
+Commit: 2a0a1f0cd48e53213292175841f863ea3a3e01d5
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now derives the local ledger idempotency key with deterministic PBKDF2-HMAC rather than direct SHA-256 while preserving duplicate detection behavior; focused operator-ledger and Slack bridge tests pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369088
 Disposition: NOT-A-BUG
