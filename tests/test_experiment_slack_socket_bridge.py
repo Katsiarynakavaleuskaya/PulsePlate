@@ -400,6 +400,7 @@ def test_operator_status_includes_redacted_local_operator_ledger_summary(
     output = bridge._format_command_reply(bridge.OperatorCommand(kind="status"), config)
 
     assert "operator_ledger_status=dry_run" in output
+    assert "operator_ledger_scope=local_only" in output
     assert "operator_ledger_authority=display_only" in output
     assert bridge._sha256_text("feature/operator-plane")[:16] in output
     assert "C0SECRET" not in output

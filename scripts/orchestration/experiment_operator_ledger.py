@@ -10,7 +10,12 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import sys
 from typing import Any, cast
+
+OPERATOR_LEDGER_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(OPERATOR_LEDGER_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(OPERATOR_LEDGER_REPO_ROOT))
 
 from scripts.orchestration.context_pack import REPO_ROOT
 from scripts.orchestration.experiment_slack_bridge_audit import _atomic_publish_json
@@ -20,7 +25,7 @@ from scripts.orchestration.experiment_slack_bridge_config import (
 )
 from scripts.orchestration.experiment_slack_bridge_constants import SHA256_HEX_RE
 from scripts.orchestration.experiment_slack_bridge_models import SlackSocketAuditError
-from scripts.orchestration.experiment_slack_redaction import safe_artifact_ref
+from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE, safe_artifact_ref
 
 SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "operator-plane-2026-06-02-v1"
@@ -217,6 +222,8 @@ def _validate_artifact_ref(value: Any) -> str:
     normalized = value.strip()
     if normalized == "none":
         return normalized
+    if SLACK_IDENTIFIER_RE.search(normalized):
+        raise OperatorLedgerError("Experiment operator ledger artifact reference is invalid.")
     safe = safe_artifact_ref(normalized)
     if safe in {"[redacted-ref]", "none"}:
         raise OperatorLedgerError("Experiment operator ledger artifact reference is invalid.")
@@ -436,8 +443,14 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
     if not isinstance(raw, dict):
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     _require_exact_keys(raw, allowed=EVENT_FIELDS)
-    derived = raw.pop("idempotency_key")
-    record = normalize_operator_ledger_event(raw)
+    if DERIVED_EVENT_FIELDS - set(raw):
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    derived = raw.get("idempotency_key")
+    if not isinstance(derived, str) or not derived:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    payload = dict(raw)
+    payload.pop("idempotency_key")
+    record = normalize_operator_ledger_event(payload)
     if derived != record.idempotency_key:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     return record
@@ -462,6 +475,9 @@ def load_operator_ledger_events(
         paths = sorted(event_dir.glob("*.json"))
     except OSError as exc:
         raise OperatorLedgerError("Unable to inspect Experiment operator ledger events.") from exc
+    symlinked_paths = [path for path in paths if path.is_symlink()]
+    if symlinked_paths:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is symlinked.")
     records = [_read_record(path) for path in paths]
     return sorted(records, key=lambda record: (record.generated_at, record.idempotency_key))
 
@@ -516,6 +532,7 @@ def latest_operator_ledger_summary(
         f"operator_ledger_branch_hash={_hash_prefix(payload['branch_hash'])}",
         f"operator_ledger_hypothesis_hash={_hash_prefix(payload['hypothesis_hash'])}",
         f"operator_ledger_oracle_ref={payload['oracle_result_ref']}",
+        "operator_ledger_scope=local_only",
         "operator_ledger_authority=display_only",
     )
 
@@ -696,8 +713,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.output:
             output_path = _validate_output_path(Path(args.output), repo_root=REPO_ROOT)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(rendered, encoding="utf-8")
+            try:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_text(rendered, encoding="utf-8")
+            except OSError as exc:
+                raise OperatorLedgerError(
+                    "Unable to write Experiment operator ledger output."
+                ) from exc
         else:
             print(rendered, end="")
     except OperatorLedgerError as exc:

@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -94,6 +96,11 @@ def test_operator_ledger_writes_hash_only_event_and_blocks_duplicate(tmp_path: P
     [
         ("branch_hash", "feature/operator-plane"),
         ("oracle_result_ref", "/Users/alice/result.json"),
+        ("oracle_result_ref", "artifacts/orchestration/experiments/results/C0SECRET.json"),
+        (
+            "slack_audit_ref",
+            "artifacts/orchestration/experiments/slack_socket_bridge/U0DENIED.json",
+        ),
         ("status", "mergeable"),
         ("created_pr", True),
         ("retention_days", 0),
@@ -125,6 +132,7 @@ def test_operator_ledger_report_and_status_summary_are_redacted(tmp_path: Path) 
     rendered = "\n".join(summary) + json.dumps(report, sort_keys=True) + markdown
 
     assert "operator_ledger_status=dry_run" in summary
+    assert "operator_ledger_scope=local_only" in summary
     assert "operator_ledger_authority=display_only" in summary
     assert report["event_count"] == 1
     assert report["authority_boundary"] == {
@@ -145,6 +153,39 @@ def test_operator_ledger_invalid_local_artifact_summary_is_sanitized(tmp_path: P
     summary = ledger.latest_operator_ledger_summary(repo_root=tmp_path)
 
     assert summary == (
+        "operator_ledger_status=invalid_local_artifact",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
+
+
+def test_operator_ledger_symlinked_event_file_fails_closed(tmp_path: Path) -> None:
+    record = ledger.normalize_operator_ledger_event(_event()).payload
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps(record), encoding="utf-8")
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.mkdir(parents=True)
+    (event_dir / "linked.json").symlink_to(outside)
+
+    with pytest.raises(ledger.OperatorLedgerError, match="symlinked"):
+        ledger.load_operator_ledger_events(repo_root=tmp_path)
+    assert ledger.latest_operator_ledger_summary(repo_root=tmp_path) == (
+        "operator_ledger_status=invalid_local_artifact",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
+
+
+def test_operator_ledger_missing_derived_key_fails_closed(tmp_path: Path) -> None:
+    record = dict(ledger.normalize_operator_ledger_event(_event()).payload)
+    record.pop("idempotency_key")
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.mkdir(parents=True)
+    (event_dir / "missing-key.json").write_text(json.dumps(record), encoding="utf-8")
+
+    with pytest.raises(ledger.OperatorLedgerError, match="invalid"):
+        ledger.load_operator_ledger_events(repo_root=tmp_path)
+    assert ledger.latest_operator_ledger_summary(repo_root=tmp_path) == (
         "operator_ledger_status=invalid_local_artifact",
         "operator_ledger_scope=local_only",
         "operator_ledger_authority=display_only",
@@ -205,6 +246,50 @@ def test_operator_ledger_cli_summary_writes_under_artifacts_only(
     failure = capsys.readouterr().out
     assert "FAIL: Experiment operator ledger output must stay" in failure
     assert str(tmp_path) not in failure
+
+
+def test_operator_ledger_cli_output_write_errors_are_sanitized(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    blocked_parent = tmp_path / "artifacts" / "orchestration" / "experiments" / "blocked"
+    blocked_parent.parent.mkdir(parents=True)
+    blocked_parent.write_text("not-a-directory", encoding="utf-8")
+
+    assert (
+        ledger.main(
+            [
+                "--summary",
+                "--output",
+                "artifacts/orchestration/experiments/blocked/report.md",
+            ]
+        )
+        == 1
+    )
+    failure = capsys.readouterr().out
+    assert "FAIL: Unable to write Experiment operator ledger output." in failure
+    assert str(tmp_path) not in failure
+
+
+def test_operator_ledger_direct_cli_summary_invocation_is_supported() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/orchestration/experiment_operator_ledger.py",
+            "--summary",
+        ],
+        cwd=Path.cwd(),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "local_operator_plane_only" in result.stdout
+    assert "ModuleNotFoundError" not in result.stderr
+    _assert_no_raw_leak(result.stdout)
 
 
 def test_operator_plane_backlog_epic_documents_boundaries() -> None:
