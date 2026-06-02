@@ -33,13 +33,11 @@ for PR governance without tracking local runtime artifacts.
 - `python3 scripts/ci/check_philosophy_source_corpus_index.py --check` - PASS, return code 0.
 - `python3 scripts/ci/check_semantic_cache_gate.py` - PASS, return code 0; semantic-cache gates remained closed.
 
-## Attribution
+## Attribution Scope
 
 Material Experiment Runner attribution remains governed by repo commit and
 merge policy. This summary records the accepted oracle result; it does not
 assert trailer compliance for non-local review-tool evaluated SHAs.
-
-`Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 Review-tool synthetic squash-preview SHAs are not branch-history proof. The
 canonical proof surface for this artifact is the committed PR branch and the

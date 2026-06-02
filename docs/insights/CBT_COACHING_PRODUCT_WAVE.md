@@ -78,10 +78,6 @@ reframing tool.
 - `warnings[]`
 - `transparency_notice_id`
 - `wellness_boundary`
-- `scenario`
-- `quota_state`
-- `scenario`
-- `quota_state`
 - `quota_state`
 
 ### Pillar B: Identity Loop Mapper
