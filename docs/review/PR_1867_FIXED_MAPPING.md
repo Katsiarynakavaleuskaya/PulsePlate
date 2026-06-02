@@ -79,6 +79,16 @@ Disposition: FIXED
 Commit: 577c814c2cb7f44a11292f1d24d0c84c99dd0790
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now rejects PII-shaped artifact refs, embedded local-path and Windows-drive artifact refs, reserved `operator_ledger/events` report outputs, Slack-shaped task packet IDs, contradictory status/failure-class pairs, and malformed ledger roots; `tests/test_experiment_operator_ledger.py` covers each regression, `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` passed, and the broader focused Slack/operator suite passed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#pullrequestreview-4413006791 -> f34a5a2d4916784734cfef1e12ead799fa3f9624
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343904221 -> f34a5a2d4916784734cfef1e12ead799fa3f9624
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343904232 -> f34a5a2d4916784734cfef1e12ead799fa3f9624
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#pullrequestreview-4413049823 -> f34a5a2d4916784734cfef1e12ead799fa3f9624
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343936556 -> f34a5a2d4916784734cfef1e12ead799fa3f9624
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343936567 -> f34a5a2d4916784734cfef1e12ead799fa3f9624
+Disposition: FIXED
+Commit: f34a5a2d4916784734cfef1e12ead799fa3f9624
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` no longer treats ISO-date artifact filenames such as `operator-summary-2026-06-02.md` as PII-shaped phone numbers and now raises `OperatorLedgerError` when the local `operator_ledger/events` path is a regular file before attempting `mkdir`; `tests/test_experiment_operator_ledger.py` covers both regressions. Focused ledger tests, broader Slack/operator tests, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
 ## Implementation Evidence
 
 Security-auditor post-open ledger-integrity finding:
@@ -161,6 +171,10 @@ Premortem:
 - `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS.
 - `make validate-changed` - PASS.
 - `repo-resolved python -m pre_commit run --all-files` - PASS.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` - PASS after CodeRabbit/Cubic operator-ledger bot finding fixes.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after CodeRabbit/Cubic operator-ledger bot finding fixes.
+- `make validate-changed` - PASS after CodeRabbit/Cubic operator-ledger bot finding fixes.
+- `pre-commit run --all-files` - PASS after CodeRabbit/Cubic operator-ledger bot finding fixes.
 - `git push -u origin codex/experiment-runner-operator-plane` pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full Bandit, and Docker build test.
 - `python3 /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/bd80d7d9/scripts/validate_report_format.py --report-md /tmp/codex-security-scans/BMI-App_2025_clean/1961e68d_20260602T183600Z/report.md` - PASS.
 - `python3 /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/bd80d7d9/scripts/render_report_html.py --template /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/bd80d7d9/assets/report_template_inlined.html --report-md /tmp/codex-security-scans/BMI-App_2025_clean/1961e68d_20260602T183600Z/report.md --report-html /tmp/codex-security-scans/BMI-App_2025_clean/1961e68d_20260602T183600Z/report.html --title "BMI-App_2025_clean Codex Security Scan"` - PASS.
