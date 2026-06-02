@@ -108,12 +108,12 @@ Evidence: The existing Slack webhook redaction sentinel keeps its expected redac
 
 Codex Security skill-guided diff scan:
 Disposition: NOT-A-BUG
-Evidence: `/tmp/codex-security-scans/BMI-App_2025_clean/1961e68d_20260602T183600Z/report.md` and `/tmp/codex-security-scans/BMI-App_2025_clean/1961e68d_20260602T183600Z/report.html` were generated after 3/3 `deep_review_input.csv` source rows received completion receipts in `artifacts/02_discovery/work_ledger.jsonl`; the validated report records zero reportable findings.
+Evidence: Codex Security markdown and HTML reports were generated in local temp storage after 3/3 `deep_review_input.csv` source rows received completion receipts in `artifacts/02_discovery/work_ledger.jsonl`; the validated report records zero reportable findings.
 Reason: The completed diff-scoped security scan found no surviving candidate issue after reviewing the ledger module, Slack rendering hook, and Slack socket bridge facade against the repository threat model and supporting redaction/path/audit helpers.
 
 `pulseplate-pr-review` large-diff advisory:
 Disposition: NOT-A-BUG
-Evidence: `/tmp/pulseplate_pr_1867_review_context.json`, `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1867_review_context.json --format markdown`, `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1867_review_context.json --format json`, and repo-resolved `python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` all completed; the single advisory finding was a review-planning note caused by 1445 changed lines.
+Evidence: local PR review context generation, `python3 scripts/orchestration/pr_review_report.py --format markdown`, `python3 scripts/orchestration/pr_review_report.py --format json`, and repo-resolved `python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` all completed; the single advisory finding was a review-planning note caused by 1445 changed lines.
 Reason: The large diff is a single bounded operator-plane slice with docs, tests, mapping, and one local-only module; it does not widen product runtime, Slack authority, food data, semantic cache, CBT/coaching, frontend MVP, or iOS scope. The split rationale is already documented in Scope / Out of scope, and narrow local gates remain the proof path.
 
 ## Role-Agent / Premortem Pass
@@ -185,11 +185,11 @@ Premortem:
 - `make validate-changed` - PASS after connector custom-ledger/default-event-store fix.
 - `pre-commit run --all-files` - PASS after connector custom-ledger/default-event-store fix.
 - `git push -u origin codex/experiment-runner-operator-plane` pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full Bandit, and Docker build test.
-- `python3 /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/bd80d7d9/scripts/validate_report_format.py --report-md /tmp/codex-security-scans/BMI-App_2025_clean/1961e68d_20260602T183600Z/report.md` - PASS.
-- `python3 /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/bd80d7d9/scripts/render_report_html.py --template /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/bd80d7d9/assets/report_template_inlined.html --report-md /tmp/codex-security-scans/BMI-App_2025_clean/1961e68d_20260602T183600Z/report.md --report-html /tmp/codex-security-scans/BMI-App_2025_clean/1961e68d_20260602T183600Z/report.html --title "BMI-App_2025_clean Codex Security Scan"` - PASS.
-- `python3 scripts/orchestration/pr_review_context.py --pr 1867 --output /tmp/pulseplate_pr_1867_review_context.json` - PASS.
-- `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1867_review_context.json --format markdown` - PASS.
-- `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1867_review_context.json --format json` - PASS.
+- Codex Security report-format validation command against the local markdown report - PASS.
+- Codex Security HTML render command against the local markdown report - PASS.
+- `python3 scripts/orchestration/pr_review_context.py --pr 1867 --output <local-pr-review-context.json>` - PASS.
+- `python3 scripts/orchestration/pr_review_report.py --context <local-pr-review-context.json> --format markdown` - PASS.
+- `python3 scripts/orchestration/pr_review_report.py --context <local-pr-review-context.json> --format json` - PASS.
 - `repo-resolved python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS.
 
 Full local `make verify` was not run for this operator-approved machine-heavy

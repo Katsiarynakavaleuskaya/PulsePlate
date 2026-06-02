@@ -36,6 +36,7 @@ PROVIDER_TYPE = "experiment_runner_operator_plane"
 DEFAULT_LEDGER_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "operator_ledger"
 IDEMPOTENCY_KEY_ITERATIONS = 120_000
 IDEMPOTENCY_KEY_NAMESPACE = b"pulseplate-operator-ledger-idempotency-v1"
+IDEMPOTENCY_KEY_RE = re.compile(r"^[a-f0-9]{24}$")
 PII_SHAPED_ARTIFACT_RE = re.compile(
     r"("
     r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
@@ -297,7 +298,11 @@ def _idempotency_key(payload: dict[str, Any]) -> str:
     ).hex()[:24]
 
 
-def normalize_operator_ledger_event(payload: dict[str, Any]) -> OperatorLedgerRecord:
+def normalize_operator_ledger_event(
+    payload: dict[str, Any],
+    *,
+    derive_idempotency_key: bool = True,
+) -> OperatorLedgerRecord:
     """Validate and normalize one local operator ledger event."""
 
     if not isinstance(payload, dict):
@@ -381,7 +386,8 @@ def normalize_operator_ledger_event(payload: dict[str, Any]) -> OperatorLedgerRe
         raise OperatorLedgerError("Experiment operator ledger status/failure pair is invalid.")
     if normalized["coauthor_required"] and normalized["coauthor_decision"] != "required":
         raise OperatorLedgerError("Experiment operator ledger coauthor decision is invalid.")
-    normalized["idempotency_key"] = _idempotency_key(normalized)
+    if derive_idempotency_key:
+        normalized["idempotency_key"] = _idempotency_key(normalized)
     return OperatorLedgerRecord(payload=normalized)
 
 
@@ -512,15 +518,14 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
     if DERIVED_EVENT_FIELDS - set(raw):
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     derived = raw.get("idempotency_key")
-    if not isinstance(derived, str) or not derived:
+    if not isinstance(derived, str) or not IDEMPOTENCY_KEY_RE.fullmatch(derived):
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    if path.stem != derived:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     payload = dict(raw)
     payload.pop("idempotency_key")
-    record = normalize_operator_ledger_event(payload)
-    if derived != record.idempotency_key:
-        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
-    if path.stem != record.idempotency_key:
-        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    record = normalize_operator_ledger_event(payload, derive_idempotency_key=False)
+    record.payload["idempotency_key"] = derived
     return record
 
 
@@ -756,6 +761,15 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     ledger_dir = Path(args.ledger_dir) if args.ledger_dir else None
     try:
+        output_path = (
+            _validate_output_path(
+                Path(args.output),
+                repo_root=REPO_ROOT,
+                ledger_dir=ledger_dir,
+            )
+            if args.output
+            else None
+        )
         if args.record:
             if args.event_json is None:
                 raise OperatorLedgerError("Experiment operator ledger input is invalid.")
@@ -783,12 +797,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 + "\n"
             )
-        if args.output:
-            output_path = _validate_output_path(
-                Path(args.output),
-                repo_root=REPO_ROOT,
-                ledger_dir=ledger_dir,
-            )
+        if output_path:
             try:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_text(rendered, encoding="utf-8")

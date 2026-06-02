@@ -299,6 +299,22 @@ def test_operator_ledger_event_filename_must_match_idempotency_key(tmp_path: Pat
     )
 
 
+def test_operator_ledger_load_uses_persisted_key_without_rederiving(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    written = ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    def _unexpected_idempotency_derivation(payload: dict[str, object]) -> str:
+        raise AssertionError("load path must not recompute PBKDF2 idempotency keys")
+
+    monkeypatch.setattr(ledger, "_idempotency_key", _unexpected_idempotency_derivation)
+
+    records = ledger.load_operator_ledger_events(repo_root=tmp_path)
+
+    assert [record.idempotency_key for record in records] == [written.stem]
+
+
 def test_operator_ledger_output_path_rejects_traversal_and_symlink(
     tmp_path: Path,
 ) -> None:
@@ -412,6 +428,32 @@ def test_operator_ledger_cli_summary_writes_under_artifacts_only(
     assert str(tmp_path) not in failure
 
 
+def test_operator_ledger_cli_record_invalid_output_does_not_write_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    event_json = tmp_path / "event.json"
+    event_json.write_text(json.dumps(_event()), encoding="utf-8")
+
+    assert (
+        ledger.main(
+            [
+                "--record",
+                "--event-json",
+                str(event_json),
+                "--output",
+                str(tmp_path / "outside.json"),
+            ]
+        )
+        == 1
+    )
+    failure = capsys.readouterr().out
+    assert "FAIL: Experiment operator ledger output must stay" in failure
+    assert not (ledger.default_ledger_dir(tmp_path) / "events").exists()
+
+
 def test_operator_ledger_cli_output_write_errors_are_sanitized(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -437,12 +479,18 @@ def test_operator_ledger_cli_output_write_errors_are_sanitized(
     assert str(tmp_path) not in failure
 
 
-def test_operator_ledger_direct_cli_summary_invocation_is_supported() -> None:
+def test_operator_ledger_direct_cli_summary_invocation_is_supported(tmp_path: Path) -> None:
+    isolated_ledger = (
+        "artifacts/orchestration/experiments/"
+        f"direct_cli_summary_{hashlib.sha256(str(tmp_path).encode('utf-8')).hexdigest()}"
+    )
     result = subprocess.run(
         [
             sys.executable,
             "scripts/orchestration/experiment_operator_ledger.py",
             "--summary",
+            "--ledger-dir",
+            isolated_ledger,
         ],
         cwd=Path.cwd(),
         text=True,
