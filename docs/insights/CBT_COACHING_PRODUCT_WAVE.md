@@ -66,6 +66,7 @@ reframing tool.
 
 **Output direction:**
 
+- `scenario`
 - `distortion_labels[]`
 - `why_it_matches`
 - `evidence_for[]`
@@ -77,6 +78,7 @@ reframing tool.
 - `warnings[]`
 - `transparency_notice_id`
 - `wellness_boundary`
+- `quota_state`
 
 ### Pillar B: Identity Loop Mapper
 

@@ -39,3 +39,6 @@ Branch commits that recorded or materially used this Experiment Runner evidence
 carry:
 
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
+If this PR is squash-merged, the generated squash commit body must also retain
+the same co-author trailer.

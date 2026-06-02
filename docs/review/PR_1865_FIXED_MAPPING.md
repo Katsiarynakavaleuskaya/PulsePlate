@@ -4,7 +4,7 @@
 **Branch:** `codex/coaching-structured-wave-contract`
 **Scope:** Docs-only reconciliation for Philosophy source corpus closeout and
 CBT/FitChef structured coaching product truth.
-**Primary commit:** `554c0c00719a`
+**Primary branch proof commit:** `1f329466ad5de454f6b3db8266f642a4eed53ebf`
 
 ## Discussion Thread Pass
 
@@ -14,10 +14,10 @@ CBT/FitChef structured coaching product truth.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865 -> 554c0c00719a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865 -> 1f329466ad5de454f6b3db8266f642a4eed53ebf
 Disposition: FIXED
-Commit: 554c0c00719a
-Evidence: Backlog, coaching wave, structured coach contract, API map, and tier map record PR #1822 / `740a64fb7d87d404076117698bee5d4bee71f390`, PR #1214 / `29a11e62e38307dd4cc7414bffc159b508878744`, and PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97` while preserving future-only VIP Identity Loop Mapper wording and closed semantic-cache/runtime boundaries.
+Commit: 1f329466ad5de454f6b3db8266f642a4eed53ebf
+Evidence: Current branch proof records PR #1822 / `740a64fb7d87d404076117698bee5d4bee71f390`, PR #1214 / `29a11e62e38307dd4cc7414bffc159b508878744`, and PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97` while preserving future-only VIP Identity Loop Mapper wording, closed semantic-cache/runtime boundaries, and completed post-open mapping.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407204096 -> d3313675c
 Disposition: FIXED

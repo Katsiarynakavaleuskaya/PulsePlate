@@ -47,9 +47,11 @@ promotion is auditable under the docs evidence contract.
 
 ### 3. Structured coach contract already exists
 
-- `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md:17-24` and
-  `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md:39-53` freeze additive
-  future route families for PRO and VIP structured coach surfaces.
+- `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#route-family-freeze`
+  and
+  `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#wave-aligned-capability-mapping`
+  record the landed PRO structured coach surface and the remaining
+  contract-frozen future follow-ups for PRO and VIP structured coach surfaces.
 - This makes the article ideas mappable to an existing contract lane rather than a new
   route family.
 
