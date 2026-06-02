@@ -6,7 +6,7 @@
 dependency graph can ingest the already-patched Vitest `4.1.8` frontend
 lockfile state for Dependabot alert `#153`.
 **Primary implementation commits:** `4cc76042c`, `4d7951f47`, `e705444ee`,
-`66de78461`
+`66de78461`, `2138af99e`
 
 ## Discussion Thread Pass
 
@@ -17,35 +17,43 @@ lockfile state for Dependabot alert `#153`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343593209 -> 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Disposition: FIXED
+Commit: 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Evidence: `.github/workflows/npm-dependency-submission.yml:62`, `.github/workflows/npm-dependency-submission.yml:75`, `tests/guards/test_security_devtooling_regression_guards.py:447`, and `tests/guards/test_security_devtooling_regression_guards.py:453` prove the temp graph root preserves `frontend/package-lock.json`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343622098 -> 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Disposition: FIXED
+Commit: 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Evidence: Same frontend source-location fix as `discussion_r3343593209`; the workflow no longer uses `filePath: frontend`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343606382 -> 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Disposition: FIXED
+Commit: 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Evidence: `tests/guards/test_security_devtooling_regression_guards.py:447` asserts the root npm dependency-submission job has no `filePath`, or only a repo-root indicator.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343622109 -> 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Disposition: FIXED
+Commit: 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Evidence: Same root job scope guard as `discussion_r3343606382`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343606373 -> 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Disposition: FIXED
+Commit: 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Evidence: The Philosophy PR-5 ledger closeout and its guard were removed; `git diff --name-only origin/main...HEAD` no longer includes `docs/roadmap/BACKLOG_LEDGER.md`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#pullrequestreview-4412654906 -> 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Disposition: FIXED
+Commit: 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Evidence: `.github/workflows/npm-dependency-submission.yml:37`, `.github/workflows/npm-dependency-submission.yml:55`, `.github/workflows/npm-dependency-submission.yml:41`, and `.github/workflows/npm-dependency-submission.yml:59` cover timeout and checkout hardening.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343625559 -> 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Disposition: FIXED
+Commit: 4d7951f478c1bffb52c7750848a5cd185728d8dc
 Evidence: Commit `4d7951f478c1bffb52c7750848a5cd185728d8dc` includes the canonical Experiment Runner trailer; earlier runner-shaped commits `4cc76042c` and `c59653e99` do too.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343625561 -> e705444eec6976ec48c5bf7ef7042a38d8ebdc09
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343625561 -> e705444eeb151e9703245d99c9b4e5d2e3db91c7
 Disposition: FIXED
-Evidence: Commit `e705444eec6976ec48c5bf7ef7042a38d8ebdc09` replaces the stale `No actionable review comments` entry with explicit FIXED dispositions for the live review comments.
+Commit: e705444eeb151e9703245d99c9b4e5d2e3db91c7
+Evidence: Commit `e705444eeb151e9703245d99c9b4e5d2e3db91c7` replaces the stale `No actionable review comments` entry with explicit FIXED dispositions for the live review comments.
 
 ## Dependency Scope / Private-Index Notes
 
@@ -183,6 +191,26 @@ Pre-open role order from packet
 - `coauthor_required=true`
 - Commit trailer used on Experiment Runner-shaped commits:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
+## Squash Attribution / Live-Head Evidence
+
+- Live PR head at this review refresh:
+  `2138af99ede4aed36b11f7eb4b5f36409e83eece`.
+- `git merge-base --is-ancestor 4d7951f478c1bffb52c7750848a5cd185728d8dc HEAD`
+  passes.
+- `git merge-base --is-ancestor e705444eeb151e9703245d99c9b4e5d2e3db91c7 HEAD`
+  passes.
+- `git merge-base --is-ancestor 66de784615442b2d27a6cc9c129c1884ae0b0246 HEAD`
+  passes.
+- `git cat-file -e e705444eeb151e9703245d99c9b4e5d2e3db91c7^{commit}`
+  passes; the earlier `e705444eec6976ec48c5bf7ef7042a38d8ebdc09`
+  mapping typo was invalid and has been corrected above.
+- Every branch commit made after Experiment Runner materially shaped this lane
+  includes the canonical trailer:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- If this PR is squash-merged, the final squash commit message must preserve
+  that exact trailer; the PR body also mirrors the trailer for merge-message
+  copy.
 
 ## Local Validation
 
