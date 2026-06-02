@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import multiprocessing
 import os
 import signal
 import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-07-31, ref: PR-1748)
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -21,6 +23,9 @@ DEFAULT_SHARD_TIMEOUT_SECONDS = 1800
 DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
 SLOW_MARK_EXPRESSION = "not slow"
+PYTEST_BASETEMP_ROOT_NAME = "pulseplate-main-test-shards"
+POSIX_TEMP_ROOT = Path(os.sep) / "tmp"
+WINDOWS_TEMP_ROOT = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Temp"
 
 
 @dataclass(frozen=True)
@@ -128,7 +133,37 @@ def partition_test_files(
     return shards
 
 
-def build_pytest_args(shard: TestShard) -> list[str]:
+def external_temp_root(repo_root: Path) -> Path:
+    """Return a temp root that is guaranteed to live outside the repo tree."""
+
+    resolved_repo_root = repo_root.resolve()
+    candidates = [Path(tempfile.gettempdir())]
+    if os.name == "posix":
+        candidates.append(POSIX_TEMP_ROOT)
+    elif os.name == "nt":
+        candidates.append(WINDOWS_TEMP_ROOT)
+
+    for candidate in candidates:
+        resolved_candidate = candidate.resolve()
+        if not resolved_candidate.is_relative_to(resolved_repo_root):
+            return resolved_candidate
+
+    raise RuntimeError("unable to resolve pytest basetemp root outside repo")
+
+
+def shard_basetemp_dir(repo_root: Path, shard: TestShard) -> Path:
+    """Return a deterministic external pytest base temp directory for one shard."""
+
+    repo_key = hashlib.sha256(str(repo_root.resolve()).encode("utf-8")).hexdigest()[:12]
+    return (
+        external_temp_root(repo_root)
+        / PYTEST_BASETEMP_ROOT_NAME
+        / repo_key
+        / f"{shard.artifact_label}-shard-{shard.index}"
+    )
+
+
+def build_pytest_args(shard: TestShard, repo_root: Path) -> list[str]:
     """Build one no-xdist pytest argv for a shard."""
 
     return [
@@ -142,6 +177,8 @@ def build_pytest_args(shard: TestShard) -> list[str]:
         "--durations-min=10.0",
         "-o",
         f"faulthandler_timeout={DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS}",
+        "--basetemp",
+        str(shard_basetemp_dir(repo_root, shard)),
         "--cov=.",
         "--cov-report=",
         "--junitxml",
@@ -197,7 +234,8 @@ def run_shard_child(repo_root: Path, shard: TestShard, base_env: dict[str, str])
 
     import pytest
 
-    pytest_args = build_pytest_args(shard)
+    shard_basetemp_dir(repo_root, shard).parent.mkdir(parents=True, exist_ok=True)
+    pytest_args = build_pytest_args(shard, repo_root)
     env = build_shard_env(base_env, shard, repo_root)
     os.environ.pop("PYTEST_XDIST_WORKER", None)
     os.environ.update(env)
