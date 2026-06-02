@@ -24,8 +24,6 @@ for PR governance without tracking local runtime artifacts.
   - `docs/roadmap/BACKLOG_LEDGER.md`
 - Branch attribution status: satisfied by branch commits that recorded or
   materially used this Experiment Runner evidence.
-- Co-author reason: Mandatory Experiment Runner oracle review shaped the
-  pre-open commit decision for this docs reconciliation.
 
 ## Oracle Commands
 
