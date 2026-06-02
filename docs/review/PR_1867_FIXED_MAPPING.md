@@ -58,6 +58,11 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 6fe6e93ecd2b4ad7f95316982fed7066db829e54 HEAD` returns 0 locally; `gh pr view 1867 --json headRefOid,commits` lists `6fe6e93ecd2b4ad7f95316982fed7066db829e54` as a PR commit.
 Reason: The connector evaluated a non-current/synthetic reviewed commit and incorrectly treated the implementation SHA as a sibling; the mapped SHA is an ancestor of the governed branch head.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344197702
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 6fe6e93ecd2b4ad7f95316982fed7066db829e54 HEAD` returns 0 locally on current PR head `3cdb3b12fdd3718f735dd11c83804bdb2a391bc2`; `gh pr view 1867 --json headRefOid,commits` lists `6fe6e93ecd2b4ad7f95316982fed7066db829e54` as a PR commit.
+Reason: The connector evaluated a reviewed/synthetic commit context rather than the current governed PR branch head. Merge-readiness governance is checked against current PR head and the canonical mapping artifact, where the proof SHA is reachable.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343475860
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor b76c22a9cbf0452cc3b8277a25b2dd587848f482 HEAD` and `git merge-base --is-ancestor 1627c5a6d2862a12bbdf04aab915faedbbae0b4c HEAD` both return 0 locally; `gh pr view 1867 --json headRefOid,commits` lists both commits in the current PR history.
@@ -114,6 +119,12 @@ Evidence: `scripts/orchestration/experiment_operator_ledger.py` rejects any summ
 Disposition: FIXED
 Commit: 148260df88b7f8c08df4a1c72448092b7a0d6222
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now stores and verifies a cheap persisted `content_hash`, filters expired records from status/report reads, fails closed on unexpected non-JSON files in the reserved event store, and requires real SHA-256 hashes for mandatory Slack identity fields (`channel_hash`, `event_hash`, `user_hash`); `tests/test_experiment_operator_ledger.py` covers all four regressions. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344197707 -> 3b6966e49936472435a17d126c1177b2683254fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344197709 -> 3b6966e49936472435a17d126c1177b2683254fa
+Disposition: FIXED
+Commit: 3b6966e49936472435a17d126c1177b2683254fa
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now rejects impossible `status=dispatched` events unless they are execute-mode `run-experiment` dispatches, and rejects secret-shaped or approval-digest-shaped `task_packet_id` values; `tests/test_experiment_operator_ledger.py` covers invalid and valid dispatch-status pairs plus token/digest task packet IDs. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
 ## Implementation Evidence
 
@@ -218,6 +229,10 @@ Premortem:
 - `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after operator-ledger event integrity hardening.
 - `make validate-changed` - PASS after operator-ledger event integrity hardening.
 - `pre-commit run --all-files` - PASS after operator-ledger event integrity hardening.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` - PASS after operator-ledger dispatch/task-packet input hardening.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after operator-ledger dispatch/task-packet input hardening.
+- `make validate-changed` - PASS after operator-ledger dispatch/task-packet input hardening.
+- `pre-commit run --all-files` - PASS after operator-ledger dispatch/task-packet input hardening.
 - `git push -u origin codex/experiment-runner-operator-plane` pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full Bandit, and Docker build test.
 - Codex Security report-format validation command against the local markdown report - PASS.
 - Codex Security HTML render command against the local markdown report - PASS.
