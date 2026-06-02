@@ -36,12 +36,14 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` adds the canonical operator-plane epi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369978 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369985 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369988 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#pullrequestreview-4412288020 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
 Disposition: FIXED
 Commit: b76c22a9cbf0452cc3b8277a25b2dd587848f482
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now inserts the repo root for direct script invocation, rejects Slack identifiers in artifact refs, treats missing derived keys as invalid local artifacts, rejects symlinked event files before reads, includes `operator_ledger_scope=local_only` on valid summaries, and catches CLI output write `OSError`; `tests/test_experiment_operator_ledger.py` and `tests/test_experiment_slack_socket_bridge.py` cover each regression.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343339194 -> 1627c5a6d2862a12bbdf04aab915faedbbae0b4c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343339199 -> 1627c5a6d2862a12bbdf04aab915faedbbae0b4c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#pullrequestreview-4412320689 -> 1627c5a6d2862a12bbdf04aab915faedbbae0b4c
 Disposition: FIXED
 Commit: 1627c5a6d2862a12bbdf04aab915faedbbae0b4c
 Evidence: `docs/review/PR_1867_FIXED_MAPPING.md` uses the `### Fixed in Commit Mapping` mirror heading, includes a live `## Merge Readiness` section, and corrects the `qa-engineer-agent` wording.
@@ -55,6 +57,27 @@ Evidence: `scripts/orchestration/experiment_operator_ledger.py` now derives the 
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 6fe6e93ecd2b4ad7f95316982fed7066db829e54 HEAD` returns 0 locally; `gh pr view 1867 --json headRefOid,commits` lists `6fe6e93ecd2b4ad7f95316982fed7066db829e54` as a PR commit.
 Reason: The connector evaluated a non-current/synthetic reviewed commit and incorrectly treated the implementation SHA as a sibling; the mapped SHA is an ancestor of the governed branch head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343475860 -> 7689add68a6c7638b1e2f2591a0de1c8800a0c62
+Disposition: FIXED
+Commit: 7689add68a6c7638b1e2f2591a0de1c8800a0c62
+Evidence: `docs/review/PR_1867_FIXED_MAPPING.md` was updated to align the reviewed CodeRabbit disposition SHAs with reachable PR commits; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1867 --body "$(gh pr view 1867 --json body --jq .body)" --commit-range origin/main..HEAD` passed after the mapping/body mirror update.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343475855 -> 17ff864c802829b31d453d610f6d7e97424588c8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343475864 -> 17ff864c802829b31d453d610f6d7e97424588c8
+Disposition: FIXED
+Commit: 17ff864c802829b31d453d610f6d7e97424588c8
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` treats `operator_ledger/events` as an invalid local artifact when it is a regular file and requires each event filename stem to match the embedded idempotency key; `tests/test_experiment_operator_ledger.py` covers both fail-closed regressions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343591472 -> 577c814c2cb7f44a11292f1d24d0c84c99dd0790
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343591477 -> 577c814c2cb7f44a11292f1d24d0c84c99dd0790
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343591487 -> 577c814c2cb7f44a11292f1d24d0c84c99dd0790
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343591495 -> 577c814c2cb7f44a11292f1d24d0c84c99dd0790
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343643962 -> 577c814c2cb7f44a11292f1d24d0c84c99dd0790
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343643966 -> 577c814c2cb7f44a11292f1d24d0c84c99dd0790
+Disposition: FIXED
+Commit: 577c814c2cb7f44a11292f1d24d0c84c99dd0790
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now rejects PII-shaped artifact refs, embedded local-path and Windows-drive artifact refs, reserved `operator_ledger/events` report outputs, Slack-shaped task packet IDs, contradictory status/failure-class pairs, and malformed ledger roots; `tests/test_experiment_operator_ledger.py` covers each regression, `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` passed, and the broader focused Slack/operator suite passed.
 
 ## Implementation Evidence
 
