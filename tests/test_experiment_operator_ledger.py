@@ -348,6 +348,39 @@ def test_operator_ledger_cli_output_rejects_reserved_event_store(
     assert str(tmp_path) not in failure
 
 
+def test_operator_ledger_cli_output_rejects_default_event_store_with_custom_ledger(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+
+    assert (
+        ledger.main(
+            [
+                "--summary",
+                "--ledger-dir",
+                "artifacts/orchestration/experiments/custom_ledger",
+                "--output",
+                "artifacts/orchestration/experiments/operator_ledger/events/report.json",
+            ]
+        )
+        == 1
+    )
+    failure = capsys.readouterr().out
+    assert "reserved event store" in failure
+    assert str(tmp_path) not in failure
+    assert not (
+        tmp_path
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "operator_ledger"
+        / "events"
+        / "report.json"
+    ).exists()
+
+
 def test_operator_ledger_cli_summary_writes_under_artifacts_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

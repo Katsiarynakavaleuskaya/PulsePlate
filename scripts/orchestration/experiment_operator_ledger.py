@@ -436,21 +436,25 @@ def _validate_output_path(
         raise OperatorLedgerError(
             "Experiment operator ledger output must stay under artifacts/orchestration/experiments."
         ) from exc
-    event_dir = (
+    active_event_dir = (
         _validate_ledger_dir(
             ledger_dir or default_ledger_dir(repo_root),
             repo_root=repo_root,
         )
         / "events"
     )
-    try:
-        candidate.relative_to(event_dir)
-    except ValueError:
-        pass
-    else:
-        raise OperatorLedgerError(
-            "Experiment operator ledger output must not target the reserved event store."
-        )
+    default_event_dir = (
+        _validate_ledger_dir(default_ledger_dir(repo_root), repo_root=repo_root) / "events"
+    )
+    for event_dir in {active_event_dir, default_event_dir}:
+        try:
+            candidate.relative_to(event_dir)
+        except ValueError:
+            pass
+        else:
+            raise OperatorLedgerError(
+                "Experiment operator ledger output must not target the reserved event store."
+            )
     try:
         _reject_symlinked_output_components(
             candidate,
