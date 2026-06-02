@@ -264,6 +264,21 @@ Disposition: NOT-A-BUG
 Evidence: `4b155497730a41f8b0c73eafc5311d9d4d3d44da` is not a local commit object and GitHub GraphQL returned no repository object for that SHA. The proof commits named by the comment, including `d3313675c`, `629f39132`, `2c702517`, `670fc8e3`, `d8c0a0824`, and `0f1fe7a70`, are ancestors of actual PR head `eff4d83bcdb1ea64b6b53988915e9d66bb0f2bd0`.
 Reason: Fixed mapping is branch-history proof for GitHub PR review threads, not ancestry proof for connector-local evaluated SHAs that are absent from the PR branch graph.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343734381
+Disposition: NOT-A-BUG
+Evidence: `d5674f86fc8a71102d576e00a4f3f3916b1cc482` is not a local commit object and GitHub GraphQL returned no repository object for that SHA. The committed Experiment Runner evidence summary is provenance-only and does not create trailer requirements for non-local review-tool evaluated SHAs.
+Reason: The comment asks for trailer compliance on a connector-generated evaluated SHA that is not a repo branch commit, so it is not a valid repo attribution target.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343734390
+Disposition: NOT-A-BUG
+Evidence: `d5674f86fc8a71102d576e00a4f3f3916b1cc482` is not a local commit object and GitHub GraphQL returned no repository object for that SHA. The named proof commits are branch-history proof for actual GitHub PR commits, not for connector-local synthetic/squash-preview history.
+Reason: Fixed mapping is branch-history proof for GitHub PR review threads and cannot be validated against non-repo evaluated SHAs absent from the PR branch graph.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343734396 -> 8b7435adbdfe44446352181883e895eb47de81ba
+Disposition: FIXED
+Commit: 8b7435adbdfe44446352181883e895eb47de81ba
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now states that the landed PRO Distortion Simulator route is governed by `FitChefDistortionSimulatorResponse` and scopes the generic `mode` / `title` / `summary` / `bullets` / `actions` envelope direction to unimplemented structured-coach follow-ups only.
+
 ## Carryover
 
 Disposition: FIXED
@@ -346,6 +361,13 @@ Pre-open role order completed before implementation:
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push, and full
   Bandit; Docker build hook skipped because no Docker-surface files changed.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md docs/review/PR_1865_FIXED_MAPPING.md` - PASS after connector-loop source fix.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1865 --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` - PASS after connector-loop source fix.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1865 --require-auth` - PASS for already resolved threads after connector-loop source fix.
+- `make validate-changed` - PASS after connector-loop source fix.
+- `pre-commit run --all-files` - PASS after connector-loop source fix.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` - PASS after structured response envelope fix.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS after structured response envelope fix.
 
 ## Post-Open Review
 
