@@ -126,6 +126,14 @@ Disposition: FIXED
 Commit: 3b6966e49936472435a17d126c1177b2683254fa
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now rejects impossible `status=dispatched` events unless they are execute-mode `run-experiment` dispatches, and rejects secret-shaped or approval-digest-shaped `task_packet_id` values; `tests/test_experiment_operator_ledger.py` covers invalid and valid dispatch-status pairs plus token/digest task packet IDs. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344225224 -> 0550b1007606abb0ef4d44d8fd4062c0d39097e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344258505 -> 0550b1007606abb0ef4d44d8fd4062c0d39097e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344258513 -> 0550b1007606abb0ef4d44d8fd4062c0d39097e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344258522 -> 0550b1007606abb0ef4d44d8fd4062c0d39097e6
+Disposition: FIXED
+Commit: 0550b1007606abb0ef4d44d8fd4062c0d39097e6
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now derives persisted `content_hash` with keyed BLAKE2b rather than direct SHA-256 over event payloads, preflights output writes before `--record` mutates the ledger, rejects future `generated_at` timestamps, and writes event temp files under a ledger-local `tmp/` directory outside the reserved event store; `tests/test_experiment_operator_ledger.py` covers all four regressions. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
 ## Implementation Evidence
 
 Security-auditor post-open ledger-integrity finding:
@@ -233,6 +241,10 @@ Premortem:
 - `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after operator-ledger dispatch/task-packet input hardening.
 - `make validate-changed` - PASS after operator-ledger dispatch/task-packet input hardening.
 - `pre-commit run --all-files` - PASS after operator-ledger dispatch/task-packet input hardening.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` - PASS after operator-ledger write/timestamp/temp/hash hardening.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after operator-ledger write/timestamp/temp/hash hardening.
+- `make validate-changed` - PASS after operator-ledger write/timestamp/temp/hash hardening.
+- `pre-commit run --all-files` - PASS after operator-ledger write/timestamp/temp/hash hardening.
 - `git push -u origin codex/experiment-runner-operator-plane` pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full Bandit, and Docker build test.
 - Codex Security report-format validation command against the local markdown report - PASS.
 - Codex Security HTML render command against the local markdown report - PASS.
