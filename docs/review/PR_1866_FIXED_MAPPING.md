@@ -10,22 +10,15 @@ Python dependency, private-index installer, or CI workflow surfaces.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass pending post-open bot/human comments.
-- [x] Fixed in commit mapping created for PR #1866.
-- [ ] Post-open bot/human review disposition pending.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866 -> 452629b03
 Disposition: FIXED
 Commit: 452629b03
-Evidence: `frontend/package.json` and `frontend/package-lock.json` update the
-direct Vitest family to exact `4.1.8`; `frontend/src/api/__tests__/wsClient.test.ts`
-and `frontend/src/features/plan/__tests__/WeeklyPlanViewer.test.tsx` use
-constructor-compatible mocks; `frontend/src/lib/__tests__/useTelemetry.test.tsx`
-resets mocked telemetry enablement; `frontend/vitest.config.ts` recalibrates
-only Vitest 4 V8 functions/branches thresholds; `docs/review/PR_FRONTEND_VITEST_4_PREMORTEM.md`
-records pre-open risk closure.
+Evidence: Initial Vitest 4 implementation pins direct Vitest-family packages to exact 4.1.8, fixes test-only constructor/telemetry compatibility, recalibrates only Vitest 4 V8 functions/branches coverage thresholds, and leaves backend/Python/private-index surfaces unchanged.
 
 ## Implementation Evidence
 
@@ -90,6 +83,22 @@ from packet `artifacts/orchestration/task_packets/2a8cf3f4dc4e.json`:
 - `security-auditor` - completed; confirmed coverage recalibration does not
   disable coverage or affect production security/private-index posture.
 - `creative-designer` - completed; confirmed no design impact.
+
+Post-open role order completed from packet
+`artifacts/orchestration/task_packets/958db729a420.json`:
+
+- `agent-coordinator` - completed; confirmed sequential post-open order and no
+  readiness claim while current-head CI/review disposition remained open.
+- `qa-engineer-agent` - completed; found governance blockers in the Phase2 body
+  mirror/fixed-mapping artifact, not frontend runtime behavior.
+- `bug-hunter` - completed; isolated the exact parser failures to wrapped
+  mapping evidence, missing checked Phase2 labels, and PR body `## Tests`.
+- `security-auditor` - completed; found no Python private-index drift,
+  public-PyPI bypass, or production npm audit blocker.
+- `frontend-engineer` - completed; confirmed no further frontend source changes
+  are needed and the remaining patch must stay governance-only.
+- `creative-designer` - completed; confirmed no design, UX, token, asset, or
+  runtime copy impact.
 
 Premortem:
 

@@ -197,6 +197,10 @@ Evidence:
 
 ## Pre-Open Checklist
 
+- [x] Canonical fixed-mapping artifact created: `docs/review/PR_1866_FIXED_MAPPING.md`.
+- [x] PR body includes `## Discussion Thread Pass`.
+- [x] PR body includes `### Fixed in Commit Mapping`.
+- [x] PR body includes `## Merge Readiness`.
 - [x] `check_preflight.py` passed for the scoped frontend paths.
 - [x] `check_agent_consistency.py` passed.
 - [x] Initial role order executed in sequence.
@@ -207,11 +211,12 @@ Evidence:
 - [x] CSS smoke passed.
 - [x] Python private-index preflight passed with explicit
   `PULSEPLATE_PYTHON_INDEX_URL`.
-- [ ] Experiment Runner oracle-only governance evidence recorded.
-- [ ] `pre-commit run --all-files` passed before push.
+- [x] Experiment Runner oracle-only governance evidence recorded.
+- [x] `pre-commit run --all-files` passed before push.
 
 ## Decision
 
-Proceed with changes. Remaining required pre-open work is Experiment Runner
-oracle evidence, pre-commit, commit/push, and replacement PR creation with
-Phase2 body/fixed-mapping artifacts.
+Proceed with changes. Pre-open Experiment Runner oracle evidence, pre-commit,
+commit, push, replacement PR creation, and Phase2 body/fixed-mapping artifacts
+are recorded. Remaining work is post-open review disposition, current-head CI,
+and merge-readiness governance.
