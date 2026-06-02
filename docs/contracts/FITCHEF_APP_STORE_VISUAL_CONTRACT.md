@@ -248,7 +248,7 @@ Rules:
 
 ## Evidence anchors
 
-- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:59`
+- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#pr-1-visual-system-and-app-store-contract`
 - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#artifact-and-asset-governance`
 - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:15`
 - `docs/design/TOKENS_SOT.md:18`

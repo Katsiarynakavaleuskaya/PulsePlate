@@ -94,8 +94,8 @@ PR-2 must enforce repository checks that prove:
 
 ## Evidence anchors
 
-- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:67`
+- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#pr-2-mascot-asset-taxonomy`
 - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#artifact-and-asset-governance`
-- `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md:211`
+- `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md#folder-contract-for-future-pr-3-production-assets`
 - `ios/PulsePlate/Assets.xcassets/FitChef.imageset/Contents.json:1`
 - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json:1`
