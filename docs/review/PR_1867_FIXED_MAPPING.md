@@ -58,10 +58,10 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 6fe6e93ecd2b4ad7f95316982fed7066db829e54 HEAD` returns 0 locally; `gh pr view 1867 --json headRefOid,commits` lists `6fe6e93ecd2b4ad7f95316982fed7066db829e54` as a PR commit.
 Reason: The connector evaluated a non-current/synthetic reviewed commit and incorrectly treated the implementation SHA as a sibling; the mapped SHA is an ancestor of the governed branch head.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343475860 -> 7689add68a6c7638b1e2f2591a0de1c8800a0c62
-Disposition: FIXED
-Commit: 7689add68a6c7638b1e2f2591a0de1c8800a0c62
-Evidence: `docs/review/PR_1867_FIXED_MAPPING.md` was updated to align the reviewed CodeRabbit disposition SHAs with reachable PR commits; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1867 --body "$(gh pr view 1867 --json body --jq .body)" --commit-range origin/main..HEAD` passed after the mapping/body mirror update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343475860
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor b76c22a9cbf0452cc3b8277a25b2dd587848f482 HEAD` and `git merge-base --is-ancestor 1627c5a6d2862a12bbdf04aab915faedbbae0b4c HEAD` both return 0 locally; `gh pr view 1867 --json headRefOid,commits` lists both commits in the current PR history.
+Reason: The review evaluated a non-current reviewed commit. The current governed branch head contains the mapped proof commits and the canonical artifact now mirrors that current-head evidence.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343475855 -> 17ff864c802829b31d453d610f6d7e97424588c8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343475864 -> 17ff864c802829b31d453d610f6d7e97424588c8
