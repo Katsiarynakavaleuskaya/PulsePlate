@@ -32,8 +32,14 @@ Evidence: `docs/review/PR_FRONTEND_VITEST_4_PREMORTEM.md` adds checked fixed-map
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341179936
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#pullrequestreview-4409650129
 Disposition: NOT-A-BUG
-Evidence: `git merge-base --is-ancestor 452629b03 HEAD` and `git merge-base --is-ancestor 9fed1a5d5 HEAD` return 0 locally; `gh pr view 1866 --json headRefOid,commits` lists both SHAs on branch head `129abb783`; `git show -s --format=%B 452629b03` includes the Experiment Runner co-author trailer.
+Evidence: `git merge-base --is-ancestor 452629b03 HEAD` and `git merge-base --is-ancestor 9fed1a5d5 HEAD` return 0 locally; `gh pr view 1866 --json headRefOid,commits` lists both SHAs on branch head `cf3ef2a8817d881a859477ddfba898e1e34e2ca1`; `git show -s --format=%B 452629b03` includes the Experiment Runner co-author trailer.
 Reason: The connector comments evaluated non-current commit `0f2e501d`; PR #1866 is not squashed, the mapped SHAs are branch ancestors, and Experiment Runner attribution is present on the implementation commit materially shaped by the oracle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341255362
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341255368
+Disposition: NOT-A-BUG
+Evidence: `gh pr view 1866 --json headRefOid,commits` reports branch head `cf3ef2a8817d881a859477ddfba898e1e34e2ca1` and still lists `452629b03d44bb895092cedbf7dd72b2dfb6e353` and `9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1` as PR commits; `git merge-base --is-ancestor 452629b03 HEAD` and `git merge-base --is-ancestor 9fed1a5d5 HEAD` return 0; `git show -s --format=%B 452629b03` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The connector comments evaluated non-current synthetic commit `d4dce21d`. PR #1866 is not squashed during review, fixed-thread proof is mapped to actual branch commits, and the Experiment Runner trailer is present on the implementation commit materially shaped by the oracle.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341202747 -> af7c63f0b4315cc5ad567e6d432181a9a70b06b0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#pullrequestreview-4409680313 -> af7c63f0b4315cc5ad567e6d432181a9a70b06b0
@@ -172,14 +178,17 @@ Premortem:
 - `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1866 --body "$(gh pr view 1866 --json body --jq .body)" --commit-range origin/main..HEAD` - PASS.
 - `python3 scripts/ci/check_pr_size_governance.py --base-sha origin/main --head-sha HEAD --body "$(gh pr view 1866 --json body --jq .body)"` - PASS.
 - `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1866 --require-auth` - PASS; both resolved review threads have disposition and post-comment SHA proof.
-- `GH_TOKEN/GITHUB_TOKEN` strict review-governance merge wrapper - PASS; 0 unresolved threads and all actionable bot comments mapped in the canonical artifact.
+- `GH_TOKEN/GITHUB_TOKEN` strict review-governance merge wrapper before the latest connector follow-up - PASS; 0 unresolved threads and all actionable bot comments mapped in the canonical artifact.
 - `pre-commit run --all-files` after governance follow-up - PASS.
 - Pre-push hooks after governance follow-up - PASS.
 - `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS; 13 tests.
+- `gh pr checks 1866 --watch --interval 30` after rerunning transient private-index setup failure - PASS/skip for all current-head jobs; `diff-coverage` rerun job `79075101380` completed successfully.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1866 --body "$(gh pr view 1866 --json body --jq .body)" --commit-range origin/main..HEAD` after Cubic mapping follow-up - PASS.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1866 --require-auth` after Cubic mapping follow-up - PASS; all 5 resolved review threads had disposition and proof before the latest connector follow-up threads were opened.
 
 ## Current CI Status
 
-Current-head CI is not fully green and merge readiness is not claimed.
+Current-head CI after commit `cf3ef2a8817d881a859477ddfba898e1e34e2ca1` passed after rerunning a transient private-index setup failure. This mapping-only follow-up records newly opened connector thread dispositions and will trigger a fresh current-head CI cycle; use live GitHub checks and the strict merge wrapper before any merge-readiness claim.
 
 - PR body Phase2 gates - PASS.
 - `pr_scope_guard` - PASS.
@@ -187,13 +196,10 @@ Current-head CI is not fully green and merge readiness is not claimed.
 - CodeRabbit - PASS / review skipped on latest pushed head after mapped fixes.
 - Sourcery - PASS.
 - Cubic - PASS.
-- `test-pr (3.13)` on run `26819615129` failed in `Setup Python environment`
-  during locked private-index install: `pip` raised `ConnectionResetError:
-  [Errno 104] Connection reset by peer` while downloading from the approved
-  private index. The log shows `PULSEPLATE_PYTHON_INDEX_URL` was set and no
-  public-PyPI fallback was used. This is classified as private-index transport
-  instability/SRE retry evidence, not dependency drift in this PR.
-- This evidence update will trigger a fresh current-head CI run.
+- `test-pr (3.13)` - PASS on current-head rerun.
+- `coverage-pr` - PASS.
+- `diff-coverage` - PASS on rerun job `79075101380`.
+- Prior `test-pr (3.13)` and `diff-coverage` attempts failed in `Setup Python environment` during locked private-index install with `ConnectionResetError: [Errno 104] Connection reset by peer` / `ChunkedEncodingError` while using `PULSEPLATE_PYTHON_INDEX_URL`. No public-PyPI fallback was used; reruns passed through the private-index path.
 
 ## Codex Security Diff Scan
 
@@ -217,6 +223,6 @@ Current-head CI is not fully green and merge readiness is not claimed.
 
 ## Merge Readiness
 
-Not claimed. Full local `make verify` has not been run, current-head CI is not
-fully green, and the latest docs evidence push must complete current-head CI
+Not claimed. Full local `make verify` has not been run, and this mapping-only
+follow-up must complete current-head CI and strict merge-readiness validation
 before any merge-readiness claim.
