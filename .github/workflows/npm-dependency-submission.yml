@@ -34,10 +34,12 @@ jobs:
   dependency-submission:
     name: Submit root npm dependency snapshot
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Detect and submit root npm dependencies
         uses: advanced-security/component-detection-dependency-submission-action@b876b8cc341a53970394b33ea0ca4e86c25542de # v0.1.3
@@ -50,16 +52,27 @@ jobs:
   frontend-dependency-submission:
     name: Submit frontend npm dependency snapshot
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Prepare frontend npm dependency graph root
+        shell: bash
+        run: |
+          set -euo pipefail
+          graph_root="${RUNNER_TEMP}/pulseplate-frontend-dependency-root"
+          rm -rf "${graph_root}"
+          mkdir -p "${graph_root}/frontend"
+          cp frontend/package.json frontend/package-lock.json "${graph_root}/frontend/"
 
       - name: Detect and submit frontend npm dependencies
         uses: advanced-security/component-detection-dependency-submission-action@b876b8cc341a53970394b33ea0ca4e86c25542de # v0.1.3
         with:
           correlator: npm-dependency-submission-frontend
-          filePath: frontend
+          filePath: ${{ runner.temp }}/pulseplate-frontend-dependency-root
           detectorsCategories: Npm
           detectorArgs: NpmLockfile3=EnableIfDefaultOff
           directoryExclusionList: node_modules,worktrees,.venv

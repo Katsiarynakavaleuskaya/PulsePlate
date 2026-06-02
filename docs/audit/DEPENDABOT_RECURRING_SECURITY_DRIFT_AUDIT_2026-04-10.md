@@ -81,11 +81,13 @@ alert.
   frontend npm dependency submission job for `/frontend`.
 - The workflow is intentionally narrow:
   - root npm manifests in the root job only
-  - frontend npm manifests in the frontend job only
+  - frontend npm manifests in the frontend job only, via a temporary graph root
+    that preserves `frontend/package-lock.json` as the submitted manifest path
   - dependency submission only
   - the root job excludes `frontend`, `node_modules`, `worktrees`, `.venv`
-  - the frontend job scans `frontend` and excludes only local/dev artifacts
-    such as `node_modules`, `worktrees`, `.venv`
+  - the frontend job prepares a temporary graph root with only the frontend npm
+    manifests and excludes local/dev artifacts such as `node_modules`,
+    `worktrees`, `.venv`
 - This lane is meant to refresh GitHub graph truth for the root and frontend npm
   surfaces without reopening speculative dependency churn.
 
@@ -125,8 +127,8 @@ loop once the actual runtime fix lands.
 Alert `#153` proves a more specific gap: root npm dependency submission alone is
 not enough for nested npm workspaces when the vulnerable package lives under
 `/frontend`. The workflow must submit frontend npm lockfile state explicitly,
-with a frontend-scoped correlator, so GitHub can update the graph entry attached
-to `frontend/package-lock.json`.
+with a frontend-scoped correlator and a repo-relative manifest source location,
+so GitHub can update the graph entry attached to `frontend/package-lock.json`.
 
 ### 4. Partial Dependabot ecosystem coverage
 

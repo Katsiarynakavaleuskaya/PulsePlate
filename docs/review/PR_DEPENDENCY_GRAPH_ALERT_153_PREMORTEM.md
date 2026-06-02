@@ -6,18 +6,17 @@ Packet: `artifacts/orchestration/task_packets/85771c03a883.json`
 Branch: `codex/frontend-dependency-graph-alert-153`
 
 It is 48 hours after merge. The PR landed, but Dependabot alert `#153` stayed
-open or reviewers lost confidence because the graph-refresh lane mixed a
-security workflow fix with a small backlog ledger closeout. This premortem
-records the failure modes found against the actual scoped diff before PR open.
+open or reviewers lost confidence because the graph-refresh lane submitted the
+wrong manifest path or mixed unrelated ledger governance into the security
+workflow fix. This premortem records the failure modes found against the actual
+scoped diff before PR open and the post-open closure for review-validated risks.
 
 ## Summary
 
-The plan adds frontend npm dependency submission for `/frontend`, documents
-`CVE-2026-47429` / `GHSA-5xrq-8626-4rwp` graph drift, and marks the already
-merged Philosophy PR-5 source-corpus ledger row complete. Success means GitHub
-can ingest `frontend/package-lock.json` truth from `main` while repo docs make
-clear that `vitest@4.1.8` is already patched and semantic-cache/runtime gates
-remain closed.
+The plan adds frontend npm dependency submission for `/frontend` and documents
+`CVE-2026-47429` / `GHSA-5xrq-8626-4rwp` graph drift. Success means GitHub can
+ingest `frontend/package-lock.json` truth from `main` while repo docs make clear
+that `vitest@4.1.8` is already patched.
 
 ## Failure Modes
 
@@ -33,13 +32,16 @@ Underlying assumption: Root npm dependency submission is enough for a nested
 frontend lockfile.
 
 Early warning signs: `.github/workflows/npm-dependency-submission.yml` omits
-`frontend/package-lock.json` from triggers, the frontend job lacks
-`filePath: frontend`, or the frontend job excludes `frontend`.
+`frontend/package-lock.json` from triggers, the frontend job scans directly from
+`filePath: frontend`, or the submitted graph root cannot preserve
+`frontend/package-lock.json` as a repo-relative manifest path.
 
 Closure: FIXED. The workflow now triggers on `frontend/package.json` and
 `frontend/package-lock.json`, adds a frontend job with
-`correlator: npm-dependency-submission-frontend`, and uses `filePath:
-frontend`. Guard coverage in
+`correlator: npm-dependency-submission-frontend`, prepares a temporary graph
+root containing `frontend/package.json` and `frontend/package-lock.json`, and
+uses that graph root as the action `filePath` so the submitted manifest path
+stays `frontend/package-lock.json`. Guard coverage in
 `tests/guards/test_security_devtooling_regression_guards.py` asserts these
 properties.
 
@@ -57,28 +59,28 @@ Early warning signs: The diff touches `frontend/package-lock.json`,
 `frontend/package.json`, `.github/dependabot.yml`, requirements files, or adds
 permissions beyond `contents: write`.
 
-Closure: FIXED. The diff is limited to the npm submission workflow, deterministic
-guards, security/audit docs, one premortem artifact, and the Philosophy PR-5
-ledger row. No Python/private-index, package-lock, backend, OpenAPI, Docker,
-Trivy, frontend runtime, or semantic-cache runtime files are changed.
+Closure: FIXED. The diff is limited to the npm submission workflow,
+deterministic guards, security/audit docs, and review evidence. No
+Python/private-index, package-lock, backend, OpenAPI, Docker, Trivy, frontend
+runtime, ledger, or semantic-cache runtime files are changed.
 
-### PM-153-003: The bundled Philosophy PR-5 closeout reopens a closed gate
+### PM-153-003: The bundled Philosophy PR-5 closeout violates ledger closeout policy
 
-Failure story: The backlog ledger checkbox is flipped, but the status text drops
-the semantic-cache safeguards. A later agent reads the completed row as a signal
-that runtime semantic-cache work is now allowed.
+Failure story: The PR tries to close an already-merged Philosophy PR-5 ledger
+row in the same branch as the security workflow fix. Reviewers reject the mixed
+scope under the backlog ledger policy that completed ledger items require a
+separate docs-only closeout PR.
 
-Underlying assumption: A docs-only closeout cannot affect runtime governance.
+Underlying assumption: A small status-only ledger carryover is harmless inside a
+security workflow PR.
 
-Early warning signs: The row loses `Semantic-cache runtime handoff remains
-blocked`, loses `all machine markers stay closed/false`, or no guard checks the
-PR #1822 merge evidence.
+Early warning signs: CodeRabbit or repo governance asks to remove the ledger
+closeout from the security PR; `AGENTS.md` points to the docs-only closeout
+requirement.
 
-Closure: FIXED. The ledger row keeps the semantic-cache/runtime blockers and
-adds PR #1822 merge evidence (`2026-05-26`,
-`740a64fb7d87d404076117698bee5d4bee71f390`). Guard coverage asserts the row is
-complete, cites PR #1822, omits stale `Active branch` wording, and preserves the
-closed runtime markers.
+Closure: FIXED. The Philosophy PR-5 ledger change and its guard were removed
+from PR #1868. The ledger closeout remains a separate docs-only governance
+follow-up and is not used as part of the Dependabot alert #153 graph fix.
 
 ### PM-153-004: Audit evidence is misread as a full frontend security clean bill
 

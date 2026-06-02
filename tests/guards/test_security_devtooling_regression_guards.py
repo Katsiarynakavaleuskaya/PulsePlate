@@ -29,7 +29,6 @@ from scripts.evals import judgment_validity
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKEFILE = REPO_ROOT / "Makefile"
-BACKLOG_LEDGER = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
 PYTHON_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/python-dependency-submission.yml"
 NPM_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/npm-dependency-submission.yml"
 PIP_AUDIT_HELPER = REPO_ROOT / "scripts/ci_pip_audit.sh"
@@ -96,17 +95,22 @@ def _job_action_step(workflow: dict[str, Any], *, job_id: str, action_name: str)
     raise AssertionError(f"missing {action_name} step in {job_id}")
 
 
+def _job_named_step(workflow: dict[str, Any], *, job_id: str, step_name: str) -> dict[str, Any]:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict), "workflow jobs must be a mapping"
+    job = jobs[job_id]
+    assert isinstance(job, dict), f"{job_id} job must be a mapping"
+    steps = job["steps"]
+    assert isinstance(steps, list), f"{job_id} steps must be a list"
+    for step in steps:
+        if isinstance(step, dict) and step.get("name") == step_name:
+            return step
+    raise AssertionError(f"missing {step_name} step in {job_id}")
+
+
 def _csv_values(value: object) -> set[str]:
     assert isinstance(value, str), "expected comma-separated string"
     return {item.strip() for item in value.split(",") if item.strip()}
-
-
-def _backlog_item(anchor: str) -> str:
-    text = BACKLOG_LEDGER.read_text(encoding="utf-8")
-    start_marker = f'<a id="{anchor}"></a>'
-    start = text.index(start_marker)
-    next_item = text.find("\n<a id=", start + len(start_marker))
-    return text[start:] if next_item == -1 else text[start:next_item]
 
 
 def _function_source(module_path: Path, function_name: str) -> str:
@@ -384,11 +388,35 @@ def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:
             "c25542de",
         )
     )
+    checkout_action = "actions/checkout@" + "".join(
+        (
+            "de0fac2e",
+            "4500dabe",
+            "0009e672",
+            "14ff5f54",
+            "47ce83dd",
+        )
+    )
     root_step = _job_action_step(workflow, job_id="dependency-submission", action_name=action)
     frontend_step = _job_action_step(
         workflow,
         job_id="frontend-dependency-submission",
         action_name=action,
+    )
+    root_checkout = _job_action_step(
+        workflow,
+        job_id="dependency-submission",
+        action_name=checkout_action,
+    )
+    frontend_checkout = _job_action_step(
+        workflow,
+        job_id="frontend-dependency-submission",
+        action_name=checkout_action,
+    )
+    frontend_prepare = _job_named_step(
+        workflow,
+        job_id="frontend-dependency-submission",
+        step_name="Prepare frontend npm dependency graph root",
     )
 
     root_with = root_step["with"]
@@ -396,6 +424,15 @@ def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:
     assert isinstance(root_with, dict)
     assert isinstance(frontend_with, dict)
 
+    jobs = workflow["jobs"]
+    assert jobs["dependency-submission"]["timeout-minutes"] == (
+        "${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}"
+    )
+    assert jobs["frontend-dependency-submission"]["timeout-minutes"] == (
+        "${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}"
+    )
+    assert root_checkout["with"] == {"persist-credentials": False}
+    assert frontend_checkout["with"] == {"persist-credentials": False}
     assert root_with["correlator"] == "npm-dependency-submission-root"
     assert frontend_with["correlator"] == "npm-dependency-submission-frontend"
     assert root_with["correlator"] != frontend_with["correlator"]
@@ -407,30 +444,16 @@ def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:
     root_exclusions = _csv_values(root_with["directoryExclusionList"])
     frontend_exclusions = _csv_values(frontend_with["directoryExclusionList"])
     assert root_exclusions == {"frontend", "node_modules", "worktrees", ".venv"}
-    assert frontend_with["filePath"] == "frontend"
+    assert root_with.get("filePath") in {None, "", "."}
+    assert frontend_prepare["shell"] == "bash"
+    prepare_script = str(frontend_prepare["run"])
+    assert "pulseplate-frontend-dependency-root" in prepare_script
+    assert "mkdir -p" in prepare_script
+    assert "frontend/package.json frontend/package-lock.json" in prepare_script
+    assert frontend_with["filePath"] == ("${{ runner.temp }}/pulseplate-frontend-dependency-root")
+    assert frontend_with["filePath"] != "frontend"
     assert "frontend" not in frontend_exclusions
     assert {"node_modules", "worktrees", ".venv"}.issubset(frontend_exclusions)
-
-
-def test_philosophy_pr5_source_corpus_backlog_closeout_tracks_pr1822() -> None:
-    item = _backlog_item("ledger-p1-philosophy-epic-v2-pr5-source-corpus-index")
-
-    assert "- [x] P1: Philosophy Epic V2 PR-5" in item
-    assert "PR #1822" in item
-    assert "2026-05-26" in item
-    merge_commit = "".join(
-        (
-            "740a64fb",
-            "7d87d404",
-            "07611769",
-            "8bee5d4b",
-            "ee71f390",
-        )
-    )
-    assert merge_commit in item
-    assert "Active branch" not in item
-    assert "Semantic-cache runtime handoff remains blocked" in item
-    assert "all machine markers stay closed/false" in item
 
 
 def test_judgment_validity_sidecars_only_use_symlink_safe_writer() -> None:
