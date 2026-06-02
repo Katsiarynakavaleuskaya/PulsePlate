@@ -175,6 +175,16 @@ Disposition: FIXED
 Commit: 2199ce08ffcb03531bcab6dbb898cb4f9bd0e1c2
 Evidence: `docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md` now allows reviewed stable section anchors as well as explicit `path:line-line` anchors under the evidence contract.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341919821 -> d1e3ade97e988a7ad454f060881eb9a8ae555dbf
+Disposition: FIXED
+Commit: d1e3ade97e988a7ad454f060881eb9a8ae555dbf
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now removes the remaining co-author reason wording from the committed evidence summary; branch commits still carry the governed Experiment Runner trailer and the standalone squash trailer remains in the PR body.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341919829
+Disposition: NOT-A-BUG
+Evidence: The review comment evaluates a synthetic squash-preview SHA rather than the committed PR branch. Canonical disposition proof remains the per-thread branch-history commit mapping validated by `check_review_threads_disposition.py --require-auth` and current-head CI.
+Reason: Synthetic squash-preview SHAs are not branch-history proof and cannot be used as commit-after-comment mapping targets; the mapping artifact intentionally keeps actual branch commit proof.
+
 ## Carryover
 
 Disposition: FIXED
