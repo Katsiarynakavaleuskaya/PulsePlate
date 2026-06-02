@@ -152,6 +152,14 @@ Additional freeze points:
 Future public FitChef structured-coach responses must be schema-driven and
 renderable by thin clients without parsing prose into product state.
 
+The landed PRO Distortion Simulator route is already governed by
+`FitChefDistortionSimulatorResponse`, with `scenario`, `distortion_labels`,
+`distorted_thought`, `balanced_reframe`, `micro_action`, `source_modules`,
+`used_llm`, `quota_state`, `disclaimers`, `transparency_notice_id`, and
+`wellness_boundary`. The generic envelope direction below is for unimplemented
+structured-coach follow-ups only and must not override the landed OpenAPI
+schema.
+
 ### CBT Coaching Wave framework
 
 Future bounded coaching surfaces should align to the default framework:
@@ -161,7 +169,7 @@ Future bounded coaching surfaces should align to the default framework:
 This framework is additive guidance for future implementation PRs. It does not change the
 status of current routes or current public envelopes in this contract lane.
 
-### Required top-level direction
+### Future follow-up top-level direction
 
 - `mode: str`
 - `title: str`
