@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 from typing import Any, cast
 
@@ -35,6 +36,13 @@ PROVIDER_TYPE = "experiment_runner_operator_plane"
 DEFAULT_LEDGER_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "operator_ledger"
 IDEMPOTENCY_KEY_ITERATIONS = 120_000
 IDEMPOTENCY_KEY_NAMESPACE = b"pulseplate-operator-ledger-idempotency-v1"
+PII_SHAPED_ARTIFACT_RE = re.compile(
+    r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|" r"\b\+?\d[\d .()_-]{7,}\d\b)"
+)
+LOCAL_PATH_SEGMENT_RE = re.compile(
+    r"(^|/)(Users|home|var|opt|tmp|private|Volumes|etc|usr|Library|System)(/|$)"
+)
+WINDOWS_DRIVE_SEGMENT_RE = re.compile(r"(^|/)[A-Za-z]:/")
 
 ALLOWED_COMMAND_KINDS = frozenset(
     {"help", "kpp-status", "mvp-evidence", "status", "run-experiment", "oracle-review"}
@@ -226,6 +234,14 @@ def _validate_artifact_ref(value: Any) -> str:
         return normalized
     if SLACK_IDENTIFIER_RE.search(normalized):
         raise OperatorLedgerError("Experiment operator ledger artifact reference is invalid.")
+    normalized_ref = normalized.replace("\\", "/")
+    if (
+        "//" in normalized_ref
+        or PII_SHAPED_ARTIFACT_RE.search(normalized_ref)
+        or LOCAL_PATH_SEGMENT_RE.search(normalized_ref)
+        or WINDOWS_DRIVE_SEGMENT_RE.search(normalized_ref)
+    ):
+        raise OperatorLedgerError("Experiment operator ledger artifact reference is invalid.")
     safe = safe_artifact_ref(normalized)
     if safe in {"[redacted-ref]", "none"}:
         raise OperatorLedgerError("Experiment operator ledger artifact reference is invalid.")
@@ -239,6 +255,8 @@ def _validate_task_packet_id(value: Any) -> str:
     if not normalized or len(normalized) > 64:
         raise OperatorLedgerError("Experiment operator ledger task packet id is invalid.")
     if not all(char.isalnum() or char in {"-", "_"} for char in normalized):
+        raise OperatorLedgerError("Experiment operator ledger task packet id is invalid.")
+    if SLACK_IDENTIFIER_RE.search(normalized):
         raise OperatorLedgerError("Experiment operator ledger task packet id is invalid.")
     return normalized
 
@@ -352,6 +370,11 @@ def normalize_operator_ledger_event(payload: dict[str, Any]) -> OperatorLedgerRe
         normalized[field] = _validate_hash(payload[field])
     for field in sorted(AUTHORITY_FIELDS):
         normalized[field] = _validate_false(payload[field], label=field)
+    if normalized["status"] in {"dry_run", "dispatched", "observed"}:
+        if normalized["failure_class"] != "none":
+            raise OperatorLedgerError("Experiment operator ledger status/failure pair is invalid.")
+    elif normalized["failure_class"] == "none":
+        raise OperatorLedgerError("Experiment operator ledger status/failure pair is invalid.")
     if normalized["coauthor_required"] and normalized["coauthor_decision"] != "required":
         raise OperatorLedgerError("Experiment operator ledger coauthor decision is invalid.")
     normalized["idempotency_key"] = _idempotency_key(normalized)
@@ -391,7 +414,12 @@ def _validate_ledger_dir(ledger_dir: Path, *, repo_root: Path) -> Path:
     return candidate
 
 
-def _validate_output_path(output_path: Path, *, repo_root: Path) -> Path:
+def _validate_output_path(
+    output_path: Path,
+    *,
+    repo_root: Path,
+    ledger_dir: Path | None = None,
+) -> Path:
     artifact_root = _artifact_root(repo_root)
     candidate = output_path.expanduser()
     if not candidate.is_absolute():
@@ -404,6 +432,21 @@ def _validate_output_path(output_path: Path, *, repo_root: Path) -> Path:
         raise OperatorLedgerError(
             "Experiment operator ledger output must stay under artifacts/orchestration/experiments."
         ) from exc
+    event_dir = (
+        _validate_ledger_dir(
+            ledger_dir or default_ledger_dir(repo_root),
+            repo_root=repo_root,
+        )
+        / "events"
+    )
+    try:
+        candidate.relative_to(event_dir)
+    except ValueError:
+        pass
+    else:
+        raise OperatorLedgerError(
+            "Experiment operator ledger output must not target the reserved event store."
+        )
     try:
         _reject_symlinked_output_components(
             candidate,
@@ -431,6 +474,8 @@ def write_operator_ledger_event(
         ledger_dir or default_ledger_dir(effective_root),
         repo_root=effective_root,
     )
+    if target_dir.exists() and not target_dir.is_dir():
+        raise OperatorLedgerError("Existing Experiment operator ledger directory is invalid.")
     event_dir = target_dir / "events"
     event_dir.mkdir(parents=True, exist_ok=True)
     path = event_dir / f"{record.idempotency_key}.json"
@@ -478,6 +523,8 @@ def load_operator_ledger_events(
         ledger_dir or default_ledger_dir(effective_root),
         repo_root=effective_root,
     )
+    if target_dir.exists() and not target_dir.is_dir():
+        raise OperatorLedgerError("Existing Experiment operator ledger directory is invalid.")
     event_dir = target_dir / "events"
     if not event_dir.exists():
         return []
@@ -724,7 +771,11 @@ def main(argv: list[str] | None = None) -> int:
                 + "\n"
             )
         if args.output:
-            output_path = _validate_output_path(Path(args.output), repo_root=REPO_ROOT)
+            output_path = _validate_output_path(
+                Path(args.output),
+                repo_root=REPO_ROOT,
+                ledger_dir=ledger_dir,
+            )
             try:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_text(rendered, encoding="utf-8")
