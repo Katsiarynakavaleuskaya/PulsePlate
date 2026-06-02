@@ -194,6 +194,16 @@ Disposition: NOT-A-BUG
 Evidence: The referenced `6176459f4c00789c3e624aaa3b0e8ad50d5394bf` is not a valid local branch commit; the proof commits named by the comment, including `d3313675c`, `670fc8e3`, and `d1e3ade9`, are ancestors of the actual PR branch history.
 Reason: The comment evaluates a review-tool synthetic squash-preview SHA rather than the committed PR branch history used by the repo disposition guard.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343160411 -> 300416677
+Disposition: FIXED
+Commit: 300416677
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now narrows attribution wording to material commits and repo merge/disposition policy, without claiming that PR-body text replaces commit trailers or that synthetic squash-preview SHAs are proof targets.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343160418 -> 300416677
+Disposition: FIXED
+Commit: 300416677
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now describes the mapping as repo disposition proof for resolved GitHub review threads and explicitly excludes synthetic squash-preview SHAs from canonical proof targets.
+
 ## Carryover
 
 Disposition: FIXED
