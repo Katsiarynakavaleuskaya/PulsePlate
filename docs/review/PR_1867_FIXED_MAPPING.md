@@ -94,6 +94,19 @@ Disposition: FIXED
 Commit: a6f66cd7c92c2a25ea2c9eaea5bcbb204802e564
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now reserves both the active ledger event store and the canonical default `operator_ledger/events` store for summary output validation, preventing custom `--ledger-dir` report output from poisoning the default local ledger; `tests/test_experiment_operator_ledger.py` covers the custom-ledger/default-event-store regression. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344051166 -> ad3ced89cd95c6d6fca6296152f288818089ef9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344051171 -> ad3ced89cd95c6d6fca6296152f288818089ef9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344051175 -> ad3ced89cd95c6d6fca6296152f288818089ef9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344051176 -> ad3ced89cd95c6d6fca6296152f288818089ef9f
+Disposition: FIXED
+Commit: ad3ced89cd95c6d6fca6296152f288818089ef9f
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now validates `--output` before `--record` mutates the local ledger and validates persisted event records without recomputing PBKDF2 idempotency keys on read paths; `tests/test_experiment_operator_ledger.py` isolates direct CLI summary invocation with a non-existent custom ledger dir; `docs/review/PR_1867_FIXED_MAPPING.md` removes local absolute paths from committed evidence. Focused ledger tests, the broader Slack/operator suite, mapping guard tests, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344088083 -> 242ae45bd922cedf5f5a17e0b42ce4f5f1708972
+Disposition: FIXED
+Commit: 242ae45bd922cedf5f5a17e0b42ce4f5f1708972
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` rejects any summary output path containing an `events` path segment under `artifacts/orchestration/experiments/`, while still validating the requested ledger directory; `tests/test_experiment_operator_ledger.py` covers a custom `custom_a` ledger attempting to write into `custom_b/events/report.json`. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
 ## Implementation Evidence
 
 Security-auditor post-open ledger-integrity finding:
@@ -184,6 +197,15 @@ Premortem:
 - `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after connector custom-ledger/default-event-store fix.
 - `make validate-changed` - PASS after connector custom-ledger/default-event-store fix.
 - `pre-commit run --all-files` - PASS after connector custom-ledger/default-event-store fix.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` - PASS after connector output-prevalidation/read-performance/test-isolation fixes.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after connector output-prevalidation/read-performance/test-isolation fixes.
+- `repo-resolved python -m pytest -q tests/test_review_mapping_artifact.py tests/test_pr_body_phase2_gates.py` - PASS after connector fixed-mapping redaction/update.
+- `make validate-changed` - PASS after connector output-prevalidation/read-performance/test-isolation fixes.
+- `pre-commit run --all-files` - PASS after connector output-prevalidation/read-performance/test-isolation fixes and mapping update.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` - PASS after generic event-store output rejection fix.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after generic event-store output rejection fix.
+- `make validate-changed` - PASS after generic event-store output rejection fix.
+- `pre-commit run --all-files` - PASS after generic event-store output rejection fix.
 - `git push -u origin codex/experiment-runner-operator-plane` pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full Bandit, and Docker build test.
 - Codex Security report-format validation command against the local markdown report - PASS.
 - Codex Security HTML render command against the local markdown report - PASS.
