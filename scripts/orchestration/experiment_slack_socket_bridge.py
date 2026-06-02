@@ -29,6 +29,7 @@ try:
     from scripts.orchestration import experiment_slack_bridge_dispatch as _dispatch
     from scripts.orchestration import experiment_slack_bridge_rendering as _rendering
     from scripts.orchestration import experiment_slack_bridge_transport as _transport
+    from scripts.orchestration import experiment_operator_ledger as _operator_ledger
     from scripts.orchestration.experiment_slack_bridge_commands import (
         _read_json_object,
         _require_authorized_event,
@@ -246,6 +247,7 @@ __all__ = (
     "process_payload",
     "render_dispatch_dry_run_preview",
     "render_kpp_status_overview",
+    "render_latest_operator_ledger_summary",
     "render_mvp_evidence_summary",
     "render_operator_help_message",
     "render_operator_status_message",
@@ -319,6 +321,15 @@ def render_mvp_evidence_summary() -> SlackSafeMessage:
     return _rendering.render_mvp_evidence_summary(
         snapshot_reader=_read_latest_snapshot_line,
         allowed_event_names=_MVP_ALLOWED_EVENT_NAMES,
+    )
+
+
+def render_latest_operator_ledger_summary() -> tuple[str, ...]:
+    """Render latest local operator ledger summary using the facade repo root."""
+
+    return cast(
+        tuple[str, ...],
+        _operator_ledger.latest_operator_ledger_summary(repo_root=Path(REPO_ROOT)),
     )
 
 
@@ -686,7 +697,13 @@ def _format_command_reply(
     if command.kind == "help":
         return cast(str, render_operator_help_message().as_text())
     if command.kind == "status":
-        return cast(str, render_operator_status_message(config).as_text())
+        return cast(
+            str,
+            render_operator_status_message(
+                config,
+                operator_ledger_summary=render_latest_operator_ledger_summary(),
+            ).as_text(),
+        )
     if command.kind == "kpp-status":
         return cast(str, render_kpp_status_overview().as_text())
     if command.kind == "mvp-evidence":

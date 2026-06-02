@@ -14,6 +14,7 @@ import pytest
 import yaml
 
 import scripts.orchestration.context_pack as context_pack
+from scripts.orchestration import experiment_operator_ledger
 from scripts.orchestration import experiment_slack_socket_bridge as bridge
 from scripts.orchestration.experiment_slack_socket_bridge import LIVE_APPROVAL_SHA256_ENV
 from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE
@@ -344,6 +345,70 @@ def test_operator_status_requires_team_allowlist_for_configured_status(
 
     assert "Status: `incomplete`" in output
     assert "team_allowlist_present=false" in output
+
+
+def _operator_ledger_event(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "branch_hash": bridge._sha256_text("feature/operator-plane"),
+        "channel_hash": bridge._sha256_text("C0SECRET"),
+        "claimed_merge_readiness": False,
+        "coauthor_decision": "not_required",
+        "coauthor_required": False,
+        "command_kind": "status",
+        "created_pr": False,
+        "dispatch_mode": "dry-run",
+        "event_hash": bridge._sha256_text("Ev0SECRET"),
+        "failure_class": "none",
+        "generated_at": "2026-06-02T14:00:00+00:00",
+        "human_review_outcome": "pending",
+        "hypothesis_hash": bridge._sha256_text("raw hypothesis must not render"),
+        "oracle_result_hash": bridge._sha256_text("oracle result"),
+        "oracle_result_ref": ("artifacts/orchestration/experiments/results/operator-plane.json"),
+        "policy_version": experiment_operator_ledger.POLICY_VERSION,
+        "product_runtime_changed": False,
+        "provider_type": experiment_operator_ledger.PROVIDER_TYPE,
+        "redaction_version": experiment_operator_ledger.REDACTION_VERSION,
+        "resolved_review_threads": False,
+        "retention_days": experiment_operator_ledger.DEFAULT_RETENTION_DAYS,
+        "schema_version": experiment_operator_ledger.SCHEMA_VERSION,
+        "slack_audit_hash": bridge._sha256_text("slack audit"),
+        "slack_audit_ref": ("artifacts/orchestration/experiments/slack_socket_bridge/audit.json"),
+        "status": "dry_run",
+        "task_packet_id": "792c1fdf2e55",
+        "team_hash": bridge._sha256_text("T0SECRET"),
+        "user_hash": bridge._sha256_text("U0DENIED"),
+        "workflow_file": "experiment-runner-dispatch.yml",
+        "workflow_ref": "main",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_operator_status_includes_redacted_local_operator_ledger_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    repo_root = audit_dir.parents[3]
+    _configure_env(monkeypatch)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+    experiment_operator_ledger.write_operator_ledger_event(
+        _operator_ledger_event(),
+        repo_root=repo_root,
+    )
+
+    output = bridge._format_command_reply(bridge.OperatorCommand(kind="status"), config)
+
+    assert "operator_ledger_status=dry_run" in output
+    assert "operator_ledger_authority=display_only" in output
+    assert bridge._sha256_text("feature/operator-plane")[:16] in output
+    assert "C0SECRET" not in output
+    assert "U0DENIED" not in output
+    assert "T0SECRET" not in output
+    assert "feature/operator-plane" not in output
+    assert "raw hypothesis" not in output
+    assert "/Users/" not in output
+    assert "mergeable" not in output.lower()
 
 
 def test_mvp_evidence_event_contract_matches_frontend_source() -> None:
@@ -2021,6 +2086,37 @@ def test_slack_app_manifest_is_socket_mode_and_secret_free() -> None:
     assert SLACK_IDENTIFIER_RE.search(manifest_text) is None
 
 
+def test_slack_operator_command_surface_is_not_widened() -> None:
+    manifest = yaml.safe_load(SLACK_MANIFEST_PATH.read_text(encoding="utf-8"))
+
+    assert bridge.ALLOWED_COMMANDS == {
+        "help",
+        "kpp-status",
+        "mvp-evidence",
+        "run-experiment",
+        "status",
+    }
+    assert manifest["features"]["slash_commands"] == [
+        {
+            "command": "/run-experiment",
+            "description": (
+                "Request a bounded Experiment Runner dispatch from an allowlisted operator."
+            ),
+            "usage_hint": "<branch> <hypothesis>",
+            "should_escape": False,
+        },
+        {
+            "command": "/pulseplate-runner",
+            "description": (
+                "Show bounded Experiment Runner status, KPP outcome catalog, "
+                "and MVP evidence summaries."
+            ),
+            "usage_hint": "help | status | kpp-status | mvp-evidence",
+            "should_escape": False,
+        },
+    ]
+
+
 def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     workflow = _load_workflow(DISPATCH_WORKFLOW_PATH)
     workflow_text = DISPATCH_WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -2097,6 +2193,13 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "`SLACK_SIGNING_SECRET` is therefore not used" in runbook
     assert "Any future HTTP Slack" in runbook
     assert "ingress must add Slack signature verification" in runbook
+    assert "Slack App Asset Policy" in runbook
+    assert "experiment_runner_logo_slack.png" in runbook
+    assert "source, ownership, and allowed use" in runbook
+    assert "Local Operator Ledger and Report" in runbook
+    assert "artifacts/orchestration/experiments/operator_ledger/" in runbook
+    assert "No new Slack command is required" in runbook
+    assert "invalid_local_artifact" in runbook
     execute_gate = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=" + "reviewed-dry-run-dispatch"
     assert execute_gate in runbook
     assert "Operators must not put emails, names, phone numbers" in runbook
