@@ -83,7 +83,9 @@ alert.
   - root npm manifests in the root job only
   - frontend npm manifests in the frontend job only, via a temporary graph root
     that preserves `frontend/package-lock.json` as the submitted manifest path
-  - dependency submission only
+  - dependency submission only on `push` to `main` or `workflow_dispatch`
+  - pull requests run a read-only validation job so Dependabot/fork PR tokens do
+    not fail while trying to call the dependency submission API
   - the root job excludes `frontend`, `node_modules`, `worktrees`, `.venv`
   - the frontend job prepares a temporary graph root with only the frontend npm
     manifests and excludes local/dev artifacts such as `node_modules`,
@@ -188,9 +190,9 @@ direct causes of the remaining `axios` alert family (`#105` + `#106`).
    - alert state,
    - SBOM/package view,
    - current-head workflow completion.
-5. For alert `#153`, confirm `NPM Dependency Submission` succeeds on `main` and
-   the frontend graph no longer reports `vitest@3.2.4` before treating the
-   Dependabot alert as graph-converged.
+5. For alert `#153`, confirm `NPM Dependency Submission` succeeds on `main`
+   after merge and the frontend graph no longer reports `vitest@3.2.4` before
+   treating the Dependabot alert as graph-converged.
 6. Keep security PRs narrow, but do not use a recurring-drift audit as a
    substitute for fixing a still-live runtime dependency path.
 

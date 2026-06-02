@@ -425,6 +425,15 @@ def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:
     assert isinstance(frontend_with, dict)
 
     jobs = workflow["jobs"]
+    pr_validation_job = jobs["dependency-submission-pr-validation"]
+    assert pr_validation_job["if"] == "github.event_name == 'pull_request'"
+    assert pr_validation_job["permissions"] == {"contents": "read"}
+    assert pr_validation_job["timeout-minutes"] == (
+        "${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}"
+    )
+    assert "dependency submission API" in pr_validation_job["steps"][0]["run"]
+    assert jobs["dependency-submission"]["if"] == "github.event_name != 'pull_request'"
+    assert jobs["frontend-dependency-submission"]["if"] == ("github.event_name != 'pull_request'")
     assert jobs["dependency-submission"]["timeout-minutes"] == (
         "${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}"
     )

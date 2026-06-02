@@ -31,8 +31,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dependency-submission-pr-validation:
+    name: Validate npm dependency submission trigger
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
+    permissions:
+      contents: read
+    steps:
+      - name: Confirm dependency submission is main-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Dependency snapshots are submitted on push to main or workflow_dispatch only."
+          echo "Pull requests validate this workflow without calling the dependency submission API."
+
   dependency-submission:
     name: Submit root npm dependency snapshot
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
     steps:
@@ -51,6 +67,7 @@ jobs:
 
   frontend-dependency-submission:
     name: Submit frontend npm dependency snapshot
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
     steps:
