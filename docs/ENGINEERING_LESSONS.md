@@ -518,6 +518,46 @@ already merged:
 
 ---
 
+## 22) Do not loop on synthetic squash-preview review comments
+
+### Problem
+Automated review tools can review a synthetic squash/current-head commit that is
+not the live PR branch head. If agents respond by adding another mapping-only
+commit for every repeated synthetic hash, the next push can generate a new
+synthetic hash and restart the same review loop.
+
+### Real incident pattern
+Governance PRs with Experiment Runner attribution and fixed-mapping evidence can
+receive repeated comments saying:
+
+- mapped commits are not ancestors of the synthetic squash-preview commit
+- the synthetic squash-preview commit message lacks the Experiment Runner
+  `Co-authored-by` trailer
+
+The live branch history can still be correct, and the final squash merge message
+can still preserve the trailer, while each new mapping commit creates a fresh
+review target.
+
+### Rule
+When the same synthetic squash-preview concern repeats:
+
+1. Fix real code or workflow defects exactly once.
+2. Record one stable disposition with live branch-head evidence.
+3. Put the required squash-merge trailer in the PR body as raw trailer text, not
+   only inside prose or code fences.
+4. Do not keep creating mapping-only commits for each new synthetic hash.
+5. If the bot repeats the same already-dispositioned synthetic concern after the
+   stable evidence is present, stop and escalate to the operator or repo
+   governance owner instead of entering a commit/review loop.
+
+### Use instead
+- Live branch ancestry checks against `HEAD`.
+- Exact review-thread dispositions for the first occurrence.
+- One raw PR-body squash trailer:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- A clear PR comment explaining that the synthetic hash is not the canonical
+  pre-merge branch-history proof.
+
 ## 22) Advisory wording must not make role gates skippable
 
 ### Problem

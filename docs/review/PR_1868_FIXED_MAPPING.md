@@ -6,7 +6,7 @@
 dependency graph can ingest the already-patched Vitest `4.1.8` frontend
 lockfile state for Dependabot alert `#153`.
 **Primary implementation commits:** `4cc76042c`, `4d7951f47`, `e705444ee`,
-`66de78461`, `2138af99e`, `a992afdca`
+`66de78461`, `2138af99e`, `a992afdca`, `d882f7ad5`
 
 ## Discussion Thread Pass
 
@@ -69,6 +69,31 @@ Evidence: Commit `a992afdca30e095340ff7eb26220269dd9e7f676` corrects the invalid
 Disposition: NOT-A-BUG
 Evidence: `git diff --name-only origin/main...HEAD -- docs/roadmap/BACKLOG_LEDGER.md` prints no files, and `git diff --name-only origin/main...HEAD` lists only the six workflow/docs/security/guard files in this PR.
 Reason: Cubic identified a stale mixed-scope ledger concern from pre-narrowing context; the final branch does not change `docs/roadmap/BACKLOG_LEDGER.md` and cannot reopen the Philosophy PR-5 backlog item.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3344153212 -> d882f7ad518d3355ee9403c0db51bc3d7720034b
+Disposition: FIXED
+Commit: d882f7ad518d3355ee9403c0db51bc3d7720034b
+Evidence: Commit `d882f7ad518d3355ee9403c0db51bc3d7720034b` gates both npm dependency submission jobs with `if: github.event_name != 'pull_request'`, adds a read-only PR validation job, and updates the guard test so Dependabot/fork PRs do not call the dependency submission API with read-only tokens.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3344017744
+Disposition: NOT-A-BUG
+Evidence: `git log --format=%B origin/main..HEAD` shows each branch commit made after Experiment Runner contribution carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`; the synthetic reviewed commit `ccc5cbb7abfe` is not the live branch head used by the canonical mapping guard.
+Reason: The repo's pre-merge disposition contract maps proof to branch commits and separately requires the squash merge operator to preserve the canonical trailer in the final squash commit message.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3344153206
+Disposition: NOT-A-BUG
+Evidence: Same Experiment Runner trailer evidence as `discussion_r3344017744`; the synthetic reviewed commit `23b7dc66058e` is not the live branch head used by the canonical mapping guard.
+Reason: The final squash commit must preserve the canonical trailer, but the synthetic review hash is not the canonical pre-merge branch-history proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3344017753
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor a992afdca30e095340ff7eb26220269dd9e7f676 HEAD` and `git merge-base --is-ancestor 4d7951f478c1bffb52c7750848a5cd185728d8dc HEAD` pass on the live branch; the synthetic reviewed commit `ccc5cbb7abfe` is not the live branch head.
+Reason: The canonical review-thread mapping guard validates live branch history before merge, not speculative squash-preview commit ancestry.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3344153201
+Disposition: NOT-A-BUG
+Evidence: Same live branch ancestry evidence as `discussion_r3344017753`; the synthetic reviewed commit `23b7dc66058e` is not the live branch head.
+Reason: The mapping artifact is valid against the PR branch history enforced by the repo guard; the squash merge operator must preserve the mapped evidence and trailer in the final merge record.
 
 ## Dependency Scope / Private-Index Notes
 
