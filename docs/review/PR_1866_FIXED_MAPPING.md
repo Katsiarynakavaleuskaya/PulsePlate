@@ -169,7 +169,7 @@ Premortem:
 - `GH_TOKEN/GITHUB_TOKEN` strict review-governance merge wrapper - PASS; 0 unresolved threads and all actionable bot comments mapped in the canonical artifact.
 - `pre-commit run --all-files` after governance follow-up - PASS.
 - Pre-push hooks after governance follow-up - PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS; 13 tests.
+- `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS; 13 tests.
 
 ## Current CI Status
 
@@ -192,10 +192,10 @@ Current-head CI is not fully green and merge readiness is not claimed.
 ## Codex Security Diff Scan
 
 - Skill: `codex-security:security-diff-scan` with finding-discovery phase.
-- Scan directory: `/tmp/codex-security-scans/frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z`.
-- Markdown report: `/tmp/codex-security-scans/frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z/report.md`.
-- HTML report: `/tmp/codex-security-scans/frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z/report.html`.
-- Work ledger: `/tmp/codex-security-scans/frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z/artifacts/02_discovery/work_ledger.jsonl`; 8/8 rows completed.
+- Scan id: `frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z` in the local outside-repo Codex Security scan store.
+- Markdown report: `report.md` in that local scan directory.
+- HTML report: `report.html` in that local scan directory.
+- Work ledger: `artifacts/02_discovery/work_ledger.jsonl` in that local scan directory; 8/8 rows completed.
 - Result: no reportable security findings.
 - Validator: `validate_report_format.py` - PASS.
 - HTML renderer: `render_report_html.py` - PASS.
@@ -203,9 +203,9 @@ Current-head CI is not fully green and merge readiness is not claimed.
 ## PulsePlate PR Review
 
 - Skill: `pulseplate-pr-review`.
-- Context: `/tmp/pulseplate_pr_review_context_1866.json`.
-- Markdown report: `/tmp/pulseplate_pr_review_1866.md`.
-- JSON report: `/tmp/pulseplate_pr_review_1866.json`.
+- Context: local outside-repo `pulseplate_pr_review_context_1866.json`.
+- Markdown report: local outside-repo `pulseplate_pr_review_1866.md`.
+- JSON report: local outside-repo `pulseplate_pr_review_1866.json`.
 - Calibration tests: `tests/test_pr_review_report.py tests/test_pr_review_context.py` - PASS; 13 tests.
 - Finding disposition: one advisory `note` for large-diff review planning. It is satisfied for this PR by the passing standard-governance size gate, focused frontend validation, completed role passes, Codex Security no-findings scan, and explicit non-readiness while CI is not fully green.
 
