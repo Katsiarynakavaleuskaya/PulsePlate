@@ -19,6 +19,46 @@ Disposition: FIXED
 Commit: 554c0c00719a
 Evidence: Backlog, coaching wave, structured coach contract, API map, and tier map record PR #1822 / `740a64fb7d87d404076117698bee5d4bee71f390`, PR #1214 / `29a11e62e38307dd4cc7414bffc159b508878744`, and PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97` while preserving future-only VIP Identity Loop Mapper wording and closed semantic-cache/runtime boundaries.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407204096 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` and `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now use stable symbol anchors instead of line-number evidence, while `docs/roadmap/BACKLOG_LEDGER.md` records retroactive reconciliation notes for already-landed lanes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407235009 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` records PR #1865 as the retroactive docs-only closeout for PR #1822 and PR #1215; `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` uses stable symbol anchors for the structured coaching evidence chain.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407243903 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the misleading duplicated Experiment Runner packet path and keeps the canonical accepted result artifact path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339207658 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the misleading duplicated Experiment Runner packet path; the accepted result remains `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407259934 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: Both real branch commits that materially record Experiment Runner evidence include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`; the post-open fix commit also preserves the trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339222025 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `git show -s --format=%B 554c0c007`, `git show -s --format=%B 782f05123`, and `git show -s --format=%B d3313675c` include the canonical Experiment Runner co-author trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339222029 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now reconciles `POST /api/v1/pro/fitchef/explain` as the landed PR #1215 feature-gated PRO runtime and keeps the remaining structured coach routes future-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339222034 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the duplicated Experiment Runner packet path and retains the accepted result artifact path.
+
 ## Carryover
 
 Disposition: FIXED
@@ -93,9 +133,11 @@ Pre-open role order completed before implementation:
 
 ## Post-Open Review
 
-Pending mandatory sequence:
+Mandatory sequence status:
 
-- [ ] `qa-engineer-agent`
+- [x] `qa-engineer-agent` - first pass completed; Phase2 artifact/body, bot
+  mapping, reproducible evidence-command, and Experiment Runner packet-path
+  findings were fixed in `d3313675c` or queued for this mapping/body sync.
 - [ ] `bug-hunter`
 - [ ] `security-auditor`
 - [ ] Codex Security diff scan / finding discovery
