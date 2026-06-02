@@ -192,6 +192,35 @@ def test_operator_ledger_missing_derived_key_fails_closed(tmp_path: Path) -> Non
     )
 
 
+def test_operator_ledger_events_path_as_file_fails_closed(tmp_path: Path) -> None:
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.parent.mkdir(parents=True)
+    event_dir.write_text("not-a-directory", encoding="utf-8")
+
+    with pytest.raises(ledger.OperatorLedgerError, match="directory"):
+        ledger.load_operator_ledger_events(repo_root=tmp_path)
+    assert ledger.latest_operator_ledger_summary(repo_root=tmp_path) == (
+        "operator_ledger_status=invalid_local_artifact",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
+
+
+def test_operator_ledger_event_filename_must_match_idempotency_key(tmp_path: Path) -> None:
+    record = dict(ledger.normalize_operator_ledger_event(_event()).payload)
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.mkdir(parents=True)
+    (event_dir / "renamed.json").write_text(json.dumps(record), encoding="utf-8")
+
+    with pytest.raises(ledger.OperatorLedgerError, match="invalid"):
+        ledger.load_operator_ledger_events(repo_root=tmp_path)
+    assert ledger.latest_operator_ledger_summary(repo_root=tmp_path) == (
+        "operator_ledger_status=invalid_local_artifact",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
+
+
 def test_operator_ledger_output_path_rejects_traversal_and_symlink(
     tmp_path: Path,
 ) -> None:

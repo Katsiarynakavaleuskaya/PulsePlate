@@ -461,6 +461,8 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
     record = normalize_operator_ledger_event(payload)
     if derived != record.idempotency_key:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    if path.stem != record.idempotency_key:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     return record
 
 
@@ -479,6 +481,8 @@ def load_operator_ledger_events(
     event_dir = target_dir / "events"
     if not event_dir.exists():
         return []
+    if not event_dir.is_dir():
+        raise OperatorLedgerError("Existing Experiment operator ledger event directory is invalid.")
     try:
         paths = sorted(event_dir.glob("*.json"))
     except OSError as exc:
