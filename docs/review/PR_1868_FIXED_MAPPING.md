@@ -5,7 +5,8 @@
 **Scope:** Add explicit `/frontend` npm dependency submission so GitHub
 dependency graph can ingest the already-patched Vitest `4.1.8` frontend
 lockfile state for Dependabot alert `#153`.
-**Primary implementation commits:** `4cc76042c`, `4d7951f47`, `e705444ee`
+**Primary implementation commits:** `4cc76042c`, `4d7951f47`, `e705444ee`,
+`66de78461`
 
 ## Discussion Thread Pass
 
@@ -110,6 +111,45 @@ Pre-open role order from packet
   timeout governance, and mixed Philosophy closeout issue.
 - Post-open `bug-hunter` - BLOCK only on stale governance mirrors after the
   workflow/test fix was applied; required mapping/body updates.
+- Post-open `security-auditor` - PASS; no finding after review of token scope,
+  `pull_request` vs `pull_request_target`, action pinning, checkout credential
+  persistence, temp-root filesystem handling, no script execution, and
+  Python/private-index drift boundaries.
+- Post-open `cursor-specialist-agent` - PASS; role dispatch manifest preserved
+  packet order and local ignored artifacts were kept out of the branch.
+- Post-open `web-research-agent` - PASS; live GitHub alert/SBOM evidence and
+  advisory facts remained scoped to Dependabot alert #153 graph convergence.
+
+## Codex Security Evidence
+
+- Scan directory:
+  `/tmp/codex-security-scans/frontend-dependency-graph-alert-153/66de78461_20260602T192355Z`
+- Mode: diff-scoped security scan / finding discovery for `origin/main...HEAD`.
+- Result: no findings.
+- Coverage: 6/6 rows in
+  `artifacts/02_discovery/deep_review_input.csv` have receipts in
+  `artifacts/02_discovery/work_ledger.jsonl`.
+- Final reports written:
+  - `report.md`
+  - `report.html`
+- Reviewed files:
+  - `.github/workflows/npm-dependency-submission.yml`
+  - `docs/audit/DEPENDABOT_RECURRING_SECURITY_DRIFT_AUDIT_2026-04-10.md`
+  - `docs/review/PR_1868_FIXED_MAPPING.md`
+  - `docs/review/PR_DEPENDENCY_GRAPH_ALERT_153_PREMORTEM.md`
+  - `docs/security/CVE-2026-47429-vitest.md`
+  - `tests/guards/test_security_devtooling_regression_guards.py`
+
+## PulsePlate PR Review Evidence
+
+- Context artifact: `/tmp/pulseplate_pr_1868_review_context.json`
+- Markdown report: `/tmp/pulseplate_pr_1868_review_report.md`
+- JSON report: `/tmp/pulseplate_pr_1868_review_report.json`
+- Result: no blocking deterministic findings.
+- Advisory note: large-diff review risk due governance/docs evidence volume;
+  dispositioned as reviewed/no code action because final diff remains six
+  scoped workflow/docs/guard files and no longer includes
+  `docs/roadmap/BACKLOG_LEDGER.md`.
 
 ## Premortem Evidence
 
@@ -157,8 +197,8 @@ Pre-open role order from packet
   finding.
 - Commit hook for `4d7951f47` - PASS after `black` reformatted the guard test
   and the focused guard/docs gates were rerun.
-- `pre-commit run --all-files` - pending rerun before the next push.
-- `make validate-changed` - pending rerun before the next push.
+- `pre-commit run --all-files` - PASS.
+- `DEV_PYTHON=<repo-root>/.venv/bin/python VENV_PYTHON=<repo-root>/.venv/bin/python PATH=<repo-root>/.venv/bin:$PATH make validate-changed` - PASS.
 
 ## GitHub Evidence
 
@@ -174,10 +214,10 @@ Pre-open role order from packet
 
 ## Current CI Status
 
-Latest local head includes fix commit `4d7951f47` and mapping commit
-`e705444ee`, plus this self-reference mapping update. These commits have not yet
-been pushed. Current GitHub CI status still belongs to PR head `c59653e99`;
-merge readiness is not claimed.
+Latest local head includes fix commit `4d7951f47`, mapping commit `e705444ee`,
+self-reference mapping commit `66de78461`, and this evidence refresh. These
+commits have not yet been pushed. Current GitHub CI status still belongs to PR
+head `c59653e99`; merge readiness is not claimed.
 
 ## Thread Disposition Status
 
