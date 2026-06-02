@@ -117,6 +117,9 @@ def test_operator_ledger_writes_hash_only_event_and_blocks_duplicate(tmp_path: P
             "artifacts/orchestration/experiments/slack_socket_bridge/U0DENIED.json",
         ),
         ("task_packet_id", "C12345678"),
+        ("task_packet_id", "sk-secretsecret"),
+        ("task_packet_id", "ghp_abcdefghijklmnopqrstuvwxyz123456"),
+        ("task_packet_id", _hash("approval digest")),
         ("channel_hash", "none"),
         ("event_hash", None),
         ("user_hash", "none"),
@@ -150,12 +153,14 @@ def test_operator_ledger_rejects_extra_raw_fields() -> None:
         _event(status="observed", failure_class="malformed_evidence"),
         _event(status="failed", failure_class="none"),
         _event(status="rejected", failure_class="none"),
+        _event(status="dispatched"),
+        _event(status="dispatched", command_kind="run-experiment", dispatch_mode="dry-run"),
     ],
 )
 def test_operator_ledger_rejects_contradictory_status_failure_pairs(
     event: dict[str, object],
 ) -> None:
-    with pytest.raises(ledger.OperatorLedgerError, match="status/failure"):
+    with pytest.raises(ledger.OperatorLedgerError, match="invalid"):
         ledger.normalize_operator_ledger_event(event)
 
 
@@ -166,6 +171,20 @@ def test_operator_ledger_accepts_failed_status_with_failure_class() -> None:
 
     assert record.payload["status"] == "failed"
     assert record.payload["failure_class"] == "dispatch_failed"
+
+
+def test_operator_ledger_accepts_execute_dispatch_status() -> None:
+    record = ledger.normalize_operator_ledger_event(
+        _event(
+            command_kind="run-experiment",
+            status="dispatched",
+            dispatch_mode="execute",
+        )
+    )
+
+    assert record.payload["status"] == "dispatched"
+    assert record.payload["command_kind"] == "run-experiment"
+    assert record.payload["dispatch_mode"] == "execute"
 
 
 def test_operator_ledger_accepts_date_like_artifact_filenames() -> None:

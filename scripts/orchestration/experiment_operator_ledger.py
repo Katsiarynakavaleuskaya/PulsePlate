@@ -24,7 +24,7 @@ from scripts.orchestration.experiment_slack_bridge_config import (
     _normalized_absolute_path,
     _reject_symlinked_output_components,
 )
-from scripts.orchestration.experiment_slack_bridge_constants import SHA256_HEX_RE
+from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE, SHA256_HEX_RE
 from scripts.orchestration.experiment_slack_bridge_models import SlackSocketAuditError
 from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE, safe_artifact_ref
 
@@ -262,7 +262,11 @@ def _validate_task_packet_id(value: Any) -> str:
         raise OperatorLedgerError("Experiment operator ledger task packet id is invalid.")
     if not all(char.isalnum() or char in {"-", "_"} for char in normalized):
         raise OperatorLedgerError("Experiment operator ledger task packet id is invalid.")
-    if SLACK_IDENTIFIER_RE.search(normalized):
+    if (
+        SLACK_IDENTIFIER_RE.search(normalized)
+        or SECRET_SHAPED_RE.search(normalized)
+        or SHA256_HEX_RE.fullmatch(normalized.lower())
+    ):
         raise OperatorLedgerError("Experiment operator ledger task packet id is invalid.")
     return normalized
 
@@ -391,6 +395,10 @@ def normalize_operator_ledger_event(
             raise OperatorLedgerError("Experiment operator ledger status/failure pair is invalid.")
     elif normalized["failure_class"] == "none":
         raise OperatorLedgerError("Experiment operator ledger status/failure pair is invalid.")
+    if normalized["status"] == "dispatched" and (
+        normalized["command_kind"] != "run-experiment" or normalized["dispatch_mode"] != "execute"
+    ):
+        raise OperatorLedgerError("Experiment operator ledger dispatch status is invalid.")
     if normalized["coauthor_required"] and normalized["coauthor_decision"] != "required":
         raise OperatorLedgerError("Experiment operator ledger coauthor decision is invalid.")
     if derive_idempotency_key:
