@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -88,6 +88,7 @@ HASH_FIELDS = frozenset(
         "user_hash",
     }
 )
+REQUIRED_HASH_FIELDS = frozenset({"channel_hash", "event_hash", "user_hash"})
 ARTIFACT_REF_FIELDS = frozenset({"oracle_result_ref", "slack_audit_ref"})
 AUTHORITY_FIELDS = frozenset(
     {
@@ -131,7 +132,7 @@ REQUIRED_EVENT_FIELDS = frozenset(
         "workflow_ref",
     }
 )
-DERIVED_EVENT_FIELDS = frozenset({"idempotency_key"})
+DERIVED_EVENT_FIELDS = frozenset({"content_hash", "idempotency_key"})
 EVENT_FIELDS = REQUIRED_EVENT_FIELDS | DERIVED_EVENT_FIELDS
 
 
@@ -298,6 +299,10 @@ def _idempotency_key(payload: dict[str, Any]) -> str:
     ).hex()[:24]
 
 
+def _content_hash(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+
+
 def normalize_operator_ledger_event(
     payload: dict[str, Any],
     *,
@@ -377,6 +382,8 @@ def normalize_operator_ledger_event(
     }
     for field in sorted(HASH_FIELDS):
         normalized[field] = _validate_hash(payload[field])
+        if field in REQUIRED_HASH_FIELDS and normalized[field] == "none":
+            raise OperatorLedgerError("Experiment operator ledger hash field is invalid.")
     for field in sorted(AUTHORITY_FIELDS):
         normalized[field] = _validate_false(payload[field], label=field)
     if normalized["status"] in {"dry_run", "dispatched", "observed"}:
@@ -387,6 +394,7 @@ def normalize_operator_ledger_event(
     if normalized["coauthor_required"] and normalized["coauthor_decision"] != "required":
         raise OperatorLedgerError("Experiment operator ledger coauthor decision is invalid.")
     if derive_idempotency_key:
+        normalized["content_hash"] = _content_hash(normalized)
         normalized["idempotency_key"] = _idempotency_key(normalized)
     return OperatorLedgerRecord(payload=normalized)
 
@@ -510,19 +518,35 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
     derived = raw.get("idempotency_key")
     if not isinstance(derived, str) or not IDEMPOTENCY_KEY_RE.fullmatch(derived):
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    content_hash = raw.get("content_hash")
+    if not isinstance(content_hash, str) or SHA256_HEX_RE.fullmatch(content_hash) is None:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     if path.stem != derived:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     payload = dict(raw)
     payload.pop("idempotency_key")
+    payload.pop("content_hash")
     record = normalize_operator_ledger_event(payload, derive_idempotency_key=False)
+    if _content_hash(record.payload) != content_hash:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    record.payload["content_hash"] = content_hash
     record.payload["idempotency_key"] = derived
     return record
+
+
+def _record_is_retained(record: OperatorLedgerRecord, *, now: datetime) -> bool:
+    generated_at = datetime.fromisoformat(str(record.payload["generated_at"])).astimezone(
+        timezone.utc
+    )
+    retention_days = int(record.payload["retention_days"])
+    return generated_at + timedelta(days=retention_days) >= now
 
 
 def load_operator_ledger_events(
     *,
     ledger_dir: Path | None = None,
     repo_root: Path | None = None,
+    now: datetime | None = None,
 ) -> list[OperatorLedgerRecord]:
     """Load local operator ledger events, failing closed on malformed records."""
 
@@ -539,14 +563,26 @@ def load_operator_ledger_events(
     if not event_dir.is_dir():
         raise OperatorLedgerError("Existing Experiment operator ledger event directory is invalid.")
     try:
-        paths = sorted(event_dir.glob("*.json"))
+        entries = sorted(event_dir.iterdir())
     except OSError as exc:
         raise OperatorLedgerError("Unable to inspect Experiment operator ledger events.") from exc
+    unexpected_paths = [path for path in entries if path.suffix != ".json" or not path.is_file()]
+    if unexpected_paths:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    paths = entries
     symlinked_paths = [path for path in paths if path.is_symlink()]
     if symlinked_paths:
         raise OperatorLedgerError("Existing Experiment operator ledger event is symlinked.")
     records = [_read_record(path) for path in paths]
-    return sorted(records, key=lambda record: (record.generated_at, record.idempotency_key))
+    effective_now = (
+        (now or datetime.now(timezone.utc)).astimezone(timezone.utc).replace(microsecond=0)
+    )
+    retained_records = [
+        record for record in records if _record_is_retained(record, now=effective_now)
+    ]
+    return sorted(
+        retained_records, key=lambda record: (record.generated_at, record.idempotency_key)
+    )
 
 
 def latest_operator_ledger_record(

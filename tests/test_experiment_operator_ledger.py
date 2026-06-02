@@ -83,6 +83,8 @@ def test_operator_ledger_writes_hash_only_event_and_blocks_duplicate(tmp_path: P
     record = json.loads(text)
 
     assert record["idempotency_key"] == path.stem
+    assert isinstance(record["content_hash"], str)
+    assert len(record["content_hash"]) == 64
     assert record["branch_hash"] == _hash("feature/operator-plane")
     _assert_no_raw_leak(text)
 
@@ -115,6 +117,9 @@ def test_operator_ledger_writes_hash_only_event_and_blocks_duplicate(tmp_path: P
             "artifacts/orchestration/experiments/slack_socket_bridge/U0DENIED.json",
         ),
         ("task_packet_id", "C12345678"),
+        ("channel_hash", "none"),
+        ("event_hash", None),
+        ("user_hash", "none"),
         ("status", "mergeable"),
         ("created_pr", True),
         ("retention_days", 0),
@@ -299,6 +304,25 @@ def test_operator_ledger_event_filename_must_match_idempotency_key(tmp_path: Pat
     )
 
 
+def test_operator_ledger_content_hash_must_match_event_payload(tmp_path: Path) -> None:
+    record = dict(ledger.normalize_operator_ledger_event(_event()).payload)
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.mkdir(parents=True)
+    record["workflow_ref"] = "none"
+    (event_dir / f"{record['idempotency_key']}.json").write_text(
+        json.dumps(record),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ledger.OperatorLedgerError, match="invalid"):
+        ledger.load_operator_ledger_events(repo_root=tmp_path)
+    assert ledger.latest_operator_ledger_summary(repo_root=tmp_path) == (
+        "operator_ledger_status=invalid_local_artifact",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
+
+
 def test_operator_ledger_load_uses_persisted_key_without_rederiving(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -313,6 +337,37 @@ def test_operator_ledger_load_uses_persisted_key_without_rederiving(
     records = ledger.load_operator_ledger_events(repo_root=tmp_path)
 
     assert [record.idempotency_key for record in records] == [written.stem]
+
+
+def test_operator_ledger_ignores_expired_events(tmp_path: Path) -> None:
+    ledger.write_operator_ledger_event(
+        _event(
+            generated_at=datetime(2000, 1, 1, 0, 0, tzinfo=timezone.utc).isoformat(),
+            retention_days=1,
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert ledger.load_operator_ledger_events(repo_root=tmp_path) == []
+    assert ledger.latest_operator_ledger_summary(repo_root=tmp_path) == (
+        "operator_ledger_status=absent",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
+
+
+def test_operator_ledger_rejects_non_event_files_in_event_store(tmp_path: Path) -> None:
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.mkdir(parents=True)
+    (event_dir / "report.md").write_text("not an event", encoding="utf-8")
+
+    with pytest.raises(ledger.OperatorLedgerError, match="invalid"):
+        ledger.load_operator_ledger_events(repo_root=tmp_path)
+    assert ledger.latest_operator_ledger_summary(repo_root=tmp_path) == (
+        "operator_ledger_status=invalid_local_artifact",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
 
 
 def test_operator_ledger_output_path_rejects_traversal_and_symlink(
