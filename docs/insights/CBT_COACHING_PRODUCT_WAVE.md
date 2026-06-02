@@ -78,6 +78,8 @@ reframing tool.
 - `warnings[]`
 - `transparency_notice_id`
 - `wellness_boundary`
+- `scenario`
+- `quota_state`
 - `quota_state`
 
 ### Pillar B: Identity Loop Mapper
@@ -268,7 +270,8 @@ Not recommended:
 ### Follow-up implementation lanes
 
 1. Landed: Distortion Simulator contract + PRO runtime via PR #1214 and PR #1215
-2. Next active substantive lane: Identity Loop Mapper contract + VIP runtime
+2. Next active substantive lane: Identity Loop Mapper contract + VIP runtime,
+   aligned to the frozen `FitChefIdentityLoopMapperResponse` schema
 3. Separate future lane: Signal vs Noise report/content lane
 
 The broader philosophy and CBT source corpus can inform future reviewed PRs, but
