@@ -115,6 +115,26 @@ Disposition: FIXED
 Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
 Evidence: `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md` and `docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md` now point at stable `FITCHEF_STRUCTURED_COACH_CONTRACT.md#route-family-freeze` and `#wave-aligned-capability-mapping` anchors instead of shifted line-number ranges.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341361548 -> f015442c4c1c1841518594f395461f69595d5838
+Disposition: FIXED
+Commit: f015442c4c1c1841518594f395461f69595d5838
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records that actual branch proof is evaluated against GitHub branch head `c0696ed52d6a02f225d162e7e89d162fef7aea46`, confirms that head includes the Experiment Runner trailer, and distinguishes review-tool synthetic squash-preview SHAs from branch-history proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341361560 -> f015442c4c1c1841518594f395461f69595d5838
+Disposition: FIXED
+Commit: f015442c4c1c1841518594f395461f69595d5838
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now points the PR-level mapping at evaluated branch proof commit `c0696ed52d6a02f225d162e7e89d162fef7aea46`; local evidence shows prior proof commits remain ancestors of the actual branch head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341406140 -> f015442c4c1c1841518594f395461f69595d5838
+Disposition: FIXED
+Commit: f015442c4c1c1841518594f395461f69595d5838
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records the verified branch head and the required squash-merge co-author trailer handling; `git show -s --format=%B f015442c4c1c1841518594f395461f69595d5838` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341406144 -> f015442c4c1c1841518594f395461f69595d5838
+Disposition: FIXED
+Commit: f015442c4c1c1841518594f395461f69595d5838
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now separates evaluated branch proof from synthetic squash-preview SHAs and points PR-level proof at `c0696ed52d6a02f225d162e7e89d162fef7aea46`, the branch head that contained the completed post-open review sequence at the time of the fresh review.
+
 ## Carryover
 
 Disposition: FIXED
