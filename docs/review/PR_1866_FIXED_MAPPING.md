@@ -155,21 +155,55 @@ Premortem:
 - `pre-commit run --all-files` - PASS.
 - Commit hooks on `452629b03` - PASS.
 - Pre-push hooks - PASS, including pip-audit, backend pre-push tests, and full-repo Bandit; Docker build hook skipped because no Docker-surface files changed.
+- Governance follow-up commit hooks on `9fed1a5d5` and `ad5d53741` - PASS.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1866 --body "$(gh pr view 1866 --json body --jq .body)" --commit-range origin/main..HEAD` - PASS.
+- `python3 scripts/ci/check_pr_size_governance.py --base-sha origin/main --head-sha HEAD --body "$(gh pr view 1866 --json body --jq .body)"` - PASS.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1866 --require-auth` - PASS; both resolved review threads have disposition and post-comment SHA proof.
+- `GH_TOKEN/GITHUB_TOKEN` strict review-governance merge wrapper - PASS; 0 unresolved threads and all actionable bot comments mapped in the canonical artifact.
+- `pre-commit run --all-files` after governance follow-up - PASS.
+- Pre-push hooks after governance follow-up - PASS.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS; 13 tests.
 
 ## Current CI Status
 
-Pending current-head CI for PR #1866. Merge readiness is not claimed.
+Current-head CI is not fully green and merge readiness is not claimed.
+
+- PR body Phase2 gates - PASS.
+- `pr_scope_guard` - PASS.
+- Merge readiness gate - PASS.
+- CodeRabbit - PASS / review skipped on latest pushed head after mapped fixes.
+- Sourcery - PASS.
+- Cubic - PASS.
+- `test-pr (3.13)` on run `26819615129` failed in `Setup Python environment`
+  during locked private-index install: `pip` raised `ConnectionResetError:
+  [Errno 104] Connection reset by peer` while downloading from the approved
+  private index. The log shows `PULSEPLATE_PYTHON_INDEX_URL` was set and no
+  public-PyPI fallback was used. This is classified as private-index transport
+  instability/SRE retry evidence, not dependency drift in this PR.
+- This evidence update will trigger a fresh current-head CI run.
 
 ## Codex Security Diff Scan
 
-Pending post-open Codex Security diff scan / finding discovery.
+- Skill: `codex-security:security-diff-scan` with finding-discovery phase.
+- Scan directory: `/tmp/codex-security-scans/frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z`.
+- Markdown report: `/tmp/codex-security-scans/frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z/report.md`.
+- HTML report: `/tmp/codex-security-scans/frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z/report.html`.
+- Work ledger: `/tmp/codex-security-scans/frontend-vitest-4-dependency-remediation/ad5d53741ece_20260602T122708Z/artifacts/02_discovery/work_ledger.jsonl`; 8/8 rows completed.
+- Result: no reportable security findings.
+- Validator: `validate_report_format.py` - PASS.
+- HTML renderer: `render_report_html.py` - PASS.
 
 ## PulsePlate PR Review
 
-Pending post-open `pulseplate-pr-review`.
+- Skill: `pulseplate-pr-review`.
+- Context: `/tmp/pulseplate_pr_review_context_1866.json`.
+- Markdown report: `/tmp/pulseplate_pr_review_1866.md`.
+- JSON report: `/tmp/pulseplate_pr_review_1866.json`.
+- Calibration tests: `tests/test_pr_review_report.py tests/test_pr_review_context.py` - PASS; 13 tests.
+- Finding disposition: one advisory `note` for large-diff review planning. It is satisfied for this PR by the passing standard-governance size gate, focused frontend validation, completed role passes, Codex Security no-findings scan, and explicit non-readiness while CI is not fully green.
 
 ## Merge Readiness
 
-Not claimed. Full local `make verify` has not been run, current-head CI is
-pending, post-open role passes are pending, and review-thread/bot dispositions
-must be checked after the latest PR activity.
+Not claimed. Full local `make verify` has not been run, current-head CI is not
+fully green, and the latest docs evidence push must complete current-head CI
+before any merge-readiness claim.
