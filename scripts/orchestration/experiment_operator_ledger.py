@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sys
+import tempfile
 from typing import Any, cast
 
 OPERATOR_LEDGER_REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +21,6 @@ if str(OPERATOR_LEDGER_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(OPERATOR_LEDGER_REPO_ROOT))
 
 from scripts.orchestration.context_pack import REPO_ROOT
-from scripts.orchestration.experiment_slack_bridge_audit import _atomic_publish_json
 from scripts.orchestration.experiment_slack_bridge_config import (
     _normalized_absolute_path,
     _reject_symlinked_output_components,
@@ -36,6 +37,7 @@ PROVIDER_TYPE = "experiment_runner_operator_plane"
 DEFAULT_LEDGER_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "operator_ledger"
 IDEMPOTENCY_KEY_ITERATIONS = 120_000
 IDEMPOTENCY_KEY_NAMESPACE = b"pulseplate-operator-ledger-idempotency-v1"
+CONTENT_HASH_NAMESPACE = b"pulseplate-operator-ledger-content-v1"
 IDEMPOTENCY_KEY_RE = re.compile(r"^[a-f0-9]{24}$")
 PII_SHAPED_ARTIFACT_RE = re.compile(
     r"("
@@ -192,7 +194,10 @@ def _validate_timestamp(value: Any) -> str:
         raise OperatorLedgerError("Experiment operator ledger event timestamp is invalid.") from exc
     if parsed.tzinfo is None:
         raise OperatorLedgerError("Experiment operator ledger event timestamp is invalid.")
-    return parsed.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+    normalized = parsed.astimezone(timezone.utc).replace(microsecond=0)
+    if normalized > datetime.now(timezone.utc).replace(microsecond=0) + timedelta(minutes=5):
+        raise OperatorLedgerError("Experiment operator ledger event timestamp is invalid.")
+    return normalized.isoformat()
 
 
 def _validate_hash(value: Any) -> str:
@@ -304,7 +309,11 @@ def _idempotency_key(payload: dict[str, Any]) -> str:
 
 
 def _content_hash(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+    return hashlib.blake2b(
+        _canonical_json_bytes(payload),
+        digest_size=32,
+        key=CONTENT_HASH_NAMESPACE,
+    ).hexdigest()
 
 
 def normalize_operator_ledger_event(
@@ -480,6 +489,55 @@ def _validate_output_path(
     return candidate
 
 
+def _unlink_if_exists(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _preflight_output_write(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.preflight.",
+        suffix=".tmp",
+        dir=path.parent,
+        text=True,
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as temp_file:
+            temp_file.write("")
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+    finally:
+        if temp_path is not None:
+            _unlink_if_exists(temp_path)
+
+
+def _write_operator_event_json(path: Path, payload: dict[str, Any], *, temp_dir: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=temp_dir,
+        text=True,
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as temp_file:
+            temp_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        os.link(temp_path, path)
+    finally:
+        if temp_path is not None:
+            _unlink_if_exists(temp_path)
+
+
 def write_operator_ledger_event(
     payload: dict[str, Any],
     *,
@@ -505,7 +563,7 @@ def write_operator_ledger_event(
         raise OperatorLedgerError("Unable to write Experiment operator ledger event.") from exc
     path = event_dir / f"{record.idempotency_key}.json"
     try:
-        _atomic_publish_json(path, record.payload, exclusive=True)
+        _write_operator_event_json(path, record.payload, temp_dir=target_dir / "tmp")
     except FileExistsError as exc:
         raise OperatorLedgerError("Experiment operator ledger event already exists.") from exc
     except OSError as exc:
@@ -804,6 +862,13 @@ def main(argv: list[str] | None = None) -> int:
             if args.output
             else None
         )
+        if output_path:
+            try:
+                _preflight_output_write(output_path)
+            except OSError as exc:
+                raise OperatorLedgerError(
+                    "Unable to write Experiment operator ledger output."
+                ) from exc
         if args.record:
             if args.event_json is None:
                 raise OperatorLedgerError("Experiment operator ledger input is invalid.")

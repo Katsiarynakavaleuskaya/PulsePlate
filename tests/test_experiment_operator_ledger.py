@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -93,6 +93,19 @@ def test_operator_ledger_writes_hash_only_event_and_blocks_duplicate(tmp_path: P
     assert path.read_text(encoding="utf-8") == text
 
 
+def test_operator_ledger_event_write_keeps_temp_files_out_of_event_store(
+    tmp_path: Path,
+) -> None:
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    ledger_root = ledger.default_ledger_dir(tmp_path)
+    event_entries = sorted((ledger_root / "events").iterdir())
+    assert event_entries
+    assert all(path.suffix == ".json" for path in event_entries)
+    tmp_dir = ledger_root / "tmp"
+    assert not tmp_dir.exists() or not list(tmp_dir.iterdir())
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -143,6 +156,13 @@ def test_operator_ledger_rejects_extra_raw_fields() -> None:
 
     with pytest.raises(ledger.OperatorLedgerError, match="schema"):
         ledger.normalize_operator_ledger_event(event)
+
+
+def test_operator_ledger_rejects_future_timestamps() -> None:
+    future = datetime.now(timezone.utc) + timedelta(days=1)
+
+    with pytest.raises(ledger.OperatorLedgerError, match="timestamp"):
+        ledger.normalize_operator_ledger_event(_event(generated_at=future.isoformat()))
 
 
 @pytest.mark.parametrize(
@@ -558,6 +578,35 @@ def test_operator_ledger_cli_record_invalid_output_does_not_write_event(
     )
     failure = capsys.readouterr().out
     assert "FAIL: Experiment operator ledger output must stay" in failure
+    assert not (ledger.default_ledger_dir(tmp_path) / "events").exists()
+
+
+def test_operator_ledger_cli_record_output_write_error_does_not_write_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    event_json = tmp_path / "event.json"
+    event_json.write_text(json.dumps(_event()), encoding="utf-8")
+    blocked_parent = tmp_path / "artifacts" / "orchestration" / "experiments" / "blocked"
+    blocked_parent.parent.mkdir(parents=True)
+    blocked_parent.write_text("not-a-directory", encoding="utf-8")
+
+    assert (
+        ledger.main(
+            [
+                "--record",
+                "--event-json",
+                str(event_json),
+                "--output",
+                "artifacts/orchestration/experiments/blocked/report.json",
+            ]
+        )
+        == 1
+    )
+    failure = capsys.readouterr().out
+    assert "FAIL: Unable to write Experiment operator ledger output." in failure
     assert not (ledger.default_ledger_dir(tmp_path) / "events").exists()
 
 
