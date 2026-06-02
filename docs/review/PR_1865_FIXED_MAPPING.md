@@ -4,7 +4,13 @@
 **Branch:** `codex/coaching-structured-wave-contract`
 **Scope:** Docs-only reconciliation for Philosophy source corpus closeout and
 CBT/FitChef structured coaching product truth.
-**Primary branch proof commit:** `1f329466ad5de454f6b3db8266f642a4eed53ebf`
+**Primary evaluated branch proof commit:** `c0696ed52d6a02f225d162e7e89d162fef7aea46`
+
+Synthetic squash-preview SHAs emitted by review tooling are not canonical
+branch-history proof. Actual PR disposition proof is evaluated against the
+GitHub branch head and its ancestor commits; the final squash merge message must
+retain the standalone Experiment Runner co-author trailer when this PR is
+squash-merged.
 
 ## Discussion Thread Pass
 
@@ -14,10 +20,10 @@ CBT/FitChef structured coaching product truth.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865 -> 1f329466ad5de454f6b3db8266f642a4eed53ebf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865 -> c0696ed52d6a02f225d162e7e89d162fef7aea46
 Disposition: FIXED
-Commit: 1f329466ad5de454f6b3db8266f642a4eed53ebf
-Evidence: Current branch proof records PR #1822 / `740a64fb7d87d404076117698bee5d4bee71f390`, PR #1214 / `29a11e62e38307dd4cc7414bffc159b508878744`, and PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97` while preserving future-only VIP Identity Loop Mapper wording, closed semantic-cache/runtime boundaries, and completed post-open mapping.
+Commit: c0696ed52d6a02f225d162e7e89d162fef7aea46
+Evidence: Evaluated branch proof records PR #1822 / `740a64fb7d87d404076117698bee5d4bee71f390`, PR #1214 / `29a11e62e38307dd4cc7414bffc159b508878744`, and PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97` while preserving future-only VIP Identity Loop Mapper wording, closed semantic-cache/runtime boundaries, completed post-open mapping, and the Experiment Runner co-author trailer on the branch head.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407204096 -> d3313675c
 Disposition: FIXED

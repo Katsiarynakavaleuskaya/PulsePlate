@@ -40,5 +40,10 @@ carry:
 
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
+Verified branch head at fresh review closeout:
+`c0696ed52d6a02f225d162e7e89d162fef7aea46`; `git show -s --format=%B
+c0696ed52d6a02f225d162e7e89d162fef7aea46` includes the required trailer.
+Review-tool synthetic squash-preview SHAs are not branch-history proof.
+
 If this PR is squash-merged, the generated squash commit body must also retain
 the same co-author trailer.
