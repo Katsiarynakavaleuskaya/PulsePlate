@@ -42,7 +42,7 @@ Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the misleading duplicat
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407259934 -> d3313675c
 Disposition: FIXED
 Commit: d3313675c
-Evidence: Both real branch commits that materially record Experiment Runner evidence include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`; the post-open fix commit also preserves the trailer.
+Evidence: Both real branch commits that materially record Experiment Runner evidence include the canonical Experiment Runner co-author trailer; the post-open fix commit also preserves that trailer.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339222025 -> d3313675c
 Disposition: FIXED
@@ -62,12 +62,12 @@ Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the duplicated Experime
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407367642 -> 629f39132
 Disposition: FIXED
 Commit: 629f39132
-Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` records the accepted oracle result, raw artifact SHA-256, commands, mode, and attribution without tracking forbidden local `artifacts/` files.
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` records local artifact identity, SHA-256, affected diff paths, and validation commands without tracking forbidden local `artifacts/` files or restating raw attribution fields.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313628 -> 629f39132
 Disposition: FIXED
 Commit: 629f39132
-Evidence: `git show -s --format=%B 629f39132` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, so the current real branch history carries the required trailer after the fresh review.
+Evidence: `git show -s --format=%B 629f39132` includes the canonical Experiment Runner co-author trailer, so the current real branch history carries the required trailer after the fresh review.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313633 -> 629f39132
 Disposition: FIXED
@@ -92,7 +92,7 @@ Evidence: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` and `docs/contra
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245325 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
 Disposition: FIXED
 Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
-Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now states that a squash merge commit body must retain `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` when the PR is squash-merged.
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now states that a squash merge commit body must retain the canonical Experiment Runner co-author trailer when the PR is squash-merged.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245344 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
 Disposition: FIXED
@@ -122,7 +122,7 @@ Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now points the PR-level mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341406140 -> f015442c4c1c1841518594f395461f69595d5838
 Disposition: FIXED
 Commit: f015442c4c1c1841518594f395461f69595d5838
-Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records the verified branch head and the required squash-merge co-author trailer handling; `git show -s --format=%B f015442c4c1c1841518594f395461f69595d5838` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records the verified branch head and the required squash-merge co-author trailer handling; `git show -s --format=%B f015442c4c1c1841518594f395461f69595d5838` includes the canonical Experiment Runner co-author trailer.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341406144 -> f015442c4c1c1841518594f395461f69595d5838
 Disposition: FIXED
@@ -254,6 +254,16 @@ Disposition: FIXED
 Commit: 0f1fe7a70
 Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the Identity Loop Mapper output direction.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343459824
+Disposition: NOT-A-BUG
+Evidence: `4b155497730a41f8b0c73eafc5311d9d4d3d44da` is not a local commit object and GitHub GraphQL returned no repository object for that SHA, while actual PR head `eff4d83bcdb1ea64b6b53988915e9d66bb0f2bd0` contains the canonical Experiment Runner trailer. `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records provenance-only local evidence and does not assert trailer compliance for non-local review-tool evaluated SHAs.
+Reason: The comment asks for trailer compliance on a connector-generated evaluated SHA that is not a repo branch commit, so it is not a valid repo attribution target.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343459829
+Disposition: NOT-A-BUG
+Evidence: `4b155497730a41f8b0c73eafc5311d9d4d3d44da` is not a local commit object and GitHub GraphQL returned no repository object for that SHA. The proof commits named by the comment, including `d3313675c`, `629f39132`, `2c702517`, `670fc8e3`, `d8c0a0824`, and `0f1fe7a70`, are ancestors of actual PR head `eff4d83bcdb1ea64b6b53988915e9d66bb0f2bd0`.
+Reason: Fixed mapping is branch-history proof for GitHub PR review threads, not ancestry proof for connector-local evaluated SHAs that are absent from the PR branch graph.
+
 ## Carryover
 
 Disposition: FIXED
@@ -304,14 +314,11 @@ Pre-open role order completed before implementation:
 
 ## Experiment Runner Evidence
 
-- Not applicable: committing raw Experiment Runner JSON under `artifacts/` is forbidden by repo local-artifact policy; the committed summary below records the accepted oracle result, SHA-256, commands, and attribution.
+- Not applicable: committing raw Experiment Runner JSON under `artifacts/` is forbidden by repo local-artifact policy; the committed summary below records local artifact identity, SHA-256, affected diff paths, and validation commands.
 - Committed summary: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md`
 - Raw local result: `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`
-- Mode: `oracle_only_governance_reviewer`
-- Result: accepted; 4/4 oracle commands passed.
-- `coauthor_required=true`; commits `554c0c00719a`, `d3313675c`,
-  `629f39132`, and `2c702517108f5183febb0ee9b5add8b68b6bbe30` include:
-  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Review outcome: local non-mutating governance review completed; 4/4 validation commands passed.
+- Attribution note: material Experiment Runner attribution remains governed by repo commit and merge policy. This mapping section does not restate raw local attribution fields and does not create trailer requirements for non-local review-tool evaluated SHAs.
 
 ## Local Validation
 

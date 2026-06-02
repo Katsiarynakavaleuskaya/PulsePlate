@@ -12,19 +12,18 @@ for PR governance without tracking local runtime artifacts.
 - Path: `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`
 - SHA-256: `bdd0477de4957b03f7088b7459ab3df2103b9b67492911fcc04a01c5fa88bb70`
 - Experiment ID: `exp-e3e7a64a1319`
-- Status: `accepted`
-- Runner mode: `oracle_only_governance_reviewer`
-- Contribution kind: `oracle_review`
-- Mutated paths: `[]`
+- Review outcome: local non-mutating governance review completed.
+- Mutated paths in the raw local result: `[]`
 - Source diff paths:
   - `docs/contracts/API_CANONICAL_MAP.md`
   - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
   - `docs/contracts/PRODUCT_TIER_MAP.md`
   - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
   - `docs/roadmap/BACKLOG_LEDGER.md`
-- Attribution scope: this committed summary records the accepted oracle result
-  and does not treat review-tool synthetic squash-preview SHAs as branch commits
-  or proof targets.
+- Provenance scope: this committed summary records local artifact identity, hash,
+  affected diff paths, and validation commands only. It is not a machine-readable
+  contribution-attribution assertion and must not be used to demand trailer
+  compliance for review-tool evaluated SHAs that are not branch commits.
 
 ## Oracle Commands
 
@@ -36,8 +35,8 @@ for PR governance without tracking local runtime artifacts.
 ## Attribution Scope
 
 Material Experiment Runner attribution remains governed by repo commit and
-merge policy. This summary records the accepted oracle result; it does not
-assert trailer compliance for non-local review-tool evaluated SHAs.
+merge policy. This summary does not assert trailer compliance for non-local
+review-tool evaluated SHAs.
 
 Review-tool synthetic squash-preview SHAs are not branch-history proof. The
 canonical proof surface for this artifact is the committed PR branch and the
