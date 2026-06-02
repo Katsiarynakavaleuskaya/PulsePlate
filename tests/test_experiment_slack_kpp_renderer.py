@@ -47,9 +47,9 @@ SECURITY_SENSITIVE_OUTCOME_CASES = tuple(sorted(SECURITY_SENSITIVE_OUTCOMES))
         ("xoxb-1234567890-abcdef", "[redacted-secret]"),
         ("ghp_abcdefghijklmnopqrstuvwxyz1234", "[redacted-secret]"),  # pragma: allowlist secret
         (
-            "https://hooks.slack.com/services/T123/B456/xxx",
+            "https://hooks.slack.com/services/T123/B456/xxx",  # pragma: allowlist secret
             "[redacted-secret]",
-        ),  # pragma: allowlist secret
+        ),
         ("sk-abcdefghijklmnopqrstuvwxyz12", "[redacted-secret]"),  # pragma: allowlist secret
         ("<@U12345678>", "[redacted-slack-id]"),
         ("<#C12345678|channel>", "[redacted-slack-id]"),
