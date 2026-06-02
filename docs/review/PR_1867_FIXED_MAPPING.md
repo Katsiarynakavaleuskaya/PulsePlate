@@ -18,12 +18,43 @@ Initial PR-open state: no review threads had been created or resolved when this
 artifact was added. Post-open bot/human comments must be dispositioned here
 before any merge-readiness claim.
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867 -> 6fe6e93ecd2b4ad7f95316982fed7066db829e54
 Disposition: FIXED
 Commit: 6fe6e93ecd2b4ad7f95316982fed7066db829e54
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` adds the canonical operator-plane epic; the Slack runbook documents asset and local ledger boundaries; `scripts/orchestration/experiment_operator_ledger.py` implements the local-only redacted ledger/report contract; `scripts/orchestration/experiment_slack_socket_bridge.py` wires the sanitized status summary through the existing Slack status path; and the focused tests cover schema, redaction, idempotency, artifact path safety, and no Slack command widening.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343302381 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343302386 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343302389 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343313803 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343313815 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369945 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369960 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369964 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369978 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369985 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369988 -> b76c22a9cbf0452cc3b8277a25b2dd587848f482
+Disposition: FIXED
+Commit: b76c22a9cbf0452cc3b8277a25b2dd587848f482
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now inserts the repo root for direct script invocation, rejects Slack identifiers in artifact refs, treats missing derived keys as invalid local artifacts, rejects symlinked event files before reads, includes `operator_ledger_scope=local_only` on valid summaries, and catches CLI output write `OSError`; `tests/test_experiment_operator_ledger.py` and `tests/test_experiment_slack_socket_bridge.py` cover each regression.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343339194 -> 45f85b71d5979aac9817235078c54212fb1a586a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343339199 -> 45f85b71d5979aac9817235078c54212fb1a586a
+Disposition: FIXED
+Commit: 45f85b71d5979aac9817235078c54212fb1a586a
+Evidence: `docs/review/PR_1867_FIXED_MAPPING.md` uses the `### Fixed in Commit Mapping` mirror heading, includes a live `## Merge Readiness` section, and corrects the `qa-engineer-agent` wording.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343286674
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` builds `_idempotency_key` from canonical local ledger metadata and already-hashed fields only; `tests/test_experiment_operator_ledger.py` asserts raw Slack IDs, raw hypotheses, local paths, secrets, patch text, and merge-readiness claims do not render or persist.
+Reason: The CodeQL comment classifies SHA-256 as password hashing, but this digest is a local idempotency key, not password or credential storage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3343369088
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 6fe6e93ecd2b4ad7f95316982fed7066db829e54 HEAD` returns 0 locally; `gh pr view 1867 --json headRefOid,commits` lists `6fe6e93ecd2b4ad7f95316982fed7066db829e54` as a PR commit.
+Reason: The connector evaluated a non-current/synthetic reviewed commit and incorrectly treated the implementation SHA as a sibling; the mapped SHA is an ancestor of the governed branch head.
 
 ## Role-Agent / Premortem Pass
 
@@ -38,8 +69,8 @@ Pre-open role order completed before implementation from packet
   separate local-only module.
 - `security-auditor` - completed; required fail-closed schema validation and no
   raw IDs/text/tokens/paths/provider logs/patch/oracle output.
-- `qa-engineer-agent` - completed; required focused module, CLI/report/path,
-  docs contract, and command-surface tests.
+- `qa-engineer-agent` - completed; required focused tests for module,
+  CLI/report/path, docs contract, and command-surface behavior.
 - `bug-hunter` - completed; identified authority creep, raw leakage, path
   safety, schema drift, facade compatibility, and no-command-creep edge cases.
 - `dev-operator` - completed; defined exact local gates and Experiment Runner
@@ -92,6 +123,13 @@ orchestration lane. Do not claim merge readiness until current-head CI,
 post-open role review, Codex Security diff scan/finding discovery when
 available, `pulseplate-pr-review`, bot/actionable comment disposition, PR body
 mirror, and strict merge-readiness wrapper pass.
+
+## Merge Readiness
+
+Not claimed. Current-head CI, post-open role review, Codex Security diff scan /
+finding discovery when available, `pulseplate-pr-review`, bot/actionable comment
+disposition, PR body mirror updates, and strict merge-readiness wrapper remain
+required before any readiness claim.
 
 ## Current CI Status
 
