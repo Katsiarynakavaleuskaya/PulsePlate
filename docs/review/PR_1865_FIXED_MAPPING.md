@@ -4,13 +4,12 @@
 **Branch:** `codex/coaching-structured-wave-contract`
 **Scope:** Docs-only reconciliation for Philosophy source corpus closeout and
 CBT/FitChef structured coaching product truth.
-**Primary proof mode:** per-thread branch-history proof; see mapped
-post-comment commits below.
+**Primary proof mode:** repo disposition proof for resolved GitHub review
+threads; see mapped post-comment commits below.
 
-Synthetic squash-preview SHAs emitted by review tooling are not canonical
-branch-history proof. Actual PR disposition proof is evaluated against the PR's
-GitHub branch commits; the final squash merge message must retain the standalone
-Experiment Runner co-author trailer when this PR is squash-merged.
+Synthetic squash-preview SHAs emitted by review tooling are not canonical proof
+targets. Actual PR disposition proof is evaluated against the PR's GitHub branch
+commits and the repo's merge-readiness/disposition checks.
 
 ## Discussion Thread Pass
 
