@@ -265,18 +265,24 @@ Future structured coach implementation must:
 
 ## Evidence anchors
 
-- `app/main.py:200`
-- `app/routers/fitchef_structured.py:75`
-- `app/routers/fitchef_insight.py:45`
-- `app/routers/fitchef_insight.py:58`
-- `app/routers/fitchef_insight.py:133`
-- `app/routers/fitchef_insight.py:214`
-- `app/routers/cbt_insight.py:87`
-- `app/services/fitchef_runtime.py:264`
-- `app/services/fitchef_runtime.py:435`
-- `app/schemas/fitchef.py:33`
-- `app/schemas/fitchef.py:121`
-- `app/schemas/fitchef_coaching.py:60`
-- `tests/test_fitchef_structured_api.py:337`
-- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:21`
-- `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md:11`
+Use stable symbols rather than line-number evidence for long-lived contract
+truth:
+
+- `app.main.include_optional_routers`
+- `app.routers.fitchef_structured.fitchef_distortion_simulator`
+- `app.routers.fitchef_insight.router`
+- `app.routers.fitchef_insight.fitchef_mascot_insight`
+- `app.routers.fitchef_insight.fitchef_weekly_reflection`
+- `app.routers.fitchef_insight.fitchef_slip_support`
+- `app.routers.cbt_insight.CBTInsightResponse`
+- `app.services.fitchef_runtime.run_distortion_simulator_task`
+- `app.services.fitchef_runtime.run_mascot_insight_task`
+- `app.services.fitchef_runtime.run_weekly_reflection_task`
+- `app.services.fitchef_runtime.run_slip_support_task`
+- `app.schemas.fitchef.FitChefDistortionSimulatorInput`
+- `app.schemas.fitchef.FitChefSlipSupportTaskEnvelope`
+- `app.schemas.fitchef_coaching.FitChefIdentityLoopMapperRequest`
+- `app.schemas.fitchef_coaching.FitChefDistortionSimulatorResponse`
+- `tests.test_fitchef_structured_api.TestFitChefDistortionSimulatorRoute.test_openapi_documents_distortion_simulator_contract`
+- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+- `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`

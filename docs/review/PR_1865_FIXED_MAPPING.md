@@ -8,8 +8,8 @@ CBT/FitChef structured coaching product truth.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass initialized
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Post-open bot/human review disposition completed
 
 ## Fixed in Commit Mapping
@@ -17,13 +17,7 @@ CBT/FitChef structured coaching product truth.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865 -> 554c0c00719a
 Disposition: FIXED
 Commit: 554c0c00719a
-Evidence: `docs/roadmap/BACKLOG_LEDGER.md`, `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`,
-`docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`,
-`docs/contracts/API_CANONICAL_MAP.md`, and `docs/contracts/PRODUCT_TIER_MAP.md`
-now record PR #1822 / `740a64fb7d87d404076117698bee5d4bee71f390`,
-PR #1214 / `29a11e62e38307dd4cc7414bffc159b508878744`, and PR #1215 /
-`70bdbd9e51d977d440b605eed3064c71212cff97` while preserving future-only VIP
-Identity Loop Mapper wording and closed semantic-cache/runtime boundaries.
+Evidence: Backlog, coaching wave, structured coach contract, API map, and tier map record PR #1822 / `740a64fb7d87d404076117698bee5d4bee71f390`, PR #1214 / `29a11e62e38307dd4cc7414bffc159b508878744`, and PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97` while preserving future-only VIP Identity Loop Mapper wording and closed semantic-cache/runtime boundaries.
 
 ## Carryover
 
@@ -58,9 +52,10 @@ Pre-open role order completed before implementation:
 
 ## Lane Start Provenance
 
-- Initial packet: `artifacts/orchestration/task_packets/e59315aa13d9.json`
-- Full requested-agent packet: `artifacts/orchestration/task_packets/f98792a408c7.json`
-- Supplemental expanded packet: `artifacts/orchestration/task_packets/54180e600945.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Packet: `artifacts/orchestration/task_packets/e59315aa13d9.json`
+- Packet: `artifacts/orchestration/task_packets/f98792a408c7.json`
+- Packet: `artifacts/orchestration/task_packets/54180e600945.json`
 
 ## Premortem Risk Review
 
@@ -74,7 +69,6 @@ Pre-open role order completed before implementation:
 
 ## Experiment Runner Evidence
 
-- Packet: `artifacts/orchestration/experiments/artifacts/orchestration/experiments/coaching-structured-wave-contract-oracle-packet.json`
 - Artifact: `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`
 - Mode: `oracle_only_governance_reviewer`
 - Result: accepted; 4/4 oracle commands passed.
@@ -88,9 +82,10 @@ Pre-open role order completed before implementation:
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/insights/CBT_COACHING_PRODUCT_WAVE.md docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/API_CANONICAL_MAP.md docs/contracts/PRODUCT_TIER_MAP.md` - PASS.
 - `python3 scripts/ci/check_semantic_cache_gate.py` - PASS; semantic-cache gate remains closed.
 - `python3 scripts/ci/check_philosophy_source_corpus_index.py --check` - PASS.
-- `.venv/bin/python -m pytest -q tests/guards/test_wellness_language_blockers_guard.py` - PASS.
-- `.venv/bin/python -m pytest -q tests/test_philosophy_source_corpus_index.py` - PASS.
-- `.venv/bin/python -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/guards/test_wellness_language_blockers_guard.py` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_philosophy_source_corpus_index.py` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_philosophy_source_corpus_index.py tests/guards/test_wellness_language_blockers_guard.py` - PASS after post-open QA fixes.
 - `make validate-changed` - PASS; no Python files changed.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push, and full

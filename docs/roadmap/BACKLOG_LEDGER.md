@@ -3151,6 +3151,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1822 (`docs(philosophy): add source corpus oracle`)
   - Status: Landed via PR #1822 on 2026-05-26 with merge commit `740a64fb7d87d404076117698bee5d4bee71f390`. PR-5 preserves the six operator-provided philosophy PDFs as a governed source-corpus index before any later philosophy module or semantic-cache follow-up. PR-A2 remains a separate AI/runtime prerequisite line. Semantic-cache runtime handoff remains blocked: all machine markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before any runtime semantic-cache work can begin.
+  - Reconciliation note: PR #1865 is the retroactive docs-only ledger closeout
+    for this already-landed source-corpus lane. Future PRs that close ledger
+    items should still update this ledger in the same PR or same/next-day
+    follow-up.
   - Area: AI / RAG / philosophy / source corpus / interdisciplinary governance / test infrastructure
   - Finding Type: corpus-preservation, source-boundary policy, interdisciplinary synthesis index
   - Reason (EN): PR-0 through PR-4.2 made the philosophy semantic-cache admission line deterministic and gate-closed, but the expanded operator PDF corpus now spans Socratic method, Leibniz and information theory, analytical/linguistic philosophy, CBT-coaching correlations, and plan-adaptation concepts. PR-5 prevents those documents from being lost or accidentally treated as runtime truth by adding a canonical source index, schema, guard, tests, and packet that preserve source identity while keeping semantic-cache and runtime activation blocked.
@@ -3858,6 +3862,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (product differentiation / CBT coaching)
   - Target PR: PR #1215 (`feat(fitchef): add PRO structured coaching runtime`)
   - Status: Landed via PR #1215 on 2026-03-21 with merge commit `70bdbd9e51d977d440b605eed3064c71212cff97`.
+  - Reconciliation note: PR #1865 is the retroactive docs-only ledger closeout
+    for the already-landed PRO Distortion Simulator lane. Future PRs that close
+    ledger items should still update this ledger in the same PR or same/next-day
+    follow-up.
   - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. `POST /api/v1/pro/fitchef/recommend` remains a separate contract-frozen follow-up.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
