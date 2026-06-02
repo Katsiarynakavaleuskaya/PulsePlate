@@ -271,7 +271,8 @@ Not recommended:
 
 1. Landed: Distortion Simulator contract + PRO runtime via PR #1214 and PR #1215
 2. Next active substantive lane: Identity Loop Mapper contract + VIP runtime,
-   aligned to the frozen `FitChefIdentityLoopMapperResponse` schema
+   aligned to the frozen `FitChefIdentityLoopMapperResponse` schema; the schema
+   and generated OpenAPI remain authoritative over this summary list.
 3. Separate future lane: Signal vs Noise report/content lane
 
 The broader philosophy and CBT source corpus can inform future reviewed PRs, but

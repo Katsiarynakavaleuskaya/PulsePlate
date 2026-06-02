@@ -25,8 +25,7 @@ for PR governance without tracking local runtime artifacts.
 - Branch attribution status: satisfied by branch commits that recorded or
   materially used this Experiment Runner evidence.
 - Co-author reason: Mandatory Experiment Runner oracle review shaped the
-  pre-open commit decision for this docs reconciliation; if this PR is
-  squash-merged, the squash commit body must retain the standalone trailer.
+  pre-open commit decision for this docs reconciliation.
 
 ## Oracle Commands
 
@@ -43,9 +42,4 @@ carry:
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 Review-tool synthetic squash-preview SHAs are not branch-history proof. The
-canonical branch-history proof is the committed PR branch; squash merge
-attribution is handled by retaining the standalone trailer in the generated
-squash commit body.
-
-If this PR is squash-merged, the generated squash commit body must also retain
-the same co-author trailer.
+canonical branch-history proof is the committed PR branch.

@@ -11,8 +11,9 @@ Status: repo-grounded evidence only
 
 ## Repo evidence summary
 
-All repo-grounded claims below use explicit `path:line-line` anchors so the
-promotion is auditable under the docs evidence contract.
+Repo-grounded claims below use explicit `path:line-line` anchors or stable
+section anchors when prior line-range drift has been reviewed, so the promotion
+is auditable under the docs evidence contract.
 
 ### 1. CBT knowledge already exists
 
