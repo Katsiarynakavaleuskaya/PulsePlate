@@ -28,6 +28,13 @@ Disposition: FIXED
 Commit: 9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1
 Evidence: `docs/review/PR_FRONTEND_VITEST_4_PREMORTEM.md` adds checked fixed-mapping and PR-body mirror checklist items; `docs/review/PR_1866_FIXED_MAPPING.md` now uses exact checked Discussion Thread Pass labels and parser-valid single-line mapping evidence.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341179934
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341179936
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#pullrequestreview-4409650129
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 452629b03 HEAD` and `git merge-base --is-ancestor 9fed1a5d5 HEAD` return 0 locally; `gh pr view 1866 --json headRefOid,commits` lists both SHAs on branch head `129abb783`; `git show -s --format=%B 452629b03` includes the Experiment Runner co-author trailer.
+Reason: The connector comments evaluated non-current commit `0f2e501d`; PR #1866 is not squashed, the mapped SHAs are branch ancestors, and Experiment Runner attribution is present on the implementation commit materially shaped by the oracle.
+
 ## Implementation Evidence
 
 Disposition: FIXED
