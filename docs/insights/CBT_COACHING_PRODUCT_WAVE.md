@@ -1,7 +1,8 @@
 # CBT Coaching Product Wave
 
 Date: 21 March 2026
-Status: Canonical docs-first product-wave decision
+Status: Canonical docs-first product-wave decision; reconciled after the
+feature-gated PRO Distortion Simulator runtime landed in PR #1215
 Owner: @katsiaryna_kavaleuskaya
 
 ## Summary
@@ -32,6 +33,9 @@ The repository already contains enough foundation to make this a coherent produc
   - `app/routers/fitchef_insight.py`
 - future structured coach route freeze:
   - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+- feature-gated PRO structured coach runtime:
+  - `POST /api/v1/pro/fitchef/explain`
+  - `app/routers/fitchef_structured.py`
 - analytics and experiment governance:
   - `docs/analytics/METRICS_CATALOG.md`
   - `docs/analytics/EXPERIMENT_REGISTRY.md`
@@ -59,10 +63,10 @@ reframing tool.
 - `automatic_thought`
 - `emotion`
 - `goal?`
-- `trigger_context?`
 
 **Output direction:**
 
+- `scenario`
 - `distortion_labels[]`
 - `why_it_matches`
 - `evidence_for[]`
@@ -74,6 +78,7 @@ reframing tool.
 - `warnings[]`
 - `transparency_notice_id`
 - `wellness_boundary`
+- `quota_state`
 
 ### Pillar B: Identity Loop Mapper
 
@@ -108,6 +113,8 @@ reframing tool.
 - `warnings[]`
 - `transparency_notice_id`
 - `wellness_boundary`
+- `scenario`
+- `quota_state`
 
 ### Pillar C: Signal vs Noise Reports
 
@@ -181,7 +188,8 @@ This wave does **not** rename or migrate the live mascot routes.
 It aligns to the existing structured coach contract as follows:
 
 - `POST /api/v1/pro/fitchef/explain`
-  - primary future capability: Distortion Simulator
+  - landed feature-gated PRO capability: Distortion Simulator
+  - landed via PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`
 - `POST /api/v1/pro/fitchef/recommend`
   - primary future capability: bounded action-oriented recommendation after reframing
 - `POST /api/v1/vip/fitchef/insight`
@@ -261,9 +269,16 @@ Not recommended:
 
 ### Follow-up implementation lanes
 
-1. Distortion Simulator contract + PRO runtime
-2. Identity Loop Mapper contract + VIP runtime
-3. Signal vs Noise report/content lane
+1. Landed: Distortion Simulator contract + PRO runtime via PR #1214 and PR #1215
+2. Next active substantive lane: Identity Loop Mapper contract + VIP runtime,
+   aligned to the frozen `FitChefIdentityLoopMapperResponse` schema; the schema
+   and generated OpenAPI remain authoritative over this summary list.
+3. Separate future lane: Signal vs Noise report/content lane
+
+The broader philosophy and CBT source corpus can inform future reviewed PRs, but
+it is source-corpus/supporting evidence only. It does not open semantic-cache,
+GraphRAG, DB, OpenAPI, frontend, iOS, or automatic plan-adaptation runtime work
+in this wave document.
 
 ## Decision
 

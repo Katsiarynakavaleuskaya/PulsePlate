@@ -1,0 +1,439 @@
+# PR #1865 - Fixed in Commit Mapping
+
+**Title:** `docs(coaching): promote structured coaching wave contract`
+**Branch:** `codex/coaching-structured-wave-contract`
+**Scope:** Docs-only reconciliation for Philosophy source corpus closeout and
+CBT/FitChef structured coaching product truth.
+**Primary proof mode:** repo disposition proof for resolved GitHub review
+threads; see mapped post-comment commits below.
+
+Synthetic or review-tool evaluated SHAs that are not present in the local PR
+branch are not canonical proof targets. Actual PR disposition proof is recorded
+in this artifact and checked by the repo's merge-readiness/disposition gates.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Post-open bot/human review disposition completed
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407204096 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` and `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now use stable symbol anchors instead of line-number evidence, while `docs/roadmap/BACKLOG_LEDGER.md` records retroactive reconciliation notes for already-landed lanes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407235009 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` records PR #1865 as the retroactive docs-only closeout for PR #1822 and PR #1215; `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` uses stable symbol anchors for the structured coaching evidence chain.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407243903 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the misleading duplicated Experiment Runner packet path and keeps the canonical accepted result artifact path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339207658 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the misleading duplicated Experiment Runner packet path; the accepted result remains `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407259934 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: Both real branch commits that materially record Experiment Runner evidence include the canonical Experiment Runner co-author trailer; the post-open fix commit also preserves that trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339222025 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `git show -s --format=%B 554c0c007`, `git show -s --format=%B 782f05123`, and `git show -s --format=%B d3313675c` include the canonical Experiment Runner co-author trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339222029 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now reconciles `POST /api/v1/pro/fitchef/explain` as the landed PR #1215 feature-gated PRO runtime and keeps the remaining structured coach routes future-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339222034 -> d3313675c
+Disposition: FIXED
+Commit: d3313675c
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the duplicated Experiment Runner packet path and retains the accepted result artifact path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407367642 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` records local artifact identity, SHA-256, affected diff paths, and validation commands without tracking forbidden local `artifacts/` files or restating raw attribution fields.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313628 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `git show -s --format=%B 629f39132` includes the canonical Experiment Runner co-author trailer, so the current real branch history carries the required trailer after the fresh review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313633 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` and `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now reference `app.main.ensure_canonical_app_bootstrap`, the existing bootstrap/router-registration seam.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313639 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` removes `trigger_context?` from the landed Distortion Simulator input direction so it matches `FitChefDistortionSimulatorRequest`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313645 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` keeps only `POST /api/v1/vip/fitchef/insight` in the next active VIP runtime lane and moves chat/week-repair to later VIP structured follow-ups.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313648 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` and `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md` now point to the stable `FITCHEF_INITIATIVE_FOUNDATION.md#artifact-and-asset-governance` section instead of shifted line-number anchors.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245325 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Disposition: FIXED
+Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now states that a squash merge commit body must retain the canonical Experiment Runner co-author trailer when the PR is squash-merged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245344 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Disposition: FIXED
+Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now uses current branch proof commit `1f329466ad5de454f6b3db8266f642a4eed53ebf` for the PR-level mapping instead of the obsolete pre-review primary commit reference.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245349 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Disposition: FIXED
+Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the landed Distortion Simulator output direction so the wave doc matches `FitChefDistortionSimulatorResponse`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245357 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Disposition: FIXED
+Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Evidence: `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md` and `docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md` now point at stable `FITCHEF_STRUCTURED_COACH_CONTRACT.md#route-family-freeze` and `#wave-aligned-capability-mapping` anchors instead of shifted line-number ranges.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341361548 -> f015442c4c1c1841518594f395461f69595d5838
+Disposition: FIXED
+Commit: f015442c4c1c1841518594f395461f69595d5838
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records that actual branch proof is evaluated against GitHub branch head `c0696ed52d6a02f225d162e7e89d162fef7aea46`, confirms that head includes the Experiment Runner trailer, and distinguishes review-tool synthetic squash-preview SHAs from branch-history proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341361560 -> f015442c4c1c1841518594f395461f69595d5838
+Disposition: FIXED
+Commit: f015442c4c1c1841518594f395461f69595d5838
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now points the PR-level mapping at evaluated branch proof commit `c0696ed52d6a02f225d162e7e89d162fef7aea46`; local evidence shows prior proof commits remain ancestors of the actual branch head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341406140 -> f015442c4c1c1841518594f395461f69595d5838
+Disposition: FIXED
+Commit: f015442c4c1c1841518594f395461f69595d5838
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records the verified branch head and the required squash-merge co-author trailer handling; `git show -s --format=%B f015442c4c1c1841518594f395461f69595d5838` includes the canonical Experiment Runner co-author trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341406144 -> f015442c4c1c1841518594f395461f69595d5838
+Disposition: FIXED
+Commit: f015442c4c1c1841518594f395461f69595d5838
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now separates evaluated branch proof from synthetic squash-preview SHAs and points PR-level proof at `c0696ed52d6a02f225d162e7e89d162fef7aea46`, the branch head that contained the completed post-open review sequence at the time of the fresh review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341431558
+Disposition: NOT-A-BUG
+Evidence: Cubic generated this thread from stale pre-fix context and then marked it addressed in `f015442c4c1c1841518594f395461f69595d5838`; the current artifact already distinguishes branch-history proof from synthetic squash-preview SHAs, and GitHub shows this Cubic thread resolved.
+Reason: The reported stale primary proof was already corrected before the Cubic thread was created, so no additional code/docs fix was required beyond recording the resolved-thread disposition.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341520715 -> 8fc4fa484c738f2948c0014ef95ee24405cfd918
+Disposition: FIXED
+Commit: 8fc4fa484c738f2948c0014ef95ee24405cfd918
+Evidence: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` and `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md` now use stable `FITCHEF_INITIATIVE_FOUNDATION.md#pr-1-visual-system-and-app-store-contract`, `#pr-2-mascot-asset-taxonomy`, and `FITCHEF_APP_STORE_VISUAL_CONTRACT.md#folder-contract-for-future-pr-3-production-assets` anchors instead of shifted line-number references.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341645165 -> 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Disposition: FIXED
+Commit: 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` records the accepted oracle result without treating synthetic or review-tool evaluated SHAs as canonical proof targets.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341645171 -> 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Disposition: FIXED
+Commit: 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the single stale primary proof SHA and the PR-level non-thread mapping block; resolved-thread proof remains explicit in this artifact and is checked by repo disposition gates.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341645175 -> 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Disposition: FIXED
+Commit: 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the Identity Loop Mapper output direction and states that the next active VIP runtime lane must align to the frozen `FitChefIdentityLoopMapperResponse` schema.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341753035 -> 2199ce08ffcb03531bcab6dbb898cb4f9bd0e1c2
+Disposition: FIXED
+Commit: 2199ce08ffcb03531bcab6dbb898cb4f9bd0e1c2
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records only committed branch-history proof and no longer states a committed synthetic-squash trailer requirement; the standalone squash trailer remains in the PR body for operator merge handling.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341753042 -> 2199ce08ffcb03531bcab6dbb898cb4f9bd0e1c2
+Disposition: FIXED
+Commit: 2199ce08ffcb03531bcab6dbb898cb4f9bd0e1c2
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` keeps `scenario` and `quota_state` in the Identity Loop Mapper output direction and now states that the frozen schema and generated OpenAPI remain authoritative over the summary list.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341753050
+Disposition: NOT-A-BUG
+Evidence: The review comment evaluates a synthetic squash-preview SHA, while repo merge-readiness and disposition guards evaluate the committed PR branch and per-thread branch-history proof; GitHub current-head CI and `check_review_threads_disposition.py --require-auth` are the canonical verification surfaces.
+Reason: Synthetic squash-preview SHAs are not branch-history proof and cannot be used as commit-after-comment mapping targets; the mapping artifact intentionally keeps actual per-thread branch commit proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341753057 -> 2199ce08ffcb03531bcab6dbb898cb4f9bd0e1c2
+Disposition: FIXED
+Commit: 2199ce08ffcb03531bcab6dbb898cb4f9bd0e1c2
+Evidence: `docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md` now allows reviewed stable section anchors as well as explicit `path:line-line` anchors under the evidence contract.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341919821 -> d1e3ade97e988a7ad454f060881eb9a8ae555dbf
+Disposition: FIXED
+Commit: d1e3ade97e988a7ad454f060881eb9a8ae555dbf
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now removes the remaining co-author reason wording from the committed evidence summary; branch commits still carry the governed Experiment Runner trailer and the standalone squash trailer remains in the PR body.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341919829
+Disposition: NOT-A-BUG
+Evidence: The review comment evaluates a synthetic squash-preview SHA rather than the committed PR branch. Canonical disposition proof remains the per-thread branch-history commit mapping validated by `check_review_threads_disposition.py --require-auth` and current-head CI.
+Reason: Synthetic squash-preview SHAs are not branch-history proof and cannot be used as commit-after-comment mapping targets; the mapping artifact intentionally keeps actual branch commit proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343041961 -> cc1eba1f6
+Disposition: FIXED
+Commit: cc1eba1f6
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` no longer says branch attribution is satisfied by a synthetic squash-preview commit; it records that the PR body carries the required standalone squash-merge trailer and that review-tool synthetic SHAs are not branch-history proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343041966
+Disposition: NOT-A-BUG
+Evidence: The referenced `6176459f4c00789c3e624aaa3b0e8ad50d5394bf` is not a valid local branch commit; the proof commits named by the comment, including `d3313675c`, `670fc8e3`, and `d1e3ade9`, are ancestors of the actual PR branch history.
+Reason: The comment evaluates a review-tool synthetic squash-preview SHA rather than the committed PR branch history used by the repo disposition guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343160411 -> 300416677
+Disposition: FIXED
+Commit: 300416677
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now narrows attribution wording to material commits and repo merge/disposition policy, without claiming that PR-body text replaces commit trailers or that synthetic squash-preview SHAs are proof targets.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343160418 -> 300416677
+Disposition: FIXED
+Commit: 300416677
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now describes the mapping as repo disposition proof for resolved GitHub review threads and explicitly excludes synthetic squash-preview SHAs from canonical proof targets.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343231302 -> d8c0a0824
+Disposition: FIXED
+Commit: d8c0a0824
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records the accepted oracle result without asserting trailer compliance for non-local review-tool evaluated SHAs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343231307 -> d8c0a0824
+Disposition: FIXED
+Commit: d8c0a0824
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now states that non-local synthetic or review-tool evaluated SHAs are not canonical proof targets and that disposition proof is checked by repo merge-readiness/disposition gates.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343231314 -> d8c0a0824
+Disposition: FIXED
+Commit: d8c0a0824
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the Identity Loop Mapper output direction.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343231322 -> d8c0a0824
+Disposition: FIXED
+Commit: d8c0a0824
+Evidence: `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md` now points to the stable `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#pr-3-app-store-production-pack` anchor instead of the shifted line-number evidence.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343303074 -> 1bdf25e55
+Disposition: FIXED
+Commit: 1bdf25e55
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` no longer includes the inline co-author trailer text in the committed evidence artifact; the section now records attribution scope without asserting trailer compliance for non-local review-tool evaluated SHAs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343303079
+Disposition: NOT-A-BUG
+Evidence: The referenced `b608d10b6259a5880ff8bb4d18e758eef5de0643` is not a local branch object, while this artifact explicitly states that synthetic or review-tool evaluated SHAs not present in the local PR branch are not canonical proof targets.
+Reason: The comment evaluates non-local review-tool history rather than the committed PR branch and repo disposition guard proof surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343303082 -> 1bdf25e55
+Disposition: FIXED
+Commit: 1bdf25e55
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now lists one `scenario` and one `quota_state` field in the landed Distortion Simulator output direction.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343388457
+Disposition: NOT-A-BUG
+Evidence: The referenced `425afcf51564dc1f93dda86a1e88c0ec9db7edfb` is not a local branch object (`git cat-file -t ...` fails), while the latest commits that touch Experiment Runner proof handling carry the governed co-author trailer.
+Reason: The comment evaluates a non-local review-tool commit, not the committed PR branch history or repo disposition guard proof surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343388467
+Disposition: NOT-A-BUG
+Evidence: The referenced `425afcf51564dc1f93dda86a1e88c0ec9db7edfb` is not a local branch object; this artifact explicitly excludes synthetic or review-tool evaluated SHAs not present in the local PR branch as canonical proof targets.
+Reason: The comment evaluates non-local review-tool history rather than the committed PR branch and repo disposition guard proof surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343388476 -> 0f1fe7a70
+Disposition: FIXED
+Commit: 0f1fe7a70
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the Identity Loop Mapper output direction.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343459824
+Disposition: NOT-A-BUG
+Evidence: `4b155497730a41f8b0c73eafc5311d9d4d3d44da` is not a local commit object and GitHub GraphQL returned no repository object for that SHA, while actual PR head `eff4d83bcdb1ea64b6b53988915e9d66bb0f2bd0` contains the canonical Experiment Runner trailer. `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records provenance-only local evidence and does not assert trailer compliance for non-local review-tool evaluated SHAs.
+Reason: The comment asks for trailer compliance on a connector-generated evaluated SHA that is not a repo branch commit, so it is not a valid repo attribution target.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343459829
+Disposition: NOT-A-BUG
+Evidence: `4b155497730a41f8b0c73eafc5311d9d4d3d44da` is not a local commit object and GitHub GraphQL returned no repository object for that SHA. The proof commits named by the comment, including `d3313675c`, `629f39132`, `2c702517`, `670fc8e3`, `d8c0a0824`, and `0f1fe7a70`, are ancestors of actual PR head `eff4d83bcdb1ea64b6b53988915e9d66bb0f2bd0`.
+Reason: Fixed mapping is branch-history proof for GitHub PR review threads, not ancestry proof for connector-local evaluated SHAs that are absent from the PR branch graph.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343734381
+Disposition: NOT-A-BUG
+Evidence: `d5674f86fc8a71102d576e00a4f3f3916b1cc482` is not a local commit object and GitHub GraphQL returned no repository object for that SHA. The committed Experiment Runner evidence summary is provenance-only and does not create trailer requirements for non-local review-tool evaluated SHAs.
+Reason: The comment asks for trailer compliance on a connector-generated evaluated SHA that is not a repo branch commit, so it is not a valid repo attribution target.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343734390
+Disposition: NOT-A-BUG
+Evidence: `d5674f86fc8a71102d576e00a4f3f3916b1cc482` is not a local commit object and GitHub GraphQL returned no repository object for that SHA. The named proof commits are branch-history proof for actual GitHub PR commits, not for connector-local synthetic/squash-preview history.
+Reason: Fixed mapping is branch-history proof for GitHub PR review threads and cannot be validated against non-repo evaluated SHAs absent from the PR branch graph.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343734396 -> 8b7435adbdfe44446352181883e895eb47de81ba
+Disposition: FIXED
+Commit: 8b7435adbdfe44446352181883e895eb47de81ba
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now states that the landed PRO Distortion Simulator route is governed by `FitChefDistortionSimulatorResponse` and scopes the generic `mode` / `title` / `summary` / `bullets` / `actions` envelope direction to unimplemented structured-coach follow-ups only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343829242 -> 899d07cec3b12336a2bdf32a6534a2aacb4f0755
+Disposition: FIXED
+Commit: 899d07cec3b12336a2bdf32a6534a2aacb4f0755
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now lists the actual landed `FitChefDistortionSimulatorResponse` fields: `scenario`, `distortion_labels`, `why_it_matches`, `evidence_for`, `evidence_against`, `balanced_reframe`, `next_small_action`, `sources`, `confidence`, `warnings`, `quota_state`, `transparency_notice_id`, and `wellness_boundary`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343829247 -> 899d07cec3b12336a2bdf32a6534a2aacb4f0755
+Disposition: FIXED
+Commit: 899d07cec3b12336a2bdf32a6534a2aacb4f0755
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now states that the next active VIP Identity Loop Mapper lane is schema-frozen by `FitChefIdentityLoopMapperResponse` and that the generic envelope direction applies only to later follow-ups without frozen response schemas.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343829252
+Disposition: NOT-A-BUG
+Evidence: `7d645b275b1d018083e966429606606d3a37964f` is not a local commit object and is not an ancestor of the PR branch. Actual branch commits that materially used Experiment Runner evidence carry the governed co-author trailer.
+Reason: The comment asks for trailer compliance on a connector-generated evaluated SHA that is not a repo branch commit, so it is not a valid repo attribution target.
+
+## Carryover
+
+Disposition: FIXED
+Commit: `554c0c00719a`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now marks Philosophy Epic V2 PR-5
+source corpus landed via PR #1822 / `740a64fb7d87d404076117698bee5d4bee71f390`.
+The PR body includes a `Carryover` section naming the folded ledger closeout.
+
+## Role-Agent Passes
+
+Pre-open role order completed before implementation:
+
+- `agent-coordinator` - completed; decision `promote_with_constraints`.
+- `architecture-specialist` - completed; required reconciling PRO runtime truth
+  while keeping VIP Identity Loop future-only.
+- `wellness-analyst-agent` - completed; required non-clinical, request-scoped
+  wording and conscious expansion to `API_CANONICAL_MAP.md` and
+  `PRODUCT_TIER_MAP.md`.
+- `cursor-specialist-agent` - completed; required supplemental packet
+  `artifacts/orchestration/task_packets/54180e600945.json` for the five-doc
+  scope.
+- `security-auditor` - completed; no blocking baseline issue, with constraints
+  against semantic-cache/GraphRAG/source-corpus runtime promotion and weakened
+  auth/quota/fail-closed wording.
+- `qa-engineer-agent` - completed; validation plan and acceptance criteria set
+  for the five-doc reconciliation.
+- `bug-hunter` - completed; no blocker for the docs diff, with traps to avoid
+  around VIP overclaim, stale PR chains, anchor renames, and premature mapping.
+- `web-research-agent` - completed; no browsing needed, with repo evidence
+  sufficient and Drive/PDF material kept non-canonical.
+
+## Lane Start Provenance
+
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Packet: `artifacts/orchestration/task_packets/e59315aa13d9.json`
+- Packet: `artifacts/orchestration/task_packets/f98792a408c7.json`
+- Packet: `artifacts/orchestration/task_packets/54180e600945.json`
+
+## Premortem Risk Review
+
+- Skill: `pulseplate-premortem-risk-review`
+- Mode: `pr-premortem`
+- Artifact: `artifacts/orchestration/premortem/coaching-structured-wave-contract-premortem.md`
+- Decision: proceed with changes.
+- Findings closed before PR open: PRO runtime truth drift, VIP overclaim risk,
+  source-corpus/runtime leakage risk, wellness-language drift risk, and PR #1822
+  carryover-body requirement.
+
+## Experiment Runner Evidence
+
+- Not applicable: committing raw Experiment Runner JSON under `artifacts/` is forbidden by repo local-artifact policy; the committed summary below records local artifact identity, SHA-256, affected diff paths, and validation commands.
+- Committed summary: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md`
+- Raw local result: `artifacts/orchestration/experiments/results/coaching-structured-wave-contract-oracle.json`
+- Review outcome: local non-mutating governance review completed; 4/4 validation commands passed.
+- Attribution note: material Experiment Runner attribution remains governed by repo commit and merge policy. This mapping section does not restate raw local attribution fields and does not create trailer requirements for non-local review-tool evaluated SHAs.
+
+## Local Validation
+
+- `python3 scripts/orchestration/check_preflight.py` - PASS.
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/insights/CBT_COACHING_PRODUCT_WAVE.md docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/API_CANONICAL_MAP.md docs/contracts/PRODUCT_TIER_MAP.md` - PASS.
+- `python3 scripts/ci/check_semantic_cache_gate.py` - PASS; semantic-cache gate remains closed.
+- `python3 scripts/ci/check_philosophy_source_corpus_index.py --check` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/guards/test_wellness_language_blockers_guard.py` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_philosophy_source_corpus_index.py` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_philosophy_source_corpus_index.py tests/guards/test_wellness_language_blockers_guard.py` - PASS after post-open QA fixes.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` - PASS after post-open bug-hunter fixes.
+- `python3 scripts/ci/check_philosophy_source_corpus_index.py --check` - PASS after post-open bug-hunter fixes.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_philosophy_source_corpus_index.py tests/guards/test_wellness_language_blockers_guard.py` - PASS after post-open bug-hunter fixes.
+- `python3 scripts/ci/check_pr_size_governance.py --base-sha <merge-base> --head-sha <head> --body <PR body>` - PASS; standard governance/design PR with 10 counted files.
+- Codex Security diff scan / finding discovery - PASS; 10/10 changed docs/review files covered, 0 reportable findings, final markdown and HTML reports validated under `/tmp/codex-security-scans/coaching-structured-wave-contract/a5220fc657723994650ad42e88633be005a0cd8a_20260602T125053Z/`.
+- `python3 scripts/orchestration/pr_review_context.py --pr 1865 --output /tmp/pulseplate_pr_1865_review_context.json` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest tests/test_pr_review_report.py -q` - PASS.
+- `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1865_review_context.json --format json` - PASS; one advisory line-count review-risk note, dispositioned below as `NOT-A-BUG`.
+- `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1865_review_context.json --format markdown` - PASS.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/insights/CBT_COACHING_PRODUCT_WAVE.md docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md docs/review/PR_1865_FIXED_MAPPING.md` - PASS after fresh review-thread fixes.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/guards/test_wellness_language_blockers_guard.py` - PASS after fresh review-thread fixes.
+- `make validate-changed` - PASS; no Python files changed.
+- `pre-commit run --all-files` - PASS.
+- Pre-push hooks - PASS, including `pip-audit`, backend pre-push, and full
+  Bandit; Docker build hook skipped because no Docker-surface files changed.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md docs/review/PR_1865_FIXED_MAPPING.md` - PASS after connector-loop source fix.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1865 --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` - PASS after connector-loop source fix.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1865 --require-auth` - PASS for already resolved threads after connector-loop source fix.
+- `make validate-changed` - PASS after connector-loop source fix.
+- `pre-commit run --all-files` - PASS after connector-loop source fix.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` - PASS after structured response envelope fix.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS after structured response envelope fix.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` - PASS after structured response schema wording fix.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS after structured response schema wording fix.
+
+## Post-Open Review
+
+Mandatory sequence status:
+
+- [x] `qa-engineer-agent` - first pass completed; Phase2 artifact/body, bot
+  mapping, reproducible evidence-command, and Experiment Runner packet-path
+  findings were fixed in `d3313675c` or queued for this mapping/body sync.
+- [x] `qa-engineer-agent` - second pass completed; fresh review findings on
+  bootstrap symbol evidence, Distortion input contract drift, VIP lane widening,
+  shifted visual/asset anchors, committed Experiment Runner evidence, and PR
+  body SHA accuracy were fixed in `629f39132` or queued for this mapping/body sync.
+- [x] `bug-hunter` - first pass completed.
+  Disposition: FIXED
+  Commit: `2c702517108f5183febb0ee9b5add8b68b6bbe30`
+  Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now separates
+  the landed PRO `/explain` surface from remaining future contract-frozen paths;
+  `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now uses stable FitChef router
+  and runtime symbol anchors instead of stale line-number evidence.
+- [x] `bug-hunter` - recheck completed; no actionable findings after
+  `2c702517108f5183febb0ee9b5add8b68b6bbe30` and mapping sync
+  `a5220fc65a9e6f8f071f4fa33d50dc7df19be671`.
+- [x] `security-auditor` - completed; no actionable findings. Evidence:
+  semantic-cache remains closed, source-corpus/Drive/PDF material remains
+  supporting evidence only, wellness-only boundaries are preserved, and no
+  tracked local artifacts were introduced.
+- [x] Codex Security diff scan / finding discovery - completed; no reportable
+  findings. Evidence: local scan bundle covered 10/10 changed docs/review files,
+  generated `rank_input.csv`, `deep_review_input.csv`, `work_ledger.jsonl`,
+  `reviewed_surfaces.md`, validated `report.md`, and rendered `report.html`.
+- [x] `pulseplate-pr-review` - completed.
+  Disposition: NOT-A-BUG
+  Evidence: The dry-run report emitted one advisory `note` that the 469-line
+  diff is above the 300-line review-risk threshold. This PR remains within
+  current repo size policy: `check_pr_size_governance.py` classified it as
+  `standard_governance_design`, counted 10 files, and returned
+  `PR scope governance: OK (standard governance/design PR <= 20 files)`.
+  The PR has explicit Scope, Out of scope, and Tests sections, and targeted
+  local gates passed.
+
+Any finding from the post-open sequence, bots, or review threads must be fixed
+or dispositioned before this section and the PR body can claim readiness.
+
+## Merge Readiness
+
+Not claimed. Required before any merge-ready statement:
+
+- Current-head CI with no pending required jobs.
+- No unresolved review threads.
+- No actionable bot comments.
+- Completed post-open role/Codex Security/PulsePlate PR review sequence.
+- Strict merge-readiness wrapper with auth.

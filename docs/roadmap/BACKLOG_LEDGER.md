@@ -3146,11 +3146,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
 <a id="ledger-p1-philosophy-epic-v2-pr5-source-corpus-index"></a>
-- [ ] P1: Philosophy Epic V2 PR-5 philosophical source corpus / interdisciplinary synthesis index
+- [x] P1: Philosophy Epic V2 PR-5 philosophical source corpus / interdisciplinary synthesis index
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/philosophy-epic-v2-pr5-source-corpus-index`
-  - Status: Active branch. PR-5 preserves the six operator-provided philosophy PDFs as a governed source-corpus index before any later philosophy module or semantic-cache follow-up. PR-A2 remains a separate AI/runtime prerequisite line. Semantic-cache runtime handoff remains blocked: all machine markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before any runtime semantic-cache work can begin.
+  - Target PR: PR #1822 (`docs(philosophy): add source corpus oracle`)
+  - Status: Landed via PR #1822 on 2026-05-26 with merge commit `740a64fb7d87d404076117698bee5d4bee71f390`. PR-5 preserves the six operator-provided philosophy PDFs as a governed source-corpus index before any later philosophy module or semantic-cache follow-up. PR-A2 remains a separate AI/runtime prerequisite line. Semantic-cache runtime handoff remains blocked: all machine markers stay closed/false, and PR-A1b through PR-A5 plus a later reviewed gate-open PR remain required before any runtime semantic-cache work can begin.
+  - Reconciliation note: PR #1865 is the retroactive docs-only ledger closeout
+    for this already-landed source-corpus lane. Future PRs that close ledger
+    items should still update this ledger in the same PR or same/next-day
+    follow-up.
   - Area: AI / RAG / philosophy / source corpus / interdisciplinary governance / test infrastructure
   - Finding Type: corpus-preservation, source-boundary policy, interdisciplinary synthesis index
   - Reason (EN): PR-0 through PR-4.2 made the philosophy semantic-cache admission line deterministic and gate-closed, but the expanded operator PDF corpus now spans Socratic method, Leibniz and information theory, analytical/linguistic philosophy, CBT-coaching correlations, and plan-adaptation concepts. PR-5 prevents those documents from being lost or accidentally treated as runtime truth by adding a canonical source index, schema, guard, tests, and packet that preserve source identity while keeping semantic-cache and runtime activation blocked.
@@ -3809,7 +3813,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach contract freeze) -> PR-TBD-CBT-COACHING-WAVE-DOCS -> PR-TBD-DISTORTION-SIMULATOR-PRO-RUNTIME -> PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME -> PR-TBD-SIGNAL-NOISE-REPORT-LANE -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME -> PR-TBD-SIGNAL-NOISE-REPORT-LANE -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
   - Status: 🚧 In progress
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
@@ -3829,9 +3833,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `PR #1143` merged on March 12, 2026 for the visual/App Store contract lane
     - `PR #1150` merged on March 13, 2026 for the mascot asset taxonomy lane
     - `PR #1154` merged on March 13, 2026 for the governed `EN` App Store production pack lane
-    - `PR #1159` structured coach contract is the active lane from a clean worktree off `origin/main`
-    - `PR #1159` scope is docs-only: additive route family freeze, DTO direction, tier semantics, and coexistence rules with the live mascot canon
-    - `PR-TBD-CBT-COACHING-WAVE-DOCS` is the docs-first research promotion lane for Distortion Simulator, Identity Loop Mapper, Signal vs Noise reports, and the FitChef coaching framework
+    - `PR #1159` established the structured coach direction while preserving the live mascot canon
+    - `PR #1214` merged on March 21, 2026 for the structured coach contract freeze (`29a11e62e38307dd4cc7414bffc159b508878744`)
+    - `PR #1215` merged on March 21, 2026 for the feature-gated PRO Distortion Simulator runtime at `POST /api/v1/pro/fitchef/explain` (`70bdbd9e51d977d440b605eed3064c71212cff97`)
+    - `PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME` is the next active substantive structured coaching lane
+    - `PR-TBD-SIGNAL-NOISE-REPORT-LANE` remains a separate report/content lane, not a first-wave runtime feature
   - Subtracks:
     - FitChef visual identity and mascot system
     - App Store screenshot and preview pack
@@ -3851,12 +3857,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-distortion-simulator-wave"></a>
-- [ ] P1: Distortion Simulator structured coaching lane
+- [x] P1: Distortion Simulator structured coaching lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (product differentiation / CBT coaching)
-  - Target PR: PR-TBD-DISTORTION-SIMULATOR-PRO-RUNTIME
-  - Status: 📋 Planned
-  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge, but no bounded product surface turns that into a governed, measurable PRO coaching tool. The first implementation lane should package that knowledge as a `Distortion Simulator` instead of broad open-ended chat.
+  - Target PR: PR #1215 (`feat(fitchef): add PRO structured coaching runtime`)
+  - Status: Landed via PR #1215 on 2026-03-21 with merge commit `70bdbd9e51d977d440b605eed3064c71212cff97`.
+  - Reconciliation note: PR #1865 is the retroactive docs-only ledger closeout
+    for the already-landed PRO Distortion Simulator lane. Future PRs that close
+    ledger items should still update this ledger in the same PR or same/next-day
+    follow-up.
+  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. `POST /api/v1/pro/fitchef/recommend` remains a separate contract-frozen follow-up.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/cbt/cognitive_restructuring.md`
@@ -3865,9 +3875,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/analytics/METRICS_CATALOG.md`
   - DoD:
     - Distortion Simulator contract is additive to the existing structured coach route family
-    - Runtime remains wellness-only, request-scoped, and non-clinical
+    - PRO runtime remains wellness-only, request-scoped, non-clinical, feature-gated, and fail-closed
     - Response includes structured reframe fields plus `sources[]`, `confidence`, `warnings`, and transparency metadata
-    - Deterministic tests cover auth, quota, rate limit, and structured response contract
+    - Deterministic tests cover auth, quota, rate limit, OpenAPI exposure, and structured response contract
 
 
 <a id="ledger-p1-identity-loop-mapper-wave"></a>
@@ -3875,8 +3885,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (premium reflection / behavior change)
   - Target PR: PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME
-  - Status: 📋 Planned
-  - Reason (EN): Weekly reflection and slip-support already exist, but the next premium layer should formalize belief -> behavior -> payoff -> replacement action mapping as a bounded VIP tool rather than widening into generic chat. This gives the reflection lane a stronger product identity without changing the live mascot canon.
+  - Status: 📋 Next active substantive lane after the landed PRO Distortion Simulator runtime.
+  - Reason (EN): Weekly reflection and slip-support already exist, but the next premium layer should formalize belief -> behavior -> payoff -> replacement action mapping as a bounded VIP tool rather than widening into generic chat. This gives the reflection lane a stronger product identity without changing the live mascot canon. The lane remains future-only until a reviewed runtime PR registers `POST /api/v1/vip/fitchef/insight` and updates OpenAPI.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/psychology/motivation_theories.md`

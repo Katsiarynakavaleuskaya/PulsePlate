@@ -26,14 +26,18 @@ The live public FitChef routes remain:
 - `POST /api/v1/insight/fitchef/weekly-reflection`
 - `POST /api/v1/insight/fitchef/slip-support`
 
-These routes are already registered under the canonical insight namespace in
-`app/routers/fitchef_insight.py:45`, `app/routers/fitchef_insight.py:58`,
-`app/routers/fitchef_insight.py:133`, and `app/routers/fitchef_insight.py:214`.
+These routes are already registered under the canonical insight namespace by
+`app.routers.fitchef_insight.router`, with the stable handler anchors
+`app.routers.fitchef_insight.fitchef_mascot_insight`,
+`app.routers.fitchef_insight.fitchef_weekly_reflection`, and
+`app.routers.fitchef_insight.fitchef_slip_support`.
 
-The current runtime anchor remains `app/services/fitchef_runtime.py:17` through
-`app/services/fitchef_runtime.py:66` and the weekly-plan adapter seam remains
-live in `app/services/fitchef_runtime.py:127` through
-`app/services/fitchef_runtime.py:208`.
+The current runtime anchors are stable service symbols:
+`app.services.fitchef_runtime.run_mascot_insight_task`,
+`app.services.fitchef_runtime.run_weekly_reflection_task`,
+`app.services.fitchef_runtime.run_slip_support_task`,
+`app.services.fitchef_runtime.run_distortion_simulator_task`, and
+`app.services.fitchef_runtime.run_weekly_plan_task`.
 
 ## Foundation invariants
 
@@ -103,6 +107,16 @@ This phase is contract-only and must not migrate the live mascot routes.
 - PRO structured coach runtime
 - VIP runtime expansion
 
+Status reconciliation:
+
+- `POST /api/v1/pro/fitchef/explain` is now the landed, feature-gated PRO
+  Distortion Simulator runtime from PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`.
+- `POST /api/v1/pro/fitchef/recommend` remains a contract-frozen PRO follow-up.
+- `POST /api/v1/vip/fitchef/insight`, `POST /api/v1/vip/fitchef/chat`, and
+  `POST /api/v1/vip/fitchef/week-repair` remain future-only VIP structured coach
+  follow-ups until a later reviewed runtime PR registers routes and updates
+  OpenAPI.
+
 ## Artifact and asset governance
 
 - Foundation and contract PRs must remain docs-only.
@@ -128,20 +142,26 @@ are governed.
 - migrating `/api/v1/insight/fitchef*` to a new namespace
 - shipping production screenshot binaries
 - shipping mascot or App Icon binaries
-- adding new runtime behavior
-- adding structured coach routes before the contract phase
+- adding new runtime behavior outside the already-landed, feature-gated PRO
+  `POST /api/v1/pro/fitchef/explain` route
+- adding any remaining structured coach routes before their dedicated reviewed
+  runtime PRs
 
 ## Evidence anchors
 
-- `app/routers/fitchef_insight.py:45`
-- `app/routers/fitchef_insight.py:58`
-- `app/routers/fitchef_insight.py:133`
-- `app/routers/fitchef_insight.py:214`
-- `app/services/fitchef_runtime.py:17`
-- `app/services/fitchef_runtime.py:127`
-- `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md:16`
-- `docs/contracts/API_CANONICAL_MAP.md:46`
-- `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md:1`
-- `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md:1`
-- `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md:1`
-- `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md:1`
+- `app.routers.fitchef_insight.router`
+- `app.routers.fitchef_insight.fitchef_mascot_insight`
+- `app.routers.fitchef_insight.fitchef_weekly_reflection`
+- `app.routers.fitchef_insight.fitchef_slip_support`
+- `app.routers.fitchef_structured.fitchef_distortion_simulator`
+- `app.main.ensure_canonical_app_bootstrap`
+- `app.services.fitchef_runtime.run_mascot_insight_task`
+- `app.services.fitchef_runtime.run_weekly_reflection_task`
+- `app.services.fitchef_runtime.run_slip_support_task`
+- `app.services.fitchef_runtime.run_distortion_simulator_task`
+- `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+- `docs/contracts/API_CANONICAL_MAP.md`
+- `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
+- `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
+- `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
+- `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
