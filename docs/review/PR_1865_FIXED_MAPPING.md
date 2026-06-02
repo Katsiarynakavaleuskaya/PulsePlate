@@ -59,6 +59,36 @@ Disposition: FIXED
 Commit: d3313675c
 Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` removes the duplicated Experiment Runner packet path and retains the accepted result artifact path.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#pullrequestreview-4407367642 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` records the accepted oracle result, raw artifact SHA-256, commands, mode, and attribution without tracking forbidden local `artifacts/` files.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313628 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `git show -s --format=%B 629f39132` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, so the current real branch history carries the required trailer after the fresh review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313633 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` and `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now reference `app.main.ensure_canonical_app_bootstrap`, the existing bootstrap/router-registration seam.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313639 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` removes `trigger_context?` from the landed Distortion Simulator input direction so it matches `FitChefDistortionSimulatorRequest`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313645 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` keeps only `POST /api/v1/vip/fitchef/insight` in the next active VIP runtime lane and moves chat/week-repair to later VIP structured follow-ups.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3339313648 -> 629f39132
+Disposition: FIXED
+Commit: 629f39132
+Evidence: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` and `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md` now point to the stable `FITCHEF_INITIATIVE_FOUNDATION.md#artifact-and-asset-governance` section instead of shifted line-number anchors.
+
 ## Carryover
 
 Disposition: FIXED
@@ -140,6 +170,10 @@ Mandatory sequence status:
 - [x] `qa-engineer-agent` - first pass completed; Phase2 artifact/body, bot
   mapping, reproducible evidence-command, and Experiment Runner packet-path
   findings were fixed in `d3313675c` or queued for this mapping/body sync.
+- [x] `qa-engineer-agent` - second pass completed; fresh review findings on
+  bootstrap symbol evidence, Distortion input contract drift, VIP lane widening,
+  shifted visual/asset anchors, committed Experiment Runner evidence, and PR
+  body SHA accuracy were fixed in `629f39132` or queued for this mapping/body sync.
 - [ ] `bug-hunter`
 - [ ] `security-auditor`
 - [ ] Codex Security diff scan / finding discovery
