@@ -204,6 +204,26 @@ Disposition: FIXED
 Commit: 300416677
 Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now describes the mapping as repo disposition proof for resolved GitHub review threads and explicitly excludes synthetic squash-preview SHAs from canonical proof targets.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343231302 -> d8c0a0824
+Disposition: FIXED
+Commit: d8c0a0824
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records the accepted oracle result without asserting trailer compliance for non-local review-tool evaluated SHAs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343231307 -> d8c0a0824
+Disposition: FIXED
+Commit: d8c0a0824
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now states that non-local synthetic or review-tool evaluated SHAs are not canonical proof targets and that disposition proof is checked by repo merge-readiness/disposition gates.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343231314 -> d8c0a0824
+Disposition: FIXED
+Commit: d8c0a0824
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the Identity Loop Mapper output direction.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343231322 -> d8c0a0824
+Disposition: FIXED
+Commit: d8c0a0824
+Evidence: `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md` now points to the stable `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#pr-3-app-store-production-pack` anchor instead of the shifted line-number evidence.
+
 ## Carryover
 
 Disposition: FIXED
