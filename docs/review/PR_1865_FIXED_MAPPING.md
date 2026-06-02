@@ -279,6 +279,21 @@ Disposition: FIXED
 Commit: 8b7435adbdfe44446352181883e895eb47de81ba
 Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now states that the landed PRO Distortion Simulator route is governed by `FitChefDistortionSimulatorResponse` and scopes the generic `mode` / `title` / `summary` / `bullets` / `actions` envelope direction to unimplemented structured-coach follow-ups only.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343829242 -> 899d07cec3b12336a2bdf32a6534a2aacb4f0755
+Disposition: FIXED
+Commit: 899d07cec3b12336a2bdf32a6534a2aacb4f0755
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now lists the actual landed `FitChefDistortionSimulatorResponse` fields: `scenario`, `distortion_labels`, `why_it_matches`, `evidence_for`, `evidence_against`, `balanced_reframe`, `next_small_action`, `sources`, `confidence`, `warnings`, `quota_state`, `transparency_notice_id`, and `wellness_boundary`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343829247 -> 899d07cec3b12336a2bdf32a6534a2aacb4f0755
+Disposition: FIXED
+Commit: 899d07cec3b12336a2bdf32a6534a2aacb4f0755
+Evidence: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now states that the next active VIP Identity Loop Mapper lane is schema-frozen by `FitChefIdentityLoopMapperResponse` and that the generic envelope direction applies only to later follow-ups without frozen response schemas.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343829252
+Disposition: NOT-A-BUG
+Evidence: `7d645b275b1d018083e966429606606d3a37964f` is not a local commit object and is not an ancestor of the PR branch. Actual branch commits that materially used Experiment Runner evidence carry the governed co-author trailer.
+Reason: The comment asks for trailer compliance on a connector-generated evaluated SHA that is not a repo branch commit, so it is not a valid repo attribution target.
+
 ## Carryover
 
 Disposition: FIXED
@@ -368,6 +383,8 @@ Pre-open role order completed before implementation:
 - `pre-commit run --all-files` - PASS after connector-loop source fix.
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` - PASS after structured response envelope fix.
 - `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS after structured response envelope fix.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` - PASS after structured response schema wording fix.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py` - PASS after structured response schema wording fix.
 
 ## Post-Open Review
 
