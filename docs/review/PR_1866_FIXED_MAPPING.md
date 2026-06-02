@@ -20,6 +20,14 @@ Disposition: FIXED
 Commit: 452629b03
 Evidence: Initial Vitest 4 implementation pins direct Vitest-family packages to exact 4.1.8, fixes test-only constructor/telemetry compatibility, recalibrates only Vitest 4 V8 functions/branches coverage thresholds, and leaves backend/Python/private-index surfaces unchanged.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3339210689 -> 9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#pullrequestreview-4407247536 -> 9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3339220564 -> 9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#pullrequestreview-4407258241 -> 9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1
+Disposition: FIXED
+Commit: 9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1
+Evidence: `docs/review/PR_FRONTEND_VITEST_4_PREMORTEM.md` adds checked fixed-mapping and PR-body mirror checklist items; `docs/review/PR_1866_FIXED_MAPPING.md` now uses exact checked Discussion Thread Pass labels and parser-valid single-line mapping evidence.
+
 ## Implementation Evidence
 
 Disposition: FIXED
