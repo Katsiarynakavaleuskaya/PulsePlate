@@ -113,10 +113,10 @@
 
 | Функция | Endpoint | Статус | Требует tier | Canonical reference |
 | --- | --- | --- | --- | --- |
-| FitChef explain | `/api/v1/pro/fitchef/explain` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef explain | `/api/v1/pro/fitchef/explain` | ✅ feature-gated runtime | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef recommend | `/api/v1/pro/fitchef/recommend` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
-> `POST /api/v1/pro/fitchef/explain` remains the first bounded structured rollout target for the CBT Coaching Wave: `Distortion Simulator`.
+> `POST /api/v1/pro/fitchef/explain` is the landed first bounded structured runtime for the CBT Coaching Wave: `Distortion Simulator` (PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`).
 > `POST /api/v1/pro/fitchef/recommend` remains a contract-frozen follow-up for the structured next-step recommendation lane.
 
 ---
@@ -182,6 +182,7 @@
 
 > `POST /api/v1/vip/fitchef/insight` remains the first bounded VIP structured rollout target for the CBT Coaching Wave: `Identity Loop Mapper`.
 > `chat` and `week-repair` remain additive contract-frozen follow-ups; live `/api/v1/insight/fitchef*` family remains canonical and unmigrated.
+> VIP structured routes are not runtime/OpenAPI surfaces until a later reviewed implementation PR registers them.
 
 ---
 

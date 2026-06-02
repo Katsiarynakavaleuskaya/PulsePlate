@@ -1,6 +1,6 @@
 # FitChef Structured Coach Contract
 
-**Status:** Contract freeze for first bounded runtime rollout targets
+**Status:** Contract freeze plus landed PRO Distortion Simulator reconciliation
 **Date:** 2026-03-21
 **Owner:** @katsiaryna_kavaleuskaya
 
@@ -13,13 +13,22 @@ Identifier note:
 
 - umbrella rollout lane: `PR-4`
 - GitHub review artifact for this lane: `PR #1159`
+- structured coach contract freeze: PR #1214 /
+  `29a11e62e38307dd4cc7414bffc159b508878744`
+- PRO Distortion Simulator runtime: PR #1215 /
+  `70bdbd9e51d977d440b605eed3064c71212cff97`
 
 The current public mascot routes under `/api/v1/insight/fitchef*` remain live,
 canonical, and unmigrated. The structured coach family stays additive.
 
-As of `21 March 2026`, the first two bounded runtime surfaces are contract-frozen rollout targets:
+As of PR #1215, the first bounded PRO structured coach runtime is implemented
+and OpenAPI-exposed:
 
 - `POST /api/v1/pro/fitchef/explain`
+
+The first bounded VIP structured coach surface remains a contract-frozen future
+rollout target:
+
 - `POST /api/v1/vip/fitchef/insight`
 
 The remaining structured coach paths stay contract-frozen follow-ups so later
@@ -63,7 +72,7 @@ without changing route naming or public mascot canon.
 ### PRO mapping
 
 - `POST /api/v1/pro/fitchef/explain`
-  - intended first bounded capability: `Distortion Simulator`
+  - landed first bounded capability: `Distortion Simulator`
   - shape direction: structured thought-record style reframing tool
 - `POST /api/v1/pro/fitchef/recommend`
   - intended first bounded capability: action-oriented follow-up after reframing
@@ -227,22 +236,19 @@ Future structured coach implementation must:
 
 ## Implementation follow-up order
 
-### PR-5 domain shell
+### Landed contract/runtime sequence
 
-- context builder
-- policy layer
-- template and fallback layer
-- safety layer
-- service orchestration shell
+- PR #1214 froze the structured coach contract and route family.
+- PR #1215 landed the feature-gated PRO `Distortion Simulator` runtime at
+  `POST /api/v1/pro/fitchef/explain`.
 
-### PR-6 PRO runtime
+### Remaining PRO follow-up
 
-- `POST /api/v1/pro/fitchef/explain`
 - `POST /api/v1/pro/fitchef/recommend`
 - deterministic route tests
 - analytics and action-routing contracts
 
-### PR-7 VIP runtime
+### Next active VIP runtime lane
 
 - `POST /api/v1/vip/fitchef/insight`
 - `POST /api/v1/vip/fitchef/chat`
@@ -252,12 +258,15 @@ Future structured coach implementation must:
 ## Explicit non-goals
 
 - renaming or migrating `/api/v1/insight/fitchef*`
-- expanding beyond the first bounded live surfaces (`/api/v1/pro/fitchef/explain`, `/api/v1/vip/fitchef/insight`) in this lane
+- adding any new runtime surface in this docs reconciliation beyond the already-landed
+  `POST /api/v1/pro/fitchef/explain`
 - adding frontend or iOS FitChef runtime consumers
 - mixing website brand rollout or App Store assets into this contract lane
 
 ## Evidence anchors
 
+- `app/main.py:200`
+- `app/routers/fitchef_structured.py:75`
 - `app/routers/fitchef_insight.py:45`
 - `app/routers/fitchef_insight.py:58`
 - `app/routers/fitchef_insight.py:133`
@@ -268,5 +277,6 @@ Future structured coach implementation must:
 - `app/schemas/fitchef.py:33`
 - `app/schemas/fitchef.py:121`
 - `app/schemas/fitchef_coaching.py:60`
+- `tests/test_fitchef_structured_api.py:337`
 - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:21`
 - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md:11`
