@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTelemetry, useVipModuleTracking } from '../useTelemetry';
-import { vipTelemetry } from '../telemetry';
+import { isTelemetryEnabled, vipTelemetry } from '../telemetry';
 import { useVipModule } from '../useFeatureFlag';
 
 // Mock the telemetry module
@@ -25,10 +25,12 @@ vi.mock('../useFeatureFlag', () => ({
 
 describe('useTelemetry', () => {
   const mockVipTelemetry = vi.mocked(vipTelemetry);
+  const mockIsTelemetryEnabled = vi.mocked(isTelemetryEnabled);
   const mockUseVipModule = vi.mocked(useVipModule);
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsTelemetryEnabled.mockReturnValue(true);
     mockUseVipModule.mockReturnValue(false);
   });
 

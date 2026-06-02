@@ -85,7 +85,9 @@ describe("wsClient", (): void => {
       onmessage: null as ((event: { data: string }) => void) | null,
     };
 
-    const wsCtor = vi.fn((_: string): MockWebSocketHandlers => fakeSocket);
+    const wsCtor = vi.fn(function MockWebSocket(_: string): MockWebSocketHandlers {
+      return fakeSocket;
+    });
     vi.stubGlobal("WebSocket", wsCtor as unknown as typeof WebSocket);
 
     connectRealtimeWs({
@@ -122,7 +124,9 @@ describe("wsClient", (): void => {
 
     vi.stubGlobal(
       "WebSocket",
-      vi.fn((_: string): MockWebSocketHandlers => fakeSocket) as unknown as typeof WebSocket,
+      vi.fn(function MockWebSocket(_: string): MockWebSocketHandlers {
+        return fakeSocket;
+      }) as unknown as typeof WebSocket,
     );
 
     connectRealtimeWs({
@@ -151,7 +155,9 @@ describe("wsClient", (): void => {
 
     vi.stubGlobal(
       "WebSocket",
-      vi.fn((_: string): MockWebSocketHandlers => fakeSocket) as unknown as typeof WebSocket,
+      vi.fn(function MockWebSocket(_: string): MockWebSocketHandlers {
+        return fakeSocket;
+      }) as unknown as typeof WebSocket,
     );
 
     connectRealtimeWs({
