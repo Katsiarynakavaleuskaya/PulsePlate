@@ -56,6 +56,18 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 6fe6e93ecd2b4ad7f95316982fed7066db829e54 HEAD` returns 0 locally; `gh pr view 1867 --json headRefOid,commits` lists `6fe6e93ecd2b4ad7f95316982fed7066db829e54` as a PR commit.
 Reason: The connector evaluated a non-current/synthetic reviewed commit and incorrectly treated the implementation SHA as a sibling; the mapped SHA is an ancestor of the governed branch head.
 
+## Implementation Evidence
+
+Security-auditor post-open ledger-integrity finding:
+Disposition: FIXED
+Commit: 17ff864c85a605c893624cf73f8139090d113811
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now treats `operator_ledger/events` as an invalid local artifact when it is a regular file and requires each event filename stem to match the embedded idempotency key; `tests/test_experiment_operator_ledger.py` covers both fail-closed regressions.
+
+detect-secrets hook finding in `tests/test_experiment_slack_kpp_renderer.py`:
+Disposition: FIXED
+Commit: 051c2dc291930001c192362716a864a844b5e331
+Evidence: The existing Slack webhook redaction sentinel keeps its expected redaction behavior while placing the `pragma: allowlist secret` on the flagged literal line; `detect-secrets` and focused Slack/KPP/operator tests pass.
+
 ## Role-Agent / Premortem Pass
 
 Pre-open role order completed before implementation from packet
