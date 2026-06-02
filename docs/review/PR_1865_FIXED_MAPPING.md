@@ -224,6 +224,21 @@ Disposition: FIXED
 Commit: d8c0a0824
 Evidence: `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md` now points to the stable `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#pr-3-app-store-production-pack` anchor instead of the shifted line-number evidence.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343303074 -> 1bdf25e55
+Disposition: FIXED
+Commit: 1bdf25e55
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` no longer includes the inline co-author trailer text in the committed evidence artifact; the section now records attribution scope without asserting trailer compliance for non-local review-tool evaluated SHAs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343303079
+Disposition: NOT-A-BUG
+Evidence: The referenced `b608d10b6259a5880ff8bb4d18e758eef5de0643` is not a local branch object, while this artifact explicitly states that synthetic or review-tool evaluated SHAs not present in the local PR branch are not canonical proof targets.
+Reason: The comment evaluates non-local review-tool history rather than the committed PR branch and repo disposition guard proof surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343303082 -> 1bdf25e55
+Disposition: FIXED
+Commit: 1bdf25e55
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now lists one `scenario` and one `quota_state` field in the landed Distortion Simulator output direction.
+
 ## Carryover
 
 Disposition: FIXED
