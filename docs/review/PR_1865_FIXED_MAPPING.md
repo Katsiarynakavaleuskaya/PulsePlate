@@ -185,6 +185,24 @@ Disposition: NOT-A-BUG
 Evidence: The review comment evaluates a synthetic squash-preview SHA rather than the committed PR branch. Canonical disposition proof remains the per-thread branch-history commit mapping validated by `check_review_threads_disposition.py --require-auth` and current-head CI.
 Reason: Synthetic squash-preview SHAs are not branch-history proof and cannot be used as commit-after-comment mapping targets; the mapping artifact intentionally keeps actual branch commit proof.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343041961 -> cd4dfbb13
+Disposition: FIXED
+Commit: cd4dfbb13
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` no longer says
+branch attribution is satisfied by a synthetic squash-preview commit. It records
+that the PR body carries the required standalone squash-merge trailer and that
+review-tool synthetic SHAs are not branch-history proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3343041966
+Disposition: NOT-A-BUG
+Evidence: The referenced `6176459f4c00789c3e624aaa3b0e8ad50d5394bf`
+is not a valid local branch commit, while the actual PR head is
+`cd4dfbb13306f9381193afa60d96bf0050682d91`. The proof commits named by the
+comment, including `d3313675c`, `670fc8e3`, and `d1e3ade9`, are ancestors of
+the actual PR branch head.
+Reason: The comment evaluates a review-tool synthetic squash-preview SHA rather
+than the committed PR branch history used by the repo disposition guard.
+
 ## Carryover
 
 Disposition: FIXED

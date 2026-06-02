@@ -22,8 +22,9 @@ for PR governance without tracking local runtime artifacts.
   - `docs/contracts/PRODUCT_TIER_MAP.md`
   - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
   - `docs/roadmap/BACKLOG_LEDGER.md`
-- Branch attribution status: satisfied by branch commits that recorded or
-  materially used this Experiment Runner evidence.
+- Attribution handling: the PR body carries the required standalone squash-merge
+  trailer, and the committed branch records the oracle evidence without treating
+  review-tool synthetic squash-preview SHAs as branch-history proof.
 
 ## Oracle Commands
 
@@ -40,4 +41,5 @@ carry:
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 Review-tool synthetic squash-preview SHAs are not branch-history proof. The
-canonical branch-history proof is the committed PR branch.
+canonical branch-history proof is the committed PR branch, and the final squash
+merge message must retain the PR body's standalone co-author trailer.
