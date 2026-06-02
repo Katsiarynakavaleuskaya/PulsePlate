@@ -36,8 +36,8 @@ for PR governance without tracking local runtime artifacts.
 ## Attribution
 
 Material Experiment Runner attribution remains governed by repo commit and
-merge policy. Commits that recorded or materially used this Experiment Runner
-evidence carry:
+merge policy. This summary records the accepted oracle result; it does not
+assert trailer compliance for non-local review-tool evaluated SHAs.
 
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 

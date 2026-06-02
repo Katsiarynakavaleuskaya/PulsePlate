@@ -117,7 +117,7 @@ integrity.
 
 ## Evidence anchors
 
-- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:76`
+- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md#pr-3-app-store-production-pack`
 - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md:219`
 - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md:11`
 - `appstore/fitchef/en-US/metadata/app_store_metadata.json:1`

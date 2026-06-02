@@ -80,6 +80,8 @@ reframing tool.
 - `wellness_boundary`
 - `scenario`
 - `quota_state`
+- `scenario`
+- `quota_state`
 - `quota_state`
 
 ### Pillar B: Identity Loop Mapper
