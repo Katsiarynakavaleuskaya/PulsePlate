@@ -6,7 +6,7 @@
 dependency graph can ingest the already-patched Vitest `4.1.8` frontend
 lockfile state for Dependabot alert `#153`.
 **Primary implementation commits:** `4cc76042c`, `4d7951f47`, `e705444ee`,
-`66de78461`, `2138af99e`, `a992afdca`, `d882f7ad5`
+`66de78461`, `2138af99e`, `a992afdca`, `d882f7ad5`, `88e27602a`
 
 ## Discussion Thread Pass
 
@@ -94,6 +94,21 @@ Reason: The canonical review-thread mapping guard validates live branch history 
 Disposition: NOT-A-BUG
 Evidence: Same live branch ancestry evidence as `discussion_r3344017753`; the synthetic reviewed commit `23b7dc66058e` is not the live branch head.
 Reason: The mapping artifact is valid against the PR branch history enforced by the repo guard; the squash merge operator must preserve the mapped evidence and trailer in the final merge record.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3344230798
+Disposition: NOT-A-BUG
+Evidence: `docs/ENGINEERING_LESSONS.md` records the synthetic squash-preview no-loop rule, and the live branch history remains the canonical pre-merge mapping proof; the synthetic reviewed commit `c3813a01` is not the PR branch head.
+Reason: This is the same synthetic squash-preview mapping loop already dispositioned; adding another mapping-only fix for each synthetic hash would perpetuate the loop.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3344241205 -> 88e27602abf20435088a5a7ab4b3abb81e93a189
+Disposition: FIXED
+Commit: 88e27602abf20435088a5a7ab4b3abb81e93a189
+Evidence: Commit `88e27602abf20435088a5a7ab4b3abb81e93a189` updates `docs/security/CVE-2026-47429-vitest.md` to reference `.github/workflows/npm-dependency-submission.yml:68` for the frontend job and line `79` for the temp graph-root preparation step.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#pullrequestreview-4413417602 -> 88e27602abf20435088a5a7ab4b3abb81e93a189
+Disposition: FIXED
+Commit: 88e27602abf20435088a5a7ab4b3abb81e93a189
+Evidence: Same CVE evidence line-number fix as `discussion_r3344241205`.
 
 ## Dependency Scope / Private-Index Notes
 
