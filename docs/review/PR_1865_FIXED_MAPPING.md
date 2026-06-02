@@ -140,6 +140,21 @@ Disposition: FIXED
 Commit: 8fc4fa484c738f2948c0014ef95ee24405cfd918
 Evidence: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` and `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md` now use stable `FITCHEF_INITIATIVE_FOUNDATION.md#pr-1-visual-system-and-app-store-contract`, `#pr-2-mascot-asset-taxonomy`, and `FITCHEF_APP_STORE_VISUAL_CONTRACT.md#folder-contract-for-future-pr-3-production-assets` anchors instead of shifted line-number references.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341645165 -> 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Disposition: FIXED
+Commit: 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now records branch attribution as satisfied by material branch commits and keeps the squash-merge trailer requirement without a raw `Co-author required: true` line that synthetic squash-preview checks misread as branch-history proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341645171 -> 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Disposition: FIXED
+Commit: 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now removes the single stale primary proof SHA and the PR-level non-thread mapping block; resolved-thread proof remains per-thread branch-history commit evidence below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341645175 -> 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Disposition: FIXED
+Commit: 670fc8e3c7ae9f312cbda381771ee003a2a2414e
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the Identity Loop Mapper output direction and states that the next active VIP runtime lane must align to the frozen `FitChefIdentityLoopMapperResponse` schema.
+
 ## Carryover
 
 Disposition: FIXED
