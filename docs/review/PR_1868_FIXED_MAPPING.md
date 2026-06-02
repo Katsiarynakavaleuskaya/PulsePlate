@@ -5,7 +5,7 @@
 **Scope:** Add explicit `/frontend` npm dependency submission so GitHub
 dependency graph can ingest the already-patched Vitest `4.1.8` frontend
 lockfile state for Dependabot alert `#153`.
-**Primary implementation commits:** `4cc76042c`, `4d7951f47`
+**Primary implementation commits:** `4cc76042c`, `4d7951f47`, `e705444ee`
 
 ## Discussion Thread Pass
 
@@ -42,9 +42,9 @@ Evidence: `.github/workflows/npm-dependency-submission.yml:37`, `.github/workflo
 Disposition: FIXED
 Evidence: Commit `4d7951f478c1bffb52c7750848a5cd185728d8dc` includes the canonical Experiment Runner trailer; earlier runner-shaped commits `4cc76042c` and `c59653e99` do too.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343625561
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3343625561 -> e705444eec6976ec48c5bf7ef7042a38d8ebdc09
 Disposition: FIXED
-Evidence: This mapping artifact replaces the stale `No actionable review comments` entry with explicit FIXED dispositions; the immediate follow-up governance commit will add the concrete mapping commit SHA for this self-reference.
+Evidence: Commit `e705444eec6976ec48c5bf7ef7042a38d8ebdc09` replaces the stale `No actionable review comments` entry with explicit FIXED dispositions for the live review comments.
 
 ## Dependency Scope / Private-Index Notes
 
@@ -174,9 +174,10 @@ Pre-open role order from packet
 
 ## Current CI Status
 
-Latest local head includes fix commit `4d7951f47` and mapping updates that have
-not yet been pushed. Current GitHub CI status still belongs to PR head
-`c59653e99`; merge readiness is not claimed.
+Latest local head includes fix commit `4d7951f47` and mapping commit
+`e705444ee`, plus this self-reference mapping update. These commits have not yet
+been pushed. Current GitHub CI status still belongs to PR head `c59653e99`;
+merge readiness is not claimed.
 
 ## Thread Disposition Status
 
