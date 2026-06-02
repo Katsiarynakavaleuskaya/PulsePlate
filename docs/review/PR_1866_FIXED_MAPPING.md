@@ -35,6 +35,12 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 452629b03 HEAD` and `git merge-base --is-ancestor 9fed1a5d5 HEAD` return 0 locally; `gh pr view 1866 --json headRefOid,commits` lists both SHAs on branch head `129abb783`; `git show -s --format=%B 452629b03` includes the Experiment Runner co-author trailer.
 Reason: The connector comments evaluated non-current commit `0f2e501d`; PR #1866 is not squashed, the mapped SHAs are branch ancestors, and Experiment Runner attribution is present on the implementation commit materially shaped by the oracle.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341202747 -> af7c63f0b4315cc5ad567e6d432181a9a70b06b0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#pullrequestreview-4409680313 -> af7c63f0b4315cc5ad567e6d432181a9a70b06b0
+Disposition: FIXED
+Commit: af7c63f0b4315cc5ad567e6d432181a9a70b06b0
+Evidence: `docs/review/PR_1866_FIXED_MAPPING.md` replaces the personal absolute `.venv` command path and committed absolute local artifact paths with repo-relative commands and outside-repo artifact labels.
+
 ## Implementation Evidence
 
 Disposition: FIXED
