@@ -65,6 +65,11 @@ Disposition: FIXED
 Commit: a992afdca30e095340ff7eb26220269dd9e7f676
 Evidence: Commit `a992afdca30e095340ff7eb26220269dd9e7f676` corrects the invalid `e705444eec6976ec48c5bf7ef7042a38d8ebdc09` mapping typo to the real in-history commit `e705444eeb151e9703245d99c9b4e5d2e3db91c7` and records live-head ancestry checks for the mapping SHAs.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#pullrequestreview-4413154282
+Disposition: NOT-A-BUG
+Evidence: `git diff --name-only origin/main...HEAD -- docs/roadmap/BACKLOG_LEDGER.md` prints no files, and `git diff --name-only origin/main...HEAD` lists only the six workflow/docs/security/guard files in this PR.
+Reason: Cubic identified a stale mixed-scope ledger concern from pre-narrowing context; the final branch does not change `docs/roadmap/BACKLOG_LEDGER.md` and cannot reopen the Philosophy PR-5 backlog item.
+
 ## Dependency Scope / Private-Index Notes
 
 - No `frontend/package.json` or `frontend/package-lock.json` changes.
@@ -189,13 +194,16 @@ Pre-open role order from packet
 - Result: accepted.
 - Oracle commands: 2 configured, 2 executed, all passed.
 - `source_diff_applied=true`
-- `source_diff_paths`:
+- Original oracle `source_diff_paths` before post-open scope narrowing:
   - `.github/workflows/npm-dependency-submission.yml`
   - `docs/audit/DEPENDABOT_RECURRING_SECURITY_DRIFT_AUDIT_2026-04-10.md`
   - `docs/review/PR_DEPENDENCY_GRAPH_ALERT_153_PREMORTEM.md`
-  - `docs/roadmap/BACKLOG_LEDGER.md`
+  - `docs/roadmap/BACKLOG_LEDGER.md` (removed from the final PR diff after
+    mixed-scope review feedback)
   - `docs/security/CVE-2026-47429-vitest.md`
   - `tests/guards/test_security_devtooling_regression_guards.py`
+- Final branch diff excludes `docs/roadmap/BACKLOG_LEDGER.md`; the final PR is
+  Dependabot alert #153 dependency-graph scope only.
 - `mutated_paths=[]`
 - `shared_tree_untouched=true`
 - `coauthor_required=true`
