@@ -89,6 +89,26 @@ Disposition: FIXED
 Commit: 629f39132
 Evidence: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` and `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md` now point to the stable `FITCHEF_INITIATIVE_FOUNDATION.md#artifact-and-asset-governance` section instead of shifted line-number anchors.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245325 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Disposition: FIXED
+Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Evidence: `docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md` now states that a squash merge commit body must retain `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` when the PR is squash-merged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245344 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Disposition: FIXED
+Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now uses current branch proof commit `1f329466ad5de454f6b3db8266f642a4eed53ebf` for the PR-level mapping instead of the obsolete pre-review primary commit reference.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245349 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Disposition: FIXED
+Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Evidence: `docs/insights/CBT_COACHING_PRODUCT_WAVE.md` now includes `scenario` and `quota_state` in the landed Distortion Simulator output direction so the wave doc matches `FitChefDistortionSimulatorResponse`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341245357 -> 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Disposition: FIXED
+Commit: 9cc12edcb62fbf735116f3877471ea43b5ca9ac1
+Evidence: `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md` and `docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md` now point at stable `FITCHEF_STRUCTURED_COACH_CONTRACT.md#route-family-freeze` and `#wave-aligned-capability-mapping` anchors instead of shifted line-number ranges.
+
 ## Carryover
 
 Disposition: FIXED
@@ -168,6 +188,8 @@ Pre-open role order completed before implementation:
 - `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest tests/test_pr_review_report.py -q` - PASS.
 - `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1865_review_context.json --format json` - PASS; one advisory line-count review-risk note, dispositioned below as `NOT-A-BUG`.
 - `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1865_review_context.json --format markdown` - PASS.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/insights/CBT_COACHING_PRODUCT_WAVE.md docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md docs/library/research/2026-03-21_cbt_coaching_wave_evidence.md docs/review/PR_1865_EXPERIMENT_RUNNER_EVIDENCE.md docs/review/PR_1865_FIXED_MAPPING.md` - PASS after fresh review-thread fixes.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/guards/test_wellness_language_blockers_guard.py` - PASS after fresh review-thread fixes.
 - `make validate-changed` - PASS; no Python files changed.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push, and full
