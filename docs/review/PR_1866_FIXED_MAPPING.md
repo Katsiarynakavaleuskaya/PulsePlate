@@ -41,6 +41,12 @@ Disposition: NOT-A-BUG
 Evidence: `gh pr view 1866 --json headRefOid,commits` reports branch head `cf3ef2a8817d881a859477ddfba898e1e34e2ca1` and still lists `452629b03d44bb895092cedbf7dd72b2dfb6e353` and `9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1` as PR commits; `git merge-base --is-ancestor 452629b03 HEAD` and `git merge-base --is-ancestor 9fed1a5d5 HEAD` return 0; `git show -s --format=%B 452629b03` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 Reason: The connector comments evaluated non-current synthetic commit `d4dce21d`. PR #1866 is not squashed during review, fixed-thread proof is mapped to actual branch commits, and the Experiment Runner trailer is present on the implementation commit materially shaped by the oracle.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341392281
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341392287
+Disposition: NOT-A-BUG
+Evidence: `gh pr view 1866 --json headRefOid,commits` reports branch head `28d4ffbee8954d3202f0f1678cc30205265f11c8` and lists `452629b03d44bb895092cedbf7dd72b2dfb6e353`, `9fed1a5d5aaa7ecfdb4c4662f5762d27b0af1fb1`, and later mapping commits as PR commits; `git merge-base --is-ancestor 452629b03 HEAD` and `git merge-base --is-ancestor 9fed1a5d5 HEAD` return 0; `git show -s --format=%B 452629b03` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The connector comments evaluated non-current synthetic squash commit `2fd1f4ff0ae1d8741d547574d1a2006083f09803`. That synthetic review object is not the authoritative GitHub branch head for PR #1866 before merge; the governed branch is not squashed during review, and the actual branch history contains the mapped fix commits plus the Experiment Runner trailer on the implementation commit materially shaped by the oracle.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#discussion_r3341202747 -> af7c63f0b4315cc5ad567e6d432181a9a70b06b0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1866#pullrequestreview-4409680313 -> af7c63f0b4315cc5ad567e6d432181a9a70b06b0
 Disposition: FIXED
