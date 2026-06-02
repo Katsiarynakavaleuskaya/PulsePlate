@@ -138,6 +138,7 @@ Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now separates evaluated branch 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341431558
 Disposition: NOT-A-BUG
 Evidence: Cubic generated this thread from stale pre-fix context and then marked it addressed in `f015442c4c1c1841518594f395461f69595d5838`; the current artifact already distinguishes branch-history proof from synthetic squash-preview SHAs, and GitHub shows this Cubic thread resolved.
+Reason: The reported stale primary proof was already corrected before the Cubic thread was created, so no additional code/docs fix was required beyond recording the resolved-thread disposition.
 
 ## Carryover
 
