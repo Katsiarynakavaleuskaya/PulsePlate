@@ -26,14 +26,18 @@ The live public FitChef routes remain:
 - `POST /api/v1/insight/fitchef/weekly-reflection`
 - `POST /api/v1/insight/fitchef/slip-support`
 
-These routes are already registered under the canonical insight namespace in
-`app/routers/fitchef_insight.py:45`, `app/routers/fitchef_insight.py:58`,
-`app/routers/fitchef_insight.py:133`, and `app/routers/fitchef_insight.py:214`.
+These routes are already registered under the canonical insight namespace by
+`app.routers.fitchef_insight.router`, with the stable handler anchors
+`app.routers.fitchef_insight.fitchef_mascot_insight`,
+`app.routers.fitchef_insight.fitchef_weekly_reflection`, and
+`app.routers.fitchef_insight.fitchef_slip_support`.
 
-The current runtime anchor remains `app/services/fitchef_runtime.py:17` through
-`app/services/fitchef_runtime.py:66` and the weekly-plan adapter seam remains
-live in `app/services/fitchef_runtime.py:127` through
-`app/services/fitchef_runtime.py:208`.
+The current runtime anchors are stable service symbols:
+`app.services.fitchef_runtime.run_mascot_insight_task`,
+`app.services.fitchef_runtime.run_weekly_reflection_task`,
+`app.services.fitchef_runtime.run_slip_support_task`,
+`app.services.fitchef_runtime.run_distortion_simulator_task`, and
+`app.services.fitchef_runtime.run_weekly_plan_task`.
 
 ## Foundation invariants
 

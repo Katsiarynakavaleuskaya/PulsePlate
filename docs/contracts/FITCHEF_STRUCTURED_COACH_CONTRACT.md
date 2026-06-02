@@ -50,9 +50,12 @@ envelope rules.
 
 ## Route family freeze
 
-### PRO structured coach surfaces
+### Landed PRO structured coach surface
 
 - `POST /api/v1/pro/fitchef/explain`
+
+### Remaining PRO structured coach follow-up
+
 - `POST /api/v1/pro/fitchef/recommend`
 
 ### VIP structured coach surfaces
@@ -61,8 +64,8 @@ envelope rules.
 - `POST /api/v1/vip/fitchef/chat`
 - `POST /api/v1/vip/fitchef/week-repair`
 
-These paths are contract-frozen for future implementation PRs and must stay
-additive to the live mascot family.
+The remaining unimplemented paths are contract-frozen for future implementation
+PRs and must stay additive to the live mascot family.
 
 ## Wave-aligned capability mapping
 
