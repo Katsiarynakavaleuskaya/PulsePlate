@@ -140,6 +140,11 @@ Disposition: NOT-A-BUG
 Evidence: Cubic generated this thread from stale pre-fix context and then marked it addressed in `f015442c4c1c1841518594f395461f69595d5838`; the current artifact already distinguishes branch-history proof from synthetic squash-preview SHAs, and GitHub shows this Cubic thread resolved.
 Reason: The reported stale primary proof was already corrected before the Cubic thread was created, so no additional code/docs fix was required beyond recording the resolved-thread disposition.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341520715 -> 8fc4fa484c738f2948c0014ef95ee24405cfd918
+Disposition: FIXED
+Commit: 8fc4fa484c738f2948c0014ef95ee24405cfd918
+Evidence: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` and `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md` now use stable `FITCHEF_INITIATIVE_FOUNDATION.md#pr-1-visual-system-and-app-store-contract`, `#pr-2-mascot-asset-taxonomy`, and `FITCHEF_APP_STORE_VISUAL_CONTRACT.md#folder-contract-for-future-pr-3-production-assets` anchors instead of shifted line-number references.
+
 ## Carryover
 
 Disposition: FIXED
