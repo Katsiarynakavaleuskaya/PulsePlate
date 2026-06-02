@@ -135,6 +135,10 @@ Disposition: FIXED
 Commit: f015442c4c1c1841518594f395461f69595d5838
 Evidence: `docs/review/PR_1865_FIXED_MAPPING.md` now separates evaluated branch proof from synthetic squash-preview SHAs and points PR-level proof at `c0696ed52d6a02f225d162e7e89d162fef7aea46`, the branch head that contained the completed post-open review sequence at the time of the fresh review.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1865#discussion_r3341431558
+Disposition: NOT-A-BUG
+Evidence: Cubic generated this thread from stale pre-fix context and then marked it addressed in `f015442c4c1c1841518594f395461f69595d5838`; the current artifact already distinguishes branch-history proof from synthetic squash-preview SHAs, and GitHub shows this Cubic thread resolved.
+
 ## Carryover
 
 Disposition: FIXED
