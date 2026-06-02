@@ -10,7 +10,7 @@ CBT/FitChef structured coaching product truth.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Post-open bot/human review disposition completed
+- [x] Post-open bot/human review disposition completed
 
 ## Fixed in Commit Mapping
 
@@ -162,6 +162,12 @@ Pre-open role order completed before implementation:
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` - PASS after post-open bug-hunter fixes.
 - `python3 scripts/ci/check_philosophy_source_corpus_index.py --check` - PASS after post-open bug-hunter fixes.
 - `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_philosophy_source_corpus_index.py tests/guards/test_wellness_language_blockers_guard.py` - PASS after post-open bug-hunter fixes.
+- `python3 scripts/ci/check_pr_size_governance.py --base-sha <merge-base> --head-sha <head> --body <PR body>` - PASS; standard governance/design PR with 10 counted files.
+- Codex Security diff scan / finding discovery - PASS; 10/10 changed docs/review files covered, 0 reportable findings, final markdown and HTML reports validated under `/tmp/codex-security-scans/coaching-structured-wave-contract/a5220fc657723994650ad42e88633be005a0cd8a_20260602T125053Z/`.
+- `python3 scripts/orchestration/pr_review_context.py --pr 1865 --output /tmp/pulseplate_pr_1865_review_context.json` - PASS.
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest tests/test_pr_review_report.py -q` - PASS.
+- `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1865_review_context.json --format json` - PASS; one advisory line-count review-risk note, dispositioned below as `NOT-A-BUG`.
+- `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1865_review_context.json --format markdown` - PASS.
 - `make validate-changed` - PASS; no Python files changed.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push, and full
@@ -185,9 +191,26 @@ Mandatory sequence status:
   the landed PRO `/explain` surface from remaining future contract-frozen paths;
   `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now uses stable FitChef router
   and runtime symbol anchors instead of stale line-number evidence.
-- [ ] `security-auditor`
-- [ ] Codex Security diff scan / finding discovery
-- [ ] `pulseplate-pr-review`
+- [x] `bug-hunter` - recheck completed; no actionable findings after
+  `2c702517108f5183febb0ee9b5add8b68b6bbe30` and mapping sync
+  `a5220fc65a9e6f8f071f4fa33d50dc7df19be671`.
+- [x] `security-auditor` - completed; no actionable findings. Evidence:
+  semantic-cache remains closed, source-corpus/Drive/PDF material remains
+  supporting evidence only, wellness-only boundaries are preserved, and no
+  tracked local artifacts were introduced.
+- [x] Codex Security diff scan / finding discovery - completed; no reportable
+  findings. Evidence: local scan bundle covered 10/10 changed docs/review files,
+  generated `rank_input.csv`, `deep_review_input.csv`, `work_ledger.jsonl`,
+  `reviewed_surfaces.md`, validated `report.md`, and rendered `report.html`.
+- [x] `pulseplate-pr-review` - completed.
+  Disposition: NOT-A-BUG
+  Evidence: The dry-run report emitted one advisory `note` that the 469-line
+  diff is above the 300-line review-risk threshold. This PR remains within
+  current repo size policy: `check_pr_size_governance.py` classified it as
+  `standard_governance_design`, counted 10 files, and returned
+  `PR scope governance: OK (standard governance/design PR <= 20 files)`.
+  The PR has explicit Scope, Out of scope, and Tests sections, and targeted
+  local gates passed.
 
 Any finding from the post-open sequence, bots, or review threads must be fixed
 or dispositioned before this section and the PR body can claim readiness.
