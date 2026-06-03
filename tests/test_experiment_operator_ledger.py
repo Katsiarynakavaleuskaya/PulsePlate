@@ -134,11 +134,15 @@ def test_operator_ledger_event_write_keeps_temp_files_out_of_event_store(
         ("task_packet_id", "ghp_abcdefghijklmnopqrstuvwxyz123456"),
         ("task_packet_id", _hash("approval digest")),
         ("channel_hash", "none"),
+        ("coauthor_decision", "required"),
+        ("coauthor_required", True),
         ("event_hash", None),
         ("user_hash", "none"),
         ("status", "mergeable"),
         ("created_pr", True),
         ("retention_days", 0),
+        ("workflow_file", "none"),
+        ("workflow_ref", "none"),
     ],
 )
 def test_operator_ledger_rejects_unsafe_fields(
@@ -205,6 +209,15 @@ def test_operator_ledger_accepts_execute_dispatch_status() -> None:
     assert record.payload["status"] == "dispatched"
     assert record.payload["command_kind"] == "run-experiment"
     assert record.payload["dispatch_mode"] == "execute"
+
+
+def test_operator_ledger_accepts_absent_workflow_target_pair() -> None:
+    record = ledger.normalize_operator_ledger_event(
+        _event(workflow_file="none", workflow_ref="none")
+    )
+
+    assert record.payload["workflow_file"] == "none"
+    assert record.payload["workflow_ref"] == "none"
 
 
 def test_operator_ledger_accepts_date_like_artifact_filenames() -> None:
@@ -601,6 +614,34 @@ def test_operator_ledger_cli_record_output_write_error_does_not_write_event(
                 str(event_json),
                 "--output",
                 "artifacts/orchestration/experiments/blocked/report.json",
+            ]
+        )
+        == 1
+    )
+    failure = capsys.readouterr().out
+    assert "FAIL: Unable to write Experiment operator ledger output." in failure
+    assert not (ledger.default_ledger_dir(tmp_path) / "events").exists()
+
+
+def test_operator_ledger_cli_record_directory_output_does_not_write_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    event_json = tmp_path / "event.json"
+    event_json.write_text(json.dumps(_event()), encoding="utf-8")
+    output_dir = tmp_path / "artifacts" / "orchestration" / "experiments" / "operator_ledger"
+    output_dir.mkdir(parents=True)
+
+    assert (
+        ledger.main(
+            [
+                "--record",
+                "--event-json",
+                str(event_json),
+                "--output",
+                "artifacts/orchestration/experiments/operator_ledger",
             ]
         )
         == 1

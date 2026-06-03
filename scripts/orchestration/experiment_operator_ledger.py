@@ -402,6 +402,8 @@ def normalize_operator_ledger_event(
             raise OperatorLedgerError("Experiment operator ledger hash field is invalid.")
     for field in sorted(AUTHORITY_FIELDS):
         normalized[field] = _validate_false(payload[field], label=field)
+    if (normalized["workflow_file"] == "none") != (normalized["workflow_ref"] == "none"):
+        raise OperatorLedgerError("Experiment operator ledger workflow target is invalid.")
     if normalized["status"] in {"dry_run", "dispatched", "observed"}:
         if normalized["failure_class"] != "none":
             raise OperatorLedgerError("Experiment operator ledger status/failure pair is invalid.")
@@ -412,6 +414,8 @@ def normalize_operator_ledger_event(
     ):
         raise OperatorLedgerError("Experiment operator ledger dispatch status is invalid.")
     if normalized["coauthor_required"] and normalized["coauthor_decision"] != "required":
+        raise OperatorLedgerError("Experiment operator ledger coauthor decision is invalid.")
+    if not normalized["coauthor_required"] and normalized["coauthor_decision"] == "required":
         raise OperatorLedgerError("Experiment operator ledger coauthor decision is invalid.")
     if derive_idempotency_key:
         normalized["content_hash"] = _content_hash(normalized)
@@ -500,6 +504,8 @@ def _unlink_if_exists(path: Path) -> None:
 
 
 def _preflight_output_write(path: Path) -> None:
+    if path.exists() and not path.is_file():
+        raise OSError("Experiment operator ledger output target is invalid.")
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path: Path | None = None
     temp_fd, temp_name = tempfile.mkstemp(
