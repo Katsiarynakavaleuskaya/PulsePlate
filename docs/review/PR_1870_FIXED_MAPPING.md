@@ -92,7 +92,7 @@ Evidence: `app/main.py` now passes `target_app` to `register_vip_routes(...)` in
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348341731 -> b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
 Disposition: FIXED
 Commit: b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
-Evidence: `app/routers/fitchef_structured.py` wraps VIP structured route-level/runtime `HTTPException` failures in the frozen `vip_error(...)` envelope, `app/schemas/fitchef_coaching.py` documents `FitChefVipCoachingErrorResponse`, and `frontend/src/api/openapi.json` mirrors the updated OpenAPI contract; regression coverage: VIP envelope assertions in `tests/test_fitchef_structured_api.py`.
+Evidence: `app/routers/fitchef_structured.py` wraps VIP structured route-level/runtime `HTTPException` failures in the frozen `vip_error(...)` envelope, `app/schemas/fitchef_coaching.py` documents `FitChefVipCoachingErrorResponse`, and `frontend/src/api/openapi.json` plus `frontend/src/api/schema.ts` mirror the updated OpenAPI contract; regression coverage: VIP envelope assertions in `tests/test_fitchef_structured_api.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348341734 -> b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
 Disposition: FIXED
 Commit: b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6

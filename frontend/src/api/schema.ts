@@ -2719,6 +2719,25 @@ export interface components {
             wellness_boundary: string;
         };
         /**
+         * FitChefVipCoachingErrorResponse
+         * @description VIP FitChef error envelope preserving frozen VIP aliases.
+         */
+        FitChefVipCoachingErrorResponse: {
+            /** Code */
+            code: string;
+            /** Detail */
+            detail: string;
+            /** Error */
+            error: string;
+            /** Message */
+            message: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "error";
+        };
+        /**
          * FitChefWeeklyReflectionRequest
          * @description Weekly reflection request payload.
          */
@@ -6842,7 +6861,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
             /** @description VIP tier required */
@@ -6851,7 +6870,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -6878,7 +6897,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
             /** @description LLM provider call timed out */
@@ -6887,7 +6906,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
         };
