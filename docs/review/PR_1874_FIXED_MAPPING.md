@@ -34,8 +34,8 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
   are fixed or dispositioned.
 - [x] Post-open role-agent sequence completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 
 ## Fixed in Commit Mapping
 
@@ -139,6 +139,16 @@ Evidence: oracle-only Experiment Runner result `artifacts/orchestration/experime
 Disposition: NOT-A-BUG
 Evidence: Post-open security-auditor pass reported no security findings after the QA and bug-hunter fixes. The pass confirmed safe result metadata allowlisting, result artifact traversal/symlink checks, report output confinement under `artifacts/orchestration/experiments`, reserved `events` rejection, false authority booleans, explicit redaction summary, and escaped HTML rendering.
 
+### Codex Security diff scan
+
+Disposition: NOT-A-BUG
+Evidence: Codex Security diff scan covered 1/1 source-like diff row for `scripts/orchestration/experiment_operator_ledger.py`, emitted no reportable candidates, wrote a completion receipt in `work_ledger.jsonl`, validated `report.md`, and rendered `report.html`. Local scan bundle id: `pr1874_9732d2243_20260603T204048Z`.
+
+### pulseplate-pr-review
+
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` dry-run emitted one advisory `large-diff-risk` note because the PR has more than 800 changed lines. The note is closed as not-a-bug for this PR because the diff is a cohesive PR-3 operator observability slice, the PR body includes split justification, changed surfaces are limited to local operator observability, runbook, mapping, and focused tests, and targeted deterministic gates passed. Local reports: `artifacts/orchestration/pr_review/PR_1874_PULSEPLATE_PR_REVIEW.md` and `artifacts/orchestration/pr_review/PR_1874_PULSEPLATE_PR_REVIEW.json`.
+
 ## Local Gate Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS.
@@ -146,10 +156,11 @@ Evidence: Post-open security-auditor pass reported no security findings after th
 - `python3 -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after post-open QA and bug-hunter fixes.
 - `git diff --check` - PASS.
-- `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed.
-- `PREPUSH_DEBUG=1 make validate-changed` - PASS.
+- `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed; PASS again on final head.
+- `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head.
 - final oracle-only Experiment Runner evidence `artifacts/orchestration/experiments/results/exp-346a93ac7a31.json` - accepted.
 - `git push -u origin codex/experiment-runner-operator-observability-report` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
+- final `git push` to `9732d2243` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
 
 ## Merge Readiness
 
