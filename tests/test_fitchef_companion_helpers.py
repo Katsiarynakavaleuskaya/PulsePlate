@@ -209,6 +209,10 @@ def test_identity_loop_mapper_detects_high_distress_boundary() -> None:
 
     assert has_high_distress_boundary("steady dinners", "I might kill myself tonight")
     assert has_high_distress_boundary("I want to hurt myself")
+    assert has_high_distress_boundary("I want to die")
+    assert has_high_distress_boundary("I wish I were dead")
+    assert has_high_distress_boundary("I cannot go on")
+    assert has_high_distress_boundary("This is not worth living")
     assert has_high_distress_boundary("I do not want to live")
     assert not has_high_distress_boundary("I felt disappointed after dinner planning slipped")
 

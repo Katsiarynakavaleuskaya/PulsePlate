@@ -35,6 +35,7 @@ from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import router as fitchef_structured_router
 from app.routers.legal import router as legal_router
+from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
 
 app: FastAPI = _legacy_app
@@ -198,6 +199,8 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
         app.include_router(fitchef_structured_router)
+
+    register_vip_routes(app)
 
     if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
         app.include_router(creative_research_internal_router)

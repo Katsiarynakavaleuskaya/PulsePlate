@@ -477,6 +477,28 @@ class TestFitChefIdentityLoopMapperRoute:
         assert response.status_code == 400
         assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
 
+    def test_high_distress_want_to_die_rejected_before_runtime(self) -> None:
+        """Common crisis phrasing should not slip through identity-loop routing."""
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run for high-distress input"),
+        )
+
+        response = self.client.post(
+            self.url,
+            json={
+                "goal": "steady dinners",
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "I want to die",
+                "trigger_context": "work runs late",
+            },
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 400
+        assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
+
     def test_route_delegates_to_runtime_with_identity_loop_envelope(self) -> None:
         """Route should delegate to runtime with the bounded identity-loop envelope."""
 
@@ -639,6 +661,19 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
     )
     monkeypatch.setattr(app_main.realtime_ws, "router", ws_router)
 
+    vip_registration_calls: list[FastAPI] = []
+
+    def _register_vip_routes(target_app: FastAPI) -> None:
+        vip_registration_calls.append(target_app)
+        if not any(
+            getattr(route, "path", None) == "/api/v1/vip/fitchef/insight"
+            and "POST" in (getattr(route, "methods", None) or set())
+            for route in target_app.routes
+        ):
+            target_app.include_router(_make_router("/api/v1/vip/fitchef/insight"))
+
+    monkeypatch.setattr(app_main, "register_vip_routes", _register_vip_routes)
+
     app = FastAPI()
     app_main.ensure_canonical_app_bootstrap(app)
     app_main.ensure_canonical_app_bootstrap(app)
@@ -649,7 +684,15 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
         if getattr(route, "path", None) == "/api/v1/pro/fitchef/explain"
         and "POST" in (getattr(route, "methods", None) or set())
     ]
+    vip_structured_routes = [
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == "/api/v1/vip/fitchef/insight"
+        and "POST" in (getattr(route, "methods", None) or set())
+    ]
     assert len(structured_routes) == 1
+    assert len(vip_structured_routes) == 1
+    assert vip_registration_calls == [app, app]
 
 
 class TestFitChefStructuredRuntimeCoverage:

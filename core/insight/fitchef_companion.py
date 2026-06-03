@@ -25,6 +25,10 @@ _DEFAULT_LIST_LIMIT = 3
 _HIGH_DISTRESS_BOUNDARY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:kill|hurt|harm)\s+myself\b", re.IGNORECASE),
     re.compile(r"\bend\s+my\s+life\b", re.IGNORECASE),
+    re.compile(r"\bwant\s+to\s+die\b", re.IGNORECASE),
+    re.compile(r"\bwish\s+i\s+were\s+dead\b", re.IGNORECASE),
+    re.compile(r"\bi\s+can(?:not|'?t)\s+go\s+on\b", re.IGNORECASE),
+    re.compile(r"\bnot\s+worth\s+living\b", re.IGNORECASE),
     re.compile(r"\bself[-\s]?harm\b", re.IGNORECASE),
     re.compile(r"\bsuicid(?:e|al)\b", re.IGNORECASE),
     re.compile(r"\bi\s+do\s+not\s+want\s+to\s+live\b", re.IGNORECASE),
