@@ -161,6 +161,14 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 6fe6e93ecd2b4ad7f95316982fed7066db829e54 HEAD`, `git merge-base --is-ancestor 377a17a542c5ff5a7e0a82711c6a653065d88245 HEAD`, `git merge-base --is-ancestor 28215f57fa23aabd3228d0de9f467ca8f5f1187a HEAD`, and `git merge-base --is-ancestor c87c82d4ca5b18d1882dbe24330c0492eee00a8c HEAD` all returned 0 locally on the current PR branch.
 Reason: The connector evaluated reviewed head `92e8ac8` rather than the governed current PR branch head. The current branch history contains the primary implementation commit and the mapped proof commits.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3346950474 -> 6af17405e3caa2b276a660daee94e39c06c45874
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3346950478 -> 6af17405e3caa2b276a660daee94e39c06c45874
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3346950488 -> 6af17405e3caa2b276a660daee94e39c06c45874
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3346950496 -> 6af17405e3caa2b276a660daee94e39c06c45874
+Disposition: FIXED
+Commit: 6af17405e3caa2b276a660daee94e39c06c45874
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now rejects GitHub App token-shaped `ghs_` artifact refs, rejects ledger directories nested under reserved `events` stores, and validates ledger `tmp` paths through the same symlink boundary guard before event writes; `tests/test_experiment_operator_ledger.py` covers all three ledger-boundary regressions. `tests/test_experiment_slack_socket_bridge.py` now derives the local operator-ledger fixture timestamp from current UTC time, preventing retention-window drift. Focused ledger/Slack bridge tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
 ## Implementation Evidence
 
 Security-auditor post-open ledger-integrity finding:
