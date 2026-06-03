@@ -150,6 +150,14 @@ Evidence: `scripts/ci/ci_risk_profile.py` now routes structured FitChef route/ru
   - Evidence: PR body records `operator approval: approved for PR #1870.` and
     `privileged scope exception: approved for CI coverage-routing fix after
     current-head diff-coverage failure.`
+- `pr_scope_guard` / PR size governance on head
+  `269773851`: FIXED by PR body mirror.
+  - Finding: generated `frontend/src/api/schema.ts` pushed the PR to 31 counted
+    files, so oversized governance required an explicit emergency exception
+    line in addition to the existing operator approval and split justification.
+  - Evidence: PR body records `operator approval: approved for PR #1870.` and
+    `emergency exception: approved for PR #1870 generated OpenAPI schema mirror
+    after review-fix pushed counted file total to 31.`
 
 ## External Bot Review Status
 
