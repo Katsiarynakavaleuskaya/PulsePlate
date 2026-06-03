@@ -5398,7 +5398,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (CI hygiene / advisory reliability)
-  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); replacement sequence: PR #1871 (`codex/gha-node24-action-runtime-cleanup`, direct action-runtime cleanup) plus `codex/node24-runtime-baseline` (operational runtime baseline, PR pending)
+  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); replacement sequence: PR #1871 (`codex/gha-node24-action-runtime-cleanup`, direct action-runtime cleanup) plus PR #1875 (`codex/node24-runtime-baseline`, operational runtime baseline)
   - Status: 🚧 In progress / direct Node 24 action-runtime cleanup plus operational Node 24 baseline migration; cache-warning audit remains open pending fresh representative PR evidence
   - Area: ci / github-actions / cache
   - Finding Type: advisory workflow debt
