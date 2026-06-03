@@ -112,9 +112,9 @@ Status reconciliation:
 - `POST /api/v1/pro/fitchef/explain` is now the landed, feature-gated PRO
   Distortion Simulator runtime from PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`.
 - `POST /api/v1/pro/fitchef/recommend` remains a contract-frozen PRO follow-up.
-- `POST /api/v1/vip/fitchef/insight` is the feature-gated VIP Identity Loop
-  Mapper runtime once this implementation lane registers the route and updates
-  OpenAPI.
+- `POST /api/v1/vip/fitchef/insight` is now the landed, feature-gated VIP
+  Identity Loop Mapper runtime from PR #1870 /
+  `7802ed25e99e0a4f346d14487270a037bb5ec97a`.
 - `POST /api/v1/vip/fitchef/chat` and `POST /api/v1/vip/fitchef/week-repair`
   remain future-only VIP structured coach follow-ups until later reviewed
   runtime PRs register routes and update OpenAPI.

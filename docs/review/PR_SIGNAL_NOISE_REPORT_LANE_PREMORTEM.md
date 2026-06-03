@@ -35,6 +35,8 @@ Evidence:
 - `docs/contracts/API_CANONICAL_MAP.md` and
   `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` now state that the VIP
   Identity Loop Mapper route is implemented and OpenAPI-exposed.
+- `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` reconciles the foundation
+  contract to the same PR #1870 landed state.
 
 ### 2. Signal vs Noise becomes a hidden runtime lane
 
