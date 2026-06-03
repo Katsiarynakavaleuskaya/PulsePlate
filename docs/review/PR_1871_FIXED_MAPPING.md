@@ -11,7 +11,8 @@ operator-override behavior.
 **Primary implementation commits:** `ef1a745654e89d7a14f676e70001c010878eff4a`,
 `e556119b444742135cced7793b0da38aaa8f9353`,
 `c6aabad09ab876bb13b7f2700363166ee386880c`,
-`6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`
+`6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`,
+`be9e1a5d2d8f3427af2d70627e571b286b235651`
 
 ## Discussion Thread Pass
 
@@ -19,13 +20,14 @@ operator-override behavior.
 - [x] Fixed in commit mapping completed
 - [ ] Post-open bot/human review disposition completed after latest push
 
-Current live PR snapshot before the mapping commit:
+Current live PR snapshot before the latest mapping update:
 
-- No inline GitHub review comments were present.
+- Codex Review posted one actionable inline comment on the Trivy wrapper pin.
+  This is mapped below to `be9e1a5d2d8f3427af2d70627e571b286b235651`.
 - CodeRabbit had posted a summary comment only.
 - Sourcery returned a weekly-rate-limit comment, not a code actionable.
 - Cubic reported no issues on the initial head.
-- Current-head CI and bot review must be rechecked after this mapping commit is
+- Current-head CI and bot review must be rechecked after this mapping update is
   pushed.
 
 ## Fixed in Commit Mapping
@@ -49,6 +51,11 @@ Evidence: Current-head Greenlight failed because `greenlight@v0.1.0` requires Go
 Disposition: FIXED
 Commit: 6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8
 Evidence: Current-head Docker/security-scan logs showed the remaining Node20 warning came from `aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0`, whose composite action invoked nested `actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4` with `runs.using: node20`. The commit updates only the pinned Trivy wrapper action in `.github/workflows/build.yml` and `.github/workflows/trivy.yml` to `aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path`, preserving Trivy binary `version: v0.69.3` and scan inputs, and extends `tests/test_ci_workflow_pr_size_governance_contract.py` to reject the old wrapper SHA plus nested cache warning source.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1871#discussion_r3348168393 -> be9e1a5d2d8f3427af2d70627e571b286b235651
+Disposition: FIXED
+Commit: be9e1a5d2d8f3427af2d70627e571b286b235651
+Evidence: Codex Review correctly identified that the previous `aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8` ref was the annotated `v0.36.0` tag object rather than the peeled commit. `git ls-remote https://github.com/aquasecurity/trivy-action.git 'refs/tags/v0.36.0*'` showed `a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 refs/tags/v0.36.0` and `ed142fd0673e97e23eac54620cfb913e5ce36c25 refs/tags/v0.36.0^{}`. The commit updates only the Trivy action refs and workflow guard constant to the peeled commit SHA while preserving all Trivy scanner inputs.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26882447867/job/79285782067 -> 191a0671d8c279ff1eabcee41f610af9a6ae3134
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26882447867/job/79285782087 -> 191a0671d8c279ff1eabcee41f610af9a6ae3134
@@ -286,10 +293,21 @@ Premortem:
 - `tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths`
   - PASS after replacing machine-local absolute command paths with repo-relative
   evidence.
+- Trivy peeled commit fix:
+  - `git ls-remote https://github.com/aquasecurity/trivy-action.git 'refs/tags/v0.36.0*'`
+    showed tag object `a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8` and peeled
+    commit `ed142fd0673e97e23eac54620cfb913e5ce36c25`.
+  - `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py`
+    - PASS; 21 tests.
+  - `python3 scripts/ci/guard_actions_pin.py --root .` - PASS.
+  - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_1871_FIXED_MAPPING.md docs/roadmap/BACKLOG_LEDGER.md docs/ENGINEERING_LESSONS.md`
+    - PASS.
+  - `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(cat /tmp/pr1871_body_update.md)" --pr-number 1871 --commit-range origin/main..HEAD --experiment-runner-evidence-mode advisory`
+    - PASS.
+  - `pre-commit run --all-files` - PASS.
 
 Pending after this mapping commit:
 
-- `pre-commit run --all-files`
 - Current-head GitHub CI/log review after the next push
 
 ## Codex Security Evidence
