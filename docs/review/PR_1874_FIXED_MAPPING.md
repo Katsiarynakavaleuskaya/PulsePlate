@@ -177,7 +177,7 @@ Evidence: Codex Security diff scan covered 1/1 source-like diff row for `scripts
 ### pulseplate-pr-review
 
 Disposition: NOT-A-BUG
-Evidence: `pulseplate-pr-review` dry-run emitted one advisory `large-diff-risk` note because the PR has more than 800 changed lines. The note is closed as not-a-bug for this PR because the diff is a cohesive PR-3 operator observability slice, the PR body includes split justification, changed surfaces are limited to local operator observability, runbook, mapping, and focused tests, and targeted deterministic gates passed. Final local reports: `artifacts/orchestration/pr_review/PR_1874_PULSEPLATE_PR_REVIEW_FINAL.md` and `artifacts/orchestration/pr_review/PR_1874_PULSEPLATE_PR_REVIEW_FINAL.json`.
+Evidence: final `pulseplate-pr-review` dry-run emitted one advisory `large-diff-risk` note because the PR has more than 800 changed lines. The note is closed as not-a-bug for this PR because the diff is a cohesive PR-3 operator observability slice, the PR body includes split justification, changed surfaces are limited to local operator observability, runbook, mapping, and focused tests, and targeted deterministic gates passed.
 
 ## Local Gate Evidence
 
