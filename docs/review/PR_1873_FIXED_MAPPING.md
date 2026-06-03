@@ -24,9 +24,9 @@ gates.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 5738f67e5f4471038ffaf6150cd7ee58874bc855
+Commit: 5738f67e5d503e9a86eee1504dd5db63d997366f
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` replaces the remaining umbrella-chain `PR-TBD-SIGNAL-NOISE-REPORT-LANE` placeholder with `PR #1873 (Signal vs Noise report/content contract lane)`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351499498 -> 5738f67e5f4471038ffaf6150cd7ee58874bc855
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351499498 -> 5738f67e5d503e9a86eee1504dd5db63d997366f
 
 Disposition: NOT-A-BUG
 Evidence: `git show -s --format=%B e5b88d998d750347a6e27e660c8ed1da52719580` includes the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer required by the Experiment Runner evidence. `git merge-base --is-ancestor e5b88d998d750347a6e27e660c8ed1da52719580 HEAD` returned `0`, confirming that implementation commit is in the branch history. `git cat-file -t 7211c85046bcc8a126764f8abd79b33c2da3cdca` returned `128`, confirming the reviewed synthetic SHA is not a local branch-history proof target.
@@ -34,23 +34,23 @@ Reason: The review comment checked a synthetic or stale commit reference, while 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351495172
 
 Disposition: FIXED
-Commit: 5738f67e5f4471038ffaf6150cd7ee58874bc855
+Commit: 5738f67e5d503e9a86eee1504dd5db63d997366f
 Evidence: `docs/review/PR_1873_FIXED_MAPPING.md` records the branch-history trailer proof and the absent local synthetic SHA object; `docs/roadmap/BACKLOG_LEDGER.md` also tightens the Signal vs Noise target to the report/content contract lane.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351592540 -> 5738f67e5f4471038ffaf6150cd7ee58874bc855
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351592540 -> 5738f67e5d503e9a86eee1504dd5db63d997366f
 
 Disposition: FIXED
-Commit: 2d2c622759f08c177b7cf18d8390f55183e7fe0b
-Evidence: `docs/review/PR_1873_FIXED_MAPPING.md` remaps the placeholder-fix disposition from the intermediate commit to reachable branch-history commit `5738f67e5f4471038ffaf6150cd7ee58874bc855`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351592549 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351632142 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+Commit: 2d2c62275a66990e9d3ac1e092917d812a11e5b8
+Evidence: `docs/review/PR_1873_FIXED_MAPPING.md` remaps the placeholder-fix disposition from the intermediate commit to reachable branch-history commit `5738f67e5d503e9a86eee1504dd5db63d997366f`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351592549 -> 2d2c62275a66990e9d3ac1e092917d812a11e5b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351632142 -> 2d2c62275a66990e9d3ac1e092917d812a11e5b8
 
 Disposition: FIXED
-Commit: 2d2c622759f08c177b7cf18d8390f55183e7fe0b
-Evidence: Top-level bot review comments are covered by the inline-thread fixes above: placeholder remap proof is in `2d2c622759f08c177b7cf18d8390f55183e7fe0b`; merge-readiness section proof is in `111421b3944ccfd8a04a469086a27310e416ac4a`; attribution synthetic-SHA evidence is in `5738f67e5f4471038ffaf6150cd7ee58874bc855`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422280019 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+Commit: 2d2c62275a66990e9d3ac1e092917d812a11e5b8
+Evidence: Top-level bot review comments are covered by the inline-thread fixes above: placeholder remap proof is in `2d2c62275a66990e9d3ac1e092917d812a11e5b8`; merge-readiness section proof is in `111421b3944ccfd8a04a469086a27310e416ac4a`; attribution synthetic-SHA evidence is in `5738f67e5d503e9a86eee1504dd5db63d997366f`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422280019 -> 2d2c62275a66990e9d3ac1e092917d812a11e5b8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422322769 -> 111421b3944ccfd8a04a469086a27310e416ac4a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422397465 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422445194 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422397465 -> 2d2c62275a66990e9d3ac1e092917d812a11e5b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422445194 -> 2d2c62275a66990e9d3ac1e092917d812a11e5b8
 
 ## Pre-Open Findings
 
