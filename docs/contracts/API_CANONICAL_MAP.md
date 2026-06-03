@@ -36,7 +36,7 @@ These routes are the current canonical operator surface.
 | Payment activation | `/api/v1/pro/payments/activate` | POST | PRO | Canonical payment activation route |
 | Payment activation status | `/api/v1/pro/payments/activations/{activation_id}` | GET | PRO | Canonical payment status route |
 | FitChef structured explain | `/api/v1/pro/fitchef/explain` | POST | PRO | Feature-gated PRO structured Distortion Simulator route landed via PR #1215; additive to the live mascot canon |
-| FitChef structured insight | `/api/v1/vip/fitchef/insight` | POST | VIP | Feature-gated VIP structured Identity Loop Mapper route; additive to the live mascot canon |
+| FitChef structured insight | `/api/v1/vip/fitchef/insight` | POST | VIP | Feature-gated VIP structured Identity Loop Mapper route landed via PR #1870; additive to the live mascot canon |
 | Apple receipt verification | `/api/v1/billing/apple/verify-receipt` | POST | Billing transport seam | Implemented verify-only iOS receipt baseline; server-side only, production-first with single `21007` sandbox fallback, no activation side effects (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `app/routers/billing.py:215`, `app/services/payments_activation.py:424`, `legacy_app.py:709`, `docs/roadmap/BACKLOG_LEDGER.md:61`) |
 | RU/BY payment intent | `/api/v1/pro/payments/ru-by/manual-intent` | POST | PRO | Implemented manual payment intent route |
 | RU/BY reconciliation | `/api/v1/pro/payments/ru-by/reconcile` | POST | PRO | Implemented manual reconciliation route |
@@ -54,7 +54,7 @@ FitChef initiative note:
 - The live mascot routes above remain canonical during the FitChef umbrella foundation and visual/App Store waves.
 - The live mascot routes above remain canonical after the structured-coach contract freeze as well; they are not migrated by that phase.
 - `POST /api/v1/pro/fitchef/explain` is now a feature-gated PRO structured runtime and OpenAPI-exposed route, landed via PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`.
-- `POST /api/v1/vip/fitchef/insight` is the feature-gated VIP structured Identity Loop Mapper runtime once router registration and OpenAPI exposure from this implementation lane land.
+- `POST /api/v1/vip/fitchef/insight` is now a feature-gated VIP structured Identity Loop Mapper runtime and OpenAPI-exposed route, landed via PR #1870 / `7802ed25e99e0a4f346d14487270a037bb5ec97a`.
 - `POST /api/v1/pro/fitchef/recommend`, `POST /api/v1/vip/fitchef/chat`, and `POST /api/v1/vip/fitchef/week-repair` remain contract-frozen additive follow-ups.
 - Canonical reference: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
 - Contract freeze reference: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`.

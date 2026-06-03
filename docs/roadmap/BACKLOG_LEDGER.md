@@ -3843,7 +3843,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR #1870 (VIP Identity Loop Mapper runtime) -> PR-TBD-SIGNAL-NOISE-REPORT-LANE -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR #1870 (VIP Identity Loop Mapper runtime) -> PR #1873 (Signal vs Noise report/content contract lane) -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
   - Status: 🚧 In progress
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
@@ -3866,8 +3866,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `PR #1159` established the structured coach direction while preserving the live mascot canon
     - `PR #1214` merged on March 21, 2026 for the structured coach contract freeze (`29a11e62e38307dd4cc7414bffc159b508878744`)
     - `PR #1215` merged on March 21, 2026 for the feature-gated PRO Distortion Simulator runtime at `POST /api/v1/pro/fitchef/explain` (`70bdbd9e51d977d440b605eed3064c71212cff97`)
-    - `PR #1870` is open for the bounded VIP Identity Loop Mapper runtime lane at `POST /api/v1/vip/fitchef/insight`
-    - `PR-TBD-SIGNAL-NOISE-REPORT-LANE` remains a separate report/content lane, not a first-wave runtime feature
+    - `PR #1870` merged on 2026-06-03 for the bounded VIP Identity Loop Mapper runtime at `POST /api/v1/vip/fitchef/insight` (`7802ed25e99e0a4f346d14487270a037bb5ec97a`)
+    - `PR #1873` is the current report/content lane for CBT coaching GTM, not a product runtime feature
   - Subtracks:
     - FitChef visual identity and mascot system
     - App Store screenshot and preview pack
@@ -3911,12 +3911,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-identity-loop-mapper-wave"></a>
-- [ ] P1: Identity Loop Mapper reflective coaching lane
+- [x] P1: Identity Loop Mapper reflective coaching lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (premium reflection / behavior change)
   - Target PR: PR #1870 (`feat(fitchef): add VIP Identity Loop Mapper structured runtime`)
-  - Status: 🚧 PR #1870 is open on `codex/vip-identity-loop-mapper-runtime`; remains unmerged until current-head CI, post-open review governance, Codex Security, fixed mapping, and merge-readiness gates land.
-  - Reason (EN): Weekly reflection and slip-support already exist, but the next premium layer should formalize belief -> behavior -> payoff -> replacement action mapping as a bounded VIP tool rather than widening into generic chat. This gives the reflection lane a stronger product identity without changing the live mascot canon. The implementation lane registers `POST /api/v1/vip/fitchef/insight`, keeps the live mascot family unmigrated, and leaves `chat`, `week-repair`, Signal vs Noise, semantic cache, GraphRAG, frontend/iOS, food-data, and plan adaptation out of scope.
+  - Status: Landed via PR #1870 on 2026-06-03 with merge commit `7802ed25e99e0a4f346d14487270a037bb5ec97a`.
+  - Reason (EN): Weekly reflection and slip-support already exist, but the next premium layer should formalize belief -> behavior -> payoff -> replacement action mapping as a bounded VIP tool rather than widening into generic chat. This gives the reflection lane a stronger product identity without changing the live mascot canon. PR #1870 registered `POST /api/v1/vip/fitchef/insight`, kept the live mascot family unmigrated, and left `chat`, `week-repair`, Signal vs Noise, semantic cache, GraphRAG, frontend/iOS, food-data, and plan adaptation out of scope.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/psychology/motivation_theories.md`
@@ -3934,18 +3934,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Signal vs Noise report lane for CBT coaching GTM
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (GTM / product strategy / founder content)
-  - Target PR: PR-TBD-SIGNAL-NOISE-REPORT-LANE
-  - Status: 📋 Planned
+  - Target PR: PR #1873 (`docs(coaching): promote Signal vs Noise report lane after VIP identity loop`)
+  - Status: Active in PR #1873 after PR #1870 landed.
   - Reason (EN): The article-inspired `Signal vs Noise` concept fits the repo better as a high-signal weekly report and founder-content pipeline than as a runtime feature. The lane should reuse the existing AI report templates and KPI-driven GTM structure so content decisions stay measurable and wellness-safe.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/insights/SIGNAL_VS_NOISE_REPORT_LANE.md`
     - `docs/audience_pack/AI_REPORT_TEMPLATES.md`
     - `docs/marketing/GTM_NOTES_DEV_ONLY.md`
     - `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md`
   - DoD:
     - One canonical report/playbook lane exists for weekly high-signal coaching and wellness AI briefs
     - Report outputs stay separate from runtime surfaces and do not create new open-ended LLM endpoints
-    - Every report block ends with owner, metric, and decision rule
+    - Every report block includes claim type, evidence status, confidence, owner, metric, check date, and stop/continue rule
     - Wellness-safe language and disclaimer references are explicit in the lane docs
 
 <a id="ledger-p2-pr1437-docker-ci-doc-governance-followup"></a>

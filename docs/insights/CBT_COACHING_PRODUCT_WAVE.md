@@ -2,7 +2,8 @@
 
 Date: 21 March 2026
 Status: Canonical docs-first product-wave decision; reconciled after the
-feature-gated PRO Distortion Simulator runtime landed in PR #1215
+feature-gated PRO Distortion Simulator runtime landed in PR #1215 and the
+feature-gated VIP Identity Loop Mapper runtime landed in PR #1870
 Owner: @katsiaryna_kavaleuskaya
 
 ## Summary
@@ -126,6 +127,10 @@ hype in wellness AI, coaching patterns, and growth narratives.
 
 **Important boundary:** this is a **content/report lane**, not a first-wave runtime feature.
 
+Canonical lane doc:
+
+- `docs/insights/SIGNAL_VS_NOISE_REPORT_LANE.md`
+
 **Cadence direction:**
 
 - weekly `high-signal / low-noise` brief
@@ -134,6 +139,8 @@ hype in wellness AI, coaching patterns, and growth narratives.
 - one metric
 - one check date
 - one stop/continue rule
+- source/evidence status and confidence before any promotion into founder
+  content or product strategy
 
 ### Pillar D: FitChef Coaching Framework
 
@@ -197,6 +204,7 @@ It aligns to the existing structured coach contract as follows:
   - primary future capability: bounded action-oriented recommendation after reframing
 - `POST /api/v1/vip/fitchef/insight`
   - landed feature-gated VIP capability: Identity Loop Mapper
+  - landed via PR #1870 / `7802ed25e99e0a4f346d14487270a037bb5ec97a`
 - `POST /api/v1/vip/fitchef/week-repair`
   - primary future capability: identity-aware repair after slips
 
@@ -207,6 +215,8 @@ not become the first implementation target ahead of bounded structured tools.
 
 Canonical metric definitions for this wave must live in `docs/analytics/METRICS_CATALOG.md`,
 and the umbrella experiment row must live in `docs/analytics/EXPERIMENT_REGISTRY.md`.
+Signal vs Noise report fields are GTM decision fields only unless a later reviewed
+runtime PR adds tested product telemetry.
 
 ### Distortion Simulator
 
@@ -245,6 +255,7 @@ Secondary metrics:
 The report/content lane should follow the existing AI report and GTM templates:
 
 - `docs/audience_pack/AI_REPORT_TEMPLATES.md`
+- `docs/insights/SIGNAL_VS_NOISE_REPORT_LANE.md`
 - `docs/marketing/GTM_NOTES_DEV_ONLY.md`
 - `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md`
 
@@ -273,10 +284,10 @@ Not recommended:
 ### Follow-up implementation lanes
 
 1. Landed: Distortion Simulator contract + PRO runtime via PR #1214 and PR #1215
-2. Landed by this implementation lane: Identity Loop Mapper VIP runtime,
-   aligned to the frozen `FitChefIdentityLoopMapperResponse` schema; the schema
-   and generated OpenAPI remain authoritative over this summary list.
-3. Separate future lane: Signal vs Noise report/content lane
+2. Landed: Identity Loop Mapper VIP runtime via PR #1870, aligned to the frozen
+   `FitChefIdentityLoopMapperResponse` schema; the schema and generated OpenAPI
+   remain authoritative over this summary list.
+3. Current docs/GTM lane: Signal vs Noise report/content contract
 
 The broader philosophy and CBT source corpus can inform future reviewed PRs, but
 it is source-corpus/supporting evidence only. It does not open semantic-cache,

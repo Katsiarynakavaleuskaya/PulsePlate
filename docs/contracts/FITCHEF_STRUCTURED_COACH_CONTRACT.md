@@ -17,6 +17,8 @@ Identifier note:
   `29a11e62e38307dd4cc7414bffc159b508878744`
 - PRO Distortion Simulator runtime: PR #1215 /
   `70bdbd9e51d977d440b605eed3064c71212cff97`
+- VIP Identity Loop Mapper runtime: PR #1870 /
+  `7802ed25e99e0a4f346d14487270a037bb5ec97a`
 
 The current public mascot routes under `/api/v1/insight/fitchef*` remain live,
 canonical, and unmigrated. The structured coach family stays additive.
@@ -26,8 +28,8 @@ and OpenAPI-exposed:
 
 - `POST /api/v1/pro/fitchef/explain`
 
-The first bounded VIP structured coach runtime is implemented by the Identity
-Loop Mapper lane once this implementation PR lands:
+As of PR #1870, the first bounded VIP structured coach runtime is implemented
+and OpenAPI-exposed:
 
 - `POST /api/v1/vip/fitchef/insight`
 
@@ -263,7 +265,7 @@ Future structured coach implementation must:
 - PR #1214 froze the structured coach contract and route family.
 - PR #1215 landed the feature-gated PRO `Distortion Simulator` runtime at
   `POST /api/v1/pro/fitchef/explain`.
-- The Identity Loop Mapper runtime lane lands the feature-gated VIP runtime at
+- PR #1870 landed the feature-gated VIP Identity Loop Mapper runtime at
   `POST /api/v1/vip/fitchef/insight` with the frozen
   `FitChefIdentityLoopMapperResponse` envelope.
 
@@ -301,13 +303,16 @@ truth:
 - `app.routers.fitchef_insight.fitchef_slip_support`
 - `app.routers.cbt_insight.CBTInsightResponse`
 - `app.services.fitchef_runtime.run_distortion_simulator_task`
+- `app.services.fitchef_runtime.run_identity_loop_mapper_task`
 - `app.services.fitchef_runtime.run_mascot_insight_task`
 - `app.services.fitchef_runtime.run_weekly_reflection_task`
 - `app.services.fitchef_runtime.run_slip_support_task`
 - `app.schemas.fitchef.FitChefDistortionSimulatorInput`
 - `app.schemas.fitchef.FitChefSlipSupportTaskEnvelope`
 - `app.schemas.fitchef_coaching.FitChefIdentityLoopMapperRequest`
+- `app.schemas.fitchef_coaching.FitChefIdentityLoopMapperResponse`
 - `app.schemas.fitchef_coaching.FitChefDistortionSimulatorResponse`
 - `tests.test_fitchef_structured_api.TestFitChefDistortionSimulatorRoute.test_openapi_documents_distortion_simulator_contract`
+- `tests.test_fitchef_structured_api.TestFitChefIdentityLoopMapperRoute.test_openapi_documents_identity_loop_mapper_contract`
 - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
 - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
