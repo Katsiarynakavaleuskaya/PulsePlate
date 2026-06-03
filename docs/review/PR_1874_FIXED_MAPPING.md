@@ -172,7 +172,7 @@ Evidence: Post-open security-auditor pass reported no security findings after th
 ### Codex Security diff scan
 
 Disposition: NOT-A-BUG
-Evidence: Codex Security diff scan covered 1/1 source-like diff row for `scripts/orchestration/experiment_operator_ledger.py`, emitted no reportable candidates, wrote a completion receipt in `work_ledger.jsonl`, validated `report.md`, and rendered `report.html` after the Cubic-identified malformed-artifact fail-closed fix. Local scan bundle id: `pr1874_75c9df2b2_20260603T205027Z`.
+Evidence: Codex Security diff scan covered 1/1 source-like diff row for `scripts/orchestration/experiment_operator_ledger.py`, emitted no reportable candidates, wrote a completion receipt in `work_ledger.jsonl`, validated `report.md`, and rendered `report.html` after the Codex-identified result-id redaction, latest-state projection, and artifact-hash verification fixes. Local scan bundle id: `pr1874_22676d28ed_20260603T213013Z`.
 
 ### pulseplate-pr-review
 
