@@ -56,6 +56,12 @@ Evidence: workflow approval evidence overclaim and mapping grouping findings wer
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348262527 -> e05daa8b6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348267131 -> e05daa8b6
 
+Disposition: FIXED
+Commit: 9c5ad7fb1
+Evidence: workflow ref reporting and runtime ledger preflight findings were fixed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348500268 -> 9c5ad7fb1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348500276 -> 9c5ad7fb1
+
 Disposition: NOT-A-BUG
 Evidence: detailed proof is recorded below under External review thread dispositions.
 Reason: the URL-only line is intentionally commit-free per NOT-A-BUG review governance.
@@ -211,6 +217,25 @@ passed. Local artifacts:
   `approval_hash_prefix: none` plus `workflow_live_approval:
   bridge_required_not_workflow_proven`, and the workflow contract test asserts
   `approval_ref[:16]` is absent from the summary code.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348500268
+  Disposition: FIXED
+  Commit: 9c5ad7fb1
+  Evidence: `.github/workflows/experiment-runner-dispatch.yml` now reads
+  `GITHUB_REF_NAME`, fails closed unless the workflow ref is `main`, and writes
+  `workflow_ref` from that validated runtime value instead of a hard-coded
+  summary literal.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348500276
+  Disposition: FIXED
+  Commit: 9c5ad7fb1
+  Evidence:
+  `scripts/orchestration/experiment_slack_socket_bridge.py --validate-runtime`
+  now calls the operator-ledger preflight before returning `status: pass`.
+  `tests/test_experiment_slack_socket_bridge.py` covers malformed local ledger
+  event store failure without leaking the local path.
 
 - Thread:
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507
