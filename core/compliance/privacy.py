@@ -161,6 +161,7 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
             "/api/v1/insight",
             "/api/v1/pro/cbt/insight",
             "/api/v1/pro/fitchef/explain",
+            "/api/v1/vip/fitchef/insight",
         ),
         purpose="Generate wellness-oriented, automated AI responses and explanations",
         sensitivity="derived sensitive",

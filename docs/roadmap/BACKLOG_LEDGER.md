@@ -3915,8 +3915,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (premium reflection / behavior change)
   - Target PR: PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME
-  - Status: 📋 Next active substantive lane after the landed PRO Distortion Simulator runtime.
-  - Reason (EN): Weekly reflection and slip-support already exist, but the next premium layer should formalize belief -> behavior -> payoff -> replacement action mapping as a bounded VIP tool rather than widening into generic chat. This gives the reflection lane a stronger product identity without changing the live mascot canon. The lane remains future-only until a reviewed runtime PR registers `POST /api/v1/vip/fitchef/insight` and updates OpenAPI.
+  - Status: 🚧 In implementation on `codex/vip-identity-loop-mapper-runtime`; remains unmerged until route registration, OpenAPI exposure, focused tests, and review governance land.
+  - Reason (EN): Weekly reflection and slip-support already exist, but the next premium layer should formalize belief -> behavior -> payoff -> replacement action mapping as a bounded VIP tool rather than widening into generic chat. This gives the reflection lane a stronger product identity without changing the live mascot canon. The implementation lane registers `POST /api/v1/vip/fitchef/insight`, keeps the live mascot family unmigrated, and leaves `chat`, `week-repair`, Signal vs Noise, semantic cache, GraphRAG, frontend/iOS, food-data, and plan adaptation out of scope.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/psychology/motivation_theories.md`

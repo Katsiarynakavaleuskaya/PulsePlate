@@ -15,7 +15,9 @@ from core.insight.fitchef_companion import (
     _normalize_structured_string,
     _structured_texts_are_safe,
     build_distortion_simulator_prompt,
+    build_identity_loop_mapper_prompt,
     prepare_distortion_simulator_draft,
+    prepare_identity_loop_mapper_draft,
 )
 
 
@@ -87,6 +89,102 @@ def test_prepare_distortion_simulator_draft_rewrites_unsafe_payload() -> None:
     assert draft.next_small_action == (
         "Write one kinder replacement thought and pair it with one concrete next meal or habit step."
     )
+
+
+def test_build_identity_loop_mapper_prompt_includes_exact_shape_and_context() -> None:
+    """Identity-loop prompt should demand the frozen JSON shape and CBT context."""
+
+    prompt = build_identity_loop_mapper_prompt(
+        "steady dinners",
+        "I stop planning dinner after one hard evening",
+        "I am too inconsistent",
+        "work runs late",
+        "CBT identity-loop context",
+    )
+
+    assert '"identity_loop"' in prompt
+    assert '"identity_shift_statement"' in prompt
+    assert "Relevant CBT context:\nCBT identity-loop context" in prompt
+    assert "Trigger context: work runs late" in prompt
+    assert "Do not label the user's identity" in prompt
+
+
+def test_prepare_identity_loop_mapper_draft_normalizes_valid_payload() -> None:
+    """Identity-loop draft parser should normalize the structured provider object."""
+
+    draft = prepare_identity_loop_mapper_draft(
+        """
+        {
+          "identity_loop": {
+            "belief": "  If dinner slips, the whole routine is broken. ",
+            "behavior": "I stop planning after one hard evening.",
+            "short_term_reward": "Pressure drops for a moment.",
+            "long_term_cost": "The next meal gets less support."
+          },
+          "identity_shift_statement": "I can practice returning after one hard moment.",
+          "replacement_action": "Choose one default dinner today.",
+          "repair_if_slip": "Name the slip calmly and restart at the next meal."
+        }
+        """,
+        goal="steady dinners",
+        recent_pattern="I stop planning dinner after one hard evening",
+        self_talk="I am too inconsistent",
+        trigger_context="work runs late",
+    )
+
+    assert draft.belief == "If dinner slips, the whole routine is broken."
+    assert draft.behavior == "I stop planning after one hard evening."
+    assert draft.short_term_reward == "Pressure drops for a moment."
+    assert draft.long_term_cost == "The next meal gets less support."
+    assert draft.identity_shift_statement.startswith("I can practice returning")
+    assert draft.warnings == []
+
+
+def test_prepare_identity_loop_mapper_draft_falls_back_without_trigger_context() -> None:
+    """Malformed identity-loop JSON should return a complete deterministic fallback."""
+
+    draft = prepare_identity_loop_mapper_draft(
+        "not json",
+        goal="steady dinners",
+        recent_pattern="I stop planning dinner after one hard evening",
+        self_talk="I am too inconsistent",
+        trigger_context=None,
+    )
+
+    assert draft.warnings == ["structured_parse_fallback"]
+    assert draft.belief
+    assert "when planning gets hard" in draft.behavior
+    assert "steady dinners" in draft.replacement_action
+    assert draft.repair_if_slip.startswith("Name the slip calmly")
+
+
+def test_prepare_identity_loop_mapper_draft_rewrites_unsafe_payload() -> None:
+    """Clinical/provider language must fall back to the safe identity-loop draft."""
+
+    draft = prepare_identity_loop_mapper_draft(
+        """
+        {
+          "identity_loop": {
+            "belief": "This diagnosis means you need treatment.",
+            "behavior": "A therapist should decide your meals.",
+            "short_term_reward": "Treatment fixes the problem.",
+            "long_term_cost": "You will relapse without therapy."
+          },
+          "identity_shift_statement": "You are a patient now.",
+          "replacement_action": "Start treatment immediately.",
+          "repair_if_slip": "Call crisis support for dinner planning."
+        }
+        """,
+        goal="steady dinners",
+        recent_pattern="I stop planning dinner after one hard evening",
+        self_talk="I am too inconsistent",
+        trigger_context="work runs late",
+    )
+
+    assert draft.warnings == ["wellness_language_rewritten"]
+    assert draft.belief.startswith("One difficult planning moment")
+    assert "when the same trigger shows up" in draft.behavior
+    assert "treatment" not in draft.replacement_action.lower()
 
 
 def test_extract_json_payload_accepts_fenced_and_embedded_objects() -> None:

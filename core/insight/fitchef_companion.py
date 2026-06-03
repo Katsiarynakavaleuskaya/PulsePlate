@@ -55,6 +55,20 @@ class FitChefDistortionDraft:
 
 
 @dataclass(frozen=True)
+class FitChefIdentityLoopDraft:
+    """Structured identity-loop mapper draft."""
+
+    belief: str
+    behavior: str
+    short_term_reward: str
+    long_term_cost: str
+    identity_shift_statement: str
+    replacement_action: str
+    repair_if_slip: str
+    warnings: list[str]
+
+
+@dataclass(frozen=True)
 class FitChefCoachingDraft:
     """Prepared coaching response.
 
@@ -288,6 +302,65 @@ Emotion: {emotion}
 """.strip()
 
 
+def build_identity_loop_mapper_prompt(
+    goal: str,
+    recent_pattern: str,
+    self_talk: str,
+    trigger_context: str | None,
+    rag_context: str,
+) -> str:
+    """Build the structured identity-loop mapper prompt."""
+
+    trigger_line = (
+        f"Trigger context: {trigger_context}"
+        if trigger_context
+        else "Trigger context: not provided"
+    )
+    system_prompt = """You are FitChef, a wellness-only CBT coaching surface for PulsePlate.
+
+Return only one JSON object with this exact shape:
+{
+  "identity_loop": {
+    "belief": "string",
+    "behavior": "string",
+    "short_term_reward": "string",
+    "long_term_cost": "string"
+  },
+  "identity_shift_statement": "string",
+  "replacement_action": "string",
+  "repair_if_slip": "string"
+}
+
+Rules:
+- Treat the identity loop as a request-scoped reflection hypothesis, not a diagnosis
+- Do not label the user's identity or infer hidden motives
+- Keep every field wellness-only, non-clinical, concrete, and short
+- Do not diagnose, treat, use therapist framing, or mention crisis support
+- Keep replacement_action behavior-sized and feasible within 24 hours
+- Keep repair_if_slip calm and non-punitive
+"""
+
+    if rag_context:
+        return f"""{system_prompt}
+
+Relevant CBT context:
+{rag_context}
+
+Goal: {goal}
+Recent pattern: {recent_pattern}
+Self-talk: {self_talk}
+{trigger_line}
+""".strip()
+
+    return f"""{system_prompt}
+
+Goal: {goal}
+Recent pattern: {recent_pattern}
+Self-talk: {self_talk}
+{trigger_line}
+""".strip()
+
+
 def prepare_distortion_simulator_draft(
     raw_text: str,
     *,
@@ -358,6 +431,84 @@ def prepare_distortion_simulator_draft(
         evidence_against=evidence_against,
         balanced_reframe=balanced_reframe,
         next_small_action=next_small_action,
+        warnings=warnings,
+    )
+
+
+def prepare_identity_loop_mapper_draft(
+    raw_text: str,
+    *,
+    goal: str,
+    recent_pattern: str,
+    self_talk: str,
+    trigger_context: str | None,
+) -> FitChefIdentityLoopDraft:
+    """Normalize identity-loop provider output into a safe structured draft."""
+
+    warnings: list[str] = []
+    try:
+        payload = _extract_json_payload(raw_text)
+    except ValueError:
+        warnings.append("structured_parse_fallback")
+        return _fallback_identity_loop_draft(
+            goal=goal,
+            recent_pattern=recent_pattern,
+            self_talk=self_talk,
+            trigger_context=trigger_context,
+            warnings=warnings,
+        )
+
+    identity_loop = payload.get("identity_loop")
+    identity_loop_payload = identity_loop if isinstance(identity_loop, dict) else {}
+    belief = _normalize_structured_string(identity_loop_payload.get("belief"))
+    behavior = _normalize_structured_string(identity_loop_payload.get("behavior"))
+    short_term_reward = _normalize_structured_string(identity_loop_payload.get("short_term_reward"))
+    long_term_cost = _normalize_structured_string(identity_loop_payload.get("long_term_cost"))
+    identity_shift_statement = _normalize_structured_string(payload.get("identity_shift_statement"))
+    replacement_action = _normalize_structured_string(payload.get("replacement_action"))
+    repair_if_slip = _normalize_structured_string(payload.get("repair_if_slip"))
+
+    fallback = _fallback_identity_loop_draft(
+        goal=goal,
+        recent_pattern=recent_pattern,
+        self_talk=self_talk,
+        trigger_context=trigger_context,
+        warnings=[],
+    )
+    belief = belief or fallback.belief
+    behavior = behavior or fallback.behavior
+    short_term_reward = short_term_reward or fallback.short_term_reward
+    long_term_cost = long_term_cost or fallback.long_term_cost
+    identity_shift_statement = identity_shift_statement or fallback.identity_shift_statement
+    replacement_action = replacement_action or fallback.replacement_action
+    repair_if_slip = repair_if_slip or fallback.repair_if_slip
+
+    if not _structured_texts_are_safe(
+        belief,
+        behavior,
+        short_term_reward,
+        long_term_cost,
+        identity_shift_statement,
+        replacement_action,
+        repair_if_slip,
+    ):
+        warnings.append("wellness_language_rewritten")
+        return _fallback_identity_loop_draft(
+            goal=goal,
+            recent_pattern=recent_pattern,
+            self_talk=self_talk,
+            trigger_context=trigger_context,
+            warnings=warnings,
+        )
+
+    return FitChefIdentityLoopDraft(
+        belief=belief,
+        behavior=behavior,
+        short_term_reward=short_term_reward,
+        long_term_cost=long_term_cost,
+        identity_shift_statement=identity_shift_statement,
+        replacement_action=replacement_action,
+        repair_if_slip=repair_if_slip,
         warnings=warnings,
     )
 
@@ -708,6 +859,39 @@ def _fallback_distortion_draft(
             goal=goal,
         ),
         next_small_action=_fallback_next_small_action(goal=goal),
+        warnings=warnings,
+    )
+
+
+def _fallback_identity_loop_draft(
+    *,
+    goal: str,
+    recent_pattern: str,
+    self_talk: str,
+    trigger_context: str | None,
+    warnings: list[str],
+) -> FitChefIdentityLoopDraft:
+    """Return a safe deterministic fallback for the identity-loop mapper."""
+
+    del recent_pattern, self_talk
+    trigger_phrase = (
+        "when the same trigger shows up" if trigger_context else "when planning gets hard"
+    )
+    goal_phrase = goal.strip() or "the current wellness goal"
+    return FitChefIdentityLoopDraft(
+        belief="One difficult planning moment can feel like proof that the whole routine is broken.",
+        behavior=f"The pattern is to step back from meal planning {trigger_phrase}.",
+        short_term_reward="Stepping back lowers pressure for a moment.",
+        long_term_cost="It leaves the next meal decision less supported and easier to repeat.",
+        identity_shift_statement=(
+            "I can practice returning after one hard moment instead of restarting from zero."
+        ),
+        replacement_action=(
+            f"Choose one small planning step in the next 24 hours that supports {goal_phrase}."
+        ),
+        repair_if_slip=(
+            "Name the slip calmly, use the default next meal, and restart at the next eating moment."
+        ),
         warnings=warnings,
     )
 

@@ -12,16 +12,21 @@ from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.middleware.api_tiers import require_pro_tier
+from app.middleware.api_tiers import require_pro_tier, require_vip_tier
 from app.schemas.fitchef import (
     FitChefDistortionSimulatorInput,
     FitChefDistortionSimulatorTaskEnvelope,
+    FitChefIdentityLoopMapperInput,
+    FitChefIdentityLoopMapperTaskEnvelope,
 )
 from app.schemas.fitchef_coaching import (
     FitChefCoachingErrorResponse,
     FitChefCoachingSourceItem,
     FitChefDistortionSimulatorRequest,
     FitChefDistortionSimulatorResponse,
+    FitChefIdentityLoopMapperRequest,
+    FitChefIdentityLoopMapperResponse,
+    FitChefIdentityLoopView,
 )
 from app.security.agent_control_plane import normalize_execution_mode, require_execution_mode
 from app.security.agent_input_guard import require_safe_ai_agent_input
@@ -35,6 +40,7 @@ from app.services import fitchef_runtime
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["pro", "fitchef", "coaching", "structured"])
+vip_router = APIRouter(tags=["vip", "fitchef", "coaching", "structured"])
 
 FITCHEF_STRUCTURED_FLAG_ENV = "FEATURE_FITCHEF_STRUCTURED_COACH"
 FITCHEF_STRUCTURED_EXECUTION_MODE_ENV = "FITCHEF_STRUCTURED_COACH_EXECUTION_MODE"
@@ -124,6 +130,77 @@ async def fitchef_distortion_simulator(
         evidence_against=result.evidence_against,
         balanced_reframe=result.balanced_reframe,
         next_small_action=result.next_small_action,
+        sources=[
+            FitChefCoachingSourceItem(
+                file=item.file,
+                preview=item.preview,
+                score=item.score,
+            )
+            for item in result.sources
+        ],
+        confidence=result.confidence,
+        warnings=result.warnings,
+        quota_state=result.quota_state,
+        transparency_notice_id=result.transparency_notice_id,
+        wellness_boundary=result.wellness_boundary,
+    )
+
+
+@vip_router.post(
+    "/api/v1/vip/fitchef/insight",
+    response_model=FitChefIdentityLoopMapperResponse,
+    responses={
+        200: {"description": "FitChef identity-loop mapper generated"},
+        400: {"description": "Unsafe AI input blocked", "model": FitChefCoachingErrorResponse},
+        403: {"description": "VIP tier required", "model": FitChefCoachingErrorResponse},
+        503: {
+            "description": "Feature disabled or provider unavailable",
+            "model": FitChefCoachingErrorResponse,
+        },
+        504: {"description": "LLM provider call timed out", "model": FitChefCoachingErrorResponse},
+        **RATE_LIMIT_429_RESPONSES,
+    },
+)
+@limit_if_available(RATE_LIMIT_INSIGHT)
+async def fitchef_identity_loop_mapper(
+    payload: FitChefIdentityLoopMapperRequest,
+    request: Request,
+    vip_key: str = Depends(require_vip_tier),
+) -> FitChefIdentityLoopMapperResponse:
+    """Generate the bounded VIP identity-loop mapper surface."""
+
+    if not _is_fitchef_structured_enabled():
+        raise HTTPException(status_code=503, detail="FEATURE_FITCHEF_STRUCTURED_COACH is disabled")
+
+    execution_mode = _require_fitchef_structured_mode()
+    task = FitChefIdentityLoopMapperTaskEnvelope(
+        mode=execution_mode,
+        input=FitChefIdentityLoopMapperInput(
+            safe_goal=require_safe_ai_agent_input(payload.goal),
+            safe_recent_pattern=require_safe_ai_agent_input(payload.recent_pattern),
+            safe_self_talk=require_safe_ai_agent_input(payload.self_talk),
+            safe_trigger_context=(
+                require_safe_ai_agent_input(payload.trigger_context)
+                if payload.trigger_context is not None and payload.trigger_context.strip()
+                else None
+            ),
+            api_key=vip_key,
+            endpoint=str(request.url.path),
+            method=request.method,
+        ),
+    )
+    result = await fitchef_runtime.run_identity_loop_mapper_task(task)
+    return FitChefIdentityLoopMapperResponse(
+        scenario="identity_loop_mapper",
+        identity_loop=FitChefIdentityLoopView(
+            belief=result.identity_loop.belief,
+            behavior=result.identity_loop.behavior,
+            short_term_reward=result.identity_loop.short_term_reward,
+            long_term_cost=result.identity_loop.long_term_cost,
+        ),
+        identity_shift_statement=result.identity_shift_statement,
+        replacement_action=result.replacement_action,
+        repair_if_slip=result.repair_if_slip,
         sources=[
             FitChefCoachingSourceItem(
                 file=item.file,

@@ -176,13 +176,13 @@
 
 | Функция | Endpoint | Статус | Требует tier | Canonical reference |
 | --- | --- | --- | --- | --- |
-| FitChef insight | `/api/v1/vip/fitchef/insight` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef insight | `/api/v1/vip/fitchef/insight` | ✅ feature-gated runtime | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef chat | `/api/v1/vip/fitchef/chat` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef week repair | `/api/v1/vip/fitchef/week-repair` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
-> `POST /api/v1/vip/fitchef/insight` remains the first bounded VIP structured rollout target for the CBT Coaching Wave: `Identity Loop Mapper`.
+> `POST /api/v1/vip/fitchef/insight` is the first bounded VIP structured runtime for the CBT Coaching Wave: `Identity Loop Mapper`, feature-gated by `FEATURE_FITCHEF_STRUCTURED_COACH`.
 > `chat` and `week-repair` remain additive contract-frozen follow-ups; live `/api/v1/insight/fitchef*` family remains canonical and unmigrated.
-> VIP structured routes are not runtime/OpenAPI surfaces until a later reviewed implementation PR registers them.
+> VIP structured `chat` and `week-repair` are not runtime/OpenAPI surfaces until later reviewed implementation PRs register them.
 
 ---
 
