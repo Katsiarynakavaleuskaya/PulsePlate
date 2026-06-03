@@ -2368,6 +2368,45 @@
         "title": "FitChefSlipSupportResponse",
         "type": "object"
       },
+      "FitChefVipCoachingErrorResponse": {
+        "description": "VIP FitChef error envelope preserving frozen VIP aliases.",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "minLength": 1,
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "const": "error",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "message",
+          "detail",
+          "error"
+        ],
+        "title": "FitChefVipCoachingErrorResponse",
+        "type": "object"
+      },
       "FitChefWeeklyReflectionRequest": {
         "description": "Weekly reflection request payload.",
         "properties": {
@@ -9609,7 +9648,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
                 }
               }
             },
@@ -9619,7 +9658,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
                 }
               }
             },
@@ -9649,7 +9688,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
                 }
               }
             },
@@ -9659,7 +9698,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
                 }
               }
             },

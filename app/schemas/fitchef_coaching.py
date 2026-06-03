@@ -103,6 +103,16 @@ class FitChefCoachingErrorResponse(BaseModel):
     detail: str = Field(..., min_length=1)
 
 
+class FitChefVipCoachingErrorResponse(BaseModel):
+    """VIP FitChef error envelope preserving frozen VIP aliases."""
+
+    status: Literal["error"] = Field(...)
+    code: str = Field(..., min_length=1)
+    message: str = Field(..., min_length=1)
+    detail: str = Field(..., min_length=1)
+    error: str = Field(..., min_length=1)
+
+
 class FitChefCoachingResponseBase(BaseModel):
     """Shared public coaching response envelope."""
 

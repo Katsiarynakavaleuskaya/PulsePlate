@@ -55,7 +55,6 @@ from core.compliance import get_transparency_registry, sanitize_chunk_preview
 from core.data_sanitizer import sanitize_rag_markdown
 from core.insight.fitchef_companion import (
     FitChefCoachingDraft,
-    FitChefDistortionDraft,
     FitChefIdentityLoopDraft,
     build_identity_loop_mapper_prompt,
     build_mascot_prompt,

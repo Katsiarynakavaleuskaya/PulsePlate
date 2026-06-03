@@ -11,7 +11,9 @@ import os
 from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 
+from app.contracts.vip_contract import vip_error
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
 from app.schemas.fitchef import (
     FitChefDistortionSimulatorInput,
@@ -27,6 +29,7 @@ from app.schemas.fitchef_coaching import (
     FitChefIdentityLoopMapperRequest,
     FitChefIdentityLoopMapperResponse,
     FitChefIdentityLoopView,
+    FitChefVipCoachingErrorResponse,
 )
 from app.security.agent_control_plane import normalize_execution_mode, require_execution_mode
 from app.security.agent_input_guard import require_safe_ai_agent_input
@@ -47,6 +50,14 @@ FITCHEF_STRUCTURED_FLAG_ENV = "FEATURE_FITCHEF_STRUCTURED_COACH"
 FITCHEF_STRUCTURED_EXECUTION_MODE_ENV = "FITCHEF_STRUCTURED_COACH_EXECUTION_MODE"
 FitChefStructuredMode = Literal["auto-safe", "review-required", "blocked"]
 FITCHEF_HIGH_DISTRESS_BOUNDARY_DETAIL = "fitchef_high_distress_boundary"
+FITCHEF_STRUCTURED_DISABLED_DETAIL = "FEATURE_FITCHEF_STRUCTURED_COACH is disabled"
+
+_VIP_ERROR_CODE_BY_DETAIL: dict[str, str] = {
+    FITCHEF_STRUCTURED_DISABLED_DETAIL: "fitchef_structured_disabled",
+    "LLM provider not available": "llm_provider_unavailable",
+    "LLM provider returned empty response": "llm_provider_empty_response",
+    "LLM provider call timed out": "llm_provider_timeout",
+}
 
 
 def _is_fitchef_structured_enabled() -> bool:
@@ -92,6 +103,17 @@ def _require_identity_loop_mapper_boundary(payload: FitChefIdentityLoopMapperReq
             status_code=400,
             detail=FITCHEF_HIGH_DISTRESS_BOUNDARY_DETAIL,
         )
+
+
+def _vip_error_response(status_code: int, detail: object) -> JSONResponse:
+    """Return the frozen VIP error envelope for this VIP structured route."""
+
+    message = detail if isinstance(detail, str) and detail else "fitchef_identity_loop_mapper_error"
+    code = _VIP_ERROR_CODE_BY_DETAIL.get(message, message)
+    return JSONResponse(
+        status_code=status_code,
+        content=vip_error(code=code, message=message),
+    )
 
 
 @router.post(
@@ -168,13 +190,16 @@ async def fitchef_distortion_simulator(
     response_model=FitChefIdentityLoopMapperResponse,
     responses={
         200: {"description": "FitChef identity-loop mapper generated"},
-        400: {"description": "Unsafe AI input blocked", "model": FitChefCoachingErrorResponse},
-        403: {"description": "VIP tier required", "model": FitChefCoachingErrorResponse},
+        400: {"description": "Unsafe AI input blocked", "model": FitChefVipCoachingErrorResponse},
+        403: {"description": "VIP tier required", "model": FitChefVipCoachingErrorResponse},
         503: {
             "description": "Feature disabled or provider unavailable",
-            "model": FitChefCoachingErrorResponse,
+            "model": FitChefVipCoachingErrorResponse,
         },
-        504: {"description": "LLM provider call timed out", "model": FitChefCoachingErrorResponse},
+        504: {
+            "description": "LLM provider call timed out",
+            "model": FitChefVipCoachingErrorResponse,
+        },
         **RATE_LIMIT_429_RESPONSES,
     },
 )
@@ -183,31 +208,35 @@ async def fitchef_identity_loop_mapper(
     payload: FitChefIdentityLoopMapperRequest,
     request: Request,
     vip_key: str = Depends(require_vip_tier),
-) -> FitChefIdentityLoopMapperResponse:
+) -> FitChefIdentityLoopMapperResponse | JSONResponse:
     """Generate the bounded VIP identity-loop mapper surface."""
 
-    if not _is_fitchef_structured_enabled():
-        raise HTTPException(status_code=503, detail="FEATURE_FITCHEF_STRUCTURED_COACH is disabled")
+    try:
+        if not _is_fitchef_structured_enabled():
+            raise HTTPException(status_code=503, detail=FITCHEF_STRUCTURED_DISABLED_DETAIL)
 
-    execution_mode = _require_fitchef_structured_mode()
-    _require_identity_loop_mapper_boundary(payload)
-    task = FitChefIdentityLoopMapperTaskEnvelope(
-        mode=execution_mode,
-        input=FitChefIdentityLoopMapperInput(
-            safe_goal=require_safe_ai_agent_input(payload.goal),
-            safe_recent_pattern=require_safe_ai_agent_input(payload.recent_pattern),
-            safe_self_talk=require_safe_ai_agent_input(payload.self_talk),
-            safe_trigger_context=(
-                require_safe_ai_agent_input(payload.trigger_context)
-                if payload.trigger_context is not None and payload.trigger_context.strip()
-                else None
+        execution_mode = _require_fitchef_structured_mode()
+        _require_identity_loop_mapper_boundary(payload)
+        task = FitChefIdentityLoopMapperTaskEnvelope(
+            mode=execution_mode,
+            input=FitChefIdentityLoopMapperInput(
+                safe_goal=require_safe_ai_agent_input(payload.goal),
+                safe_recent_pattern=require_safe_ai_agent_input(payload.recent_pattern),
+                safe_self_talk=require_safe_ai_agent_input(payload.self_talk),
+                safe_trigger_context=(
+                    require_safe_ai_agent_input(payload.trigger_context)
+                    if payload.trigger_context is not None and payload.trigger_context.strip()
+                    else None
+                ),
+                api_key=vip_key,
+                endpoint=str(request.url.path),
+                method=request.method,
             ),
-            api_key=vip_key,
-            endpoint=str(request.url.path),
-            method=request.method,
-        ),
-    )
-    result = await fitchef_runtime.run_identity_loop_mapper_task(task)
+        )
+        result = await fitchef_runtime.run_identity_loop_mapper_task(task)
+    except HTTPException as exc:
+        return _vip_error_response(status_code=exc.status_code, detail=exc.detail)
+
     return FitChefIdentityLoopMapperResponse(
         scenario="identity_loop_mapper",
         identity_loop=FitChefIdentityLoopView(

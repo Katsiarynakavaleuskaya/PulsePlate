@@ -39,6 +39,26 @@ def _json_body(response: Response) -> dict[str, object]:
     return cast(dict[str, object], response.json())
 
 
+def _assert_vip_error_envelope(
+    response: Response,
+    *,
+    expected_status: int,
+    expected_code: str,
+    expected_message: str,
+) -> None:
+    """Assert the frozen VIP error aliases for structured route failures."""
+
+    assert response.status_code == expected_status
+    data = _json_body(response)
+    assert data == {
+        "status": "error",
+        "code": expected_code,
+        "message": expected_message,
+        "detail": expected_message,
+        "error": expected_code,
+    }
+
+
 def _make_rag_context(
     chunks: list | None = None,
     confidence: float = 0.0,
@@ -420,8 +440,12 @@ class TestFitChefIdentityLoopMapperRoute:
 
         response = self.client.post(self.url, json=self._payload(), headers=self.vip_headers)
 
-        assert response.status_code == 503
-        assert _json_body(response) == {"detail": "FEATURE_FITCHEF_STRUCTURED_COACH is disabled"}
+        _assert_vip_error_envelope(
+            response,
+            expected_status=503,
+            expected_code="fitchef_structured_disabled",
+            expected_message="FEATURE_FITCHEF_STRUCTURED_COACH is disabled",
+        )
 
     def test_execution_mode_review_required_returns_503(self) -> None:
         """Review-required mode must fail closed on the bounded VIP route."""
@@ -430,8 +454,12 @@ class TestFitChefIdentityLoopMapperRoute:
 
         response = self.client.post(self.url, json=self._payload(), headers=self.vip_headers)
 
-        assert response.status_code == 503
-        assert _json_body(response) == {"detail": "agent_execution_review_required"}
+        _assert_vip_error_envelope(
+            response,
+            expected_status=503,
+            expected_code="agent_execution_review_required",
+            expected_message="agent_execution_review_required",
+        )
 
     def test_unsafe_input_rejected_before_runtime(self) -> None:
         """Unsafe agent input must be blocked before runtime delegation."""
@@ -452,8 +480,12 @@ class TestFitChefIdentityLoopMapperRoute:
             headers=self.vip_headers,
         )
 
-        assert response.status_code == 400
-        assert _json_body(response) == {"detail": "unsafe_ai_input"}
+        _assert_vip_error_envelope(
+            response,
+            expected_status=400,
+            expected_code="unsafe_ai_input",
+            expected_message="unsafe_ai_input",
+        )
 
     def test_high_distress_input_rejected_before_runtime(self) -> None:
         """High-distress identity-loop input must not reach runtime delegation."""
@@ -474,8 +506,12 @@ class TestFitChefIdentityLoopMapperRoute:
             headers=self.vip_headers,
         )
 
-        assert response.status_code == 400
-        assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
+        _assert_vip_error_envelope(
+            response,
+            expected_status=400,
+            expected_code="fitchef_high_distress_boundary",
+            expected_message="fitchef_high_distress_boundary",
+        )
 
     def test_high_distress_want_to_die_rejected_before_runtime(self) -> None:
         """Common crisis phrasing should not slip through identity-loop routing."""
@@ -496,8 +532,12 @@ class TestFitChefIdentityLoopMapperRoute:
             headers=self.vip_headers,
         )
 
-        assert response.status_code == 400
-        assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
+        _assert_vip_error_envelope(
+            response,
+            expected_status=400,
+            expected_code="fitchef_high_distress_boundary",
+            expected_message="fitchef_high_distress_boundary",
+        )
 
     def test_high_distress_euphemism_rejected_before_runtime(self) -> None:
         """High-distress euphemisms should not reach identity-loop runtime."""
@@ -518,8 +558,12 @@ class TestFitChefIdentityLoopMapperRoute:
             headers=self.vip_headers,
         )
 
-        assert response.status_code == 400
-        assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
+        _assert_vip_error_envelope(
+            response,
+            expected_status=400,
+            expected_code="fitchef_high_distress_boundary",
+            expected_message="fitchef_high_distress_boundary",
+        )
 
     def test_route_delegates_to_runtime_with_identity_loop_envelope(self) -> None:
         """Route should delegate to runtime with the bounded identity-loop envelope."""
@@ -590,8 +634,12 @@ class TestFitChefIdentityLoopMapperRoute:
 
         response = self.client.post(self.url, json=self._payload(), headers=self.vip_headers)
 
-        assert response.status_code == 429
-        assert _json_body(response) == {"detail": "quota_exceeded"}
+        _assert_vip_error_envelope(
+            response,
+            expected_status=429,
+            expected_code="quota_exceeded",
+            expected_message="quota_exceeded",
+        )
 
     def test_invalid_provider_json_falls_back_to_safe_identity_payload(self) -> None:
         """Invalid provider JSON must still return a safe identity-loop response."""
@@ -630,6 +678,14 @@ class TestFitChefIdentityLoopMapperRoute:
         assert (
             responses["200"]["content"]["application/json"]["schema"]["$ref"]
             == "#/components/schemas/FitChefIdentityLoopMapperResponse"
+        )
+        assert (
+            responses["400"]["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/FitChefVipCoachingErrorResponse"
+        )
+        assert (
+            responses["503"]["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/FitChefVipCoachingErrorResponse"
         )
 
 

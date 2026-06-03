@@ -200,7 +200,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
         app.include_router(fitchef_structured_router)
 
-    register_vip_routes(app)
+    register_vip_routes(target_app)
 
     if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
         app.include_router(creative_research_internal_router)
