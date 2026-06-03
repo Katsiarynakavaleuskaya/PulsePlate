@@ -187,6 +187,21 @@ def test_shard_basetemp_dir_avoids_repo_local_temp_root(
     assert not basetemp.resolve().is_relative_to(tmp_path.resolve())
 
 
+def test_shard_basetemp_dir_rechecks_final_path_collision(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / runner.PYTEST_BASETEMP_ROOT_NAME
+    repo_root.mkdir()
+    shard = runner.TestShard(index=1, artifact_label="py313")
+    monkeypatch.setattr(runner.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    basetemp = runner.shard_basetemp_dir(repo_root, shard)
+
+    assert runner.PYTEST_BASETEMP_FALLBACK_ROOT_NAME in basetemp.parts
+    assert not basetemp.resolve().is_relative_to(repo_root.resolve())
+
+
 def test_build_pytest_args_disables_xdist_and_emits_junit(tmp_path: Path) -> None:
     shard = runner.TestShard(
         index=2,

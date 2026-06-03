@@ -24,6 +24,7 @@ DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
 SLOW_MARK_EXPRESSION = "not slow"
 PYTEST_BASETEMP_ROOT_NAME = "pulseplate-main-test-shards"
+PYTEST_BASETEMP_FALLBACK_ROOT_NAME = "pulseplate-main-test-shards-external"
 POSIX_TEMP_ROOT = Path(os.sep) / "tmp"
 WINDOWS_TEMP_ROOT = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Temp"
 
@@ -154,13 +155,14 @@ def external_temp_root(repo_root: Path) -> Path:
 def shard_basetemp_dir(repo_root: Path, shard: TestShard) -> Path:
     """Return a deterministic external pytest base temp directory for one shard."""
 
-    repo_key = hashlib.sha256(str(repo_root.resolve()).encode("utf-8")).hexdigest()[:12]
-    return (
-        external_temp_root(repo_root)
-        / PYTEST_BASETEMP_ROOT_NAME
-        / repo_key
-        / f"{shard.artifact_label}-shard-{shard.index}"
-    )
+    resolved_repo_root = repo_root.resolve()
+    repo_key = hashlib.sha256(str(resolved_repo_root).encode("utf-8")).hexdigest()[:12]
+    temp_root = external_temp_root(repo_root)
+    for root_name in (PYTEST_BASETEMP_ROOT_NAME, PYTEST_BASETEMP_FALLBACK_ROOT_NAME):
+        candidate = temp_root / root_name / repo_key / f"{shard.artifact_label}-shard-{shard.index}"
+        if not candidate.resolve().is_relative_to(resolved_repo_root):
+            return candidate
+    raise RuntimeError("unable to resolve pytest basetemp path outside repo")
 
 
 def build_pytest_args(shard: TestShard, repo_root: Path) -> list[str]:
