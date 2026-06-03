@@ -359,7 +359,7 @@ def _operator_ledger_event(**overrides: object) -> dict[str, object]:
         "dispatch_mode": "dry-run",
         "event_hash": bridge._sha256_text("Ev0SECRET"),
         "failure_class": "none",
-        "generated_at": "2026-06-02T14:00:00+00:00",
+        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "human_review_outcome": "pending",
         "hypothesis_hash": bridge._sha256_text("raw hypothesis must not render"),
         "oracle_result_hash": bridge._sha256_text("oracle result"),

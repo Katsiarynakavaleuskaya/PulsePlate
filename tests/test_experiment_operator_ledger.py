@@ -118,6 +118,10 @@ def test_operator_ledger_event_write_keeps_temp_files_out_of_event_store(
             "oracle_result_ref",
             "artifacts/orchestration/experiments/results/alice@example.com.json",
         ),
+        (
+            "oracle_result_ref",
+            "artifacts/orchestration/experiments/results/ghs_abcd.efgh.ijkl.json",
+        ),
         ("oracle_result_ref", "artifacts/orchestration/experiments/results/15551234567.json"),
         (
             "oracle_result_ref",
@@ -327,6 +331,29 @@ def test_operator_ledger_write_rejects_events_path_as_file(tmp_path: Path) -> No
 
     with pytest.raises(ledger.OperatorLedgerError, match="event directory"):
         ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+
+def test_operator_ledger_dir_rejects_nested_event_store(tmp_path: Path) -> None:
+    with pytest.raises(ledger.OperatorLedgerError, match="reserved event store"):
+        ledger.write_operator_ledger_event(
+            _event(),
+            ledger_dir=Path("artifacts/orchestration/experiments/operator_ledger/events/custom"),
+            repo_root=tmp_path,
+        )
+    assert not (ledger.default_ledger_dir(tmp_path) / "events" / "custom").exists()
+
+
+def test_operator_ledger_write_rejects_symlinked_tmp_dir(tmp_path: Path) -> None:
+    ledger_root = ledger.default_ledger_dir(tmp_path)
+    ledger_root.mkdir(parents=True)
+    outside = tmp_path / "outside-tmp"
+    outside.mkdir()
+    (ledger_root / "tmp").symlink_to(outside)
+
+    with pytest.raises(ledger.OperatorLedgerError, match="directory"):
+        ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    assert not (ledger_root / "events").exists()
+    assert not list(outside.iterdir())
 
 
 def test_operator_ledger_root_path_as_file_fails_closed(tmp_path: Path) -> None:

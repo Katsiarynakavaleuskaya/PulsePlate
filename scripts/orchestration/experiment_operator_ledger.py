@@ -53,6 +53,7 @@ LOCAL_PATH_SEGMENT_RE = re.compile(
     r"(^|/)(Users|home|var|opt|tmp|private|Volumes|etc|usr|Library|System)(/|$)"
 )
 WINDOWS_DRIVE_SEGMENT_RE = re.compile(r"(^|/)[A-Za-z]:/")
+GITHUB_APP_TOKEN_ARTIFACT_RE = re.compile(r"ghs_[A-Za-z0-9._-]{4,}", re.IGNORECASE)
 
 ALLOWED_COMMAND_KINDS = frozenset(
     {"help", "kpp-status", "mvp-evidence", "status", "run-experiment", "oracle-review"}
@@ -263,6 +264,7 @@ def _validate_artifact_ref(value: Any) -> str:
     if (
         "//" in normalized_ref
         or PII_SHAPED_ARTIFACT_RE.search(normalized_ref)
+        or GITHUB_APP_TOKEN_ARTIFACT_RE.search(normalized_ref)
         or LOCAL_PATH_SEGMENT_RE.search(normalized_ref)
         or WINDOWS_DRIVE_SEGMENT_RE.search(normalized_ref)
     ):
@@ -463,9 +465,19 @@ def _validate_ledger_dir(ledger_dir: Path, *, repo_root: Path) -> Path:
         raise OperatorLedgerError(
             "Experiment operator ledger directory must stay under artifacts/orchestration/experiments."
         ) from exc
+    relative_parts = candidate.relative_to(artifact_root).parts
+    if "events" in relative_parts:
+        raise OperatorLedgerError(
+            "Experiment operator ledger directory must not target the reserved event store."
+        )
     try:
         _reject_symlinked_output_components(
             candidate / "events" / "probe.json",
+            artifact_dir=artifact_root,
+            repo_root=repo_root,
+        )
+        _reject_symlinked_output_components(
+            candidate / "tmp" / "probe.json",
             artifact_dir=artifact_root,
             repo_root=repo_root,
         )
