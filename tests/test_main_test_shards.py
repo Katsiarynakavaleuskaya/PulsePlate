@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -408,22 +409,25 @@ def test_run_shard_child_forces_exit_after_pytest_returns(
     monkeypatch.setattr(pytest, "main", fake_pytest_main)
     monkeypatch.setattr(runner.os, "_exit", fake_exit)
 
+    basetemp = runner.shard_basetemp_dir(tmp_path, shard)
     try:
         with pytest.raises(SystemExit) as exc_info:
             runner.run_shard_child(tmp_path, shard, {})
+
+        assert exc_info.value.code == 7
+        assert captured["cwd"] == tmp_path
+        assert captured["argv"] == ["pytest"]
+        pytest_args = captured["pytest_args"]
+        assert isinstance(pytest_args, list)
+        assert "--basetemp" in pytest_args
+        assert pytest_args[pytest_args.index("--basetemp") + 1] == str(basetemp)
+        assert basetemp.parent.is_dir()
+        assert "tests/test_alpha.py" in pytest_args
     finally:
         os.chdir(original_cwd)
+        shutil.rmtree(basetemp.parent, ignore_errors=True)
 
-    assert exc_info.value.code == 7
-    assert captured["cwd"] == tmp_path
-    assert captured["argv"] == ["pytest"]
-    pytest_args = captured["pytest_args"]
-    assert isinstance(pytest_args, list)
-    assert "--basetemp" in pytest_args
-    basetemp = runner.shard_basetemp_dir(tmp_path, shard)
-    assert pytest_args[pytest_args.index("--basetemp") + 1] == str(basetemp)
-    assert basetemp.parent.is_dir()
-    assert "tests/test_alpha.py" in pytest_args
+    assert not basetemp.parent.exists()
 
 
 def test_remove_previous_outputs_deletes_stale_shard_files(tmp_path: Path) -> None:
