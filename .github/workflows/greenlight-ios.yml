@@ -28,7 +28,7 @@ jobs:
       GREENLIGHT_TIMEOUT_MINUTES: ${{ vars.GREENLIGHT_TIMEOUT_MINUTES || '10' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 / Node 24
 
       - name: Setup Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff

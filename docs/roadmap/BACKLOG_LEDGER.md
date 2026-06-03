@@ -5398,8 +5398,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (CI hygiene / advisory reliability)
-  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`)
-  - Status: 📋 Planned / carryover active
+  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); current replacement: `codex/gha-node24-action-runtime-cleanup` (direct action-runtime cleanup, pending PR number)
+  - Status: 🚧 In progress / direct Node 24 action-runtime cleanup; cache-warning audit remains open pending fresh representative PR evidence
   - Area: ci / github-actions / cache
   - Finding Type: advisory workflow debt
   - Reason (EN): The #1204 merge cycle completed successfully, but workflows still required follow-up cleanup around Node-runtime drift and transient GHA cache warnings (`Cache service responded with 400`, `CreateCacheEntry ... 409 Conflict`, cache save/restore service noise). PR #1209 intentionally delivers the narrower Node 22 frontend/OpenAPI-sync stopgap so current-head CI stays stable while the broader Node 24/cache hygiene lane remains open until all representative workflows are re-audited.
@@ -5415,6 +5415,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Cache usage in `build.yml`, `ci.yml`, and related PR workflows is re-audited for avoidable restore/save warnings
     - A fresh representative PR run completes without Node 20 deprecation warnings
     - Remaining cache warnings, if any, are explicitly documented as accepted transient backend noise rather than unexplained CI debt
+  - Current evidence (2026-06-03, pre-open): scoped direct Node 20 JavaScript action pins remain in representative checkout/Docker workflows and are being replaced with verified Node 24 commit SHAs plus guard coverage; this does not close the broader cache-warning DoD until current-head PR logs are available.
 
 <a id="ledger-p2-ios-agents-only-testing-centralize"></a>
 - [ ] P2: Centralize ios/AGENTS.md -only-testing list (Sourcery follow-up)
