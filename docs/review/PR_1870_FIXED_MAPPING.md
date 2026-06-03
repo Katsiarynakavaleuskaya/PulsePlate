@@ -81,6 +81,10 @@ Evidence: `tests/vip/test_vip_diff_coverage.py` adds the missing `pytest.MonkeyP
 Disposition: FIXED
 Commit: 9a9dc19fa3d1d76c7873346eb26415fd814087a2
 Evidence: CodeRabbit review-level actionable mirrors `discussion_r3347623257`; `tests/vip/test_vip_diff_coverage.py` adds the missing `pytest.MonkeyPatch` parameter type and `-> None` return annotation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3347961447 -> 78d7090e05b244c964bd92549681b90c7e84fef4
+Disposition: FIXED
+Commit: 78d7090e05b244c964bd92549681b90c7e84fef4
+Evidence: `core/compliance/privacy.py` discloses `/api/v1/vip/fitchef/insight` in the pseudonymous security/rate-limit category and signed audit envelopes category; regression coverage: `tests/test_compliance_control_plane.py::test_privacy_payload_contains_additive_control_plane_fields`.
 
 ## Post-Open Role-Agent Finding Closure
 
