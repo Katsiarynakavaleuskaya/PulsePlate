@@ -35,7 +35,6 @@ Evidence: detailed per-thread proof is recorded below under External review thre
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347885629 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347893129 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4417838036 -> fea3efd94
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418193962 -> 1ba063c98
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039690 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039695 -> fea3efd94
@@ -43,6 +42,11 @@ Evidence: detailed per-thread proof is recorded below under External review thre
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062664 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062672 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062674 -> fea3efd94
+
+Disposition: FIXED
+Commit: 1ba063c98
+Evidence: mapping clarity fix separated FIXED and NOT-A-BUG disposition blocks.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418193962 -> 1ba063c98
 
 Disposition: NOT-A-BUG
 Evidence: detailed proof is recorded below under External review thread dispositions.

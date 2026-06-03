@@ -2381,7 +2381,7 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
         step for step in steps if step["name"] == "Validate typed dispatch inputs without raw echo"
     )
     approval_step = next(
-        step for step in steps if step["name"] == "Validate live-dispatch approval reference"
+        step for step in steps if step["name"] == "Validate live-dispatch approval reference shape"
     )
     summary_step = next(
         step for step in steps if step["name"] == "Record sanitized dispatch contract summary"
@@ -2421,7 +2421,11 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert "branch_hash" in summary_step["run"]
     assert "hypothesis_hash" in summary_step["run"]
     assert "approval_hash_prefix" in summary_step["run"]
+    assert "bridge_required_not_workflow_proven" in summary_step["run"]
+    assert "workflow_live_approval" in summary_step["run"]
+    assert 'summary.write("- approval_hash_prefix: none\\n")' in summary_step["run"]
     assert 'if dry_run == "false" and approval_ref != "none"' in summary_step["run"]
+    assert "approval_ref[:16]" not in summary_step["run"]
     assert 'approval_ref[:16] if approval_ref != "none"' not in summary_step["run"]
     assert "operator_ledger_status" in summary_step["run"]
     assert "not_written_by_workflow" in summary_step["run"]

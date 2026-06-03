@@ -170,12 +170,15 @@ Dry-run remains the default when the approval env is absent or does not match.
 Operators must not post raw approval digests, branch names, or hypotheses into
 Slack.
 
-For an approved `dry_run: false` dispatch, the Slack-visible reply and workflow
-summary may include only sanitized evidence: fixed workflow file/ref, branch
-hash, hypothesis hash, approval hash prefix, local ledger status/reference, and
-the explicit statement that Slack is not merge readiness. It must not include
-raw branch refs, raw hypotheses, raw approval digests, Slack IDs, workflow logs,
-provider logs, local paths, or patch text.
+For an approved `dry_run: false` dispatch, the Slack-visible reply may include
+only sanitized evidence: fixed workflow file/ref, branch hash, hypothesis hash,
+approval hash prefix, local ledger status/reference, and the explicit statement
+that Slack is not merge readiness. The manual workflow summary must keep
+`approval_hash_prefix: none` unless the workflow itself can prove the
+branch/hypothesis approval binding; the bridge remains the authority for that
+bounded approval check. Neither surface may include raw branch refs, raw
+hypotheses, raw approval digests, Slack IDs, workflow logs, provider logs, local
+paths, or patch text.
 
 See also: `docs/orchestration/PREMORTEM_SLACK_LIVE_DISPATCH_APPROVAL.md` for
 reviewed risk analysis and failure modes.
