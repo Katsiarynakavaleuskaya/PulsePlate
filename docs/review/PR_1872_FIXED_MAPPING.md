@@ -70,8 +70,7 @@ Evidence: workflow main-ref guard now checks the full branch ref.
 
 Disposition: FIXED
 Commit: 6d9b0dc38
-Evidence: Slack bridge ledger runtime-validation, status-rate-limit, and
-post-dispatch degraded-evidence findings were fixed.
+Evidence: Slack bridge ledger runtime-validation, status-rate-limit, and post-dispatch degraded-evidence findings were fixed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418994433 -> 6d9b0dc38
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875170 -> 6d9b0dc38
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875176 -> 6d9b0dc38
