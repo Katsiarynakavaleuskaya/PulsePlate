@@ -117,11 +117,11 @@ Evidence: Dev-operator pass identified only hygiene/process requirements. Local 
 
 ## Experiment Runner Evidence
 
-Artifact: `artifacts/orchestration/experiments/results/exp-346a93ac7a31.json`
+Artifact: `artifacts/orchestration/experiments/results/exp-8975cbf08daa.json`
 
 Disposition: FIXED
 Commit: a6fb3ec5d92294e26a9560ba0ac72f708fe3e23b
-Evidence: oracle-only Experiment Runner result `artifacts/orchestration/experiments/results/exp-7f0fdfc39c11.json` returned `status=accepted`, `runner_mode=oracle_only_governance_reviewer`, `shared_tree_untouched=true`, and `coauthor_required=true`; final post-open oracle-only result `artifacts/orchestration/experiments/results/exp-346a93ac7a31.json` returned `status=accepted`, `runner_mode=oracle_only_governance_reviewer`, `shared_tree_untouched=true`, and `coauthor_required=true`. PR commits that materially use oracle evidence include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Evidence: final oracle-only Experiment Runner result `artifacts/orchestration/experiments/results/exp-8975cbf08daa.json` returned `status=accepted`, `runner_mode=oracle_only_governance_reviewer`, `shared_tree_untouched=true`, and `coauthor_required=true` after the Cubic-identified malformed-artifact fail-closed fix. PR commits that materially use oracle evidence include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Post-Open Role-Agent Findings
 
@@ -147,12 +147,12 @@ Evidence: Post-open security-auditor pass reported no security findings after th
 ### Codex Security diff scan
 
 Disposition: NOT-A-BUG
-Evidence: Codex Security diff scan covered 1/1 source-like diff row for `scripts/orchestration/experiment_operator_ledger.py`, emitted no reportable candidates, wrote a completion receipt in `work_ledger.jsonl`, validated `report.md`, and rendered `report.html`. Local scan bundle id: `pr1874_9732d2243_20260603T204048Z`.
+Evidence: Codex Security diff scan covered 1/1 source-like diff row for `scripts/orchestration/experiment_operator_ledger.py`, emitted no reportable candidates, wrote a completion receipt in `work_ledger.jsonl`, validated `report.md`, and rendered `report.html` after the Cubic-identified malformed-artifact fail-closed fix. Local scan bundle id: `pr1874_75c9df2b2_20260603T205027Z`.
 
 ### pulseplate-pr-review
 
 Disposition: NOT-A-BUG
-Evidence: `pulseplate-pr-review` dry-run emitted one advisory `large-diff-risk` note because the PR has more than 800 changed lines. The note is closed as not-a-bug for this PR because the diff is a cohesive PR-3 operator observability slice, the PR body includes split justification, changed surfaces are limited to local operator observability, runbook, mapping, and focused tests, and targeted deterministic gates passed. Local reports: `artifacts/orchestration/pr_review/PR_1874_PULSEPLATE_PR_REVIEW.md` and `artifacts/orchestration/pr_review/PR_1874_PULSEPLATE_PR_REVIEW.json`.
+Evidence: `pulseplate-pr-review` dry-run emitted one advisory `large-diff-risk` note because the PR has more than 800 changed lines. The note is closed as not-a-bug for this PR because the diff is a cohesive PR-3 operator observability slice, the PR body includes split justification, changed surfaces are limited to local operator observability, runbook, mapping, and focused tests, and targeted deterministic gates passed. Final local reports: `artifacts/orchestration/pr_review/PR_1874_PULSEPLATE_PR_REVIEW_FINAL.md` and `artifacts/orchestration/pr_review/PR_1874_PULSEPLATE_PR_REVIEW_FINAL.json`.
 
 ## Local Gate Evidence
 
@@ -164,7 +164,7 @@ Evidence: `pulseplate-pr-review` dry-run emitted one advisory `large-diff-risk` 
 - `git diff --check` - PASS.
 - `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed; PASS again on final head.
 - `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head.
-- final oracle-only Experiment Runner evidence `artifacts/orchestration/experiments/results/exp-346a93ac7a31.json` - accepted.
+- final oracle-only Experiment Runner evidence `artifacts/orchestration/experiments/results/exp-8975cbf08daa.json` - accepted.
 - `git push -u origin codex/experiment-runner-operator-observability-report` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
 - final `git push` to `9732d2243` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
 
