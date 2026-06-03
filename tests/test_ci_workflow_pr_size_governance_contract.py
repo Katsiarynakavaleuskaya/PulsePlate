@@ -140,6 +140,34 @@ DOCKER_METADATA_NODE24_SHA = "".join(
         "a2e9",
     )
 )
+SETUP_GO_NODE24_SHA = "".join(
+    (
+        "4a36",
+        "0112",
+        "1dd0",
+        "1d16",
+        "26a1",
+        "e23e",
+        "3721",
+        "1e32",
+        "54c1",
+        "c06c",
+    )
+)
+UPLOAD_ARTIFACT_NODE24_SHA = "".join(
+    (
+        "043f",
+        "b46d",
+        "1a93",
+        "c77a",
+        "ae65",
+        "6e7c",
+        "1c64",
+        "a875",
+        "d1fc",
+        "6a0a",
+    )
+)
 PYTHON_TEST_JOB_NAMES = ("test-pr", "test-feature", "test-main")
 OLD_CHECKOUT_NODE20_SHA = "".join(
     (
@@ -237,6 +265,34 @@ OLD_DOCKER_METADATA_SHA = "".join(
         "5596",
         "fe44",
         "5f3f",
+    )
+)
+OLD_SETUP_GO_SHA = "".join(
+    (
+        "40f1",
+        "582b",
+        "2485",
+        "089d",
+        "de7a",
+        "bd97",
+        "c152",
+        "9aa7",
+        "68e1",
+        "baff",
+    )
+)
+OLD_UPLOAD_ARTIFACT_SHA = "".join(
+    (
+        "ea16",
+        "5f8d",
+        "65b6",
+        "e75b",
+        "5404",
+        "49e9",
+        "2b48",
+        "86f4",
+        "3607",
+        "fa02",
     )
 )
 GITHUB_SCRIPT_V9_TAG_OBJECT_SHA = "".join(
@@ -602,6 +658,8 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         OLD_DOCKER_SETUP_BUILDX_SHA,
         OLD_DOCKER_LOGIN_SHA,
         OLD_DOCKER_METADATA_SHA,
+        OLD_SETUP_GO_SHA,
+        OLD_UPLOAD_ARTIFACT_SHA,
     )
     for old_sha in old_node20_shas:
         assert old_sha not in active_workflow_text
@@ -786,6 +844,111 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA}",
             None,
             None,
+            None,
+            None,
+        ),
+    ]
+
+
+def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() -> None:
+    """Guard direct Node 20 setup/upload action migrations in touched workflows."""
+
+    expected_action_lines = {
+        GREENLIGHT_IOS_WORKFLOW_PATH: {
+            f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v6.4.0 / Node 24": 1,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+        },
+        IOS_APPSTORE_ASSETS_WORKFLOW_PATH: {
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+        },
+        SECURITY_WORKFLOW_PATH: {
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+        },
+    }
+    for workflow_path, expected_counts in expected_action_lines.items():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        for expected_line, expected_count in expected_counts.items():
+            assert workflow_text.count(expected_line) == expected_count
+
+    observed_contracts = []
+    for workflow_path in (
+        GREENLIGHT_IOS_WORKFLOW_PATH,
+        IOS_APPSTORE_ASSETS_WORKFLOW_PATH,
+        SECURITY_WORKFLOW_PATH,
+    ):
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if not isinstance(uses, str):
+                continue
+            if not (
+                uses.startswith("actions/setup-go@") or uses.startswith("actions/upload-artifact@")
+            ):
+                continue
+            observed_contracts.append(
+                (
+                    str(workflow_path.relative_to(REPO_ROOT)),
+                    job_id,
+                    step.get("name"),
+                    uses,
+                    step.get("with"),
+                    step.get("if"),
+                    step.get("env"),
+                    step.get("continue-on-error"),
+                )
+            )
+
+    assert observed_contracts == [
+        (
+            ".github/workflows/greenlight-ios.yml",
+            "greenlight-ios",
+            "Setup Go",
+            f"actions/setup-go@{SETUP_GO_NODE24_SHA}",
+            {"go-version": "1.22"},
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/greenlight-ios.yml",
+            "greenlight-ios",
+            "Upload Greenlight report artifact",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "greenlight-ios-report",
+                "path": "greenlight-report.json",
+                "if-no-files-found": "error",
+            },
+            "always()",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/ios-appstore-assets.yml",
+            "validate-assets",
+            "Upload screenshot artifacts",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "ios-appstore-screenshots",
+                "path": "ios/fastlane/screenshots",
+                "if-no-files-found": "warn",
+            },
+            "always()",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/security.yml",
+            "bandit",
+            "Upload security reports",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "security-reports",
+                "path": (
+                    "bandit-report.json\n" "safety-*.json\n" "safety-*.txt\n" "safety-*.log\n"
+                ),
+                "if-no-files-found": "ignore",
+            },
+            "always()",
             None,
             None,
         ),
