@@ -112,11 +112,11 @@ Evidence: Dev-operator pass identified only hygiene/process requirements. Local 
 
 ## Experiment Runner Evidence
 
-Artifact: `artifacts/orchestration/experiments/results/exp-7f0fdfc39c11.json`
+Artifact: `artifacts/orchestration/experiments/results/exp-346a93ac7a31.json`
 
 Disposition: FIXED
 Commit: a6fb3ec5d92294e26a9560ba0ac72f708fe3e23b
-Evidence: oracle-only Experiment Runner result `artifacts/orchestration/experiments/results/exp-7f0fdfc39c11.json` returned `status=accepted`, `runner_mode=oracle_only_governance_reviewer`, `shared_tree_untouched=true`, and `coauthor_required=true`; the primary commit includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Evidence: oracle-only Experiment Runner result `artifacts/orchestration/experiments/results/exp-7f0fdfc39c11.json` returned `status=accepted`, `runner_mode=oracle_only_governance_reviewer`, `shared_tree_untouched=true`, and `coauthor_required=true`; final post-open oracle-only result `artifacts/orchestration/experiments/results/exp-346a93ac7a31.json` returned `status=accepted`, `runner_mode=oracle_only_governance_reviewer`, `shared_tree_untouched=true`, and `coauthor_required=true`. PR commits that materially use oracle evidence include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Post-Open Role-Agent Findings
 
@@ -148,6 +148,7 @@ Evidence: Post-open security-auditor pass reported no security findings after th
 - `git diff --check` - PASS.
 - `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed.
 - `PREPUSH_DEBUG=1 make validate-changed` - PASS.
+- final oracle-only Experiment Runner evidence `artifacts/orchestration/experiments/results/exp-346a93ac7a31.json` - accepted.
 - `git push -u origin codex/experiment-runner-operator-observability-report` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
 
 ## Merge Readiness
