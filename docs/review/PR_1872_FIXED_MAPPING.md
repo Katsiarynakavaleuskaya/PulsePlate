@@ -21,11 +21,11 @@ gates.
   and Merge Readiness sections.
 - [ ] Final discussion-thread pass pending current-head CI and bot/human review
   completion.
-- [ ] Post-open role-agent sequence in progress:
+- [x] Post-open role-agent sequence completed:
   `qa-engineer-agent` PASS, `bug-hunter` findings FIXED,
   `security-auditor` PASS.
-- [ ] Codex Security diff scan / finding discovery pending.
-- [ ] `pulseplate-pr-review` pending.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 
 ## Fixed in Commit Mapping
 
@@ -101,6 +101,27 @@ requires write-through after Slack audit finalization; pre-dispatch ledger
 writeability preflight is the mitigation and Slack still does not prove merge
 readiness.
 
+### Codex Security diff scan
+
+Disposition: NOT-A-BUG
+Evidence: Codex Security diff scan covered 6/6 source-like diff rows with
+completion receipts, emitted no candidate findings, validated final
+`report.md`, and rendered `report.html`.
+Local summary artifact:
+`artifacts/security_lab/PR_1872_CODEX_SECURITY_DIFF_SCAN.md`.
+
+### pulseplate-pr-review
+
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` dry-run report emitted one advisory
+large-diff-risk note only. The note is closed as not-a-bug for this PR because
+the diff is a cohesive PR-2 operator-plane closeout, the changed files are
+limited to Slack dispatch evidence, local ledger, workflow contract, runbook,
+mapping artifact, and focused tests, and the targeted deterministic gates
+passed. Local artifacts:
+`artifacts/orchestration/pr_review/PR_1872_PULSEPLATE_PR_REVIEW.md` and
+`artifacts/orchestration/pr_review/PR_1872_PULSEPLATE_PR_REVIEW.json`.
+
 ## Local Gate Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS; warning only for
@@ -154,6 +175,5 @@ readiness.
 
 Not claimed.
 
-Current-head CI, bot comments, final review-thread disposition, Codex Security
-diff scan, `pulseplate-pr-review`, and strict merge-readiness wrapper remain
-pending.
+Current-head CI, bot comments, final review-thread disposition, and strict
+merge-readiness wrapper remain pending.
