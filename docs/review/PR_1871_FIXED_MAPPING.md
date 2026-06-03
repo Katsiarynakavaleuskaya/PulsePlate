@@ -24,6 +24,9 @@ Current live PR snapshot before the latest mapping update:
 
 - Codex Review posted one actionable inline comment on the Trivy wrapper pin.
   This is mapped below to `be9e1a5d2d8f3427af2d70627e571b286b235651`.
+- Codex Review posted one mapping-ancestry inline comment against a synthetic
+  reviewed head. This is dispositioned below as `NOT-A-BUG` because the mapped
+  commits are ancestors of the real GitHub PR head.
 - CodeRabbit had posted a summary comment only.
 - Sourcery returned a weekly-rate-limit comment, not a code actionable.
 - Cubic reported no issues on the initial head.
@@ -56,6 +59,11 @@ Evidence: Current-head Docker/security-scan logs showed the remaining Node20 war
 Disposition: FIXED
 Commit: be9e1a5d2d8f3427af2d70627e571b286b235651
 Evidence: Codex Review correctly identified that the previous `aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8` ref was the annotated `v0.36.0` tag object rather than the peeled commit. `git ls-remote https://github.com/aquasecurity/trivy-action.git 'refs/tags/v0.36.0*'` showed `a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 refs/tags/v0.36.0` and `ed142fd0673e97e23eac54620cfb913e5ce36c25 refs/tags/v0.36.0^{}`. The commit updates only the Trivy action refs and workflow guard constant to the peeled commit SHA while preserving all Trivy scanner inputs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1871#discussion_r3348494286
+Disposition: NOT-A-BUG
+Evidence: The review comment referenced synthetic reviewed head `41440402068da0a827fc6d43fc3fe608d373aeff`, not the actual PR branch head. Local ancestry proof on the real branch head (`git merge-base --is-ancestor <mapped_sha> HEAD`) returned `ancestor` for `ef1a745654e89d7a14f676e70001c010878eff4a`, `e556119b444742135cced7793b0da38aaa8f9353`, `c6aabad09ab876bb13b7f2700363166ee386880c`, `6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`, `be9e1a5d2d8f3427af2d70627e571b286b235651`, and `191a0671d8c279ff1eabcee41f610af9a6ae3134`. `git cat-file -e 41440402068da0a827fc6d43fc3fe608d373aeff^{commit}` did not find that synthetic commit in local branch history. The mapping therefore already ties fixes to commits that will be merged from the actual PR branch.
+Reason: The comment checked ancestry against a synthetic/non-branch reviewed head instead of the real GitHub PR head.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26882447867/job/79285782067 -> 191a0671d8c279ff1eabcee41f610af9a6ae3134
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26882447867/job/79285782087 -> 191a0671d8c279ff1eabcee41f610af9a6ae3134
