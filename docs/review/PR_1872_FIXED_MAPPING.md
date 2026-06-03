@@ -62,6 +62,12 @@ Evidence: workflow ref reporting and runtime ledger preflight findings were fixe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348500268 -> 9c5ad7fb1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348500276 -> 9c5ad7fb1
 
+Disposition: FIXED
+Commit: 53dfdec42
+Evidence: workflow main-ref guard now checks the full branch ref.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418808423 -> 53dfdec42
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348716862 -> 53dfdec42
+
 Disposition: NOT-A-BUG
 Evidence: detailed proof is recorded below under External review thread dispositions.
 Reason: the URL-only line is intentionally commit-free per NOT-A-BUG review governance.
@@ -236,6 +242,22 @@ passed. Local artifacts:
   now calls the operator-ledger preflight before returning `status: pass`.
   `tests/test_experiment_slack_socket_bridge.py` covers malformed local ledger
   event store failure without leaking the local path.
+
+- Review:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418808423
+  Disposition: FIXED
+  Commit: 53dfdec42
+  Evidence: Cubic found that checking only `GITHUB_REF_NAME == "main"` could
+  allow a tag named `main`. The workflow now requires
+  `GITHUB_REF == "refs/heads/main"` before writing dispatch-summary evidence.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348716862
+  Disposition: FIXED
+  Commit: 53dfdec42
+  Evidence: Same full-branch-ref workflow guard as the Cubic top-level review;
+  the workflow contract test rejects the short-ref-only guard by asserting
+  `GITHUB_REF` and `refs/heads/main`.
 
 - Thread:
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507
