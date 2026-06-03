@@ -487,6 +487,27 @@ def test_operator_ledger_report_projects_only_safe_result_metadata(tmp_path: Pat
     _assert_no_raw_leak(rendered)
 
 
+def test_operator_ledger_report_does_not_count_absent_result_refs(
+    tmp_path: Path,
+) -> None:
+    ledger.write_operator_ledger_event(
+        _event(oracle_result_ref="none", oracle_result_hash="none"),
+        repo_root=tmp_path,
+    )
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+
+    assert report["by_result_artifact_status"] == {"absent": 1}
+    assert report["source_counts"] == {
+        "operator_ledger_events": 1,
+        "result_artifact_refs": 0,
+    }
+    assert report["latest"]["result_metadata"] == {
+        "artifact_ref": "none",
+        "artifact_status": "absent",
+    }
+
+
 def test_operator_ledger_result_metadata_fails_closed_for_malformed_artifact(
     tmp_path: Path,
 ) -> None:
@@ -1042,6 +1063,59 @@ def test_operator_ledger_cli_writes_default_observability_report_set(
     assert "diff --git a/secret" not in rendered
     assert str(tmp_path) not in stdout
     _assert_no_raw_leak(stdout + rendered)
+
+
+def test_operator_ledger_cli_writes_empty_observability_report_set(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+
+    assert ledger.main(["--write-report-set"]) == 0
+    stdout = capsys.readouterr().out
+    output = json.loads(stdout)
+    report_dir = ledger.default_observability_report_dir(tmp_path)
+    json_report = json.loads(
+        (report_dir / "operator_observability_report.json").read_text(encoding="utf-8")
+    )
+    markdown = (report_dir / "operator_observability_report.md").read_text(encoding="utf-8")
+    html = (report_dir / "operator_observability_report.html").read_text(encoding="utf-8")
+    rendered = stdout + json.dumps(json_report, sort_keys=True) + markdown + html
+
+    assert output["status"] == "written"
+    assert json_report["event_count"] == 0
+    assert json_report["latest"] is None
+    assert json_report["by_status"] == {}
+    assert json_report["by_dispatch_mode"] == {}
+    assert json_report["by_failure_class"] == {}
+    assert json_report["by_command_kind"] == {}
+    assert json_report["by_result_artifact_status"] == {}
+    assert json_report["result_artifacts"] == []
+    assert json_report["source_counts"] == {
+        "operator_ledger_events": 0,
+        "result_artifact_refs": 0,
+    }
+    assert json_report["malformed_artifact_counts"] == {
+        "invalid_result_artifacts": 0,
+        "missing_result_artifacts": 0,
+    }
+    assert json_report["redaction_summary"] == {
+        "approval_digests_stored": False,
+        "health_data_stored": False,
+        "local_paths_stored": False,
+        "patch_text_stored": False,
+        "provider_logs_stored": False,
+        "raw_branch_refs_stored": False,
+        "raw_hypotheses_stored": False,
+        "raw_slack_text_stored": False,
+        "slack_ids_stored": False,
+        "token_prefixes_stored": False,
+    }
+    assert "- Event count: `0`" in markdown
+    assert "<p>none</p>" in html
+    assert str(tmp_path) not in rendered
+    _assert_no_raw_leak(rendered)
 
 
 def test_operator_ledger_report_set_is_idempotent_and_preserves_result_artifacts(

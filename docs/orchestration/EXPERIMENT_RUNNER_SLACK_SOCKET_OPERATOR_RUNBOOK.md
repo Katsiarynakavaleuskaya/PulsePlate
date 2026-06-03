@@ -222,7 +222,9 @@ Malformed, missing, traversal, or symlinked result artifacts must degrade to a
 sanitized artifact status and must not print file contents, local paths, oracle
 output, patches, provider logs, or validator details. Local reports may be
 rendered as JSON, Markdown, or a deterministic escaped single-file HTML report
-under `artifacts/orchestration/experiments/`.
+under `artifacts/orchestration/experiments/`. Report payloads include source
+counts, malformed/missing artifact counts, and a redaction summary that keeps
+Slack, provider, patch, approval, health, and local-path data marked as absent.
 
 Generate the local operator observability report set from the repository root:
 

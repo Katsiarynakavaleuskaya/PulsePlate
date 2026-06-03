@@ -1055,6 +1055,16 @@ def build_operator_observability_report(
     by_result_artifact_status = Counter(
         str(metadata["artifact_status"]) for metadata in result_artifacts
     )
+    source_counts = {
+        "operator_ledger_events": len(records),
+        "result_artifact_refs": sum(
+            1 for metadata in result_artifacts if metadata.get("artifact_status") != "absent"
+        ),
+    }
+    malformed_artifact_counts = {
+        "invalid_result_artifacts": by_result_artifact_status.get("invalid", 0),
+        "missing_result_artifacts": by_result_artifact_status.get("missing", 0),
+    }
     latest = records[-1].payload if records else None
     latest_result_metadata = result_artifacts[-1] if result_artifacts else None
     return {
@@ -1085,11 +1095,25 @@ def build_operator_observability_report(
             if latest
             else None
         ),
+        "malformed_artifact_counts": malformed_artifact_counts,
         "policy_version": POLICY_VERSION,
         "redaction_version": REDACTION_VERSION,
+        "redaction_summary": {
+            "approval_digests_stored": False,
+            "health_data_stored": False,
+            "local_paths_stored": False,
+            "patch_text_stored": False,
+            "provider_logs_stored": False,
+            "raw_branch_refs_stored": False,
+            "raw_hypotheses_stored": False,
+            "raw_slack_text_stored": False,
+            "slack_ids_stored": False,
+            "token_prefixes_stored": False,
+        },
         "report_scope": "local_operator_plane_only",
         "result_artifacts": result_artifacts,
         "schema_version": SCHEMA_VERSION,
+        "source_counts": source_counts,
     }
 
 
@@ -1135,9 +1159,12 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
         ("Command Counts", "by_command_kind"),
         ("Dispatch Mode Counts", "by_dispatch_mode"),
         ("Result Artifact Counts", "by_result_artifact_status"),
+        ("Source Counts", "source_counts"),
+        ("Malformed Artifact Counts", "malformed_artifact_counts"),
+        ("Redaction Summary", "redaction_summary"),
     ):
         lines.extend(["", f"## {section}"])
-        counts = report[key]
+        counts = report.get(key, {})
         if counts:
             for name, count in counts.items():
                 lines.append(f"- `{name}`: `{count}`")
@@ -1241,9 +1268,13 @@ def render_operator_observability_html(report: dict[str, Any]) -> str:
         ("Command Counts", "by_command_kind"),
         ("Dispatch Mode Counts", "by_dispatch_mode"),
         ("Result Artifact Counts", "by_result_artifact_status"),
+        ("Source Counts", "source_counts"),
+        ("Malformed Artifact Counts", "malformed_artifact_counts"),
+        ("Redaction Summary", "redaction_summary"),
     ):
         sections.append(f"<h2>{_html_cell(title)}</h2>")
-        sections.append(_render_html_table(sorted(report[key].items())))
+        values = report.get(key, {})
+        sections.append(_render_html_table(sorted(values.items())))
     sections.extend(
         [
             "<h2>Boundary</h2>",
