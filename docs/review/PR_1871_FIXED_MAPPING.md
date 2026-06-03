@@ -48,7 +48,7 @@ Evidence: Current-head Greenlight failed because `greenlight@v0.1.0` requires Go
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26881378007/job/79282206670 -> 6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8
 Disposition: FIXED
 Commit: 6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8
-Evidence: Current-head Docker/security-scan logs showed the remaining Node20 warning came from `aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0`, whose composite action invoked nested `actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4` with `runs.using: node20`. The commit updates only the pinned Trivy wrapper action in `.github/workflows/build.yml` and `.github/workflows/trivy.yml` to `aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0 / Node 24 cache path`, preserving Trivy binary `version: v0.69.3` and scan inputs, and extends `tests/test_ci_workflow_pr_size_governance_contract.py` to reject the old wrapper SHA plus nested cache warning source.
+Evidence: Current-head Docker/security-scan logs showed the remaining Node20 warning came from `aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0`, whose composite action invoked nested `actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4` with `runs.using: node20`. The commit updates only the pinned Trivy wrapper action in `.github/workflows/build.yml` and `.github/workflows/trivy.yml` to `aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path`, preserving Trivy binary `version: v0.69.3` and scan inputs, and extends `tests/test_ci_workflow_pr_size_governance_contract.py` to reject the old wrapper SHA plus nested cache warning source.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26882447867/job/79285782067 -> 191a0671d8c279ff1eabcee41f610af9a6ae3134
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26882447867/job/79285782087 -> 191a0671d8c279ff1eabcee41f610af9a6ae3134
@@ -125,8 +125,9 @@ Evidence:
   nested step inside
   `aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1`, not a
   direct workflow `actions/cache` pin.
-- GitHub API metadata for `aquasecurity/trivy-action@v0.36.0` confirms the
-  selected full SHA `a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8` uses nested
+- GitHub `git ls-remote` metadata for `aquasecurity/trivy-action@v0.36.0`
+  confirms the selected full commit SHA
+  `ed142fd0673e97e23eac54620cfb913e5ce36c25` uses nested
   `actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5`.
 - GitHub API metadata for the old nested cache SHA confirmed
   `runs.using: node20`.

@@ -142,16 +142,16 @@ DOCKER_METADATA_NODE24_SHA = "".join(
 )
 TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
     (
-        "a9c7",
-        "b0f0",
-        "6e46",
-        "1e9d",
-        "4b4d",
-        "1711",
-        "f154",
-        "ee02",
-        "4b8d",
-        "7ab8",
+        "ed14",
+        "2fd0",
+        "673e",
+        "97e2",
+        "3eac",
+        "5462",
+        "0cfb",
+        "913e",
+        "5ce3",
+        "6c25",
     )
 )
 SETUP_GO_NODE24_SHA = "".join(
