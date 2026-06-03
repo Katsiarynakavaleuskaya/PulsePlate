@@ -30,7 +30,7 @@ def _event(**overrides: object) -> dict[str, object]:
         "dispatch_mode": "dry-run",
         "event_hash": _hash("Ev0SECRET"),
         "failure_class": "none",
-        "generated_at": datetime(2026, 6, 2, 14, 0, tzinfo=timezone.utc).isoformat(),
+        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "human_review_outcome": "pending",
         "hypothesis_hash": _hash("raw hypothesis must not render"),
         "oracle_result_hash": _hash("oracle result"),
