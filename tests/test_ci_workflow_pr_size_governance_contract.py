@@ -903,7 +903,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             "greenlight-ios",
             "Setup Go",
             f"actions/setup-go@{SETUP_GO_NODE24_SHA}",
-            {"go-version": "1.22"},
+            {"go-version": "1.24"},
             None,
             None,
             None,
