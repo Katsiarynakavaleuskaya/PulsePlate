@@ -121,9 +121,18 @@ def render_operator_help_message() -> SlackSafeMessage:
     )
 
 
-def render_operator_status_message(config: BridgeConfig) -> SlackSafeMessage:
+def render_operator_status_message(
+    config: BridgeConfig,
+    *,
+    operator_ledger_summary: tuple[str, ...] = (),
+) -> SlackSafeMessage:
     """Render sanitized bridge status without exposing runtime IDs or tokens."""
 
+    ledger_summary = operator_ledger_summary or (
+        "operator_ledger_status=absent",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
     return SlackSafeMessage(
         message_type="operator_status",
         header="Experiment Runner Slack operator status",
@@ -142,9 +151,13 @@ def render_operator_status_message(config: BridgeConfig) -> SlackSafeMessage:
             f"team_allowlist_present={str(bool(config.allowed_teams)).lower()}",
             f"rate_limit_seconds={config.min_interval_seconds}",
             f"audit_retention_days={config.audit_retention_days}",
+            *ledger_summary,
         ),
         action_required="Keep dry-run unless a reviewed PR promotes bounded execution.",
-        artifact_refs=("artifacts/orchestration/experiments/slack_socket_bridge",),
+        artifact_refs=(
+            "artifacts/orchestration/experiments/slack_socket_bridge",
+            "artifacts/orchestration/experiments/operator_ledger",
+        ),
     )
 
 

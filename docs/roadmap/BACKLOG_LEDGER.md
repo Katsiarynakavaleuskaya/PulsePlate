@@ -24,6 +24,36 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-experiment-runner-operator-plane-slack-closeout"></a>
+- [ ] P1: Experiment Runner Operator Plane & Slack Closeout
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`codex/experiment-runner-operator-plane`)
+  - Status: Active as of 2026-06-02 under operator-approved lane-start override while PR #1865 and current `main` CI are monitored by the operator.
+  - Area: orchestration / Experiment Runner / Slack operator plane / local observability
+  - Reason (EN): Finish the Experiment Runner as a Slack-first operator plane without widening product AI runtime, food data, semantic cache, CBT/coaching runtime, frontend MVP, or merge/review authority. Operators need bounded dry-run/approved dispatch visibility, redacted failure/status summaries, and local evidence reports that stay advisory until promoted through repo-reviewed governance.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md`
+    - `docs/orchestration/EXPERIMENT_RUNNER_SLACK_APP_MANIFEST.yml`
+    - `scripts/orchestration/experiment_slack_socket_bridge.py`
+    - `scripts/orchestration/experiment_operator_ledger.py`
+    - `.github/workflows/experiment-runner-dispatch.yml`
+    - `.github/workflows/experiment-runner-slack-socket-smoke.yml`
+  - PR train:
+    - PR-1: local operator ledger/report contract, existing Slack status summary hook, runbook/backlog/tests, no command-surface widening
+    - PR-2: optional bounded live-smoke evidence exercise if operator secrets and allowlists are available
+    - PR-3: optional dashboard/report polish only if it remains local/dev-only under `artifacts/` with committed scripts/tests/docs only
+  - Out of scope: product AI runtime, backend API, OpenAPI, DB migrations, food data, semantic cache, CBT/coaching runtime, frontend MVP, iOS, PR creation, review-thread resolution, fixed-mapping authority, merge-readiness authority, arbitrary workflow dispatch, and Slack/Git identity expansion.
+  - DoD:
+    - Slack remains operator-only, dry-run-first, allowlisted, secret-backed, and redacted.
+    - `/pulseplate-runner status` can include the latest local operator ledger summary when present; no new Slack command is added in PR-1.
+    - Local operator ledger records only schema/policy version, task packet id, dispatch mode, fixed workflow file/ref, hashes, safe artifact refs, failure class, co-author decision, and human review outcome.
+    - Ledger/report artifacts are local-only under `artifacts/orchestration/experiments/` and must not include raw Slack text, Slack IDs, local absolute paths, health data, provider logs, approval digests, token prefixes, oracle stdout/stderr, raw branch refs, raw hypotheses, or patch text.
+    - Observability report is local/dev-only and aggregates ledger/result artifact status without becoming product analytics, runtime truth, or merge evidence by itself.
+    - Focused tests cover schema strictness, malformed/extra fields, path traversal/symlink rejection, idempotency, redaction, command-surface stability, and runbook authority boundaries.
+    - Each implementation PR runs coordinator-first startup, explicit role passes, premortem closure, Experiment Runner oracle-only evidence, post-open QA/bug/security passes, Codex Security scan when available, and `pulseplate-pr-review`.
+
 <a id="ledger-p1-container-perl-cve-remediation"></a>
 - [ ] P1: Container image Perl / IO::Compress / Archive::Tar CVE remediation (CVE-2026-9538, CVE-2026-42497, CVE-2026-8376, CVE-2026-42496, CVE-2026-48962)
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)

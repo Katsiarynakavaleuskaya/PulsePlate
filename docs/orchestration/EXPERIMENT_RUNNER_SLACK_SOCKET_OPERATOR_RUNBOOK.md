@@ -64,6 +64,17 @@ request URL. `SLACK_SIGNING_SECRET` is therefore not used by this PR.
 Any future HTTP Slack ingress must add Slack signature verification, timestamp
 freshness checks, and replay protection before parsing a payload.
 
+## Slack App Asset Policy
+
+Slack App assets are secret-free operator setup material only. App icons,
+screenshots, or branding files must not contain workspace identifiers, token
+fragments, webhooks, local paths, or unreleased product claims.
+
+The operator-provided `experiment_runner_logo_slack.png` can be promoted into
+the repository only after source, ownership, and allowed use are documented in
+repo-reviewed docs. Until that evidence exists, the manifest remains text-only
+and the asset stays outside committed Slack App truth.
+
 ## Manual Live Smoke
 
 Run `.github/workflows/experiment-runner-slack-socket-smoke.yml` manually with
@@ -168,6 +179,33 @@ default. Cleanup is explicit-only through the bridge CLI and must remain
 confined under `artifacts/orchestration`; traversal and symlink paths are
 rejected before deletion.
 
+## Local Operator Ledger and Report
+
+The local operator ledger lives under
+`artifacts/orchestration/experiments/operator_ledger/`. It is gitignored,
+local-only, and advisory. It can summarize Experiment Runner operator-plane
+activity for a developer or reviewer, but it is not product analytics, runtime
+truth, fixed-mapping proof, review-thread disposition proof, or merge-readiness
+evidence by itself.
+
+Allowed ledger fields are limited to schema/policy version, task packet id,
+dispatch mode, fixed workflow file/ref, hash-only branch and hypothesis
+identifiers, safe artifact references, failure class, co-author decision, human
+review outcome, retention policy, and explicit authority-boundary booleans that
+must remain false for PR creation, review-thread resolution, merge-readiness
+claims, and product runtime changes.
+
+The ledger and report must not store raw Slack text, Slack channel/user/team
+IDs, trigger IDs, raw branch refs, raw hypotheses, local absolute paths, health
+or wellness payloads, provider logs, token values or prefixes, approval
+digests, oracle stdout/stderr, workflow logs, or patch text.
+
+`/pulseplate-runner status` may include a sanitized latest-ledger summary when a
+valid local ledger event exists. If no event exists, the status shows an absent
+local ledger. If a local ledger artifact is malformed, the status reports only a
+sanitized `invalid_local_artifact` class and does not print paths or contents.
+No new Slack command is required for the PR-1 closeout.
+
 ## Authority Boundary
 
 The Slack operator bridge may validate configuration, report status, render
@@ -189,7 +227,8 @@ Allowed operator display commands are bounded and redacted:
 
 - `/pulseplate-runner help`: static command summary and authority boundary.
 - `/pulseplate-runner status`: bridge mode, allowlist presence, fixed workflow
-  metadata, rate-limit setting, and local audit-retention setting only.
+  metadata, rate-limit setting, local audit-retention setting, and optional
+  sanitized latest local operator-ledger summary only.
 - `/pulseplate-runner kpp-status`: static KPP outcome catalog and
   security-sensitive routing note; no experiment artifacts, local paths, Slack
   IDs, hypotheses, or provider logs.
