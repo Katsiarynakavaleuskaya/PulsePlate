@@ -622,7 +622,6 @@ def process_operator_event(
 
     audit_path = _audit_path(config, event)
     _ensure_event_not_processed(audit_path, config=config)
-    _preflight_operator_ledger_event(config)
     try:
         _require_authorized_event(event, config)
         command = parse_operator_command(event.text, command_hint=event.command_hint)
@@ -646,6 +645,9 @@ def process_operator_event(
             failure_class="command_rejected",
         )
         raise
+    dispatchable_command = command.kind == "run-experiment"
+    if dispatchable_command:
+        _preflight_operator_ledger_event(config)
     _claim_event(audit_path, event=event, command=command, config=config)
     try:
         _check_rate_limit(config)
@@ -659,14 +661,15 @@ def process_operator_event(
             status="failed",
             failure_class="rate_limited",
         )
-        _write_operator_ledger_event(
-            config=config,
-            event=event,
-            command=command,
-            audit_path=audit_path,
-            status="failed",
-            failure_class="rate_limited",
-        )
+        if dispatchable_command:
+            _write_operator_ledger_event(
+                config=config,
+                event=event,
+                command=command,
+                audit_path=audit_path,
+                status="failed",
+                failure_class="rate_limited",
+            )
         raise
     status = "dry_run"
     failure_class: str | None = None
@@ -705,12 +708,16 @@ def process_operator_event(
         )
         raise SlackSocketDispatchError("Slack operator dispatch failed.") from exc
     _write_audit(path=audit_path, event=event, command=command, config=config, status=status)
-    operator_ledger_ref = _write_operator_ledger_event(
-        config=config,
-        event=event,
-        command=command,
-        audit_path=audit_path,
-        status=status,
+    operator_ledger_ref = (
+        _write_operator_ledger_event(
+            config=config,
+            event=event,
+            command=command,
+            audit_path=audit_path,
+            status=status,
+        )
+        if dispatchable_command
+        else None
     )
     return BridgeDecision(
         status=status,

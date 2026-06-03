@@ -101,8 +101,12 @@ jobs:
           branch_hash = hashlib.sha256(str(inputs.get("branch_ref", "")).encode("utf-8")).hexdigest()
           hypothesis_hash = str(inputs.get("hypothesis_sha256", "none")).strip().lower() or "none"
           approval_ref = str(inputs.get("approval_ref", "none")).strip().lower() or "none"
-          approval_prefix = approval_ref[:16] if approval_ref != "none" else "none"
           dry_run = str(inputs.get("dry_run", "true")).strip().lower()
+          approval_prefix = (
+              approval_ref[:16]
+              if dry_run == "false" and approval_ref != "none"
+              else "none"
+          )
           with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
               summary.write("### Experiment Runner dispatch contract\n")
               summary.write("- mode: manual workflow_dispatch only\n")

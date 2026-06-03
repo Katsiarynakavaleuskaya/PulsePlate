@@ -26,6 +26,7 @@ from scripts.orchestration.experiment_slack_bridge_constants import (
     OPERATOR_LEDGER_TASK_PACKET_ID_ENV,
     SAFE_BRANCH_RE,
     SAFE_SLACK_ID_RE,
+    SECRET_SHAPED_RE,
     SHA256_HEX_RE,
     SHELL_META_RE,
     SLACK_APP_AUTH_ENV,
@@ -42,6 +43,7 @@ from scripts.orchestration.experiment_slack_bridge_models import (
     SlackSocketConfigError,
     _sha256_text,
 )
+from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE
 
 
 def _normalize_slack_id(raw_value: str, *, label: str) -> str:
@@ -107,8 +109,20 @@ def _live_approval_sha256() -> str | None:
 def _operator_ledger_task_packet_id() -> str:
     """Read the local operator-ledger task packet id without promoting it to authority."""
 
-    raw = os.environ.get(OPERATOR_LEDGER_TASK_PACKET_ID_ENV, "").strip()
-    return raw or DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID
+    raw = os.environ.get(OPERATOR_LEDGER_TASK_PACKET_ID_ENV)
+    if raw is None or raw == "":
+        return DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID
+    if raw != raw.strip() or len(raw) > 64:
+        raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
+    if not all(char.isalnum() or char in {"-", "_"} for char in raw):
+        raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
+    if (
+        SLACK_IDENTIFIER_RE.search(raw)
+        or SECRET_SHAPED_RE.search(raw)
+        or SHA256_HEX_RE.fullmatch(raw.lower())
+    ):
+        raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
+    return raw
 
 
 def _compute_live_approval_digest(branch_ref: str, hypothesis: str) -> str:

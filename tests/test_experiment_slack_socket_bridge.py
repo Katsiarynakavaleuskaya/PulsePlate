@@ -1210,28 +1210,33 @@ def test_operator_ledger_task_packet_id_defaults_to_safe_static_value(
     assert config.operator_ledger_task_packet_id == bridge.DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID
 
 
+@pytest.mark.parametrize("packet_id", ["C12345678", "   "])
 def test_malformed_operator_ledger_task_packet_id_blocks_before_dispatch(
+    packet_id: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     audit_dir = _configure_repo(monkeypatch, tmp_path)
     _configure_env(monkeypatch)
-    monkeypatch.setenv("EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID", "C12345678")
+    monkeypatch.setenv("EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID", packet_id)
     monkeypatch.setenv("GH_TOKEN", "ghp_" + "z" * 24)
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
-    config = _config_without_rate_limit(
-        monkeypatch=monkeypatch,
-        dispatch_mode="execute",
-        audit_dir=audit_dir,
-    )
     calls: list[dict[str, Any]] = []
 
-    with pytest.raises(bridge.SlackSocketAuditError, match="operator ledger evidence"):
-        bridge.process_payload(
-            _event(), config, dispatch_transport=lambda **kwargs: calls.append(kwargs)
+    assert bridge.main(["--validate-runtime", "--dispatch-mode", "dry-run"]) == 1
+    stdout = capsys.readouterr().out
+    with pytest.raises(bridge.SlackSocketConfigError):
+        _config_without_rate_limit(
+            monkeypatch=monkeypatch,
+            dispatch_mode="execute",
+            audit_dir=audit_dir,
         )
 
     assert calls == []
+    assert "Slack operator bridge configuration is invalid" in stdout
+    if packet_id.strip():
+        assert packet_id not in stdout
     assert not (audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json").exists()
     assert not experiment_operator_ledger.default_ledger_dir(
         _repo_root_from_audit_dir(audit_dir)
@@ -1348,7 +1353,7 @@ def test_status_command_reflects_latest_operator_ledger_event_after_processing(
     assert decision.status == "dry_run"
     assert status_decision.status == "dry_run"
     assert status_decision.command_kind == "status"
-    assert len(_ledger_records(audit_dir)) == 2
+    assert len(_ledger_records(audit_dir)) == 1
     assert "operator_ledger_status=dry_run" in status_reply
     assert "operator_ledger_command_kind=run-experiment" in status_reply
     assert "operator_ledger_command_kind=status" not in status_reply
@@ -1358,6 +1363,82 @@ def test_status_command_reflects_latest_operator_ledger_event_after_processing(
     assert "feature/status-ledger" not in status_reply
     assert "Validate status ledger summary" not in status_reply
     assert "display_only" in status_reply
+
+
+def test_repeated_status_commands_keep_dispatch_ledger_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+
+    bridge.process_payload(
+        _event(text="feature/status-repeat Validate repeated status summary"),
+        config,
+    )
+    first_status = bridge.process_payload(
+        _event(
+            event_id="Ev0STATUSONE",
+            command="/pulseplate-runner",
+            text="status",
+        ),
+        config,
+    )
+    second_status = bridge.process_payload(
+        _event(
+            event_id="Ev0STATUSTWO",
+            command="/pulseplate-runner",
+            text="status",
+        ),
+        config,
+    )
+    status_reply = bridge._format_command_reply(
+        bridge.OperatorCommand(kind="status"),
+        config,
+        decision=second_status,
+    )
+
+    assert first_status.operator_ledger_ref is None
+    assert second_status.operator_ledger_ref is None
+    assert len(_ledger_records(audit_dir)) == 1
+    assert "operator_ledger_command_kind=run-experiment" in status_reply
+    assert "operator_ledger_command_kind=status" not in status_reply
+    assert bridge._sha256_text("feature/status-repeat")[:16] in status_reply
+    assert "feature/status-repeat" not in status_reply
+
+
+def test_status_command_reports_invalid_ledger_without_requiring_write_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    ledger_dir = (
+        _repo_root_from_audit_dir(audit_dir) / "artifacts" / "orchestration" / "experiments"
+    )
+    ledger_dir.mkdir(parents=True)
+    (ledger_dir / "operator_ledger").write_text("not a directory", encoding="utf-8")
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+
+    decision = bridge.process_payload(
+        _event(
+            event_id="Ev0STATUSINVALIDLEDGER",
+            command="/pulseplate-runner",
+            text="status",
+        ),
+        config,
+    )
+    reply = bridge._format_command_reply(
+        bridge.OperatorCommand(kind="status"),
+        config,
+        decision=decision,
+    )
+
+    assert decision.status == "dry_run"
+    assert decision.operator_ledger_ref is None
+    assert "operator_ledger_status=invalid_local_artifact" in reply
+    assert "operator_ledger_authority=display_only" in reply
 
 
 def test_bolt_command_body_uses_trigger_id_as_fallback_event_id(
@@ -2340,6 +2421,8 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert "branch_hash" in summary_step["run"]
     assert "hypothesis_hash" in summary_step["run"]
     assert "approval_hash_prefix" in summary_step["run"]
+    assert 'if dry_run == "false" and approval_ref != "none"' in summary_step["run"]
+    assert 'approval_ref[:16] if approval_ref != "none"' not in summary_step["run"]
     assert "operator_ledger_status" in summary_step["run"]
     assert "not_written_by_workflow" in summary_step["run"]
     assert "operator_ledger_scope: local_bridge_only" in summary_step["run"]
@@ -2988,6 +3071,8 @@ def test_non_dispatch_command_does_not_carry_approval_hash(
 
     assert decision.status == "dry_run"
     assert decision.approval_hash is None
+    assert decision.operator_ledger_ref is None
+    assert _ledger_records(audit_dir) == []
     audit = json.loads(decision.audit_path.read_text())
     assert audit["approval_hash"] == "none"
 
