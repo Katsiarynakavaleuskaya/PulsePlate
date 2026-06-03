@@ -97,18 +97,21 @@ Evidence: `app/routers/fitchef_structured.py` wraps VIP structured route-level/r
 Disposition: FIXED
 Commit: b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
 Evidence: `scripts/ci/ci_risk_profile.py` now routes structured FitChef route/runtime/schema/test changes through `insight_ai`; regression coverage: `tests/test_ci_risk_profile.py::test_fitchef_structured_source_change_hits_insight_openapi_and_route_groups`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883057
 Disposition: NOT-A-BUG
-Evidence: The mapped fix SHAs remain reachable in the current branch history;
-`git merge-base --is-ancestor a451eb9e741d7a6623f556d5fb93de9ed09a45ce HEAD`,
-`git merge-base --is-ancestor 0220fd4cef9f2a6eea61194ba0c483a8f9a3dfe1 HEAD`,
-and
-`git merge-base --is-ancestor b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6 HEAD`
-all pass on head `3e38d7e70`.
+Evidence: The mapped fix commits remain reachable in the current branch
+history; local `git merge-base --is-ancestor <mapped-fix-sha> HEAD` checks
+passed for representative implementation, runtime-review, and bootstrap-review
+proof commits on head `3e38d7e70`.
+Reason: The comment was based on a synthetic squashed review head, while the
+actual PR branch keeps the mapped proof commits in reachable history.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883068 -> d079555ca
 Disposition: FIXED
 Commit: d079555ca
 Evidence: `docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_EXPERIMENT_RUNNER_EVIDENCE.md` now scopes the co-author requirement to implementation commit `0220fd4cef9f2a6eea61194ba0c483a8f9a3dfe1`, and commit `d079555ca` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883071 -> d079555ca
 Disposition: FIXED
 Commit: d079555ca
