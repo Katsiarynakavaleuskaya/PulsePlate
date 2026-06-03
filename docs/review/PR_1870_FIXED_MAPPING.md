@@ -63,12 +63,15 @@ billing, food-data ingest, or plan-adaptation implementation is included.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3347300272 -> a451eb9e741d7a6623f556d5fb93de9ed09a45ce
 Disposition: FIXED
+Commit: a451eb9e741d7a6623f556d5fb93de9ed09a45ce
 Evidence: `app/services/fitchef_runtime.py` routes structured runtime provider generation through `_generate_with_timeout`; regression coverage: `tests/test_fitchef_structured_api.py::TestFitChefStructuredRuntimeCoverage::test_identity_runtime_supports_async_provider_generate`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3347300290 -> a451eb9e741d7a6623f556d5fb93de9ed09a45ce
 Disposition: FIXED
+Commit: a451eb9e741d7a6623f556d5fb93de9ed09a45ce
 Evidence: `core/insight/fitchef_companion.py` rewrites unsafe fallback goal copy to `the current wellness goal`; regression coverage: `tests/test_fitchef_companion_helpers.py::test_prepare_identity_loop_mapper_draft_sanitizes_unsafe_goal_fallback`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3347300300 -> 5812072da2a62c2167f690c6a8327314114b84ca
 Disposition: FIXED
+Commit: 5812072da2a62c2167f690c6a8327314114b84ca
 Evidence: `core/insight/fitchef_companion.py` normalizes high-distress homoglyphs and blocks crisis/euphemism phrases before route runtime delegation; regression coverage: `tests/test_fitchef_companion_helpers.py::test_identity_loop_mapper_detects_high_distress_boundary` and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_high_distress_euphemism_rejected_before_runtime`.
 
 ## Post-Open Role-Agent Finding Closure
