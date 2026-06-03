@@ -2597,7 +2597,7 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "source, ownership, and allowed use" in runbook
     assert "Local Operator Ledger and Report" in runbook
     assert "artifacts/orchestration/experiments/operator_ledger/" in runbook
-    assert "No new Slack command is required" in runbook
+    assert "No new Slack command or Slack authority is added" in runbook
     assert "EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID" in runbook
     assert "operator-plane-slack-bridge" in runbook
     assert "dry_run: false" in runbook
@@ -2606,8 +2606,8 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "approval hash prefix" in runbook
     assert "Slack is not merge readiness" in runbook
     assert "dry_run`, `dispatched`, `failed`, and `rejected`" in runbook
-    assert "PR-2" in runbook
-    assert "closeout" in runbook
+    assert "operator_observability" in runbook
+    assert "--write-report-set" in runbook
     assert "invalid_local_artifact" in runbook
     execute_gate = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=" + "reviewed-dry-run-dispatch"
     assert execute_gate in runbook

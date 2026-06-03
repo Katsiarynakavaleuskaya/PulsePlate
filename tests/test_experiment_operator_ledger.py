@@ -55,6 +55,44 @@ def _event(**overrides: object) -> dict[str, object]:
     return payload
 
 
+def _result(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "schema_version": "1.0",
+        "experiment_id": "operator_report",
+        "runner_mode": "candidate_patch",
+        "status": "accepted",
+        "failure_class": None,
+        "mutated_paths": ["scripts/orchestration/experiment_operator_ledger.py"],
+        "oracle_results": [
+            {
+                "command": "pytest tests/test_experiment_operator_ledger.py -q",
+                "returncode": 0,
+                "timed_out": False,
+                "truncated": False,
+                "stdout": "C0SECRET /Users/alice diff --git must not render",
+                "stderr": "xoxb-secretsecretsecret must not render",
+                "cwd": "/Users/alice/PulsePlate",
+            }
+        ],
+        "budget_observations": {"wall_clock_seconds": 1},
+        "shared_tree_untouched": True,
+        "promotion_ready": True,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+        "coauthor_reason": "",
+        "candidate_patch": "diff --git a/secret b/secret\n+token",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _write_result(repo_root: Path, name: str, payload: dict[str, object]) -> Path:
+    path = repo_root / ledger.EXPERIMENT_RESULTS_REPO_PREFIX / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    return path
+
+
 def _assert_no_raw_leak(value: str) -> None:
     forbidden = (
         "C0SECRET",
@@ -412,6 +450,166 @@ def test_operator_ledger_report_and_status_summary_are_redacted(tmp_path: Path) 
     _assert_no_raw_leak(rendered)
 
 
+def test_operator_ledger_report_projects_only_safe_result_metadata(tmp_path: Path) -> None:
+    _write_result(tmp_path, "operator-plane.json", _result())
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    markdown = ledger.render_operator_observability_markdown(report)
+    html = ledger.render_operator_observability_html(report)
+    rendered = json.dumps(report, sort_keys=True) + markdown + html
+    metadata = report["latest"]["result_metadata"]
+
+    assert report["by_result_artifact_status"] == {"valid": 1}
+    assert metadata == {
+        "artifact_status": "valid",
+        "artifact_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
+        "schema_version": "1.0",
+        "experiment_id": "operator_report",
+        "runner_mode": "candidate_patch",
+        "status": "accepted",
+        "failure_class": "none",
+        "mutated_paths_count": 1,
+        "shared_tree_untouched": True,
+        "promotion_ready": True,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+    }
+    assert "oracle_results" not in rendered
+    assert '"candidate_patch":' not in rendered
+    assert "diff --git a/secret" not in rendered
+    assert "+token" not in rendered
+    assert "budget_observations" not in rendered
+    assert "coauthor_reason" not in rendered
+    assert "stdout" not in rendered
+    assert "stderr" not in rendered
+    assert "cwd" not in rendered
+    _assert_no_raw_leak(rendered)
+
+
+def test_operator_ledger_result_metadata_fails_closed_for_malformed_artifact(
+    tmp_path: Path,
+) -> None:
+    result_path = tmp_path / ledger.EXPERIMENT_RESULTS_REPO_PREFIX / "operator-plane.json"
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text("{not-json C0SECRET /Users/alice", encoding="utf-8")
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    rendered = json.dumps(report, sort_keys=True) + ledger.render_operator_observability_html(
+        report
+    )
+
+    assert report["by_result_artifact_status"] == {"invalid": 1}
+    assert report["latest"]["result_metadata"] == {
+        "artifact_status": "invalid",
+        "artifact_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
+    }
+    assert "{not-json" not in rendered
+    _assert_no_raw_leak(rendered)
+
+
+def test_operator_ledger_result_metadata_fails_closed_for_symlinked_artifact(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside-result.json"
+    outside.write_text(json.dumps(_result()), encoding="utf-8")
+    result_path = tmp_path / ledger.EXPERIMENT_RESULTS_REPO_PREFIX / "operator-plane.json"
+    result_path.parent.mkdir(parents=True)
+    result_path.symlink_to(outside)
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    rendered = json.dumps(report, sort_keys=True) + ledger.render_operator_observability_html(
+        report
+    )
+
+    assert report["by_result_artifact_status"] == {"invalid": 1}
+    assert report["latest"]["result_metadata"] == {
+        "artifact_status": "invalid",
+        "artifact_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
+    }
+    assert str(outside) not in rendered
+    _assert_no_raw_leak(rendered)
+
+
+def test_operator_ledger_result_metadata_reports_missing_artifact(
+    tmp_path: Path,
+) -> None:
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    rendered = (
+        json.dumps(report, sort_keys=True)
+        + ledger.render_operator_observability_markdown(report)
+        + ledger.render_operator_observability_html(report)
+    )
+
+    assert report["by_result_artifact_status"] == {"missing": 1}
+    assert report["latest"]["result_metadata"] == {
+        "artifact_status": "missing",
+        "artifact_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
+    }
+    assert "operator-plane.json" in rendered
+    _assert_no_raw_leak(rendered)
+
+
+def test_operator_ledger_result_metadata_fails_closed_for_traversal_ref(
+    tmp_path: Path,
+) -> None:
+    metadata = ledger._safe_result_metadata_from_ref(
+        "artifacts/orchestration/experiments/results/../outside.json",
+        repo_root=tmp_path,
+    )
+
+    assert metadata == {"artifact_status": "invalid", "artifact_ref": "none"}
+
+
+def test_operator_ledger_html_renderer_escapes_dynamic_values() -> None:
+    report = {
+        "authority_boundary": {
+            "claimed_merge_readiness": False,
+            "created_pr": False,
+            "product_runtime_changed": False,
+            "resolved_review_threads": False,
+        },
+        "by_command_kind": {"<script>": 1},
+        "by_dispatch_mode": {},
+        "by_failure_class": {},
+        "by_result_artifact_status": {"valid": 1},
+        "by_status": {"dry_run": 1},
+        "event_count": 1,
+        "latest": {
+            "branch_hash": "<branch>",
+            "command_kind": "status",
+            "failure_class": "none",
+            "hypothesis_hash": "<hypothesis>",
+            "oracle_result_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
+            "result_metadata": {
+                "artifact_status": "valid",
+                "experiment_id": "<img src=x onerror=alert(1)>",
+            },
+            "status": "dry_run",
+            "workflow_file": "none",
+            "workflow_ref": "none",
+        },
+        "policy_version": "<policy>",
+        "redaction_version": "<redaction>",
+        "report_scope": "local_operator_plane_only",
+        "result_artifacts": [],
+        "schema_version": ledger.SCHEMA_VERSION,
+    }
+
+    html = ledger.render_operator_observability_html(report)
+
+    assert "<script>" not in html
+    assert "<branch>" not in html
+    assert "<img src=x onerror=alert(1)>" not in html
+    assert "&lt;script&gt;" in html
+    assert "&lt;branch&gt;" in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+
+
 def test_operator_ledger_invalid_local_artifact_summary_is_sanitized(tmp_path: Path) -> None:
     event_dir = ledger.default_ledger_dir(tmp_path) / "events"
     event_dir.mkdir(parents=True)
@@ -765,6 +963,173 @@ def test_operator_ledger_cli_summary_writes_under_artifacts_only(
     assert ledger.main(["--summary", "--output", str(tmp_path / "outside.json")]) == 1
     failure = capsys.readouterr().out
     assert "FAIL: Experiment operator ledger output must stay" in failure
+    assert str(tmp_path) not in failure
+
+
+def test_operator_ledger_cli_summary_writes_html_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    _write_result(tmp_path, "operator-plane.json", _result())
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    assert (
+        ledger.main(
+            [
+                "--summary",
+                "--format",
+                "html",
+                "--output",
+                "artifacts/orchestration/experiments/operator_ledger/report.html",
+            ]
+        )
+        == 0
+    )
+    report = (
+        tmp_path / "artifacts" / "orchestration" / "experiments" / "operator_ledger" / "report.html"
+    ).read_text(encoding="utf-8")
+
+    assert "<!doctype html>" in report
+    assert "Latest Result Metadata" in report
+    assert "operator_report" in report
+    assert ">candidate_patch<" in report
+    assert "diff --git a/secret" not in report
+    assert "+token" not in report
+    assert "oracle_results" not in report
+    _assert_no_raw_leak(report)
+
+
+def test_operator_ledger_cli_writes_default_observability_report_set(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    _write_result(tmp_path, "operator-plane.json", _result())
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    assert ledger.main(["--write-report-set"]) == 0
+    stdout = capsys.readouterr().out
+    output = json.loads(stdout)
+
+    assert output == {
+        "outputs": {
+            "html": (
+                "artifacts/orchestration/experiments/operator_observability/"
+                "operator_observability_report.html"
+            ),
+            "json": (
+                "artifacts/orchestration/experiments/operator_observability/"
+                "operator_observability_report.json"
+            ),
+            "markdown": (
+                "artifacts/orchestration/experiments/operator_observability/"
+                "operator_observability_report.md"
+            ),
+        },
+        "status": "written",
+    }
+    report_dir = ledger.default_observability_report_dir(tmp_path)
+    rendered = "".join(
+        (report_dir / f"operator_observability_report.{suffix}").read_text(encoding="utf-8")
+        for suffix in ("json", "md", "html")
+    )
+
+    assert "Latest Result Metadata" in rendered
+    assert "operator_report" in rendered
+    assert "oracle_results" not in rendered
+    assert "diff --git a/secret" not in rendered
+    assert str(tmp_path) not in stdout
+    _assert_no_raw_leak(stdout + rendered)
+
+
+def test_operator_ledger_report_set_is_idempotent_and_preserves_result_artifacts(
+    tmp_path: Path,
+) -> None:
+    result_path = _write_result(tmp_path, "operator-plane.json", _result())
+    original_result = result_path.read_bytes()
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+
+    first_outputs = ledger.write_operator_observability_report_set(report, repo_root=tmp_path)
+    first_rendered = {
+        suffix: (
+            tmp_path
+            / "artifacts"
+            / "orchestration"
+            / "experiments"
+            / "operator_observability"
+            / f"operator_observability_report.{suffix}"
+        ).read_text(encoding="utf-8")
+        for suffix in ("json", "md", "html")
+    }
+    second_outputs = ledger.write_operator_observability_report_set(report, repo_root=tmp_path)
+    second_rendered = {
+        suffix: (
+            tmp_path
+            / "artifacts"
+            / "orchestration"
+            / "experiments"
+            / "operator_observability"
+            / f"operator_observability_report.{suffix}"
+        ).read_text(encoding="utf-8")
+        for suffix in ("json", "md", "html")
+    }
+
+    assert first_outputs == second_outputs
+    assert first_rendered == second_rendered
+    assert result_path.read_bytes() == original_result
+    _assert_no_raw_leak("".join(first_rendered.values()))
+
+
+def test_operator_ledger_cli_report_set_rejects_reserved_event_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    _write_result(tmp_path, "operator-plane.json", _result())
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    assert (
+        ledger.main(
+            [
+                "--write-report-set",
+                "--report-dir",
+                "artifacts/orchestration/experiments/operator_observability/events",
+            ]
+        )
+        == 1
+    )
+    failure = capsys.readouterr().out
+
+    assert "reserved event store" in failure
+    assert str(tmp_path) not in failure
+    assert not (
+        tmp_path
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "operator_observability"
+        / "events"
+        / "operator_observability_report.json"
+    ).exists()
+
+
+def test_operator_ledger_cli_report_set_rejects_summary_combination(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+
+    assert ledger.main(["--write-report-set", "--summary", "--format", "markdown"]) == 1
+    failure = capsys.readouterr().out
+
+    assert "cannot combine with summary" in failure
+    assert not ledger.default_observability_report_dir(tmp_path).exists()
     assert str(tmp_path) not in failure
 
 

@@ -208,12 +208,32 @@ dispatch mode, fixed workflow file/ref, hash-only branch and hypothesis
 identifiers, safe artifact references, failure class, co-author decision, human
 review outcome, retention policy, and explicit authority-boundary booleans that
 must remain false for PR creation, review-thread resolution, merge-readiness
-claims, and product runtime changes.
+claims, and product runtime changes. Observability reports may also project
+validated Experiment Runner result metadata from local result artifacts, but only
+the sanitized metadata allowlist: schema version, experiment id, runner mode,
+status, failure class, mutated-path count, shared-tree untouched,
+promotion-ready, contribution kind, and co-author-required state.
 
 The ledger and report must not store raw Slack text, Slack channel/user/team
 IDs, trigger IDs, raw branch refs, raw hypotheses, local absolute paths, health
 or wellness payloads, provider logs, token values or prefixes, approval
 digests, oracle stdout/stderr, workflow logs, or patch text.
+Malformed, missing, traversal, or symlinked result artifacts must degrade to a
+sanitized artifact status and must not print file contents, local paths, oracle
+output, patches, provider logs, or validator details. Local reports may be
+rendered as JSON, Markdown, or a deterministic escaped single-file HTML report
+under `artifacts/orchestration/experiments/`.
+
+Generate the local operator observability report set from the repository root:
+
+```bash
+python3 scripts/orchestration/experiment_operator_ledger.py --write-report-set
+```
+
+The command writes only gitignored local files under
+`artifacts/orchestration/experiments/operator_observability/`. Delete that
+directory when the local evidence is no longer needed; do not commit generated
+report files.
 
 `/pulseplate-runner status` may include a sanitized latest-ledger summary when a
 valid local ledger event exists. If no event exists, the status shows an absent
@@ -222,8 +242,8 @@ sanitized `invalid_local_artifact` class and does not print paths or contents.
 The bridge writes one local ledger record after Slack audit finalization for
 `dry_run`, `dispatched`, `failed`, and `rejected` outcomes. Duplicate Slack
 events are blocked by the existing audit idempotency check before a second
-ledger record can be created. No new Slack command is required for the PR-2
-closeout.
+ledger record can be created. No new Slack command or Slack authority is added
+by the local observability report set.
 
 ## Authority Boundary
 
