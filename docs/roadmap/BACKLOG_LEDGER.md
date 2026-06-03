@@ -3867,7 +3867,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `PR #1214` merged on March 21, 2026 for the structured coach contract freeze (`29a11e62e38307dd4cc7414bffc159b508878744`)
     - `PR #1215` merged on March 21, 2026 for the feature-gated PRO Distortion Simulator runtime at `POST /api/v1/pro/fitchef/explain` (`70bdbd9e51d977d440b605eed3064c71212cff97`)
     - `PR #1870` merged on 2026-06-03 for the bounded VIP Identity Loop Mapper runtime at `POST /api/v1/vip/fitchef/insight` (`7802ed25e99e0a4f346d14487270a037bb5ec97a`)
-    - `PR-TBD-SIGNAL-NOISE-REPORT-LANE` is the current report/content lane for CBT coaching GTM, not a product runtime feature
+    - `PR #1873` is the current report/content lane for CBT coaching GTM, not a product runtime feature
   - Subtracks:
     - FitChef visual identity and mascot system
     - App Store screenshot and preview pack
@@ -3934,8 +3934,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Signal vs Noise report lane for CBT coaching GTM
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (GTM / product strategy / founder content)
-  - Target PR: PR-TBD-SIGNAL-NOISE-REPORT-LANE
-  - Status: Active docs/governance lane after PR #1870; target PR remains TBD until the current branch is opened.
+  - Target PR: PR #1873 (`docs(coaching): promote Signal vs Noise report lane after VIP identity loop`)
+  - Status: Active in PR #1873 after PR #1870 landed.
   - Reason (EN): The article-inspired `Signal vs Noise` concept fits the repo better as a high-signal weekly report and founder-content pipeline than as a runtime feature. The lane should reuse the existing AI report templates and KPI-driven GTM structure so content decisions stay measurable and wellness-safe.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
