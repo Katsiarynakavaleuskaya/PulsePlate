@@ -144,6 +144,18 @@ Disposition: FIXED
 Commit: 28215f57fa23aabd3228d0de9f467ca8f5f1187a
 Evidence: `tests/test_experiment_operator_ledger.py` now derives the default `_event()` timestamp from current UTC time instead of a fixed 2026-06-02 value, preventing retention-sensitive tests from becoming date-flaky after the default 30-day retention window; focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3346812588 -> c87c82d4ca5b18d1882dbe24330c0492eee00a8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3346812599 -> c87c82d4ca5b18d1882dbe24330c0492eee00a8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3346812601 -> c87c82d4ca5b18d1882dbe24330c0492eee00a8c
+Disposition: FIXED
+Commit: c87c82d4ca5b18d1882dbe24330c0492eee00a8c
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now rejects existing directory report targets before `--record` can persist a local event, requires `workflow_file` and `workflow_ref` to be either both `none` or both a concrete dispatch target, and rejects contradictory `coauthor_required=false` / `coauthor_decision=required` events; `tests/test_experiment_operator_ledger.py` covers all three regressions. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3346812593
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 6fe6e93ecd2b4ad7f95316982fed7066db829e54 HEAD`, `git merge-base --is-ancestor 377a17a542c5ff5a7e0a82711c6a653065d88245 HEAD`, `git merge-base --is-ancestor 28215f57fa23aabd3228d0de9f467ca8f5f1187a HEAD`, and `git merge-base --is-ancestor c87c82d4ca5b18d1882dbe24330c0492eee00a8c HEAD` all returned 0 locally on the current PR branch.
+Reason: The connector evaluated reviewed head `92e8ac8` rather than the governed current PR branch head. The current branch history contains the primary implementation commit and the mapped proof commits.
+
 ## Implementation Evidence
 
 Security-auditor post-open ledger-integrity finding:
