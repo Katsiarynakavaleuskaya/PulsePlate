@@ -33,6 +33,25 @@ Evidence: `git show -s --format=%B e5b88d998d750347a6e27e660c8ed1da52719580` inc
 Reason: The review comment checked a synthetic or stale commit reference, while the actual branch-history implementation commit carrying the Experiment Runner-shaped docs change already has the required trailer. Later review-disposition commits are not the implementation commit that introduced the accepted Experiment Runner evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351495172
 
+Disposition: FIXED
+Commit: 5738f67e5f4471038ffaf6150cd7ee58874bc855
+Evidence: `docs/review/PR_1873_FIXED_MAPPING.md` records the branch-history trailer proof and the absent local synthetic SHA object; `docs/roadmap/BACKLOG_LEDGER.md` also tightens the Signal vs Noise target to the report/content contract lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351592540 -> 5738f67e5f4471038ffaf6150cd7ee58874bc855
+
+Disposition: FIXED
+Commit: 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+Evidence: `docs/review/PR_1873_FIXED_MAPPING.md` remaps the placeholder-fix disposition from the intermediate commit to reachable branch-history commit `5738f67e5f4471038ffaf6150cd7ee58874bc855`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351592549 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351632142 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+
+Disposition: FIXED
+Commit: 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+Evidence: Top-level bot review comments are covered by the inline-thread fixes above: placeholder remap proof is in `2d2c622759f08c177b7cf18d8390f55183e7fe0b`; merge-readiness section proof is in `111421b3944ccfd8a04a469086a27310e416ac4a`; attribution synthetic-SHA evidence is in `5738f67e5f4471038ffaf6150cd7ee58874bc855`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422280019 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422322769 -> 111421b3944ccfd8a04a469086a27310e416ac4a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422397465 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#pullrequestreview-4422445194 -> 2d2c622759f08c177b7cf18d8390f55183e7fe0b
+
 ## Pre-Open Findings
 
 ### Role-Agent Sequence
