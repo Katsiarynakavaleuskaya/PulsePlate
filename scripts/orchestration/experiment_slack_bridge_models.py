@@ -80,6 +80,7 @@ class BridgeConfig:
     slack_bot_token: str | None
     github_token: str | None
     live_approval_sha256: str | None
+    operator_ledger_task_packet_id: str
 
 
 @dataclass(frozen=True)
@@ -150,10 +151,13 @@ class BridgeDecision:
     channel_hash: str
     user_hash: str
     workflow_file: str
+    workflow_ref: str
     branch_hash: str | None = None
     hypothesis_hash: str | None = None
     approval_hash: str | None = None
     failure_class: str | None = None
+    operator_ledger_ref: str | None = None
+    operator_ledger_status: str | None = None
 
     def public_payload(self) -> dict[str, Any]:
         """Return a sanitized payload for stdout or tests."""
@@ -168,9 +172,12 @@ class BridgeDecision:
             "event_hash": self.event_hash,
             "failure_class": self.failure_class or "none",
             "hypothesis_hash": self.hypothesis_hash,
+            "operator_ledger_ref": self.operator_ledger_ref or "none",
+            "operator_ledger_status": self.operator_ledger_status or "none",
             "status": self.status,
             "user_hash": self.user_hash,
             "workflow_file": self.workflow_file,
+            "workflow_ref": self.workflow_ref,
         }
 
 

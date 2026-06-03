@@ -81,7 +81,11 @@ def render_mvp_evidence_summary(
     )
 
 
-def render_dispatch_dry_run_preview(command: OperatorCommand) -> SlackSafeMessage:
+def render_dispatch_dry_run_preview(
+    command: OperatorCommand,
+    *,
+    operator_ledger_ref: str | None = None,
+) -> SlackSafeMessage:
     """Render a dry-run-only dispatch preview without raw branch or hypothesis text."""
 
     return SlackSafeMessage(
@@ -95,6 +99,13 @@ def render_dispatch_dry_run_preview(command: OperatorCommand) -> SlackSafeMessag
             f"branch_hash={_safe_hash(command.branch_ref) or 'none'}",
             f"hypothesis_hash={_safe_hash(command.hypothesis) or 'none'}",
             "dry_run=true",
+            f"operator_ledger_ref={operator_ledger_ref or 'none'}",
+            (
+                "operator_ledger_status=recorded"
+                if operator_ledger_ref
+                else "operator_ledger_status=absent"
+            ),
+            "slack_authority=not_merge_readiness",
         ),
         action_required="Human approval and existing execute-mode gate required for dispatch.",
         artifact_refs=(".github/workflows/experiment-runner-dispatch.yml",),

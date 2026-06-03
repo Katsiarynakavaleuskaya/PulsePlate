@@ -12,7 +12,7 @@ import sys
 from typing import Any, cast
 
 try:
-    from scripts.orchestration.context_pack import REPO_ROOT
+    from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocation guard.
     if exc.name != "scripts":
         raise
@@ -63,6 +63,7 @@ try:
         BRIDGE_TIMEOUT_ENV,
         CONTROL_CHAR_RE,
         DEFAULT_AUDIT_RETENTION_DAYS,
+        DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID,
         DEFAULT_WORKFLOW_FILE,
         DEFAULT_WORKFLOW_REF,
         ENV_ASSIGNMENT_RE,
@@ -73,6 +74,7 @@ try:
         LIVE_SMOKE_BRANCH_REF_ENV,
         LIVE_SMOKE_HYPOTHESIS_SHA256_ENV,
         MAX_AUDIT_RETENTION_DAYS,
+        OPERATOR_LEDGER_TASK_PACKET_ID_ENV,
         RATE_LIMIT_CLAIM_MAX_ATTEMPTS,
         RATE_LIMIT_LOCK_DIR,
         REJECTED_RATE_LIMIT_LOCK_DIR,
@@ -151,6 +153,7 @@ __all__ = (
     "BridgeDecision",
     "CONTROL_CHAR_RE",
     "DEFAULT_AUDIT_RETENTION_DAYS",
+    "DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID",
     "DEFAULT_WORKFLOW_FILE",
     "DEFAULT_WORKFLOW_REF",
     "ENV_ASSIGNMENT_RE",
@@ -161,6 +164,7 @@ __all__ = (
     "LIVE_SMOKE_BRANCH_REF_ENV",
     "LIVE_SMOKE_HYPOTHESIS_SHA256_ENV",
     "MAX_AUDIT_RETENTION_DAYS",
+    "OPERATOR_LEDGER_TASK_PACKET_ID_ENV",
     "OperatorCommand",
     "OperatorEvent",
     "RATE_LIMIT_CLAIM_MAX_ATTEMPTS",
@@ -207,6 +211,7 @@ __all__ = (
     "_is_safe_ref",
     "_live_approval_sha256",
     "_load_slack_bolt",
+    "_preflight_operator_ledger_event",
     "_normalize_slack_id",
     "_normalized_absolute_path",
     "_optional_token",
@@ -237,6 +242,7 @@ __all__ = (
     "_validate_workflow_ref",
     "_write_audit",
     "_write_audit_exclusive",
+    "_write_operator_ledger_event",
     "audit_retention_summary",
     "build_config",
     "default_audit_artifact_dir",
@@ -324,12 +330,18 @@ def render_mvp_evidence_summary() -> SlackSafeMessage:
     )
 
 
-def render_latest_operator_ledger_summary() -> tuple[str, ...]:
+def render_latest_operator_ledger_summary(
+    *,
+    exclude_event_hash: str | None = None,
+) -> tuple[str, ...]:
     """Render latest local operator ledger summary using the facade repo root."""
 
     return cast(
         tuple[str, ...],
-        _operator_ledger.latest_operator_ledger_summary(repo_root=Path(REPO_ROOT)),
+        _operator_ledger.latest_operator_ledger_summary(
+            repo_root=Path(REPO_ROOT),
+            exclude_event_hash=exclude_event_hash,
+        ),
     )
 
 
@@ -420,6 +432,58 @@ def _write_audit_exclusive(
         status=status,
         failure_class=failure_class,
     )
+
+
+def _preflight_operator_ledger_event(config: BridgeConfig) -> None:
+    try:
+        _operator_ledger.preflight_slack_bridge_operator_ledger_event(
+            task_packet_id=config.operator_ledger_task_packet_id,
+            repo_root=Path(REPO_ROOT),
+        )
+    except _operator_ledger.OperatorLedgerError as exc:
+        raise SlackSocketAuditError("Experiment operator ledger evidence is unavailable.") from exc
+
+
+def _write_operator_ledger_event(
+    *,
+    config: BridgeConfig,
+    event: OperatorEvent,
+    command: OperatorCommand,
+    audit_path: Path,
+    status: str,
+    failure_class: str | None = None,
+) -> str:
+    event_hash = _sha256_text(event.event_id)
+    approval_prefix = _approval_prefix(config, command)
+    if status == "dispatched" and approval_prefix is not None:
+        review_outcome = "approved"
+    elif status == "rejected":
+        review_outcome = "rejected"
+    else:
+        review_outcome = "pending"
+    try:
+        ledger_path = _operator_ledger.write_slack_bridge_operator_ledger_event(
+            task_packet_id=config.operator_ledger_task_packet_id,
+            command_kind=command.kind,
+            status=status,
+            dispatch_mode=config.dispatch_mode,
+            workflow_file=config.workflow_file,
+            workflow_ref=config.workflow_ref,
+            event_hash=event_hash,
+            channel_hash=_sha256_text(event.channel_id),
+            user_hash=_sha256_text(event.user_id),
+            team_hash=_safe_hash(event.team_id),
+            branch_hash=_safe_hash(command.branch_ref),
+            hypothesis_hash=_safe_hash(command.hypothesis),
+            slack_audit_path=audit_path,
+            failure_class=failure_class,
+            human_review_outcome=review_outcome,
+            retention_days=config.audit_retention_days,
+            repo_root=Path(REPO_ROOT),
+        )
+    except _operator_ledger.OperatorLedgerError as exc:
+        raise SlackSocketAuditError("Experiment operator ledger evidence is unavailable.") from exc
+    return cast(str, normalize_repo_path(ledger_path))
 
 
 def _claim_event(
@@ -572,21 +636,41 @@ def process_operator_event(
             status="rejected",
             failure_class="command_rejected",
         )
-        raise
-    _claim_event(audit_path, event=event, command=command, config=config)
-    try:
-        _check_rate_limit(config)
-        _claim_rate_limit(config, event)
-    except SlackSocketAuditError:
-        _write_audit(
-            path=audit_path,
+        _write_operator_ledger_event(
+            config=config,
             event=event,
             command=command,
-            config=config,
-            status="failed",
-            failure_class="rate_limited",
+            audit_path=audit_path,
+            status="rejected",
+            failure_class="command_rejected",
         )
         raise
+    dispatchable_command = command.kind == "run-experiment"
+    if dispatchable_command:
+        _preflight_operator_ledger_event(config)
+    _claim_event(audit_path, event=event, command=command, config=config)
+    if dispatchable_command:
+        try:
+            _check_rate_limit(config)
+            _claim_rate_limit(config, event)
+        except SlackSocketAuditError:
+            _write_audit(
+                path=audit_path,
+                event=event,
+                command=command,
+                config=config,
+                status="failed",
+                failure_class="rate_limited",
+            )
+            _write_operator_ledger_event(
+                config=config,
+                event=event,
+                command=command,
+                audit_path=audit_path,
+                status="failed",
+                failure_class="rate_limited",
+            )
+            raise
     status = "dry_run"
     failure_class: str | None = None
     try:
@@ -614,8 +698,35 @@ def process_operator_event(
             status="failed",
             failure_class=failure_class,
         )
+        _write_operator_ledger_event(
+            config=config,
+            event=event,
+            command=command,
+            audit_path=audit_path,
+            status="failed",
+            failure_class=failure_class,
+        )
         raise SlackSocketDispatchError("Slack operator dispatch failed.") from exc
     _write_audit(path=audit_path, event=event, command=command, config=config, status=status)
+    operator_ledger_ref = None
+    operator_ledger_status = "not_applicable"
+    if dispatchable_command:
+        try:
+            operator_ledger_ref = _write_operator_ledger_event(
+                config=config,
+                event=event,
+                command=command,
+                audit_path=audit_path,
+                status=status,
+            )
+            operator_ledger_status = status
+        except SlackSocketAuditError:
+            if status != "dispatched":
+                raise
+            operator_ledger_status = "write_failed_after_dispatch"
+            LOGGER.warning(
+                "Experiment Runner bridge dispatched workflow but ledger write-through failed."
+            )
     return BridgeDecision(
         status=status,
         command_kind=command.kind,
@@ -625,10 +736,13 @@ def process_operator_event(
         channel_hash=_sha256_text(event.channel_id),
         user_hash=_sha256_text(event.user_id),
         workflow_file=config.workflow_file,
+        workflow_ref=config.workflow_ref,
         branch_hash=_safe_hash(command.branch_ref),
         hypothesis_hash=_safe_hash(command.hypothesis),
         approval_hash=_approval_prefix(config, command),
         failure_class=failure_class,
+        operator_ledger_ref=operator_ledger_ref,
+        operator_ledger_status=operator_ledger_status,
     )
 
 
@@ -697,11 +811,18 @@ def _format_command_reply(
     if command.kind == "help":
         return cast(str, render_operator_help_message().as_text())
     if command.kind == "status":
+        excluded_event_hash = (
+            decision.event_hash
+            if decision is not None and decision.command_kind == "status"
+            else None
+        )
         return cast(
             str,
             render_operator_status_message(
                 config,
-                operator_ledger_summary=render_latest_operator_ledger_summary(),
+                operator_ledger_summary=render_latest_operator_ledger_summary(
+                    exclude_event_hash=excluded_event_hash,
+                ),
             ).as_text(),
         )
     if command.kind == "kpp-status":
@@ -720,16 +841,26 @@ def _format_command_reply(
                     scope="Fixed workflow dispatch was requested by an allowlisted operator.",
                     evidence_summary=(
                         f"workflow_file={decision.workflow_file}",
+                        f"workflow_ref={config.workflow_ref}",
                         f"branch_hash={decision.branch_hash or 'none'}",
                         f"hypothesis_hash={decision.hypothesis_hash or 'none'}",
                         f"workflow_input_dry_run={dry_run_flag}",
                         f"approval_hash={decision.approval_hash or 'none'}",
+                        f"operator_ledger_ref={decision.operator_ledger_ref or 'none'}",
+                        f"operator_ledger_status={decision.operator_ledger_status or 'none'}",
+                        "slack_authority=not_merge_readiness",
                     ),
                     action_required="Inspect GitHub workflow result; Slack does not prove readiness.",
                     artifact_refs=(".github/workflows/experiment-runner-dispatch.yml",),
                 ).as_text(),
             )
-        return cast(str, render_dispatch_dry_run_preview(command).as_text())
+        return cast(
+            str,
+            render_dispatch_dry_run_preview(
+                command,
+                operator_ledger_ref=decision.operator_ledger_ref if decision else None,
+            ).as_text(),
+        )
     raise SlackSocketCommandError("Slack operator command is invalid.")
 
 
@@ -870,6 +1001,7 @@ def main(argv: list[str] | None = None) -> int:
                 _require_execute_config(config)
             if args.run_socket:
                 _require_live_socket_runtime(config)
+            _preflight_operator_ledger_event(config)
             print(
                 json.dumps(
                     {"dispatch_mode": config.dispatch_mode, "status": "pass"}, sort_keys=True

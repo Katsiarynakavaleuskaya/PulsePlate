@@ -78,7 +78,7 @@ jobs:
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-dispatch-inputs
 
-      - name: Validate live-dispatch approval reference
+      - name: Validate live-dispatch approval reference shape
         if: inputs.dry_run == 'false'
         env:
           EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256: ${{ inputs.approval_ref }}
@@ -88,15 +88,40 @@ jobs:
             --validate-live-approval
 
       - name: Record sanitized dispatch contract summary
-        if: inputs.dry_run == 'true'
         run: |
           set -euo pipefail
-          {
-            printf '### Experiment Runner dispatch contract\n'
-            printf -- '- mode: manual workflow_dispatch only\n'
-            printf -- '- dry_run: true\n'
-            printf -- '- branch_ref: validated without raw echo\n'
-            printf -- '- hypothesis_sha256: validated without raw echo\n'
-            printf -- '- approval_ref: none (dry-run default)\n'
-            printf -- '- authority: no PR creation, review disposition, merge readiness, or arbitrary workflow dispatch\n'
-          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          inputs = event.get("inputs", {})
+          branch_hash = hashlib.sha256(str(inputs.get("branch_ref", "")).encode("utf-8")).hexdigest()
+          hypothesis_hash = str(inputs.get("hypothesis_sha256", "none")).strip().lower() or "none"
+          approval_ref = str(inputs.get("approval_ref", "none")).strip().lower() or "none"
+          dry_run = str(inputs.get("dry_run", "true")).strip().lower()
+          workflow_ref_full = os.environ.get("GITHUB_REF", "").strip()
+          if workflow_ref_full != "refs/heads/main":
+              raise SystemExit("Experiment Runner dispatch workflow must run on main.")
+          workflow_ref = "main"
+          workflow_live_approval = (
+              "bridge_required_not_workflow_proven"
+              if dry_run == "false" and approval_ref != "none"
+              else "none"
+          )
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:
+              summary.write("### Experiment Runner dispatch contract\n")
+              summary.write("- mode: manual workflow_dispatch only\n")
+              summary.write("- workflow_file: experiment-runner-dispatch.yml\n")
+              summary.write(f"- workflow_ref: {workflow_ref}\n")
+              summary.write(f"- workflow_input_dry_run: {dry_run}\n")
+              summary.write(f"- branch_hash: {branch_hash}\n")
+              summary.write(f"- hypothesis_hash: {hypothesis_hash}\n")
+              summary.write("- approval_hash_prefix: none\n")
+              summary.write(f"- workflow_live_approval: {workflow_live_approval}\n")
+              summary.write("- operator_ledger_status: not_written_by_workflow\n")
+              summary.write("- operator_ledger_scope: local_bridge_only\n")
+              summary.write("- authority: Slack is not merge readiness; no PR creation, review disposition, merge readiness, or arbitrary workflow dispatch\n")
+          PY
