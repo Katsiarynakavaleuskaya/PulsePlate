@@ -237,7 +237,7 @@ Premortem:
 - `python3 scripts/orchestration/check_preflight.py --mode analyze ...` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python3 scripts/ci/install_locked_python_requirements.py --preflight-only --index-url "$PULSEPLATE_PYTHON_INDEX_URL" --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json` - PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` - PASS; 21 tests.
+- `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` - PASS; 21 tests.
 - `python3 scripts/ci/guard_actions_pin.py --root .` - PASS.
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md` - PASS.
 - `python3 scripts/orchestration/experiment_runner.py --packet artifacts/orchestration/experiments/gha-node24-action-runtime-cleanup-oracle-packet-v3.json ...` - PASS; result accepted.
@@ -250,11 +250,11 @@ Premortem:
 
 - `make validate-changed` - PASS after the mapping/backlog edit; selected
   `tests/test_ci_workflow_pr_size_governance_contract.py`, 21 tests.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py`
+- `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py`
   - PASS after the Greenlight Go `1.24` fix; 21 tests.
 - `python3 scripts/ci/guard_actions_pin.py --root .` - PASS after the
   Greenlight Go `1.24` fix.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py -q`
+- `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py -q`
   - PASS after the Trivy wrapper/cache-path fix; 21 tests.
 - `python3 scripts/ci/guard_actions_pin.py --root .` - PASS after the Trivy
   wrapper/cache-path fix.
