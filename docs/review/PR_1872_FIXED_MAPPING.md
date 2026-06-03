@@ -48,6 +48,13 @@ Commit: 1ba063c98
 Evidence: mapping clarity fix separated FIXED and NOT-A-BUG disposition blocks.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418193962 -> 1ba063c98
 
+Disposition: FIXED
+Commit: e05daa8b6
+Evidence: workflow approval evidence overclaim and mapping grouping findings were fixed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418272387 -> e05daa8b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348262527 -> e05daa8b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348267131 -> e05daa8b6
+
 Disposition: NOT-A-BUG
 Evidence: detailed proof is recorded below under External review thread dispositions.
 Reason: the URL-only line is intentionally commit-free per NOT-A-BUG review governance.
@@ -178,6 +185,31 @@ passed. Local artifacts:
   SHA-mapped list from the NOT-A-BUG URL-only proof block, preserving the
   review-governance parser contract while making the disposition distinction
   explicit.
+
+- Review:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418272387
+  Disposition: FIXED
+  Commit: e05daa8b6
+  Evidence: Cubic found that the strict mapping section grouped a
+  `1ba063c98` proof under the `fea3efd94` block. The artifact now keeps
+  distinct FIXED blocks per proof commit.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348262527
+  Disposition: FIXED
+  Commit: e05daa8b6
+  Evidence: Same mapping grouping fix as the Cubic top-level review above; the
+  `1ba063c98` proof is no longer mixed into the `fea3efd94` block.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348267131
+  Disposition: FIXED
+  Commit: e05daa8b6
+  Evidence: `.github/workflows/experiment-runner-dispatch.yml` no longer emits
+  any `approval_ref` prefix from manual workflow summaries. The summary writes
+  `approval_hash_prefix: none` plus `workflow_live_approval:
+  bridge_required_not_workflow_proven`, and the workflow contract test asserts
+  `approval_ref[:16]` is absent from the summary code.
 
 - Thread:
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507
