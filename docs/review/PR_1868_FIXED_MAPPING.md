@@ -110,6 +110,16 @@ Disposition: FIXED
 Commit: 88e27602abf20435088a5a7ab4b3abb81e93a189
 Evidence: Same CVE evidence line-number fix as `discussion_r3344241205`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#discussion_r3344474850 -> 34591626782d45353c46eeadfd915771696a2aa7
+Disposition: FIXED
+Commit: 34591626782d45353c46eeadfd915771696a2aa7
+Evidence: Commit `34591626782d45353c46eeadfd915771696a2aa7` renumbers the later `docs/ENGINEERING_LESSONS.md` heading from `## 22)` to `## 23)`, removing the duplicate introduced by the synthetic squash-preview loop lesson.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1868#pullrequestreview-4413684281 -> 34591626782d45353c46eeadfd915771696a2aa7
+Disposition: FIXED
+Commit: 34591626782d45353c46eeadfd915771696a2aa7
+Evidence: Commit `34591626782d45353c46eeadfd915771696a2aa7` adds the required top-level `## Merge Readiness` section to this canonical mapping artifact without claiming final CI readiness before the latest head is rechecked.
+
 ## Merge Readiness
 
 - Current-head CI must pass on the latest pushed head before merge; do not reuse
