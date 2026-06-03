@@ -109,8 +109,7 @@ Premortem:
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/exp-31f9c1047963.json`
-- Result artifact:
-  `artifacts/orchestration/experiments/results/exp-31f9c1047963.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-31f9c1047963.json`
 - Result: accepted.
 - Mode: `oracle_only_governance_reviewer`.
 - Oracles: `python3 scripts/ci/guard_actions_pin.py --root .`;
