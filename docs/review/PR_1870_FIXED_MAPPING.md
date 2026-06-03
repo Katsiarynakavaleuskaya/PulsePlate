@@ -158,6 +158,16 @@ Evidence: `scripts/ci/ci_risk_profile.py` now routes structured FitChef route/ru
   - Evidence: PR body records `operator approval: approved for PR #1870.` and
     `emergency exception: approved for PR #1870 generated OpenAPI schema mirror
     after review-fix pushed counted file total to 31.`
+- `test-main (3.11, 60)` on head `7f1c5e2f2`: FIXED in
+  `5a0f4b28d`.
+  - Finding:
+    `tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths`
+    caught local absolute paths in this review mapping artifact's validation
+    evidence.
+  - Evidence: this artifact now uses repo-relative validation commands;
+    `.venv/bin/python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths`
+    passes on head `5a0f4b28d`, and a changed-docs diff scan finds no added
+    `/Users/...` local path leakage.
 
 ## External Bot Review Status
 
