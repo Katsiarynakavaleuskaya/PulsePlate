@@ -177,6 +177,8 @@ Premortem:
 - Commit hooks for `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd` - PASS.
 - `make validate-changed` after `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd` - PASS; ran
   `tests/test_main_test_shards.py`.
+- `. .venv/bin/activate && python -m pytest -q tests/test_main_test_shards.py`
+  after `3fa7e083049724984bb9d4d58625bb598e8e955c` - PASS; 36 tests.
 - Pre-push hooks - PASS, including changed-file mypy, `pip-audit`, backend
   pre-push tests, full-repo Bandit, and docker build test.
 
@@ -204,11 +206,11 @@ disposition, and strict merge-readiness gates pass.
 
 ## Codex Security Diff Scan
 
-- Scan id: `03d4903e98dd_20260603T080909Z`
+- Scan id: `12532ddc6b93_20260603T082628Z`
 - Markdown report:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/03d4903e98dd_20260603T080909Z/report.md`
+  `/tmp/codex-security-scans/BMI-App_2025_clean/12532ddc6b93_20260603T082628Z/report.md`
 - HTML report:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/03d4903e98dd_20260603T080909Z/report.html`
+  `/tmp/codex-security-scans/BMI-App_2025_clean/12532ddc6b93_20260603T082628Z/report.html`
 - Result: no reportable findings.
 - Coverage: 3/3 diff-scoped rows have completion receipts in
   `artifacts/02_discovery/work_ledger.jsonl` inside the local scan bundle.
@@ -219,20 +221,20 @@ disposition, and strict merge-readiness gates pass.
 - Validator:
   `python3 .../codex-security/.../scripts/validate_report_format.py --report-md .../report.md`
   - PASS.
-- Goal usage: scan goal completed with `tokensUsed=266685` and
-  `timeUsedSeconds=479`.
+- Goal usage: refreshed scan goal completed with `tokensUsed=7045` and
+  `timeUsedSeconds=79`.
 
 ## PulsePlate PR Review
 
 - Context:
-  `python3 scripts/orchestration/pr_review_context.py --pr 1869 --output /tmp/pulseplate_pr_review_context_1869.json`
+  `python3 scripts/orchestration/pr_review_context.py --pr 1869 --output /tmp/pulseplate_pr_review_context_1869_refresh.json`
   - PASS.
 - Markdown dry-run report:
-  `/tmp/pulseplate_pr_review_1869.md`
+  `/tmp/pulseplate_pr_review_1869_refresh.md`
 - JSON dry-run report:
-  `/tmp/pulseplate_pr_review_1869.json`
+  `/tmp/pulseplate_pr_review_1869_refresh.json`
 - Finding: one advisory `note` from `bug-hunter` for diff size above the
-  deterministic review-risk threshold (`306` changed lines vs threshold `300`).
+  deterministic review-risk threshold (`344` changed lines vs threshold `300`).
 - Disposition: NOT-A-BUG for this CI/tooling hotfix scope. The diff is limited
   to one runner, its focused tests, and the canonical PR mapping artifact; the
   PR body and this artifact document the split rationale, current-head CI
