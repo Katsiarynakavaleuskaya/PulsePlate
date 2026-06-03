@@ -129,7 +129,13 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
     ProcessingCategory(
         category_id="pseudonymous_security_identifiers",
         title="Pseudonymous security and rate-limit identifiers",
-        endpoints=("/health", "/metrics", "/api/v1/insight", "/api/v1/pro/cbt/insight"),
+        endpoints=(
+            "/health",
+            "/metrics",
+            "/api/v1/insight",
+            "/api/v1/pro/cbt/insight",
+            "/api/v1/vip/fitchef/insight",
+        ),
         purpose="Abuse prevention, rate limiting, request correlation, and operational security",
         sensitivity="pseudonymous",
         third_party_exposure="No third-party disclosure by default",
@@ -189,7 +195,7 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
     ProcessingCategory(
         category_id="signed_audit_envelopes",
         title="Signed policy and audit envelopes",
-        endpoints=("/api/v1/pro/cbt/insight",),
+        endpoints=("/api/v1/pro/cbt/insight", "/api/v1/vip/fitchef/insight"),
         purpose="Document privileged AI actions with a tamper-evident audit trail",
         sensitivity="minimized security metadata",
         third_party_exposure="No automatic third-party disclosure by default",

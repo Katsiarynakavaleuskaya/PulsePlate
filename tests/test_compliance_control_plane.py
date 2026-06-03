@@ -57,14 +57,26 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
         for item in processing_categories
         if item["category_id"] == "ai_generated_wellness_analysis"
     )
+    pseudonymous_identifiers = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "pseudonymous_security_identifiers"
+    )
+    signed_audit_envelopes = next(
+        item for item in processing_categories if item["category_id"] == "signed_audit_envelopes"
+    )
     endpoints = cast(list[str], wellness_inputs["endpoints"])
     ai_generated_endpoints = list(cast(list[str], ai_generated_analysis["endpoints"]))
+    pseudonymous_endpoints = cast(list[str], pseudonymous_identifiers["endpoints"])
+    signed_audit_endpoints = cast(list[str], signed_audit_envelopes["endpoints"])
     llm_processing = cast(dict[str, object], payload["llm_processing"])
     llm_processing_endpoints = cast(list[str], llm_processing["endpoints"])
     assert "/api/v1/pro/meal/weekly" in endpoints
     assert "/api/v1/premium/plate" in endpoints
     assert "/api/v1/pro/fitchef/explain" in llm_processing_endpoints
     assert "/api/v1/vip/fitchef/insight" in llm_processing_endpoints
+    assert "/api/v1/vip/fitchef/insight" in pseudonymous_endpoints
+    assert "/api/v1/vip/fitchef/insight" in signed_audit_endpoints
     assert llm_processing_endpoints == ai_generated_endpoints
 
 
