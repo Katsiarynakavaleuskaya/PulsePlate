@@ -35,12 +35,19 @@ def _simple_key_func(request: Request) -> str:
 
 def _rate_limit_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return JSON 429 with i18n message."""
+    from app.contracts.vip_contract import vip_error
+
     lang_raw = request.headers.get("accept-language", "en")
     lang = normalize_lang(lang_raw)
     try:
         detail = t(lang, "rate_limit.exceeded")
     except KeyError:
         detail = "Rate limit exceeded"
+    if request.url.path == "/api/v1/vip/fitchef/insight":
+        return JSONResponse(
+            status_code=429,
+            content=vip_error(code="rate_limit_exceeded", message=detail),
+        )
     return JSONResponse(status_code=429, content={"detail": detail})
 
 
@@ -279,7 +286,13 @@ def test_fitchef_identity_loop_mapper_rate_limited_200_then_429(
 
     lang = normalize_lang("en")
     expected_detail = t(lang, "rate_limit.exceeded")
-    assert r3.json()["detail"] == expected_detail
+    assert r3.json() == {
+        "status": "error",
+        "code": "rate_limit_exceeded",
+        "message": expected_detail,
+        "detail": expected_detail,
+        "error": "rate_limit_exceeded",
+    }
 
 
 def test_creative_research_pilot_rate_limited_200_then_429() -> None:

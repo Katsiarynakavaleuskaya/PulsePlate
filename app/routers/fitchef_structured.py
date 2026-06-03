@@ -61,16 +61,7 @@ _VIP_ERROR_CODE_BY_DETAIL: dict[str, str] = {
 FITCHEF_VIP_429_RESPONSES: dict[int | str, dict[str, object]] = {
     429: {
         "description": "Rate limit exceeded or monthly quota exhausted",
-        "content": {
-            "application/json": {
-                "schema": {
-                    "oneOf": [
-                        {"$ref": "#/components/schemas/RateLimitErrorResponse"},
-                        {"$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"},
-                    ]
-                }
-            }
-        },
+        "model": FitChefVipCoachingErrorResponse,
     }
 }
 

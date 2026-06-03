@@ -9678,14 +9678,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/RateLimitErrorResponse"
-                    },
-                    {
-                      "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
                 }
               }
             },

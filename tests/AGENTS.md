@@ -130,7 +130,7 @@ A standalone new test file may not be included in diff-cover's comparison, causi
 
 **Example (PR-490B)**: Coverage-tail tests for `core/bmi/engine.py` were moved from a standalone file into `tests/test_bmi_visualization_spec.py` (already modified in the PR) to ensure diff-cover correctly detects coverage.
 
-**Tier 1 `test-pr` routing** (`.github/workflows/ci.yml`): PRs that select the `insight_ai` contract group also run FitChef structured coaching API/helper/contract tests so `coverage.xml` includes guarded LLM route and CBT helper paths. PRs that select the `route_contract_safety` contract group also run `tests/test_api.py`, `tests/test_app_endpoints_combined.py`, `tests/test_app_error_handling_combined.py`, `tests/test_app_extended_coverage.py`, `tests/test_food_search_foundation.py`, `tests/test_foods_router_coverage_boost.py`, `tests/test_metrics.py`, VIP route dependency/diff-coverage tests, plus `tests/test_judgment_core.py`, `tests/test_judgment_eval_contract.py`, and `tests/test_creative_research_eval_contract.py` so `coverage.xml` used by the `diff-coverage` job includes route/public-discovery, food/Meili/metrics paths under `app/`, and core judgment / creative-research contract paths under `core/`.
+**Tier 1 `test-pr` routing** (`.github/workflows/ci.yml`): PRs that select route or LLM contract groups must include the relevant route, OpenAPI, helper, and contract tests so `coverage.xml` used by the `diff-coverage` job covers touched backend surfaces. The canonical group membership lives in `.github/workflows/ci.yml`; keep this file focused on the invariant instead of duplicating workflow test lists.
 
 ### Reliable local diff-cover check (prevents phantom gaps)
 

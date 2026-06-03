@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class FitChefCoachingRequest(BaseModel):
@@ -111,6 +111,14 @@ class FitChefVipCoachingErrorResponse(BaseModel):
     message: str = Field(..., min_length=1)
     detail: str = Field(..., min_length=1)
     error: str = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def validate_frozen_aliases(self) -> "FitChefVipCoachingErrorResponse":
+        """Keep frozen VIP aliases stable across generated clients."""
+
+        if self.detail != self.message or self.error != self.code:
+            raise ValueError("VIP error aliases must mirror message/code")
+        return self
 
 
 class FitChefCoachingResponseBase(BaseModel):

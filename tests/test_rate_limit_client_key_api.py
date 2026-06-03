@@ -251,6 +251,25 @@ class TestRateLimitExceededJsonHandler:
         expected_detail = t(normalize_lang("es"), "rate_limit.exceeded")
         assert payload["detail"] == expected_detail
 
+    def test_vip_identity_loop_path_uses_frozen_vip_error_envelope(self) -> None:
+        request = Mock()
+        request.headers = {"accept-language": "en"}
+        request.state = SimpleNamespace()
+        request.url.path = "/api/v1/vip/fitchef/insight"
+
+        response = _rate_limit_exceeded_json_handler(request, Exception("boom"))
+
+        assert response.status_code == 429
+        payload = json.loads(response.body.decode("utf-8"))
+        expected_detail = t(normalize_lang("en"), "rate_limit.exceeded")
+        assert payload == {
+            "status": "error",
+            "code": "rate_limit_exceeded",
+            "message": expected_detail,
+            "detail": expected_detail,
+            "error": "rate_limit_exceeded",
+        }
+
     def test_fallback_message_when_translation_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

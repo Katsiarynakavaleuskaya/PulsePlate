@@ -6888,7 +6888,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RateLimitErrorResponse"] | components["schemas"]["FitChefVipCoachingErrorResponse"];
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
             /** @description Feature disabled or provider unavailable */
