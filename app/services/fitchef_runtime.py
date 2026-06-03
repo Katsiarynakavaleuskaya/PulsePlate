@@ -88,7 +88,7 @@ class _StructuredDraft(Protocol):
     @property
     def warnings(self) -> list[str]:
         """Structured safety warnings emitted by draft normalization."""
-        ...
+        ...  # pragma: no cover - Protocol marker only.
 
 
 StructuredDraftT = TypeVar("StructuredDraftT", bound=_StructuredDraft)

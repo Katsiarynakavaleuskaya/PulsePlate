@@ -103,6 +103,25 @@ class TestVIPRegistrationIdempotent:
         with pytest.raises(RuntimeError, match="Duplicate /api/v1/vip/fitchef/insight route"):
             register_vip_routes(app)
 
+    def test_router_endpoint_skips_nonmatching_routes(self) -> None:
+        """Router endpoint lookup should return None when path/method do not match."""
+
+        from fastapi import APIRouter
+
+        from app.routers.vip_registration import _router_endpoint
+
+        router = APIRouter()
+
+        @router.get("/api/v1/vip/fitchef/insight")
+        async def _wrong_method() -> dict[str, str]:
+            return {"status": "wrong-method"}
+
+        @router.post("/api/v1/vip/other")
+        async def _wrong_path() -> dict[str, str]:
+            return {"status": "wrong-path"}
+
+        assert _router_endpoint(router, "/api/v1/vip/fitchef/insight", "POST") is None
+
 
 class TestVIPShoplistPDFExport:
     """Test VIP shoplist PDF export paths (covers vip_shoplist.py:70, 74-75, 567)."""
