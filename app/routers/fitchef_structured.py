@@ -6,12 +6,15 @@ EN: Thin router for bounded structured FitChef coaching surfaces.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 import logging
 import os
 from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, Response
+from fastapi.routing import APIRoute
 
 from app.contracts.vip_contract import vip_error
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
@@ -43,20 +46,20 @@ from core.insight.fitchef_companion import has_high_distress_boundary
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["pro", "fitchef", "coaching", "structured"])
-vip_router = APIRouter(tags=["vip", "fitchef", "coaching", "structured"])
-
 FITCHEF_STRUCTURED_FLAG_ENV = "FEATURE_FITCHEF_STRUCTURED_COACH"
 FITCHEF_STRUCTURED_EXECUTION_MODE_ENV = "FITCHEF_STRUCTURED_COACH_EXECUTION_MODE"
 FitChefStructuredMode = Literal["auto-safe", "review-required", "blocked"]
 FITCHEF_HIGH_DISTRESS_BOUNDARY_DETAIL = "fitchef_high_distress_boundary"
 FITCHEF_STRUCTURED_DISABLED_DETAIL = "FEATURE_FITCHEF_STRUCTURED_COACH is disabled"
+FITCHEF_IDENTITY_LOOP_VALIDATION_DETAIL = "fitchef_identity_loop_mapper_validation_error"
 
 _VIP_ERROR_CODE_BY_DETAIL: dict[str, str] = {
     FITCHEF_STRUCTURED_DISABLED_DETAIL: "fitchef_structured_disabled",
     "LLM provider not available": "llm_provider_unavailable",
     "LLM provider returned empty response": "llm_provider_empty_response",
     "LLM provider call timed out": "llm_provider_timeout",
+    "VIP access required": "vip_access_required",
+    "API key does not have VIP tier access. Upgrade to VIP to access this feature.": "vip_access_required",
 }
 FITCHEF_VIP_429_RESPONSES: dict[int | str, dict[str, object]] = {
     429: {
@@ -64,6 +67,33 @@ FITCHEF_VIP_429_RESPONSES: dict[int | str, dict[str, object]] = {
         "model": FitChefVipCoachingErrorResponse,
     }
 }
+
+
+class FitChefVipEnvelopeRoute(APIRoute):
+    """Wrap pre-handler VIP dependency and validation failures in the frozen envelope."""
+
+    def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
+        original_route_handler = super().get_route_handler()
+
+        async def custom_route_handler(request: Request) -> Response:
+            try:
+                return await original_route_handler(request)
+            except RequestValidationError:
+                return _vip_error_response(
+                    status_code=422,
+                    detail=FITCHEF_IDENTITY_LOOP_VALIDATION_DETAIL,
+                )
+            except HTTPException as exc:
+                return _vip_error_response(status_code=exc.status_code, detail=exc.detail)
+
+        return custom_route_handler
+
+
+router = APIRouter(tags=["pro", "fitchef", "coaching", "structured"])
+vip_router = APIRouter(
+    tags=["vip", "fitchef", "coaching", "structured"],
+    route_class=FitChefVipEnvelopeRoute,
+)
 
 
 def _is_fitchef_structured_enabled() -> bool:
@@ -206,6 +236,7 @@ async def fitchef_distortion_simulator(
             "description": "LLM provider call timed out",
             "model": FitChefVipCoachingErrorResponse,
         },
+        422: {"description": "Request validation failed", "model": FitChefVipCoachingErrorResponse},
         **FITCHEF_VIP_429_RESPONSES,
     },
 )

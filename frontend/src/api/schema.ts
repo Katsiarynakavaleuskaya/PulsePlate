@@ -6873,13 +6873,13 @@ export interface operations {
                     "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Request validation failed */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
             /** @description Rate limit exceeded or monthly quota exhausted */

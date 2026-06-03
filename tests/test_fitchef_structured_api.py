@@ -364,7 +364,7 @@ class TestFitChefDistortionSimulatorRoute:
         response = self.client.get("/openapi.json")
         schema = _json_body(response)
         responses = schema["paths"][self.url]["post"]["responses"]
-        assert {"200", "400", "403", "429", "503", "504"} <= set(responses)
+        assert {"200", "400", "403", "422", "429", "503", "504"} <= set(responses)
         assert (
             responses["200"]["content"]["application/json"]["schema"]["$ref"]
             == "#/components/schemas/FitChefDistortionSimulatorResponse"
@@ -424,14 +424,52 @@ class TestFitChefIdentityLoopMapperRoute:
 
         response = self.client.post(self.url, json=self._payload())
 
-        assert response.status_code == 403
+        _assert_vip_error_envelope(
+            response,
+            expected_status=403,
+            expected_code="vip_access_required",
+            expected_message="VIP access required",
+        )
 
     def test_pro_key_returns_403(self) -> None:
         """PRO callers must not unlock the VIP identity-loop route."""
 
         response = self.client.post(self.url, json=self._payload(), headers=self.pro_headers)
 
-        assert response.status_code == 403
+        _assert_vip_error_envelope(
+            response,
+            expected_status=403,
+            expected_code="vip_access_required",
+            expected_message="API key does not have VIP tier access. Upgrade to VIP to access this feature.",
+        )
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {
+                "goal": "   ",
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "I am too inconsistent",
+                "trigger_context": "work runs late",
+            },
+            {
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "I am too inconsistent",
+                "trigger_context": "work runs late",
+            },
+        ],
+    )
+    def test_validation_failures_return_vip_envelope(self, payload: dict[str, str]) -> None:
+        """Pre-handler schema validation must preserve the frozen VIP envelope."""
+
+        response = self.client.post(self.url, json=payload, headers=self.vip_headers)
+
+        _assert_vip_error_envelope(
+            response,
+            expected_status=422,
+            expected_code="fitchef_identity_loop_mapper_validation_error",
+            expected_message="fitchef_identity_loop_mapper_validation_error",
+        )
 
     def test_feature_flag_off_returns_503(self) -> None:
         """Disabled structured feature must fail closed for the VIP route."""
@@ -565,6 +603,32 @@ class TestFitChefIdentityLoopMapperRoute:
             expected_message="fitchef_high_distress_boundary",
         )
 
+    def test_high_distress_curly_apostrophe_rejected_before_runtime(self) -> None:
+        """Mobile-keyboard apostrophes should not bypass high-distress detection."""
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run for high-distress input"),
+        )
+
+        response = self.client.post(
+            self.url,
+            json={
+                "goal": "steady dinners",
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "I don’t want to live",
+                "trigger_context": "work runs late",
+            },
+            headers=self.vip_headers,
+        )
+
+        _assert_vip_error_envelope(
+            response,
+            expected_status=400,
+            expected_code="fitchef_high_distress_boundary",
+            expected_message="fitchef_high_distress_boundary",
+        )
+
     def test_route_delegates_to_runtime_with_identity_loop_envelope(self) -> None:
         """Route should delegate to runtime with the bounded identity-loop envelope."""
 
@@ -685,6 +749,10 @@ class TestFitChefIdentityLoopMapperRoute:
         )
         assert (
             responses["429"]["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/FitChefVipCoachingErrorResponse"
+        )
+        assert (
+            responses["422"]["content"]["application/json"]["schema"]["$ref"]
             == "#/components/schemas/FitChefVipCoachingErrorResponse"
         )
         assert (

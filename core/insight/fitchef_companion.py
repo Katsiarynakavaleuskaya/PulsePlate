@@ -65,6 +65,10 @@ _HIGH_DISTRESS_HOMOGLYPHS = str.maketrans(
         "і": "i",
         "ј": "j",
         "ѕ": "s",
+        "’": "'",
+        "‘": "'",
+        "ʼ": "'",
+        "＇": "'",
     }
 )
 _DISTORTION_LABEL_ALIASES: dict[str, str] = {
