@@ -123,6 +123,21 @@ Disposition: FIXED
 Commit: f80d52b20
 Evidence: `tests/AGENTS.md` now keeps Tier 1 test routing as an invariant and defers exact membership to `.github/workflows/ci.yml`; `app/schemas/fitchef_coaching.py` enforces frozen VIP error aliases with a `model_validator`; regression coverage: `tests/test_fitchef_structured_contracts.py::test_vip_error_response_enforces_frozen_aliases`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3349178290 -> a6fac9282
+Disposition: FIXED
+Commit: a6fac9282
+Evidence: `core/insight/fitchef_companion.py` normalizes typographic apostrophes before high-distress pattern matching; regression coverage: `tests/test_fitchef_companion_helpers.py::test_identity_loop_mapper_detects_high_distress_boundary` and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_high_distress_curly_apostrophe_rejected_before_runtime`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3349178296 -> a6fac9282
+Disposition: FIXED
+Commit: a6fac9282
+Evidence: `app/routers/fitchef_structured.py` uses the route-specific `FitChefVipEnvelopeRoute` wrapper so VIP auth `HTTPException` failures raised before the handler body return the frozen VIP envelope; regression coverage: `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_missing_api_key_returns_403` and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_pro_key_returns_403`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3349178306 -> a6fac9282
+Disposition: FIXED
+Commit: a6fac9282
+Evidence: `app/routers/fitchef_structured.py` wraps pre-handler `RequestValidationError` failures in the frozen VIP envelope and documents 422 as `FitChefVipCoachingErrorResponse`; generated mirrors `frontend/src/api/openapi.json` and `frontend/src/api/schema.ts` match; regression coverage: `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_validation_failures_return_vip_envelope` and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_openapi_documents_identity_loop_mapper_contract`.
+
 ## Post-Open Role-Agent Finding Closure
 
 - `qa-engineer-agent`: FIXED in
