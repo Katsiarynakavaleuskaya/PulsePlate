@@ -140,6 +140,20 @@ DOCKER_METADATA_NODE24_SHA = "".join(
         "a2e9",
     )
 )
+TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
+    (
+        "a9c7",
+        "b0f0",
+        "6e46",
+        "1e9d",
+        "4b4d",
+        "1711",
+        "f154",
+        "ee02",
+        "4b8d",
+        "7ab8",
+    )
+)
 SETUP_GO_NODE24_SHA = "".join(
     (
         "4a36",
@@ -265,6 +279,34 @@ OLD_DOCKER_METADATA_SHA = "".join(
         "5596",
         "fe44",
         "5f3f",
+    )
+)
+OLD_TRIVY_ACTION_SHA = "".join(
+    (
+        "57a9",
+        "7c7e",
+        "7821",
+        "a577",
+        "6ceb",
+        "c9bb",
+        "87c9",
+        "84fa",
+        "69cb",
+        "a8f1",
+    )
+)
+OLD_TRIVY_INTERNAL_CACHE_NODE20_SHA = "".join(
+    (
+        "0400",
+        "d5f6",
+        "44dc",
+        "7451",
+        "3175",
+        "e3cd",
+        "8d07",
+        "132d",
+        "d486",
+        "0809",
     )
 )
 OLD_SETUP_GO_SHA = "".join(
@@ -658,6 +700,8 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         OLD_DOCKER_SETUP_BUILDX_SHA,
         OLD_DOCKER_LOGIN_SHA,
         OLD_DOCKER_METADATA_SHA,
+        OLD_TRIVY_ACTION_SHA,
+        OLD_TRIVY_INTERNAL_CACHE_NODE20_SHA,
         OLD_SETUP_GO_SHA,
         OLD_UPLOAD_ARTIFACT_SHA,
     )
@@ -709,6 +753,21 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         },
     }
     for workflow_path, expected_counts in expected_docker_lines.items():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        for expected_line, expected_count in expected_counts.items():
+            assert workflow_text.count(expected_line) == expected_count
+
+    expected_trivy_lines = {
+        BUILD_WORKFLOW_PATH: {
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
+            "# v0.36.0 / Node 24 cache path": 2,
+        },
+        TRIVY_WORKFLOW_PATH: {
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
+            "# v0.36.0 / Node 24 cache path": 1,
+        },
+    }
+    for workflow_path, expected_counts in expected_trivy_lines.items():
         workflow_text = workflow_path.read_text(encoding="utf-8")
         for expected_line, expected_count in expected_counts.items():
             assert workflow_text.count(expected_line) == expected_count
@@ -845,6 +904,97 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
             None,
             None,
+            None,
+        ),
+    ]
+
+    observed_trivy_contracts = []
+    for workflow_path in (BUILD_WORKFLOW_PATH, TRIVY_WORKFLOW_PATH):
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if isinstance(uses, str) and uses.startswith("aquasecurity/trivy-action@"):
+                observed_trivy_contracts.append(
+                    (
+                        str(workflow_path.relative_to(REPO_ROOT)),
+                        job_id,
+                        step.get("name"),
+                        uses,
+                        step.get("with"),
+                        step.get("if"),
+                        step.get("env"),
+                        step.get("continue-on-error"),
+                    )
+                )
+
+    assert observed_trivy_contracts == [
+        (
+            ".github/workflows/build.yml",
+            "security-scan",
+            "Run Trivy vulnerability scanner (filesystem scan)",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "scan-type": "fs",
+                "scan-ref": ".",
+                "cache-dir": "/tmp/trivy-cache",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+                "scanners": "vuln",
+                "format": "sarif",
+                "output": "trivy-results.sarif",
+                "severity": "CRITICAL,HIGH",
+                "limit-severities-for-sarif": True,
+                "exit-code": "1",
+                "trivyignores": ".trivyignore",
+                "version": "v0.69.3",
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Run Trivy vulnerability scanner (image scan, report-only)",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "scan-type": "image",
+                "image-ref": "${{ steps.image-ref.outputs.ref }}",
+                "cache-dir": "/tmp/trivy-cache",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+                "scanners": "vuln",
+                "format": "sarif",
+                "output": "trivy-image.sarif",
+                "severity": "CRITICAL,HIGH",
+                "limit-severities-for-sarif": True,
+                "trivyignores": ".trivyignore",
+                "exit-code": "0",
+                "version": "v0.69.3",
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
+            True,
+        ),
+        (
+            ".github/workflows/trivy.yml",
+            "build",
+            "Run Trivy vulnerability scanner",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "scan-type": "image",
+                "image-ref": "pulseplate:trivy-scan-${{ github.sha }}",
+                "cache-dir": "/tmp/trivy-cache",
+                "scanners": "vuln",
+                "timeout": "15m",
+                "format": "sarif",
+                "output": "trivy-results.sarif",
+                "severity": "CRITICAL,HIGH",
+                "limit-severities-for-sarif": True,
+                "ignore-unfixed": True,
+                "trivyignores": ".trivyignore",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+                "version": "v0.69.3",
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
             None,
         ),
     ]
