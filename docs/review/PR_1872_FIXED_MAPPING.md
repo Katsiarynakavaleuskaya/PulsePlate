@@ -23,7 +23,7 @@ gates.
   completion.
 - [ ] Post-open role-agent sequence in progress:
   `qa-engineer-agent` PASS, `bug-hunter` findings FIXED,
-  `security-auditor` pending.
+  `security-auditor` PASS.
 - [ ] Codex Security diff scan / finding discovery pending.
 - [ ] `pulseplate-pr-review` pending.
 
@@ -85,6 +85,21 @@ was added in commit `e252e8d41`.
   states that `dry_run: false` is allowed only when the reviewed approval digest
   exactly matches the requested branch and hypothesis; regression assertions
   cover this wording.
+
+### security-auditor
+
+Disposition: NOT-A-BUG
+Evidence: Security-auditor post-open pass reported no blockers at
+`24fc2a40b`; focused pytest passed with the repo `.venv`, and the pass confirmed
+ledger preflight before GitHub dispatch, hash-only audit/ledger storage,
+approval-prefix-only evidence, workflow masking before typed input use,
+unchanged Slack command surface, false authority booleans, and symlink/
+traversal/idempotency coverage.
+
+Residual risk: final ledger write remains after dispatch because the contract
+requires write-through after Slack audit finalization; pre-dispatch ledger
+writeability preflight is the mitigation and Slack still does not prove merge
+readiness.
 
 ## Local Gate Evidence
 
