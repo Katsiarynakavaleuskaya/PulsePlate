@@ -111,7 +111,7 @@ def _operator_ledger_task_packet_id() -> str:
 
     raw = os.environ.get(OPERATOR_LEDGER_TASK_PACKET_ID_ENV)
     if raw is None or raw == "":
-        return DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID
+        return cast(str, DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID)
     if raw != raw.strip() or len(raw) > 64:
         raise SlackSocketConfigError("Slack operator bridge configuration is invalid.")
     if not all(char.isalnum() or char in {"-", "_"} for char in raw):
