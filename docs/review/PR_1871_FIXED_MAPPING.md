@@ -9,7 +9,8 @@ dependencies, private-index policy, backend/OpenAPI, frontend runtime, Docker
 image behavior, release logic, permissions, secrets, cache policy, or
 operator-override behavior.
 **Primary implementation commits:** `ef1a745654e89d7a14f676e70001c010878eff4a`,
-`e556119b444742135cced7793b0da38aaa8f9353`
+`e556119b444742135cced7793b0da38aaa8f9353`,
+`c6aabad09ab876bb13b7f2700363166ee386880c`
 
 ## Discussion Thread Pass
 
@@ -37,6 +38,11 @@ Evidence: Initial implementation replaced scoped checkout and Docker JavaScript 
 Disposition: FIXED
 Commit: e556119b444742135cced7793b0da38aaa8f9353
 Evidence: Post-open QA found remaining direct Node20 `actions/setup-go` and `actions/upload-artifact` pins in the touched workflow surface. The commit updates those refs to verified Node24-compatible full commit SHAs and extends `tests/test_ci_workflow_pr_size_governance_contract.py` so the old SHAs cannot be reintroduced.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26880958762/job/79280576044 -> c6aabad09ab876bb13b7f2700363166ee386880c
+Disposition: FIXED
+Commit: c6aabad09ab876bb13b7f2700363166ee386880c
+Evidence: Current-head Greenlight failed because `greenlight@v0.1.0` requires Go `>=1.24.0` while the workflow still used `go-version: "1.22"` with `GOTOOLCHAIN=local`. The commit updates only `.github/workflows/greenlight-ios.yml` to Go `1.24` and updates the workflow guard snapshot.
 
 ## Dependency Scope / Private-Index Notes
 
@@ -87,6 +93,16 @@ Evidence:
 - `tests/test_ci_workflow_pr_size_governance_contract.py` rejects the retired
   setup-go/upload-artifact Node20 SHAs and snapshots the setup/upload step
   contracts for the touched workflows.
+
+Disposition: FIXED
+Commit: `c6aabad09ab876bb13b7f2700363166ee386880c`
+Evidence:
+
+- `.github/workflows/greenlight-ios.yml` now uses `go-version: "1.24"` for the
+  Greenlight preflight, matching the current-head log requirement that
+  `greenlight@v0.1.0` requires Go `>=1.24.0`.
+- `tests/test_ci_workflow_pr_size_governance_contract.py` snapshots the
+  Greenlight setup-go contract with Go `1.24`.
 
 ## Role-Agent / Premortem Pass
 
@@ -189,6 +205,10 @@ Premortem:
 
 - `make validate-changed` - PASS after the mapping/backlog edit; selected
   `tests/test_ci_workflow_pr_size_governance_contract.py`, 21 tests.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py`
+  - PASS after the Greenlight Go `1.24` fix; 21 tests.
+- `python3 scripts/ci/guard_actions_pin.py --root .` - PASS after the
+  Greenlight Go `1.24` fix.
 
 Pending after this mapping commit:
 
@@ -198,7 +218,7 @@ Pending after this mapping commit:
 ## Codex Security Evidence
 
 - Scan directory:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/e556119b4_20260603T105945Z`
+  `/tmp/codex-security-scans/BMI-App_2025_clean/c6aabad09_20260603T111626Z`
 - Mode: diff-scoped security scan / finding discovery for PR #1871 local head
   plus the prepared mapping artifact.
 - Result: no findings.
