@@ -26,10 +26,10 @@ Current post-open snapshot:
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1875#discussion_r3351709313
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1875#discussion_r3351709313 -> ff8180e702a39012bb94d5e916312245fca38a53
 Disposition: FIXED
-Commit: pending post-comment fix commit
-Evidence: pending post-comment fix commit updates this artifact's Experiment Runner attribution evidence to identify the actual PR branch commits that include the canonical trailer and to distinguish branch-history proof from pre-merge synthetic/squash-preview commit ids.
+Commit: ff8180e702a39012bb94d5e916312245fca38a53
+Evidence: The post-comment fix commit updates this artifact's Experiment Runner attribution evidence to identify the actual PR branch commits that include the canonical trailer and to distinguish branch-history proof from pre-merge synthetic/squash-preview commit ids.
 
 ## Dependency Scope / Private-Index Notes
 
