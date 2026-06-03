@@ -683,6 +683,10 @@ class TestFitChefIdentityLoopMapperRoute:
             responses["400"]["content"]["application/json"]["schema"]["$ref"]
             == "#/components/schemas/FitChefVipCoachingErrorResponse"
         )
+        assert responses["429"]["content"]["application/json"]["schema"]["oneOf"] == [
+            {"$ref": "#/components/schemas/RateLimitErrorResponse"},
+            {"$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"},
+        ]
         assert (
             responses["503"]["content"]["application/json"]["schema"]["$ref"]
             == "#/components/schemas/FitChefVipCoachingErrorResponse"

@@ -6882,13 +6882,13 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Rate limit exceeded */
+            /** @description Rate limit exceeded or monthly quota exhausted */
             429: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                    "application/json": components["schemas"]["RateLimitErrorResponse"] | components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
             /** @description Feature disabled or provider unavailable */

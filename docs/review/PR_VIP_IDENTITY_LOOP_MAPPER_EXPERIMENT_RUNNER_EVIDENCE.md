@@ -59,8 +59,9 @@ artifacts.
 
 ## Attribution Scope
 
-Because this accepted oracle result materially shaped the commit decision and
-review evidence, the branch commit must include:
+Because this accepted oracle result materially shaped the implementation commit
+decision and review evidence, the implementation commit
+`0220fd4cef9f2a6eea61194ba0c483a8f9a3dfe1` includes:
 
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 

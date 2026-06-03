@@ -58,6 +58,21 @@ _VIP_ERROR_CODE_BY_DETAIL: dict[str, str] = {
     "LLM provider returned empty response": "llm_provider_empty_response",
     "LLM provider call timed out": "llm_provider_timeout",
 }
+FITCHEF_VIP_429_RESPONSES: dict[int | str, dict[str, object]] = {
+    429: {
+        "description": "Rate limit exceeded or monthly quota exhausted",
+        "content": {
+            "application/json": {
+                "schema": {
+                    "oneOf": [
+                        {"$ref": "#/components/schemas/RateLimitErrorResponse"},
+                        {"$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"},
+                    ]
+                }
+            }
+        },
+    }
+}
 
 
 def _is_fitchef_structured_enabled() -> bool:
@@ -200,7 +215,7 @@ async def fitchef_distortion_simulator(
             "description": "LLM provider call timed out",
             "model": FitChefVipCoachingErrorResponse,
         },
-        **RATE_LIMIT_429_RESPONSES,
+        **FITCHEF_VIP_429_RESPONSES,
     },
 )
 @limit_if_available(RATE_LIMIT_INSIGHT)

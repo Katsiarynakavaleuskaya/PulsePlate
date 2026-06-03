@@ -9678,11 +9678,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RateLimitErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Rate limit exceeded"
+            "description": "Rate limit exceeded or monthly quota exhausted"
           },
           "503": {
             "content": {
