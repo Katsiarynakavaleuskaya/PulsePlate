@@ -97,6 +97,22 @@ Evidence: `app/routers/fitchef_structured.py` wraps VIP structured route-level/r
 Disposition: FIXED
 Commit: b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
 Evidence: `scripts/ci/ci_risk_profile.py` now routes structured FitChef route/runtime/schema/test changes through `insight_ai`; regression coverage: `tests/test_ci_risk_profile.py::test_fitchef_structured_source_change_hits_insight_openapi_and_route_groups`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883057
+Disposition: NOT-A-BUG
+Evidence: The mapped fix SHAs remain reachable in the current branch history;
+`git merge-base --is-ancestor a451eb9e741d7a6623f556d5fb93de9ed09a45ce HEAD`,
+`git merge-base --is-ancestor 0220fd4cef9f2a6eea61194ba0c483a8f9a3dfe1 HEAD`,
+and
+`git merge-base --is-ancestor b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6 HEAD`
+all pass on head `3e38d7e70`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883068 -> d079555ca
+Disposition: FIXED
+Commit: d079555ca
+Evidence: `docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_EXPERIMENT_RUNNER_EVIDENCE.md` now scopes the co-author requirement to implementation commit `0220fd4cef9f2a6eea61194ba0c483a8f9a3dfe1`, and commit `d079555ca` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883071 -> d079555ca
+Disposition: FIXED
+Commit: d079555ca
+Evidence: `app/routers/fitchef_structured.py` documents VIP 429 as a `oneOf` rate-limit detail or `FitChefVipCoachingErrorResponse` quota envelope; generated mirrors `frontend/src/api/openapi.json` and `frontend/src/api/schema.ts` match; regression coverage: `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_openapi_documents_identity_loop_mapper_contract` and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_quota_exhaustion_returns_429_before_provider_call`.
 
 ## Post-Open Role-Agent Finding Closure
 
@@ -176,7 +192,8 @@ Evidence: `scripts/ci/ci_risk_profile.py` now routes structured FitChef route/ru
 - Sourcery: NOT-A-BUG for code scope; review was rate-limited and emitted no
   actionable code finding.
 - Cubic: PASS / no issues found on remote head `bc39758c29881e4410f5aa63507f1ada9be604f8`.
-- Codex connector: six actionable threads were FIXED and mapped above.
+- Codex connector: eight actionable threads were FIXED and mapped above; one
+  mapping-reachability thread is NOT-A-BUG with evidence.
 
 ## Local Validation Evidence
 
