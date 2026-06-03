@@ -48,6 +48,12 @@ Evidence: `git cat-file -t 4dfe4e835ef761f4ebb855b8ae75be16809f5f6b` returned `1
 Reason: The connector asked for proof against an absent synthetic review SHA. The canonical proof target remains branch history plus the fixed mapping artifact, not review-tool synthetic objects that cannot be checked out or validated locally.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351984927
 
+Disposition: NOT-A-BUG
+Evidence: `git cat-file -t 4799f5b09120a8891f0b53e0c55f6489aa20217d` returned `128`, confirming the reviewed SHA cited by the connector is not a local branch-history object. `git rev-parse HEAD` returned `2345e675d012bec455c4135be0e1f4dc81588584` before this disposition update; `git merge-base --is-ancestor e5b88d998d750347a6e27e660c8ed1da52719580 HEAD` and `git merge-base --is-ancestor 5738f67e5d503e9a86eee1504dd5db63d997366f HEAD` both returned `0`. `git show -s --format=%B HEAD` includes the governed Experiment Runner co-author trailer.
+Reason: The connector is validating against an absent review-tool SHA instead of the PR branch history. The canonical proof targets remain the reachable implementation/mapping commits and this fixed-mapping artifact; absent synthetic review objects are not valid branch-history proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3352079812
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3352079815
+
 Disposition: FIXED
 Commit: 2d2c62275a66990e9d3ac1e092917d812a11e5b8
 Evidence: `docs/review/PR_1873_FIXED_MAPPING.md` remaps the placeholder-fix disposition from the intermediate commit to reachable branch-history commit `5738f67e5d503e9a86eee1504dd5db63d997366f`.
@@ -149,7 +155,7 @@ Evidence: The Experiment Runner evidence artifact was accepted before PR open, t
 ## Merge Readiness
 
 - [x] All GitHub review threads resolved with dispositions recorded above
-- [ ] All required current-head CI checks passing
+- [x] All required current-head CI checks passing
 - [x] Security scan completed with no blockers
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
