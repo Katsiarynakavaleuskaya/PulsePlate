@@ -44,6 +44,11 @@ Disposition: FIXED
 Commit: a6fb3ec5d92294e26a9560ba0ac72f708fe3e23b
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` adds sanitized JSON/Markdown/HTML operator observability report-set generation, safe Experiment Runner result metadata projection, path traversal and symlink rejection, malformed/missing artifact degradation, and deterministic aggregation; `tests/test_experiment_operator_ledger.py` covers strict schema, redaction probes, path safety, malformed artifacts, latest-status selection, deterministic ordering, idempotent report generation, HTML escaping, and source artifact non-mutation; `tests/test_experiment_slack_socket_bridge.py` and `docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md` preserve the unchanged Slack command/authority boundary.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#pullrequestreview-4422517035 -> 98ef819288ee8662a8b039402d2fac9c57b939b7
+Disposition: FIXED
+Commit: 98ef819288ee8662a8b039402d2fac9c57b939b7
+Evidence: Cubic identified that malformed result artifacts could still crash report generation when `validate_experiment_result(...)` raised non-`ValueError` validation exceptions. `scripts/orchestration/experiment_operator_ledger.py` now catches validator type/coercion errors as invalid local result metadata, and `tests/test_experiment_operator_ledger.py` covers a malformed `returncode` object that previously could raise `TypeError` but now degrades to sanitized `artifact_status=invalid`.
+
 ## Mapping Update Protocol
 
 Actionable GitHub review threads and top-level review comments must be recorded
@@ -155,6 +160,7 @@ Evidence: `pulseplate-pr-review` dry-run emitted one advisory `large-diff-risk` 
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python3 -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after post-open QA and bug-hunter fixes.
+- repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Cubic-identified malformed-artifact fail-closed fix.
 - `git diff --check` - PASS.
 - `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed; PASS again on final head.
 - `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head.
