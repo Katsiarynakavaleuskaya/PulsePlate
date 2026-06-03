@@ -3843,7 +3843,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR #1870 (VIP Identity Loop Mapper runtime) -> PR #1873 (Signal vs Noise report lane) -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR #1870 (VIP Identity Loop Mapper runtime) -> PR #1873 (Signal vs Noise report/content lane) -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
   - Status: 🚧 In progress
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
