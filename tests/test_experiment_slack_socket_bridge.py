@@ -1774,6 +1774,11 @@ def test_recent_audit_rate_limit_blocks_before_dispatch(
         )
 
     assert calls == []
+    records = _ledger_records(audit_dir)
+    assert len(records) == 1
+    assert records[0].payload["status"] == "failed"
+    assert records[0].payload["failure_class"] == "rate_limited"
+    assert records[0].payload["dispatch_mode"] == "execute"
 
 
 def test_atomic_rate_limit_claim_blocks_concurrent_unique_events(
