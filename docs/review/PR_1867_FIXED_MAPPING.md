@@ -139,6 +139,11 @@ Disposition: FIXED
 Commit: 377a17a542c5ff5a7e0a82711c6a653065d88245
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now derives persisted `content_hash` with bounded PBKDF2-HMAC instead of BLAKE2b/direct SHA-256 over event payloads while keeping the expensive idempotency KDF separate; focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344519408 -> 28215f57fa23aabd3228d0de9f467ca8f5f1187a
+Disposition: FIXED
+Commit: 28215f57fa23aabd3228d0de9f467ca8f5f1187a
+Evidence: `tests/test_experiment_operator_ledger.py` now derives the default `_event()` timestamp from current UTC time instead of a fixed 2026-06-02 value, preventing retention-sensitive tests from becoming date-flaky after the default 30-day retention window; focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
 ## Implementation Evidence
 
 Security-auditor post-open ledger-integrity finding:
@@ -254,6 +259,10 @@ Premortem:
 - `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after CodeQL content-hash KDF fix.
 - `make validate-changed` - PASS after CodeQL content-hash KDF fix.
 - `pre-commit run --all-files` - PASS after CodeQL content-hash KDF fix.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py` - PASS after operator-ledger fixture-date stabilization.
+- `repo-resolved python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_slack_kpp_renderer.py tests/test_experiment_notify.py` - PASS after operator-ledger fixture-date stabilization.
+- `make validate-changed` - PASS after operator-ledger fixture-date stabilization.
+- `pre-commit run --all-files` - PASS after operator-ledger fixture-date stabilization.
 - `git push -u origin codex/experiment-runner-operator-plane` pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full Bandit, and Docker build test.
 - Codex Security report-format validation command against the local markdown report - PASS.
 - Codex Security HTML render command against the local markdown report - PASS.
