@@ -100,22 +100,28 @@ Evidence: `scripts/ci/ci_risk_profile.py` now routes structured FitChef route/ru
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883057
 Disposition: NOT-A-BUG
-Evidence: The mapped fix commits remain reachable in the current branch
-history; local `git merge-base --is-ancestor <mapped-fix-sha> HEAD` checks
-passed for representative implementation, runtime-review, and bootstrap-review
-proof commits on head `3e38d7e70`.
-Reason: The comment was based on a synthetic squashed review head, while the
-actual PR branch keeps the mapped proof commits in reachable history.
+Evidence: Local ancestry checks confirmed representative implementation, runtime-review, and bootstrap-review proof commits are reachable from head `3e38d7e70`.
+Reason: The comment was based on a synthetic squashed review head; the actual PR branch keeps the mapped proof commits in reachable history.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883068 -> d079555ca
 Disposition: FIXED
 Commit: d079555ca
 Evidence: `docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_EXPERIMENT_RUNNER_EVIDENCE.md` now scopes the co-author requirement to implementation commit `0220fd4cef9f2a6eea61194ba0c483a8f9a3dfe1`, and commit `d079555ca` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883071 -> d079555ca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348883071 -> f80d52b20
 Disposition: FIXED
-Commit: d079555ca
-Evidence: `app/routers/fitchef_structured.py` documents VIP 429 as a `oneOf` rate-limit detail or `FitChefVipCoachingErrorResponse` quota envelope; generated mirrors `frontend/src/api/openapi.json` and `frontend/src/api/schema.ts` match; regression coverage: `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_openapi_documents_identity_loop_mapper_contract` and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_quota_exhaustion_returns_429_before_provider_call`.
+Commit: f80d52b20
+Evidence: `app/security/rate_limit.py` returns the frozen VIP error envelope for `/api/v1/vip/fitchef/insight` rate-limit 429s, `app/routers/fitchef_structured.py` documents the VIP 429 model-only contract, and generated mirrors `frontend/src/api/openapi.json` plus `frontend/src/api/schema.ts` match; regression coverage: `tests/test_rate_limit_llm_and_exports_api.py::test_fitchef_identity_loop_mapper_rate_limited_200_then_429`, `tests/test_rate_limit_client_key_api.py::TestRateLimitExceededJsonHandler::test_vip_identity_loop_path_uses_frozen_vip_error_envelope`, and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_openapi_documents_identity_loop_mapper_contract`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3349058949 -> f80d52b20
+Disposition: FIXED
+Commit: f80d52b20
+Evidence: `app/security/rate_limit.py` now returns `vip_error(code="rate_limit_exceeded", ...)` for the VIP identity-loop path before the generic detail envelope, and the route/OpenAPI contract exposes `FitChefVipCoachingErrorResponse` for 429; regression coverage: `tests/test_rate_limit_llm_and_exports_api.py::test_fitchef_identity_loop_mapper_rate_limited_200_then_429` and `tests/test_rate_limit_client_key_api.py::TestRateLimitExceededJsonHandler::test_vip_identity_loop_path_uses_frozen_vip_error_envelope`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#pullrequestreview-4419217737 -> f80d52b20
+Disposition: FIXED
+Commit: f80d52b20
+Evidence: `tests/AGENTS.md` now keeps Tier 1 test routing as an invariant and defers exact membership to `.github/workflows/ci.yml`; `app/schemas/fitchef_coaching.py` enforces frozen VIP error aliases with a `model_validator`; regression coverage: `tests/test_fitchef_structured_contracts.py::test_vip_error_response_enforces_frozen_aliases`.
 
 ## Post-Open Role-Agent Finding Closure
 
@@ -190,12 +196,13 @@ Evidence: `app/routers/fitchef_structured.py` documents VIP 429 as a `oneOf` rat
 
 ## External Bot Review Status
 
-- CodeRabbit: NOT-A-BUG for code scope; review was rate-limited and emitted no
-  initial code finding. Later type-hint finding FIXED and mapped above.
+- CodeRabbit: latest actionable review findings are FIXED and mapped above;
+  current status is credit-limited, so no additional CodeRabbit pass can be
+  claimed from that status alone.
 - Sourcery: NOT-A-BUG for code scope; review was rate-limited and emitted no
   actionable code finding.
 - Cubic: PASS / no issues found on remote head `bc39758c29881e4410f5aa63507f1ada9be604f8`.
-- Codex connector: eight actionable threads were FIXED and mapped above; one
+- Codex connector: actionable threads were FIXED and mapped above; one
   mapping-reachability thread is NOT-A-BUG with evidence.
 
 ## Local Validation Evidence
