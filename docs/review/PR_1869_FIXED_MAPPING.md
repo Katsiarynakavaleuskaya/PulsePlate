@@ -6,7 +6,7 @@
 isolation. The PR changes only the main-suite shard runner and its focused
 tests; it does not change Experiment Runner product behavior, workflows,
 coverage policy, JUnit output, shard parallelism, or application runtime code.
-**Primary commits:** `d3a9fc53b6fb4f2d3cb4916b8fa3ed8b3e51426b`,
+**Primary commits:** `9cc75668d65b6d0bb01b8c3fa662c47145828774`,
 `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd`
 
 ## Discussion Thread Pass
@@ -17,19 +17,19 @@ coverage policy, JUnit output, shard parallelism, or application runtime code.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3346781565 -> cf09dc6a9f1476cafc71482556e909e5c3964ae1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3346781565 -> 737469a05ba95320806fea291c78a4ea8253814d
 Disposition: FIXED
-Commit: cf09dc6a9f1476cafc71482556e909e5c3964ae1
+Commit: 737469a05ba95320806fea291c78a4ea8253814d
 Evidence: `docs/review/PR_1869_FIXED_MAPPING.md` replaces the PR-level-only fixed mapping with per-review-thread entries, including this CodeRabbit thread URL, disposition, post-comment commit SHA proof, and evidence text.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3346782834 -> cf09dc6a9f1476cafc71482556e909e5c3964ae1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3346782834 -> 737469a05ba95320806fea291c78a4ea8253814d
 Disposition: FIXED
-Commit: cf09dc6a9f1476cafc71482556e909e5c3964ae1
+Commit: 737469a05ba95320806fea291c78a4ea8253814d
 Evidence: `docs/review/PR_1869_FIXED_MAPPING.md` now records the final branch commit `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd` for the bug-hunter final-path collision fix and keeps implementation evidence tied to branch commits rather than a synthetic reviewed commit surface.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869 -> d3a9fc53b6fb4f2d3cb4916b8fa3ed8b3e51426b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869 -> 9cc75668d65b6d0bb01b8c3fa662c47145828774
 Disposition: FIXED
-Commit: d3a9fc53b6fb4f2d3cb4916b8fa3ed8b3e51426b
+Commit: 9cc75668d65b6d0bb01b8c3fa662c47145828774
 Evidence: Initial implementation passed a deterministic external `--basetemp` to each child pytest shard, rejected repo-local configured temp roots, created the basetemp parent before `pytest.main(...)`, and preserved existing coverage/JUnit behavior; focused tests covered external unique basetemps, repo-local temp fallback, child pytest args, and parent creation.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869 -> f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd
@@ -40,7 +40,7 @@ Evidence: `scripts/ci/run_main_test_shards.py` now rechecks the final computed b
 ## Implementation Evidence
 
 Disposition: FIXED
-Commit: `d3a9fc53b6fb4f2d3cb4916b8fa3ed8b3e51426b`
+Commit: `9cc75668d65b6d0bb01b8c3fa662c47145828774`
 Evidence:
 
 - `scripts/ci/run_main_test_shards.py` adds `external_temp_root(...)` to keep
@@ -123,7 +123,7 @@ Premortem:
 - `mutated_paths=[]`
 - `shared_tree_untouched=true`
 - `coauthor_required=true`
-- Commit trailer used on `d3a9fc53b6fb4f2d3cb4916b8fa3ed8b3e51426b`:
+- Commit trailer used on `9cc75668d65b6d0bb01b8c3fa662c47145828774`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 - Packet: `artifacts/orchestration/experiments/exp-aa444fd80390.json`
@@ -156,7 +156,7 @@ Premortem:
 - `pre-commit run --all-files` - PASS.
 - `make validate-changed` after implementation commit - PASS; ran
   `tests/test_main_test_shards.py`.
-- Commit hooks for `d3a9fc53b6fb4f2d3cb4916b8fa3ed8b3e51426b` - PASS.
+- Commit hooks for `9cc75668d65b6d0bb01b8c3fa662c47145828774` - PASS.
 - Commit hooks for `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd` - PASS.
 - `make validate-changed` after `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd` - PASS; ran
   `tests/test_main_test_shards.py`.
