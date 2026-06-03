@@ -33,10 +33,20 @@ Evidence: `git show -s --format=%B e5b88d998d750347a6e27e660c8ed1da52719580` inc
 Reason: The review comment checked a synthetic or stale commit reference, while the actual branch-history implementation commit carrying the Experiment Runner-shaped docs change already has the required trailer. Later review-disposition commits are not the implementation commit that introduced the accepted Experiment Runner evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351495172
 
+Disposition: NOT-A-BUG
+Evidence: `git cat-file -t 4dfe4e835ef761f4ebb855b8ae75be16809f5f6b` returned `128`, confirming the fresh reviewed SHA cited by the connector is not a local branch-history object. `git rev-parse HEAD` returned `62daafc7456e034f7f00b12a64f130b8ed128300` before this disposition update, and the actual implementation commit `e5b88d998d750347a6e27e660c8ed1da52719580` remains in the branch history with the governed Experiment Runner trailer.
+Reason: The connector rechecked a synthetic review SHA rather than the PR branch history. Repo merge-readiness/disposition proof is anchored to the canonical branch mapping artifact and reachable branch commits; absent synthetic review objects are not valid proof targets.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351984923
+
 Disposition: FIXED
 Commit: 5738f67e5d503e9a86eee1504dd5db63d997366f
 Evidence: `docs/review/PR_1873_FIXED_MAPPING.md` records the branch-history trailer proof and the absent local synthetic SHA object; `docs/roadmap/BACKLOG_LEDGER.md` also tightens the Signal vs Noise target to the report/content contract lane.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351592540 -> 5738f67e5d503e9a86eee1504dd5db63d997366f
+
+Disposition: NOT-A-BUG
+Evidence: `git cat-file -t 4dfe4e835ef761f4ebb855b8ae75be16809f5f6b` returned `128`, confirming the fresh reviewed SHA cited by the connector is not a local branch-history object. The original placeholder fix is present in the PR branch history and `docs/roadmap/BACKLOG_LEDGER.md` no longer contains the stale `PR-TBD-SIGNAL-NOISE-REPORT-LANE` target.
+Reason: The connector asked for proof against an absent synthetic review SHA. The canonical proof target remains branch history plus the fixed mapping artifact, not review-tool synthetic objects that cannot be checked out or validated locally.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351984927
 
 Disposition: FIXED
 Commit: 2d2c62275a66990e9d3ac1e092917d812a11e5b8
