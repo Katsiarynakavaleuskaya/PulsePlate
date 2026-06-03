@@ -54,9 +54,9 @@ Disposition: FIXED
 Commit: 98ef819288ee8662a8b039402d2fac9c57b939b7
 Evidence: Cubic identified that malformed result artifacts could still crash report generation when `validate_experiment_result(...)` raised non-`ValueError` validation exceptions. `scripts/orchestration/experiment_operator_ledger.py` now catches validator type/coercion errors as invalid local result metadata, and `tests/test_experiment_operator_ledger.py` covers a malformed `returncode` object that previously could raise `TypeError` but now degrades to sanitized `artifact_status=invalid`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3351603200 -> b557922c4cd4b243d82fcb5663b6293cc840c19b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3351603200 -> b557922c43609174096aa4ba62dd03eb4374059d
 Disposition: FIXED
-Commit: b557922c4cd4b243d82fcb5663b6293cc840c19b
+Commit: b557922c43609174096aa4ba62dd03eb4374059d
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now reports `experiment_id_hash` instead of raw Experiment Runner `experiment_id` in safe result metadata, and `tests/test_experiment_operator_ledger.py` covers a Slack-shaped `C0SECRETID` result id that is absent from JSON/Markdown/HTML output while only its hash prefix is rendered.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3351603207 -> 98ef819288ee8662a8b039402d2fac9c57b939b7
@@ -64,14 +64,14 @@ Disposition: FIXED
 Commit: 98ef819288ee8662a8b039402d2fac9c57b939b7
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` catches validator `TypeError` and `OverflowError` as invalid local result metadata, and `tests/test_experiment_operator_ledger.py` reaches the validator path with a matching artifact hash before proving malformed `oracle_results[].returncode` degrades to sanitized `artifact_status=invalid`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3351603215 -> b557922c4cd4b243d82fcb5663b6293cc840c19b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3351603215 -> b557922c43609174096aa4ba62dd03eb4374059d
 Disposition: FIXED
-Commit: b557922c4cd4b243d82fcb5663b6293cc840c19b
+Commit: b557922c43609174096aa4ba62dd03eb4374059d
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` adds `dispatch_mode`, `coauthor_required`, `coauthor_decision`, and `human_review_outcome` to the sanitized `latest` report projection and JSON/Markdown/HTML renderers; `tests/test_experiment_operator_ledger.py` covers an approved execute dispatch latest event with required co-author attribution state.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3351823142 -> b557922c4cd4b243d82fcb5663b6293cc840c19b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3351823142 -> b557922c43609174096aa4ba62dd03eb4374059d
 Disposition: FIXED
-Commit: b557922c4cd4b243d82fcb5663b6293cc840c19b
+Commit: b557922c43609174096aa4ba62dd03eb4374059d
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` compares each result artifact file SHA-256 to the ledger `oracle_result_hash` before projecting metadata and fails closed to `artifact_status=invalid` on mismatch or missing hash; `tests/test_experiment_operator_ledger.py` adds a mismatched-hash regression and updates valid metadata fixtures to use the real artifact hash.
 
 ## Mapping Update Protocol
