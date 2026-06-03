@@ -5398,8 +5398,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (CI hygiene / advisory reliability)
-  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); current replacement: PR #1871 (`codex/gha-node24-action-runtime-cleanup`, direct action-runtime cleanup)
-  - Status: 🚧 In progress / direct Node 24 action-runtime cleanup plus Trivy composite cache-path remediation; cache-warning audit remains open pending fresh representative PR evidence
+  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); replacement sequence: PR #1871 (`codex/gha-node24-action-runtime-cleanup`, direct action-runtime cleanup) plus `codex/node24-runtime-baseline` (operational runtime baseline, PR pending)
+  - Status: 🚧 In progress / direct Node 24 action-runtime cleanup plus operational Node 24 baseline migration; cache-warning audit remains open pending fresh representative PR evidence
   - Area: ci / github-actions / cache
   - Finding Type: advisory workflow debt
   - Reason (EN): The #1204 merge cycle completed successfully, but workflows still required follow-up cleanup around Node-runtime drift and transient GHA cache warnings (`Cache service responded with 400`, `CreateCacheEntry ... 409 Conflict`, cache save/restore service noise). PR #1209 intentionally delivers the narrower Node 22 frontend/OpenAPI-sync stopgap so current-head CI stays stable while the broader Node 24/cache hygiene lane remains open until all representative workflows are re-audited.
@@ -5419,6 +5419,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Scoped direct Node 20 JavaScript action pins in representative checkout, Docker, setup-go, and upload-artifact workflows are replaced with verified Node 24 commit SHAs plus guard coverage
     - Current-head Docker/security-scan logs showed a remaining Node20 warning from nested `actions/cache@0400d5...` inside `aquasecurity/trivy-action@57a97...`
     - PR #1871 updates the pinned Trivy wrapper action to `ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path` and guards the old wrapper/cache warning source
+    - Current `codex/node24-runtime-baseline` lane moves `.nvmrc`, frontend engines, devcontainer, and frontend Caddy builder to Node 24.16.0, normalizes remaining active `upload-artifact` / actionlint checkout pins, and adds positive active-workflow enumeration guards
     - Broader cache-warning DoD remains open until fresh current-head PR logs prove warning cleanup and remaining cache-warning disposition
 
 <a id="ledger-p2-ios-agents-only-testing-centralize"></a>

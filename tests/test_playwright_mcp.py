@@ -22,7 +22,7 @@ def _configure_fake_repo_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     wrapper_path.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
     browser_cache_dir.mkdir(parents=True)
     nvmrc_path = tmp_path / ".nvmrc"
-    nvmrc_path.write_text("22.22.1\n", encoding="utf-8")
+    nvmrc_path.write_text("24.16.0\n", encoding="utf-8")
 
     monkeypatch.setattr(playwright_mcp, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(playwright_mcp, "FRONTEND_DIR", frontend_dir)
@@ -93,7 +93,7 @@ def test_doctor_fails_on_exact_node_version_mismatch(
 
     node_result = next(result for result in results if result.name == "node-version")
     assert node_result.ok is False
-    assert "22.22.1" in node_result.detail
+    assert "24.16.0" in node_result.detail
     assert "25.6.1" in node_result.detail
 
 
@@ -102,7 +102,7 @@ def test_doctor_passes_when_repo_prerequisites_are_present(
 ) -> None:
     _configure_fake_repo_paths(tmp_path, monkeypatch)
     monkeypatch.setattr(playwright_mcp, "_resolve_binary", lambda name: f"/usr/local/bin/{name}")
-    monkeypatch.setattr(playwright_mcp, "_current_node_version", lambda node_bin: "22.22.1")
+    monkeypatch.setattr(playwright_mcp, "_current_node_version", lambda node_bin: "24.16.0")
 
     results = playwright_mcp._build_doctor_report()
 
@@ -114,15 +114,15 @@ def test_doctor_accepts_nvmrc_version_with_v_prefix(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _configure_fake_repo_paths(tmp_path, monkeypatch)
-    playwright_mcp.NVMRC_PATH.write_text("v22.22.1\n", encoding="utf-8")
+    playwright_mcp.NVMRC_PATH.write_text("v24.16.0\n", encoding="utf-8")
     monkeypatch.setattr(playwright_mcp, "_resolve_binary", lambda name: f"/usr/local/bin/{name}")
-    monkeypatch.setattr(playwright_mcp, "_current_node_version", lambda node_bin: "22.22.1")
+    monkeypatch.setattr(playwright_mcp, "_current_node_version", lambda node_bin: "24.16.0")
 
     results = playwright_mcp._build_doctor_report()
 
     node_result = next(result for result in results if result.name == "node-version")
     assert node_result.ok is True
-    assert "22.22.1" in node_result.detail
+    assert "24.16.0" in node_result.detail
 
 
 def test_doctor_reports_missing_nvmrc_without_hiding_other_failures(
@@ -233,8 +233,8 @@ def test_install_browser_refuses_when_toolchain_is_not_ready(
             playwright_mcp.CheckResult(
                 name="node-version",
                 ok=False,
-                detail="Repo baseline is Node 22.22.1, current runtime is 25.6.1.",
-                remediation="Switch to Node 22.22.1.",
+                detail="Repo baseline is Node 24.16.0, current runtime is 25.6.1.",
+                remediation="Switch to Node 24.16.0.",
             )
         ],
     )

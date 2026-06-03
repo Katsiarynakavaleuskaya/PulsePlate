@@ -93,14 +93,14 @@ def test_devcontainer_json_configuration() -> None:
     assert data["postCreateCommand"] == "make devcontainer-bootstrap"
 
 
-def test_devcontainer_json_node_22_feature() -> None:
-    """devcontainer.json must include Node 22 feature to match .nvmrc."""
+def test_devcontainer_json_node_24_feature() -> None:
+    """devcontainer.json must include Node 24 feature to match .nvmrc."""
     data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
 
     node_feature = data.get("features", {}).get("ghcr.io/devcontainers/features/node:1", {})
     assert (
-        node_feature.get("version") == "22"
-    ), "devcontainer.json must pin Node feature version to 22 (matching .nvmrc)"
+        node_feature.get("version") == "24"
+    ), "devcontainer.json must pin Node feature version to 24 (matching .nvmrc)"
 
 
 def test_devcontainer_json_container_env_marker() -> None:

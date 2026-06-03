@@ -124,7 +124,7 @@ That lets you get productive without depending on full maintainer-only backend b
 ### Prerequisites
 
 - Python `3.13.x`
-- Node `22.22.1` for the web client
+- Node `24.16.0` for the web client
 - Xcode for the iOS project in `ios/PulsePlate.xcodeproj`
 - Access to the approved Python package proxy for full backend bootstrap
 
@@ -174,7 +174,7 @@ npm ci
 npm run dev
 ```
 
-`nvm use` reads the repo-root `.nvmrc` and selects Node `22.22.1`.
+`nvm use` reads the repo-root `.nvmrc` and selects Node `24.16.0`.
 
 ### 3. iOS app
 
