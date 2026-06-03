@@ -110,6 +110,15 @@ Disposition: FIXED
 Commit: 88e27602abf20435088a5a7ab4b3abb81e93a189
 Evidence: Same CVE evidence line-number fix as `discussion_r3344241205`.
 
+## Merge Readiness
+
+- Current-head CI must pass on the latest pushed head before merge; do not reuse
+  stale results after any follow-up commit.
+- Review-thread disposition must pass with GitHub auth after the final push.
+- Bot actionables must be either fixed or explicitly dispositioned before merge.
+- Rollback remains a narrow workflow/docs revert; this PR has no runtime,
+  Python dependency, backend, OpenAPI, Docker, Trivy, or product API changes.
+
 ## Dependency Scope / Private-Index Notes
 
 - No `frontend/package.json` or `frontend/package-lock.json` changes.

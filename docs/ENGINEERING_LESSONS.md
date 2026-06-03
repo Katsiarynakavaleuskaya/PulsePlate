@@ -558,7 +558,7 @@ When the same synthetic squash-preview concern repeats:
 - A clear PR comment explaining that the synthetic hash is not the canonical
   pre-merge branch-history proof.
 
-## 22) Advisory wording must not make role gates skippable
+## 23) Advisory wording must not make role gates skippable
 
 ### Problem
 Bootstrap packets can carry readonly/custom-role bindings that older docs called
