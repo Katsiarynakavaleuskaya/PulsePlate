@@ -182,9 +182,9 @@ Evidence: `scripts/ci/ci_risk_profile.py` now routes structured FitChef route/ru
   --compare-branch origin/main --fail-under 97` - PASS at 100%.
 - `PATH=.venv/bin:$PATH make validate-changed` - PASS
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make lint` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make typecheck` - PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_fitchef_companion_helpers.py tests/test_main_paywall_bootstrap.py tests/test_ci_risk_profile.py tests/test_compliance_control_plane.py tests/vip/test_vip_diff_coverage.py` - PASS
+- `PATH=.venv/bin:$PATH make lint` - PASS
+- `PATH=.venv/bin:$PATH make typecheck` - PASS
+- `.venv/bin/python -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_fitchef_companion_helpers.py tests/test_main_paywall_bootstrap.py tests/test_ci_risk_profile.py tests/test_compliance_control_plane.py tests/vip/test_vip_diff_coverage.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py` - PASS after review-fix diff
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS after review-fix diff
 - Pre-push hooks - PASS, including changed-file mypy, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
