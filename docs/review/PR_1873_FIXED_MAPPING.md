@@ -129,6 +129,23 @@ Future resolved actionable comments must be appended here with one of:
 - `Disposition: NOT-A-BUG` plus repo evidence and reason.
 - `Disposition: DEFERRED` plus backlog proof and PR-body follow-up note.
 
+## Lane Start Provenance
+
+Packet: artifacts/orchestration/task_packets/423d87f43f94.json
+Starter: scripts/orchestration/start_pr_lane.sh
+Post-open packet: artifacts/orchestration/task_packets/768d0479916a.json
+Branch: codex/signal-noise-report-lane
+
+## Experiment Runner Evidence
+
+Artifact: artifacts/orchestration/experiments/results/signal-noise-report-lane-oracle-result.json
+Summary: `docs/review/PR_SIGNAL_NOISE_REPORT_LANE_EXPERIMENT_RUNNER_EVIDENCE.md`
+Mode: oracle_only_governance_reviewer
+Status: accepted
+Contribution: oracle_review
+Commit: e5b88d998d750347a6e27e660c8ed1da52719580
+Evidence: The Experiment Runner evidence artifact was accepted before PR open, the runner reported `mutated_paths=[]`, and the implementation commit includes the governed `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
+
 ## Merge Readiness
 
 - [x] All GitHub review threads resolved with dispositions recorded above
