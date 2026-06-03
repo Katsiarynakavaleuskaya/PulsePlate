@@ -210,9 +210,12 @@ review outcome, retention policy, and explicit authority-boundary booleans that
 must remain false for PR creation, review-thread resolution, merge-readiness
 claims, and product runtime changes. Observability reports may also project
 validated Experiment Runner result metadata from local result artifacts, but only
-the sanitized metadata allowlist: schema version, experiment id, runner mode,
+when the file SHA-256 matches the ledger's `oracle_result_hash`. The sanitized
+metadata allowlist is schema version, experiment-id hash prefix, runner mode,
 status, failure class, mutated-path count, shared-tree untouched,
-promotion-ready, contribution kind, and co-author-required state.
+promotion-ready, contribution kind, and co-author-required state. Latest-event
+report summaries include dispatch mode, co-author decision/required state, and
+human review outcome as display-only operator evidence.
 
 The ledger and report must not store raw Slack text, Slack channel/user/team
 IDs, trigger IDs, raw branch refs, raw hypotheses, local absolute paths, health

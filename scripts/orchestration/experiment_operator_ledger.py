@@ -109,7 +109,7 @@ RESULT_METADATA_MISSING = {
 }
 SAFE_RESULT_METADATA_FIELDS = (
     "schema_version",
-    "experiment_id",
+    "experiment_id_hash",
     "runner_mode",
     "status",
     "failure_class",
@@ -922,6 +922,10 @@ def _hash_prefix(value: Any) -> str:
     return normalized[:16]
 
 
+def _value_hash_prefix(value: Any) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:16]
+
+
 def _result_metadata(artifact_status: str, artifact_ref: str, **values: Any) -> dict[str, Any]:
     metadata = {"artifact_status": artifact_status, "artifact_ref": artifact_ref}
     metadata.update(values)
@@ -955,9 +959,15 @@ def _validate_result_artifact_path(artifact_ref: str, *, repo_root: Path) -> Pat
     return candidate
 
 
-def _safe_result_metadata_from_ref(artifact_ref: Any, *, repo_root: Path) -> dict[str, Any]:
+def _safe_result_metadata_from_ref(
+    artifact_ref: Any,
+    *,
+    repo_root: Path,
+    expected_result_hash: Any = "none",
+) -> dict[str, Any]:
     try:
         normalized_ref = _validate_artifact_ref(artifact_ref)
+        normalized_expected_hash = _validate_hash(expected_result_hash)
     except OperatorLedgerError:
         return dict(RESULT_METADATA_INVALID)
     if normalized_ref == "none":
@@ -969,6 +979,11 @@ def _safe_result_metadata_from_ref(artifact_ref: Any, *, repo_root: Path) -> dic
     if not result_path.exists():
         return _result_metadata("missing", normalized_ref)
     try:
+        if (
+            normalized_expected_hash == "none"
+            or _sha256_file(result_path) != normalized_expected_hash
+        ):
+            return _result_metadata("invalid", normalized_ref)
         raw = json.loads(result_path.read_text(encoding="utf-8"))
         if not isinstance(raw, dict):
             raise ValueError("Experiment result must be a JSON object.")
@@ -984,7 +999,7 @@ def _safe_result_metadata_from_ref(artifact_ref: Any, *, repo_root: Path) -> dic
         return _result_metadata("invalid", normalized_ref)
     metadata = {
         "schema_version": result["schema_version"],
-        "experiment_id": result["experiment_id"],
+        "experiment_id_hash": _value_hash_prefix(result["experiment_id"]),
         "runner_mode": result["runner_mode"],
         "status": result["status"],
         "failure_class": result["failure_class"] or "none",
@@ -1056,6 +1071,7 @@ def build_operator_observability_report(
         _safe_result_metadata_from_ref(
             record.payload["oracle_result_ref"],
             repo_root=effective_root,
+            expected_result_hash=record.payload["oracle_result_hash"],
         )
         for record in records
     ]
@@ -1091,7 +1107,11 @@ def build_operator_observability_report(
             {
                 "branch_hash": _hash_prefix(latest["branch_hash"]),
                 "command_kind": latest["command_kind"],
+                "coauthor_decision": latest["coauthor_decision"],
+                "coauthor_required": latest["coauthor_required"],
+                "dispatch_mode": latest["dispatch_mode"],
                 "failure_class": latest["failure_class"],
+                "human_review_outcome": latest["human_review_outcome"],
                 "hypothesis_hash": _hash_prefix(latest["hypothesis_hash"]),
                 "oracle_result_ref": latest["oracle_result_ref"],
                 "result_metadata": latest_result_metadata,
@@ -1143,6 +1163,10 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
             "status",
             "failure_class",
             "command_kind",
+            "dispatch_mode",
+            "coauthor_decision",
+            "coauthor_required",
+            "human_review_outcome",
             "workflow_file",
             "workflow_ref",
             "branch_hash",
@@ -1242,6 +1266,10 @@ def render_operator_observability_html(report: dict[str, Any]) -> str:
                         "status",
                         "failure_class",
                         "command_kind",
+                        "dispatch_mode",
+                        "coauthor_decision",
+                        "coauthor_required",
+                        "human_review_outcome",
                         "workflow_file",
                         "workflow_ref",
                         "branch_hash",

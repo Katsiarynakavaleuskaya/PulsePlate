@@ -93,12 +93,28 @@ def _write_result(repo_root: Path, name: str, payload: dict[str, object]) -> Pat
     return path
 
 
+def _event_for_result(
+    repo_root: Path,
+    name: str = "operator-plane.json",
+    payload: dict[str, object] | None = None,
+    **overrides: object,
+) -> dict[str, object]:
+    result_path = _write_result(repo_root, name, payload or _result())
+    return _event(
+        oracle_result_ref=f"{ledger.EXPERIMENT_RESULTS_REPO_PREFIX}{name}",
+        oracle_result_hash=hashlib.sha256(result_path.read_bytes()).hexdigest(),
+        **overrides,
+    )
+
+
 def _assert_no_raw_leak(value: str) -> None:
     forbidden = (
         "C0SECRET",
+        "C0SECRETID",
         "U0DENIED",
         "T0SECRET",
         "Ev0SECRET",
+        "operator_report",
         "feature/operator-plane",
         "raw hypothesis",
         "/Users/",
@@ -451,8 +467,13 @@ def test_operator_ledger_report_and_status_summary_are_redacted(tmp_path: Path) 
 
 
 def test_operator_ledger_report_projects_only_safe_result_metadata(tmp_path: Path) -> None:
-    _write_result(tmp_path, "operator-plane.json", _result())
-    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    ledger.write_operator_ledger_event(
+        _event_for_result(
+            tmp_path,
+            payload=_result(experiment_id="C0SECRETID"),
+        ),
+        repo_root=tmp_path,
+    )
 
     report = ledger.build_operator_observability_report(repo_root=tmp_path)
     markdown = ledger.render_operator_observability_markdown(report)
@@ -465,7 +486,7 @@ def test_operator_ledger_report_projects_only_safe_result_metadata(tmp_path: Pat
         "artifact_status": "valid",
         "artifact_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
         "schema_version": "1.0",
-        "experiment_id": "operator_report",
+        "experiment_id_hash": _hash("C0SECRETID")[:16],
         "runner_mode": "candidate_patch",
         "status": "accepted",
         "failure_class": "none",
@@ -485,6 +506,58 @@ def test_operator_ledger_report_projects_only_safe_result_metadata(tmp_path: Pat
     assert "stderr" not in rendered
     assert "cwd" not in rendered
     _assert_no_raw_leak(rendered)
+
+
+def test_operator_ledger_result_metadata_requires_matching_artifact_hash(
+    tmp_path: Path,
+) -> None:
+    _write_result(tmp_path, "operator-plane.json", _result(experiment_id="C0SECRETID"))
+    ledger.write_operator_ledger_event(
+        _event(oracle_result_hash=_hash("different result bytes")),
+        repo_root=tmp_path,
+    )
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    rendered = json.dumps(report, sort_keys=True) + ledger.render_operator_observability_html(
+        report
+    )
+
+    assert report["by_result_artifact_status"] == {"invalid": 1}
+    assert report["latest"]["result_metadata"] == {
+        "artifact_status": "invalid",
+        "artifact_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
+    }
+    _assert_no_raw_leak(rendered)
+
+
+def test_operator_ledger_report_latest_includes_operator_review_state(
+    tmp_path: Path,
+) -> None:
+    ledger.write_operator_ledger_event(
+        _event(
+            coauthor_decision="required",
+            coauthor_required=True,
+            command_kind="run-experiment",
+            dispatch_mode="execute",
+            human_review_outcome="approved",
+            oracle_result_hash="none",
+            oracle_result_ref="none",
+            status="dispatched",
+        ),
+        repo_root=tmp_path,
+    )
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    markdown = ledger.render_operator_observability_markdown(report)
+    html = ledger.render_operator_observability_html(report)
+
+    assert report["latest"]["dispatch_mode"] == "execute"
+    assert report["latest"]["coauthor_required"] is True
+    assert report["latest"]["coauthor_decision"] == "required"
+    assert report["latest"]["human_review_outcome"] == "approved"
+    assert "- dispatch_mode: `execute`" in markdown
+    assert "coauthor_decision" in html
+    assert "human_review_outcome" in html
 
 
 def test_operator_ledger_report_does_not_count_absent_result_refs(
@@ -514,7 +587,10 @@ def test_operator_ledger_result_metadata_fails_closed_for_malformed_artifact(
     result_path = tmp_path / ledger.EXPERIMENT_RESULTS_REPO_PREFIX / "operator-plane.json"
     result_path.parent.mkdir(parents=True)
     result_path.write_text("{not-json C0SECRET /Users/alice", encoding="utf-8")
-    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    ledger.write_operator_ledger_event(
+        _event(oracle_result_hash=hashlib.sha256(result_path.read_bytes()).hexdigest()),
+        repo_root=tmp_path,
+    )
 
     report = ledger.build_operator_observability_report(repo_root=tmp_path)
     rendered = json.dumps(report, sort_keys=True) + ledger.render_operator_observability_html(
@@ -533,10 +609,9 @@ def test_operator_ledger_result_metadata_fails_closed_for_malformed_artifact(
 def test_operator_ledger_result_metadata_fails_closed_for_type_errors(
     tmp_path: Path,
 ) -> None:
-    _write_result(
+    event = _event_for_result(
         tmp_path,
-        "operator-plane.json",
-        _result(
+        payload=_result(
             oracle_results=[
                 {
                     "command": "pytest tests/test_experiment_operator_ledger.py -q",
@@ -548,7 +623,7 @@ def test_operator_ledger_result_metadata_fails_closed_for_type_errors(
             ]
         ),
     )
-    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    ledger.write_operator_ledger_event(event, repo_root=tmp_path)
 
     report = ledger.build_operator_observability_report(repo_root=tmp_path)
     rendered = json.dumps(report, sort_keys=True) + ledger.render_operator_observability_html(
@@ -645,8 +720,12 @@ def test_operator_ledger_html_renderer_escapes_dynamic_values() -> None:
             "oracle_result_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
             "result_metadata": {
                 "artifact_status": "valid",
-                "experiment_id": "<img src=x onerror=alert(1)>",
+                "experiment_id_hash": "<img src=x onerror=alert(1)>",
             },
+            "coauthor_decision": "not_required",
+            "coauthor_required": False,
+            "dispatch_mode": "dry-run",
+            "human_review_outcome": "pending",
             "status": "dry_run",
             "workflow_file": "none",
             "workflow_ref": "none",
@@ -1029,8 +1108,7 @@ def test_operator_ledger_cli_summary_writes_html_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
-    _write_result(tmp_path, "operator-plane.json", _result())
-    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    ledger.write_operator_ledger_event(_event_for_result(tmp_path), repo_root=tmp_path)
 
     assert (
         ledger.main(
@@ -1050,7 +1128,8 @@ def test_operator_ledger_cli_summary_writes_html_report(
 
     assert "<!doctype html>" in report
     assert "Latest Result Metadata" in report
-    assert "operator_report" in report
+    assert "experiment_id_hash" in report
+    assert _hash("operator_report")[:16] in report
     assert ">candidate_patch<" in report
     assert "diff --git a/secret" not in report
     assert "+token" not in report
@@ -1064,8 +1143,7 @@ def test_operator_ledger_cli_writes_default_observability_report_set(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
-    _write_result(tmp_path, "operator-plane.json", _result())
-    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    ledger.write_operator_ledger_event(_event_for_result(tmp_path), repo_root=tmp_path)
 
     assert ledger.main(["--write-report-set"]) == 0
     stdout = capsys.readouterr().out
@@ -1095,7 +1173,8 @@ def test_operator_ledger_cli_writes_default_observability_report_set(
     )
 
     assert "Latest Result Metadata" in rendered
-    assert "operator_report" in rendered
+    assert "experiment_id_hash" in rendered
+    assert _hash("operator_report")[:16] in rendered
     assert "oracle_results" not in rendered
     assert "diff --git a/secret" not in rendered
     assert str(tmp_path) not in stdout
@@ -1160,7 +1239,10 @@ def test_operator_ledger_report_set_is_idempotent_and_preserves_result_artifacts
 ) -> None:
     result_path = _write_result(tmp_path, "operator-plane.json", _result())
     original_result = result_path.read_bytes()
-    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    ledger.write_operator_ledger_event(
+        _event(oracle_result_hash=hashlib.sha256(original_result).hexdigest()),
+        repo_root=tmp_path,
+    )
     report = ledger.build_operator_observability_report(repo_root=tmp_path)
 
     first_outputs = ledger.write_operator_observability_report_set(report, repo_root=tmp_path)
@@ -1200,8 +1282,7 @@ def test_operator_ledger_cli_report_set_rejects_reserved_event_store(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
-    _write_result(tmp_path, "operator-plane.json", _result())
-    ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
+    ledger.write_operator_ledger_event(_event_for_result(tmp_path), repo_root=tmp_path)
 
     assert (
         ledger.main(
