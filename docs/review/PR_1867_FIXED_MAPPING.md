@@ -120,6 +120,11 @@ Disposition: FIXED
 Commit: 148260df88b7f8c08df4a1c72448092b7a0d6222
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` now stores and verifies a cheap persisted `content_hash`, filters expired records from status/report reads, fails closed on unexpected non-JSON files in the reserved event store, and requires real SHA-256 hashes for mandatory Slack identity fields (`channel_hash`, `event_hash`, `user_hash`); `tests/test_experiment_operator_ledger.py` covers all four regressions. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344195573 -> 0709977c2ef8128b410eeafc4f7d0566c3d91066
+Disposition: FIXED
+Commit: 0709977c2ef8128b410eeafc4f7d0566c3d91066
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` now persists and verifies `idempotency_key_check`, binding the stored idempotency key to its deterministic payload material without recomputing the 120,000-iteration idempotency PBKDF2 on status/report reads; `tests/test_experiment_operator_ledger.py` covers tampered-key rejection and preserves the no-expensive-read-path invariant. Focused ledger tests, the broader Slack/operator suite, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344197707 -> 3b6966e49936472435a17d126c1177b2683254fa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1867#discussion_r3344197709 -> 3b6966e49936472435a17d126c1177b2683254fa
 Disposition: FIXED
