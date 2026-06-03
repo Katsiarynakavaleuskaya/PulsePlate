@@ -12,6 +12,8 @@ billing, food-data ingest, or plan-adaptation implementation is included.
 ## Lane Start Provenance
 
 - Branch: `codex/vip-identity-loop-mapper-runtime`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Packet: `artifacts/orchestration/task_packets/93065865e7bb.json`
 - Pre-open packet: `artifacts/orchestration/task_packets/93065865e7bb.json`
 - Role order preserved: `agent-coordinator -> architecture-specialist -> backend-engineer -> wellness-analyst-agent -> security-auditor -> qa-engineer-agent -> bug-hunter`
 - Implementation commit: `0220fd4cef9f2a6eea61194ba0c483a8f9a3dfe1`
@@ -19,6 +21,7 @@ billing, food-data ingest, or plan-adaptation implementation is included.
 ## Experiment Runner Evidence
 
 - Summary: `docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_EXPERIMENT_RUNNER_EVIDENCE.md`
+- Artifact: `artifacts/orchestration/experiments/results/exp-feb0c1afe33f.json`
 - Local raw artifact: `artifacts/orchestration/experiments/results/exp-feb0c1afe33f.json`
 - Status: accepted
 - Mode: `oracle_only_governance_reviewer`
@@ -51,13 +54,62 @@ billing, food-data ingest, or plan-adaptation implementation is included.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after post-open bot and role reviews.
-- [ ] Fixed in commit mapping completed after all post-open findings.
-- Current state: PR opened; post-open QA, bug-hunter, security-auditor, Codex Security, and `pulseplate-pr-review` are pending.
+- [x] Discussion-thread pass completed after post-open bot and role reviews.
+- [x] Fixed in commit mapping completed after all post-open findings.
+- Current state: post-open QA, bug-hunter, security-auditor, Codex Security,
+  and `pulseplate-pr-review` completed for the current local head.
 
 ## Fixed in Commit Mapping
 
-- No GitHub review-thread URLs have been resolved yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3347300272 -> a451eb9e741d7a6623f556d5fb93de9ed09a45ce
+Disposition: FIXED
+Evidence: `app/services/fitchef_runtime.py` routes structured runtime provider generation through `_generate_with_timeout`; regression coverage: `tests/test_fitchef_structured_api.py::TestFitChefStructuredRuntimeCoverage::test_identity_runtime_supports_async_provider_generate`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3347300290 -> a451eb9e741d7a6623f556d5fb93de9ed09a45ce
+Disposition: FIXED
+Evidence: `core/insight/fitchef_companion.py` rewrites unsafe fallback goal copy to `the current wellness goal`; regression coverage: `tests/test_fitchef_companion_helpers.py::test_prepare_identity_loop_mapper_draft_sanitizes_unsafe_goal_fallback`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3347300300 -> 5812072da2a62c2167f690c6a8327314114b84ca
+Disposition: FIXED
+Evidence: `core/insight/fitchef_companion.py` normalizes high-distress homoglyphs and blocks crisis/euphemism phrases before route runtime delegation; regression coverage: `tests/test_fitchef_companion_helpers.py::test_identity_loop_mapper_detects_high_distress_boundary` and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_high_distress_euphemism_rejected_before_runtime`.
+
+## Post-Open Role-Agent Finding Closure
+
+- `qa-engineer-agent`: FIXED in
+  `a451eb9e741d7a6623f556d5fb93de9ed09a45ce`.
+  - Findings: high-distress input could reach provider, async providers failed
+    after quota consumption, fallback could echo unsafe food-morality goal copy,
+    and PR governance body/mapping remained incomplete.
+  - Evidence: focused route/runtime/helper tests passed; mapping/body closure is
+    mirrored in this artifact and PR body.
+- `bug-hunter`: FIXED in
+  `4693539915263cce447ad16f7f65b24081f20c46`.
+  - Findings: high-distress phrase coverage missed common wording and canonical
+    bootstrap did not rehydrate the VIP structured route.
+  - Evidence: high-distress boundary tests and canonical bootstrap idempotency
+    tests cover `/api/v1/vip/fitchef/insight`.
+- `security-auditor`: FIXED in
+  `5812072da2a62c2167f690c6a8327314114b84ca`.
+  - Findings: additional crisis/euphemism and homoglyph bypasses plus tracked
+    review-artifact local-path leakage.
+  - Evidence: expanded detector tests, route euphemism block test, and local-path
+    scan over PR #1870 review artifacts.
+- `Codex Security diff scan / finding discovery`: PASS.
+  - Evidence: local gitignored Codex Security scan
+    `5812072da2a62c2167f690c6a8327314114b84ca_20260603T095123Z` records 9/9
+    deep-review worklist receipts and no reportable diff-scoped candidates.
+- `pulseplate-pr-review`: FIXED/PASS after this artifact and the PR body mirror
+  are updated.
+  - Evidence: exact Phase 2 headings, fixed mapping, Experiment Runner artifact,
+    lane provenance, scope/split approvals, and local-validation sections are
+    present in this artifact/body pair before the final push.
+
+## External Bot Review Status
+
+- CodeRabbit: NOT-A-BUG for code scope; review was rate-limited and emitted no
+  actionable code finding.
+- Sourcery: NOT-A-BUG for code scope; review was rate-limited and emitted no
+  actionable code finding.
+- Cubic: PASS / no issues found on remote head `bc39758c29881e4410f5aa63507f1ada9be604f8`.
+- Codex connector: three actionable threads were FIXED and mapped above.
 
 ## Local Validation Evidence
 
@@ -66,6 +118,7 @@ billing, food-data ingest, or plan-adaptation implementation is included.
 - `PATH=.venv/bin:$PATH make openapi-check` - PASS
 - `PATH=.venv/bin:$PATH python -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_fitchef_companion_helpers.py tests/test_rate_limit_llm_and_exports_api.py tests/test_pro_vip_route_dependency_guard.py tests/test_compliance_control_plane.py tests/test_openapi_namespace_guards.py tests/test_openapi_determinism.py tests/vip/test_vip_diff_coverage.py` - PASS
 - `PATH=.venv/bin:$PATH python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/insights/CBT_COACHING_PRODUCT_WAVE.md docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/API_CANONICAL_MAP.md docs/contracts/PRODUCT_TIER_MAP.md docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md docs/legal/Privacy.md docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_PREMORTEM.md docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_EXPERIMENT_RUNNER_EVIDENCE.md` - PASS
+- `PATH=.venv/bin:$PATH python3 scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_1870_FIXED_MAPPING.md` - PASS
 - `PATH=.venv/bin:$PATH make validate-changed` - PASS
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including changed-file mypy, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
@@ -73,10 +126,11 @@ billing, food-data ingest, or plan-adaptation implementation is included.
 ## Merge Readiness
 
 - [ ] Current-head CI terminal success confirmed.
-- [ ] Post-open role review completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit / Sourcery / Cubic actionables checked and mapped.
+- [x] Post-open role review completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
+- [x] CodeRabbit / Sourcery / Cubic actionables checked and mapped or
+  dispositioned as no-actionable/rate-limited.
 - [ ] Strict review-thread disposition passes with auth.
 - [ ] Strict merge-readiness guard passes with auth.
 - [ ] Mandatory wait-window after latest bot/review activity completed.
