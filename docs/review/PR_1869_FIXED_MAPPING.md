@@ -27,6 +27,11 @@ Disposition: FIXED
 Commit: 737469a05ba95320806fea291c78a4ea8253814d
 Evidence: `docs/review/PR_1869_FIXED_MAPPING.md` now records the final branch commit `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd` for the bug-hunter final-path collision fix and keeps implementation evidence tied to branch commits rather than a synthetic reviewed commit surface.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3346884051
+Disposition: NOT-A-BUG
+Evidence: On current PR branch head `03d4903e98dd771d924881be185985a6e6cf7e82`, both `git merge-base --is-ancestor 9cc75668d65b6d0bb01b8c3fa662c47145828774 HEAD` and `git merge-base --is-ancestor f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd HEAD` returned exit code 0; the implementation commits are real branch ancestors, not stale out-of-branch proof, and the PR still does not claim readiness while current-head CI and strict merge-readiness remain pending.
+Reason: The connector comment evaluated a synthetic reviewed/squash commit surface rather than the live PR branch ancestry used by the local repository and GitHub PR head.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869 -> 9cc75668d65b6d0bb01b8c3fa662c47145828774
 Disposition: FIXED
 Commit: 9cc75668d65b6d0bb01b8c3fa662c47145828774
@@ -95,8 +100,10 @@ Post-open role order completed from packet
   `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd` fixed it and the bug-hunter
   closure pass found no remaining actionables.
 - `security-auditor` - completed; found no additional code security
-  actionables. It required committing/pushing the bug-hunter fix and mapping
-  the CodeRabbit/Codex connector review threads before readiness.
+  actionables. It required committing/pushing the bug-hunter fix, mapping the
+  CodeRabbit/Codex connector review threads, and dispositioning the follow-up
+  synthetic-SHA connector thread as NOT-A-BUG with branch-ancestry evidence
+  before any readiness claim.
 
 Premortem:
 
@@ -187,11 +194,42 @@ disposition, and strict merge-readiness gates pass.
 
 ## Codex Security Diff Scan
 
-Pending post-open.
+- Scan id: `03d4903e98dd_20260603T080909Z`
+- Markdown report:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/03d4903e98dd_20260603T080909Z/report.md`
+- HTML report:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/03d4903e98dd_20260603T080909Z/report.html`
+- Result: no reportable findings.
+- Coverage: 3/3 diff-scoped rows have completion receipts in
+  `artifacts/02_discovery/work_ledger.jsonl` inside the local scan bundle.
+- Discovery rows:
+  - `scripts/ci/run_main_test_shards.py` - `no_candidate`.
+  - `tests/test_main_test_shards.py` - `no_candidate`.
+  - `docs/review/PR_1869_FIXED_MAPPING.md` - `no_candidate`.
+- Validator:
+  `python3 .../codex-security/.../scripts/validate_report_format.py --report-md .../report.md`
+  - PASS.
+- Goal usage: scan goal completed with `tokensUsed=266685` and
+  `timeUsedSeconds=479`.
 
 ## PulsePlate PR Review
 
-Pending post-open.
+- Context:
+  `python3 scripts/orchestration/pr_review_context.py --pr 1869 --output /tmp/pulseplate_pr_review_context_1869.json`
+  - PASS.
+- Markdown dry-run report:
+  `/tmp/pulseplate_pr_review_1869.md`
+- JSON dry-run report:
+  `/tmp/pulseplate_pr_review_1869.json`
+- Finding: one advisory `note` from `bug-hunter` for diff size above the
+  deterministic review-risk threshold (`306` changed lines vs threshold `300`).
+- Disposition: NOT-A-BUG for this CI/tooling hotfix scope. The diff is limited
+  to one runner, its focused tests, and the canonical PR mapping artifact; the
+  PR body and this artifact document the split rationale, current-head CI
+  dependency, and machine-heavy local shard deferral.
+- Gate evidence:
+  `. .venv/bin/activate && python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
+  - PASS; 13 tests.
 
 ## Merge Readiness
 
