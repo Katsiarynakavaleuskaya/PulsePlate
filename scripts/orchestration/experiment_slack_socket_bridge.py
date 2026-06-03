@@ -649,19 +649,19 @@ def process_operator_event(
     if dispatchable_command:
         _preflight_operator_ledger_event(config)
     _claim_event(audit_path, event=event, command=command, config=config)
-    try:
-        _check_rate_limit(config)
-        _claim_rate_limit(config, event)
-    except SlackSocketAuditError:
-        _write_audit(
-            path=audit_path,
-            event=event,
-            command=command,
-            config=config,
-            status="failed",
-            failure_class="rate_limited",
-        )
-        if dispatchable_command:
+    if dispatchable_command:
+        try:
+            _check_rate_limit(config)
+            _claim_rate_limit(config, event)
+        except SlackSocketAuditError:
+            _write_audit(
+                path=audit_path,
+                event=event,
+                command=command,
+                config=config,
+                status="failed",
+                failure_class="rate_limited",
+            )
             _write_operator_ledger_event(
                 config=config,
                 event=event,
@@ -670,7 +670,7 @@ def process_operator_event(
                 status="failed",
                 failure_class="rate_limited",
             )
-        raise
+            raise
     status = "dry_run"
     failure_class: str | None = None
     try:
@@ -708,17 +708,25 @@ def process_operator_event(
         )
         raise SlackSocketDispatchError("Slack operator dispatch failed.") from exc
     _write_audit(path=audit_path, event=event, command=command, config=config, status=status)
-    operator_ledger_ref = (
-        _write_operator_ledger_event(
-            config=config,
-            event=event,
-            command=command,
-            audit_path=audit_path,
-            status=status,
-        )
-        if dispatchable_command
-        else None
-    )
+    operator_ledger_ref = None
+    operator_ledger_status = "not_applicable"
+    if dispatchable_command:
+        try:
+            operator_ledger_ref = _write_operator_ledger_event(
+                config=config,
+                event=event,
+                command=command,
+                audit_path=audit_path,
+                status=status,
+            )
+            operator_ledger_status = status
+        except SlackSocketAuditError:
+            if status != "dispatched":
+                raise
+            operator_ledger_status = "write_failed_after_dispatch"
+            LOGGER.warning(
+                "Experiment Runner bridge dispatched workflow but ledger write-through failed."
+            )
     return BridgeDecision(
         status=status,
         command_kind=command.kind,
@@ -734,6 +742,7 @@ def process_operator_event(
         approval_hash=_approval_prefix(config, command),
         failure_class=failure_class,
         operator_ledger_ref=operator_ledger_ref,
+        operator_ledger_status=operator_ledger_status,
     )
 
 
@@ -838,7 +847,7 @@ def _format_command_reply(
                         f"workflow_input_dry_run={dry_run_flag}",
                         f"approval_hash={decision.approval_hash or 'none'}",
                         f"operator_ledger_ref={decision.operator_ledger_ref or 'none'}",
-                        f"operator_ledger_status={decision.status}",
+                        f"operator_ledger_status={decision.operator_ledger_status or 'none'}",
                         "slack_authority=not_merge_readiness",
                     ),
                     action_required="Inspect GitHub workflow result; Slack does not prove readiness.",

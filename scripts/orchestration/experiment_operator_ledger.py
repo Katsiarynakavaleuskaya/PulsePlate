@@ -610,6 +610,10 @@ def preflight_slack_bridge_operator_ledger_event(
     )
     try:
         _preflight_ledger_event_store(target_dir)
+        load_operator_ledger_events(
+            ledger_dir=target_dir,
+            repo_root=effective_root,
+        )
     except OSError as exc:
         raise OperatorLedgerError("Unable to write Experiment operator ledger event.") from exc
     return normalized_packet_id

@@ -159,6 +159,26 @@ def test_validate_runtime_preflights_operator_ledger_writeability(
     assert str(event_dir) not in stdout
 
 
+def test_validate_runtime_rejects_malformed_existing_operator_ledger_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    repo_root = _repo_root_from_audit_dir(audit_dir)
+    event_dir = experiment_operator_ledger.default_ledger_dir(repo_root) / "events"
+    event_dir.mkdir(parents=True)
+    (event_dir / "bad.json").write_text("not-json", encoding="utf-8")
+
+    assert bridge.main(["--validate-runtime", "--dispatch-mode", "dry-run"]) == 1
+
+    stdout = capsys.readouterr().out
+    assert "Experiment operator ledger evidence is unavailable" in stdout
+    assert "not-json" not in stdout
+    assert str(event_dir) not in stdout
+
+
 def test_live_socket_validation_fails_closed_without_runtime_tokens(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1428,6 +1448,42 @@ def test_repeated_status_commands_keep_dispatch_ledger_summary(
     assert "feature/status-repeat" not in status_reply
 
 
+def test_status_command_bypasses_dispatch_rate_limit_for_latest_ledger_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    dispatch_config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+    bridge.process_payload(
+        _event(text="feature/status-throttle Validate status after dispatch throttle"),
+        dispatch_config,
+    )
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "3600")
+    status_config = _config(dispatch_mode="dry-run", audit_dir=audit_dir)
+
+    decision = bridge.process_payload(
+        _event(
+            event_id="Ev0STATUSBYPASS",
+            command="/pulseplate-runner",
+            text="status",
+        ),
+        status_config,
+    )
+    status_reply = bridge._format_command_reply(
+        bridge.OperatorCommand(kind="status"),
+        status_config,
+        decision=decision,
+    )
+
+    assert decision.status == "dry_run"
+    assert decision.operator_ledger_ref is None
+    assert len(_ledger_records(audit_dir)) == 1
+    assert "operator_ledger_command_kind=run-experiment" in status_reply
+    assert bridge._sha256_text("feature/status-throttle")[:16] in status_reply
+    assert "rate limit" not in status_reply.lower()
+
+
 def test_status_command_reports_invalid_ledger_without_requiring_write_preflight(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1536,6 +1592,54 @@ def test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs(
     assert records[0].payload["branch_hash"] == bridge._sha256_text("release/smoke")
     assert bridge.DEFAULT_WORKFLOW_FILE == "experiment-runner-dispatch.yml"
     assert bridge.ALLOWED_WORKFLOWS == {"experiment-runner-dispatch.yml"}
+
+
+def test_execute_mode_keeps_dispatched_outcome_when_post_dispatch_ledger_write_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "m" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+    )
+    calls: list[dict[str, Any]] = []
+
+    def fail_ledger_write(**_: Any) -> str:
+        raise bridge.SlackSocketAuditError("Experiment operator ledger evidence is unavailable.")
+
+    monkeypatch.setattr(bridge, "_write_operator_ledger_event", fail_ledger_write)
+
+    decision = bridge.process_payload(
+        _event(text="release/smoke Validate dispatch despite ledger write race"),
+        config,
+        dispatch_transport=lambda **kwargs: calls.append(kwargs),
+    )
+    reply = bridge._format_command_reply(
+        bridge.OperatorCommand(
+            kind="run-experiment",
+            branch_ref="release/smoke",
+            hypothesis="Validate dispatch despite ledger write race",
+        ),
+        config,
+        decision=decision,
+    )
+
+    assert len(calls) == 1
+    assert decision.status == "dispatched"
+    assert decision.failure_class is None
+    assert decision.operator_ledger_ref is None
+    assert decision.operator_ledger_status == "write_failed_after_dispatch"
+    assert "Status: `dispatched`" in reply
+    assert "operator_ledger_ref=none" in reply
+    assert "operator_ledger_status=write_failed_after_dispatch" in reply
+    audit = json.loads((audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json").read_text())
+    assert audit["status"] == "dispatched"
+    assert _ledger_records(audit_dir) == []
 
 
 def test_dispatch_inputs_match_manual_workflow_contract(
