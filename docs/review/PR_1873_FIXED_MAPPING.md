@@ -43,6 +43,19 @@ Commit: 2d2c62275a66990e9d3ac1e092917d812a11e5b8
 Evidence: `docs/review/PR_1873_FIXED_MAPPING.md` remaps the placeholder-fix disposition from the intermediate commit to reachable branch-history commit `5738f67e5d503e9a86eee1504dd5db63d997366f`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351592549 -> 2d2c62275a66990e9d3ac1e092917d812a11e5b8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351632142 -> 2d2c62275a66990e9d3ac1e092917d812a11e5b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351682366 -> 2d2c62275a66990e9d3ac1e092917d812a11e5b8
+
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor e5b88d998d750347a6e27e660c8ed1da52719580 HEAD` returned `0`; `git show -s --format=%B e5b88d998d750347a6e27e660c8ed1da52719580` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`. Repo merge-readiness checks validate the actual branch history, not review-tool synthetic squash SHAs that are absent from the local PR branch.
+Reason: The reviewed synthetic SHA cited by the connector is not the canonical branch-history proof target for this PR. The implementation commit that introduced the accepted Experiment Runner evidence is present in this branch and carries the required trailer.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351682372
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351743536
+
+Disposition: FIXED
+Commit: a30e47c010ac2e1c99ad2adb332ceceb599a21b6
+Evidence: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` now records `POST /api/v1/vip/fitchef/insight` as the landed, feature-gated VIP Identity Loop Mapper runtime from PR #1870 / `7802ed25e99e0a4f346d14487270a037bb5ec97a`; `docs/review/PR_SIGNAL_NOISE_REPORT_LANE_PREMORTEM.md` now lists the foundation contract in the PR #1870 landed-state evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351682378 -> a30e47c010ac2e1c99ad2adb332ceceb599a21b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351743542 -> a30e47c010ac2e1c99ad2adb332ceceb599a21b6
 
 Disposition: FIXED
 Commit: 2d2c62275a66990e9d3ac1e092917d812a11e5b8
