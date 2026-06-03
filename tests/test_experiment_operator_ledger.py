@@ -156,6 +156,63 @@ def test_slack_bridge_operator_ledger_helper_writes_hash_only_event(tmp_path: Pa
     _assert_no_raw_leak(text)
 
 
+def test_slack_bridge_operator_ledger_preserves_subsecond_write_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_path = _slack_audit_path(tmp_path)
+    timestamps = iter(
+        (
+            "2026-06-03T12:00:00.000100+00:00",
+            "2026-06-03T12:00:00.000900+00:00",
+        )
+    )
+    monkeypatch.setattr(ledger, "_utcnow_iso", lambda: next(timestamps))
+
+    ledger.write_slack_bridge_operator_ledger_event(
+        task_packet_id="packet-pr2",
+        command_kind="run-experiment",
+        status="dry_run",
+        dispatch_mode="dry-run",
+        workflow_file="experiment-runner-dispatch.yml",
+        workflow_ref="main",
+        event_hash=_hash("Ev0FIRST"),
+        channel_hash=_hash("C0SECRET"),
+        user_hash=_hash("U0DENIED"),
+        team_hash=_hash("T0SECRET"),
+        branch_hash=_hash("feature/operator-plane"),
+        hypothesis_hash=_hash("raw hypothesis must not render"),
+        slack_audit_path=audit_path,
+        repo_root=tmp_path,
+    )
+    ledger.write_slack_bridge_operator_ledger_event(
+        task_packet_id="packet-pr2",
+        command_kind="run-experiment",
+        status="failed",
+        dispatch_mode="dry-run",
+        workflow_file="experiment-runner-dispatch.yml",
+        workflow_ref="main",
+        event_hash=_hash("Ev0SECOND"),
+        channel_hash=_hash("C0SECRET"),
+        user_hash=_hash("U0DENIED"),
+        team_hash=_hash("T0SECRET"),
+        branch_hash=_hash("feature/operator-plane"),
+        hypothesis_hash=_hash("raw hypothesis must not render"),
+        slack_audit_path=audit_path,
+        failure_class="rate_limited",
+        repo_root=tmp_path,
+    )
+
+    records = ledger.load_operator_ledger_events(repo_root=tmp_path)
+    summary = ledger.latest_operator_ledger_summary(repo_root=tmp_path)
+
+    assert [record.payload["status"] for record in records] == ["dry_run", "failed"]
+    assert records[0].payload["generated_at"].endswith(".000100+00:00")
+    assert records[1].payload["generated_at"].endswith(".000900+00:00")
+    assert "operator_ledger_status=failed" in summary
+    assert "operator_ledger_failure_class=rate_limited" in summary
+
+
 def test_slack_bridge_operator_ledger_helper_rejects_bad_packet_or_audit_ref(
     tmp_path: Path,
 ) -> None:

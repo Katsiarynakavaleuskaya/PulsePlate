@@ -198,7 +198,7 @@ def _canonical_json_bytes(payload: Any) -> bytes:
 
 
 def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _require_exact_keys(payload: dict[str, Any], *, allowed: frozenset[str]) -> None:
@@ -217,8 +217,8 @@ def _validate_timestamp(value: Any) -> str:
         raise OperatorLedgerError("Experiment operator ledger event timestamp is invalid.") from exc
     if parsed.tzinfo is None:
         raise OperatorLedgerError("Experiment operator ledger event timestamp is invalid.")
-    normalized = parsed.astimezone(timezone.utc).replace(microsecond=0)
-    if normalized > datetime.now(timezone.utc).replace(microsecond=0) + timedelta(minutes=5):
+    normalized = parsed.astimezone(timezone.utc)
+    if normalized > datetime.now(timezone.utc) + timedelta(minutes=5):
         raise OperatorLedgerError("Experiment operator ledger event timestamp is invalid.")
     return normalized.isoformat()
 
