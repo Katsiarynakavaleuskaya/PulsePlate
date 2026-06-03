@@ -455,6 +455,28 @@ class TestFitChefIdentityLoopMapperRoute:
         assert response.status_code == 400
         assert _json_body(response) == {"detail": "unsafe_ai_input"}
 
+    def test_high_distress_input_rejected_before_runtime(self) -> None:
+        """High-distress identity-loop input must not reach runtime delegation."""
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run for high-distress input"),
+        )
+
+        response = self.client.post(
+            self.url,
+            json={
+                "goal": "steady dinners",
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "I might kill myself tonight",
+                "trigger_context": "work runs late",
+            },
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 400
+        assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
+
     def test_route_delegates_to_runtime_with_identity_loop_envelope(self) -> None:
         """Route should delegate to runtime with the bounded identity-loop envelope."""
 
@@ -1075,6 +1097,43 @@ class TestFitChefStructuredRuntimeCoverage:
         assert retrieval_calls[0]["kwargs"]["agent_id"] == "cbt-agent"
         assert retrieval_calls[0]["kwargs"]["user_tier"] == "VIP"
         assert result.sources[0].file == "docs/cbt/identity_loop.md"
+
+    @pytest.mark.asyncio
+    async def test_identity_runtime_supports_async_provider_generate(self) -> None:
+        """Structured runtime should await async provider.generate implementations."""
+
+        from app.services import fitchef_runtime
+
+        class AsyncProvider:
+            async def generate(self, _prompt: str) -> str:
+                return """
+                {
+                  "identity_loop": {
+                    "belief": "If dinner slips, the whole routine is broken.",
+                    "behavior": "I stop planning after one hard evening.",
+                    "short_term_reward": "Pressure drops for a moment.",
+                    "long_term_cost": "The next meal gets less support."
+                  },
+                  "identity_shift_statement": "I can practice returning after one hard moment.",
+                  "replacement_action": "Choose one default dinner today.",
+                  "repair_if_slip": "Name the slip calmly and restart at the next meal."
+                }
+                """
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: AsyncProvider())
+
+        result = await fitchef_runtime.run_identity_loop_mapper_task(self._identity_task())
+
+        assert result.identity_loop.belief.startswith("If dinner slips")
+        assert result.quota_state == "consumed"
 
     @pytest.mark.asyncio
     async def test_identity_runtime_generation_failure_returns_stable_detail(self) -> None:

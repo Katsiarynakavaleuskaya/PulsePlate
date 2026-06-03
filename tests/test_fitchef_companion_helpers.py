@@ -16,6 +16,7 @@ from core.insight.fitchef_companion import (
     _structured_texts_are_safe,
     build_distortion_simulator_prompt,
     build_identity_loop_mapper_prompt,
+    has_high_distress_boundary,
     prepare_distortion_simulator_draft,
     prepare_identity_loop_mapper_draft,
 )
@@ -158,6 +159,22 @@ def test_prepare_identity_loop_mapper_draft_falls_back_without_trigger_context()
     assert draft.repair_if_slip.startswith("Name the slip calmly")
 
 
+def test_prepare_identity_loop_mapper_draft_sanitizes_unsafe_goal_fallback() -> None:
+    """Fallback text should not echo unsafe food-morality goal language."""
+
+    draft = prepare_identity_loop_mapper_draft(
+        "not json",
+        goal="avoid bad foods",
+        recent_pattern="I stop planning dinner after one hard evening",
+        self_talk="I am too inconsistent",
+        trigger_context=None,
+    )
+
+    assert "bad foods" not in draft.replacement_action.lower()
+    assert "current wellness goal" in draft.replacement_action
+    assert _structured_texts_are_safe(draft.replacement_action)
+
+
 def test_prepare_identity_loop_mapper_draft_rewrites_unsafe_payload() -> None:
     """Clinical/provider language must fall back to the safe identity-loop draft."""
 
@@ -185,6 +202,15 @@ def test_prepare_identity_loop_mapper_draft_rewrites_unsafe_payload() -> None:
     assert draft.belief.startswith("One difficult planning moment")
     assert "when the same trigger shows up" in draft.behavior
     assert "treatment" not in draft.replacement_action.lower()
+
+
+def test_identity_loop_mapper_detects_high_distress_boundary() -> None:
+    """High-distress text should leave the identity-loop personalization lane."""
+
+    assert has_high_distress_boundary("steady dinners", "I might kill myself tonight")
+    assert has_high_distress_boundary("I want to hurt myself")
+    assert has_high_distress_boundary("I do not want to live")
+    assert not has_high_distress_boundary("I felt disappointed after dinner planning slipped")
 
 
 def test_extract_json_payload_accepts_fenced_and_embedded_objects() -> None:

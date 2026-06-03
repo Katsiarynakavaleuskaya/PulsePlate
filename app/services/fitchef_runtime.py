@@ -547,10 +547,7 @@ async def _run_fitchef_vip_text_task(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="quota_exceeded",
             )
-        raw_message = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
+        raw_message = await _generate_with_timeout(provider, prompt)
         if not isinstance(raw_message, str) or not raw_message.strip():
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -716,10 +713,7 @@ async def _run_fitchef_structured_task(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="quota_exceeded",
             )
-        raw_message = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
+        raw_message = await _generate_with_timeout(provider, prompt)
         if not isinstance(raw_message, str) or not raw_message.strip():
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

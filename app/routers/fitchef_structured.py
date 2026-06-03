@@ -36,6 +36,7 @@ from app.security.rate_limit import (
     limit_if_available,
 )
 from app.services import fitchef_runtime
+from core.insight.fitchef_companion import has_high_distress_boundary
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ vip_router = APIRouter(tags=["vip", "fitchef", "coaching", "structured"])
 FITCHEF_STRUCTURED_FLAG_ENV = "FEATURE_FITCHEF_STRUCTURED_COACH"
 FITCHEF_STRUCTURED_EXECUTION_MODE_ENV = "FITCHEF_STRUCTURED_COACH_EXECUTION_MODE"
 FitChefStructuredMode = Literal["auto-safe", "review-required", "blocked"]
+FITCHEF_HIGH_DISTRESS_BOUNDARY_DETAIL = "fitchef_high_distress_boundary"
 
 
 def _is_fitchef_structured_enabled() -> bool:
@@ -75,6 +77,21 @@ def _require_fitchef_structured_mode() -> FitChefStructuredMode:
         detail = f"agent_execution_{execution_mode.replace('-', '_')}"
         raise HTTPException(status_code=503, detail=detail)
     return execution_mode
+
+
+def _require_identity_loop_mapper_boundary(payload: FitChefIdentityLoopMapperRequest) -> None:
+    """Fail closed before runtime when identity mapping is unsafe to personalize."""
+
+    if has_high_distress_boundary(
+        payload.goal,
+        payload.recent_pattern,
+        payload.self_talk,
+        payload.trigger_context,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=FITCHEF_HIGH_DISTRESS_BOUNDARY_DETAIL,
+        )
 
 
 @router.post(
@@ -173,6 +190,7 @@ async def fitchef_identity_loop_mapper(
         raise HTTPException(status_code=503, detail="FEATURE_FITCHEF_STRUCTURED_COACH is disabled")
 
     execution_mode = _require_fitchef_structured_mode()
+    _require_identity_loop_mapper_boundary(payload)
     task = FitChefIdentityLoopMapperTaskEnvelope(
         mode=execution_mode,
         input=FitChefIdentityLoopMapperInput(

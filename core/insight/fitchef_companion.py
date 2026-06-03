@@ -22,6 +22,14 @@ _DEFAULT_ACTION_KEYWORDS = ("try", "start", "choose", "add")
 _WEEKLY_REFLECTION_ACTION_KEYWORDS = ("keep", "plan", "notice", *_DEFAULT_ACTION_KEYWORDS)
 _SLIP_SUPPORT_ACTION_KEYWORDS = ("pause", "restart", "return", "plan", *_DEFAULT_ACTION_KEYWORDS)
 _DEFAULT_LIST_LIMIT = 3
+_HIGH_DISTRESS_BOUNDARY_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b(?:kill|hurt|harm)\s+myself\b", re.IGNORECASE),
+    re.compile(r"\bend\s+my\s+life\b", re.IGNORECASE),
+    re.compile(r"\bself[-\s]?harm\b", re.IGNORECASE),
+    re.compile(r"\bsuicid(?:e|al)\b", re.IGNORECASE),
+    re.compile(r"\bi\s+do\s+not\s+want\s+to\s+live\b", re.IGNORECASE),
+    re.compile(r"\bi\s+don'?t\s+want\s+to\s+live\b", re.IGNORECASE),
+)
 _DISTORTION_LABEL_ALIASES: dict[str, str] = {
     "all_or_nothing_thinking": "all_or_nothing_thinking",
     "all or nothing thinking": "all_or_nothing_thinking",
@@ -359,6 +367,17 @@ Recent pattern: {recent_pattern}
 Self-talk: {self_talk}
 {trigger_line}
 """.strip()
+
+
+def has_high_distress_boundary(*values: str | None) -> bool:
+    """Return whether user text should exit the structured coaching lane."""
+
+    return any(
+        pattern.search(value)
+        for value in values
+        if value
+        for pattern in _HIGH_DISTRESS_BOUNDARY_PATTERNS
+    )
 
 
 def prepare_distortion_simulator_draft(
@@ -878,6 +897,14 @@ def _fallback_identity_loop_draft(
         "when the same trigger shows up" if trigger_context else "when planning gets hard"
     )
     goal_phrase = goal.strip() or "the current wellness goal"
+    replacement_action = (
+        f"Choose one small planning step in the next 24 hours that supports {goal_phrase}."
+    )
+    if not _structured_texts_are_safe(replacement_action):
+        replacement_action = (
+            "Choose one small planning step in the next 24 hours that supports "
+            "the current wellness goal."
+        )
     return FitChefIdentityLoopDraft(
         belief="One difficult planning moment can feel like proof that the whole routine is broken.",
         behavior=f"The pattern is to step back from meal planning {trigger_phrase}.",
@@ -886,9 +913,7 @@ def _fallback_identity_loop_draft(
         identity_shift_statement=(
             "I can practice returning after one hard moment instead of restarting from zero."
         ),
-        replacement_action=(
-            f"Choose one small planning step in the next 24 hours that supports {goal_phrase}."
-        ),
+        replacement_action=replacement_action,
         repair_if_slip=(
             "Name the slip calmly, use the default next meal, and restart at the next eating moment."
         ),
