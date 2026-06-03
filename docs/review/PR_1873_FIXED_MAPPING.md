@@ -15,11 +15,11 @@ gates.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping artifact created after PR #1873 opened.
 - [x] Fixed in commit mapping completed
-- [ ] PR body mirror updated after this artifact lands.
-- [ ] Post-open role-agent sequence completed:
+- [x] PR body mirror updated after this artifact lands.
+- [x] Post-open role-agent sequence completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 
 ## Fixed in Commit Mapping
 
@@ -121,23 +121,40 @@ Future resolved actionable comments must be appended here with one of:
 
 ## Merge Readiness
 
-- [ ] All GitHub review threads resolved with dispositions recorded above
+- [x] All GitHub review threads resolved with dispositions recorded above
 - [ ] All required current-head CI checks passing
-- [ ] Security scan completed with no blockers
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
-- [ ] Post-open role-agent sequence completed
-- [ ] PR body mirror sections updated
+- [x] Security scan completed with no blockers
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Post-open role-agent sequence completed
+- [x] PR body mirror sections updated
 - [ ] Strict merge-readiness wrapper passed
 
 ## Post-Open Role-Agent Findings
 
-Pending.
+### QA Engineer Agent
+
+Disposition: FIXED
+Commit: a30e47c010ac2e1c99ad2adb332ceceb599a21b6
+Evidence: QA rerun confirmed the Signal vs Noise lane remains docs-only, content/GTM-only, and wellness-only after `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md` was reconciled to the landed PR #1870 VIP Identity Loop Mapper runtime state. The remaining review-thread blocker was cleared after all mapped GitHub review threads were resolved with dispositions.
+
+### Bug Hunter
+
+Disposition: FIXED
+Commit: 2ff3f8f7b147b5dcc026c0b35519111ae82a7e1b
+Evidence: Bug-hunter found the final two synthetic-head review threads unmapped. `docs/review/PR_1873_FIXED_MAPPING.md` now records `discussion_r3351818275` and `discussion_r3351818279` under the branch-history synthetic-SHA `NOT-A-BUG` disposition, and the GitHub thread query showed `unresolved=0` afterward.
+
+### Security Auditor
+
+Disposition: NOT-A-BUG
+Evidence: Security-auditor post-open pass found no docs-to-runtime drift, no hidden telemetry, no auth/quota/secret/subprocess/DB/frontend/iOS/Slack/billing surface changes, and no wellness-boundary drift. The diff remains docs-only and does not introduce product runtime authority.
 
 ## Codex Security Diff Scan
 
-Pending.
+Disposition: NOT-A-BUG
+Evidence: Codex Security `security-diff-scan` reviewed scan id `2ff3f8f7b147_20260603T210239Z_pr1873`. The docs-only worklist covered 10/10 changed files, emitted no raw candidates, generated `report.md` and `report.html`, and `validate_report_format.py --report-md report.md` passed. No security findings were produced.
 
 ## PulsePlate PR Review
 
-Pending.
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` produced one advisory large-diff planning note: 493 changed lines exceeded the review-risk threshold. The authoritative PR-size gate returned `PR scope category: standard_governance_design`, `Counted files: 10`, `Line-count signal: warning (advisory; file-count policy is authoritative)`, and `PR scope governance: OK (standard governance/design PR <= 20 files)`. Targeted deterministic gates also passed: `make validate-changed`, `pre-commit run --all-files`, and `.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` (`13 passed`). The advisory does not require a split for this docs/governance PR.
