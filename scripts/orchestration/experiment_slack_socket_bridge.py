@@ -330,12 +330,18 @@ def render_mvp_evidence_summary() -> SlackSafeMessage:
     )
 
 
-def render_latest_operator_ledger_summary() -> tuple[str, ...]:
+def render_latest_operator_ledger_summary(
+    *,
+    exclude_event_hash: str | None = None,
+) -> tuple[str, ...]:
     """Render latest local operator ledger summary using the facade repo root."""
 
     return cast(
         tuple[str, ...],
-        _operator_ledger.latest_operator_ledger_summary(repo_root=Path(REPO_ROOT)),
+        _operator_ledger.latest_operator_ledger_summary(
+            repo_root=Path(REPO_ROOT),
+            exclude_event_hash=exclude_event_hash,
+        ),
     )
 
 
@@ -789,11 +795,18 @@ def _format_command_reply(
     if command.kind == "help":
         return cast(str, render_operator_help_message().as_text())
     if command.kind == "status":
+        excluded_event_hash = (
+            decision.event_hash
+            if decision is not None and decision.command_kind == "status"
+            else None
+        )
         return cast(
             str,
             render_operator_status_message(
                 config,
-                operator_ledger_summary=render_latest_operator_ledger_summary(),
+                operator_ledger_summary=render_latest_operator_ledger_summary(
+                    exclude_event_hash=excluded_event_hash,
+                ),
             ).as_text(),
         )
     if command.kind == "kpp-status":

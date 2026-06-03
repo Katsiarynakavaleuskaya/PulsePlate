@@ -228,8 +228,8 @@ The Slack operator bridge may validate configuration, report status, render
 redacted Guided Planning MVP evidence contract summaries, and in explicit execute mode dispatch only the fixed
 `.github/workflows/experiment-runner-dispatch.yml` workflow with typed,
 sanitized inputs. The dispatch workflow is manual-only, defaults to `dry_run:
-true`, and fails closed for `dry_run: false` until a later bounded dispatch
-exercise PR promotes live execution. It must not:
+true`, and allows `dry_run: false` only when the reviewed approval digest
+matches the requested branch and hypothesis exactly. It must not:
 
 - create or update pull requests,
 - resolve review threads,

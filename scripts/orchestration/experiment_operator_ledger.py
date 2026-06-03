@@ -861,10 +861,16 @@ def latest_operator_ledger_record(
     *,
     ledger_dir: Path | None = None,
     repo_root: Path | None = None,
+    exclude_event_hash: str | None = None,
 ) -> OperatorLedgerRecord | None:
     """Return the latest local operator ledger record if one exists."""
 
     records = load_operator_ledger_events(ledger_dir=ledger_dir, repo_root=repo_root)
+    if exclude_event_hash is not None:
+        normalized_excluded = _validate_hash(exclude_event_hash)
+        records = [
+            record for record in records if record.payload["event_hash"] != normalized_excluded
+        ]
     return records[-1] if records else None
 
 
@@ -879,11 +885,16 @@ def latest_operator_ledger_summary(
     *,
     ledger_dir: Path | None = None,
     repo_root: Path | None = None,
+    exclude_event_hash: str | None = None,
 ) -> tuple[str, ...]:
     """Return Slack-safe summary lines for the latest local operator ledger event."""
 
     try:
-        record = latest_operator_ledger_record(ledger_dir=ledger_dir, repo_root=repo_root)
+        record = latest_operator_ledger_record(
+            ledger_dir=ledger_dir,
+            repo_root=repo_root,
+            exclude_event_hash=exclude_event_hash,
+        )
     except OperatorLedgerError:
         return (
             "operator_ledger_status=invalid_local_artifact",

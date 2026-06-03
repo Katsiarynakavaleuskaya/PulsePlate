@@ -112,6 +112,7 @@ jobs:
               summary.write(f"- branch_hash: {branch_hash}\n")
               summary.write(f"- hypothesis_hash: {hypothesis_hash}\n")
               summary.write(f"- approval_hash_prefix: {approval_prefix}\n")
-              summary.write("- operator_ledger_status: local bridge ledger records this event before Slack-facing status\n")
+              summary.write("- operator_ledger_status: not_written_by_workflow\n")
+              summary.write("- operator_ledger_scope: local_bridge_only\n")
               summary.write("- authority: Slack is not merge readiness; no PR creation, review disposition, merge readiness, or arbitrary workflow dispatch\n")
           PY

@@ -1331,12 +1331,29 @@ def test_status_command_reflects_latest_operator_ledger_event_after_processing(
         _event(text="feature/status-ledger Validate status ledger summary"),
         config,
     )
-    status_reply = bridge._format_command_reply(bridge.OperatorCommand(kind="status"), config)
+    status_decision = bridge.process_payload(
+        _event(
+            event_id="Ev0STATUSLEDGER",
+            command="/pulseplate-runner",
+            text="status",
+        ),
+        config,
+    )
+    status_reply = bridge._format_command_reply(
+        bridge.OperatorCommand(kind="status"),
+        config,
+        decision=status_decision,
+    )
 
     assert decision.status == "dry_run"
+    assert status_decision.status == "dry_run"
+    assert status_decision.command_kind == "status"
+    assert len(_ledger_records(audit_dir)) == 2
     assert "operator_ledger_status=dry_run" in status_reply
     assert "operator_ledger_command_kind=run-experiment" in status_reply
+    assert "operator_ledger_command_kind=status" not in status_reply
     assert "operator_ledger_workflow_file=experiment-runner-dispatch.yml" in status_reply
+    assert "operator_ledger_workflow_file=none" not in status_reply
     assert bridge._sha256_text("feature/status-ledger")[:16] in status_reply
     assert "feature/status-ledger" not in status_reply
     assert "Validate status ledger summary" not in status_reply
@@ -2324,6 +2341,9 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert "hypothesis_hash" in summary_step["run"]
     assert "approval_hash_prefix" in summary_step["run"]
     assert "operator_ledger_status" in summary_step["run"]
+    assert "not_written_by_workflow" in summary_step["run"]
+    assert "operator_ledger_scope: local_bridge_only" in summary_step["run"]
+    assert "local bridge ledger records this event" not in summary_step["run"]
     assert "Slack is not merge readiness" in summary_step["run"]
     assert "SLACK_APP_TOKEN" not in workflow_text
     assert "SLACK_BOT_TOKEN" not in workflow_text
@@ -2364,6 +2384,8 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID" in runbook
     assert "operator-plane-slack-bridge" in runbook
     assert "dry_run: false" in runbook
+    assert "allows `dry_run: false` only when the reviewed approval digest" in runbook
+    assert "until a later bounded dispatch" not in runbook
     assert "approval hash prefix" in runbook
     assert "Slack is not merge readiness" in runbook
     assert "dry_run`, `dispatched`, `failed`, and `rejected`" in runbook
