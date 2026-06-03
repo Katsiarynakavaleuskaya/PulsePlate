@@ -973,7 +973,14 @@ def _safe_result_metadata_from_ref(artifact_ref: Any, *, repo_root: Path) -> dic
         if not isinstance(raw, dict):
             raise ValueError("Experiment result must be a JSON object.")
         result = validate_experiment_result(raw)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        ValueError,
+        TypeError,
+        OverflowError,
+    ):
         return _result_metadata("invalid", normalized_ref)
     metadata = {
         "schema_version": result["schema_version"],
