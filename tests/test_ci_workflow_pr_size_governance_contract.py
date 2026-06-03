@@ -11,15 +11,36 @@ from typing import cast
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+BUILD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "build.yml"
+CD_TEST_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd-test.yml"
+CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 CODECOV_UPLOAD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codecov-upload.yml"
+CODEQL_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codeql.yml"
+GREENLIGHT_IOS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "greenlight-ios.yml"
 IOS_APPSTORE_ASSETS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ios-appstore-assets.yml"
 NIGHTLY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly.yml"
 PR_AUTOMATION_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "pr-automation.yml"
+SECURITY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "security.yml"
+TRIVY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "trivy.yml"
 AGENTS_PATH = REPO_ROOT / "AGENTS.md"
 RUNBOOK_PATH = REPO_ROOT / "RUNBOOK_AGENT.md"
 ORCHESTRATION_CONTRACT_PATH = (
     REPO_ROOT / "docs" / "orchestration" / "PR_ORCHESTRATION_CONTRACT_MATRIX.md"
+)
+CHECKOUT_NODE24_SHA = "".join(
+    (
+        "de0f",
+        "ac2e",
+        "4500",
+        "dabe",
+        "0009",
+        "e672",
+        "14ff",
+        "5f54",
+        "47ce",
+        "83dd",
+    )
 )
 PATHS_FILTER_NODE24_SHA = "".join(
     (
@@ -77,7 +98,105 @@ CODECOV_ACTION_NODE24_SHA = "".join(
         "3de2",
     )
 )
+DOCKER_SETUP_BUILDX_NODE24_SHA = "".join(
+    (
+        "d7f5",
+        "e7f5",
+        "09e4",
+        "5cec",
+        "5c76",
+        "c4d5",
+        "afdd",
+        "7de9",
+        "3d0b",
+        "3df5",
+    )
+)
+DOCKER_LOGIN_NODE24_SHA = "".join(
+    (
+        "6500",
+        "06c6",
+        "eb7d",
+        "ba73",
+        "a995",
+        "cc03",
+        "b0b2",
+        "d7f5",
+        "ca91",
+        "5bee",
+    )
+)
+DOCKER_METADATA_NODE24_SHA = "".join(
+    (
+        "80c7",
+        "e94d",
+        "d9b9",
+        "319b",
+        "d5eb",
+        "7a0e",
+        "0fe9",
+        "291e",
+        "23a2",
+        "a2e9",
+    )
+)
+TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
+    (
+        "ed14",
+        "2fd0",
+        "673e",
+        "97e2",
+        "3eac",
+        "5462",
+        "0cfb",
+        "913e",
+        "5ce3",
+        "6c25",
+    )
+)
+SETUP_GO_NODE24_SHA = "".join(
+    (
+        "4a36",
+        "0112",
+        "1dd0",
+        "1d16",
+        "26a1",
+        "e23e",
+        "3721",
+        "1e32",
+        "54c1",
+        "c06c",
+    )
+)
+UPLOAD_ARTIFACT_NODE24_SHA = "".join(
+    (
+        "043f",
+        "b46d",
+        "1a93",
+        "c77a",
+        "ae65",
+        "6e7c",
+        "1c64",
+        "a875",
+        "d1fc",
+        "6a0a",
+    )
+)
 PYTHON_TEST_JOB_NAMES = ("test-pr", "test-feature", "test-main")
+OLD_CHECKOUT_NODE20_SHA = "".join(
+    (
+        "08eb",
+        "a0b2",
+        "7e82",
+        "0071",
+        "cde6",
+        "df94",
+        "9e0b",
+        "eb9b",
+        "a490",
+        "6955",
+    )
+)
 OLD_DOWNLOAD_ARTIFACT_SHA = "".join(
     (
         "fa0a",
@@ -118,6 +237,104 @@ OLD_CODECOV_ACTION_SHA = "".join(
         "b90c",
         "1917",
         "f78f",
+    )
+)
+OLD_DOCKER_SETUP_BUILDX_SHA = "".join(
+    (
+        "e468",
+        "171a",
+        "9de2",
+        "16ec",
+        "0895",
+        "6ac3",
+        "ada2",
+        "f079",
+        "1b6b",
+        "d435",
+    )
+)
+OLD_DOCKER_LOGIN_SHA = "".join(
+    (
+        "5e57",
+        "cd11",
+        "8135",
+        "c172",
+        "c367",
+        "2efd",
+        "75eb",
+        "4636",
+        "0885",
+        "c0ef",
+    )
+)
+OLD_DOCKER_METADATA_SHA = "".join(
+    (
+        "c1e5",
+        "1972",
+        "afc2",
+        "121e",
+        "065a",
+        "ed6d",
+        "45c6",
+        "5596",
+        "fe44",
+        "5f3f",
+    )
+)
+OLD_TRIVY_ACTION_SHA = "".join(
+    (
+        "57a9",
+        "7c7e",
+        "7821",
+        "a577",
+        "6ceb",
+        "c9bb",
+        "87c9",
+        "84fa",
+        "69cb",
+        "a8f1",
+    )
+)
+OLD_TRIVY_INTERNAL_CACHE_NODE20_SHA = "".join(
+    (
+        "0400",
+        "d5f6",
+        "44dc",
+        "7451",
+        "3175",
+        "e3cd",
+        "8d07",
+        "132d",
+        "d486",
+        "0809",
+    )
+)
+OLD_SETUP_GO_SHA = "".join(
+    (
+        "40f1",
+        "582b",
+        "2485",
+        "089d",
+        "de7a",
+        "bd97",
+        "c152",
+        "9aa7",
+        "68e1",
+        "baff",
+    )
+)
+OLD_UPLOAD_ARTIFACT_SHA = "".join(
+    (
+        "ea16",
+        "5f8d",
+        "65b6",
+        "e75b",
+        "5404",
+        "49e9",
+        "2b48",
+        "86f4",
+        "3607",
+        "fa02",
     )
 )
 GITHUB_SCRIPT_V9_TAG_OBJECT_SHA = "".join(
@@ -168,6 +385,12 @@ def _load_workflow(path: Path) -> dict[str, object]:
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(workflow, dict)
     return workflow
+
+
+def _active_workflow_paths() -> Iterator[Path]:
+    workflow_dir = REPO_ROOT / ".github" / "workflows"
+    yield from sorted(workflow_dir.glob("*.yml"))
+    yield from sorted(workflow_dir.glob("*.yaml"))
 
 
 def _iter_job_steps(path: Path) -> Iterator[tuple[str, dict[str, object]]]:
@@ -464,6 +687,492 @@ def test_codecov_action_pin_uses_node24_transitive_github_script() -> None:
                 assert uses == f"codecov/codecov-action@{CODECOV_ACTION_NODE24_SHA}"
 
     assert len(observed_codecov_steps) == sum(workflow_counts.values())
+
+
+def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> None:
+    """Guard remaining Node 20 workflow action migrations against regression."""
+
+    active_workflow_text = "\n".join(
+        path.read_text(encoding="utf-8") for path in _active_workflow_paths()
+    )
+    old_node20_shas = (
+        OLD_CHECKOUT_NODE20_SHA,
+        OLD_DOCKER_SETUP_BUILDX_SHA,
+        OLD_DOCKER_LOGIN_SHA,
+        OLD_DOCKER_METADATA_SHA,
+        OLD_TRIVY_ACTION_SHA,
+        OLD_TRIVY_INTERNAL_CACHE_NODE20_SHA,
+        OLD_SETUP_GO_SHA,
+        OLD_UPLOAD_ARTIFACT_SHA,
+    )
+    for old_sha in old_node20_shas:
+        assert old_sha not in active_workflow_text
+
+    forbidden_override_env_vars = (
+        "ACTIONS_ALLOW_USE_UNSECURE_" "NODE_VERSION",
+        "CI_ALLOW_" "MERGE_OVERRIDE",
+    )
+    for env_var in forbidden_override_env_vars:
+        assert env_var not in active_workflow_text
+
+    checkout_workflows = {
+        CD_TEST_WORKFLOW_PATH: 2,
+        CODECOV_UPLOAD_WORKFLOW_PATH: 1,
+        CODEQL_WORKFLOW_PATH: 1,
+        GREENLIGHT_IOS_WORKFLOW_PATH: 1,
+        IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 3,
+        SECURITY_WORKFLOW_PATH: 1,
+    }
+    expected_checkout_line = f"actions/checkout@{CHECKOUT_NODE24_SHA} # v6.0.2 / Node 24"
+
+    observed_checkout_steps = 0
+    for workflow_path, expected_count in checkout_workflows.items():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        assert workflow_text.count(expected_checkout_line) == expected_count
+
+        for _job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if isinstance(uses, str) and uses.startswith("actions/checkout@"):
+                observed_checkout_steps += 1
+                assert uses == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+
+    assert observed_checkout_steps == sum(checkout_workflows.values())
+
+    expected_docker_lines = {
+        BUILD_WORKFLOW_PATH: {
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 2,
+            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA} # v4.2.0 / Node 24": 1,
+            f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA} " "# v6.1.0 / Node 24": 1,
+        },
+        CD_WORKFLOW_PATH: {
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 2,
+            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA} # v4.2.0 / Node 24": 2,
+        },
+        TRIVY_WORKFLOW_PATH: {
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 1,
+        },
+    }
+    for workflow_path, expected_counts in expected_docker_lines.items():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        for expected_line, expected_count in expected_counts.items():
+            assert workflow_text.count(expected_line) == expected_count
+
+    expected_trivy_lines = {
+        BUILD_WORKFLOW_PATH: {
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
+            "# v0.36.0 / Node 24 cache path": 2,
+        },
+        TRIVY_WORKFLOW_PATH: {
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
+            "# v0.36.0 / Node 24 cache path": 1,
+        },
+    }
+    for workflow_path, expected_counts in expected_trivy_lines.items():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        for expected_line, expected_count in expected_counts.items():
+            assert workflow_text.count(expected_line) == expected_count
+
+    observed_docker_contracts = []
+    for workflow_path in (BUILD_WORKFLOW_PATH, CD_WORKFLOW_PATH, TRIVY_WORKFLOW_PATH):
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if not isinstance(uses, str) or not uses.startswith("docker/"):
+                continue
+            if uses.startswith("docker/build-push-action@"):
+                continue
+            observed_docker_contracts.append(
+                (
+                    str(workflow_path.relative_to(REPO_ROOT)),
+                    job_id,
+                    step.get("name"),
+                    uses,
+                    step.get("with"),
+                    step.get("if"),
+                    step.get("env"),
+                    step.get("continue-on-error"),
+                )
+            )
+
+    assert observed_docker_contracts == [
+        (
+            ".github/workflows/build.yml",
+            "build",
+            "Set up Docker Buildx",
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA}",
+            None,
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Set up Docker Buildx",
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA}",
+            None,
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Log in to GHCR",
+            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA}",
+            {
+                "registry": "${{ env.REGISTRY }}",
+                "username": "${{ github.repository_owner }}",
+                "password": "${{ secrets.GITHUB_TOKEN }}",
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Extract metadata",
+            f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA}",
+            {
+                "images": ("${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}"),
+                "tags": (
+                    "type=raw,value=${{ github.sha }}\n"
+                    "type=raw,value=sha-${{ github.sha }}\n"
+                    "type=ref,event=branch\n"
+                    "type=semver,pattern={{version}}\n"
+                    "type=semver,pattern={{major}}.{{minor}}\n"
+                    "type=raw,value=latest,enable={{is_default_branch}}\n"
+                ),
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build",
+            "Set up Docker Buildx",
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA}",
+            None,
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build",
+            "Log in to Container Registry",
+            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA}",
+            {
+                "registry": "ghcr.io",
+                "username": "${{ github.actor }}",
+                "password": "${{ secrets.GITHUB_TOKEN }}",
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build-production",
+            "Set up Docker Buildx",
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA}",
+            None,
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build-production",
+            "Log in to Container Registry",
+            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA}",
+            {
+                "registry": "ghcr.io",
+                "username": "${{ github.actor }}",
+                "password": "${{ secrets.GITHUB_TOKEN }}",
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/trivy.yml",
+            "build",
+            "Set up Docker Buildx",
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA}",
+            None,
+            None,
+            None,
+            None,
+        ),
+    ]
+
+    observed_trivy_contracts = []
+    for workflow_path in (BUILD_WORKFLOW_PATH, TRIVY_WORKFLOW_PATH):
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if isinstance(uses, str) and uses.startswith("aquasecurity/trivy-action@"):
+                observed_trivy_contracts.append(
+                    (
+                        str(workflow_path.relative_to(REPO_ROOT)),
+                        job_id,
+                        step.get("name"),
+                        uses,
+                        step.get("with"),
+                        step.get("if"),
+                        step.get("env"),
+                        step.get("continue-on-error"),
+                    )
+                )
+
+    assert observed_trivy_contracts == [
+        (
+            ".github/workflows/build.yml",
+            "security-scan",
+            "Run Trivy vulnerability scanner (filesystem scan)",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "scan-type": "fs",
+                "scan-ref": ".",
+                "cache-dir": "/tmp/trivy-cache",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+                "scanners": "vuln",
+                "format": "sarif",
+                "output": "trivy-results.sarif",
+                "severity": "CRITICAL,HIGH",
+                "limit-severities-for-sarif": True,
+                "exit-code": "1",
+                "trivyignores": ".trivyignore",
+                "version": "v0.69.3",
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Run Trivy vulnerability scanner (image scan, report-only)",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "scan-type": "image",
+                "image-ref": "${{ steps.image-ref.outputs.ref }}",
+                "cache-dir": "/tmp/trivy-cache",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+                "scanners": "vuln",
+                "format": "sarif",
+                "output": "trivy-image.sarif",
+                "severity": "CRITICAL,HIGH",
+                "limit-severities-for-sarif": True,
+                "trivyignores": ".trivyignore",
+                "exit-code": "0",
+                "version": "v0.69.3",
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
+            True,
+        ),
+        (
+            ".github/workflows/trivy.yml",
+            "build",
+            "Run Trivy vulnerability scanner",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "scan-type": "image",
+                "image-ref": "pulseplate:trivy-scan-${{ github.sha }}",
+                "cache-dir": "/tmp/trivy-cache",
+                "scanners": "vuln",
+                "timeout": "15m",
+                "format": "sarif",
+                "output": "trivy-results.sarif",
+                "severity": "CRITICAL,HIGH",
+                "limit-severities-for-sarif": True,
+                "ignore-unfixed": True,
+                "trivyignores": ".trivyignore",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+                "version": "v0.69.3",
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
+            None,
+        ),
+    ]
+
+
+def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() -> None:
+    """Guard direct Node 20 setup/upload action migrations in touched workflows."""
+
+    expected_action_lines = {
+        BUILD_WORKFLOW_PATH: {
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 4,
+        },
+        GREENLIGHT_IOS_WORKFLOW_PATH: {
+            f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v6.4.0 / Node 24": 1,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+        },
+        IOS_APPSTORE_ASSETS_WORKFLOW_PATH: {
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+        },
+        SECURITY_WORKFLOW_PATH: {
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+        },
+    }
+    for workflow_path, expected_counts in expected_action_lines.items():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        for expected_line, expected_count in expected_counts.items():
+            assert workflow_text.count(expected_line) == expected_count
+
+    observed_contracts = []
+    for workflow_path in (
+        BUILD_WORKFLOW_PATH,
+        GREENLIGHT_IOS_WORKFLOW_PATH,
+        IOS_APPSTORE_ASSETS_WORKFLOW_PATH,
+        SECURITY_WORKFLOW_PATH,
+    ):
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if not isinstance(uses, str):
+                continue
+            if not (
+                uses.startswith("actions/setup-go@") or uses.startswith("actions/upload-artifact@")
+            ):
+                continue
+            observed_contracts.append(
+                (
+                    str(workflow_path.relative_to(REPO_ROOT)),
+                    job_id,
+                    step.get("name"),
+                    uses,
+                    step.get("with"),
+                    step.get("if"),
+                    step.get("env"),
+                    step.get("continue-on-error"),
+                )
+            )
+
+    assert observed_contracts == [
+        (
+            ".github/workflows/build.yml",
+            "build",
+            "Upload Docker telemetry artifact",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "docker-image-telemetry-build",
+                "path": (
+                    "docker-runtime-dependency-surface.json\n"
+                    "docker-image-telemetry.json\n"
+                    "docker-image-telemetry.md\n"
+                ),
+                "if-no-files-found": "warn",
+                "retention-days": 14,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "build",
+            "Upload Docker budget check artifact",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "docker-image-budget-check-build",
+                "path": "docker-image-budget-check.json\n" "docker-image-budget-check.md\n",
+                "if-no-files-found": "warn",
+                "retention-days": 14,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Upload release-control-plane build digest sources",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "release-control-plane-build-sources",
+                "path": (
+                    "release-control-plane-build-sources/artifact_digest.txt\n"
+                    "release-control-plane-build-sources/sbom_digest.txt\n"
+                    "release-control-plane-build-sources/provenance_digest.txt\n"
+                    "release-control-plane-build-sources/attestation_status.txt\n"
+                    "docker-provenance-attestation-check.json\n"
+                    "docker-provenance-attestation-check.md\n"
+                ),
+                "if-no-files-found": "error",
+                "retention-days": 14,
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Upload SBOM",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {"name": "sbom", "path": "sbom.spdx.json", "retention-days": 30},
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/greenlight-ios.yml",
+            "greenlight-ios",
+            "Setup Go",
+            f"actions/setup-go@{SETUP_GO_NODE24_SHA}",
+            {"go-version": "1.24"},
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/greenlight-ios.yml",
+            "greenlight-ios",
+            "Upload Greenlight report artifact",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "greenlight-ios-report",
+                "path": "greenlight-report.json",
+                "if-no-files-found": "error",
+            },
+            "always()",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/ios-appstore-assets.yml",
+            "validate-assets",
+            "Upload screenshot artifacts",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "ios-appstore-screenshots",
+                "path": "ios/fastlane/screenshots",
+                "if-no-files-found": "warn",
+            },
+            "always()",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/security.yml",
+            "bandit",
+            "Upload security reports",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "security-reports",
+                "path": (
+                    "bandit-report.json\n" "safety-*.json\n" "safety-*.txt\n" "safety-*.log\n"
+                ),
+                "if-no-files-found": "ignore",
+            },
+            "always()",
+            None,
+            None,
+        ),
+    ]
 
 
 def test_node24_artifact_migration_preserves_download_contracts() -> None:

@@ -127,6 +127,25 @@ Test contract, not just `status == "error"`:
 
 ---
 
+## 7b) Do not paste machine-local absolute paths into review docs
+
+### Problem
+CI docs guards reject changed docs that include machine-specific home-directory
+paths. This can create a fix-loop when an otherwise narrow CI PR records local
+evidence with machine-specific command paths, then pushes a mapping fix that
+forces another current-head run.
+
+### Rule
+Use repo-relative command evidence in docs and PR bodies:
+- `.venv/bin/python -m pytest ...`
+- `python3 scripts/...`
+- `make validate-changed`
+
+Keep absolute local paths out of `docs/review/**`, backlog evidence, and PR
+body mirrors unless a specific policy explicitly requires them.
+
+---
+
 ## 8) Keyword-only args in test helpers
 
 ### Rule
