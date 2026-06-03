@@ -499,6 +499,28 @@ class TestFitChefIdentityLoopMapperRoute:
         assert response.status_code == 400
         assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
 
+    def test_high_distress_euphemism_rejected_before_runtime(self) -> None:
+        """High-distress euphemisms should not reach identity-loop runtime."""
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run for high-distress input"),
+        )
+
+        response = self.client.post(
+            self.url,
+            json={
+                "goal": "steady dinners",
+                "recent_pattern": "I stop planning dinner after one hard evening",
+                "self_talk": "I don't want to be here anymore",
+                "trigger_context": "work runs late",
+            },
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 400
+        assert _json_body(response) == {"detail": "fitchef_high_distress_boundary"}
+
     def test_route_delegates_to_runtime_with_identity_loop_envelope(self) -> None:
         """Route should delegate to runtime with the bounded identity-loop envelope."""
 

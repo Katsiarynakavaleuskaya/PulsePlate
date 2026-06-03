@@ -55,7 +55,7 @@ billing, food-data ingest, or plan-adaptation implementation is included.
 - [ ] Fixed in commit mapping completed after all post-open findings.
 - Current state: PR opened; post-open QA, bug-hunter, security-auditor, Codex Security, and `pulseplate-pr-review` are pending.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
 
 - No GitHub review-thread URLs have been resolved yet.
 
@@ -63,11 +63,11 @@ billing, food-data ingest, or plan-adaptation implementation is included.
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make openapi-check` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_fitchef_companion_helpers.py tests/test_rate_limit_llm_and_exports_api.py tests/test_pro_vip_route_dependency_guard.py tests/test_compliance_control_plane.py tests/test_openapi_namespace_guards.py tests/test_openapi_determinism.py tests/vip/test_vip_diff_coverage.py` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/insights/CBT_COACHING_PRODUCT_WAVE.md docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/API_CANONICAL_MAP.md docs/contracts/PRODUCT_TIER_MAP.md docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md docs/legal/Privacy.md docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_PREMORTEM.md docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_EXPERIMENT_RUNNER_EVIDENCE.md` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make validate-changed` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files` - PASS
+- `PATH=.venv/bin:$PATH make openapi-check` - PASS
+- `PATH=.venv/bin:$PATH python -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_fitchef_companion_helpers.py tests/test_rate_limit_llm_and_exports_api.py tests/test_pro_vip_route_dependency_guard.py tests/test_compliance_control_plane.py tests/test_openapi_namespace_guards.py tests/test_openapi_determinism.py tests/vip/test_vip_diff_coverage.py` - PASS
+- `PATH=.venv/bin:$PATH python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/insights/CBT_COACHING_PRODUCT_WAVE.md docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/API_CANONICAL_MAP.md docs/contracts/PRODUCT_TIER_MAP.md docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md docs/legal/Privacy.md docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_PREMORTEM.md docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_EXPERIMENT_RUNNER_EVIDENCE.md` - PASS
+- `PATH=.venv/bin:$PATH make validate-changed` - PASS
+- `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including changed-file mypy, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
 
 ## Merge Readiness

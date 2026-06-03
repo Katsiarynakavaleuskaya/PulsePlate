@@ -10,6 +10,7 @@ import json
 import re
 from dataclasses import dataclass
 from typing import Callable
+import unicodedata
 
 from core.insight.philosophy_validator import validate_llm_output
 
@@ -25,14 +26,46 @@ _DEFAULT_LIST_LIMIT = 3
 _HIGH_DISTRESS_BOUNDARY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:kill|hurt|harm)\s+myself\b", re.IGNORECASE),
     re.compile(r"\bend\s+my\s+life\b", re.IGNORECASE),
+    re.compile(r"\bend\s+it\s+all\b", re.IGNORECASE),
     re.compile(r"\bwant\s+to\s+die\b", re.IGNORECASE),
     re.compile(r"\bwish\s+i\s+were\s+dead\b", re.IGNORECASE),
     re.compile(r"\bi\s+can(?:not|'?t)\s+go\s+on\b", re.IGNORECASE),
+    re.compile(r"\b(?:do\s+not|don'?t)\s+want\s+to\s+be\s+here\s+anymore\b", re.IGNORECASE),
     re.compile(r"\bnot\s+worth\s+living\b", re.IGNORECASE),
+    re.compile(r"\bunalive\s+myself\b", re.IGNORECASE),
     re.compile(r"\bself[-\s]?harm\b", re.IGNORECASE),
     re.compile(r"\bsuicid(?:e|al)\b", re.IGNORECASE),
     re.compile(r"\bi\s+do\s+not\s+want\s+to\s+live\b", re.IGNORECASE),
     re.compile(r"\bi\s+don'?t\s+want\s+to\s+live\b", re.IGNORECASE),
+)
+_HIGH_DISTRESS_HOMOGLYPHS = str.maketrans(
+    {
+        "А": "A",
+        "В": "B",
+        "Е": "E",
+        "К": "K",
+        "М": "M",
+        "Н": "H",
+        "О": "O",
+        "Р": "P",
+        "С": "C",
+        "Т": "T",
+        "Х": "X",
+        "а": "a",
+        "е": "e",
+        "о": "o",
+        "р": "p",
+        "с": "c",
+        "у": "y",
+        "х": "x",
+        "к": "k",
+        "м": "m",
+        "т": "t",
+        "в": "b",
+        "і": "i",
+        "ј": "j",
+        "ѕ": "s",
+    }
 )
 _DISTORTION_LABEL_ALIASES: dict[str, str] = {
     "all_or_nothing_thinking": "all_or_nothing_thinking",
@@ -377,7 +410,7 @@ def has_high_distress_boundary(*values: str | None) -> bool:
     """Return whether user text should exit the structured coaching lane."""
 
     return any(
-        pattern.search(value)
+        pattern.search(unicodedata.normalize("NFKC", value).translate(_HIGH_DISTRESS_HOMOGLYPHS))
         for value in values
         if value
         for pattern in _HIGH_DISTRESS_BOUNDARY_PATTERNS
