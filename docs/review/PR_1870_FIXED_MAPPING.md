@@ -113,6 +113,28 @@ Evidence: CodeRabbit review-level actionable mirrors `discussion_r3347623257`; `
     lane provenance, scope/split approvals, and local-validation sections are
     present in this artifact/body pair before the final push.
 
+## Current-Head CI Finding Closure
+
+- `diff-coverage` on head `8e9325e840a406ae62937176016422a7c2fabfa5`:
+  FIXED in `059a7a7f8`.
+  - Finding: CI coverage-producing suites did not include the FitChef structured
+    API/helper/contract tests or VIP route registration coverage, leaving the
+    new runtime files below the 97% diff-cover threshold.
+  - Evidence: `.github/workflows/ci.yml` routes FitChef structured tests through
+    `insight_ai` and VIP route coverage tests through `route_contract_safety`;
+    `tests/AGENTS.md` documents the routing contract;
+    `tests/vip/test_vip_diff_coverage.py` covers the remaining VIP route lookup
+    branch; local diff-cover reports 100% on changed Python lines.
+- `pr_scope_guard` / PR size governance on head
+  `059a7a7f8`: FIXED by PR body mirror.
+  - Finding: adding `.github/workflows/ci.yml` for the CI coverage routing fix
+    classified this already-open 28-file runtime PR as
+    `privileged_ci_security_workflow`, requiring explicit operator-approved
+    privileged scope evidence.
+  - Evidence: PR body records `operator approval: approved for PR #1870.` and
+    `privileged scope exception: approved for CI coverage-routing fix after
+    current-head diff-coverage failure.`
+
 ## External Bot Review Status
 
 - CodeRabbit: NOT-A-BUG for code scope; review was rate-limited and emitted no
@@ -130,6 +152,10 @@ Evidence: CodeRabbit review-level actionable mirrors `discussion_r3347623257`; `
 - `PATH=.venv/bin:$PATH python -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_fitchef_companion_helpers.py tests/test_rate_limit_llm_and_exports_api.py tests/test_pro_vip_route_dependency_guard.py tests/test_compliance_control_plane.py tests/test_openapi_namespace_guards.py tests/test_openapi_determinism.py tests/vip/test_vip_diff_coverage.py` - PASS
 - `PATH=.venv/bin:$PATH python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/insights/CBT_COACHING_PRODUCT_WAVE.md docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md docs/contracts/API_CANONICAL_MAP.md docs/contracts/PRODUCT_TIER_MAP.md docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md docs/legal/Privacy.md docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_PREMORTEM.md docs/review/PR_VIP_IDENTITY_LOOP_MAPPER_EXPERIMENT_RUNNER_EVIDENCE.md` - PASS
 - `PATH=.venv/bin:$PATH python3 scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_1870_FIXED_MAPPING.md` - PASS
+- Local coverage parity for the CI routing fix: `coverage run` over
+  `tests/test_fitchef_insight_api.py`, FitChef structured tests, VIP route guard
+  tests, and `tests/vip/test_vip_diff_coverage.py`; `diff-cover coverage.xml
+  --compare-branch origin/main --fail-under 97` - PASS at 100%.
 - `PATH=.venv/bin:$PATH make validate-changed` - PASS
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including changed-file mypy, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
