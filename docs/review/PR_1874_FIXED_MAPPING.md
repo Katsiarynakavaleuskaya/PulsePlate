@@ -142,11 +142,11 @@ Evidence: Dev-operator pass identified only hygiene/process requirements. Local 
 
 ## Experiment Runner Evidence
 
-Artifact: `artifacts/orchestration/experiments/results/exp-8975cbf08daa.json`
+Artifact: `artifacts/orchestration/experiments/results/exp-6560552e0103.json`
 
 Disposition: FIXED
 Commit: a6fb3ec5d92294e26a9560ba0ac72f708fe3e23b
-Evidence: final oracle-only Experiment Runner result `artifacts/orchestration/experiments/results/exp-8975cbf08daa.json` returned `status=accepted`, `runner_mode=oracle_only_governance_reviewer`, `shared_tree_untouched=true`, and `coauthor_required=true` after the Cubic-identified malformed-artifact fail-closed fix. PR commits that materially use oracle evidence include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Evidence: final oracle-only Experiment Runner result `artifacts/orchestration/experiments/results/exp-6560552e0103.json` returned `status=accepted`, `runner_mode=oracle_only_governance_reviewer`, `shared_tree_untouched=true`, `contribution_kind=oracle_review`, and `coauthor_required=true` after the Codex-identified result-id redaction, latest-state projection, and artifact-hash verification fixes. PR commits that materially use oracle evidence include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Post-Open Role-Agent Findings
 
@@ -190,7 +190,7 @@ Evidence: `pulseplate-pr-review` dry-run emitted one advisory `large-diff-risk` 
 - `git diff --check` - PASS.
 - `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed; PASS again on final head.
 - `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head.
-- final oracle-only Experiment Runner evidence `artifacts/orchestration/experiments/results/exp-8975cbf08daa.json` - accepted.
+- final oracle-only Experiment Runner evidence `artifacts/orchestration/experiments/results/exp-6560552e0103.json` - accepted after the Codex-identified result-id redaction, latest-state projection, and artifact-hash verification fixes.
 - `git push -u origin codex/experiment-runner-operator-observability-report` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
 - final `git push` to `9732d2243` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
 
