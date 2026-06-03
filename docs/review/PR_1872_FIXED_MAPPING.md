@@ -76,6 +76,11 @@ Evidence: Slack bridge ledger runtime-validation, status-rate-limit, and post-di
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875176 -> 6d9b0dc38
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875182 -> 6d9b0dc38
 
+Disposition: FIXED
+Commit: 702c75a65
+Evidence: Slack bridge operator-ledger records preserve sub-second write ordering for latest-event summaries.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3349162159 -> 702c75a65
+
 Disposition: NOT-A-BUG
 Evidence: detailed proof is recorded below under External review thread dispositions.
 Reason: the URL-only line is intentionally commit-free per NOT-A-BUG review governance.
@@ -310,6 +315,16 @@ passed. Local artifacts:
   `test_status_command_bypasses_dispatch_rate_limit_for_latest_ledger_summary`.
 
 - Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3349162159
+  Disposition: FIXED
+  Commit: 702c75a65
+  Evidence:
+  `scripts/orchestration/experiment_operator_ledger.py` now preserves
+  sub-second timestamp precision instead of truncating Slack bridge ledger
+  records to whole seconds. Regression:
+  `test_slack_bridge_operator_ledger_preserves_subsecond_write_order`.
+
+- Thread:
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507
   Disposition: FIXED
   Commit: fea3efd94
@@ -385,6 +400,8 @@ passed. Local artifacts:
   `tests/test_experiment_operator_ledger.py` and
   `tests/test_experiment_slack_socket_bridge.py`.
 - `pre-commit run --all-files` - PASS.
+- Post-`discussion_r3349162159` focused pytest and `make validate-changed` -
+  PASS; regression covers sub-second Slack bridge ledger write ordering.
 - Pre-push hooks - PASS: workflow checks, ruff, mypy changed files, pip-audit,
   backend tests, Bandit full repo, and Docker build test.
 
