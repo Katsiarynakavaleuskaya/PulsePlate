@@ -68,6 +68,15 @@ Evidence: workflow main-ref guard now checks the full branch ref.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418808423 -> 53dfdec42
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348716862 -> 53dfdec42
 
+Disposition: FIXED
+Commit: 6d9b0dc38
+Evidence: Slack bridge ledger runtime-validation, status-rate-limit, and
+post-dispatch degraded-evidence findings were fixed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418994433 -> 6d9b0dc38
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875170 -> 6d9b0dc38
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875176 -> 6d9b0dc38
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875182 -> 6d9b0dc38
+
 Disposition: NOT-A-BUG
 Evidence: detailed proof is recorded below under External review thread dispositions.
 Reason: the URL-only line is intentionally commit-free per NOT-A-BUG review governance.
@@ -258,6 +267,48 @@ passed. Local artifacts:
   Evidence: Same full-branch-ref workflow guard as the Cubic top-level review;
   the workflow contract test rejects the short-ref-only guard by asserting
   `GITHUB_REF` and `refs/heads/main`.
+
+- Review:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418994433
+  Disposition: FIXED
+  Commit: 6d9b0dc38
+  Evidence: Codex connector top-level review summarized the three inline
+  findings below; the fix commit added runtime-ledger validation, status
+  rate-limit bypass, post-dispatch degraded-evidence handling, and regression
+  tests.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875170
+  Disposition: FIXED
+  Commit: 6d9b0dc38
+  Evidence:
+  `scripts/orchestration/experiment_operator_ledger.py` now loads existing
+  ledger records during Slack bridge preflight, so `--validate-runtime` fails
+  closed on malformed local ledger event JSON/hash evidence. Regression:
+  `test_validate_runtime_rejects_malformed_existing_operator_ledger_event`.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875176
+  Disposition: FIXED
+  Commit: 6d9b0dc38
+  Evidence:
+  `scripts/orchestration/experiment_slack_socket_bridge.py` now preserves the
+  `dispatched` outcome when GitHub workflow dispatch succeeds and the later
+  local ledger write-through degrades, surfacing
+  `operator_ledger_status=write_failed_after_dispatch` instead of reporting a
+  false dispatch failure. Regression:
+  `test_execute_mode_keeps_dispatched_outcome_when_post_dispatch_ledger_write_fails`.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348875182
+  Disposition: FIXED
+  Commit: 6d9b0dc38
+  Evidence:
+  `scripts/orchestration/experiment_slack_socket_bridge.py` now applies the
+  dispatch throttle only to `/run-experiment`; informational
+  `/pulseplate-runner status` remains able to render the latest local ledger
+  summary immediately after dispatch. Regression:
+  `test_status_command_bypasses_dispatch_rate_limit_for_latest_ledger_summary`.
 
 - Thread:
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507
