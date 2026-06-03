@@ -25,11 +25,11 @@ gates.
 
 Disposition: FIXED
 Commit: 258dc9d4d4e6ea1e4ee79965760546e6e60a4716
-Evidence: `docs/roadmap/BACKLOG_LEDGER.md` replaces the remaining umbrella-chain `PR-TBD-SIGNAL-NOISE-REPORT-LANE` placeholder with `PR #1873 (Signal vs Noise report/content lane)`.
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` replaces the remaining umbrella-chain `PR-TBD-SIGNAL-NOISE-REPORT-LANE` placeholder with `PR #1873 (Signal vs Noise report/content contract lane)`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351499498 -> 258dc9d4d4e6ea1e4ee79965760546e6e60a4716
 
 Disposition: NOT-A-BUG
-Evidence: `git show -s --format=%B e5b88d998d750347a6e27e660c8ed1da52719580` includes the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer required by the Experiment Runner evidence. `git merge-base --is-ancestor e5b88d998d750347a6e27e660c8ed1da52719580 HEAD` returned `0`, confirming that implementation commit is in the branch history.
+Evidence: `git show -s --format=%B e5b88d998d750347a6e27e660c8ed1da52719580` includes the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer required by the Experiment Runner evidence. `git merge-base --is-ancestor e5b88d998d750347a6e27e660c8ed1da52719580 HEAD` returned `0`, confirming that implementation commit is in the branch history. `git cat-file -t 7211c85046bcc8a126764f8abd79b33c2da3cdca` returned `128`, confirming the reviewed synthetic SHA is not a local branch-history proof target.
 Reason: The review comment checked a synthetic or stale commit reference, while the actual branch-history implementation commit carrying the Experiment Runner-shaped docs change already has the required trailer. Later review-disposition commits are not the implementation commit that introduced the accepted Experiment Runner evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351495172
 
