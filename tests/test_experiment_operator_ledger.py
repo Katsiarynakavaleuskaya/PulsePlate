@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -1433,6 +1434,20 @@ def test_operator_ledger_cli_output_write_errors_are_sanitized(
     assert str(tmp_path) not in failure
 
 
+def test_operator_ledger_cli_summary_requires_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+
+    assert ledger.main(["--summary", "--format", "json"]) == 1
+    failure = capsys.readouterr().out
+
+    assert failure == "FAIL: Experiment operator ledger summary output requires --output.\n"
+    _assert_no_raw_leak(failure)
+
+
 def test_operator_ledger_cli_stdout_fails_closed_on_unsafe_rendered_payload(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1441,11 +1456,11 @@ def test_operator_ledger_cli_stdout_fails_closed_on_unsafe_rendered_payload(
     monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(
         ledger,
-        "build_operator_observability_report",
-        lambda **_: {"unsafe": "xoxb-secretsecretsecret /Users/alice diff --git raw hypothesis"},
+        "write_operator_observability_report_set",
+        lambda *_, **__: {"json": "xoxb-secretsecretsecret /Users/alice diff --git raw hypothesis"},
     )
 
-    assert ledger.main(["--summary", "--format", "json"]) == 1
+    assert ledger.main(["--write-report-set"]) == 1
     failure = capsys.readouterr().out
 
     assert failure == "FAIL: Experiment operator ledger output contains unsafe content.\n"
@@ -1453,28 +1468,37 @@ def test_operator_ledger_cli_stdout_fails_closed_on_unsafe_rendered_payload(
 
 
 def test_operator_ledger_direct_cli_summary_invocation_is_supported(tmp_path: Path) -> None:
-    isolated_ledger = (
-        "artifacts/orchestration/experiments/"
-        f"direct_cli_summary_{hashlib.sha256(str(tmp_path).encode('utf-8')).hexdigest()}"
-    )
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/orchestration/experiment_operator_ledger.py",
-            "--summary",
-            "--ledger-dir",
-            isolated_ledger,
-        ],
-        cwd=Path.cwd(),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    run_id = hashlib.sha256(str(tmp_path).encode("utf-8")).hexdigest()
+    artifact_ref = f"artifacts/orchestration/experiments/direct_cli_summary_{run_id}"
+    isolated_ledger = f"{artifact_ref}/ledger"
+    output_ref = f"{artifact_ref}/summary.json"
+    output_path = Path(output_ref)
 
-    assert result.returncode == 0
-    assert "local_operator_plane_only" in result.stdout
-    assert "ModuleNotFoundError" not in result.stderr
-    _assert_no_raw_leak(result.stdout)
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/orchestration/experiment_operator_ledger.py",
+                "--summary",
+                "--ledger-dir",
+                isolated_ledger,
+                "--output",
+                output_ref,
+            ],
+            cwd=Path.cwd(),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+        assert result.stdout == ""
+        assert "ModuleNotFoundError" not in result.stderr
+        report = output_path.read_text(encoding="utf-8")
+        assert "local_operator_plane_only" in report
+        _assert_no_raw_leak(result.stdout + report)
+    finally:
+        shutil.rmtree(Path(artifact_ref), ignore_errors=True)
 
 
 def test_operator_plane_backlog_epic_documents_boundaries() -> None:

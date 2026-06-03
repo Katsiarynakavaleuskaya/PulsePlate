@@ -1491,6 +1491,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.output
             else None
         )
+        if args.summary and output_path is None:
+            raise OperatorLedgerError(
+                "Experiment operator ledger summary output requires --output."
+            )
         if output_path:
             try:
                 _preflight_output_write(output_path)
@@ -1498,6 +1502,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise OperatorLedgerError(
                     "Unable to write Experiment operator ledger output."
                 ) from exc
+        rendered: str | None = None
+        stdout_payload: str | None = None
         if args.record:
             if args.event_json is None:
                 raise OperatorLedgerError("Experiment operator ledger input is invalid.")
@@ -1509,10 +1515,10 @@ def main(argv: list[str] | None = None) -> int:
                 "idempotency_key": path.stem,
                 "status": "recorded",
             }
-            rendered = json.dumps(payload, sort_keys=True) + "\n"
+            stdout_payload = json.dumps(payload, sort_keys=True) + "\n"
         elif args.write_report_set:
             report = build_operator_observability_report(ledger_dir=ledger_dir)
-            rendered = (
+            stdout_payload = (
                 json.dumps(
                     {
                         "outputs": write_operator_observability_report_set(
@@ -1535,7 +1541,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 rendered = render_operator_observability_markdown(report)
         else:
-            rendered = (
+            stdout_payload = (
                 json.dumps(
                     {"policy_version": POLICY_VERSION, "status": "idle"},
                     sort_keys=True,
@@ -1543,6 +1549,10 @@ def main(argv: list[str] | None = None) -> int:
                 + "\n"
             )
         if output_path:
+            if rendered is None:
+                rendered = stdout_payload
+            if rendered is None:
+                raise OperatorLedgerError("Experiment operator ledger output is invalid.")
             try:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_text(rendered, encoding="utf-8")
@@ -1551,7 +1561,9 @@ def main(argv: list[str] | None = None) -> int:
                     "Unable to write Experiment operator ledger output."
                 ) from exc
         else:
-            sys.stdout.write(_safe_cli_stdout_payload(rendered))
+            if stdout_payload is None:
+                raise OperatorLedgerError("Experiment operator ledger output is invalid.")
+            sys.stdout.write(_safe_cli_stdout_payload(stdout_payload))
     except OperatorLedgerError as exc:
         print(f"FAIL: {exc}")
         return 1
