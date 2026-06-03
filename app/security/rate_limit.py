@@ -240,6 +240,14 @@ def _rate_limit_exceeded_json_handler(request: Request, exc: Exception) -> JSONR
     except KeyError:
         detail = "Rate limit exceeded"
 
+    if request.url.path == "/api/v1/vip/fitchef/insight":
+        from app.contracts.vip_contract import vip_error
+
+        return JSONResponse(
+            status_code=429,
+            content=vip_error(code="rate_limit_exceeded", message=detail),
+        )
+
     return JSONResponse(
         status_code=429,
         content={"detail": detail},

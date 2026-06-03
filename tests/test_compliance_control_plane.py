@@ -57,13 +57,26 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
         for item in processing_categories
         if item["category_id"] == "ai_generated_wellness_analysis"
     )
+    pseudonymous_identifiers = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "pseudonymous_security_identifiers"
+    )
+    signed_audit_envelopes = next(
+        item for item in processing_categories if item["category_id"] == "signed_audit_envelopes"
+    )
     endpoints = cast(list[str], wellness_inputs["endpoints"])
     ai_generated_endpoints = list(cast(list[str], ai_generated_analysis["endpoints"]))
+    pseudonymous_endpoints = cast(list[str], pseudonymous_identifiers["endpoints"])
+    signed_audit_endpoints = cast(list[str], signed_audit_envelopes["endpoints"])
     llm_processing = cast(dict[str, object], payload["llm_processing"])
     llm_processing_endpoints = cast(list[str], llm_processing["endpoints"])
     assert "/api/v1/pro/meal/weekly" in endpoints
     assert "/api/v1/premium/plate" in endpoints
     assert "/api/v1/pro/fitchef/explain" in llm_processing_endpoints
+    assert "/api/v1/vip/fitchef/insight" in llm_processing_endpoints
+    assert "/api/v1/vip/fitchef/insight" in pseudonymous_endpoints
+    assert "/api/v1/vip/fitchef/insight" in signed_audit_endpoints
     assert llm_processing_endpoints == ai_generated_endpoints
 
 
@@ -125,8 +138,11 @@ def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
     ai_generated_endpoints = cast(list[str], ai_generated_surface["endpoints"])
     ai_generated_exposure = cast(str, ai_generated_surface["third_party_exposure"])
     assert "/api/v1/pro/fitchef/explain" in ai_generated_endpoints
+    assert "/api/v1/vip/fitchef/insight" in ai_generated_endpoints
     assert "/api/v1/pro/fitchef/explain" in legal_privacy_doc
+    assert "/api/v1/vip/fitchef/insight" in legal_privacy_doc
     assert "/api/v1/pro/fitchef/explain" in data_matrix_doc
+    assert "/api/v1/vip/fitchef/insight" in data_matrix_doc
     assert "telemetry processor" in provider_inventory_doc.lower()
     assert "telemetry processor" in legal_privacy_doc.lower()
     assert "Telemetry processors" in ai_notice_doc
@@ -155,8 +171,10 @@ def test_transparency_registry_covers_core_healthish_surfaces() -> None:
     fitchef_endpoints = cast(list[str], fitchef_surface["endpoints"])
     assert fitchef_surface["analysis_kind"] == "automated AI-assisted wellness coaching structure"
     assert "/api/v1/pro/fitchef/explain" in fitchef_endpoints
+    assert "/api/v1/vip/fitchef/insight" in fitchef_endpoints
     assert "fitchef_structured_v1" in ai_notice_doc
     assert "/api/v1/pro/fitchef/explain" in ai_notice_doc
+    assert "/api/v1/vip/fitchef/insight" in ai_notice_doc
 
 
 def test_sensitive_field_taxonomy_and_minimization_rules() -> None:

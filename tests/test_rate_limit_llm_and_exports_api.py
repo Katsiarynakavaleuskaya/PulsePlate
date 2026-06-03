@@ -35,12 +35,19 @@ def _simple_key_func(request: Request) -> str:
 
 def _rate_limit_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return JSON 429 with i18n message."""
+    from app.contracts.vip_contract import vip_error
+
     lang_raw = request.headers.get("accept-language", "en")
     lang = normalize_lang(lang_raw)
     try:
         detail = t(lang, "rate_limit.exceeded")
     except KeyError:
         detail = "Rate limit exceeded"
+    if request.url.path == "/api/v1/vip/fitchef/insight":
+        return JSONResponse(
+            status_code=429,
+            content=vip_error(code="rate_limit_exceeded", message=detail),
+        )
     return JSONResponse(status_code=429, content={"detail": detail})
 
 
@@ -83,6 +90,11 @@ def create_rate_limited_app() -> tuple[FastAPI, Limiter]:
     @test_limiter.limit("2/minute")
     async def fitchef_distortion_simulator(request: Request) -> dict[str, str]:
         return {"scenario": "distortion_simulator"}
+
+    @router.post("/api/v1/vip/fitchef/insight")
+    @test_limiter.limit("2/minute")
+    async def fitchef_identity_loop_mapper(request: Request) -> dict[str, str]:
+        return {"scenario": "identity_loop_mapper"}
 
     @router.post("/api/v1/internal/creative-research/pilot")
     @test_limiter.limit("2/minute")
@@ -243,6 +255,44 @@ def test_fitchef_distortion_simulator_rate_limited_200_then_429(
     lang = normalize_lang("en")
     expected_detail = t(lang, "rate_limit.exceeded")
     assert r3.json()["detail"] == expected_detail
+
+
+def test_fitchef_identity_loop_mapper_rate_limited_200_then_429(
+    vip_headers: dict[str, str],
+) -> None:
+    """Test /api/v1/vip/fitchef/insight returns 200 twice, then 429."""
+
+    app, _ = create_rate_limited_app()
+    client = TestClient(app)
+    headers = {
+        **vip_headers,
+        "accept-language": "en",
+        "x-test-id": "fitchef-identity-loop",
+    }
+    payload = {
+        "goal": "steady dinners",
+        "recent_pattern": "I stop planning dinner after one hard evening",
+        "self_talk": "I am too inconsistent",
+    }
+
+    r1 = client.post("/api/v1/vip/fitchef/insight", json=payload, headers=headers)
+    r2 = client.post("/api/v1/vip/fitchef/insight", json=payload, headers=headers)
+    r3 = client.post("/api/v1/vip/fitchef/insight", json=payload, headers=headers)
+
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r3.status_code == 429
+    assert r3.headers.get("content-type", "").startswith("application/json")
+
+    lang = normalize_lang("en")
+    expected_detail = t(lang, "rate_limit.exceeded")
+    assert r3.json() == {
+        "status": "error",
+        "code": "rate_limit_exceeded",
+        "message": expected_detail,
+        "detail": expected_detail,
+        "error": "rate_limit_exceeded",
+    }
 
 
 def test_creative_research_pilot_rate_limited_200_then_429() -> None:

@@ -1012,6 +1012,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/vip/fitchef/insight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Identity Loop Mapper
+         * @description Generate the bounded VIP identity-loop mapper surface.
+         */
+        post: operations["fitchef_identity_loop_mapper_api_v1_vip_fitchef_insight_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/vip/health": {
         parameters: {
             query?: never;
@@ -2568,6 +2588,67 @@ export interface components {
             why_it_matches: string;
         };
         /**
+         * FitChefIdentityLoopMapperRequest
+         * @description Identity-loop mapper request payload.
+         */
+        FitChefIdentityLoopMapperRequest: {
+            /** Goal */
+            goal: string;
+            /** Recent Pattern */
+            recent_pattern: string;
+            /** Self Talk */
+            self_talk: string;
+            /** Trigger Context */
+            trigger_context?: string | null;
+        };
+        /**
+         * FitChefIdentityLoopMapperResponse
+         * @description Public identity-loop mapper response envelope.
+         */
+        FitChefIdentityLoopMapperResponse: {
+            /** Confidence */
+            confidence: number;
+            identity_loop: components["schemas"]["FitChefIdentityLoopView"];
+            /** Identity Shift Statement */
+            identity_shift_statement: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /** Repair If Slip */
+            repair_if_slip: string;
+            /** Replacement Action */
+            replacement_action: string;
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "identity_loop_mapper";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+        };
+        /**
+         * FitChefIdentityLoopView
+         * @description Public identity-loop block.
+         */
+        FitChefIdentityLoopView: {
+            /** Behavior */
+            behavior: string;
+            /** Belief */
+            belief: string;
+            /** Long Term Cost */
+            long_term_cost: string;
+            /** Short Term Reward */
+            short_term_reward: string;
+        };
+        /**
          * FitChefMascotInsightResponse
          * @description Public mascot insight response envelope.
          */
@@ -2636,6 +2717,25 @@ export interface components {
             warnings: string[];
             /** Wellness Boundary */
             wellness_boundary: string;
+        };
+        /**
+         * FitChefVipCoachingErrorResponse
+         * @description VIP FitChef error envelope preserving frozen VIP aliases.
+         */
+        FitChefVipCoachingErrorResponse: {
+            /** Code */
+            code: string;
+            /** Detail */
+            detail: string;
+            /** Error */
+            error: string;
+            /** Message */
+            message: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "error";
         };
         /**
          * FitChefWeeklyReflectionRequest
@@ -6729,6 +6829,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fitchef_identity_loop_mapper_api_v1_vip_fitchef_insight_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefIdentityLoopMapperRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef identity-loop mapper generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefIdentityLoopMapperResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded or monthly quota exhausted */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefVipCoachingErrorResponse"];
                 };
             };
         };

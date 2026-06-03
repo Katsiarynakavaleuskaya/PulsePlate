@@ -8,7 +8,7 @@ import inspect
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Generic, Literal, Protocol, TypeVar, cast
 
 from fastapi import HTTPException, status
 from fastapi.concurrency import run_in_threadpool
@@ -25,6 +25,9 @@ from app.schemas.fitchef import (
     FitChefDistortionSimulatorResult,
     FitChefDistortionSimulatorTaskEnvelope,
     FitChefExecutionMode,
+    FitChefIdentityLoopMapperResult,
+    FitChefIdentityLoopMapperTaskEnvelope,
+    FitChefIdentityLoopValue,
     FitChefMascotInsightResult,
     FitChefMascotInsightTaskEnvelope,
     FitChefQuotaState,
@@ -52,12 +55,14 @@ from core.compliance import get_transparency_registry, sanitize_chunk_preview
 from core.data_sanitizer import sanitize_rag_markdown
 from core.insight.fitchef_companion import (
     FitChefCoachingDraft,
-    FitChefDistortionDraft,
+    FitChefIdentityLoopDraft,
+    build_identity_loop_mapper_prompt,
     build_mascot_prompt,
     build_distortion_simulator_prompt,
     build_slip_support_prompt,
     build_weekly_reflection_prompt,
     prepare_distortion_simulator_draft,
+    prepare_identity_loop_mapper_draft,
     prepare_mascot_draft,
     prepare_slip_support_draft,
     prepare_weekly_reflection_draft,
@@ -74,6 +79,18 @@ CBT_POLICY_ALLOWLIST = {
 }
 WeeklyPlanBuilder = Callable[..., Any]
 ShoppingFollowupBuilder = Callable[..., ShoppingListDTO]
+
+
+class _StructuredDraft(Protocol):
+    """Common structured-coach draft contract."""
+
+    @property
+    def warnings(self) -> list[str]:
+        """Structured safety warnings emitted by draft normalization."""
+        ...  # pragma: no cover - Protocol marker only.
+
+
+StructuredDraftT = TypeVar("StructuredDraftT", bound=_StructuredDraft)
 
 
 def _resolve_paid_runtime_tier(api_key: str) -> Literal["PRO", "VIP"]:
@@ -171,6 +188,24 @@ def _build_distortion_simulator_query(
     ]
     if goal:
         parts.append(f"Goal: {goal}")
+    return "\n".join(parts)
+
+
+def _build_identity_loop_mapper_query(
+    goal: str,
+    recent_pattern: str,
+    self_talk: str,
+    trigger_context: str | None,
+) -> str:
+    """Build retrieval text for identity-loop mapper flows."""
+
+    parts = [
+        f"Goal: {goal}",
+        f"Recent pattern: {recent_pattern}",
+        f"Self-talk: {self_talk}",
+    ]
+    if trigger_context:
+        parts.append(f"Trigger context: {trigger_context}")
     return "\n".join(parts)
 
 
@@ -354,7 +389,7 @@ class _FitChefVipTextTaskOutput:
 
 
 @dataclass(frozen=True)
-class _FitChefStructuredTaskConfig:
+class _FitChefStructuredTaskConfig(Generic[StructuredDraftT]):
     """Shared config for structured FitChef coaching flows."""
 
     retrieval_text: str
@@ -366,16 +401,16 @@ class _FitChefStructuredTaskConfig:
     rag_target: Literal["corpus://cbt-agent", "corpus://fitchef-agent"]
     agent_id: Literal["cbt-agent", "fitchef-agent"]
     prompt_builder: Callable[[str], str]
-    draft_builder: Callable[[str], FitChefDistortionDraft]
+    draft_builder: Callable[[str], StructuredDraftT]
     unavailable_detail: str
     log_label: str
 
 
 @dataclass(frozen=True)
-class _FitChefStructuredTaskOutput:
+class _FitChefStructuredTaskOutput(Generic[StructuredDraftT]):
     """Shared output for structured FitChef coaching flows."""
 
-    draft: FitChefDistortionDraft
+    draft: StructuredDraftT
     sources: list[FitChefSourceItem]
     confidence: float
     warnings: list[str]
@@ -511,10 +546,7 @@ async def _run_fitchef_vip_text_task(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="quota_exceeded",
             )
-        raw_message = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
+        raw_message = await _generate_with_timeout(provider, prompt)
         if not isinstance(raw_message, str) or not raw_message.strip():
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -554,8 +586,8 @@ async def _run_fitchef_vip_text_task(
 
 
 async def _run_fitchef_structured_task(
-    config: _FitChefStructuredTaskConfig,
-) -> _FitChefStructuredTaskOutput:
+    config: _FitChefStructuredTaskConfig[StructuredDraftT],
+) -> _FitChefStructuredTaskOutput[StructuredDraftT]:
     """Run the shared structured FitChef coaching orchestration flow."""
 
     rag_context_str = ""
@@ -680,10 +712,7 @@ async def _run_fitchef_structured_task(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="quota_exceeded",
             )
-        raw_message = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
+        raw_message = await _generate_with_timeout(provider, prompt)
         if not isinstance(raw_message, str) or not raw_message.strip():
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -973,6 +1002,71 @@ async def run_distortion_simulator_task(
         evidence_against=draft.evidence_against,
         balanced_reframe=draft.balanced_reframe,
         next_small_action=draft.next_small_action,
+        sources=shared_result.sources,
+        confidence=shared_result.confidence,
+        warnings=shared_result.warnings,
+        mode=task.mode,
+        quota_state=shared_result.quota_state,
+        transparency_notice_id=shared_result.transparency_notice_id,
+        wellness_boundary=shared_result.wellness_boundary,
+    )
+
+
+async def run_identity_loop_mapper_task(
+    task: FitChefIdentityLoopMapperTaskEnvelope,
+) -> FitChefIdentityLoopMapperResult:
+    """Run the VIP identity-loop mapper orchestration flow."""
+
+    safe_goal = task.input.safe_goal
+    safe_recent_pattern = task.input.safe_recent_pattern
+    safe_self_talk = task.input.safe_self_talk
+    safe_trigger_context = task.input.safe_trigger_context
+    retrieval_text = _build_identity_loop_mapper_query(
+        safe_goal,
+        safe_recent_pattern,
+        safe_self_talk,
+        safe_trigger_context,
+    )
+    shared_result = await _run_fitchef_structured_task(
+        _FitChefStructuredTaskConfig[FitChefIdentityLoopDraft](
+            retrieval_text=retrieval_text,
+            api_key=task.input.api_key,
+            endpoint=task.input.endpoint,
+            method=task.input.method,
+            mode=task.mode,
+            tier="VIP",
+            rag_target="corpus://cbt-agent",
+            agent_id="cbt-agent",
+            prompt_builder=lambda rag_context: build_identity_loop_mapper_prompt(
+                safe_goal,
+                safe_recent_pattern,
+                safe_self_talk,
+                safe_trigger_context,
+                rag_context,
+            ),
+            draft_builder=lambda raw_message: prepare_identity_loop_mapper_draft(
+                raw_message,
+                goal=safe_goal,
+                recent_pattern=safe_recent_pattern,
+                self_talk=safe_self_talk,
+                trigger_context=safe_trigger_context,
+            ),
+            unavailable_detail="fitchef_identity_loop_mapper_unavailable",
+            log_label="FitChef identity loop mapper",
+        )
+    )
+
+    draft = shared_result.draft
+    return FitChefIdentityLoopMapperResult(
+        identity_loop=FitChefIdentityLoopValue(
+            belief=draft.belief,
+            behavior=draft.behavior,
+            short_term_reward=draft.short_term_reward,
+            long_term_cost=draft.long_term_cost,
+        ),
+        identity_shift_statement=draft.identity_shift_statement,
+        replacement_action=draft.replacement_action,
+        repair_if_slip=draft.repair_if_slip,
         sources=shared_result.sources,
         confidence=shared_result.confidence,
         warnings=shared_result.warnings,

@@ -79,10 +79,13 @@ _TRANSPARENCY_REGISTRY: tuple[TransparencyNotice, ...] = (
         surface_id="fitchef_structured_v1",
         title="FitChef structured coaching",
         analysis_kind="automated AI-assisted wellness coaching structure",
-        endpoints=("/api/v1/pro/fitchef/explain",),
+        endpoints=("/api/v1/pro/fitchef/explain", "/api/v1/vip/fitchef/insight"),
         inputs_used=("user text", "retrieved context", "configured provider output"),
         boundary="Wellness coaching only; not therapy, diagnosis, or clinical decision support.",
-        notice="Builds bounded structured coaching objects such as distortion labels, evidence checks, and reframes.",
+        notice=(
+            "Builds bounded structured coaching objects such as distortion labels, "
+            "evidence checks, reframes, and identity-loop reflections."
+        ),
         emergency_use="Not for emergencies, crisis handling, or acute medical situations.",
         treatment_decision_use="Do not use as a sole basis for treatment, medication, or care coordination.",
         escalation="Direct users to qualified professionals or emergency services when clinical risk is suspected.",

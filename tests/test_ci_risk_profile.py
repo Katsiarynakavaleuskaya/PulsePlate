@@ -182,6 +182,27 @@ def test_insight_runtime_change_hits_insight_group_only() -> None:
     )
 
 
+def test_fitchef_structured_source_change_hits_insight_openapi_and_route_groups() -> None:
+    profile = risk_profile.build_risk_profile(
+        [
+            "app/routers/fitchef_structured.py",
+            "app/services/fitchef_runtime.py",
+            "app/schemas/fitchef_coaching.py",
+        ],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.insight_ai is True
+    assert profile.openapi_contract is True
+    assert profile.route_contract_safety is True
+    assert profile.run_openapi_sync is True
+    assert profile.contract_risk_groups == (
+        "insight_ai",
+        "openapi_contract",
+        "route_contract_safety",
+    )
+
+
 def test_rag_runtime_change_hits_insight_and_route_groups() -> None:
     profile = risk_profile.build_risk_profile(
         ["core/rag/orchestration.py", "tests/test_rag_orchestration.py"],

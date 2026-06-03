@@ -1,6 +1,6 @@
 # FitChef Structured Coach Contract
 
-**Status:** Contract freeze plus landed PRO Distortion Simulator reconciliation
+**Status:** Contract freeze plus landed structured runtime reconciliation
 **Date:** 2026-03-21
 **Owner:** @katsiaryna_kavaleuskaya
 
@@ -26,8 +26,8 @@ and OpenAPI-exposed:
 
 - `POST /api/v1/pro/fitchef/explain`
 
-The first bounded VIP structured coach surface remains a contract-frozen future
-rollout target:
+The first bounded VIP structured coach runtime is implemented by the Identity
+Loop Mapper lane once this implementation PR lands:
 
 - `POST /api/v1/vip/fitchef/insight`
 
@@ -58,9 +58,12 @@ envelope rules.
 
 - `POST /api/v1/pro/fitchef/recommend`
 
-### VIP structured coach surfaces
+### Landed VIP structured coach surface
 
 - `POST /api/v1/vip/fitchef/insight`
+
+### Remaining VIP structured coach follow-ups
+
 - `POST /api/v1/vip/fitchef/chat`
 - `POST /api/v1/vip/fitchef/week-repair`
 
@@ -84,7 +87,7 @@ without changing route naming or public mascot canon.
 ### VIP mapping
 
 - `POST /api/v1/vip/fitchef/insight`
-  - intended first bounded capability: `Identity Loop Mapper`
+  - landed first bounded capability: `Identity Loop Mapper`
   - shape direction: belief -> behavior -> payoff -> replacement action
 - `POST /api/v1/vip/fitchef/week-repair`
   - intended first bounded capability: identity-aware repair after slips
@@ -158,7 +161,7 @@ The landed PRO Distortion Simulator route is already governed by
 `next_small_action`, `sources`, `confidence`, `warnings`, `quota_state`,
 `transparency_notice_id`, and `wellness_boundary`.
 
-The next active VIP Identity Loop Mapper lane is already schema-frozen by
+The landed VIP Identity Loop Mapper runtime is schema-frozen by
 `FitChefIdentityLoopMapperResponse`, with `scenario`, `identity_loop`,
 `identity_shift_statement`, `replacement_action`, `repair_if_slip`, `sources`,
 `confidence`, `warnings`, `quota_state`, `transparency_notice_id`, and
@@ -260,19 +263,15 @@ Future structured coach implementation must:
 - PR #1214 froze the structured coach contract and route family.
 - PR #1215 landed the feature-gated PRO `Distortion Simulator` runtime at
   `POST /api/v1/pro/fitchef/explain`.
+- The Identity Loop Mapper runtime lane lands the feature-gated VIP runtime at
+  `POST /api/v1/vip/fitchef/insight` with the frozen
+  `FitChefIdentityLoopMapperResponse` envelope.
 
 ### Remaining PRO follow-up
 
 - `POST /api/v1/pro/fitchef/recommend`
 - deterministic route tests
 - analytics and action-routing contracts
-
-### Next active VIP runtime lane
-
-- `POST /api/v1/vip/fitchef/insight`
-
-This is the bounded Identity Loop Mapper target for the next substantive VIP
-runtime PR.
 
 ### Later VIP structured follow-ups
 
@@ -283,8 +282,9 @@ runtime PR.
 ## Explicit non-goals
 
 - renaming or migrating `/api/v1/insight/fitchef*`
-- adding any new runtime surface in this docs reconciliation beyond the already-landed
-  `POST /api/v1/pro/fitchef/explain`
+- adding any new runtime surface in this lane beyond the already-landed
+  `POST /api/v1/pro/fitchef/explain` and bounded VIP Identity Loop Mapper
+  route at `POST /api/v1/vip/fitchef/insight`
 - adding frontend or iOS FitChef runtime consumers
 - mixing website brand rollout or App Store assets into this contract lane
 

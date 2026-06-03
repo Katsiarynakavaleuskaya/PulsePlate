@@ -19,6 +19,44 @@ if TYPE_CHECKING:
 
 __all__ = ["register_vip_routes"]
 
+_FITCHEF_STRUCTURED_VIP_ROUTE_PATH = "/api/v1/vip/fitchef/insight"
+
+
+def _has_route(app: FastAPI, path: str, method: str) -> bool:
+    """Return whether path/method is already registered."""
+
+    method_name = method.upper()
+    return any(
+        getattr(route, "path", None) == path
+        and method_name in (getattr(route, "methods", None) or set())
+        for route in app.routes
+    )
+
+
+def _route_has_endpoint(app: FastAPI, path: str, method: str, endpoint: object) -> bool:
+    """Return whether path/method is bound to the expected endpoint."""
+
+    method_name = method.upper()
+    return any(
+        getattr(route, "path", None) == path
+        and method_name in (getattr(route, "methods", None) or set())
+        and getattr(route, "endpoint", None) is endpoint
+        for route in app.routes
+    )
+
+
+def _router_endpoint(router: Any, path: str, method: str) -> object | None:
+    """Return the endpoint a router would register for path/method."""
+
+    method_name = method.upper()
+    for route in getattr(router, "routes", []) or []:
+        if getattr(route, "path", None) != path:
+            continue
+        if method_name not in (getattr(route, "methods", None) or set()):
+            continue
+        return getattr(route, "endpoint", None)
+    return None
+
 
 def register_vip_routes(app: FastAPI) -> None:
     """
@@ -40,12 +78,33 @@ def register_vip_routes(app: FastAPI) -> None:
         It can be called multiple times safely (idempotent).
     """
     from app.routers.fitchef_insight import router as fitchef_insight_router
+    from app.routers.fitchef_structured import vip_router as fitchef_structured_vip_router
     from app.utils.feature_flags import is_vip_module_enabled
 
     if not is_vip_module_enabled():
         return
 
     existing_paths = {getattr(route, "path", None) for route in app.routes}
+    fitchef_structured_endpoint = _router_endpoint(
+        fitchef_structured_vip_router,
+        _FITCHEF_STRUCTURED_VIP_ROUTE_PATH,
+        "POST",
+    )
+    if fitchef_structured_endpoint is not None:
+        if _route_has_endpoint(
+            app,
+            _FITCHEF_STRUCTURED_VIP_ROUTE_PATH,
+            "POST",
+            fitchef_structured_endpoint,
+        ):
+            pass
+        elif _has_route(app, _FITCHEF_STRUCTURED_VIP_ROUTE_PATH, "POST"):
+            raise RuntimeError(
+                "Duplicate /api/v1/vip/fitchef/insight route detected with a different handler."
+            )
+        else:
+            app.include_router(fitchef_structured_vip_router)
+            existing_paths = {getattr(route, "path", None) for route in app.routes}
 
     if (
         hasattr(fitchef_insight_router, "routes")

@@ -21,6 +21,7 @@ from app.schemas.fitchef_coaching import (
     FitChefIdentityLoopMapperRequest,
     FitChefIdentityLoopMapperResponse,
     FitChefIdentityLoopView,
+    FitChefVipCoachingErrorResponse,
 )
 
 
@@ -267,3 +268,34 @@ def test_identity_loop_request_rejects_blank_transport_fields(
 
     with pytest.raises(ValueError, match="value must not be blank"):
         FitChefIdentityLoopMapperRequest(**payload)
+
+
+def test_vip_error_response_enforces_frozen_aliases() -> None:
+    """VIP error aliases must not drift from the frozen public envelope."""
+
+    response = FitChefVipCoachingErrorResponse(
+        status="error",
+        code="rate_limit_exceeded",
+        message="Rate limit exceeded",
+        detail="Rate limit exceeded",
+        error="rate_limit_exceeded",
+    )
+
+    assert response.detail == response.message
+    assert response.error == response.code
+    with pytest.raises(ValueError, match="VIP error aliases must mirror message/code"):
+        FitChefVipCoachingErrorResponse(
+            status="error",
+            code="rate_limit_exceeded",
+            message="Rate limit exceeded",
+            detail="generic detail",
+            error="rate_limit_exceeded",
+        )
+    with pytest.raises(ValueError, match="VIP error aliases must mirror message/code"):
+        FitChefVipCoachingErrorResponse(
+            status="error",
+            code="rate_limit_exceeded",
+            message="Rate limit exceeded",
+            detail="Rate limit exceeded",
+            error="different_code",
+        )

@@ -710,6 +710,9 @@ jobs:
                 add_suite \
                   tests/test_core_ai_insight_runtime.py \
                   tests/test_fitchef_insight_api.py \
+                  tests/test_fitchef_companion_helpers.py \
+                  tests/test_fitchef_structured_api.py \
+                  tests/test_fitchef_structured_contracts.py \
                   tests/test_insight_error_hygiene.py \
                   tests/test_insight_vip_guard_api.py \
                   tests/test_insight_vip_monthly_quota_api.py \
@@ -762,12 +765,14 @@ jobs:
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
+                  tests/test_pro_vip_route_dependency_guard.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_philosophy_admission_dry_run_report.py \
                   tests/test_philosophy_admission_policy_oracle.py \
                   tests/test_semantic_cache_observability_contract.py \
-                  tests/test_semantic_cache_scaffold_contract.py
+                  tests/test_semantic_cache_scaffold_contract.py \
+                  tests/vip/test_vip_diff_coverage.py
                 ;;
               merge_governance)
                 add_suite \
@@ -968,6 +973,9 @@ jobs:
                 add_suite \
                   tests/test_core_ai_insight_runtime.py \
                   tests/test_fitchef_insight_api.py \
+                  tests/test_fitchef_companion_helpers.py \
+                  tests/test_fitchef_structured_api.py \
+                  tests/test_fitchef_structured_contracts.py \
                   tests/test_insight_error_hygiene.py \
                   tests/test_insight_vip_guard_api.py \
                   tests/test_insight_vip_monthly_quota_api.py \
@@ -1020,12 +1028,14 @@ jobs:
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
+                  tests/test_pro_vip_route_dependency_guard.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_philosophy_admission_dry_run_report.py \
                   tests/test_philosophy_admission_policy_oracle.py \
                   tests/test_semantic_cache_observability_contract.py \
-                  tests/test_semantic_cache_scaffold_contract.py
+                  tests/test_semantic_cache_scaffold_contract.py \
+                  tests/vip/test_vip_diff_coverage.py
                 ;;
               merge_governance)
                 add_suite \

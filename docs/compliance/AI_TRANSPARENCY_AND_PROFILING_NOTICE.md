@@ -41,7 +41,7 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 ### FitChef structured coaching
 
 - Surface id: `fitchef_structured_v1`
-- Endpoint: `/api/v1/pro/fitchef/explain`
+- Endpoints: `/api/v1/pro/fitchef/explain`, `/api/v1/vip/fitchef/insight`
 - Analysis type: automated AI-assisted wellness coaching structure
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
 - Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1

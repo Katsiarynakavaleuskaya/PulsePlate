@@ -41,6 +41,7 @@ class TestVIPRegistrationIdempotent:
         # Verify VIP routes are registered (covers lines 53-57: hasattr check and include_router)
         paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/api/v1/vip" in path for path in paths), "VIP routes should be registered"
+        assert "/api/v1/vip/fitchef/insight" in paths
         assert "/api/v1/insight/fitchef" in paths
         assert "/api/v1/insight/fitchef/weekly-reflection" in paths
         assert "/api/v1/insight/fitchef/slip-support" in paths
@@ -60,6 +61,7 @@ class TestVIPRegistrationIdempotent:
         second_paths = sorted(route.path for route in app.routes if hasattr(route, "path"))
 
         assert second_paths == first_paths
+        assert second_paths.count("/api/v1/vip/fitchef/insight") == 1
         assert second_paths.count("/api/v1/insight/fitchef") == 1
         assert second_paths.count("/api/v1/insight/fitchef/weekly-reflection") == 1
         assert second_paths.count("/api/v1/insight/fitchef/slip-support") == 1
@@ -78,9 +80,47 @@ class TestVIPRegistrationIdempotent:
         assert not any(
             "/api/v1/vip" in path for path in paths
         ), "VIP routes should not be registered"
+        assert "/api/v1/vip/fitchef/insight" not in paths
         assert "/api/v1/insight/fitchef" not in paths
         assert "/api/v1/insight/fitchef/weekly-reflection" not in paths
         assert "/api/v1/insight/fitchef/slip-support" not in paths
+
+    def test_register_vip_routes_rejects_foreign_fitchef_structured_handler(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A pre-existing VIP structured path with a foreign handler must fail closed."""
+
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+
+        from app.routers.vip_registration import register_vip_routes
+
+        app = FastAPI()
+
+        @app.post("/api/v1/vip/fitchef/insight")
+        async def _foreign_handler() -> dict[str, str]:
+            return {"status": "foreign"}
+
+        with pytest.raises(RuntimeError, match="Duplicate /api/v1/vip/fitchef/insight route"):
+            register_vip_routes(app)
+
+    def test_router_endpoint_skips_nonmatching_routes(self) -> None:
+        """Router endpoint lookup should return None when path/method do not match."""
+
+        from fastapi import APIRouter
+
+        from app.routers.vip_registration import _router_endpoint
+
+        router = APIRouter()
+
+        @router.get("/api/v1/vip/fitchef/insight")
+        async def _wrong_method() -> dict[str, str]:
+            return {"status": "wrong-method"}
+
+        @router.post("/api/v1/vip/other")
+        async def _wrong_path() -> dict[str, str]:
+            return {"status": "wrong-path"}
+
+        assert _router_endpoint(router, "/api/v1/vip/fitchef/insight", "POST") is None
 
 
 class TestVIPShoplistPDFExport:

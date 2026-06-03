@@ -2044,6 +2044,160 @@
         "title": "FitChefDistortionSimulatorResponse",
         "type": "object"
       },
+      "FitChefIdentityLoopMapperRequest": {
+        "description": "Identity-loop mapper request payload.",
+        "properties": {
+          "goal": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "recent_pattern": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Recent Pattern",
+            "type": "string"
+          },
+          "self_talk": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Self Talk",
+            "type": "string"
+          },
+          "trigger_context": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Context"
+          }
+        },
+        "required": [
+          "goal",
+          "recent_pattern",
+          "self_talk"
+        ],
+        "title": "FitChefIdentityLoopMapperRequest",
+        "type": "object"
+      },
+      "FitChefIdentityLoopMapperResponse": {
+        "description": "Public identity-loop mapper response envelope.",
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "identity_loop": {
+            "$ref": "#/components/schemas/FitChefIdentityLoopView"
+          },
+          "identity_shift_statement": {
+            "minLength": 1,
+            "title": "Identity Shift Statement",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "repair_if_slip": {
+            "minLength": 1,
+            "title": "Repair If Slip",
+            "type": "string"
+          },
+          "replacement_action": {
+            "minLength": 1,
+            "title": "Replacement Action",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "identity_loop_mapper",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario",
+          "identity_loop",
+          "identity_shift_statement",
+          "replacement_action",
+          "repair_if_slip",
+          "sources",
+          "confidence",
+          "warnings",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary"
+        ],
+        "title": "FitChefIdentityLoopMapperResponse",
+        "type": "object"
+      },
+      "FitChefIdentityLoopView": {
+        "description": "Public identity-loop block.",
+        "properties": {
+          "behavior": {
+            "minLength": 1,
+            "title": "Behavior",
+            "type": "string"
+          },
+          "belief": {
+            "minLength": 1,
+            "title": "Belief",
+            "type": "string"
+          },
+          "long_term_cost": {
+            "minLength": 1,
+            "title": "Long Term Cost",
+            "type": "string"
+          },
+          "short_term_reward": {
+            "minLength": 1,
+            "title": "Short Term Reward",
+            "type": "string"
+          }
+        },
+        "required": [
+          "belief",
+          "behavior",
+          "short_term_reward",
+          "long_term_cost"
+        ],
+        "title": "FitChefIdentityLoopView",
+        "type": "object"
+      },
       "FitChefMascotInsightResponse": {
         "description": "Public mascot insight response envelope.",
         "properties": {
@@ -2212,6 +2366,45 @@
           "scenario"
         ],
         "title": "FitChefSlipSupportResponse",
+        "type": "object"
+      },
+      "FitChefVipCoachingErrorResponse": {
+        "description": "VIP FitChef error envelope preserving frozen VIP aliases.",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "minLength": 1,
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "const": "error",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "message",
+          "detail",
+          "error"
+        ],
+        "title": "FitChefVipCoachingErrorResponse",
         "type": "object"
       },
       "FitChefWeeklyReflectionRequest": {
@@ -9422,6 +9615,106 @@
         ],
         "summary": "Auto Repair Weekly Plan",
         "tags": [
+          "vip"
+        ]
+      }
+    },
+    "/api/v1/vip/fitchef/insight": {
+      "post": {
+        "description": "Generate the bounded VIP identity-loop mapper surface.",
+        "operationId": "fitchef_identity_loop_mapper_api_v1_vip_fitchef_insight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefIdentityLoopMapperRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefIdentityLoopMapperResponse"
+                }
+              }
+            },
+            "description": "FitChef identity-loop mapper generated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Unsafe AI input blocked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded or monthly quota exhausted"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefVipCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Identity Loop Mapper",
+        "tags": [
+          "coaching",
+          "fitchef",
+          "structured",
           "vip"
         ]
       }

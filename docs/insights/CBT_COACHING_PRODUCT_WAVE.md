@@ -31,10 +31,13 @@ The repository already contains enough foundation to make this a coherent produc
 - live coaching runtime:
   - `app/services/fitchef_runtime.py`
   - `app/routers/fitchef_insight.py`
-- future structured coach route freeze:
+- structured coach route freeze:
   - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
 - feature-gated PRO structured coach runtime:
   - `POST /api/v1/pro/fitchef/explain`
+  - `app/routers/fitchef_structured.py`
+- feature-gated VIP structured coach runtime:
+  - `POST /api/v1/vip/fitchef/insight`
   - `app/routers/fitchef_structured.py`
 - analytics and experiment governance:
   - `docs/analytics/METRICS_CATALOG.md`
@@ -193,7 +196,7 @@ It aligns to the existing structured coach contract as follows:
 - `POST /api/v1/pro/fitchef/recommend`
   - primary future capability: bounded action-oriented recommendation after reframing
 - `POST /api/v1/vip/fitchef/insight`
-  - primary future capability: Identity Loop Mapper
+  - landed feature-gated VIP capability: Identity Loop Mapper
 - `POST /api/v1/vip/fitchef/week-repair`
   - primary future capability: identity-aware repair after slips
 
@@ -270,7 +273,7 @@ Not recommended:
 ### Follow-up implementation lanes
 
 1. Landed: Distortion Simulator contract + PRO runtime via PR #1214 and PR #1215
-2. Next active substantive lane: Identity Loop Mapper contract + VIP runtime,
+2. Landed by this implementation lane: Identity Loop Mapper VIP runtime,
    aligned to the frozen `FitChefIdentityLoopMapperResponse` schema; the schema
    and generated OpenAPI remain authoritative over this summary list.
 3. Separate future lane: Signal vs Noise report/content lane
