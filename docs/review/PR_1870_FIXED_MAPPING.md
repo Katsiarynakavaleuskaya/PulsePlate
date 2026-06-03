@@ -73,6 +73,10 @@ Evidence: `core/insight/fitchef_companion.py` rewrites unsafe fallback goal copy
 Disposition: FIXED
 Commit: 5812072da2a62c2167f690c6a8327314114b84ca
 Evidence: `core/insight/fitchef_companion.py` normalizes high-distress homoglyphs and blocks crisis/euphemism phrases before route runtime delegation; regression coverage: `tests/test_fitchef_companion_helpers.py::test_identity_loop_mapper_detects_high_distress_boundary` and `tests/test_fitchef_structured_api.py::TestFitChefIdentityLoopMapperRoute::test_high_distress_euphemism_rejected_before_runtime`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3347623257 -> 9a9dc19fa3d1d76c7873346eb26415fd814087a2
+Disposition: FIXED
+Commit: 9a9dc19fa3d1d76c7873346eb26415fd814087a2
+Evidence: `tests/vip/test_vip_diff_coverage.py` adds the missing `pytest.MonkeyPatch` parameter type and `-> None` return annotation; regression coverage: `tests/vip/test_vip_diff_coverage.py`.
 
 ## Post-Open Role-Agent Finding Closure
 
@@ -108,7 +112,7 @@ Evidence: `core/insight/fitchef_companion.py` normalizes high-distress homoglyph
 ## External Bot Review Status
 
 - CodeRabbit: NOT-A-BUG for code scope; review was rate-limited and emitted no
-  actionable code finding.
+  initial code finding. Later type-hint finding FIXED and mapped above.
 - Sourcery: NOT-A-BUG for code scope; review was rate-limited and emitted no
   actionable code finding.
 - Cubic: PASS / no issues found on remote head `bc39758c29881e4410f5aa63507f1ada9be604f8`.
