@@ -85,6 +85,18 @@ Evidence: CodeRabbit review-level actionable mirrors `discussion_r3347623257`; `
 Disposition: FIXED
 Commit: 78d7090e05b244c964bd92549681b90c7e84fef4
 Evidence: `core/compliance/privacy.py` discloses `/api/v1/vip/fitchef/insight` in the pseudonymous security/rate-limit category and signed audit envelopes category; regression coverage: `tests/test_compliance_control_plane.py::test_privacy_payload_contains_additive_control_plane_fields`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348341705 -> b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
+Disposition: FIXED
+Commit: b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
+Evidence: `app/main.py` now passes `target_app` to `register_vip_routes(...)` inside `ensure_canonical_app_bootstrap`; regression coverage: `tests/test_fitchef_structured_api.py::test_canonical_bootstrap_registers_structured_route_idempotently` and `tests/test_main_paywall_bootstrap.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348341731 -> b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
+Disposition: FIXED
+Commit: b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
+Evidence: `app/routers/fitchef_structured.py` wraps VIP structured route-level/runtime `HTTPException` failures in the frozen `vip_error(...)` envelope, `app/schemas/fitchef_coaching.py` documents `FitChefVipCoachingErrorResponse`, and `frontend/src/api/openapi.json` mirrors the updated OpenAPI contract; regression coverage: VIP envelope assertions in `tests/test_fitchef_structured_api.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1870#discussion_r3348341734 -> b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
+Disposition: FIXED
+Commit: b33b9b6c5afac8a4784a3d2d6f5d2670532be5f6
+Evidence: `scripts/ci/ci_risk_profile.py` now routes structured FitChef route/runtime/schema/test changes through `insight_ai`; regression coverage: `tests/test_ci_risk_profile.py::test_fitchef_structured_source_change_hits_insight_openapi_and_route_groups`.
 
 ## Post-Open Role-Agent Finding Closure
 
@@ -146,7 +158,7 @@ Evidence: `core/compliance/privacy.py` discloses `/api/v1/vip/fitchef/insight` i
 - Sourcery: NOT-A-BUG for code scope; review was rate-limited and emitted no
   actionable code finding.
 - Cubic: PASS / no issues found on remote head `bc39758c29881e4410f5aa63507f1ada9be604f8`.
-- Codex connector: three actionable threads were FIXED and mapped above.
+- Codex connector: six actionable threads were FIXED and mapped above.
 
 ## Local Validation Evidence
 
@@ -162,6 +174,11 @@ Evidence: `core/compliance/privacy.py` discloses `/api/v1/vip/fitchef/insight` i
   --compare-branch origin/main --fail-under 97` - PASS at 100%.
 - `PATH=.venv/bin:$PATH make validate-changed` - PASS
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make lint` - PASS
+- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make typecheck` - PASS
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_fitchef_structured_contracts.py tests/test_fitchef_structured_api.py tests/test_fitchef_companion_helpers.py tests/test_main_paywall_bootstrap.py tests/test_ci_risk_profile.py tests/test_compliance_control_plane.py tests/vip/test_vip_diff_coverage.py` - PASS
+- `python3 scripts/orchestration/check_preflight.py` - PASS after review-fix diff
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS after review-fix diff
 - Pre-push hooks - PASS, including changed-file mypy, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
 
 ## Merge Readiness
