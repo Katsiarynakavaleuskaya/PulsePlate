@@ -180,7 +180,7 @@
 | FitChef chat | `/api/v1/vip/fitchef/chat` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 | FitChef week repair | `/api/v1/vip/fitchef/week-repair` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
-> `POST /api/v1/vip/fitchef/insight` is the first bounded VIP structured runtime for the CBT Coaching Wave: `Identity Loop Mapper`, feature-gated by `FEATURE_FITCHEF_STRUCTURED_COACH`.
+> `POST /api/v1/vip/fitchef/insight` is the first bounded VIP structured runtime for the CBT Coaching Wave: `Identity Loop Mapper`, feature-gated by `FEATURE_FITCHEF_STRUCTURED_COACH`, and landed via PR #1870 / `7802ed25e99e0a4f346d14487270a037bb5ec97a`.
 > `chat` and `week-repair` remain additive contract-frozen follow-ups; live `/api/v1/insight/fitchef*` family remains canonical and unmigrated.
 > VIP structured `chat` and `week-repair` are not runtime/OpenAPI surfaces until later reviewed implementation PRs register them.
 
