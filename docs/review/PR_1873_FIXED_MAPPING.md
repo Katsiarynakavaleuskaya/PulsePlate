@@ -12,8 +12,9 @@ gates.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after PR open.
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping artifact created after PR #1873 opened.
+- [x] Fixed in commit mapping completed
 - [ ] PR body mirror updated after this artifact lands.
 - [ ] Post-open role-agent sequence completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
@@ -22,7 +23,15 @@ gates.
 
 ## Fixed in Commit Mapping
 
-No GitHub review threads have been resolved at artifact creation time.
+Disposition: FIXED
+Commit: 258dc9d4d4e6ea1e4ee79965760546e6e60a4716
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` replaces the remaining umbrella-chain `PR-TBD-SIGNAL-NOISE-REPORT-LANE` placeholder with `PR #1873 (Signal vs Noise report lane)`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351499498 -> 258dc9d4d4e6ea1e4ee79965760546e6e60a4716
+
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B e5b88d998d750347a6e27e660c8ed1da52719580` includes the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer required by the Experiment Runner evidence.
+Reason: The review comment checked a synthetic or stale commit reference, while the actual implementation commit carrying the Experiment Runner-shaped docs change already has the required trailer.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1873#discussion_r3351495172
 
 ## Pre-Open Findings
 
