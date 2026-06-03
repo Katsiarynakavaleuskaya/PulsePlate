@@ -38,6 +38,7 @@ DEFAULT_LEDGER_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" /
 IDEMPOTENCY_KEY_ITERATIONS = 120_000
 IDEMPOTENCY_KEY_NAMESPACE = b"pulseplate-operator-ledger-idempotency-v1"
 CONTENT_HASH_NAMESPACE = b"pulseplate-operator-ledger-content-v1"
+CONTENT_HASH_ITERATIONS = 1_000
 IDEMPOTENCY_KEY_RE = re.compile(r"^[a-f0-9]{24}$")
 PII_SHAPED_ARTIFACT_RE = re.compile(
     r"("
@@ -309,11 +310,13 @@ def _idempotency_key(payload: dict[str, Any]) -> str:
 
 
 def _content_hash(payload: dict[str, Any]) -> str:
-    return hashlib.blake2b(
+    return hashlib.pbkdf2_hmac(
+        "sha256",
         _canonical_json_bytes(payload),
-        digest_size=32,
-        key=CONTENT_HASH_NAMESPACE,
-    ).hexdigest()
+        CONTENT_HASH_NAMESPACE,
+        CONTENT_HASH_ITERATIONS,
+        dklen=32,
+    ).hex()
 
 
 def normalize_operator_ledger_event(
