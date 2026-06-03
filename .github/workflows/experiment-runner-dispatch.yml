@@ -102,9 +102,10 @@ jobs:
           hypothesis_hash = str(inputs.get("hypothesis_sha256", "none")).strip().lower() or "none"
           approval_ref = str(inputs.get("approval_ref", "none")).strip().lower() or "none"
           dry_run = str(inputs.get("dry_run", "true")).strip().lower()
-          workflow_ref = os.environ.get("GITHUB_REF_NAME", "").strip()
-          if workflow_ref != "main":
+          workflow_ref_full = os.environ.get("GITHUB_REF", "").strip()
+          if workflow_ref_full != "refs/heads/main":
               raise SystemExit("Experiment Runner dispatch workflow must run on main.")
+          workflow_ref = "main"
           workflow_live_approval = (
               "bridge_required_not_workflow_proven"
               if dry_run == "false" and approval_ref != "none"

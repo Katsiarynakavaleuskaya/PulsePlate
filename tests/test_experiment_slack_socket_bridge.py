@@ -2434,8 +2434,10 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert "if" not in summary_step
     assert "GITHUB_STEP_SUMMARY" in summary_step["run"]
     assert 'os.environ["GITHUB_EVENT_PATH"]' in summary_step["run"]
-    assert 'os.environ.get("GITHUB_REF_NAME", "")' in summary_step["run"]
-    assert 'if workflow_ref != "main"' in summary_step["run"]
+    assert 'os.environ.get("GITHUB_REF", "")' in summary_step["run"]
+    assert "refs/heads/main" in summary_step["run"]
+    assert 'if workflow_ref_full != "refs/heads/main"' in summary_step["run"]
+    assert 'os.environ.get("GITHUB_REF_NAME", "")' not in summary_step["run"]
     assert "Experiment Runner dispatch workflow must run on main." in summary_step["run"]
     assert "hashlib.sha256" in summary_step["run"]
     assert "workflow_file: experiment-runner-dispatch.yml" in summary_step["run"]
