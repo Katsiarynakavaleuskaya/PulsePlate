@@ -46,6 +46,26 @@ Current conclusion: on clean `origin/main`, GitHub's alert/SBOM view is still
 aligned with repo manifests and the root lockfile. The earlier stale-alert /
 graph-drift framing is therefore not yet proven for this alert family.
 
+### Frontend `vitest` alert state: alert `#153`
+
+- GitHub Dependabot alert `#153` (`vitest`, `GHSA-5xrq-8626-4rwp`,
+  `CVE-2026-47429`) remained `open` on 2026-06-02.
+- GitHub points the alert to `frontend/package-lock.json`.
+- The affected range is `<4.1.0`; the first patched version is `4.1.0`.
+- Clean `main` repo evidence already shows the frontend Vitest dependency stack
+  pinned at `4.1.8`:
+  - `frontend/package.json` declares `vitest`, `@vitest/coverage-v8`, and
+    `@vitest/expect` at `4.1.8`
+  - `frontend/package-lock.json` resolves the direct Vitest package to `4.1.8`
+- GitHub repo SBOM still reported:
+  - `vitest 3.2.4`
+
+Current conclusion: unlike the `axios` alert family above, alert `#153` is
+confirmed dependency-graph drift. Repo lock truth is patched above the vulnerable
+range, but GitHub's graph has not yet ingested the frontend npm lockfile state.
+Docker and Trivy evidence do not directly close this Dependabot dependency-graph
+alert.
+
 ### Config asymmetry before repo-owned npm refresh
 
 - `.github/dependabot.yml` currently covers only the `pip` ecosystem.
@@ -57,13 +77,21 @@ graph-drift framing is therefore not yet proven for this alert family.
 ### Current reconciliation lane change
 
 - The repo now adds `.github/workflows/npm-dependency-submission.yml` as the
-  minimum root npm dependency submission lane.
+  minimum root npm dependency submission lane and extends it with a separate
+  frontend npm dependency submission job for `/frontend`.
 - The workflow is intentionally narrow:
-  - root npm manifests only
-  - dependency submission only
-  - excludes `frontend`, `node_modules`, `worktrees`, `.venv`
-- This lane is meant to refresh GitHub graph truth for the root npm surface
-  without reopening speculative dependency churn.
+  - root npm manifests in the root job only
+  - frontend npm manifests in the frontend job only, via a temporary graph root
+    that preserves `frontend/package-lock.json` as the submitted manifest path
+  - dependency submission only on `push` to `main` or `workflow_dispatch`
+  - pull requests run a read-only validation job so Dependabot/fork PR tokens do
+    not fail while trying to call the dependency submission API
+  - the root job excludes `frontend`, `node_modules`, `worktrees`, `.venv`
+  - the frontend job prepares a temporary graph root with only the frontend npm
+    manifests and excludes local/dev artifacts such as `node_modules`,
+    `worktrees`, `.venv`
+- This lane is meant to refresh GitHub graph truth for the root and frontend npm
+  surfaces without reopening speculative dependency churn.
 
 ### Historical pattern
 
@@ -95,6 +123,14 @@ Python dependency submission was explicit and repo-managed while npm lacked an
 equivalent lane when this audit was opened. That asymmetry still matters as a
 process gap because the repo needs an explicit post-remediation graph-refresh
 loop once the actual runtime fix lands.
+
+### 3a. Frontend graph submission gap after Vitest remediation
+
+Alert `#153` proves a more specific gap: root npm dependency submission alone is
+not enough for nested npm workspaces when the vulnerable package lives under
+`/frontend`. The workflow must submit frontend npm lockfile state explicitly,
+with a frontend-scoped correlator and a repo-relative manifest source location,
+so GitHub can update the graph entry attached to `frontend/package-lock.json`.
 
 ### 4. Partial Dependabot ecosystem coverage
 
@@ -142,9 +178,9 @@ direct causes of the remaining `axios` alert family (`#105` + `#106`).
 
 ## Recommended Prevention Follow-Ups
 
-1. Keep the root npm dependency submission lane narrow and repo-owned so GitHub
-   graph refresh is explicit rather than ambient after the runtime dependency
-   fix lands.
+1. Keep the root and frontend npm dependency submission lanes narrow and
+   repo-owned so GitHub graph refresh is explicit rather than ambient after the
+   runtime dependency fix lands.
 2. Require a clean-`main` manifest/lockfile recheck before classifying an alert
    as dependency-graph drift.
 3. Extend the stale-alert reconciliation ledger with alert-family-specific child
@@ -154,7 +190,10 @@ direct causes of the remaining `axios` alert family (`#105` + `#106`).
    - alert state,
    - SBOM/package view,
    - current-head workflow completion.
-5. Keep security PRs narrow, but do not use a recurring-drift audit as a
+5. For alert `#153`, confirm `NPM Dependency Submission` succeeds on `main`
+   after merge and the frontend graph no longer reports `vitest@3.2.4` before
+   treating the Dependabot alert as graph-converged.
+6. Keep security PRs narrow, but do not use a recurring-drift audit as a
    substitute for fixing a still-live runtime dependency path.
 
 ## Decision Log
@@ -166,3 +205,7 @@ direct causes of the remaining `axios` alert family (`#105` + `#106`).
 - For alerts `#105` + `#106`, the clean-main answer in this PR is:
   "current repo truth still carries the live path; add the repo-owned npm
   submission lane now, then open the minimum remediation follow-up."
+- For alert `#153`, the clean-main answer is different: frontend lock truth is
+  already patched to `vitest@4.1.8`, while GitHub dependency graph / SBOM still
+  reports `vitest@3.2.4`; add frontend npm dependency submission and verify graph
+  convergence after the workflow runs on `main`.

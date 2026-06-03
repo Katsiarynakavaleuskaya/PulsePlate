@@ -30,6 +30,7 @@ from scripts.evals import judgment_validity
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKEFILE = REPO_ROOT / "Makefile"
 PYTHON_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/python-dependency-submission.yml"
+NPM_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/npm-dependency-submission.yml"
 PIP_AUDIT_HELPER = REPO_ROOT / "scripts/ci_pip_audit.sh"
 LOCAL_USERS_PATH_PATTERN = re.compile(r"/Users/(?!\.\.\.)([^/\s`]+)(?:/|$)")
 DOCS_LEAKAGE_GUARD_BASE_ENV = "PULSEPLATE_DOCS_LEAKAGE_GUARD_BASE"
@@ -56,16 +57,60 @@ def _makefile_text() -> str:
     return MAKEFILE.read_text(encoding="utf-8")
 
 
-def _workflow_path_filters() -> dict[str, set[str]]:
-    workflow = yaml.safe_load(PYTHON_DEPENDENCY_SUBMISSION.read_text(encoding="utf-8"))
+def _workflow(workflow_path: Path) -> dict[str, Any]:
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    assert isinstance(workflow, dict), f"{workflow_path} must be a YAML mapping"
+    return workflow
+
+
+def _workflow_events(workflow_path: Path) -> dict[str, Any]:
+    workflow = _workflow(workflow_path)
     events = workflow.get("on", workflow.get(True))
     assert isinstance(events, dict), "workflow events must be a mapping"
+    return events
+
+
+def _workflow_path_filters(
+    workflow_path: Path = PYTHON_DEPENDENCY_SUBMISSION,
+) -> dict[str, set[str]]:
+    events = _workflow_events(workflow_path)
     filters: dict[str, set[str]] = {}
     for event in ("push", "pull_request"):
         event_block = events[event]
         assert isinstance(event_block, dict), f"{event} block must be a mapping"
         filters[event] = set(event_block["paths"])
     return filters
+
+
+def _job_action_step(workflow: dict[str, Any], *, job_id: str, action_name: str) -> dict[str, Any]:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict), "workflow jobs must be a mapping"
+    job = jobs[job_id]
+    assert isinstance(job, dict), f"{job_id} job must be a mapping"
+    steps = job["steps"]
+    assert isinstance(steps, list), f"{job_id} steps must be a list"
+    for step in steps:
+        if isinstance(step, dict) and step.get("uses") == action_name:
+            return step
+    raise AssertionError(f"missing {action_name} step in {job_id}")
+
+
+def _job_named_step(workflow: dict[str, Any], *, job_id: str, step_name: str) -> dict[str, Any]:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict), "workflow jobs must be a mapping"
+    job = jobs[job_id]
+    assert isinstance(job, dict), f"{job_id} job must be a mapping"
+    steps = job["steps"]
+    assert isinstance(steps, list), f"{job_id} steps must be a list"
+    for step in steps:
+        if isinstance(step, dict) and step.get("name") == step_name:
+            return step
+    raise AssertionError(f"missing {step_name} step in {job_id}")
+
+
+def _csv_values(value: object) -> set[str]:
+    assert isinstance(value, str), "expected comma-separated string"
+    return {item.strip() for item in value.split(",") if item.strip()}
 
 
 def _function_source(module_path: Path, function_name: str) -> str:
@@ -313,6 +358,111 @@ def test_dependency_profiles_are_covered_by_all_security_surfaces() -> None:
         assert profile.backend_shared is True
         assert profile.run_backend_blocking is True
         assert profile.run_security is True
+
+
+def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:
+    workflow = _workflow(NPM_DEPENDENCY_SUBMISSION)
+    events = _workflow_events(NPM_DEPENDENCY_SUBMISSION)
+
+    assert "pull_request_target" not in events
+    assert workflow["permissions"] == {"contents": "write"}
+
+    for event in ("push", "pull_request"):
+        event_block = events[event]
+        assert isinstance(event_block, dict), f"{event} block must be a mapping"
+        paths = set(event_block["paths"])
+        assert {
+            "package.json",
+            "package-lock.json",
+            "frontend/package.json",
+            "frontend/package-lock.json",
+            ".github/workflows/npm-dependency-submission.yml",
+        }.issubset(paths)
+
+    action = "advanced-security/component-detection-dependency-submission-action@" + "".join(
+        (
+            "b876b8cc",
+            "341a5397",
+            "0394b33e",
+            "a0ca4e86",
+            "c25542de",
+        )
+    )
+    checkout_action = "actions/checkout@" + "".join(
+        (
+            "de0fac2e",
+            "4500dabe",
+            "0009e672",
+            "14ff5f54",
+            "47ce83dd",
+        )
+    )
+    root_step = _job_action_step(workflow, job_id="dependency-submission", action_name=action)
+    frontend_step = _job_action_step(
+        workflow,
+        job_id="frontend-dependency-submission",
+        action_name=action,
+    )
+    root_checkout = _job_action_step(
+        workflow,
+        job_id="dependency-submission",
+        action_name=checkout_action,
+    )
+    frontend_checkout = _job_action_step(
+        workflow,
+        job_id="frontend-dependency-submission",
+        action_name=checkout_action,
+    )
+    frontend_prepare = _job_named_step(
+        workflow,
+        job_id="frontend-dependency-submission",
+        step_name="Prepare frontend npm dependency graph root",
+    )
+
+    root_with = root_step["with"]
+    frontend_with = frontend_step["with"]
+    assert isinstance(root_with, dict)
+    assert isinstance(frontend_with, dict)
+
+    jobs = workflow["jobs"]
+    pr_validation_job = jobs["dependency-submission-pr-validation"]
+    assert pr_validation_job["if"] == "github.event_name == 'pull_request'"
+    assert pr_validation_job["permissions"] == {"contents": "read"}
+    assert pr_validation_job["timeout-minutes"] == (
+        "${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}"
+    )
+    assert "dependency submission API" in pr_validation_job["steps"][0]["run"]
+    assert jobs["dependency-submission"]["if"] == "github.event_name != 'pull_request'"
+    assert jobs["frontend-dependency-submission"]["if"] == ("github.event_name != 'pull_request'")
+    assert jobs["dependency-submission"]["timeout-minutes"] == (
+        "${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}"
+    )
+    assert jobs["frontend-dependency-submission"]["timeout-minutes"] == (
+        "${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}"
+    )
+    assert root_checkout["with"] == {"persist-credentials": False}
+    assert frontend_checkout["with"] == {"persist-credentials": False}
+    assert root_with["correlator"] == "npm-dependency-submission-root"
+    assert frontend_with["correlator"] == "npm-dependency-submission-frontend"
+    assert root_with["correlator"] != frontend_with["correlator"]
+    assert root_with["detectorsCategories"] == "Npm"
+    assert frontend_with["detectorsCategories"] == "Npm"
+    assert root_with["detectorArgs"] == "NpmLockfile3=EnableIfDefaultOff"
+    assert frontend_with["detectorArgs"] == "NpmLockfile3=EnableIfDefaultOff"
+
+    root_exclusions = _csv_values(root_with["directoryExclusionList"])
+    frontend_exclusions = _csv_values(frontend_with["directoryExclusionList"])
+    assert root_exclusions == {"frontend", "node_modules", "worktrees", ".venv"}
+    assert root_with.get("filePath") in {None, "", "."}
+    assert frontend_prepare["shell"] == "bash"
+    prepare_script = str(frontend_prepare["run"])
+    assert "pulseplate-frontend-dependency-root" in prepare_script
+    assert "mkdir -p" in prepare_script
+    assert "frontend/package.json frontend/package-lock.json" in prepare_script
+    assert frontend_with["filePath"] == ("${{ runner.temp }}/pulseplate-frontend-dependency-root")
+    assert frontend_with["filePath"] != "frontend"
+    assert "frontend" not in frontend_exclusions
+    assert {"node_modules", "worktrees", ".venv"}.issubset(frontend_exclusions)
 
 
 def test_judgment_validity_sidecars_only_use_symlink_safe_writer() -> None:
