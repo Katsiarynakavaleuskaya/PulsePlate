@@ -29,7 +29,19 @@ gates.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED / NOT-A-BUG
+Commit: fea3efd94
+Evidence: detailed per-thread proof is recorded below under External review thread dispositions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347885629 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347893129 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039690 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039695 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039702 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062664 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062672 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062674 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062658
 
 ## Mapping Update Protocol
 
@@ -121,6 +133,90 @@ mapping artifact, and focused tests, and the targeted deterministic gates
 passed. Local artifacts:
 `artifacts/orchestration/pr_review/PR_1872_PULSEPLATE_PR_REVIEW.md` and
 `artifacts/orchestration/pr_review/PR_1872_PULSEPLATE_PR_REVIEW.json`.
+
+### External review thread dispositions
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347885629
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: `.github/workflows/experiment-runner-dispatch.yml` now emits
+  `approval_hash_prefix` only when `dry_run == "false"` and
+  `approval_ref != "none"`, and
+  `tests/test_experiment_slack_socket_bridge.py` asserts the dry-run guard.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347893129
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: Same approval-prefix dry-run guard as above; this CodeRabbit
+  thread duplicated the Codex connector finding on the workflow summary.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` now
+  writes operator-ledger records only for dispatchable `run-experiment`
+  outcomes or rejected commands; informational status commands no longer
+  replace the latest dispatch ledger evidence.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039690
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence:
+  `tests/test_experiment_slack_socket_bridge.py::test_repeated_status_commands_keep_dispatch_ledger_summary`
+  proves repeated status checks do not hide the latest dispatch ledger
+  evidence.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039695
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py` defers
+  ledger write preflight until after command parsing and only for dispatchable
+  commands, while
+  `tests/test_experiment_slack_socket_bridge.py::test_status_command_reports_invalid_ledger_without_requiring_write_preflight`
+  proves status still renders sanitized `invalid_local_artifact`.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039702
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: `scripts/orchestration/experiment_slack_bridge_config.py` now
+  validates `EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID` during config
+  construction so `--validate-runtime` fails closed for Slack-shaped,
+  whitespace-padded, secret-shaped, overlong, hash-shaped, or character-invalid
+  values.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062664
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: Same config-construction validation as above; the focused pytest
+  parametrization covers both Slack-shaped and whitespace-only task packet ids.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062672
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: Same repeated-status regression test as above; status commands do
+  not create operator-ledger records.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062674
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: Same invalid-ledger status regression test as above.
+
+- Thread:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062658
+  Disposition: NOT-A-BUG
+  Evidence: `_configure_repo()` builds `audit_dir` as
+  `repo/artifacts/orchestration/experiments/slack_socket_bridge`; for that path,
+  `audit_dir.parents[3]` is the test repo root. Focused pytest verifies bridge
+  writes are read from that root by loading the expected ledger records.
 
 ## Local Gate Evidence
 
