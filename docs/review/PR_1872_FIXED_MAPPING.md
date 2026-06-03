@@ -35,6 +35,7 @@ Evidence: detailed per-thread proof is recorded below under External review thre
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347885629 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347893129 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4417838036 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418193962 -> 1ba063c98
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039690 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039695 -> fea3efd94
@@ -156,6 +157,23 @@ passed. Local artifacts:
   Commit: fea3efd94
   Evidence: Same approval-prefix dry-run guard as above; this CodeRabbit
   thread duplicated the Codex connector finding on the workflow summary.
+
+- Review:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4417838036
+  Disposition: FIXED
+  Commit: fea3efd94
+  Evidence: CodeRabbit top-level review summarized the approval-prefix inline
+  finding above; the workflow summary now emits approval prefixes only for
+  validated `dry_run=false` dispatches.
+
+- Review:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4418193962
+  Disposition: FIXED
+  Commit: 1ba063c98
+  Evidence: `docs/review/PR_1872_FIXED_MAPPING.md` now separates the FIXED
+  SHA-mapped list from the NOT-A-BUG URL-only proof block, preserving the
+  review-governance parser contract while making the disposition distinction
+  explicit.
 
 - Thread:
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507
