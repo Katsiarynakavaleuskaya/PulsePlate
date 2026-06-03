@@ -29,11 +29,12 @@ gates.
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED / NOT-A-BUG
+Disposition: FIXED
 Commit: fea3efd94
 Evidence: detailed per-thread proof is recorded below under External review thread dispositions.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347885629 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347893129 -> fea3efd94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#pullrequestreview-4417838036 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3347952507 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039690 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348039695 -> fea3efd94
@@ -41,12 +42,16 @@ Evidence: detailed per-thread proof is recorded below under External review thre
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062664 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062672 -> fea3efd94
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062674 -> fea3efd94
+
+Disposition: NOT-A-BUG
+Evidence: detailed proof is recorded below under External review thread dispositions.
+Reason: the URL-only line is intentionally commit-free per NOT-A-BUG review governance.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1872#discussion_r3348062658
 
 ## Mapping Update Protocol
 
-No actionable GitHub review threads have been resolved as of this initial
-artifact.
+Actionable GitHub review threads and top-level review comments must be recorded
+above before resolution.
 
 Future resolved actionable comments must be appended here with one of:
 
