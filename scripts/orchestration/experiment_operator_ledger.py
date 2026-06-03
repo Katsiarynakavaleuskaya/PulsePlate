@@ -37,6 +37,8 @@ PROVIDER_TYPE = "experiment_runner_operator_plane"
 DEFAULT_LEDGER_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "operator_ledger"
 IDEMPOTENCY_KEY_ITERATIONS = 120_000
 IDEMPOTENCY_KEY_NAMESPACE = b"pulseplate-operator-ledger-idempotency-v1"
+IDEMPOTENCY_KEY_CHECK_ITERATIONS = 1_000
+IDEMPOTENCY_KEY_CHECK_NAMESPACE = b"pulseplate-operator-ledger-idempotency-check-v1"
 CONTENT_HASH_NAMESPACE = b"pulseplate-operator-ledger-content-v1"
 CONTENT_HASH_ITERATIONS = 1_000
 IDEMPOTENCY_KEY_RE = re.compile(r"^[a-f0-9]{24}$")
@@ -135,8 +137,19 @@ REQUIRED_EVENT_FIELDS = frozenset(
         "workflow_ref",
     }
 )
-DERIVED_EVENT_FIELDS = frozenset({"content_hash", "idempotency_key"})
+DERIVED_EVENT_FIELDS = frozenset({"content_hash", "idempotency_key", "idempotency_key_check"})
 EVENT_FIELDS = REQUIRED_EVENT_FIELDS | DERIVED_EVENT_FIELDS
+IDEMPOTENCY_MATERIAL_FIELDS = (
+    "branch_hash",
+    "command_kind",
+    "event_hash",
+    "human_review_outcome",
+    "hypothesis_hash",
+    "oracle_result_hash",
+    "slack_audit_hash",
+    "status",
+    "task_packet_id",
+)
 
 
 class OperatorLedgerError(RuntimeError):
@@ -285,28 +298,30 @@ def _validate_retention_days(value: Any) -> int:
     return value
 
 
+def _idempotency_material(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: payload[key] for key in IDEMPOTENCY_MATERIAL_FIELDS}
+
+
 def _idempotency_key(payload: dict[str, Any]) -> str:
-    stable = {
-        key: payload[key]
-        for key in (
-            "branch_hash",
-            "command_kind",
-            "event_hash",
-            "human_review_outcome",
-            "hypothesis_hash",
-            "oracle_result_hash",
-            "slack_audit_hash",
-            "status",
-            "task_packet_id",
-        )
-    }
     return hashlib.pbkdf2_hmac(
         "sha256",
-        _canonical_json_bytes(stable),
+        _canonical_json_bytes(_idempotency_material(payload)),
         IDEMPOTENCY_KEY_NAMESPACE,
         IDEMPOTENCY_KEY_ITERATIONS,
         dklen=16,
     ).hex()[:24]
+
+
+def _idempotency_key_check(payload: dict[str, Any], idempotency_key: str) -> str:
+    stable = _idempotency_material(payload)
+    stable["idempotency_key"] = idempotency_key
+    return hashlib.pbkdf2_hmac(
+        "sha256",
+        _canonical_json_bytes(stable),
+        IDEMPOTENCY_KEY_CHECK_NAMESPACE,
+        IDEMPOTENCY_KEY_CHECK_ITERATIONS,
+        dklen=32,
+    ).hex()
 
 
 def _content_hash(payload: dict[str, Any]) -> str:
@@ -418,8 +433,13 @@ def normalize_operator_ledger_event(
     if not normalized["coauthor_required"] and normalized["coauthor_decision"] == "required":
         raise OperatorLedgerError("Experiment operator ledger coauthor decision is invalid.")
     if derive_idempotency_key:
+        idempotency_key = _idempotency_key(normalized)
         normalized["content_hash"] = _content_hash(normalized)
-        normalized["idempotency_key"] = _idempotency_key(normalized)
+        normalized["idempotency_key"] = idempotency_key
+        normalized["idempotency_key_check"] = _idempotency_key_check(
+            normalized,
+            idempotency_key,
+        )
     return OperatorLedgerRecord(payload=normalized)
 
 
@@ -596,16 +616,25 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
     content_hash = raw.get("content_hash")
     if not isinstance(content_hash, str) or SHA256_HEX_RE.fullmatch(content_hash) is None:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    idempotency_key_check = raw.get("idempotency_key_check")
+    if (
+        not isinstance(idempotency_key_check, str)
+        or SHA256_HEX_RE.fullmatch(idempotency_key_check) is None
+    ):
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     if path.stem != derived:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     payload = dict(raw)
-    payload.pop("idempotency_key")
-    payload.pop("content_hash")
+    for field in DERIVED_EVENT_FIELDS:
+        payload.pop(field)
     record = normalize_operator_ledger_event(payload, derive_idempotency_key=False)
     if _content_hash(record.payload) != content_hash:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    if _idempotency_key_check(record.payload, derived) != idempotency_key_check:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     record.payload["content_hash"] = content_hash
     record.payload["idempotency_key"] = derived
+    record.payload["idempotency_key_check"] = idempotency_key_check
     return record
 
 

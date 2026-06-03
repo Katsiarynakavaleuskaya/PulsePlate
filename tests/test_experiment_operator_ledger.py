@@ -85,6 +85,8 @@ def test_operator_ledger_writes_hash_only_event_and_blocks_duplicate(tmp_path: P
     assert record["idempotency_key"] == path.stem
     assert isinstance(record["content_hash"], str)
     assert len(record["content_hash"]) == 64
+    assert isinstance(record["idempotency_key_check"], str)
+    assert len(record["idempotency_key_check"]) == 64
     assert record["branch_hash"] == _hash("feature/operator-plane")
     _assert_no_raw_leak(text)
 
@@ -362,6 +364,28 @@ def test_operator_ledger_content_hash_must_match_event_payload(tmp_path: Path) -
     event_dir.mkdir(parents=True)
     record["workflow_ref"] = "none"
     (event_dir / f"{record['idempotency_key']}.json").write_text(
+        json.dumps(record),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ledger.OperatorLedgerError, match="invalid"):
+        ledger.load_operator_ledger_events(repo_root=tmp_path)
+    assert ledger.latest_operator_ledger_summary(repo_root=tmp_path) == (
+        "operator_ledger_status=invalid_local_artifact",
+        "operator_ledger_scope=local_only",
+        "operator_ledger_authority=display_only",
+    )
+
+
+def test_operator_ledger_idempotency_key_check_must_match_payload(
+    tmp_path: Path,
+) -> None:
+    record = dict(ledger.normalize_operator_ledger_event(_event()).payload)
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.mkdir(parents=True)
+    tampered_key = "a" * 24
+    record["idempotency_key"] = tampered_key
+    (event_dir / f"{tampered_key}.json").write_text(
         json.dumps(record),
         encoding="utf-8",
     )
