@@ -14,17 +14,22 @@ operator override behavior.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Initial post-open snapshot:
+Current post-open snapshot:
 
-- No human or bot review threads were present when this canonical mapping
-  artifact was added.
+- The initial mapping artifact was added before human or bot review threads were
+  present.
+- Codex Review later posted one actionable Experiment Runner attribution
+  comment; its disposition is recorded below.
 - Mandatory post-open QA, bug-hunter, security, Codex Security, and
   `pulseplate-pr-review` passes remain required before merge readiness.
 - Current-head CI remains required before merge readiness.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1875#discussion_r3351709313
+Disposition: FIXED
+Commit: pending post-comment fix commit
+Evidence: pending post-comment fix commit updates this artifact's Experiment Runner attribution evidence to identify the actual PR branch commits that include the canonical trailer and to distinguish branch-history proof from pre-merge synthetic/squash-preview commit ids.
 
 ## Dependency Scope / Private-Index Notes
 
@@ -117,9 +122,14 @@ Premortem:
   `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md README_V2_PUBLIC_DRAFT.md docs/ENGINEERING_LESSONS.md docs/security/CVE-2025-62718-axios.md docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md docs/security/GHSA-f886-m6hf-6m8v-brace-expansion.md`.
 - Evidence: 3/3 immutable oracles passed, 29 source diff paths stayed inside
   packet context, and `shared_tree_untouched=true`.
-- Attribution: `coauthor_required=true`; commit
-  `5eafeacaf1aa8c23f685af3b535b49c2209ec6e4` includes
-  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Attribution: `coauthor_required=true`; the actual GitHub PR branch commits
+  that materially use Experiment Runner evidence include the canonical trailer:
+  `5eafeacaf84af0ba5f8a9ac5d66f7fdd0d84c668`,
+  `ed4b9afaf697e2ba9558d24d53700e24321460ec`, and
+  `2cd846c1700803cad04237ee002269802b558c97`. A pre-merge synthetic reviewed
+  commit, merge-preview commit, or future squash commit is not branch-history
+  proof; before merge readiness, the squash message must preserve the canonical
+  trailer if the final merge mechanism creates a new commit.
 
 ## Local Validation Evidence
 
