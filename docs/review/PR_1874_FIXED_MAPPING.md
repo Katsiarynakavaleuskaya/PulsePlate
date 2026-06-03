@@ -74,10 +74,15 @@ Disposition: FIXED
 Commit: b557922c43609174096aa4ba62dd03eb4374059d
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` compares each result artifact file SHA-256 to the ledger `oracle_result_hash` before projecting metadata and fails closed to `artifact_status=invalid` on mismatch or missing hash; `tests/test_experiment_operator_ledger.py` adds a mismatched-hash regression and updates valid metadata fixtures to use the real artifact hash.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/runs/79401457146 -> 2d999e5b8087d03a1482f37af41c71c9d33af140
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/runs/79401457146 -> 7bca65ce58e98ea435531233ed3e666e46a02180
 Disposition: FIXED
-Commit: 2d999e5b8087d03a1482f37af41c71c9d33af140
-Evidence: GitHub Advanced Security CodeQL reported `Clear-text logging of sensitive information` on the operator observability CLI stdout sink. `scripts/orchestration/experiment_operator_ledger.py` now runs all CLI stdout payloads through a final fail-closed no-leak guard before writing to stdout, and `tests/test_experiment_operator_ledger.py` proves a rendered payload containing token-shaped text, a local path, and patch text returns only sanitized `FAIL: Experiment operator ledger output contains unsafe content.` without printing the unsafe content.
+Commit: 7bca65ce58e98ea435531233ed3e666e46a02180
+Evidence: GitHub Advanced Security CodeQL reported `Clear-text logging of sensitive information` on the operator observability CLI stdout sink. `scripts/orchestration/experiment_operator_ledger.py` now requires `--summary` reports to write through `--output`, keeps full report payloads out of the stdout branch, and reserves stdout for bounded acknowledgement payloads; `tests/test_experiment_operator_ledger.py` covers the no-stdout summary contract and proves an unsafe report-set acknowledgement returns only sanitized `FAIL: Experiment operator ledger output contains unsafe content.` without printing token-shaped text, local paths, or patch/log markers.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/runs/79403670201 -> 7bca65ce58e98ea435531233ed3e666e46a02180
+Disposition: FIXED
+Commit: 7bca65ce58e98ea435531233ed3e666e46a02180
+Evidence: The repeated GitHub Advanced Security CodeQL alert after the initial stdout guard still identified the shared stdout sink. `scripts/orchestration/experiment_operator_ledger.py` now structurally separates full report rendering from stdout output, and `tests/test_experiment_operator_ledger.py` verifies direct CLI summary invocation writes to a gitignored artifact output file with empty stdout.
 
 ## Mapping Update Protocol
 
@@ -192,10 +197,10 @@ Evidence: final `pulseplate-pr-review` dry-run emitted one advisory `large-diff-
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after post-open QA and bug-hunter fixes.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Cubic-identified malformed-artifact fail-closed fix.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Codex-identified result-id redaction, latest-state projection, and artifact-hash verification fixes in `b557922c4`.
-- repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the CodeQL stdout sink guard fix in `2d999e5b`.
+- repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the CodeQL stdout sink isolation fix in `7bca65ce`.
 - `git diff --check` - PASS.
 - `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed; PASS again on final head.
-- `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head; PASS again after the CodeQL stdout sink guard fix in `2d999e5b`.
+- `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head; PASS again after the CodeQL stdout sink isolation fix in `7bca65ce`.
 - final oracle-only Experiment Runner evidence `artifacts/orchestration/experiments/results/exp-6560552e0103.json` - accepted after the Codex-identified result-id redaction, latest-state projection, and artifact-hash verification fixes.
 - `git push -u origin codex/experiment-runner-operator-observability-report` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
 - prior final `git push` to `208ff3bf2` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
