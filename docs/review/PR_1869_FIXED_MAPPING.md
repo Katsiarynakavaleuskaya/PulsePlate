@@ -52,6 +52,11 @@ Disposition: NOT-A-BUG
 Evidence: The connector's reviewed commit `6009f79d84ef0a631e72fc92d502a5134f8c4f3c` is a synthetic review surface with parent `72fb232`, not the live PR branch head. The actual PR branch contains `9cc75668d65b6d0bb01b8c3fa662c47145828774`, `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd`, and the later mapping/review commits as normal branch ancestors, and this artifact intentionally keeps implementation-proof SHAs plus explicit current-head readiness caveats.
 Reason: The comment asks to rewrite fixed-proof commits to a synthetic reviewed/squash SHA, which would be worse evidence for the live PR branch and rollback path.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3347054078
+Disposition: NOT-A-BUG
+Evidence: On current PR branch head `74defe42b7aabd1c4f10ff74fd226d83f90e95f6`, both `git merge-base --is-ancestor 9cc75668d65b6d0bb01b8c3fa662c47145828774 HEAD` and `git merge-base --is-ancestor f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd HEAD` returned exit code 0. The implementation commits are live branch ancestors and remain the correct rollback/provenance proof for this PR.
+Reason: The connector again evaluated a synthetic reviewed/squash commit surface rather than the live PR branch ancestry used by the local repository and GitHub PR head.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869 -> 9cc75668d65b6d0bb01b8c3fa662c47145828774
 Disposition: FIXED
 Commit: 9cc75668d65b6d0bb01b8c3fa662c47145828774
