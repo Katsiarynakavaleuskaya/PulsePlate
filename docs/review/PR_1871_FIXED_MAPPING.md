@@ -1,0 +1,242 @@
+# PR #1871 - Fixed in Commit Mapping
+
+**Title:** `fix(ci): migrate gha action pins to node24`
+**Branch:** `codex/gha-node24-action-runtime-cleanup`
+**Scope:** CI workflow JavaScript action runtime cleanup only. This PR updates
+direct Node20-era GitHub Actions pins to verified Node24-compatible commit SHAs
+and adds guard coverage. It does not change app/runtime Node, Python
+dependencies, private-index policy, backend/OpenAPI, frontend runtime, Docker
+image behavior, release logic, permissions, secrets, cache policy, or
+operator-override behavior.
+**Primary implementation commits:** `ef1a745654e89d7a14f676e70001c010878eff4a`,
+`e556119b444742135cced7793b0da38aaa8f9353`
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [ ] Post-open bot/human review disposition completed after latest push
+
+Current live PR snapshot before the mapping commit:
+
+- No inline GitHub review comments were present.
+- CodeRabbit had posted a summary comment only.
+- Sourcery returned a weekly-rate-limit comment, not a code actionable.
+- Cubic reported no issues on the initial head.
+- Current-head CI and bot review must be rechecked after this mapping commit is
+  pushed.
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1871 -> ef1a745654e89d7a14f676e70001c010878eff4a
+Disposition: FIXED
+Commit: ef1a745654e89d7a14f676e70001c010878eff4a
+Evidence: Initial implementation replaced scoped checkout and Docker JavaScript action pins with verified Node24-compatible full commit SHAs and added guard coverage for old SHA absence, exact Node24 pin counts, forbidden operator override literal absence, and Docker step behavior preservation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1871 -> e556119b444742135cced7793b0da38aaa8f9353
+Disposition: FIXED
+Commit: e556119b444742135cced7793b0da38aaa8f9353
+Evidence: Post-open QA found remaining direct Node20 `actions/setup-go` and `actions/upload-artifact` pins in the touched workflow surface. The commit updates those refs to verified Node24-compatible full commit SHAs and extends `tests/test_ci_workflow_pr_size_governance_contract.py` so the old SHAs cannot be reintroduced.
+
+## Dependency Scope / Private-Index Notes
+
+- No `frontend/package.json`, `frontend/package-lock.json`,
+  `requirements*.txt`, `constraints.txt`, `.github/actions/python-setup`, or
+  `scripts/ci/install_locked_python_requirements.py` changes.
+- Python private-index validation remains unchanged and explicit:
+  `python3 scripts/ci/install_locked_python_requirements.py --preflight-only --index-url "$PULSEPLATE_PYTHON_INDEX_URL" --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json`.
+- No public-PyPI bypass, ambient `PIP_INDEX_URL` /
+  `PIP_EXTRA_INDEX_URL` override, or emergency-wheel widening was introduced.
+- No `CI_ALLOW_MERGE_OVERRIDE`, `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION`, or
+  docs-only merge bypass was added.
+
+## Implementation Evidence
+
+Disposition: FIXED
+Commit: `ef1a745654e89d7a14f676e70001c010878eff4a`
+Evidence:
+
+- `.github/workflows/cd-test.yml`, `.github/workflows/codecov-upload.yml`,
+  `.github/workflows/codeql.yml`, `.github/workflows/greenlight-ios.yml`,
+  `.github/workflows/ios-appstore-assets.yml`, and
+  `.github/workflows/security.yml` use the repo-adopted
+  `actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd` Node24 pin.
+- `.github/workflows/build.yml`, `.github/workflows/cd.yml`, and
+  `.github/workflows/trivy.yml` use verified Node24 Docker
+  setup-buildx/login/metadata action pins.
+- The workflow guard rejects the old checkout and Docker Node20 SHAs, checks
+  exact Node24 pin counts, preserves Docker step `with`, `if`, `env`, and
+  `continue-on-error` contracts, and rejects operator override env literals.
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-gha-node24-cache-warning-cleanup`
+  remains open because cache-warning audit and current-head warning evidence are
+  not complete yet.
+
+Disposition: FIXED
+Commit: `e556119b444742135cced7793b0da38aaa8f9353`
+Evidence:
+
+- `.github/workflows/greenlight-ios.yml` now uses
+  `actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0 / Node 24`
+  and
+  `actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24`.
+- `.github/workflows/ios-appstore-assets.yml` and
+  `.github/workflows/security.yml` now use the same verified Node24
+  `actions/upload-artifact` pin.
+- GitHub API metadata checks confirmed the selected `actions/setup-go` and
+  `actions/upload-artifact` SHAs declare `runs.using: node24`.
+- `tests/test_ci_workflow_pr_size_governance_contract.py` rejects the retired
+  setup-go/upload-artifact Node20 SHAs and snapshots the setup/upload step
+  contracts for the touched workflows.
+
+## Role-Agent / Premortem Pass
+
+Pre-open role order completed from packet
+`artifacts/orchestration/task_packets/495c23aac239.json`:
+
+- `agent-coordinator` - PASS; scope locked to CI action runtime cleanup and
+  excluded app/runtime Node bump and operator override behavior.
+- `security-auditor` - PASS; required full commit SHAs, old-SHA absence, no
+  secret/permission drift, and no Node20 opt-out envs.
+- `architecture-specialist` - PASS; required behavior-preservation guard
+  coverage and kept the cache-warning backlog open.
+- `qa-engineer-agent` - PASS; required exact pin/count assertions and
+  current-head PR log evidence before any closure claim.
+- `bug-hunter` - PASS; identified the false-green gap in the existing Node24
+  guard surface.
+- `cursor-specialist-agent` - PASS; flagged stale-loop/upstream tracking risk.
+- `web-research-agent` - PASS; registered the official Node20 deprecation
+  driver and action metadata verification boundary.
+
+Post-open role order from packet
+`artifacts/orchestration/task_packets/9366b0634ad1.json`:
+
+- `agent-coordinator` - BLOCK until the canonical mapping artifact is added,
+  PR body Phase2 mirror is updated, QA-found Node20 pins are fixed, and
+  current-head checks are re-run.
+- `qa-engineer-agent` - FIXED; found direct `actions/setup-go` and
+  `actions/upload-artifact` Node20 pins that could keep the warning alive.
+  Commit `e556119b444742135cced7793b0da38aaa8f9353` fixes the pins and guard
+  coverage.
+- `bug-hunter` - PASS after the QA fix; no code-level blocker found, with
+  mapping/push still required.
+- `security-auditor` - PASS after the QA fix; no security finding on
+  permissions, secrets, fail-open behavior, moving refs, or old direct Node20
+  pins, with mapping/push still required.
+- `cursor-specialist-agent` - BLOCK before publication; found no committed
+  code-scope blocker, but required committing this mapping artifact and backlog
+  edit, pushing `e556119b444742135cced7793b0da38aaa8f9353`, updating the PR
+  body mirror, and rechecking current-head CI before any readiness claim.
+- `web-research-agent` - PASS for upstream metadata/no-override evidence and
+  BLOCK for current-head warning evidence until the local QA-fix is pushed.
+  Evidence: selected `actions/setup-go` and `actions/upload-artifact` SHAs
+  declare `runs.using: node24`; current published logs still reflected the old
+  `ef1a745654e89d7a14f676e70001c010878eff4a` head.
+
+Premortem:
+
+- Skill: `pulseplate-premortem-risk-review`.
+- Frame: 48 hours from now this CI cleanup made things worse.
+- Decision: proceed with narrow changes.
+- Closed as FIXED: missed legacy Node20 pins, Docker action behavior drift, and
+  backlog over-closure risk.
+- Post-open correction: QA showed the missed-pins risk was not fully closed on
+  the initial published head because `actions/setup-go` and
+  `actions/upload-artifact` still used Node20-era SHAs. Commit
+  `e556119b444742135cced7793b0da38aaa8f9353` and Experiment Runner v3 close
+  that premortem risk for the local head before republishing.
+- Residual risk: current-head GitHub logs remain required to prove the warning
+  cleanup and to disposition any remaining cache-service warnings.
+
+## Experiment Runner Evidence
+
+- Packet: `artifacts/orchestration/experiments/gha-node24-action-runtime-cleanup-oracle-packet-v2.json`
+- Artifact: `artifacts/orchestration/experiments/results/gha-node24-action-runtime-cleanup-oracle-result-v2.json`
+- Mode: `oracle_only_governance_reviewer`
+- Result: accepted.
+- Oracles: old checkout/Docker Node20 SHA and bypass literal absence, action
+  pin guard, docs phase1 gate.
+- `mutated_paths=[]`
+- `coauthor_required=true`
+- Commit trailer used on `ef1a745654e89d7a14f676e70001c010878eff4a`:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
+- Packet: `artifacts/orchestration/experiments/gha-node24-action-runtime-cleanup-oracle-packet-v3.json`
+- Artifact: `artifacts/orchestration/experiments/results/gha-node24-action-runtime-cleanup-oracle-result-v3.json`
+- Mode: `oracle_only_governance_reviewer`
+- Result: accepted.
+- Oracles: old checkout/Docker/setup-go/upload-artifact Node20 SHA and bypass
+  literal absence, action pin guard, focused workflow guard pytest.
+- `mutated_paths=[]`
+- `coauthor_required=true`
+- Commit trailer used on `e556119b444742135cced7793b0da38aaa8f9353`:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
+## Local Validation
+
+- `python3 scripts/orchestration/check_preflight.py --mode analyze ...` - PASS.
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- `python3 scripts/ci/install_locked_python_requirements.py --preflight-only --index-url "$PULSEPLATE_PYTHON_INDEX_URL" --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json` - PASS.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` - PASS; 21 tests.
+- `python3 scripts/ci/guard_actions_pin.py --root .` - PASS.
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md` - PASS.
+- `python3 scripts/orchestration/experiment_runner.py --packet artifacts/orchestration/experiments/gha-node24-action-runtime-cleanup-oracle-packet-v3.json ...` - PASS; result accepted.
+- Commit hooks for `ef1a745654e89d7a14f676e70001c010878eff4a` - PASS.
+- Commit hooks for `e556119b444742135cced7793b0da38aaa8f9353` - PASS after
+  `black` formatted the guard test.
+- Direct `python3 -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py`
+  outside the repo venv failed with `ModuleNotFoundError: No module named
+  'fastapi'`; rerun with the repo venv passed.
+
+- `make validate-changed` - PASS after the mapping/backlog edit; selected
+  `tests/test_ci_workflow_pr_size_governance_contract.py`, 21 tests.
+
+Pending after this mapping commit:
+
+- `pre-commit run --all-files`
+- Current-head GitHub CI/log review after push
+
+## Codex Security Evidence
+
+- Scan directory:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/e556119b4_20260603T105945Z`
+- Mode: diff-scoped security scan / finding discovery for PR #1871 local head
+  plus the prepared mapping artifact.
+- Result: no findings.
+- Coverage: 12/12 rows in
+  `artifacts/02_discovery/deep_review_input.csv` have receipts in
+  `artifacts/02_discovery/work_ledger.jsonl`.
+- Note: the default source-like diff helper produced zero rows for
+  workflow/docs/test files, so the scan manually seeded the final workflow,
+  guard-test, backlog, and mapping surfaces to avoid a false no-op security
+  scan.
+- Final reports written and validated:
+  - `report.md`
+  - `report.html`
+
+## PulsePlate PR Review Evidence
+
+- Context: `/tmp/pulseplate_pr1871_review_context.json`
+- Reports:
+  - `/tmp/pulseplate_pr1871_review_report.md`
+  - `/tmp/pulseplate_pr1871_review_report.json`
+- Mode: side-effect-free dry-run report for local head.
+- Result: one advisory `note` from `bug-hunter` for large-diff review risk.
+- Disposition: NOT-A-BUG.
+- Evidence: scope is intentionally limited to representative workflow `uses:`
+  refs, one guard test, and the existing backlog row; `make validate-changed`
+  passed after the mapping/backlog edit and selected
+  `tests/test_ci_workflow_pr_size_governance_contract.py`.
+- Reason: the advisory note is review-planning evidence, not a code/security
+  actionable, and does not replace current-head CI or bot review governance.
+
+## Merge Readiness
+
+- Current-head PR CI must pass on the latest pushed head before merge.
+- Docker Build and Push, CodeQL, CI, and touched workflow logs must be checked
+  for direct Node20 action warnings after the latest push.
+- The broader cache-warning backlog item remains open until representative log
+  evidence is available.
+- Review-thread disposition must pass with GitHub auth after final bot review.
+- Bot actionables must be fixed or explicitly dispositioned before merge.
+- Strict `check_merge_ready.py --require-auth` must pass before any
+  merge-readiness claim.
