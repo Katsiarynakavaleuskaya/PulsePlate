@@ -10,7 +10,8 @@ image behavior, release logic, permissions, secrets, cache policy, or
 operator-override behavior.
 **Primary implementation commits:** `ef1a745654e89d7a14f676e70001c010878eff4a`,
 `e556119b444742135cced7793b0da38aaa8f9353`,
-`c6aabad09ab876bb13b7f2700363166ee386880c`
+`c6aabad09ab876bb13b7f2700363166ee386880c`,
+`6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`
 
 ## Discussion Thread Pass
 
@@ -43,6 +44,11 @@ Evidence: Post-open QA found remaining direct Node20 `actions/setup-go` and `act
 Disposition: FIXED
 Commit: c6aabad09ab876bb13b7f2700363166ee386880c
 Evidence: Current-head Greenlight failed because `greenlight@v0.1.0` requires Go `>=1.24.0` while the workflow still used `go-version: "1.22"` with `GOTOOLCHAIN=local`. The commit updates only `.github/workflows/greenlight-ios.yml` to Go `1.24` and updates the workflow guard snapshot.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26881378007/job/79282206670 -> 6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8
+Disposition: FIXED
+Commit: 6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8
+Evidence: Current-head Docker/security-scan logs showed the remaining Node20 warning came from `aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0`, whose composite action invoked nested `actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4` with `runs.using: node20`. The commit updates only the pinned Trivy wrapper action in `.github/workflows/build.yml` and `.github/workflows/trivy.yml` to `aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0 / Node 24 cache path`, preserving Trivy binary `version: v0.69.3` and scan inputs, and extends `tests/test_ci_workflow_pr_size_governance_contract.py` to reject the old wrapper SHA plus nested cache warning source.
 
 ## Dependency Scope / Private-Index Notes
 
@@ -104,6 +110,25 @@ Evidence:
 - `tests/test_ci_workflow_pr_size_governance_contract.py` snapshots the
   Greenlight setup-go contract with Go `1.24`.
 
+Disposition: FIXED
+Commit: `6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`
+Evidence:
+
+- Current-head Docker/security-scan log evidence identified the remaining
+  `actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809` Node20 warning as a
+  nested step inside
+  `aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1`, not a
+  direct workflow `actions/cache` pin.
+- GitHub API metadata for `aquasecurity/trivy-action@v0.36.0` confirms the
+  selected full SHA `a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8` uses nested
+  `actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5`.
+- GitHub API metadata for the old nested cache SHA confirmed
+  `runs.using: node20`.
+- `.github/workflows/build.yml` and `.github/workflows/trivy.yml` update only
+  the pinned Trivy wrapper action. The Trivy binary remains `version: v0.69.3`
+  and scan inputs, severity, SARIF output, and fail/report-only contracts are
+  preserved by guard assertions.
+
 ## Role-Agent / Premortem Pass
 
 Pre-open role order completed from packet
@@ -160,8 +185,15 @@ Premortem:
   `actions/upload-artifact` still used Node20-era SHAs. Commit
   `e556119b444742135cced7793b0da38aaa8f9353` and Experiment Runner v3 close
   that premortem risk for the local head before republishing.
-- Residual risk: current-head GitHub logs remain required to prove the warning
-  cleanup and to disposition any remaining cache-service warnings.
+- Current-head log correction: Docker/security-scan logs then showed one
+  remaining warning from nested `actions/cache@0400d5...` inside
+  `aquasecurity/trivy-action@57a97...`. Commit
+  `6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8` and Experiment Runner v4 close the
+  code-side residual by updating the wrapper action to v0.36.0, whose nested
+  cache path is `actions/cache@27d5... # v5.0.5`.
+- Residual risk after this fix: current-head GitHub logs after the next push
+  still must prove the warning cleanup and disposition any unrelated cache
+  service availability noise.
 
 ## Experiment Runner Evidence
 
@@ -187,6 +219,19 @@ Premortem:
 - Commit trailer used on `e556119b444742135cced7793b0da38aaa8f9353`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
+- Packet: `artifacts/orchestration/experiments/gha-node24-action-runtime-cleanup-oracle-packet-v3.json`
+- Artifact: `artifacts/orchestration/experiments/results/gha-node24-action-runtime-cleanup-oracle-result-v4.json`
+- Mode: `oracle_only_governance_reviewer`
+- Result: accepted.
+- Oracles: old checkout/Docker/setup-go/upload-artifact Node20 SHA and bypass
+  literal absence, action pin guard, focused workflow guard pytest. The focused
+  workflow guard now also rejects the old `aquasecurity/trivy-action@57a97...`
+  wrapper and nested `actions/cache@0400d5...` Node20 warning source.
+- `mutated_paths=[]`
+- `coauthor_required=true`
+- Commit trailer used on `6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
 ## Local Validation
 
 - `python3 scripts/orchestration/check_preflight.py --mode analyze ...` - PASS.
@@ -209,11 +254,21 @@ Premortem:
   - PASS after the Greenlight Go `1.24` fix; 21 tests.
 - `python3 scripts/ci/guard_actions_pin.py --root .` - PASS after the
   Greenlight Go `1.24` fix.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py -q`
+  - PASS after the Trivy wrapper/cache-path fix; 21 tests.
+- `python3 scripts/ci/guard_actions_pin.py --root .` - PASS after the Trivy
+  wrapper/cache-path fix.
+- `make validate-changed` - PASS after the Trivy wrapper/cache-path fix;
+  selected `tests/test_ci_workflow_pr_size_governance_contract.py`, 21 tests.
+- `python3 scripts/orchestration/experiment_runner.py --packet artifacts/orchestration/experiments/gha-node24-action-runtime-cleanup-oracle-packet-v3.json --output gha-node24-action-runtime-cleanup-oracle-result-v4.json ...`
+  - PASS; result accepted with source diff paths `.github/workflows/build.yml`,
+  `.github/workflows/trivy.yml`, and
+  `tests/test_ci_workflow_pr_size_governance_contract.py`.
 
 Pending after this mapping commit:
 
 - `pre-commit run --all-files`
-- Current-head GitHub CI/log review after push
+- Current-head GitHub CI/log review after the next push
 
 ## Codex Security Evidence
 
