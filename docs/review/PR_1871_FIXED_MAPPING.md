@@ -28,6 +28,10 @@ Current live PR snapshot before the latest mapping update:
 - Codex Review posted one mapping-ancestry inline comment against a synthetic
   reviewed head. This is dispositioned below as `NOT-A-BUG` because the mapped
   commits are ancestors of the real GitHub PR head.
+- Codex Review posted a second mapping-ancestry inline comment against a
+  synthetic squash-preview head. This is dispositioned below as `NOT-A-BUG`
+  because the repo pre-merge mapping contract is branch-head based, and GitHub
+  PR commits API lists the mapped fix commits in the real PR branch history.
 - CodeRabbit posted one actionable review on the build workflow artifact upload
   pin plus one ledger readability nitpick. Both are mapped below to
   `e5c044fb7b99ee9ab790dff6104d8293b2c535f3`.
@@ -67,6 +71,11 @@ Evidence: Codex Review correctly identified that the previous `aquasecurity/triv
 Disposition: NOT-A-BUG
 Evidence: The review comment referenced synthetic reviewed head `41440402068da0a827fc6d43fc3fe608d373aeff`, not the actual PR branch head. Local ancestry proof on the real branch head (`git merge-base --is-ancestor <mapped_sha> HEAD`) returned `ancestor` for `ef1a745654e89d7a14f676e70001c010878eff4a`, `e556119b444742135cced7793b0da38aaa8f9353`, `c6aabad09ab876bb13b7f2700363166ee386880c`, `6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`, `be9e1a5d2d8f3427af2d70627e571b286b235651`, and `191a0671d8c279ff1eabcee41f610af9a6ae3134`. `git cat-file -e 41440402068da0a827fc6d43fc3fe608d373aeff^{commit}` did not find that synthetic commit in local branch history. The mapping therefore already ties fixes to commits that will be merged from the actual PR branch.
 Reason: The comment checked ancestry against a synthetic/non-branch reviewed head instead of the real GitHub PR head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1871#discussion_r3349043504
+Disposition: NOT-A-BUG
+Evidence: The follow-up review comment references synthetic squash-preview commit `b8bde7911016e425e0be02224e1eeaf0a10bcc0f`, not the actual GitHub PR branch head `a2a7e42fa1a4349f93d7109ca7ff522c5df6019d`. Live `gh pr view 1871 --json headRefOid,baseRefOid,potentialMergeCommit,commits` returned head `a2a7e42fa1a4349f93d7109ca7ff522c5df6019d`, base `5bcbdb845db8e15fce0630cab52e1e1819ce960e`, potential merge commit `c56e6e3ec482dddda629754a4da16e536c4e30b9`, and the mapped fix commits in `.commits[]`. Local `git cat-file -e b8bde7911016e425e0be02224e1eeaf0a10bcc0f^{commit}` did not find that synthetic commit, while `git merge-base --is-ancestor <mapped_sha> HEAD` returned true for representative mapped fix commits including `ef1a745654e89d7a14f676e70001c010878eff4a`, `e5c044fb7b99ee9ab790dff6104d8293b2c535f3`, and `191a0671d8c279ff1eabcee41f610af9a6ae3134`.
+Reason: Pre-merge fixed-mapping proof is tied to the actual PR branch head and GitHub PR commit list; a synthetic squash-preview commit is not a valid replacement for branch-history proof before the squash merge exists.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1871#pullrequestreview-4418674075 -> e5c044fb7b99ee9ab790dff6104d8293b2c535f3
 Disposition: FIXED
