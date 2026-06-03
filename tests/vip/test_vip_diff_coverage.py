@@ -85,7 +85,9 @@ class TestVIPRegistrationIdempotent:
         assert "/api/v1/insight/fitchef/weekly-reflection" not in paths
         assert "/api/v1/insight/fitchef/slip-support" not in paths
 
-    def test_register_vip_routes_rejects_foreign_fitchef_structured_handler(self, monkeypatch):
+    def test_register_vip_routes_rejects_foreign_fitchef_structured_handler(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A pre-existing VIP structured path with a foreign handler must fail closed."""
 
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
