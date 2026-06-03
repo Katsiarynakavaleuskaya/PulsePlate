@@ -17,6 +17,16 @@ coverage policy, JUnit output, shard parallelism, or application runtime code.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#pullrequestreview-4416527538 -> 737469a05ba95320806fea291c78a4ea8253814d
+Disposition: FIXED
+Commit: 737469a05ba95320806fea291c78a4ea8253814d
+Evidence: CodeRabbit's review-level actionable summary for the initial mapping artifact review is covered by the per-thread mapping entry for `discussion_r3346781565`, which was added after the review timestamp and records thread URL, disposition, commit proof, and evidence.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#pullrequestreview-4416643960 -> 3fa7e083049724984bb9d4d58625bb598e8e955c
+Disposition: FIXED
+Commit: 3fa7e083049724984bb9d4d58625bb598e8e955c
+Evidence: `tests/test_main_test_shards.py` now computes the external shard basetemp before `run_shard_child(...)`, keeps the child arg and parent-directory assertions inside the guarded block, and removes the external repo-key temp directory with `shutil.rmtree(..., ignore_errors=True)` in `finally`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3346781565 -> 737469a05ba95320806fea291c78a4ea8253814d
 Disposition: FIXED
 Commit: 737469a05ba95320806fea291c78a4ea8253814d
