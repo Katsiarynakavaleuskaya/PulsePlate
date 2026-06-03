@@ -27,6 +27,11 @@ Disposition: FIXED
 Commit: 3fa7e083049724984bb9d4d58625bb598e8e955c
 Evidence: `tests/test_main_test_shards.py` now computes the external shard basetemp before `run_shard_child(...)`, keeps the child arg and parent-directory assertions inside the guarded block, and removes the external repo-key temp directory with `shutil.rmtree(..., ignore_errors=True)` in `finally`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#pullrequestreview-4416747737
+Disposition: NOT-A-BUG
+Evidence: The repeated implementation commit SHAs are intentional: the `Fixed in Commit Mapping` block records PR-level fixed proof for the implementation commits, while `Implementation Evidence` records the technical file/test evidence for those same commits. This keeps the canonical artifact auditable for both review-thread disposition and implementation provenance without changing behavior or readiness claims.
+Reason: CodeRabbit classified this as a low-value/nitpick consolidation suggestion, and the current structure matches the repo's fixed-mapping proof requirements for this PR.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3346781565 -> 737469a05ba95320806fea291c78a4ea8253814d
 Disposition: FIXED
 Commit: 737469a05ba95320806fea291c78a4ea8253814d
@@ -41,6 +46,11 @@ Evidence: `docs/review/PR_1869_FIXED_MAPPING.md` now records the final branch co
 Disposition: NOT-A-BUG
 Evidence: On current PR branch head `03d4903e98dd771d924881be185985a6e6cf7e82`, both `git merge-base --is-ancestor 9cc75668d65b6d0bb01b8c3fa662c47145828774 HEAD` and `git merge-base --is-ancestor f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd HEAD` returned exit code 0; the implementation commits are real branch ancestors, not stale out-of-branch proof, and the PR still does not claim readiness while current-head CI and strict merge-readiness remain pending.
 Reason: The connector comment evaluated a synthetic reviewed/squash commit surface rather than the live PR branch ancestry used by the local repository and GitHub PR head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869#discussion_r3346970968
+Disposition: NOT-A-BUG
+Evidence: The connector's reviewed commit `6009f79d84ef0a631e72fc92d502a5134f8c4f3c` is a synthetic review surface with parent `72fb232`, not the live PR branch head. The actual PR branch contains `9cc75668d65b6d0bb01b8c3fa662c47145828774`, `f74d0af80e96b7ab1aa6b8d29640fd7668bb04bd`, and the later mapping/review commits as normal branch ancestors, and this artifact intentionally keeps implementation-proof SHAs plus explicit current-head readiness caveats.
+Reason: The comment asks to rewrite fixed-proof commits to a synthetic reviewed/squash SHA, which would be worse evidence for the live PR branch and rollback path.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1869 -> 9cc75668d65b6d0bb01b8c3fa662c47145828774
 Disposition: FIXED
