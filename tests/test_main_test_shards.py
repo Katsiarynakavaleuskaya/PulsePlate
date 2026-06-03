@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from concurrent.futures import Future
 from pathlib import Path
 
@@ -152,7 +154,56 @@ def test_py312_compatibility_wrapper_executes_as_legacy_file(tmp_path: Path) -> 
     assert "tests/test_alpha.py" in result.stdout
 
 
-def test_build_pytest_args_disables_xdist_and_emits_junit() -> None:
+def test_shard_basetemp_dir_is_unique_deterministic_and_external(tmp_path: Path) -> None:
+    first = runner.TestShard(index=1, artifact_label="py313")
+    second = runner.TestShard(index=2, artifact_label="py313")
+
+    first_basetemp = runner.shard_basetemp_dir(tmp_path, first)
+    second_basetemp = runner.shard_basetemp_dir(tmp_path, second)
+
+    assert first_basetemp == runner.shard_basetemp_dir(tmp_path, first)
+    assert first_basetemp != second_basetemp
+    assert first_basetemp.name == "py313-shard-1"
+    assert second_basetemp.name == "py313-shard-2"
+    assert first_basetemp.parent.parent == (
+        Path(tempfile.gettempdir()).resolve() / runner.PYTEST_BASETEMP_ROOT_NAME
+    )
+    assert not first_basetemp.resolve().is_relative_to(tmp_path.resolve())
+    assert not second_basetemp.resolve().is_relative_to(tmp_path.resolve())
+
+
+def test_shard_basetemp_dir_avoids_repo_local_temp_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_local_temp = tmp_path / "tmp"
+    repo_local_temp.mkdir()
+    shard = runner.TestShard(index=1, artifact_label="py313")
+    monkeypatch.setattr(runner.tempfile, "gettempdir", lambda: str(repo_local_temp))
+
+    basetemp = runner.shard_basetemp_dir(tmp_path, shard)
+
+    fallback_root = runner.POSIX_TEMP_ROOT if os.name == "posix" else runner.WINDOWS_TEMP_ROOT
+    assert basetemp.parent.parent == fallback_root.resolve() / runner.PYTEST_BASETEMP_ROOT_NAME
+    assert not basetemp.resolve().is_relative_to(tmp_path.resolve())
+
+
+def test_shard_basetemp_dir_rechecks_final_path_collision(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / runner.PYTEST_BASETEMP_ROOT_NAME
+    repo_root.mkdir()
+    shard = runner.TestShard(index=1, artifact_label="py313")
+    monkeypatch.setattr(runner.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    basetemp = runner.shard_basetemp_dir(repo_root, shard)
+
+    assert runner.PYTEST_BASETEMP_FALLBACK_ROOT_NAME in basetemp.parts
+    assert not basetemp.resolve().is_relative_to(repo_root.resolve())
+
+
+def test_build_pytest_args_disables_xdist_and_emits_junit(tmp_path: Path) -> None:
     shard = runner.TestShard(
         index=2,
         artifact_label="py313",
@@ -160,13 +211,17 @@ def test_build_pytest_args_disables_xdist_and_emits_junit() -> None:
         weight=10,
     )
 
-    pytest_args = runner.build_pytest_args(shard)
+    pytest_args = runner.build_pytest_args(shard, tmp_path)
 
     assert pytest_args[:2] == ["-c", "pyproject.toml"]
     assert "-p" in pytest_args
     assert "no:xdist" in pytest_args
     assert "-m" in pytest_args
     assert runner.SLOW_MARK_EXPRESSION in pytest_args
+    assert "--basetemp" in pytest_args
+    assert pytest_args[pytest_args.index("--basetemp") + 1] == str(
+        runner.shard_basetemp_dir(tmp_path, shard)
+    )
     assert f"junit_family={runner.JUNIT_FAMILY}" in pytest_args
     assert shard.junit_file in pytest_args
     assert "tests/test_alpha.py" in pytest_args
@@ -354,18 +409,25 @@ def test_run_shard_child_forces_exit_after_pytest_returns(
     monkeypatch.setattr(pytest, "main", fake_pytest_main)
     monkeypatch.setattr(runner.os, "_exit", fake_exit)
 
+    basetemp = runner.shard_basetemp_dir(tmp_path, shard)
     try:
         with pytest.raises(SystemExit) as exc_info:
             runner.run_shard_child(tmp_path, shard, {})
+
+        assert exc_info.value.code == 7
+        assert captured["cwd"] == tmp_path
+        assert captured["argv"] == ["pytest"]
+        pytest_args = captured["pytest_args"]
+        assert isinstance(pytest_args, list)
+        assert "--basetemp" in pytest_args
+        assert pytest_args[pytest_args.index("--basetemp") + 1] == str(basetemp)
+        assert basetemp.parent.is_dir()
+        assert "tests/test_alpha.py" in pytest_args
     finally:
         os.chdir(original_cwd)
+        shutil.rmtree(basetemp.parent, ignore_errors=True)
 
-    assert exc_info.value.code == 7
-    assert captured["cwd"] == tmp_path
-    assert captured["argv"] == ["pytest"]
-    pytest_args = captured["pytest_args"]
-    assert isinstance(pytest_args, list)
-    assert "tests/test_alpha.py" in pytest_args
+    assert not basetemp.parent.exists()
 
 
 def test_remove_previous_outputs_deletes_stale_shard_files(tmp_path: Path) -> None:
