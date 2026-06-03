@@ -11,15 +11,20 @@ Configure these outside the repository, for example as GitHub Actions secrets:
 - `SLACK_APP_TOKEN`: Slack app-level Socket Mode credential.
 - `SLACK_BOT_TOKEN`: Slack bot credential used by the optional live bridge.
 - Optional `GH_TOKEN` / `GITHUB_TOKEN`: GitHub dispatch credential for the
-  execute-mode dry-run dispatch preview only. Execute mode also requires
-  `EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=reviewed-dry-run-dispatch` and must
-  still send the fixed workflow with `dry_run: true`.
+  execute-mode fixed workflow dispatch path. Execute mode also requires
+  `EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=reviewed-dry-run-dispatch`. It
+  defaults to workflow input `dry_run: true`; `dry_run: false` is allowed only
+  when the reviewed live-dispatch approval digest matches exactly.
 - Optional `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`: SHA256 digest that
   authorizes a single reviewed live dispatch for one specific
   `branch_ref` + `hypothesis` pair. When absent, dispatch defaults to
   `dry_run: true`. When present, the bridge computes
   `SHA256(branch_ref + "\0" + hypothesis)` and allows `dry_run: false`
   only on exact match.
+- Optional `EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID`: local operator-ledger
+  packet id for bridge write-through. If absent, the bridge uses the safe static
+  id `operator-plane-slack-bridge`. Malformed values fail closed before
+  dispatch and must not be printed.
 
 Do not commit token values, token prefixes, approval digests, Slack webhook
 URLs, raw Slack payloads, or real workspace channel/user IDs as repository
@@ -165,6 +170,13 @@ Dry-run remains the default when the approval env is absent or does not match.
 Operators must not post raw approval digests, branch names, or hypotheses into
 Slack.
 
+For an approved `dry_run: false` dispatch, the Slack-visible reply and workflow
+summary may include only sanitized evidence: fixed workflow file/ref, branch
+hash, hypothesis hash, approval hash prefix, local ledger status/reference, and
+the explicit statement that Slack is not merge readiness. It must not include
+raw branch refs, raw hypotheses, raw approval digests, Slack IDs, workflow logs,
+provider logs, local paths, or patch text.
+
 See also: `docs/orchestration/PREMORTEM_SLACK_LIVE_DISPATCH_APPROVAL.md` for
 reviewed risk analysis and failure modes.
 
@@ -204,7 +216,11 @@ digests, oracle stdout/stderr, workflow logs, or patch text.
 valid local ledger event exists. If no event exists, the status shows an absent
 local ledger. If a local ledger artifact is malformed, the status reports only a
 sanitized `invalid_local_artifact` class and does not print paths or contents.
-No new Slack command is required for the PR-1 closeout.
+The bridge writes one local ledger record after Slack audit finalization for
+`dry_run`, `dispatched`, `failed`, and `rejected` outcomes. Duplicate Slack
+events are blocked by the existing audit idempotency check before a second
+ledger record can be created. No new Slack command is required for the PR-2
+closeout.
 
 ## Authority Boundary
 

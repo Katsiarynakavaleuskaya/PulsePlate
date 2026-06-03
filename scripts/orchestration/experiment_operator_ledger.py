@@ -56,7 +56,15 @@ WINDOWS_DRIVE_SEGMENT_RE = re.compile(r"(^|/)[A-Za-z]:/")
 GITHUB_APP_TOKEN_ARTIFACT_RE = re.compile(r"ghs_[A-Za-z0-9._-]{4,}", re.IGNORECASE)
 
 ALLOWED_COMMAND_KINDS = frozenset(
-    {"help", "kpp-status", "mvp-evidence", "status", "run-experiment", "oracle-review"}
+    {
+        "help",
+        "kpp-status",
+        "mvp-evidence",
+        "status",
+        "run-experiment",
+        "oracle-review",
+        "rejected",
+    }
 )
 ALLOWED_STATUS = frozenset({"dry_run", "dispatched", "failed", "rejected", "observed"})
 ALLOWED_FAILURE_CLASSES = frozenset(
@@ -555,6 +563,154 @@ def _preflight_output_write(path: Path) -> None:
     finally:
         if temp_path is not None:
             _unlink_if_exists(temp_path)
+
+
+def _preflight_ledger_event_store(target_dir: Path) -> None:
+    if target_dir.exists() and not target_dir.is_dir():
+        raise OSError("Existing Experiment operator ledger directory is invalid.")
+    event_dir = target_dir / "events"
+    if event_dir.exists() and not event_dir.is_dir():
+        raise OSError("Existing Experiment operator ledger event directory is invalid.")
+    tmp_dir = target_dir / "tmp"
+    if tmp_dir.exists() and not tmp_dir.is_dir():
+        raise OSError("Existing Experiment operator ledger tmp directory is invalid.")
+    event_dir.mkdir(parents=True, exist_ok=True)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=".operator-ledger-preflight.",
+        suffix=".tmp",
+        dir=tmp_dir,
+        text=True,
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as temp_file:
+            temp_file.write("")
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+    finally:
+        if temp_path is not None:
+            _unlink_if_exists(temp_path)
+
+
+def preflight_slack_bridge_operator_ledger_event(
+    *,
+    task_packet_id: str | None,
+    ledger_dir: Path | None = None,
+    repo_root: Path | None = None,
+) -> str:
+    """Validate local ledger context before a Slack bridge event can dispatch."""
+
+    effective_root = repo_root or REPO_ROOT
+    normalized_packet_id = _validate_task_packet_id(task_packet_id)
+    target_dir = _validate_ledger_dir(
+        ledger_dir or default_ledger_dir(effective_root),
+        repo_root=effective_root,
+    )
+    try:
+        _preflight_ledger_event_store(target_dir)
+    except OSError as exc:
+        raise OperatorLedgerError("Unable to write Experiment operator ledger event.") from exc
+    return normalized_packet_id
+
+
+def _sha256_file(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise OperatorLedgerError(
+            "Experiment operator ledger audit evidence is unavailable."
+        ) from exc
+
+
+def _safe_artifact_ref_from_path(path: Path, *, repo_root: Path) -> str:
+    artifact_root = _artifact_root(repo_root)
+    candidate = path.expanduser()
+    if not candidate.is_absolute():
+        candidate = _normalized_absolute_path(repo_root / candidate)
+    else:
+        candidate = _normalized_absolute_path(candidate)
+    try:
+        candidate.relative_to(artifact_root)
+        repo_relative = candidate.relative_to(_normalized_absolute_path(repo_root)).as_posix()
+    except ValueError as exc:
+        raise OperatorLedgerError(
+            "Experiment operator ledger audit evidence must stay under artifacts."
+        ) from exc
+    return _validate_artifact_ref(repo_relative)
+
+
+def write_slack_bridge_operator_ledger_event(
+    *,
+    task_packet_id: str | None,
+    command_kind: str,
+    status: str,
+    dispatch_mode: str,
+    workflow_file: str,
+    workflow_ref: str,
+    event_hash: str,
+    channel_hash: str,
+    user_hash: str,
+    team_hash: str | None,
+    branch_hash: str | None,
+    hypothesis_hash: str | None,
+    slack_audit_path: Path,
+    failure_class: str | None = None,
+    human_review_outcome: str = "pending",
+    retention_days: int = DEFAULT_RETENTION_DAYS,
+    ledger_dir: Path | None = None,
+    repo_root: Path | None = None,
+) -> Path:
+    """Write a strict local operator-ledger record for one Slack bridge decision."""
+
+    effective_root = repo_root or REPO_ROOT
+    normalized_packet_id = preflight_slack_bridge_operator_ledger_event(
+        task_packet_id=task_packet_id,
+        ledger_dir=ledger_dir,
+        repo_root=effective_root,
+    )
+    workflow_enabled = command_kind == "run-experiment"
+    payload = {
+        "branch_hash": branch_hash if workflow_enabled else "none",
+        "channel_hash": channel_hash,
+        "claimed_merge_readiness": False,
+        "coauthor_decision": "not_required",
+        "coauthor_required": False,
+        "command_kind": command_kind,
+        "created_pr": False,
+        "dispatch_mode": dispatch_mode,
+        "event_hash": event_hash,
+        "failure_class": failure_class or "none",
+        "generated_at": _utcnow_iso(),
+        "human_review_outcome": human_review_outcome,
+        "hypothesis_hash": hypothesis_hash if workflow_enabled else "none",
+        "oracle_result_hash": "none",
+        "oracle_result_ref": "none",
+        "policy_version": POLICY_VERSION,
+        "product_runtime_changed": False,
+        "provider_type": PROVIDER_TYPE,
+        "redaction_version": REDACTION_VERSION,
+        "resolved_review_threads": False,
+        "retention_days": retention_days,
+        "schema_version": SCHEMA_VERSION,
+        "slack_audit_hash": _sha256_file(slack_audit_path),
+        "slack_audit_ref": _safe_artifact_ref_from_path(
+            slack_audit_path,
+            repo_root=effective_root,
+        ),
+        "status": status,
+        "task_packet_id": normalized_packet_id,
+        "team_hash": team_hash,
+        "user_hash": user_hash,
+        "workflow_file": workflow_file if workflow_enabled else "none",
+        "workflow_ref": workflow_ref if workflow_enabled else "none",
+    }
+    return write_operator_ledger_event(
+        payload,
+        ledger_dir=ledger_dir,
+        repo_root=effective_root,
+    )
 
 
 def _write_operator_event_json(path: Path, payload: dict[str, Any], *, temp_dir: Path) -> None:

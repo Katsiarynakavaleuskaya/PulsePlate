@@ -74,6 +74,30 @@ def _assert_no_raw_leak(value: str) -> None:
         assert sentinel not in value
 
 
+def _slack_audit_path(repo_root: Path) -> Path:
+    path = (
+        repo_root
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "slack_socket_bridge"
+        / "audit.json"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "event_hash": _hash("Ev0SECRET"),
+                "provider_type": "slack_socket_mode",
+                "status": "dry_run",
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def test_operator_ledger_writes_hash_only_event_and_blocks_duplicate(tmp_path: Path) -> None:
     event = _event()
 
@@ -93,6 +117,74 @@ def test_operator_ledger_writes_hash_only_event_and_blocks_duplicate(tmp_path: P
     with pytest.raises(ledger.OperatorLedgerError, match="already exists"):
         ledger.write_operator_ledger_event(event, repo_root=tmp_path)
     assert path.read_text(encoding="utf-8") == text
+
+
+def test_slack_bridge_operator_ledger_helper_writes_hash_only_event(tmp_path: Path) -> None:
+    audit_path = _slack_audit_path(tmp_path)
+
+    path = ledger.write_slack_bridge_operator_ledger_event(
+        task_packet_id="packet-pr2",
+        command_kind="run-experiment",
+        status="dry_run",
+        dispatch_mode="dry-run",
+        workflow_file="experiment-runner-dispatch.yml",
+        workflow_ref="main",
+        event_hash=_hash("Ev0SECRET"),
+        channel_hash=_hash("C0SECRET"),
+        user_hash=_hash("U0DENIED"),
+        team_hash=_hash("T0SECRET"),
+        branch_hash=_hash("feature/operator-plane"),
+        hypothesis_hash=_hash("raw hypothesis must not render"),
+        slack_audit_path=audit_path,
+        repo_root=tmp_path,
+    )
+    record = ledger.load_operator_ledger_events(repo_root=tmp_path)[0].payload
+    text = path.read_text(encoding="utf-8")
+
+    assert record["status"] == "dry_run"
+    assert record["command_kind"] == "run-experiment"
+    assert record["dispatch_mode"] == "dry-run"
+    assert record["workflow_file"] == "experiment-runner-dispatch.yml"
+    assert record["workflow_ref"] == "main"
+    assert record["slack_audit_ref"] == (
+        "artifacts/orchestration/experiments/slack_socket_bridge/audit.json"
+    )
+    assert record["slack_audit_hash"] == hashlib.sha256(audit_path.read_bytes()).hexdigest()
+    assert record["created_pr"] is False
+    assert record["resolved_review_threads"] is False
+    assert record["claimed_merge_readiness"] is False
+    _assert_no_raw_leak(text)
+
+
+def test_slack_bridge_operator_ledger_helper_rejects_bad_packet_or_audit_ref(
+    tmp_path: Path,
+) -> None:
+    audit_path = _slack_audit_path(tmp_path)
+
+    with pytest.raises(ledger.OperatorLedgerError, match="task packet"):
+        ledger.preflight_slack_bridge_operator_ledger_event(
+            task_packet_id="C12345678",
+            repo_root=tmp_path,
+        )
+    outside_audit = tmp_path.parent / f"outside-audit-{tmp_path.name}.json"
+    outside_audit.write_text("{}", encoding="utf-8")
+    with pytest.raises(ledger.OperatorLedgerError, match="must stay under artifacts"):
+        ledger.write_slack_bridge_operator_ledger_event(
+            task_packet_id="packet-pr2",
+            command_kind="run-experiment",
+            status="dry_run",
+            dispatch_mode="dry-run",
+            workflow_file="experiment-runner-dispatch.yml",
+            workflow_ref="main",
+            event_hash=_hash("Ev0SECRET"),
+            channel_hash=_hash("C0SECRET"),
+            user_hash=_hash("U0DENIED"),
+            team_hash=_hash("T0SECRET"),
+            branch_hash=_hash("feature/operator-plane"),
+            hypothesis_hash=_hash("raw hypothesis must not render"),
+            slack_audit_path=outside_audit,
+            repo_root=tmp_path,
+        )
 
 
 def test_operator_ledger_event_write_keeps_temp_files_out_of_event_store(

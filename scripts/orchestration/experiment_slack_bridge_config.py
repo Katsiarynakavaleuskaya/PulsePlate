@@ -16,12 +16,14 @@ from scripts.orchestration.experiment_slack_bridge_constants import (
     BRIDGE_TIMEOUT_ENV,
     CONTROL_CHAR_RE,
     DEFAULT_AUDIT_RETENTION_DAYS,
+    DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID,
     DEFAULT_WORKFLOW_FILE,
     DEFAULT_WORKFLOW_REF,
     GITHUB_TOKEN_RE,
     LIVE_APPROVAL_SHA256_ENV,
     LIVE_SECRET_PRESENCE_ENV,
     MAX_AUDIT_RETENTION_DAYS,
+    OPERATOR_LEDGER_TASK_PACKET_ID_ENV,
     SAFE_BRANCH_RE,
     SAFE_SLACK_ID_RE,
     SHA256_HEX_RE,
@@ -100,6 +102,13 @@ def _live_approval_sha256() -> str | None:
     ):
         raise SlackSocketConfigError("Slack live-dispatch approval configuration is invalid.")
     return normalized
+
+
+def _operator_ledger_task_packet_id() -> str:
+    """Read the local operator-ledger task packet id without promoting it to authority."""
+
+    raw = os.environ.get(OPERATOR_LEDGER_TASK_PACKET_ID_ENV, "").strip()
+    return raw or DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID
 
 
 def _compute_live_approval_digest(branch_ref: str, hypothesis: str) -> str:
@@ -281,6 +290,7 @@ def build_config(
         slack_bot_token=_optional_token(SLACK_BOT_AUTH_ENV),
         github_token=_github_token(),
         live_approval_sha256=_live_approval_sha256(),
+        operator_ledger_task_packet_id=_operator_ledger_task_packet_id(),
     )
 
 
