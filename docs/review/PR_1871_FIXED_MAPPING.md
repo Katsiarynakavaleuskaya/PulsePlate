@@ -12,7 +12,8 @@ operator-override behavior.
 `e556119b444742135cced7793b0da38aaa8f9353`,
 `c6aabad09ab876bb13b7f2700363166ee386880c`,
 `6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`,
-`be9e1a5d2d8f3427af2d70627e571b286b235651`
+`be9e1a5d2d8f3427af2d70627e571b286b235651`,
+`e5c044fb7b99ee9ab790dff6104d8293b2c535f3`
 
 ## Discussion Thread Pass
 
@@ -27,7 +28,9 @@ Current live PR snapshot before the latest mapping update:
 - Codex Review posted one mapping-ancestry inline comment against a synthetic
   reviewed head. This is dispositioned below as `NOT-A-BUG` because the mapped
   commits are ancestors of the real GitHub PR head.
-- CodeRabbit had posted a summary comment only.
+- CodeRabbit posted one actionable review on the build workflow artifact upload
+  pin plus one ledger readability nitpick. Both are mapped below to
+  `e5c044fb7b99ee9ab790dff6104d8293b2c535f3`.
 - Sourcery returned a weekly-rate-limit comment, not a code actionable.
 - Cubic reported no issues on the initial head.
 - Current-head CI and bot review must be rechecked after this mapping update is
@@ -64,6 +67,11 @@ Evidence: Codex Review correctly identified that the previous `aquasecurity/triv
 Disposition: NOT-A-BUG
 Evidence: The review comment referenced synthetic reviewed head `41440402068da0a827fc6d43fc3fe608d373aeff`, not the actual PR branch head. Local ancestry proof on the real branch head (`git merge-base --is-ancestor <mapped_sha> HEAD`) returned `ancestor` for `ef1a745654e89d7a14f676e70001c010878eff4a`, `e556119b444742135cced7793b0da38aaa8f9353`, `c6aabad09ab876bb13b7f2700363166ee386880c`, `6e1b7f425e52cadcc2864a666102e1f7d6f2ddf8`, `be9e1a5d2d8f3427af2d70627e571b286b235651`, and `191a0671d8c279ff1eabcee41f610af9a6ae3134`. `git cat-file -e 41440402068da0a827fc6d43fc3fe608d373aeff^{commit}` did not find that synthetic commit in local branch history. The mapping therefore already ties fixes to commits that will be merged from the actual PR branch.
 Reason: The comment checked ancestry against a synthetic/non-branch reviewed head instead of the real GitHub PR head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1871#pullrequestreview-4418674075 -> e5c044fb7b99ee9ab790dff6104d8293b2c535f3
+Disposition: FIXED
+Commit: e5c044fb7b99ee9ab790dff6104d8293b2c535f3
+Evidence: CodeRabbit flagged four `.github/workflows/build.yml` `actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0` uses and a long ledger evidence paragraph. The commit updates only those four build workflow upload-artifact refs to `actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24`, extends `tests/test_ci_workflow_pr_size_governance_contract.py` to snapshot the build upload-artifact steps, and reformats the ledger evidence into short bullets. Validation: `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` passed, `python3 scripts/ci/guard_actions_pin.py --root .` passed, `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md` passed, and `pre-commit run --all-files` passed.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26882447867/job/79285782067 -> 191a0671d8c279ff1eabcee41f610af9a6ae3134
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/26882447867/job/79285782087 -> 191a0671d8c279ff1eabcee41f610af9a6ae3134
@@ -311,6 +319,13 @@ Premortem:
   - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_1871_FIXED_MAPPING.md docs/roadmap/BACKLOG_LEDGER.md docs/ENGINEERING_LESSONS.md`
     - PASS.
   - `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(cat /tmp/pr1871_body_update.md)" --pr-number 1871 --commit-range origin/main..HEAD --experiment-runner-evidence-mode advisory`
+    - PASS.
+  - `pre-commit run --all-files` - PASS.
+- CodeRabbit build artifact upload fix:
+  - `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py`
+    - PASS; 21 tests.
+  - `python3 scripts/ci/guard_actions_pin.py --root .` - PASS.
+  - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md`
     - PASS.
   - `pre-commit run --all-files` - PASS.
 
