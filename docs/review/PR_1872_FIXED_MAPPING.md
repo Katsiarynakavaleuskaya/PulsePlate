@@ -21,8 +21,9 @@ gates.
   and Merge Readiness sections.
 - [ ] Final discussion-thread pass pending current-head CI and bot/human review
   completion.
-- [ ] Post-open role-agent sequence pending completion:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- [ ] Post-open role-agent sequence in progress:
+  `qa-engineer-agent` PASS, `bug-hunter` findings FIXED,
+  `security-auditor` pending.
 - [ ] Codex Security diff scan / finding discovery pending.
 - [ ] `pulseplate-pr-review` pending.
 
@@ -40,6 +41,50 @@ Future resolved actionable comments must be appended here with one of:
 - `Disposition: FIXED` plus branch-history commit SHA and evidence.
 - `Disposition: NOT-A-BUG` plus repo evidence and reason.
 - `Disposition: DEFERRED` plus backlog proof and PR-body follow-up note.
+
+## Post-Open Role-Agent Findings
+
+### qa-engineer-agent
+
+Disposition: NOT-A-BUG
+Evidence: QA post-open pass reported no blockers and confirmed deterministic
+coverage for dry-run ledger write, approved `dry_run=false` dispatch, failed
+approval mismatch, rejected/unauthorized commands, duplicate event idempotency,
+status ledger summary, command surface lock, workflow masking/escaping, and
+Slack authority boundaries.
+
+Residual QA risk closed after QA: rate-limit `failed` ledger payload assertion
+was added in commit `e252e8d41`.
+
+### bug-hunter
+
+- Finding: `/pulseplate-runner status` could summarize its own status command
+  ledger event rather than the prior dispatch event.
+  Disposition: FIXED
+  Commit: b08cb3b85
+  Evidence: `scripts/orchestration/experiment_operator_ledger.py` now supports
+  excluding the current event hash from latest-ledger summary, and
+  `tests/test_experiment_slack_socket_bridge.py` exercises the live processing
+  order by processing a status event before rendering its reply.
+
+- Finding: dispatch workflow summary overstated local ledger truth for direct
+  manual workflow runs.
+  Disposition: FIXED
+  Commit: b08cb3b85
+  Evidence: `.github/workflows/experiment-runner-dispatch.yml` now reports
+  `operator_ledger_status: not_written_by_workflow` and
+  `operator_ledger_scope: local_bridge_only`; the workflow contract test rejects
+  the previous claim that the manual workflow wrote local bridge ledger state.
+
+- Finding: runbook contradicted approved live-dispatch behavior by saying
+  `dry_run: false` remains blocked until a later PR.
+  Disposition: FIXED
+  Commit: b08cb3b85
+  Evidence:
+  `docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md` now
+  states that `dry_run: false` is allowed only when the reviewed approval digest
+  exactly matches the requested branch and hypothesis; regression assertions
+  cover this wording.
 
 ## Local Gate Evidence
 
