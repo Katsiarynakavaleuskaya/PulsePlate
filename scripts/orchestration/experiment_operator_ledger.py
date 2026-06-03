@@ -29,7 +29,11 @@ from scripts.orchestration.experiment_slack_bridge_config import (
 )
 from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE, SHA256_HEX_RE
 from scripts.orchestration.experiment_slack_bridge_models import SlackSocketAuditError
-from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE, safe_artifact_ref
+from scripts.orchestration.experiment_slack_redaction import (
+    LOCAL_PATH_RE,
+    SLACK_IDENTIFIER_RE,
+    safe_artifact_ref,
+)
 
 SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "operator-plane-2026-06-02-v1"
@@ -118,6 +122,12 @@ SAFE_RESULT_METADATA_FIELDS = (
     "promotion_ready",
     "contribution_kind",
     "coauthor_required",
+)
+CLI_OUTPUT_PATCH_OR_LOG_RE = re.compile(
+    r"(diff\s+--git|^@@\s|^\+\+\+\s|^---\s|raw\s+patch|patch\s+text|"
+    r"oracle\s+stdout|oracle\s+stderr|raw\s+stdout|raw\s+stderr|"
+    r"stdout\s*:|stderr\s*:)",
+    re.IGNORECASE | re.MULTILINE,
 )
 
 HASH_FIELDS = frozenset(
@@ -343,6 +353,20 @@ def _validate_retention_days(value: Any) -> int:
     if value <= 0 or value > 366:
         raise OperatorLedgerError("Experiment operator ledger retention is invalid.")
     return value
+
+
+def _safe_cli_stdout_payload(rendered: str) -> str:
+    """Return a CLI stdout payload only after final no-leak enforcement."""
+
+    if (
+        SECRET_SHAPED_RE.search(rendered)
+        or GITHUB_APP_TOKEN_ARTIFACT_RE.search(rendered)
+        or SLACK_IDENTIFIER_RE.search(rendered)
+        or LOCAL_PATH_RE.search(rendered)
+        or CLI_OUTPUT_PATCH_OR_LOG_RE.search(rendered)
+    ):
+        raise OperatorLedgerError("Experiment operator ledger output contains unsafe content.")
+    return rendered
 
 
 def _idempotency_material(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1527,7 +1551,7 @@ def main(argv: list[str] | None = None) -> int:
                     "Unable to write Experiment operator ledger output."
                 ) from exc
         else:
-            print(rendered, end="")
+            sys.stdout.write(_safe_cli_stdout_payload(rendered))
     except OperatorLedgerError as exc:
         print(f"FAIL: {exc}")
         return 1

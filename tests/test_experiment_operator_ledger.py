@@ -1433,6 +1433,25 @@ def test_operator_ledger_cli_output_write_errors_are_sanitized(
     assert str(tmp_path) not in failure
 
 
+def test_operator_ledger_cli_stdout_fails_closed_on_unsafe_rendered_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        ledger,
+        "build_operator_observability_report",
+        lambda **_: {"unsafe": "xoxb-secretsecretsecret /Users/alice diff --git raw hypothesis"},
+    )
+
+    assert ledger.main(["--summary", "--format", "json"]) == 1
+    failure = capsys.readouterr().out
+
+    assert failure == "FAIL: Experiment operator ledger output contains unsafe content.\n"
+    _assert_no_raw_leak(failure)
+
+
 def test_operator_ledger_direct_cli_summary_invocation_is_supported(tmp_path: Path) -> None:
     isolated_ledger = (
         "artifacts/orchestration/experiments/"
