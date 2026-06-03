@@ -102,6 +102,9 @@ jobs:
           hypothesis_hash = str(inputs.get("hypothesis_sha256", "none")).strip().lower() or "none"
           approval_ref = str(inputs.get("approval_ref", "none")).strip().lower() or "none"
           dry_run = str(inputs.get("dry_run", "true")).strip().lower()
+          workflow_ref = os.environ.get("GITHUB_REF_NAME", "").strip()
+          if workflow_ref != "main":
+              raise SystemExit("Experiment Runner dispatch workflow must run on main.")
           workflow_live_approval = (
               "bridge_required_not_workflow_proven"
               if dry_run == "false" and approval_ref != "none"
@@ -111,7 +114,7 @@ jobs:
               summary.write("### Experiment Runner dispatch contract\n")
               summary.write("- mode: manual workflow_dispatch only\n")
               summary.write("- workflow_file: experiment-runner-dispatch.yml\n")
-              summary.write("- workflow_ref: main\n")
+              summary.write(f"- workflow_ref: {workflow_ref}\n")
               summary.write(f"- workflow_input_dry_run: {dry_run}\n")
               summary.write(f"- branch_hash: {branch_hash}\n")
               summary.write(f"- hypothesis_hash: {hypothesis_hash}\n")

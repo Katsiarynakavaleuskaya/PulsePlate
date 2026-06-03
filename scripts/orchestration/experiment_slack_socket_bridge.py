@@ -992,6 +992,7 @@ def main(argv: list[str] | None = None) -> int:
                 _require_execute_config(config)
             if args.run_socket:
                 _require_live_socket_runtime(config)
+            _preflight_operator_ledger_event(config)
             print(
                 json.dumps(
                     {"dispatch_mode": config.dispatch_mode, "status": "pass"}, sort_keys=True

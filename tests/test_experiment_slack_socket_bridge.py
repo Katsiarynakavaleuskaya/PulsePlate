@@ -139,6 +139,26 @@ def test_import_and_dry_run_validation_do_not_require_slack_sdk(
     assert payload == {"dispatch_mode": "dry-run", "status": "pass"}
 
 
+def test_validate_runtime_preflights_operator_ledger_writeability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    repo_root = _repo_root_from_audit_dir(audit_dir)
+    event_dir = experiment_operator_ledger.default_ledger_dir(repo_root) / "events"
+    event_dir.parent.mkdir(parents=True)
+    event_dir.write_text("not a directory", encoding="utf-8")
+
+    assert bridge.main(["--validate-runtime", "--dispatch-mode", "dry-run"]) == 1
+
+    stdout = capsys.readouterr().out
+    assert "Experiment operator ledger evidence is unavailable" in stdout
+    assert "not a directory" not in stdout
+    assert str(event_dir) not in stdout
+
+
 def test_live_socket_validation_fails_closed_without_runtime_tokens(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2414,9 +2434,13 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert "if" not in summary_step
     assert "GITHUB_STEP_SUMMARY" in summary_step["run"]
     assert 'os.environ["GITHUB_EVENT_PATH"]' in summary_step["run"]
+    assert 'os.environ.get("GITHUB_REF_NAME", "")' in summary_step["run"]
+    assert 'if workflow_ref != "main"' in summary_step["run"]
+    assert "Experiment Runner dispatch workflow must run on main." in summary_step["run"]
     assert "hashlib.sha256" in summary_step["run"]
     assert "workflow_file: experiment-runner-dispatch.yml" in summary_step["run"]
-    assert "workflow_ref: main" in summary_step["run"]
+    assert 'summary.write(f"- workflow_ref: {workflow_ref}\\n")' in summary_step["run"]
+    assert 'summary.write("- workflow_ref: main\\n")' not in summary_step["run"]
     assert "workflow_input_dry_run" in summary_step["run"]
     assert "branch_hash" in summary_step["run"]
     assert "hypothesis_hash" in summary_step["run"]
