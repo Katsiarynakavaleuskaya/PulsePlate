@@ -120,7 +120,7 @@ Reason: The comments referenced reviewed commit `27891042a41500c030cedfebb5c37f3
   drift and unresolved review-thread proof requirements. Fixed by
   `69aa9aa1aa369286f958169f46c9011d09769ed8`.
 - [x] `bug-hunter` - completed; found PR body mirror omissions and stale
-  head-specific wording in the NOT-A-BUG evidence. Fixed by `BUG_HUNTER_FIX_SHA`.
+  head-specific wording in the NOT-A-BUG evidence. Fixed by `eda4ab14a996f485bc17080c07302f92ed6933e5`.
 - [ ] `security-auditor` - pending rerun after mapping/body repair.
 - [ ] Codex Security diff scan / finding discovery - pending.
 - [ ] `pulseplate-pr-review` - pending.
