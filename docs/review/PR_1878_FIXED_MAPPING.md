@@ -41,6 +41,12 @@ Reason: These comments evaluate stale reviewed heads `ab8a468fa4e84fd3d4247bd1bf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355201759
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355254195
 
+Disposition: NOT-A-BUG
+Evidence: GitHub API proof at disposition time: `gh pr view 1878 --json commits` includes both `6c05ec31cfb9b62af970e27f4791424f9486fcbc` and `a8f40d4bc81ccef8c68685d88f0f676234476c05`; `gh api repos/Katsiarynakavaleuskaya/PulsePlate/compare/a8f40d4bc...947524673f712cac8c58a271274a396ce7835edd` returns `status=ahead, behind_by=0`; `gh api repos/Katsiarynakavaleuskaya/PulsePlate/compare/6c05ec31cfb9b62af970e27f4791424f9486fcbc...947524673f712cac8c58a271274a396ce7835edd` returns `status=ahead, behind_by=0`.
+Reason: GitHub's PR commit list and compare API confirm the referenced FIXED proof commits are branch-history ancestors of the PR head; the reachability claim is not valid for the current GitHub PR state.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355285162
+
 ## Mapping Update Protocol
 
 GitHub review threads with actionable comments are recorded above.
