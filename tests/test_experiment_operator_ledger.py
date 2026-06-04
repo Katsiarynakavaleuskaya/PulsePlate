@@ -1468,24 +1468,25 @@ def test_operator_ledger_cli_stdout_fails_closed_on_unsafe_rendered_payload(
 
 
 def test_operator_ledger_direct_cli_summary_invocation_is_supported(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
     run_id = hashlib.sha256(str(tmp_path).encode("utf-8")).hexdigest()
     artifact_ref = f"artifacts/orchestration/experiments/direct_cli_summary_{run_id}"
     isolated_ledger = f"{artifact_ref}/ledger"
     output_ref = f"{artifact_ref}/summary.json"
-    output_path = Path(output_ref)
+    output_path = repo_root / output_ref
 
     try:
         result = subprocess.run(
             [
                 sys.executable,
-                "scripts/orchestration/experiment_operator_ledger.py",
+                str(repo_root / "scripts" / "orchestration" / "experiment_operator_ledger.py"),
                 "--summary",
                 "--ledger-dir",
                 isolated_ledger,
                 "--output",
                 output_ref,
             ],
-            cwd=Path.cwd(),
+            cwd=repo_root,
             text=True,
             capture_output=True,
             check=False,
@@ -1498,7 +1499,7 @@ def test_operator_ledger_direct_cli_summary_invocation_is_supported(tmp_path: Pa
         assert "local_operator_plane_only" in report
         _assert_no_raw_leak(result.stdout + report)
     finally:
-        shutil.rmtree(Path(artifact_ref), ignore_errors=True)
+        shutil.rmtree(repo_root / artifact_ref, ignore_errors=True)
 
 
 def test_operator_plane_backlog_epic_documents_boundaries() -> None:
