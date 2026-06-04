@@ -28,8 +28,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Experiment Runner Operator Plane & Slack Closeout
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`codex/experiment-runner-operator-plane`)
-  - Status: Active as of 2026-06-02 under operator-approved lane-start override while PR #1865 and current `main` CI are monitored by the operator.
+  - Target PR: PR-4 (`codex/slack-operator-ci-live-smoke`)
+  - Status: Active as of 2026-06-04 under operator-approved lane-start override while current `main` CI is monitored by the operator. PR-4 scope is deterministic no-secret Slack operator-plane CI gating, manual live-smoke activation wording, and semantic-cache gate recheck only.
   - Area: orchestration / Experiment Runner / Slack operator plane / local observability
   - Reason (EN): Finish the Experiment Runner as a Slack-first operator plane without widening product AI runtime, food data, semantic cache, CBT/coaching runtime, frontend MVP, or merge/review authority. Operators need bounded dry-run/approved dispatch visibility, redacted failure/status summaries, and local evidence reports that stay advisory until promoted through repo-reviewed governance.
   - Links:
@@ -44,13 +44,18 @@ If it is not recorded here — it does not exist.
     - PR-1: local operator ledger/report contract, existing Slack status summary hook, runbook/backlog/tests, no command-surface widening
     - PR-2: optional bounded live-smoke evidence exercise if operator secrets and allowlists are available
     - PR-3: optional dashboard/report polish only if it remains local/dev-only under `artifacts/` with committed scripts/tests/docs only
-  - Out of scope: product AI runtime, backend API, OpenAPI, DB migrations, food data, semantic cache, CBT/coaching runtime, frontend MVP, iOS, PR creation, review-thread resolution, fixed-mapping authority, merge-readiness authority, arbitrary workflow dispatch, and Slack/Git identity expansion.
+    - PR-4: deterministic `operator_plane_slack` CI risk group and contract suite, manual live-smoke operator evidence wording, current activation diagnostics, semantic-cache gate recheck remains closed
+  - Out of scope: product AI runtime, backend API, OpenAPI, DB migrations, food data, semantic cache, GraphRAG, CBT/coaching runtime, frontend MVP, iOS, PR creation, review-thread resolution, fixed-mapping authority, merge-readiness authority, arbitrary workflow dispatch, HTTPS Slack ingress, and Slack/Git identity expansion.
   - DoD:
     - Slack remains operator-only, dry-run-first, allowlisted, secret-backed, and redacted.
+    - Deterministic CI routes Slack/Experiment Runner operator-plane changes through `operator_plane_slack` without live Slack secrets, raw Slack IDs/text, workflow logs, local paths, or token values.
+    - Manual live smoke remains `workflow_dispatch` operator evidence only; it is not a required CI gate, not merge-readiness proof, and requires runtime `SLACK_APP_TOKEN` app-level Socket Mode token, `SLACK_BOT_TOKEN` bot token, and channel/user/team allowlists.
     - `/pulseplate-runner status` can include the latest local operator ledger summary when present; no new Slack command is added in PR-1.
     - Local operator ledger records only schema/policy version, task packet id, dispatch mode, fixed workflow file/ref, hashes, safe artifact refs, failure class, co-author decision, and human review outcome.
     - Ledger/report artifacts are local-only under `artifacts/orchestration/experiments/` and must not include raw Slack text, Slack IDs, local absolute paths, health data, provider logs, approval digests, token prefixes, oracle stdout/stderr, raw branch refs, raw hypotheses, or patch text.
     - Observability report is local/dev-only and aggregates ledger/result artifact status without becoming product analytics, runtime truth, or merge evidence by itself.
+    - Semantic-cache markers remain `closed / false / false / true`; this lane adds no semantic cache, GraphRAG, cache read/write, provider activation, OpenAPI, DB, frontend, iOS, or product-serving behavior.
+    - Einstein Arena or other HTTPS Slack ingress requires a separate reviewed PR with Slack signature verification, timestamp freshness, replay protection, rate limiting, runtime allowlists, and a redacted audit contract.
     - Focused tests cover schema strictness, malformed/extra fields, path traversal/symlink rejection, idempotency, redaction, command-surface stability, and runbook authority boundaries.
     - Each implementation PR runs coordinator-first startup, explicit role passes, premortem closure, Experiment Runner oracle-only evidence, post-open QA/bug/security passes, Codex Security scan when available, and `pulseplate-pr-review`.
 

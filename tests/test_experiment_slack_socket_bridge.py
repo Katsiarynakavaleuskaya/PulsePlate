@@ -2609,6 +2609,19 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "operator_observability" in runbook
     assert "--write-report-set" in runbook
     assert "invalid_local_artifact" in runbook
+    assert "Manual live smoke is operator evidence only" in runbook
+    assert "not a required CI gate" in runbook
+    assert "not merge-readiness proof" in runbook
+    assert "`SLACK_APP_TOKEN` must be an `xapp-` app-level Socket Mode" in runbook
+    assert "`SLACK_BOT_TOKEN` must be an `xoxb-` bot token" in runbook
+    assert "Semantic-Cache Gate Recheck" in runbook
+    assert "closed / false / false / true" in runbook
+    assert "GraphRAG" in runbook
+    assert "semantic-cache implementation" in runbook
+    assert "Einstein Arena / HTTPS Ingress Boundary" in runbook
+    assert "timestamp freshness" in runbook
+    assert "replay protection" in runbook
+    assert "redacted audit contract" in runbook
     execute_gate = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=" + "reviewed-dry-run-dispatch"
     assert execute_gate in runbook
     assert "Operators must not put emails, names, phone numbers" in runbook

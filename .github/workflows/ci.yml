@@ -52,6 +52,7 @@ jobs:
       openapi_contract: ${{ steps.risk_profile.outputs.openapi_contract }}
       food_catalog: ${{ steps.risk_profile.outputs.food_catalog }}
       route_contract_safety: ${{ steps.risk_profile.outputs.route_contract_safety }}
+      operator_plane_slack: ${{ steps.risk_profile.outputs.operator_plane_slack }}
       merge_governance: ${{ steps.risk_profile.outputs.merge_governance }}
       contract_risk_groups: ${{ steps.risk_profile.outputs.contract_risk_groups }}
       changed_file_count: ${{ steps.risk_profile.outputs.changed_file_count }}
@@ -783,6 +784,15 @@ jobs:
                   tests/test_pr_merge_readiness_gate.py \
                   tests/test_review_threads_disposition_strict.py
                 ;;
+              operator_plane_slack)
+                add_suite \
+                  tests/test_ci_risk_profile.py \
+                  tests/test_ci_workflow_pr_size_governance_contract.py \
+                  tests/test_experiment_operator_ledger.py \
+                  tests/test_experiment_slack_kpp_renderer.py \
+                  tests/test_experiment_slack_socket_bridge.py \
+                  tests/test_runtime_toolchain_alignment.py
+                ;;
               *)
                 echo "::error::Unknown contract/risk group: $group"
                 exit 1
@@ -1045,6 +1055,15 @@ jobs:
                   tests/test_pr_body_phase2_gates.py \
                   tests/test_pr_merge_readiness_gate.py \
                   tests/test_review_threads_disposition_strict.py
+                ;;
+              operator_plane_slack)
+                add_suite \
+                  tests/test_ci_risk_profile.py \
+                  tests/test_ci_workflow_pr_size_governance_contract.py \
+                  tests/test_experiment_operator_ledger.py \
+                  tests/test_experiment_slack_kpp_renderer.py \
+                  tests/test_experiment_slack_socket_bridge.py \
+                  tests/test_runtime_toolchain_alignment.py
                 ;;
               *)
                 echo "::error::Unknown contract/risk group: $group"

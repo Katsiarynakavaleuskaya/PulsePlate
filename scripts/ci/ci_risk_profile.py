@@ -23,6 +23,7 @@ ALL_RISK_GROUPS: tuple[str, ...] = (
     "openapi_contract",
     "food_catalog",
     "route_contract_safety",
+    "operator_plane_slack",
     "merge_governance",
 )
 
@@ -172,6 +173,18 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "tests/test_pr_merge_readiness_gate.py",
         "tests/test_review_threads_disposition_strict.py",
     ),
+    "operator_plane_slack": (
+        ".github/workflows/experiment-runner-*.yml",
+        ".github/workflows/experiment-runner-*.yaml",
+        "docs/orchestration/EXPERIMENT_RUNNER_SLACK_*",
+        "docs/roadmap/BACKLOG_LEDGER.md",
+        "scripts/orchestration/experiment_operator_ledger.py",
+        "scripts/orchestration/experiment_slack*.py",
+        "tests/test_experiment_operator_ledger.py",
+        "tests/test_experiment_slack_kpp_renderer.py",
+        "tests/test_experiment_slack_socket_bridge.py",
+        "tests/test_runtime_toolchain_alignment.py",
+    ),
 }
 
 
@@ -194,6 +207,7 @@ class RiskProfile:
     openapi_contract: bool
     food_catalog: bool
     route_contract_safety: bool
+    operator_plane_slack: bool
     merge_governance: bool
     contract_risk_groups: tuple[str, ...]
 
@@ -214,6 +228,7 @@ class RiskProfile:
             "openapi_contract": _bool_text(self.openapi_contract),
             "food_catalog": _bool_text(self.food_catalog),
             "route_contract_safety": _bool_text(self.route_contract_safety),
+            "operator_plane_slack": _bool_text(self.operator_plane_slack),
             "merge_governance": _bool_text(self.merge_governance),
             "contract_risk_groups": ",".join(self.contract_risk_groups),
             "changed_file_count": str(len(self.changed_files)),
@@ -317,6 +332,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
             openapi_contract=False,
             food_catalog=False,
             route_contract_safety=False,
+            operator_plane_slack=False,
             merge_governance=False,
             contract_risk_groups=(),
         )
@@ -349,6 +365,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
         or backend_shared
         or group_hits["openapi_contract"]
         or group_hits["food_catalog"]
+        or group_hits["operator_plane_slack"]
     )
     run_main_ci_diagnostic = any(_is_main_ci_diagnostic_surface(path) for path in normalized_files)
     run_security = run_backend_blocking
@@ -370,6 +387,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
         openapi_contract=group_hits["openapi_contract"],
         food_catalog=group_hits["food_catalog"],
         route_contract_safety=group_hits["route_contract_safety"],
+        operator_plane_slack=group_hits["operator_plane_slack"],
         merge_governance=group_hits["merge_governance"],
         contract_risk_groups=selected_groups,
     )

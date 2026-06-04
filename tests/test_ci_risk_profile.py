@@ -29,6 +29,7 @@ def test_empty_changed_files_uses_default_risk_profile() -> None:
     assert profile.openapi_contract is False
     assert profile.food_catalog is False
     assert profile.route_contract_safety is False
+    assert profile.operator_plane_slack is False
     assert profile.merge_governance is False
     assert profile.contract_risk_groups == ()
 
@@ -74,6 +75,57 @@ def test_hidden_workflow_path_preserves_leading_dot_for_routing() -> None:
     assert profile.run_backend_blocking is True
     assert profile.run_main_ci_diagnostic is True
     assert profile.run_openapi_sync is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        "scripts/orchestration/experiment_slack_socket_bridge.py",
+        "scripts/orchestration/experiment_slack_bridge_config.py",
+        "scripts/orchestration/experiment_operator_ledger.py",
+        "tests/test_experiment_slack_socket_bridge.py",
+        "tests/test_experiment_operator_ledger.py",
+        "tests/test_experiment_slack_kpp_renderer.py",
+        "tests/test_runtime_toolchain_alignment.py",
+    ),
+)
+def test_operator_plane_slack_surfaces_hit_operator_group(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.backend_shared is True
+    assert profile.operator_plane_slack is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == ("operator_plane_slack",)
+
+
+def test_operator_plane_slack_backlog_surface_runs_operator_group() -> None:
+    profile = risk_profile.build_risk_profile(["docs/roadmap/BACKLOG_LEDGER.md"])
+
+    assert profile.docs_only is True
+    assert profile.operator_plane_slack is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == ("operator_plane_slack",)
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        ".github/workflows/experiment-runner-dispatch.yml",
+        ".github/workflows/experiment-runner-slack-socket-smoke.yml",
+        "docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md",
+    ),
+)
+def test_operator_plane_slack_privileged_surfaces_keep_full_contract_groups(
+    changed_file: str,
+) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.workflow_privileged is True
+    assert profile.operator_plane_slack is True
+    assert profile.run_backend_blocking is True
     assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
 
 
@@ -362,6 +414,7 @@ def test_cli_writes_github_outputs(
     assert "run_backend_blocking=true" in written
     assert "run_main_ci_diagnostic=false" in written
     assert "billing_entitlement=true" in written
+    assert "operator_plane_slack=false" in written
 
 
 def test_collect_changed_files_fails_fast_on_git_timeout(

@@ -85,6 +85,10 @@ and the asset stays outside committed Slack App truth.
 Run `.github/workflows/experiment-runner-slack-socket-smoke.yml` manually with
 `workflow_dispatch`.
 
+Manual live smoke is operator evidence only. It is not a required CI gate, not merge-readiness proof,
+and not a substitute for the deterministic no-secret Slack/Experiment Runner
+operator-plane CI gate.
+
 For config-only validation, keep `dry_run` as `true`. This validates the bridge
 without Slack network access.
 
@@ -126,6 +130,41 @@ Committed PR evidence may record only:
 Do not commit workflow logs, raw stdout/stderr dumps, raw Slack IDs, raw
 hypothesis text, Slack WebSocket URLs, Slack payloads, token values, token
 prefixes, GitHub tokens, local absolute paths, oracle output, or patch text.
+
+## Current Activation Diagnostics
+
+Live smoke activation is a runtime configuration check, not a repository
+authority grant. `SLACK_APP_TOKEN` must be an `xapp-` app-level Socket Mode
+token, `SLACK_BOT_TOKEN` must be an `xoxb-` bot token, and channel, user, and
+workspace/team allowlists must be supplied at workflow dispatch time.
+
+If live smoke reports an invalid token class, treat it as an operator secret
+configuration issue outside the repository. A later passing manual live smoke
+run can supersede an earlier failed run only as current operator evidence; the
+repository must not preserve raw logs, token prefixes beyond class labels, Slack
+workspace identifiers, WebSocket URLs, or response bodies.
+
+## Semantic-Cache Gate Recheck
+
+This Slack operator-plane lane does not open the product AI runtime semantic
+cache rail. The recheck command is:
+
+```bash
+python3 scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md
+```
+
+The expected markers remain `closed / false / false / true`. Passing this
+checker is evidence that the gate remains closed; it does not authorize
+GraphRAG, semantic-cache implementation, runtime cache reads or writes,
+provider activation, OpenAPI changes, DB changes, or product-serving behavior.
+
+## Einstein Arena / HTTPS Ingress Boundary
+
+This operator app remains Socket Mode in this PR. Einstein Arena or any other
+HTTPS Slack ingress requires a separate reviewed PR before implementation. That
+future PR must add Slack signature verification, timestamp freshness, replay
+protection, rate limiting, runtime allowlists, and a redacted audit contract
+before parsing or acting on any HTTP Slack payload.
 
 ## Failure Interpretation
 
