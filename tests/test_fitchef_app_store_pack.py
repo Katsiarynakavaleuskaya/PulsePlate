@@ -46,7 +46,6 @@ BLOCKED_COPY_TERMS = {
         "терап",
         "врач",
         "пациент",
-        "рецепт",
         "клиничес",
         "медицин",
         "гарантир",
@@ -315,6 +314,16 @@ def test_ru_preview_plan_uses_ru_operational_copy() -> None:
     )
 
 
+def test_ru_wellness_blockers_do_not_reject_food_recipe_copy() -> None:
+    """FitChef food-recipe copy must not be blocked as prescription language."""
+    recipe_copy = "Рецепты, меню и список покупок помогают спокойнее планировать питание."
+    offending_terms = sorted(
+        term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in recipe_copy.lower()
+    )
+
+    assert not offending_terms, f"Food recipe copy should stay allowed: {offending_terms}"
+
+
 def test_ru_pack_docs_preserve_no_upload_scope_and_safe_claims() -> None:
     """RU markdown/script files must stay scoped to repo prep, not upload readiness."""
     text = "\n".join(
@@ -322,9 +331,28 @@ def test_ru_pack_docs_preserve_no_upload_scope_and_safe_claims() -> None:
         for path in _pack_root("ru-RU").rglob("*")
         if path.is_file() and path.suffix == ".md"
     ).lower()
+    blocked_english_fragments = (
+        "this folder",
+        "this pr",
+        "does not commit",
+        "final video binary",
+        "capture-ready",
+        "governing order",
+        "operating rules",
+        "locale:",
+        "target device",
+        "screenshot order",
+        "headlines and subtext",
+        "metadata matches",
+        "remain out of scope",
+    )
 
-    assert "fastlane upload" in text
+    assert "fastlane" in text
     assert "app store connect" in text
-    assert "out of scope" in text
+    assert "вне области" in text
+    english_fragments = sorted(
+        fragment for fragment in blocked_english_fragments if fragment in text
+    )
+    assert not english_fragments, f"RU docs contain English operational copy: {english_fragments}"
     offending_terms = sorted(term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in text)
     assert not offending_terms, f"Blocked term(s) found in RU docs: {offending_terms}"

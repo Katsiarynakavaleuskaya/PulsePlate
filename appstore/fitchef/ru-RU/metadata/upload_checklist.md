@@ -1,13 +1,13 @@
-# App Store Connect Upload Checklist
+# Чеклист загрузки App Store Connect
 
-- Locale: `ru-RU` only for this pack.
-- Target device baseline: `iPhone 6.9"` (`1320x2868` or compatible allowed size).
-- Screenshot order matches `shot_manifest.json` exactly from shot `01` to `07`.
-- Headlines and subtext stay inside the governed safe area.
-- FitChef placement stays non-blocking and uses only canonical asset keys.
-- Metadata matches `app_store_metadata.json`.
-- Copy stays wellness-only, without professional-role, pricing, or guaranteed-outcome claims.
-- No screenshot or preview scene shows fake UI, placeholder lorem ipsum, or off-canon feature states.
-- The App Store marketing icon traces back to the approved icon source inventory.
-- `EN` / `ES` assets are not mixed into this `ru-RU` upload set.
-- Fastlane upload, App Store Connect mutation, screenshot exports, and preview video exports remain out of scope.
+- Локаль: только `ru-RU` для этого пакета.
+- Базовое устройство: `iPhone 6.9"` (`1320x2868` или совместимый допустимый размер).
+- Порядок скриншотов точно соответствует `shot_manifest.json` от кадра `01` до `07`.
+- Заголовки и подзаголовки остаются внутри управляемой безопасной области.
+- Размещение FitChef не перекрывает ключевой UI и использует только канонические ключи активов.
+- Метаданные соответствуют `app_store_metadata.json`.
+- Текст остается wellness-only, без профессионального позиционирования, ценовых обещаний или обещаний результата.
+- Ни один скриншот или preview-сцена не показывает выдуманный UI, placeholder lorem ipsum или состояния функций вне канона.
+- Маркетинговая иконка App Store прослеживается до утвержденного списка источников иконки.
+- Активы `EN` / `ES` не смешиваются с этим набором для `ru-RU`.
+- Fastlane загрузка, изменение App Store Connect, экспорт скриншотов и экспорт preview-видео остаются вне области этого пакета.

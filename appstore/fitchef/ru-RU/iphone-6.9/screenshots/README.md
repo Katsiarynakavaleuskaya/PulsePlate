@@ -1,12 +1,14 @@
-# FitChef RU Screenshot Pack
+# Пакет скриншотов FitChef RU
 
-This folder stores the governed Russian screenshot manifest for the FitChef
-App Store localization wave.
+Эта папка хранит управляемый русскоязычный манифест скриншотов для волны
+локализации FitChef в App Store.
 
-It is capture-ready only. It does not contain final screenshot binaries.
+Пакет готов только к будущему capture/export проходу. Он не содержит финальные
+бинарные файлы скриншотов.
 
-The expected export order and filenames live in `shot_manifest.json`.
+Ожидаемый порядок экспорта и имена файлов зафиксированы в `shot_manifest.json`.
 
-The manifest mirrors the governed EN seven-shot sequence while localizing the
-headline and supporting copy for `ru-RU`. Product surfaces, source refs, safe
-areas, and mascot asset keys stay anchored to the existing repo canon.
+Манифест повторяет управляемую EN-последовательность из семи кадров, но
+локализует заголовки и поддерживающий текст для `ru-RU`. Поверхности продукта,
+ссылки на источники, безопасные области и ключи маскот-активов остаются
+привязаны к текущему канону репозитория.

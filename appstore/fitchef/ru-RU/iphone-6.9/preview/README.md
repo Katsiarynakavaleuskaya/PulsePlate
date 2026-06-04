@@ -1,8 +1,8 @@
-# FitChef RU Preview Pack
+# Пакет App Preview FitChef RU
 
-This folder stores the governed Russian App Preview storyboard and script for
-the FitChef App Store localization wave.
+Эта папка хранит управляемые русскоязычные storyboard и сценарий App Preview
+для волны локализации FitChef в App Store.
 
-This PR does not commit a final video binary. It stores a deterministic
-storyboard and script only, keeping App Store Connect upload and protected
-release evidence outside this pack.
+Этот PR не добавляет финальный видеофайл. В пакете остаются только
+детерминированные storyboard и сценарий; загрузка в App Store Connect и
+защищенные release-доказательства остаются вне области этого пакета.
