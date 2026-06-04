@@ -79,6 +79,11 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 8c69dfbd3 HEAD`, `git merge-base --is-ancestor c8f8fd7b4 HEAD`, and `git merge-base --is-ancestor b6f3047d6 HEAD` all passed on current branch head before this mapping update.
 Reason: The bot cited a transient reviewed head, but the real remote branch head contains the mapped proof commits as reachable ancestors; the canonical artifact does not rely on force-pushed or local-only objects.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356049925 -> 67f83cd37
+Disposition: FIXED
+Commit: 67f83cd37
+Evidence: `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:35` through `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:39` localize the RU source-inventory decision log, and `tests/test_fitchef_app_store_pack.py:245` through `tests/test_fitchef_app_store_pack.py:283` add a deterministic guard against English source-inventory operational notes.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -177,6 +182,10 @@ Reason: The bot cited a transient reviewed head, but the real remote branch head
 - `CodexConnector-1879-9` - `NOT-A-BUG`
   - Evidence: `git merge-base --is-ancestor 8c69dfbd3 HEAD`, `git merge-base --is-ancestor c8f8fd7b4 HEAD`, and `git merge-base --is-ancestor b6f3047d6 HEAD` passed before this mapping update.
   - Reason: Mapped proof commits are reachable from the actual branch head; the comment appears based on a transient reviewed head rather than the current remote head.
+
+- `CodexConnector-1879-10` - `FIXED`
+  - Commit: `67f83cd37`
+  - Evidence: `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:35` through `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:39` localize source-inventory notes, and `tests/test_fitchef_app_store_pack.py:245` through `tests/test_fitchef_app_store_pack.py:283` guard the RU decision log.
 
 ## Validation
 
