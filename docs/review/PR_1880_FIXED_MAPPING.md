@@ -32,20 +32,12 @@ changes, or new Slack authority.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355497758 -> 8cff6ed34
-Disposition: FIXED
-Commit: 8cff6ed34
-Evidence: `scripts/ci/ci_risk_profile.py:180` maps `docs/roadmap/BACKLOG_LEDGER.md` to `operator_plane_slack`, `scripts/ci/ci_risk_profile.py:368` makes the group backend-blocking, `tests/test_ci_risk_profile.py:103` covers the backlog-only case, and `scripts/ci/ci_risk_profile.py --file docs/roadmap/BACKLOG_LEDGER.md --as-json` returned `operator_plane_slack=true` with `run_backend_blocking=true`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355533719 -> 8cff6ed34
 Disposition: FIXED
 Commit: 8cff6ed34
 Evidence: `scripts/ci/ci_risk_profile.py:180` maps `docs/roadmap/BACKLOG_LEDGER.md` to `operator_plane_slack`, `scripts/ci/ci_risk_profile.py:368` makes the group backend-blocking, `tests/test_ci_risk_profile.py:103` covers the backlog-only case, and `scripts/ci/ci_risk_profile.py --file docs/roadmap/BACKLOG_LEDGER.md --as-json` returned `operator_plane_slack=true` with `run_backend_blocking=true`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355497763 -> 8cff6ed34
-Disposition: FIXED
-Commit: 8cff6ed34
-Evidence: `scripts/ci/ci_risk_profile.py:186` maps `tests/test_runtime_toolchain_alignment.py` to `operator_plane_slack`, `tests/test_ci_risk_profile.py:90` covers the changed guard, and `scripts/ci/ci_risk_profile.py --file tests/test_runtime_toolchain_alignment.py --as-json` returned `operator_plane_slack=true` with `run_backend_blocking=true`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355533715 -> 8cff6ed34
 Disposition: FIXED
 Commit: 8cff6ed34
