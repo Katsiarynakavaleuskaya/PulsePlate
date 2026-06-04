@@ -39,6 +39,26 @@ Disposition: FIXED
 Commit: ed80580eb
 Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:58` remove the overbroad RU `рецепт` blocker, and `tests/test_fitchef_app_store_pack.py:317` through `tests/test_fitchef_app_store_pack.py:324` add deterministic coverage that food-recipe planning copy remains allowed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355821926 -> c8f8fd7b4
+Disposition: FIXED
+Commit: c8f8fd7b4
+Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` stop treating ordinary RU `рецепт` declensions as medical prescription language, `tests/test_fitchef_app_store_pack.py:347` through `tests/test_fitchef_app_store_pack.py:358` cover local RU recipe copy, and `tests/test_ios_appstore_asset_validators.py:353` through `tests/test_ios_appstore_asset_validators.py:370` cover the production Fastlane metadata validator.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355821931 -> c8f8fd7b4
+Disposition: FIXED
+Commit: c8f8fd7b4
+Evidence: `appstore/fitchef/ru-RU/metadata/app_store_metadata.json:20` through `appstore/fitchef/ru-RU/metadata/app_store_metadata.json:24` translate RU compliance notes, and `tests/test_fitchef_app_store_pack.py:93` through `tests/test_fitchef_app_store_pack.py:107` plus `tests/test_fitchef_app_store_pack.py:169` through `tests/test_fitchef_app_store_pack.py:181` guard every nested RU metadata string against English compliance-note copy.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355834663 -> c8f8fd7b4
+Disposition: FIXED
+Commit: c8f8fd7b4
+Evidence: `appstore/fitchef/ru-RU/metadata/source_of_truth.md:21` through `appstore/fitchef/ru-RU/metadata/source_of_truth.md:22` restores the non-clinical RU operating boundary, and `tests/test_fitchef_app_store_pack.py:361` through `tests/test_fitchef_app_store_pack.py:395` keeps RU markdown scoped and wellness-safe while allowing explicit boundary wording.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355834667 -> c8f8fd7b4
+Disposition: FIXED
+Commit: c8f8fd7b4
+Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` align production semantic policy with normal RU food-recipe copy, and `tests/test_ios_appstore_asset_validators.py:353` through `tests/test_ios_appstore_asset_validators.py:370` proves the Fastlane metadata validator accepts `Рецепты` / `рецептов` meal-planning copy.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -106,12 +126,28 @@ Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_
   - Commit: `ed80580eb`
   - Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:58` remove the overbroad RU `рецепт` blocker, and `tests/test_fitchef_app_store_pack.py:317` through `tests/test_fitchef_app_store_pack.py:324` prove ordinary food-recipe planning copy remains allowed.
 
+- `CodexConnector-1879-4` - `FIXED`
+  - Commit: `c8f8fd7b4`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19`, `tests/test_fitchef_app_store_pack.py:347` through `tests/test_fitchef_app_store_pack.py:358`, and `tests/test_ios_appstore_asset_validators.py:353` through `tests/test_ios_appstore_asset_validators.py:370` align both pack and production Fastlane guards for RU food-recipe copy.
+
+- `CodexConnector-1879-5` - `FIXED`
+  - Commit: `c8f8fd7b4`
+  - Evidence: `appstore/fitchef/ru-RU/metadata/app_store_metadata.json:20` through `appstore/fitchef/ru-RU/metadata/app_store_metadata.json:24` localize RU compliance notes, and `tests/test_fitchef_app_store_pack.py:93` through `tests/test_fitchef_app_store_pack.py:181` guard nested RU metadata strings.
+
+- `Cubic-1879-3` - `FIXED`
+  - Commit: `c8f8fd7b4`
+  - Evidence: `appstore/fitchef/ru-RU/metadata/source_of_truth.md:21` through `appstore/fitchef/ru-RU/metadata/source_of_truth.md:22` restores the non-clinical RU boundary, and `tests/test_fitchef_app_store_pack.py:361` through `tests/test_fitchef_app_store_pack.py:395` keeps that explicit boundary guarded.
+
+- `Cubic-1879-4` - `FIXED`
+  - Commit: `c8f8fd7b4`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` and `tests/test_ios_appstore_asset_validators.py:353` through `tests/test_ios_appstore_asset_validators.py:370` align the production Fastlane semantic policy with the RU recipe-copy guard.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py` - 18 passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 55 passed
 - `make validate-changed` - 15 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
