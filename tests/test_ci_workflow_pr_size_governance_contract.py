@@ -11,6 +11,8 @@ from typing import cast
 
 import yaml
 
+from scripts.ci import ci_risk_profile
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ACTIONLINT_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "actionlint.yml"
 BUILD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "build.yml"
@@ -444,6 +446,53 @@ def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...
         assert (
             token in expression
         ), f"Missing token {token!r} in expression excerpt: {expression[:500]!r}"
+
+
+def _job_step_by_name(
+    workflow: dict[str, object],
+    *,
+    job_id: str,
+    step_name: str,
+) -> dict[str, object]:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[job_id]
+    assert isinstance(job, dict)
+    steps = job["steps"]
+    assert isinstance(steps, list)
+    for step in steps:
+        assert isinstance(step, dict)
+        if step.get("name") == step_name:
+            return step
+    raise AssertionError(f"missing step {step_name!r} in {job_id!r}")
+
+
+def _contract_suite_targets_by_group(
+    workflow: dict[str, object],
+    *,
+    job_id: str,
+) -> dict[str, tuple[str, ...]]:
+    step = _job_step_by_name(
+        workflow,
+        job_id=job_id,
+        step_name="Contract and risk suites",
+    )
+    run_script = step["run"]
+    assert isinstance(run_script, str)
+    case_match = re.search(r'case "\$group" in(?P<body>.*?)(?=^\s+\*\))', run_script, re.S | re.M)
+    assert case_match is not None, f"missing contract/risk case block in {job_id}"
+    case_body = case_match.group("body") + "\n              *)"
+    blocks: dict[str, tuple[str, ...]] = {}
+    for match in re.finditer(
+        r"^\s+(?P<group>[a-z_]+)\)\n(?P<body>.*?)(?=^\s+(?:[a-z_]+|\*)\))",
+        case_body,
+        re.S | re.M,
+    ):
+        group = match.group("group")
+        targets = tuple(re.findall(r"\btests/[^\s\\]+", match.group("body")))
+        assert targets, f"contract/risk group {group!r} in {job_id!r} has no test targets"
+        blocks[group] = targets
+    return blocks
 
 
 def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
@@ -1475,6 +1524,41 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
         in coverage_feature_step_names
     )
     assert "Upload to Codecov" in coverage_feature_step_names
+
+
+def test_ci_changes_outputs_cover_risk_profile_outputs() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    changes = jobs["changes"]
+    assert isinstance(changes, dict)
+    outputs = changes["outputs"]
+    assert isinstance(outputs, dict)
+
+    risk_output_keys = set(ci_risk_profile.build_risk_profile([]).to_outputs())
+
+    assert risk_output_keys.issubset(outputs)
+    assert (
+        outputs["operator_plane_slack"] == "${{ steps.risk_profile.outputs.operator_plane_slack }}"
+    )
+
+
+def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane() -> None:
+    workflow = _load_ci_workflow()
+    test_pr_groups = _contract_suite_targets_by_group(workflow, job_id="test-pr")
+    test_feature_groups = _contract_suite_targets_by_group(workflow, job_id="test-feature")
+    expected_slack_operator_targets = (
+        "tests/test_ci_risk_profile.py",
+        "tests/test_ci_workflow_pr_size_governance_contract.py",
+        "tests/test_experiment_operator_ledger.py",
+        "tests/test_experiment_slack_kpp_renderer.py",
+        "tests/test_experiment_slack_socket_bridge.py",
+        "tests/test_runtime_toolchain_alignment.py",
+    )
+
+    assert test_pr_groups == test_feature_groups
+    assert set(ci_risk_profile.ALL_RISK_GROUPS).issubset(test_pr_groups)
+    assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
 
 
 def test_ci_workflow_declares_canonical_main_and_feature_push_jobs() -> None:

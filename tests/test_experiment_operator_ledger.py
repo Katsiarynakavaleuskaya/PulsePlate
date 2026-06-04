@@ -1570,6 +1570,12 @@ def test_operator_plane_backlog_epic_documents_boundaries() -> None:
 
     assert "Experiment Runner Operator Plane & Slack Closeout" in section
     assert "no new Slack command is added in PR-1" in section
+    assert "PR-4" in section
+    assert "operator_plane_slack" in section
+    assert "not a required CI gate" in section
+    assert "closed / false / false / true" in section
+    assert "GraphRAG" in section
+    assert "HTTPS Slack ingress requires a separate reviewed PR" in section
     assert "product AI runtime" in section
     assert "food data" in section
     assert "semantic cache" in section
