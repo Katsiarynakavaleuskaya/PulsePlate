@@ -18,6 +18,16 @@ Disposition: FIXED
 Commit: a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4
 Evidence: `frontend/package.json` pins `react-router-dom` to `7.16.0`, and `frontend/package-lock.json` resolves both `node_modules/react-router-dom` and `node_modules/react-router` to `7.16.0`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354017046
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4 HEAD` exits 0 on branch head `6adc088730115fbb977bd0144ab057d0bd1ca64f`, proving the dependency-fix commit is in the real PR branch history.
+Reason: The review compared the mapping SHA to a synthetic reviewed commit surface (`70bda420`) that is not available as a real local branch object; the canonical implementation commit remains reachable from the branch being merged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354017054
+Disposition: NOT-A-BUG
+Evidence: `git rev-list origin/main..HEAD` returns branch commits `6adc088730115fbb977bd0144ab057d0bd1ca64f`, `65260c65d39923f43e272fbde75860fc58e0dbf2`, and `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`; `git show -s --format=%B <sha>` for each commit includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The reviewed synthetic SHA `70bda420` is not a real local branch commit, while every real branch commit carrying Experiment Runner-shaped evidence has the required trailer.
+
 ## Dependency Scope
 
 - Updated direct dependency: `react-router-dom` from `7.12.0` to `7.16.0`.
