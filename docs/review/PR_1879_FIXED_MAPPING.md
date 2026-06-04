@@ -7,7 +7,16 @@
 **Lane packet:** `artifacts/orchestration/task_packets/02875967a459.json`
 **Experiment Runner Evidence:** `artifacts/orchestration/experiments/results/fitchef_ru_appstore_pack_final_oracle.json`
 
-## Findings And Dispositions
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
   - Commit: `161992a7410bd177cd0a82810c339886ae110428`
@@ -42,12 +51,24 @@
 - `PM-RU-4` - `DEFERRED`
   - Backlog: `docs/roadmap/BACKLOG_LEDGER.md:3991` tracks native RU/ASO copy review before protected upload.
 
+- `QA-1879-1` - `FIXED`
+  - Evidence: `docs/review/PR_1879_FIXED_MAPPING.md` now uses the canonical `## Discussion Thread Pass` and `## Fixed in Commit Mapping` sections.
+
+- `QA-1879-2` - `FIXED`
+  - Evidence: The PR body mirror now uses `Packet:` lane provenance, checked discussion/mapping labels, and a concrete review-thread mapping entry.
+
+- `QA-1879-3` - `FIXED`
+  - Evidence: The PR body mirror now uses the required `## Tests` section.
+
+- `QA-1879-4` - `FIXED`
+  - Evidence: `docs/review/PR_1879_FIXED_MAPPING.md` and the PR body mirror use repo-relative validation commands, not local machine paths.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py` - 16 passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py` - 16 passed
 - `make validate-changed` - 13 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
