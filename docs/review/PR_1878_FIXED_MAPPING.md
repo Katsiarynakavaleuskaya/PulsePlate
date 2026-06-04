@@ -5,7 +5,8 @@
 **Scope:** Narrow main-CI guard-scanner hardening after run `26934350363`
 failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 `frontend/node_modules/@open-draft`.
-**Primary implementation commit:** `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
+**Implementation source commit:** `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
+**Branch-history proof commit:** `f1a272bf5a2daa531060d1d4033951555d590a73`
 
 ## Discussion Thread Pass
 
@@ -24,22 +25,24 @@ failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: a8f40d4bc
-Evidence: `docs/review/PR_1878_FIXED_MAPPING.md` now includes branch-history proof that implementation commit `6c05ec31cfb9b62af970e27f4791424f9486fcbc` is reachable from the PR branch and that its commit message carries the canonical Experiment Runner co-author trailer.
+Commit: f1a272bf5
+Evidence: `docs/review/PR_1878_FIXED_MAPPING.md` records GitHub API proof that implementation commit `6c05ec31cfb9b62af970e27f4791424f9486fcbc` is reachable from the PR branch and that its commit message carries the canonical Experiment Runner co-author trailer.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060599 -> a8f40d4bc
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060602 -> a8f40d4bc
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355106818 -> a8f40d4bc
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178562 -> a8f40d4bc
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178566 -> a8f40d4bc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060599 -> f1a272bf5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060602 -> f1a272bf5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355106818 -> f1a272bf5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178562 -> f1a272bf5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178566 -> f1a272bf5
 
 Disposition: NOT-A-BUG
 Evidence: On this PR branch, `git merge-base --is-ancestor 6c05ec31cfb9b62af970e27f4791424f9486fcbc HEAD` exits 0, and `git show -s --format=%B 6c05ec31cfb9b62af970e27f4791424f9486fcbc` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
-Reason: These comments evaluate stale reviewed heads `ab8a468fa4e84fd3d4247bd1bfb0eadf172ffabf` and `52b9d5f116e7cc903b32758e5457608d88218073`; the current PR branch history already contains the reachable implementation commit and required Experiment Runner trailer.
+Reason: These comments evaluate stale or synthetic reviewed heads `ab8a468fa4e84fd3d4247bd1bfb0eadf172ffabf`, `52b9d5f116e7cc903b32758e5457608d88218073`, and `d840140368c7b44fe605fd06eb7a259134602f01`; the current PR branch history already contains the reachable implementation commit and required Experiment Runner trailer.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355201751
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355201759
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355254195
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355319263
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355319266
 
 Disposition: NOT-A-BUG
 Evidence: GitHub API proof at disposition time: `gh pr view 1878 --json commits` includes both `6c05ec31cfb9b62af970e27f4791424f9486fcbc` and `a8f40d4bc81ccef8c68685d88f0f676234476c05`; `gh api repos/Katsiarynakavaleuskaya/PulsePlate/compare/a8f40d4bc...947524673f712cac8c58a271274a396ce7835edd` returns `status=ahead, behind_by=0`; `gh api repos/Katsiarynakavaleuskaya/PulsePlate/compare/6c05ec31cfb9b62af970e27f4791424f9486fcbc...947524673f712cac8c58a271274a396ce7835edd` returns `status=ahead, behind_by=0`.
@@ -79,7 +82,9 @@ where the repo checkout sits under a parent named `frontend`.
 
 ## Branch-History Proof
 
-- Current implementation proof commit:
+- Current branch-history proof commit:
+  `f1a272bf5a2daa531060d1d4033951555d590a73`.
+- Implementation source commit:
   `6c05ec31cfb9b62af970e27f4791424f9486fcbc`.
 - Branch-history check:
   `git merge-base --is-ancestor 6c05ec31cfb9b62af970e27f4791424f9486fcbc HEAD`
