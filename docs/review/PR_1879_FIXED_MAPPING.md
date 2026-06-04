@@ -19,6 +19,11 @@ Disposition: FIXED
 Commit: 8c69dfbd3
 Evidence: `docs/review/PR_1879_FIXED_MAPPING.md:10` now uses the canonical `## Discussion Thread Pass` section and `docs/review/PR_1879_FIXED_MAPPING.md:15` records the review-thread mapping entry with FIXED proof.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355262702 -> 029cb1f9c
+Disposition: FIXED
+Commit: 029cb1f9c
+Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:1` through `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:34` keep RU preview-script directions in Russian, and `tests/test_fitchef_app_store_pack.py:282` through `tests/test_fitchef_app_store_pack.py:301` guard against English storyboard boilerplate returning.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -70,13 +75,17 @@ Evidence: `docs/review/PR_1879_FIXED_MAPPING.md:10` now uses the canonical `## D
   - Evidence: `python3 scripts/ci/check_pr_size_governance.py --base-sha $(git rev-parse origin/main) --head-sha $(git rev-parse HEAD) --body "$(gh pr view 1879 --json body --jq .body)"` passed for `standard_governance_design` with 14 counted files, and `make validate-changed` passed 13 changed-scope backend tests.
   - Reason: The PulsePlate PR review dry run flagged a line-count review-risk advisory, but repo file-count policy is authoritative for this docs/governance lane. Splitting the RU pack contract away from its deterministic guards would create a weaker pack/test mismatch, while the PR body records scope, out-of-scope boundaries, tests, and split rationale.
 
+- `Cubic-1879-2` - `FIXED`
+  - Commit: `029cb1f9c`
+  - Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:1` through `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:34` translate the RU preview script operational directions, and `tests/test_fitchef_app_store_pack.py:282` through `tests/test_fitchef_app_store_pack.py:301` add a deterministic regression guard.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py` - 16 passed
-- `make validate-changed` - 13 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py` - 17 passed
+- `make validate-changed` - 14 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
