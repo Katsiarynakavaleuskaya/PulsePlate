@@ -52,7 +52,7 @@ Evidence: Codex review identified padded-digest mismatch, Slack status false-fai
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358130810
 Disposition: NOT-A-BUG
-Evidence: `git merge-base --is-ancestor b45ef0081 HEAD`, `git merge-base --is-ancestor add14ec5f HEAD`, and `git merge-base --is-ancestor c6edfefba HEAD` all returned exit code 0 on current branch head after `c6edfefba`.
+Evidence: `git merge-base --is-ancestor b45ef0081 HEAD`, `git merge-base --is-ancestor add14ec5f HEAD`, `git merge-base --is-ancestor c6edfefba HEAD`, and `git merge-base --is-ancestor d4a78bd50 HEAD` all returned exit code 0 on the current branch head; `git log --oneline --max-count=12` shows those commits in the PR branch ancestry.
 Reason: The review comment asserted that mapped fix commits were not ancestors of current head, but current branch history contains those commits.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358578692 -> d4a78bd50
@@ -81,7 +81,7 @@ Evidence: CodeRabbit identified a machine-local absolute path in the Codex Secur
   authority boundaries, manual `workflow_dispatch` Socket Mode scope, and no
   HTTPS ingress, Slack authority widening, semantic-cache rail, or product
   runtime change.
-- [x] Codex Security diff scan / finding discovery - completed; no findings. Report: `/tmp/codex-security-scans/BMI-App_2025_clean/pr1881-slack-operator-readiness/report.md`; HTML: `/tmp/codex-security-scans/BMI-App_2025_clean/pr1881-slack-operator-readiness/report.html`; validator passed.
+- [x] Codex Security diff scan / finding discovery - completed; no findings. Report and HTML evidence were local-only under a redacted temporary scan directory; validator passed with `$CODEX_SECURITY_PLUGIN_ROOT/scripts/validate_report_format.py --report-md <REDACTED_TMP>/codex-security-scans/BMI-App_2025_clean/pr1881-slack-operator-readiness/report.md`.
 - [x] `pulseplate-pr-review` - completed in dry-run/report mode. It raised one advisory large-diff planning note only.
 
 ## Advisory / Bot Dispositions

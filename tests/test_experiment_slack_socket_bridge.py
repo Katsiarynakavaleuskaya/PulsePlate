@@ -415,11 +415,11 @@ def test_activation_readiness_report_blocks_missing_secret_without_values(
     monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
     monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
 
-    assert bridge.main(["--activation-readiness-report"]) == 0
+    assert bridge.main(["--activation-readiness-report"]) == 1
     stdout = capsys.readouterr().out
     report = json.loads(stdout)
 
-    assert report["status"] == "pass"
+    assert report["status"] == "fail"
     assert report["activation_state"] == "blocked_by_missing_secret"
     assert report["slack_app_token_status"] == "missing"
     assert report["slack_bot_token_status"] == "valid"
@@ -445,11 +445,11 @@ def test_activation_readiness_report_blocks_allowlist_without_values(
     monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
     monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
 
-    assert bridge.main(["--activation-readiness-report"]) == 0
+    assert bridge.main(["--activation-readiness-report"]) == 1
     stdout = capsys.readouterr().out
     report = json.loads(stdout)
 
-    assert report["status"] == "pass"
+    assert report["status"] == "fail"
     assert report["activation_state"] == "blocked_by_allowlist"
     assert report["slack_app_token_status"] == "valid"
     assert report["slack_bot_token_status"] == "valid"
@@ -1667,7 +1667,7 @@ def test_status_command_reflects_latest_operator_ledger_event_after_processing(
     assert "feature/status-ledger" not in status_reply
     assert "Validate status ledger summary" not in status_reply
     assert "socket_mode_activation_state=blocked_by_missing_secret" in status_reply
-    assert "socket_mode_readiness_status=pass" in status_reply
+    assert "socket_mode_readiness_status=fail" in status_reply
     assert "manual_live_smoke=operator_evidence_only" in status_reply
     assert "deterministic_ci_requires_live_slack=false" in status_reply
     assert "opened_http_ingress=false" in status_reply
@@ -2966,8 +2966,16 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     presence_step = next(
         step for step in steps if step["name"] == "Validate live Socket Mode prerequisites"
     )
+    dry_config_step = next(
+        step
+        for step in steps
+        if step["name"] == "Validate dry-run bridge config without Slack network"
+    )
     input_step = next(
         step for step in steps if step["name"] == "Validate manual smoke inputs without raw echo"
+    )
+    retention_step = next(
+        step for step in steps if step["name"] == "Report local Slack audit retention policy"
     )
     dry_readiness_step = next(
         step
@@ -3071,8 +3079,14 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST=%s" in workflow_text
     assert "slack-bolt" not in workflow_text
     assert steps.index(mask_step) < steps.index(presence_step)
-    assert steps.index(input_step) < steps.index(dry_readiness_step)
-    assert steps.index(input_step) < steps.index(live_readiness_step)
+    assert steps.index(mask_step) < steps.index(dry_readiness_step)
+    assert steps.index(mask_step) < steps.index(live_readiness_step)
+    assert steps.index(dry_readiness_step) < steps.index(dry_config_step)
+    assert steps.index(live_readiness_step) < steps.index(dry_config_step)
+    assert steps.index(dry_readiness_step) < steps.index(input_step)
+    assert steps.index(live_readiness_step) < steps.index(input_step)
+    assert steps.index(dry_readiness_step) < steps.index(retention_step)
+    assert steps.index(live_readiness_step) < steps.index(retention_step)
     assert steps.index(live_readiness_step) < steps.index(presence_step)
     assert steps.index(mask_step) < steps.index(runtime_step)
     assert steps.index(dry_readiness_step) < steps.index(runtime_step)

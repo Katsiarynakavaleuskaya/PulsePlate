@@ -200,7 +200,13 @@ def build_activation_readiness_report(
         "smoke_input_requirement": "required" if require_smoke_inputs else "not_required",
         "status": (
             "fail"
-            if activation_state in {"blocked_by_invalid_config", "blocked_by_smoke_input"}
+            if activation_state
+            in {
+                "blocked_by_allowlist",
+                "blocked_by_invalid_config",
+                "blocked_by_missing_secret",
+                "blocked_by_smoke_input",
+            }
             else "pass"
         ),
     }
