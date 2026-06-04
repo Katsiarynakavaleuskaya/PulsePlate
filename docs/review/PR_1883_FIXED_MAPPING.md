@@ -39,12 +39,12 @@ because the role is not registered in the canonical inventory and
 
 ## Premortem Finding Closure
 
-| Finding | Disposition | Evidence |
-| --- | --- | --- |
-| Visual-QA prep could imply protected upload or release authority. | FIXED | `appstore/fitchef/ru-RU/iphone-6.9/visual_qa_prep.md`; `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_preserves_manual_no_upload_scope` |
-| RU prep could introduce blocked wellness, commercial, secret, or local-path terms. | FIXED | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_avoids_local_paths_and_blocked_claim_terms` |
-| RU pack could accidentally include screenshot or preview binaries. | FIXED | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_exists_and_pack_stays_text_only` |
-| Prep notes could drift from the governed seven-shot manifest and storyboard order. | FIXED | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_covers_manifest_and_storyboard_in_order` |
+| Finding | Disposition | Fix commit | Evidence |
+| --- | --- | --- | --- |
+| Visual-QA prep could imply protected upload or release authority. | FIXED | `2ad3e4793` | `appstore/fitchef/ru-RU/iphone-6.9/visual_qa_prep.md`; `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_preserves_manual_no_upload_scope` |
+| RU prep could introduce blocked wellness, commercial, secret, or local-path terms. | FIXED | `2ad3e4793` | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_avoids_local_paths_and_blocked_claim_terms` |
+| RU pack could accidentally include screenshot or preview binaries. | FIXED | `2ad3e4793` | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_exists_and_pack_stays_text_only` |
+| Prep notes could drift from the governed seven-shot manifest and storyboard order. | FIXED | `2ad3e4793` | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_covers_manifest_and_storyboard_in_order` |
 
 ## Experiment Runner Evidence
 
@@ -54,6 +54,10 @@ because the role is not registered in the canonical inventory and
 - Oracle command: `python -m pytest -q tests/test_fitchef_app_store_pack.py`
 - Oracle result: PASS in isolated checkout
 - Co-author trailer required: yes
+- Current branch trailer evidence:
+  - `2ad3e4793` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+  - `a6ee45ad2` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+  - `ef3d4a8f1` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 ## Discussion Thread Pass
 
