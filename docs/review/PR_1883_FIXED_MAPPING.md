@@ -68,7 +68,12 @@ No resolved PR review threads exist at artifact creation time.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359313567 -> c68ee747d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359313569 -> c68ee747d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359348960 -> c68ee747d
+Disposition: FIXED
+Commit: c68ee747d
+Evidence: `docs/review/PR_1883_FIXED_MAPPING.md` now records premortem FIXED commit proof and current branch Experiment Runner trailer evidence; `git log --format='%h %(trailers)' origin/main..HEAD` shows the governed trailer on current branch commits.
 
 ## Post-Open Review Requirements
 
