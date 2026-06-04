@@ -55,6 +55,17 @@ Evidence: Regression tests cover skipped dependency pruning, skipped generated
 walk errors, source walk error re-raise, and the absolute-parent false-skip case
 where the repo checkout sits under a parent named `frontend`.
 
+## Branch-History Proof
+
+- Current implementation proof commit:
+  `6c05ec31cfb9b62af970e27f4791424f9486fcbc`.
+- Branch-history check:
+  `git merge-base --is-ancestor 6c05ec31cfb9b62af970e27f4791424f9486fcbc HEAD`
+  exits 0 on the rebased PR branch.
+- Experiment Runner attribution check: `git show -s --format=%B
+  6c05ec31cfb9b62af970e27f4791424f9486fcbc` includes the canonical
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
+
 ## Role-Agent / Premortem Pass
 
 Pre-open role order completed from packet
