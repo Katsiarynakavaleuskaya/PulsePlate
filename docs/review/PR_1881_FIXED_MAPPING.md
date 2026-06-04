@@ -69,6 +69,11 @@ Disposition: FIXED
 Commit: 92135cd5a
 Evidence: Codex review identified stale fixed-mapping ancestry proof, partial-live-readiness false-pass behavior, local temporary scan paths in committed evidence, and readiness diagnostics running after fail-fast validators. `docs/review/PR_1881_FIXED_MAPPING.md` now uses current branch ancestry evidence and redacted local-scan labels, `scripts/orchestration/experiment_slack_bridge_readiness.py` marks `blocked_by_missing_secret` and `blocked_by_allowlist` as `status=fail`, `.github/workflows/experiment-runner-slack-socket-smoke.yml` emits activation-readiness JSON before fail-fast validators, and `tests/test_experiment_slack_socket_bridge.py` covers the changed status and workflow order.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358939409 -> 4921d3e5b
+Disposition: FIXED
+Commit: 4921d3e5b
+Evidence: Codex review identified overly broad Experiment Runner attribution wording. `docs/review/PR_1881_FIXED_MAPPING.md` now says the co-author trailer was applied only to commits materially shaped by the oracle-only Experiment Runner review, while bot-review-only follow-up commits omit the trailer when the runner did not shape that specific commit decision.
+
 ## Premortem Findings
 
 - Disposition: FIXED
