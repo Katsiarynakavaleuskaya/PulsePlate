@@ -26,15 +26,34 @@ backend/OpenAPI/iOS/frontend runtime changes, or new Slack authority.
 
 ### Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3357634371 -> b45ef0081
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3357634373 -> b45ef0081
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#pullrequestreview-4429827392 -> b45ef0081
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3357659032 -> b45ef0081
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3357659040 -> b45ef0081
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3357659045 -> b45ef0081
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3357659049 -> b45ef0081
 Disposition: FIXED
 Commit: `b45ef0081`
 Evidence: cubic identified readiness false-green and workflow-summary risks. `scripts/orchestration/experiment_slack_bridge_readiness.py` now rejects padded hypothesis digests, reports `blocked_by_smoke_input` with `status=fail`, and includes explicit false authority anchors in the summary. `.github/workflows/experiment-runner-slack-socket-smoke.yml` now preserves the readiness CLI exit code while still printing/writing sanitized summary labels. `tests/test_experiment_slack_socket_bridge.py` covers padded digest rejection, unchecked smoke-input failure, workflow summary-on-failure plumbing, and status false-authority anchors. `docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md` and `docs/roadmap/BACKLOG_LEDGER.md` document `blocked_by_smoke_input`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#pullrequestreview-4430357172 -> add14ec5f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358026820 -> add14ec5f
 Disposition: FIXED
 Commit: `add14ec5f`
 Evidence: CodeRabbit identified a missing renderer contract row for `blocked_by_invalid_config`. `tests/test_experiment_operator_ledger.py` now includes `blocked_by_invalid_config` in `test_operator_observability_report_renders_activation_readiness_states`, and `.venv/bin/python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` plus `make validate-changed` passed after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358059286 -> c6edfefba
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358059287 -> c6edfefba
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358059288 -> c6edfefba
+Disposition: FIXED
+Commit: `c6edfefba`
+Evidence: Codex review identified padded-digest mismatch, Slack status false-fail on absent manual smoke inputs, and secret exposure risk in the default dry-run readiness workflow step. `scripts/orchestration/experiment_slack_bridge_transport.py` now rejects padded smoke-input digests, `scripts/orchestration/experiment_slack_socket_bridge.py` renders status readiness with manual smoke inputs not required, and `.github/workflows/experiment-runner-slack-socket-smoke.yml` splits the default no-secret readiness step from the secret-bearing `dry_run=false` live readiness step. `tests/test_experiment_slack_socket_bridge.py` covers all three cases, and `make validate-changed` passed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358130810
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor b45ef0081 HEAD`, `git merge-base --is-ancestor add14ec5f HEAD`, and `git merge-base --is-ancestor c6edfefba HEAD` all returned exit code 0 on current branch head after `c6edfefba`.
+Reason: The review comment asserted that mapped fix commits were not ancestors of current head, but current branch history contains those commits.
 
 ## Premortem Findings
 
