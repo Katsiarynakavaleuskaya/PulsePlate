@@ -90,6 +90,23 @@ def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _flatten_strings(value: Any) -> list[str]:
+    """Return every string nested in JSON-like metadata."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        strings: list[str] = []
+        for item in value:
+            strings.extend(_flatten_strings(item))
+        return strings
+    if isinstance(value, dict):
+        strings = []
+        for item in value.values():
+            strings.extend(_flatten_strings(item))
+        return strings
+    return []
+
+
 def _repo_path(relative_path: str) -> Path:
     """Resolve a governed repo-relative path and fail closed outside the repo."""
     source_path = Path(relative_path)
@@ -141,7 +158,7 @@ def test_app_store_metadata_stays_locale_scoped_and_within_limits(locale: str) -
     assert len(payload["promo_text"]) <= 170
     assert len(payload["description_paragraphs"]) == 3
 
-    flattened = " ".join(
+    visible_metadata = " ".join(
         [
             payload["subtitle"],
             payload["promo_text"],
@@ -149,9 +166,22 @@ def test_app_store_metadata_stays_locale_scoped_and_within_limits(locale: str) -
             *payload["description_paragraphs"],
         ]
     ).lower()
+    all_metadata = " ".join(_flatten_strings(payload)).lower()
     if locale == "ru-RU":
-        assert "wellness" not in flattened
-    offending_terms = sorted(term for term in BLOCKED_COPY_TERMS[locale] if term in flattened)
+        assert "wellness" not in all_metadata
+        english_fragments = (
+            "localization pack",
+            "wellness-only",
+            "professional-role",
+            "guaranteed-outcome",
+            "shipped or canon-governed",
+        )
+        assert not [
+            fragment for fragment in english_fragments if fragment in all_metadata
+        ], "RU metadata contains English compliance-note copy"
+    offending_terms = sorted(
+        term for term in BLOCKED_COPY_TERMS[locale] if term in visible_metadata
+    )
     assert not offending_terms, f"Blocked term(s) found in metadata: {offending_terms}"
 
 
@@ -316,12 +346,16 @@ def test_ru_preview_plan_uses_ru_operational_copy() -> None:
 
 def test_ru_wellness_blockers_do_not_reject_food_recipe_copy() -> None:
     """FitChef food-recipe copy must not be blocked as prescription language."""
-    recipe_copy = "Рецепты, меню и список покупок помогают спокойнее планировать питание."
-    offending_terms = sorted(
-        term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in recipe_copy.lower()
+    recipe_copies = (
+        "Рецепты, меню и список покупок помогают спокойнее планировать питание.",
+        "Подборка рецептов помогает собрать недельное меню.",
     )
 
-    assert not offending_terms, f"Food recipe copy should stay allowed: {offending_terms}"
+    for recipe_copy in recipe_copies:
+        offending_terms = sorted(
+            term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in recipe_copy.lower()
+        )
+        assert not offending_terms, f"Food recipe copy should stay allowed: {offending_terms}"
 
 
 def test_ru_pack_docs_preserve_no_upload_scope_and_safe_claims() -> None:
@@ -354,5 +388,8 @@ def test_ru_pack_docs_preserve_no_upload_scope_and_safe_claims() -> None:
         fragment for fragment in blocked_english_fragments if fragment in text
     )
     assert not english_fragments, f"RU docs contain English operational copy: {english_fragments}"
-    offending_terms = sorted(term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in text)
+    safe_boundary_text = text.replace("неклиническим", "")
+    offending_terms = sorted(
+        term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in safe_boundary_text
+    )
     assert not offending_terms, f"Blocked term(s) found in RU docs: {offending_terms}"

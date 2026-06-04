@@ -18,8 +18,8 @@
     "FitChef добавляет дружелюбные подсказки на основе данных PulsePlate: без шума, фейковых экранов и обещаний результата."
   ],
   "compliance_notes": [
-    "App Store RU localization pack only",
-    "Wellness-only copy with no professional-role or guaranteed-outcome claims",
-    "All copy must stay grounded in shipped or canon-governed product capability"
+    "Только локализационный пакет App Store для ru-RU",
+    "Текст для повседневной поддержки без профессионального позиционирования, лечебного фрейминга или обещаний результата",
+    "Весь текст опирается на уже поставленные или канонически управляемые возможности продукта"
   ]
 }
