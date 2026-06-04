@@ -9,6 +9,8 @@ failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Initial fixed-mapping artifact created after PR #1878 opened.
 - [x] PR body includes Discussion Thread Pass, Fixed in Commit Mapping, and
   Merge Readiness sections.
@@ -20,6 +22,10 @@ failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 - [ ] `pulseplate-pr-review` pending.
 
 ## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Mapping Update Protocol
 
 No GitHub review threads have been resolved or mapped yet.
 
