@@ -136,6 +136,7 @@ def render_operator_status_message(
     config: BridgeConfig,
     *,
     operator_ledger_summary: tuple[str, ...] = (),
+    activation_readiness_summary: tuple[str, ...] = (),
 ) -> SlackSafeMessage:
     """Render sanitized bridge status without exposing runtime IDs or tokens."""
 
@@ -143,6 +144,12 @@ def render_operator_status_message(
         "operator_ledger_status=absent",
         "operator_ledger_scope=local_only",
         "operator_ledger_authority=display_only",
+    )
+    readiness_summary = activation_readiness_summary or (
+        "socket_mode_activation_state=manual_only",
+        "socket_mode_readiness_status=pass",
+        "manual_live_smoke=operator_evidence_only",
+        "activation_authority=display_only",
     )
     return SlackSafeMessage(
         message_type="operator_status",
@@ -162,6 +169,7 @@ def render_operator_status_message(
             f"team_allowlist_present={str(bool(config.allowed_teams)).lower()}",
             f"rate_limit_seconds={config.min_interval_seconds}",
             f"audit_retention_days={config.audit_retention_days}",
+            *readiness_summary,
             *ledger_summary,
         ),
         action_required="Keep dry-run unless a reviewed PR promotes bounded execution.",

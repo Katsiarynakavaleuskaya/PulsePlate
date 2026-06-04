@@ -1236,6 +1236,8 @@ def test_operator_ledger_cli_writes_empty_observability_report_set(
     assert output["status"] == "written"
     assert json_report["event_count"] == 0
     assert json_report["latest"] is None
+    assert json_report["activation_readiness"]["activation_state"] == "manual_only"
+    assert json_report["activation_readiness"]["manual_live_smoke"] == "operator_evidence_only"
     assert json_report["by_status"] == {}
     assert json_report["by_dispatch_mode"] == {}
     assert json_report["by_failure_class"] == {}
@@ -1262,8 +1264,64 @@ def test_operator_ledger_cli_writes_empty_observability_report_set(
         "slack_ids_stored": False,
         "token_prefixes_stored": False,
     }
+    assert "Activation Readiness" in markdown
+    assert "socket_mode_activation_state" in rendered
+    assert "manual_live_smoke" in rendered
     assert "- Event count: `0`" in markdown
     assert "<p>none</p>" in html
+    assert str(tmp_path) not in rendered
+    _assert_no_raw_leak(rendered)
+
+
+@pytest.mark.parametrize(
+    "activation_state",
+    (
+        "ready_for_manual_live_smoke",
+        "blocked_by_missing_secret",
+        "blocked_by_allowlist",
+        "blocked_by_smoke_input",
+        "blocked_by_invalid_config",
+        "manual_only",
+    ),
+)
+def test_operator_observability_report_renders_activation_readiness_states(
+    tmp_path: Path,
+    activation_state: str,
+) -> None:
+    activation_readiness = {
+        "activation_state": activation_state,
+        "audit_retention_status": "valid",
+        "branch_ref_status": "valid",
+        "channel_allowlist_status": "present",
+        "hypothesis_sha256_status": "valid",
+        "manual_live_smoke": "operator_evidence_only",
+        "slack_app_token_status": "valid",
+        "slack_bot_token_status": "valid",
+        "status": "pass",
+        "team_allowlist_status": "present",
+        "user_allowlist_status": "present",
+    }
+
+    report = ledger.build_operator_observability_report(
+        repo_root=tmp_path,
+        activation_readiness=activation_readiness,
+    )
+    rendered = (
+        json.dumps(report, sort_keys=True)
+        + ledger.render_operator_observability_markdown(report)
+        + ledger.render_operator_observability_html(report)
+    )
+
+    assert report["activation_readiness"]["activation_state"] == activation_state
+    assert "socket_mode_activation_state" in rendered
+    assert activation_state in rendered
+    assert "activation_authority" in rendered
+    assert "display_only" in rendered
+    assert "deterministic_ci_requires_live_slack" in rendered
+    assert "opened_http_ingress" in rendered
+    assert "semantic_cache_enabled" in rendered
+    assert "claimed_merge_readiness" in rendered
+    assert "operator_evidence_only" in rendered
     assert str(tmp_path) not in rendered
     _assert_no_raw_leak(rendered)
 

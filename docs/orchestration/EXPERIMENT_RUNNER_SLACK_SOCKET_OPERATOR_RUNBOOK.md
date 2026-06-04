@@ -89,8 +89,29 @@ Manual live smoke is operator evidence only. It is not a required CI gate, not m
 and not a substitute for the deterministic no-secret Slack/Experiment Runner
 operator-plane CI gate.
 
+Operator evidence and advisory summaries are not optional when a PR packet,
+runbook, or merge-readiness rule declares them as required. The word
+`advisory` only limits authority: these artifacts cannot create PRs, resolve
+review threads, prove merge readiness, or replace GitHub/current-head truth.
+
 For config-only validation, keep `dry_run` as `true`. This validates the bridge
 without Slack network access.
+
+For redacted Socket Mode activation readiness, run:
+
+```bash
+python3 -m scripts.orchestration.experiment_slack_socket_bridge --activation-readiness-report
+```
+
+The report is config-only and label-only. It may emit
+`ready_for_manual_live_smoke`, `blocked_by_missing_secret`,
+`blocked_by_allowlist`, `blocked_by_smoke_input`,
+`blocked_by_invalid_config`, or `manual_only`, plus `present` / `missing` /
+`valid` / `invalid` / `not_checked` status labels for token class shape,
+runtime allowlists, smoke input shape, and audit retention.
+It must not print raw Slack IDs, token values, token prefixes, raw branch refs,
+raw hypotheses, approval digests, Slack payloads, workflow logs, local paths,
+provider logs, oracle output, or patch text.
 
 For bounded live-smoke validation, set `dry_run` to `false` and provide:
 
@@ -109,6 +130,13 @@ exit code for that check; it does not print a secret-presence payload. The
 diagnostic must not print secret values, token prefixes, raw channel/user IDs,
 raw hypotheses, local absolute paths, Slack payload bodies, GitHub tokens,
 oracle stdout/stderr, or patch text.
+
+The default `dry_run: true` activation-readiness workflow step is no-secret: it
+does not pass live Slack app or bot tokens to the checked-out branch. Before
+`dry_run: false` live checks, a separate live-only readiness step records the
+sanitized activation-readiness summary in `GITHUB_STEP_SUMMARY`. That summary is
+operator evidence only and does not replace GitHub Actions/current-head truth,
+review thread disposition, fixed mapping, or merge-readiness gates.
 
 The live-smoke network check is bounded and exits. It validates the app-level
 Socket Mode credential by opening a temporary Socket Mode connection URL with
@@ -137,6 +165,22 @@ Live smoke activation is a runtime configuration check, not a repository
 authority grant. `SLACK_APP_TOKEN` must be an `xapp-` app-level Socket Mode
 token, `SLACK_BOT_TOKEN` must be an `xoxb-` bot token, and channel, user, and
 workspace/team allowlists must be supplied at workflow dispatch time.
+
+The readiness report has these operator-facing states:
+
+- `manual_only`: no runtime secrets or allowlists are supplied; deterministic
+  no-secret checks can still pass.
+- `blocked_by_missing_secret`: one or more required runtime token variables are
+  absent while the operator is trying to activate live smoke.
+- `blocked_by_allowlist`: runtime token class shape is valid, but one or more
+  required channel, user, or workspace/team allowlists are absent.
+- `blocked_by_smoke_input`: runtime token class shape and allowlists are valid,
+  but the branch reference or hypothesis digest shape has not been checked.
+- `blocked_by_invalid_config`: a token class, allowlist, smoke input, or audit
+  retention value is malformed.
+- `ready_for_manual_live_smoke`: app token class, bot token class, channel
+  allowlist, user allowlist, workspace/team allowlist, smoke inputs, and audit
+  retention shape are all valid for a manual bounded live-smoke run.
 
 If live smoke reports an invalid token class, treat it as an operator secret
 configuration issue outside the repository. A later passing manual live smoke
@@ -255,6 +299,13 @@ status, failure class, mutated-path count, shared-tree untouched,
 promotion-ready, contribution kind, and co-author-required state. Latest-event
 report summaries include dispatch mode, co-author decision/required state, and
 human review outcome as display-only operator evidence.
+
+The observability report includes an `Activation Readiness` section with the
+same label-only status projection used by `/pulseplate-runner status`. By
+default, local report generation records `manual_only` and does not silently
+probe runtime secrets or Slack workspace state. A caller may supply a redacted
+readiness projection for operator evidence, but the report remains local-only
+and advisory.
 
 The ledger and report must not store raw Slack text, Slack channel/user/team
 IDs, trigger IDs, raw branch refs, raw hypotheses, local absolute paths, health

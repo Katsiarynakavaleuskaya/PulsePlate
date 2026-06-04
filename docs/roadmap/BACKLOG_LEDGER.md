@@ -28,8 +28,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Experiment Runner Operator Plane & Slack Closeout
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-4 (`codex/slack-operator-ci-live-smoke`)
-  - Status: Active as of 2026-06-04 under operator-approved lane-start override while current `main` CI is monitored by the operator. PR-4 scope is deterministic no-secret Slack operator-plane CI gating, manual live-smoke activation wording, and semantic-cache gate recheck only.
+  - Target PR: PR #1880 merged baseline; next slice `codex/slack-operator-observability-report`
+  - Status: PR #1880 merged on 2026-06-04 as the deterministic no-secret Slack operator-plane CI gate, manual live-smoke activation wording, and semantic-cache gate recheck baseline. Current slice is Socket Mode activation readiness: redacted readiness CLI/status/report/workflow diagnostics only, with no HTTPS ingress, semantic cache, GraphRAG, product runtime, or new Slack authority.
   - Area: orchestration / Experiment Runner / Slack operator plane / local observability
   - Reason (EN): Finish the Experiment Runner as a Slack-first operator plane without widening product AI runtime, food data, semantic cache, CBT/coaching runtime, frontend MVP, or merge/review authority. Operators need bounded dry-run/approved dispatch visibility, redacted failure/status summaries, and local evidence reports that stay advisory until promoted through repo-reviewed governance.
   - Links:
@@ -44,12 +44,14 @@ If it is not recorded here — it does not exist.
     - PR-1: local operator ledger/report contract, existing Slack status summary hook, runbook/backlog/tests, no command-surface widening
     - PR-2: optional bounded live-smoke evidence exercise if operator secrets and allowlists are available
     - PR-3: optional dashboard/report polish only if it remains local/dev-only under `artifacts/` with committed scripts/tests/docs only
-    - PR-4: deterministic `operator_plane_slack` CI risk group and contract suite, manual live-smoke operator evidence wording, current activation diagnostics, semantic-cache gate recheck remains closed
+    - PR-4: deterministic `operator_plane_slack` CI risk group and contract suite, manual live-smoke operator evidence wording, current activation diagnostics, semantic-cache gate recheck remains closed (merged as PR #1880)
+    - PR-5: Socket Mode activation-readiness CLI/status/report/workflow diagnostics; live smoke remains manual operator evidence only, no HTTPS ingress, no semantic cache, no GraphRAG, no product runtime changes, and no new Slack authority
   - Out of scope: product AI runtime, backend API, OpenAPI, DB migrations, food data, semantic cache, GraphRAG, CBT/coaching runtime, frontend MVP, iOS, PR creation, review-thread resolution, fixed-mapping authority, merge-readiness authority, arbitrary workflow dispatch, HTTPS Slack ingress, and Slack/Git identity expansion.
   - DoD:
     - Slack remains operator-only, dry-run-first, allowlisted, secret-backed, and redacted.
     - Deterministic CI routes Slack/Experiment Runner operator-plane changes through `operator_plane_slack` without live Slack secrets, raw Slack IDs/text, workflow logs, local paths, or token values.
     - Manual live smoke remains `workflow_dispatch` operator evidence only; it is not a required CI gate, not merge-readiness proof, and requires runtime `SLACK_APP_TOKEN` app-level Socket Mode token, `SLACK_BOT_TOKEN` bot token, and channel/user/team allowlists.
+    - Socket Mode activation readiness reports only `ready_for_manual_live_smoke`, `blocked_by_missing_secret`, `blocked_by_allowlist`, `blocked_by_smoke_input`, `blocked_by_invalid_config`, or `manual_only` plus value-free `present` / `missing` / `valid` / `invalid` / `not_checked` labels for token class shape, allowlists, smoke input shape, audit retention, and authority boundaries.
     - `/pulseplate-runner status` can include the latest local operator ledger summary when present; no new Slack command is added in PR-1.
     - Local operator ledger records only schema/policy version, task packet id, dispatch mode, fixed workflow file/ref, hashes, safe artifact refs, failure class, co-author decision, and human review outcome.
     - Ledger/report artifacts are local-only under `artifacts/orchestration/experiments/` and must not include raw Slack text, Slack IDs, local absolute paths, health data, provider logs, approval digests, token prefixes, oracle stdout/stderr, raw branch refs, raw hypotheses, or patch text.

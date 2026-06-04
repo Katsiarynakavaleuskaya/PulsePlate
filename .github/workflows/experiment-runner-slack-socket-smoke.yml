@@ -84,6 +84,79 @@ jobs:
         with:
           python-version: "3.13.6"
 
+      - name: Report Socket Mode activation readiness without live secrets
+        if: inputs.dry_run != 'false'
+        env:
+          EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
+          EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
+          EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
+        run: |
+          set -euo pipefail
+          set +e
+          report_json="$(python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --activation-readiness-report)"
+          readiness_status=$?
+          set -e
+          printf '%s\n' "$report_json"
+          REPORT_JSON="$report_json" python3 - <<'PY'
+          import json
+          import os
+
+          from scripts.orchestration.experiment_slack_socket_bridge import (
+              render_activation_readiness_summary,
+          )
+
+          report = json.loads(os.environ["REPORT_JSON"])
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("### Experiment Runner Slack activation readiness\n")
+              # Includes deterministic_ci_requires_live_slack, opened_http_ingress,
+              # semantic_cache_enabled, product_runtime_changed, and
+              # claimed_merge_readiness false anchors.
+              for item in render_activation_readiness_summary(report):
+                  key, value = item.split("=", 1)
+                  summary.write(f"- {key}: {value}\n")
+          PY
+          exit "$readiness_status"
+
+      - name: Report Socket Mode activation readiness for live smoke
+        if: inputs.dry_run == 'false'
+        env:
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST: ${{ inputs.team_allowlist }}
+          EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
+          EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
+          EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
+        run: |
+          set -euo pipefail
+          set +e
+          report_json="$(python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --activation-readiness-report)"
+          readiness_status=$?
+          set -e
+          printf '%s\n' "$report_json"
+          REPORT_JSON="$report_json" python3 - <<'PY'
+          import json
+          import os
+
+          from scripts.orchestration.experiment_slack_socket_bridge import (
+              render_activation_readiness_summary,
+          )
+
+          report = json.loads(os.environ["REPORT_JSON"])
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("### Experiment Runner Slack activation readiness\n")
+              # Includes deterministic_ci_requires_live_slack, opened_http_ingress,
+              # semantic_cache_enabled, product_runtime_changed, and
+              # claimed_merge_readiness false anchors.
+              for item in render_activation_readiness_summary(report):
+                  key, value = item.split("=", 1)
+                  summary.write(f"- {key}: {value}\n")
+          PY
+          exit "$readiness_status"
+
       - name: Validate dry-run bridge config without Slack network
         env:
           EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
