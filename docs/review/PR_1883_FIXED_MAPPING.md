@@ -57,6 +57,8 @@ because the role is not registered in the canonical inventory and
   decisions for this lane, so authored branch commits use the governed trailer
   defined by `AGENTS.md:374-375`. Verification command:
   `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD`.
+  GitHub PR commits API also lists the authored PR branch commits, including
+  `2ad3e4793` and current head `4949a9895`, with the Experiment Runner author.
   GitHub synthetic review refs such as `refs/pull/*/merge` are not authored
   branch commits and are not attribution targets.
 
@@ -99,6 +101,16 @@ Reason: The reviewed SHA is a GitHub synthetic review ref, not an authored branc
 Disposition: NOT-A-BUG
 Evidence: Repo governance validates review-thread dispositions against authored PR branch commits; `GH_TOKEN=$(gh auth token) python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1883 --require-auth` passed for prior resolved threads, and `c68ee747d` is present in the PR branch history.
 Reason: The comment used a GitHub synthetic reviewed commit as the ancestry root. The canonical branch history, not the synthetic review ref, is the source of truth for fixed-mapping commit proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359484705
+Disposition: NOT-A-BUG
+Evidence: `gh pr view 1883 --json commits --jq '.commits[] | {oid:.oid, messageHeadline:.messageHeadline, authors:.authors}'` lists `2ad3e4793` as a PR branch commit and `git merge-base --is-ancestor 2ad3e4793 HEAD` exits `0`.
+Reason: The reviewed SHA `b7ffad2` is not present in the authored PR branch history. The canonical PR commits, not that synthetic/single-parent reviewed SHA, are the source of truth for FIXED proof reachability.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359484706
+Disposition: NOT-A-BUG
+Evidence: GitHub PR commits API lists current head `4949a9895` with author entry `PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD` shows the governed trailer on authored branch commits.
+Reason: The reviewed SHA `b7ffad2` is not present in the authored PR branch history. The Experiment Runner attribution invariant applies to authored branch commits materially shaped by the runner, and those commits carry the required trailer.
 
 ## Post-Open Role-Agent Findings
 
