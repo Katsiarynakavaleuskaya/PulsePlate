@@ -53,6 +53,11 @@ Disposition: FIXED
 Commit: a9999242e
 Evidence: duplicate mapping entries for the backlog and runtime-toolchain comments were grouped under one shared Disposition/Commit/Evidence block per finding family.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#pullrequestreview-4427230255
+Disposition: NOT-A-BUG
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` keeps `_contract_suite_targets_by_group` scoped to the existing `Contract and risk suites` shell step, uses explicit job/step lookup, asserts every parsed group has test targets, compares `test-pr` and `test-feature`, and verifies `operator_plane_slack` coverage against `ci_risk_profile.ALL_RISK_GROUPS`.
+Reason: extracting CI contract-suite dispatch into a new script or structured format is broader than PR-4 and would widen the operator-plane gate; the current parser guard is intentionally narrow regression coverage for the existing workflow shape.
+
 ## Premortem Findings
 
 - Disposition: FIXED
