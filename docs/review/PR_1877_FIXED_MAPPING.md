@@ -3,7 +3,7 @@
 **Title:** `fix(deps): update react router security baseline`
 **Branch:** `codex/react-router-7-16-security-update`
 **Scope:** Governed replacement for stale Dependabot PR #1876, updating only `frontend/package.json` and `frontend/package-lock.json` so `react-router-dom` and transitive `react-router` resolve to `7.16.0`.
-**Primary commit:** `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`
+**Dependency implementation commit:** `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`; verified as an ancestor of the real PR branch head during post-open review.
 
 ## Discussion Thread Pass
 
@@ -12,11 +12,6 @@
 - [x] Post-open bot/human review disposition completed
 
 ## Fixed in Commit Mapping
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877 -> a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4
-Disposition: FIXED
-Commit: a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4
-Evidence: `frontend/package.json` pins `react-router-dom` to `7.16.0`, and `frontend/package-lock.json` resolves both `node_modules/react-router-dom` and `node_modules/react-router` to `7.16.0`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354017046
 Disposition: NOT-A-BUG
@@ -27,6 +22,22 @@ Reason: The review compared the mapping SHA to a synthetic reviewed commit surfa
 Disposition: NOT-A-BUG
 Evidence: `git rev-list origin/main..HEAD` returns branch commits `6adc088730115fbb977bd0144ab057d0bd1ca64f`, `65260c65d39923f43e272fbde75860fc58e0dbf2`, and `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`; `git show -s --format=%B <sha>` for each commit includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 Reason: The reviewed synthetic SHA `70bda420` is not a real local branch commit, while every real branch commit carrying Experiment Runner-shaped evidence has the required trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354043481
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4 HEAD` exits 0 on the real PR branch, and `git show 124362a71dffed98d973c31946c0485ef1f380c8` is not a local branch object.
+Reason: The review repeated the synthetic reviewed-commit comparison. The dependency implementation commit is reachable from the real branch history, and the canonical mapping no longer uses a PR-level FIXED SHA entry that could be confused with the synthetic reviewed surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354043486
+Disposition: NOT-A-BUG
+Evidence: `git rev-list origin/main..HEAD` shows every real PR branch commit carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`; `124362a71dffed98d973c31946c0485ef1f380c8` is a synthetic reviewed surface, not the branch commit sequence.
+Reason: The Experiment Runner attribution invariant applies to the real branch commits that will be squashed/merged. The synthetic reviewed surface is not authored or merged as a branch commit.
+
+## Implementation Evidence
+
+Disposition: FIXED
+Commit: `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`
+Evidence: `frontend/package.json` pins `react-router-dom` to `7.16.0`, and `frontend/package-lock.json` resolves both `node_modules/react-router-dom` and `node_modules/react-router` to `7.16.0`.
 
 ## Dependency Scope
 
@@ -67,8 +78,8 @@ Post-open role order completed:
 - Packet: `artifacts/orchestration/experiments/exp-b2c2e7aeb5a1.json`
 - Artifact: `artifacts/orchestration/experiments/results/exp-b2c2e7aeb5a1.json`
 - Mode: `oracle_only_governance_reviewer`
-- Result: accepted; 4/4 oracle commands passed; `mutated_paths=[]`; `coauthor_required=true`.
-- Commit trailer used on `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Result: accepted; 4/4 oracle commands passed; `mutated_paths=[]`; Experiment Runner attribution was required and every real PR branch commit carries the governed trailer.
+- Trailer evidence: `git rev-list origin/main..HEAD` plus `git show -s --format=%B <sha>` shows `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on each branch commit.
 
 ## Lane Start Provenance
 
