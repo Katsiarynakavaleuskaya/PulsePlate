@@ -114,6 +114,26 @@ Disposition: FIXED
 Commit: 8de6bbc9b
 Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` cover `рецепты` in prescription-medicine context, and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:400` prove plural RU prescription phrasing is blocked without rejecting ordinary food recipes.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356269669 -> e1cf1042b
+Disposition: FIXED
+Commit: e1cf1042b
+Evidence: `appstore/fitchef/ru-RU/metadata/upload_checklist.md:4` replaces the ambiguous `iPhone 6.9"` label with the balanced `iPhone 6.9-inch` wording.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356269693 -> e1cf1042b
+Disposition: FIXED
+Commit: e1cf1042b
+Evidence: `ios/fastlane/verify/semantic_policy.rb:17` through `ios/fastlane/verify/semantic_policy.rb:18` cover both prescription-to-medicine and medicine-to-prescription RU word order, and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:403` prove reversed forms such as `Лекарства по рецепту` and `Таблетки по рецепту врача` are blocked.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356269702 -> e1cf1042b
+Disposition: FIXED
+Commit: e1cf1042b
+Evidence: `tests/test_fitchef_app_store_pack.py:333` through `tests/test_fitchef_app_store_pack.py:367` now normalizes preview-plan text and English fragments to lowercase before detecting leaked English storyboard boilerplate.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#pullrequestreview-4428145876 -> e1cf1042b
+Disposition: FIXED
+Commit: e1cf1042b
+Evidence: The three actionable CodeRabbit inline findings in review `4428145876` are mapped above to `e1cf1042b` with file and test evidence for the checklist label, reversed RU prescription wording, and case-insensitive English-fragment guard.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -241,13 +261,29 @@ Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/veri
   - Commit: `8de6bbc9b`
   - Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` plus `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:400` cover plural `рецепты` prescription-medicine phrasing.
 
+- `CodeRabbit-1879-1` - `FIXED`
+  - Commit: `e1cf1042b`
+  - Evidence: `appstore/fitchef/ru-RU/metadata/upload_checklist.md:4` uses balanced `iPhone 6.9-inch` wording for the RU upload checklist device label.
+
+- `CodeRabbit-1879-2` - `FIXED`
+  - Commit: `e1cf1042b`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:17` through `ios/fastlane/verify/semantic_policy.rb:18` and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:403` cover reversed RU medicine-to-prescription wording.
+
+- `CodeRabbit-1879-3` - `FIXED`
+  - Commit: `e1cf1042b`
+  - Evidence: `tests/test_fitchef_app_store_pack.py:333` through `tests/test_fitchef_app_store_pack.py:367` makes the RU preview English-fragment guard case-insensitive.
+
+- `CodeRabbit-1879-4` - `FIXED`
+  - Commit: `e1cf1042b`
+  - Evidence: Review summary `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#pullrequestreview-4428145876` is covered by the three inline CodeRabbit FIXED mappings above.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 64 passed
-- `make validate-changed` - 61 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 67 passed
+- `make validate-changed` - 64 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
