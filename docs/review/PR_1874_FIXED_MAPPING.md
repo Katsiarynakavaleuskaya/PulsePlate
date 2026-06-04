@@ -84,6 +84,11 @@ Disposition: FIXED
 Commit: 7bca65ce58e98ea435531233ed3e666e46a02180
 Evidence: The repeated GitHub Advanced Security CodeQL alert after the initial stdout guard still identified the shared stdout sink. `scripts/orchestration/experiment_operator_ledger.py` now structurally separates full report rendering from stdout output, and `tests/test_experiment_operator_ledger.py` verifies direct CLI summary invocation writes to a gitignored artifact output file with empty stdout.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3352162506 -> 7bca65ce58e98ea435531233ed3e666e46a02180
+Disposition: FIXED
+Commit: 7bca65ce58e98ea435531233ed3e666e46a02180
+Evidence: GitHub Advanced Security opened the CodeQL `Clear-text logging of sensitive information` review comment for the same operator observability CLI stdout sink. `scripts/orchestration/experiment_operator_ledger.py` now structurally separates full report rendering from stdout output, and `tests/test_experiment_operator_ledger.py` verifies direct CLI summary invocation writes to a gitignored artifact output file with empty stdout.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#pullrequestreview-4423139717 -> a4fc9c3943d822a69968e78f3cda75af5553bfdc
 Disposition: FIXED
 Commit: a4fc9c3943d822a69968e78f3cda75af5553bfdc
