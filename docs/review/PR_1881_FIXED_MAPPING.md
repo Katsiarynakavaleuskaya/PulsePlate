@@ -110,8 +110,9 @@ Evidence: Codex review identified stale fixed-mapping ancestry proof, partial-li
 - `mutated_paths`: `[]`
 - `promotion_ready`: `false`
 - `coauthor_required`: `true`
-- Co-author trailer applied because oracle-only governance review shaped the
-  pre-open commit decision and follow-up review fixes.
+- Co-author trailer was applied to commits materially shaped by the oracle-only
+  Experiment Runner review. Bot-review-only follow-up commits omit the trailer
+  when the runner did not materially shape that specific commit decision.
 
 ## Validation
 
