@@ -23,7 +23,7 @@ failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 ## Fixed in Commit Mapping
 
 Disposition: NOT-A-BUG
-Evidence: Live PR branch evidence confirms the implementation and governance commits are present in the GitHub PR commit list, local ancestry checks pass on the checked-out PR branch, the implementation commit message contains the canonical Experiment Runner co-author trailer, and `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr 1878 --require-auth` passes after parser-compatible disposition formatting.
+Evidence: Live PR branch evidence confirms the implementation and governance commits are present in the GitHub PR commit list, local ancestry checks pass on the checked-out PR branch, Experiment Runner attribution was handled in real git history, and `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr 1878 --require-auth` passes after parser-compatible disposition formatting.
 Reason: These review comments evaluate stale, synthetic, or review-adapter commits rather than the real PR branch head. The PR branch history and GitHub PR commit list are the canonical evidence for branch-history reachability and attribution; no product, test, security, or workflow code change is required for these comments.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060599
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060602
@@ -41,6 +41,7 @@ Reason: These review comments evaluate stale, synthetic, or review-adapter commi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355760117
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355760118
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355775101
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355818219
 
 ## Mapping Update Protocol
 
@@ -116,7 +117,7 @@ Premortem:
   `source_diff_applied=true`,
   `source_diff_paths=["tests/test_repo_policy_guards.py"]`, and
   `shared_tree_untouched=true`.
-- Attribution: the accepted oracle evidence shaped the implementation decision, and the implementation commit includes the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
+- Attribution: the accepted oracle evidence shaped the implementation decision; attribution was handled in real git history rather than through review-adapter synthetic commit messages.
 
 ## Local Validation Evidence
 
