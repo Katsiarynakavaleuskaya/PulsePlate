@@ -99,6 +99,16 @@ Disposition: FIXED
 Commit: a4fc9c3943d822a69968e78f3cda75af5553bfdc
 Evidence: Cubic identified that the stdout no-leak guard could miss local paths surrounded by quotes or backticks because the shared `LOCAL_PATH_RE` requires start-of-string or whitespace before the path. `scripts/orchestration/experiment_operator_ledger.py` now adds a CLI stdout local-path detector that matches absolute Unix, Windows drive, and UNC paths without requiring a leading whitespace boundary, and `tests/test_experiment_operator_ledger.py` proves a backticked `/Users/...` path in a report-set acknowledgement fails closed without printing the path.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#pullrequestreview-4424400038 -> 7dff01472d6a6fb045d612e3ce60c936e05b7e2a
+Disposition: FIXED
+Commit: 7dff01472d6a6fb045d612e3ce60c936e05b7e2a
+Evidence: CodeRabbit identified that the direct CLI subprocess test relied on `Path.cwd()` and relative artifact cleanup. `tests/test_experiment_operator_ledger.py` now anchors the subprocess script path, cwd, output file, and cleanup directory to `Path(__file__).resolve().parents[1]`, preventing test leakage when the caller's working directory changes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3353256420 -> 7dff01472d6a6fb045d612e3ce60c936e05b7e2a
+Disposition: FIXED
+Commit: 7dff01472d6a6fb045d612e3ce60c936e05b7e2a
+Evidence: CodeRabbit identified that the direct CLI subprocess test relied on `Path.cwd()` and relative artifact cleanup. `tests/test_experiment_operator_ledger.py` now anchors the subprocess script path, cwd, output file, and cleanup directory to `Path(__file__).resolve().parents[1]`, preventing test leakage when the caller's working directory changes.
+
 ## Mapping Update Protocol
 
 Actionable GitHub review threads and top-level review comments must be recorded
@@ -214,10 +224,12 @@ Evidence: final `pulseplate-pr-review` dry-run emitted one advisory `large-diff-
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Codex-identified result-id redaction, latest-state projection, and artifact-hash verification fixes in `b557922c4`.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the CodeQL stdout sink isolation fix in `7bca65ce`.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Cubic-identified quoted/backticked local-path stdout guard fix in `a4fc9c39`.
+- repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the CodeRabbit-identified direct CLI subprocess root anchoring fix in `7dff0147`.
 - `git diff --check` - PASS.
 - `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed; PASS again on final head.
 - `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head; PASS again after the CodeQL stdout sink isolation fix in `7bca65ce`.
 - `PREPUSH_DEBUG=1 make validate-changed` - PASS after the Cubic-identified quoted/backticked local-path stdout guard fix in `a4fc9c39`.
+- `PREPUSH_DEBUG=1 make validate-changed` - PASS after the CodeRabbit-identified direct CLI subprocess root anchoring fix in `7dff0147`.
 - final oracle-only Experiment Runner evidence `artifacts/orchestration/experiments/results/exp-6560552e0103.json` - accepted after the Codex-identified result-id redaction, latest-state projection, and artifact-hash verification fixes.
 - `git push -u origin codex/experiment-runner-operator-observability-report` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
 - prior final `git push` to `208ff3bf2` pre-push hooks - PASS: yaml, EOF, whitespace, merge-conflict, large-file, detect-secrets, workflow check, Black, Ruff, MyPy, pip-audit, backend tests, Bandit, Docker build test.
