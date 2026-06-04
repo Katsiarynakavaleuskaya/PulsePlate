@@ -134,6 +134,26 @@ Disposition: FIXED
 Commit: e1cf1042b
 Evidence: The three actionable CodeRabbit inline findings in review `4428145876` are mapped above to `e1cf1042b` with file and test evidence for the checklist label, reversed RU prescription wording, and case-insensitive English-fragment guard.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356385212 -> b1bfb8d39
+Disposition: FIXED
+Commit: b1bfb8d39
+Evidence: `appstore/fitchef/ru-RU/metadata/upload_checklist.md:9` through `appstore/fitchef/ru-RU/metadata/upload_checklist.md:10` remove mixed English `wellness-only` and `placeholder lorem ipsum` copy from the RU upload checklist, and `tests/test_fitchef_app_store_pack.py:437` through `tests/test_fitchef_app_store_pack.py:462` block those English fragments in RU markdown docs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356385215 -> b1bfb8d39
+Disposition: FIXED
+Commit: b1bfb8d39
+Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:61` use the `подписк` stem for RU subscription declensions, and `tests/test_fitchef_app_store_pack.py:470` through `tests/test_fitchef_app_store_pack.py:487` prove `Оформите подписку` and `Условия подписки` are rejected by the RU copy guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356385220 -> b1bfb8d39
+Disposition: FIXED
+Commit: b1bfb8d39
+Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:61` add the RU treatment infinitive blocker `лечить`, and `tests/test_fitchef_app_store_pack.py:470` through `tests/test_fitchef_app_store_pack.py:487` prove `Помогает лечить привычки` is rejected by the RU copy guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#pullrequestreview-4428276667 -> b1bfb8d39
+Disposition: FIXED
+Commit: b1bfb8d39
+Evidence: The three actionable Codex connector inline findings in review `4428276667` are mapped above to `b1bfb8d39` with file and test evidence for the RU markdown English-fragment guard, subscription declension guard, and treatment infinitive guard.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -277,13 +297,29 @@ Evidence: The three actionable CodeRabbit inline findings in review `4428145876`
   - Commit: `e1cf1042b`
   - Evidence: Review summary `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#pullrequestreview-4428145876` is covered by the three inline CodeRabbit FIXED mappings above.
 
+- `CodexConnector-1879-14` - `FIXED`
+  - Commit: `b1bfb8d39`
+  - Evidence: `appstore/fitchef/ru-RU/metadata/upload_checklist.md:9` through `appstore/fitchef/ru-RU/metadata/upload_checklist.md:10` localize the remaining RU checklist operational copy, and `tests/test_fitchef_app_store_pack.py:437` through `tests/test_fitchef_app_store_pack.py:462` keep English fragments out of RU markdown docs.
+
+- `CodexConnector-1879-15` - `FIXED`
+  - Commit: `b1bfb8d39`
+  - Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:61` and `tests/test_fitchef_app_store_pack.py:470` through `tests/test_fitchef_app_store_pack.py:487` block RU subscription declensions with the `подписк` stem.
+
+- `CodexConnector-1879-16` - `FIXED`
+  - Commit: `b1bfb8d39`
+  - Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:61` and `tests/test_fitchef_app_store_pack.py:470` through `tests/test_fitchef_app_store_pack.py:487` block RU treatment infinitive copy through `лечить`.
+
+- `CodexConnector-1879-17` - `FIXED`
+  - Commit: `b1bfb8d39`
+  - Evidence: Review summary `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#pullrequestreview-4428276667` is covered by the three inline Codex connector FIXED mappings above.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 67 passed
-- `make validate-changed` - 64 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 70 passed
+- `make validate-changed` - 67 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
