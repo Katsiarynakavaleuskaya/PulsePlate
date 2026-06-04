@@ -24,6 +24,11 @@ Disposition: FIXED
 Commit: 029cb1f9c
 Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:1` through `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:34` keep RU preview-script directions in Russian, and `tests/test_fitchef_app_store_pack.py:282` through `tests/test_fitchef_app_store_pack.py:301` guard against English storyboard boilerplate returning.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355358758 -> d8a8ae56d
+Disposition: FIXED
+Commit: d8a8ae56d
+Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:11` through `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:53` keep RU storyboard focus text localized, and `tests/test_fitchef_app_store_pack.py:282` through `tests/test_fitchef_app_store_pack.py:312` guard both preview script and storyboard focus text against English storyboard boilerplate.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -78,6 +83,10 @@ Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:1` throug
 - `Cubic-1879-2` - `FIXED`
   - Commit: `029cb1f9c`
   - Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:1` through `appstore/fitchef/ru-RU/iphone-6.9/preview/preview_script.md:34` translate the RU preview script operational directions, and `tests/test_fitchef_app_store_pack.py:282` through `tests/test_fitchef_app_store_pack.py:301` add a deterministic regression guard.
+
+- `CodexConnector-1879-1` - `FIXED`
+  - Commit: `d8a8ae56d`
+  - Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:11` through `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:53` translate the RU storyboard focus fields, and `tests/test_fitchef_app_store_pack.py:282` through `tests/test_fitchef_app_store_pack.py:312` extend the RU preview-plan localization guard.
 
 ## Validation
 
