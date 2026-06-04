@@ -39,8 +39,8 @@ Evidence: `docs/review/PR_1882_FIXED_MAPPING.md` now uses canonical `## Discussi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358569086
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358569088
 Disposition: NOT-A-BUG
-Evidence: Live PR head is `f5f35d23cb5ec398553497af05350e177f598d2a` and the branch commits are `ed5941b03d99c179890b8d9ca55e3d588c66b207`, `927ef1ba5bb2cb13f1ca0bdc5a8b0442211d9763`, `69aa9aa1aa369286f958169f46c9011d09769ed8`, and `f5f35d23cb5ec398553497af05350e177f598d2a`. `git merge-base --is-ancestor 69aa9aa1aa369286f958169f46c9011d09769ed8 f5f35d23cb5ec398553497af05350e177f598d2a` returns `0`, and all four branch commits include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
-Reason: The comments referenced reviewed commit `27891042a41500c030cedfebb5c37f317a9096a2`, which is not the live PR head and is not present in the local branch checkout; the current PR history already satisfies ancestor and Experiment Runner attribution requirements.
+Evidence: At disposition time, GraphQL reported PR head `f5f35d23cb5ec398553497af05350e177f598d2a`; the branch history contained `ed5941b03d99c179890b8d9ca55e3d588c66b207`, `927ef1ba5bb2cb13f1ca0bdc5a8b0442211d9763`, `69aa9aa1aa369286f958169f46c9011d09769ed8`, and `f5f35d23cb5ec398553497af05350e177f598d2a`. `git merge-base --is-ancestor 69aa9aa1aa369286f958169f46c9011d09769ed8 f5f35d23cb5ec398553497af05350e177f598d2a` returned `0`, and those branch commits included `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The comments referenced reviewed commit `27891042a41500c030cedfebb5c37f317a9096a2`, which was not the PR head at disposition time and was not present in the local branch checkout. Subsequent mapping-only commits remain descendants of the already-proven branch history and preserve the Experiment Runner trailer.
 
 ## Change Summary
 
@@ -119,7 +119,8 @@ Reason: The comments referenced reviewed commit `27891042a41500c030cedfebb5c37f3
 - [x] `qa-engineer-agent` - completed; found canonical mapping/body section
   drift and unresolved review-thread proof requirements. Fixed by
   `69aa9aa1aa369286f958169f46c9011d09769ed8`.
-- [ ] `bug-hunter` - pending rerun after mapping/body repair.
+- [x] `bug-hunter` - completed; found PR body mirror omissions and stale
+  head-specific wording in the NOT-A-BUG evidence. Fixed by `BUG_HUNTER_FIX_SHA`.
 - [ ] `security-auditor` - pending rerun after mapping/body repair.
 - [ ] Codex Security diff scan / finding discovery - pending.
 - [ ] `pulseplate-pr-review` - pending.
