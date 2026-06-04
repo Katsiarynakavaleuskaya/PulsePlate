@@ -66,6 +66,10 @@ Evidence: `docs/review/PR_1879_FIXED_MAPPING.md:10` now uses the canonical `## D
 - `QA-1879-4` - `FIXED`
   - Evidence: `docs/review/PR_1879_FIXED_MAPPING.md` and the PR body mirror use repo-relative validation commands, not local machine paths.
 
+- `PPR-1879-1` - `NOT-A-BUG`
+  - Evidence: `python3 scripts/ci/check_pr_size_governance.py --base-sha $(git rev-parse origin/main) --head-sha $(git rev-parse HEAD) --body "$(gh pr view 1879 --json body --jq .body)"` passed for `standard_governance_design` with 14 counted files, and `make validate-changed` passed 13 changed-scope backend tests.
+  - Reason: The PulsePlate PR review dry run flagged a line-count review-risk advisory, but repo file-count policy is authoritative for this docs/governance lane. Splitting the RU pack contract away from its deterministic guards would create a weaker pack/test mismatch, while the PR body records scope, out-of-scope boundaries, tests, and split rationale.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
