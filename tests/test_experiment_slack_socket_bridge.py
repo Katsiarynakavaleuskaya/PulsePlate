@@ -463,6 +463,35 @@ def test_activation_readiness_report_blocks_allowlist_without_values(
     assert str(tmp_path) not in stdout
 
 
+def test_activation_readiness_report_blocks_unchecked_smoke_inputs_without_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _clear_readiness_env(monkeypatch)
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+
+    assert bridge.main(["--activation-readiness-report"]) == 1
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "fail"
+    assert report["activation_state"] == "blocked_by_smoke_input"
+    assert report["branch_ref_status"] == "not_checked"
+    assert report["hypothesis_sha256_status"] == "not_checked"
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert "T0TEAM" not in stdout
+    assert str(tmp_path) not in stdout
+
+
 def test_activation_readiness_report_rejects_malformed_shape_without_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -497,6 +526,34 @@ def test_activation_readiness_report_rejects_malformed_shape_without_values(
     assert "raw hypothesis" not in stdout
     assert "U0OPERATOR" not in stdout
     assert str(tmp_path) not in stdout
+
+
+def test_activation_readiness_report_rejects_padded_hypothesis_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "main")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, " " + "a" * 64)
+
+    assert bridge.main(["--activation-readiness-report"]) == 1
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "fail"
+    assert report["activation_state"] == "blocked_by_invalid_config"
+    assert report["hypothesis_sha256_status"] == "invalid"
+    assert "a" * 64 not in stdout
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
 
 
 def test_smoke_input_validation_accepts_digest_without_echoing_values(
@@ -1595,6 +1652,10 @@ def test_status_command_reflects_latest_operator_ledger_event_after_processing(
     assert "socket_mode_activation_state=blocked_by_missing_secret" in status_reply
     assert "socket_mode_readiness_status=pass" in status_reply
     assert "manual_live_smoke=operator_evidence_only" in status_reply
+    assert "deterministic_ci_requires_live_slack=false" in status_reply
+    assert "opened_http_ingress=false" in status_reply
+    assert "semantic_cache_enabled=false" in status_reply
+    assert "claimed_merge_readiness=false" in status_reply
     assert "activation_authority=display_only" in status_reply
     assert "display_only" in status_reply
 
@@ -2812,6 +2873,7 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "ready_for_manual_live_smoke" in runbook
     assert "blocked_by_missing_secret" in runbook
     assert "blocked_by_allowlist" in runbook
+    assert "blocked_by_smoke_input" in runbook
     assert "manual_only" in runbook
     assert "Activation Readiness" in runbook
     assert "`SLACK_APP_TOKEN` must be an `xapp-` app-level Socket Mode" in runbook
@@ -2947,6 +3009,13 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert steps.index(readiness_step) < steps.index(runtime_step)
     assert "render_activation_readiness_summary" in readiness_step["run"]
     assert "GITHUB_STEP_SUMMARY" in readiness_step["run"]
+    assert "set +e" in readiness_step["run"]
+    assert "readiness_status=$?" in readiness_step["run"]
+    assert 'exit "$readiness_status"' in readiness_step["run"]
+    assert "deterministic_ci_requires_live_slack" in workflow_text
+    assert "opened_http_ingress" in workflow_text
+    assert "semantic_cache_enabled" in workflow_text
+    assert "claimed_merge_readiness" in workflow_text
     assert 'os.environ["GITHUB_EVENT_PATH"]' in mask_step["run"]
     assert (
         '"branch_ref", "channel_allowlist", "user_allowlist", "team_allowlist", '

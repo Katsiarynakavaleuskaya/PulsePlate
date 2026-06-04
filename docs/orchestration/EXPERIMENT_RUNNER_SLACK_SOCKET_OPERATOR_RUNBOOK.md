@@ -105,9 +105,10 @@ python3 -m scripts.orchestration.experiment_slack_socket_bridge --activation-rea
 
 The report is config-only and label-only. It may emit
 `ready_for_manual_live_smoke`, `blocked_by_missing_secret`,
-`blocked_by_allowlist`, `blocked_by_invalid_config`, or `manual_only`, plus
-`present` / `missing` / `valid` / `invalid` / `not_checked` status labels for
-token class shape, runtime allowlists, smoke input shape, and audit retention.
+`blocked_by_allowlist`, `blocked_by_smoke_input`,
+`blocked_by_invalid_config`, or `manual_only`, plus `present` / `missing` /
+`valid` / `invalid` / `not_checked` status labels for token class shape,
+runtime allowlists, smoke input shape, and audit retention.
 It must not print raw Slack IDs, token values, token prefixes, raw branch refs,
 raw hypotheses, approval digests, Slack payloads, workflow logs, local paths,
 provider logs, oracle output, or patch text.
@@ -171,6 +172,8 @@ The readiness report has these operator-facing states:
   absent while the operator is trying to activate live smoke.
 - `blocked_by_allowlist`: runtime token class shape is valid, but one or more
   required channel, user, or workspace/team allowlists are absent.
+- `blocked_by_smoke_input`: runtime token class shape and allowlists are valid,
+  but the branch reference or hypothesis digest shape has not been checked.
 - `blocked_by_invalid_config`: a token class, allowlist, smoke input, or audit
   retention value is malformed.
 - `ready_for_manual_live_smoke`: app token class, bot token class, channel

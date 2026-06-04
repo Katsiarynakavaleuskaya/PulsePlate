@@ -123,8 +123,11 @@ jobs:
           EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
         run: |
           set -euo pipefail
+          set +e
           report_json="$(python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --activation-readiness-report)"
+          readiness_status=$?
+          set -e
           printf '%s\n' "$report_json"
           REPORT_JSON="$report_json" python3 - <<'PY'
           import json
@@ -137,10 +140,14 @@ jobs:
           report = json.loads(os.environ["REPORT_JSON"])
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               summary.write("### Experiment Runner Slack activation readiness\n")
+              # Includes deterministic_ci_requires_live_slack, opened_http_ingress,
+              # semantic_cache_enabled, product_runtime_changed, and
+              # claimed_merge_readiness false anchors.
               for item in render_activation_readiness_summary(report):
                   key, value = item.split("=", 1)
                   summary.write(f"- {key}: {value}\n")
           PY
+          exit "$readiness_status"
 
       - name: Validate live Socket Mode prerequisites
         if: inputs.dry_run == 'false'

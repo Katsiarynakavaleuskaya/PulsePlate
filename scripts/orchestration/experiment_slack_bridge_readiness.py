@@ -112,9 +112,7 @@ def _branch_ref_status(raw_value: str | None, env: Mapping[str, str]) -> str:
 
 
 def _hypothesis_digest_status(raw_value: str | None, env: Mapping[str, str]) -> str:
-    raw = (
-        raw_value if raw_value is not None else env.get(LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "")
-    ).strip()
+    raw = raw_value if raw_value is not None else env.get(LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "")
     if not raw:
         return "not_checked"
     return "valid" if SHA256_HEX_RE.fullmatch(raw) is not None else "invalid"
@@ -154,6 +152,8 @@ def _activation_state(
         return "blocked_by_missing_secret"
     if any(status == "missing" for status in allowlist_statuses.values()):
         return "blocked_by_allowlist"
+    if branch_ref_status != "valid" or hypothesis_sha256_status != "valid":
+        return "blocked_by_smoke_input"
     return "ready_for_manual_live_smoke"
 
 
@@ -192,7 +192,11 @@ def build_activation_readiness_report(
         "hypothesis_sha256_status": hypothesis_status,
         "manual_live_smoke": "operator_evidence_only",
         "redaction": "labels_only",
-        "status": "fail" if activation_state == "blocked_by_invalid_config" else "pass",
+        "status": (
+            "fail"
+            if activation_state in {"blocked_by_invalid_config", "blocked_by_smoke_input"}
+            else "pass"
+        ),
     }
     report.update(token_statuses)
     report.update(allowlist_statuses)
@@ -202,6 +206,8 @@ def build_activation_readiness_report(
 def render_activation_readiness_summary(report: Mapping[str, Any]) -> tuple[str, ...]:
     """Render a Slack-safe and report-safe readiness summary tuple."""
 
+    authority_boundary = report.get("authority_boundary", {})
+    boundary = authority_boundary if isinstance(authority_boundary, Mapping) else {}
     return (
         f"socket_mode_activation_state={report.get('activation_state', 'manual_only')}",
         f"socket_mode_readiness_status={report.get('status', 'pass')}",
@@ -214,5 +220,10 @@ def render_activation_readiness_summary(report: Mapping[str, Any]) -> tuple[str,
         f"hypothesis_sha256_status={report.get('hypothesis_sha256_status', 'not_checked')}",
         f"audit_retention_status={report.get('audit_retention_status', 'not_checked')}",
         f"manual_live_smoke={report.get('manual_live_smoke', 'operator_evidence_only')}",
+        f"deterministic_ci_requires_live_slack={str(boundary.get('deterministic_ci_requires_live_slack', False)).lower()}",
+        f"opened_http_ingress={str(boundary.get('opened_http_ingress', False)).lower()}",
+        f"semantic_cache_enabled={str(boundary.get('semantic_cache_enabled', False)).lower()}",
+        f"product_runtime_changed={str(boundary.get('product_runtime_changed', False)).lower()}",
+        f"claimed_merge_readiness={str(boundary.get('claimed_merge_readiness', False)).lower()}",
         "activation_authority=display_only",
     )

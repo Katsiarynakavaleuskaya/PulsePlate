@@ -1279,6 +1279,7 @@ def test_operator_ledger_cli_writes_empty_observability_report_set(
         "ready_for_manual_live_smoke",
         "blocked_by_missing_secret",
         "blocked_by_allowlist",
+        "blocked_by_smoke_input",
         "manual_only",
     ),
 )
@@ -1315,6 +1316,10 @@ def test_operator_observability_report_renders_activation_readiness_states(
     assert activation_state in rendered
     assert "activation_authority" in rendered
     assert "display_only" in rendered
+    assert "deterministic_ci_requires_live_slack" in rendered
+    assert "opened_http_ingress" in rendered
+    assert "semantic_cache_enabled" in rendered
+    assert "claimed_merge_readiness" in rendered
     assert "operator_evidence_only" in rendered
     assert str(tmp_path) not in rendered
     _assert_no_raw_leak(rendered)
