@@ -36,6 +36,12 @@ Disposition: FIXED
 Commit: 69aa9aa1aa369286f958169f46c9011d09769ed8
 Evidence: `docs/review/PR_1882_FIXED_MAPPING.md` now uses canonical `## Discussion Thread Pass` and `## Fixed in Commit Mapping` sections, records the current thread dispositions, includes backlog proof for the local full-verify deferral via `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr-scoped-validation-contract-and-hook-fix`, and preserves Experiment Runner attribution proof for commits `ed5941b03d99c179890b8d9ca55e3d588c66b207` and `927ef1ba5bb2cb13f1ca0bdc5a8b0442211d9763`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358569086
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358569088
+Disposition: NOT-A-BUG
+Evidence: Live PR head is `f5f35d23cb5ec398553497af05350e177f598d2a` and the branch commits are `ed5941b03d99c179890b8d9ca55e3d588c66b207`, `927ef1ba5bb2cb13f1ca0bdc5a8b0442211d9763`, `69aa9aa1aa369286f958169f46c9011d09769ed8`, and `f5f35d23cb5ec398553497af05350e177f598d2a`. `git merge-base --is-ancestor 69aa9aa1aa369286f958169f46c9011d09769ed8 f5f35d23cb5ec398553497af05350e177f598d2a` returns `0`, and all four branch commits include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The comments referenced reviewed commit `27891042a41500c030cedfebb5c37f317a9096a2`, which is not the live PR head and is not present in the local branch checkout; the current PR history already satisfies ancestor and Experiment Runner attribution requirements.
+
 ## Change Summary
 
 - Disposition: FIXED
