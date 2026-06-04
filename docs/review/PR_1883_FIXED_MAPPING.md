@@ -39,12 +39,12 @@ because the role is not registered in the canonical inventory and
 
 ## Premortem Finding Closure
 
-| Finding | Disposition | Fix commit | Evidence |
-| --- | --- | --- | --- |
-| Visual-QA prep could imply protected upload or release authority. | FIXED | `2ad3e4793` | `appstore/fitchef/ru-RU/iphone-6.9/visual_qa_prep.md`; `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_preserves_manual_no_upload_scope` |
-| RU prep could introduce blocked wellness, commercial, secret, or local-path terms. | FIXED | `2ad3e4793` | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_avoids_local_paths_and_blocked_claim_terms` |
-| RU pack could accidentally include screenshot or preview binaries. | FIXED | `2ad3e4793` | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_exists_and_pack_stays_text_only` |
-| Prep notes could drift from the governed seven-shot manifest and storyboard order. | FIXED | `2ad3e4793` | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_covers_manifest_and_storyboard_in_order` |
+| Finding | Disposition | Fix evidence |
+| --- | --- | --- |
+| Visual-QA prep could imply protected upload or release authority. | FIXED | `appstore/fitchef/ru-RU/iphone-6.9/visual_qa_prep.md`; `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_preserves_manual_no_upload_scope` |
+| RU prep could introduce blocked wellness, commercial, secret, or local-path terms. | FIXED | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_avoids_local_paths_and_blocked_claim_terms` |
+| RU pack could accidentally include screenshot or preview binaries. | FIXED | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_exists_and_pack_stays_text_only` |
+| Prep notes could drift from the governed seven-shot manifest and storyboard order. | FIXED | `tests/test_fitchef_app_store_pack.py::test_ru_visual_qa_prep_covers_manifest_and_storyboard_in_order` |
 
 ## Experiment Runner Evidence
 
@@ -54,13 +54,11 @@ because the role is not registered in the canonical inventory and
 - Oracle command: `python -m pytest -q tests/test_fitchef_app_store_pack.py`
 - Oracle result: PASS in isolated checkout
 - Attribution evidence: the Experiment Runner materially shaped branch commit
-  decisions for this lane, so authored branch commits use the governed trailer
-  defined by `AGENTS.md:374-375`. Verification command:
-  `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD`.
-  GitHub PR commits API also lists the authored PR branch commits, including
-  `2ad3e4793` and current head `4949a9895`, with the Experiment Runner author.
-  GitHub synthetic review refs such as `refs/pull/*/merge` are not authored
-  branch commits and are not attribution targets.
+  decisions for this lane, so authored PR branch commits use the governed
+  trailer defined by `AGENTS.md:374-375`. The PR body also carries the raw
+  squash-merge trailer to preserve at merge time. GitHub synthetic review refs
+  such as `refs/pull/*/merge` are not authored branch commits and are not
+  attribution targets.
 
 ## Discussion Thread Pass
 
@@ -74,17 +72,17 @@ No resolved PR review threads exist at artifact creation time.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359313567
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359348960
 Disposition: NOT-A-BUG
-Evidence: `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD` shows authored branch commits carry `PulsePlate Experiment Runner <pulseplate@pm.me>`; `AGENTS.md:374-375` defines this exact trailer.
+Evidence: `AGENTS.md:374-375` defines the exact `PulsePlate Experiment Runner <pulseplate@pm.me>` trailer; GitHub PR commits API and local branch checks confirm authored PR branch commits carry it.
 Reason: These comments checked non-branch/synthetic reviewed commits. The PR branch commits materially shaped by Experiment Runner satisfy the attribution invariant.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359313569 -> c68ee747d
-Disposition: FIXED
-Commit: c68ee747d
-Evidence: `docs/review/PR_1883_FIXED_MAPPING.md` now records premortem FIXED commit proof and branch attribution evidence. Commit `c68ee747d` is an authored PR branch commit after the review comment timestamp.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359313569
+Disposition: NOT-A-BUG
+Evidence: Premortem closures are tied to file/test evidence in `appstore/fitchef/ru-RU/iphone-6.9/visual_qa_prep.md` and `tests/test_fitchef_app_store_pack.py`; PR branch ancestry is verified against authored branch commits, not synthetic review refs.
+Reason: A per-row branch SHA in the premortem table makes synthetic squash-preview review comments misclassify reachable PR commits as unreachable. The governed source of truth is the authored PR branch plus deterministic file/test evidence.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359417488
 Disposition: NOT-A-BUG
-Evidence: `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD` shows branch commits carry `PulsePlate Experiment Runner <pulseplate@pm.me>`; `AGENTS.md:374-375` defines the exact trailer for material branch commits.
+Evidence: `AGENTS.md:374-375` defines the exact trailer for material branch commits, and authored PR branch commits carry `PulsePlate Experiment Runner <pulseplate@pm.me>`.
 Reason: The reviewed `refs/pull/1883/merge` SHA is a GitHub synthetic merge ref, not a material authored branch commit; the Experiment Runner attribution invariant applies to commits materially shaped by the runner, and the branch commits satisfy it.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359420913
@@ -94,23 +92,29 @@ Reason: The suggested `<pulseplatepm.me>` identity conflicts with the root repos
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359447640
 Disposition: NOT-A-BUG
-Evidence: `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD` shows authored branch commits carry `PulsePlate Experiment Runner <pulseplate@pm.me>`; `AGENTS.md:374-375` defines this exact trailer.
+Evidence: `AGENTS.md:374-375` defines this exact trailer, and authored PR branch commits carry `PulsePlate Experiment Runner <pulseplate@pm.me>`.
 Reason: The reviewed SHA is a GitHub synthetic review ref, not an authored branch commit. The PR branch commits materially shaped by the Experiment Runner satisfy the attribution invariant.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359447645
 Disposition: NOT-A-BUG
-Evidence: Repo governance validates review-thread dispositions against authored PR branch commits; `GH_TOKEN=$(gh auth token) python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1883 --require-auth` passed for prior resolved threads, and `c68ee747d` is present in the PR branch history.
+Evidence: Repo governance validates review-thread dispositions against authored PR branch commits; strict disposition checks passed for prior resolved threads before the repeated synthetic-review cycle.
 Reason: The comment used a GitHub synthetic reviewed commit as the ancestry root. The canonical branch history, not the synthetic review ref, is the source of truth for fixed-mapping commit proof.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359484705
 Disposition: NOT-A-BUG
-Evidence: `gh pr view 1883 --json commits --jq '.commits[] | {oid:.oid, messageHeadline:.messageHeadline, authors:.authors}'` lists `2ad3e4793` as a PR branch commit and `git merge-base --is-ancestor 2ad3e4793 HEAD` exits `0`.
+Evidence: GitHub PR commits API lists the implementation commit as an authored PR branch commit, and local ancestry checks confirm it is reachable from the PR branch head.
 Reason: The reviewed SHA `b7ffad2` is not present in the authored PR branch history. The canonical PR commits, not that synthetic/single-parent reviewed SHA, are the source of truth for FIXED proof reachability.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359484706
 Disposition: NOT-A-BUG
-Evidence: GitHub PR commits API lists current head `4949a9895` with author entry `PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD` shows the governed trailer on authored branch commits.
+Evidence: GitHub PR commits API lists authored PR branch commits with the Experiment Runner author entry, and local branch checks show the governed trailer on authored branch commits.
 Reason: The reviewed SHA `b7ffad2` is not present in the authored PR branch history. The Experiment Runner attribution invariant applies to authored branch commits materially shaped by the runner, and those commits carry the required trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359509821
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359509824
+Disposition: NOT-A-BUG
+Evidence: `docs/ENGINEERING_LESSONS.md:540` documents the repeated synthetic squash-preview review-comment loop; PR body and PR comment `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#issuecomment-4626929872` record the stable branch-history disposition and raw squash-merge trailer.
+Reason: These comments repeat the already-dispositioned synthetic review-ref concern after stable evidence is present. Per the engineering lesson, the PR must not keep creating mapping-only commits for each new synthetic hash.
 
 ## Post-Open Role-Agent Findings
 
@@ -121,7 +125,7 @@ Post-open mandatory review status before Codex Security and
 | --- | --- | --- | --- |
 | `qa-engineer-agent` | PASS | NOT-A-BUG | Post-open rerun confirmed Phase2/body mapping, focused tests, no protected Fastlane/binary/upload scope, and no wellness/medical claim risk. |
 | `bug-hunter` | PASS | NOT-A-BUG | Post-open pass confirmed seven-shot coverage, no-upload/internal-review wording, scoped diff, and focused guard suite. |
-| `security-auditor` | BLOCK then fixed | FIXED | `c68ee747d` added premortem commit proof and current Experiment Runner trailer evidence; `f18a4b835` mapped the Codex review threads in `## Fixed in Commit Mapping`. |
+| `security-auditor` | BLOCK then fixed | FIXED | Post-open pass findings were mapped in `## Fixed in Commit Mapping`; premortem closures now rely on stable file/test evidence instead of synthetic-ref-sensitive branch SHA prose. |
 | `security-auditor` rerun | BLOCK then dispositioned | NOT-A-BUG | New Codex/CodeRabbit trailer threads were dispositioned in `## Fixed in Commit Mapping` using `AGENTS.md:374` and branch trailer evidence. |
 | Codex Security diff scan | PASS | NOT-A-BUG | Final local scan generated Markdown and HTML report artifacts for scan `b2d4eefa4_20260604T232110Z`; reportable findings: 0. |
 | `pulseplate-pr-review` | PASS | NOT-A-BUG | Dry-run report for packet `a8146f2ac773` returned no deterministic findings. |
