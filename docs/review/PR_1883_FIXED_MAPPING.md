@@ -86,9 +86,10 @@ Evidence: `AGENTS.md:374-375` defines the exact trailer for material branch comm
 Reason: The reviewed `refs/pull/1883/merge` SHA is a GitHub synthetic merge ref, not a material authored branch commit; the Experiment Runner attribution invariant applies to commits materially shaped by the runner, and the branch commits satisfy it.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359420913
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#pullrequestreview-4432124272
 Disposition: NOT-A-BUG
 Evidence: `AGENTS.md:374-375` requires `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`; current branch commits use that exact identity.
-Reason: The suggested `<pulseplatepm.me>` identity conflicts with the root repository governance contract, so replacing the trailer would make the mapping less compliant.
+Reason: The CodeRabbit review contains one actionable inline comment, `discussion_r3359420913`. Its suggested `<pulseplatepm.me>` identity conflicts with the root repository governance contract, so replacing the trailer would make the mapping less compliant.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359447640
 Disposition: NOT-A-BUG
