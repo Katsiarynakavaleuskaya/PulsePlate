@@ -403,6 +403,66 @@ def test_activation_readiness_report_ready_for_manual_live_smoke_without_values(
     assert "a" * 64 not in stdout
 
 
+def test_activation_readiness_report_blocks_missing_secret_without_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _clear_readiness_env(monkeypatch)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+
+    assert bridge.main(["--activation-readiness-report"]) == 0
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "pass"
+    assert report["activation_state"] == "blocked_by_missing_secret"
+    assert report["slack_app_token_status"] == "missing"
+    assert report["slack_bot_token_status"] == "valid"
+    assert report["channel_allowlist_status"] == "present"
+    assert report["user_allowlist_status"] == "present"
+    assert report["team_allowlist_status"] == "present"
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert "T0TEAM" not in stdout
+    assert str(tmp_path) not in stdout
+
+
+def test_activation_readiness_report_blocks_allowlist_without_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _clear_readiness_env(monkeypatch)
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+
+    assert bridge.main(["--activation-readiness-report"]) == 0
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "pass"
+    assert report["activation_state"] == "blocked_by_allowlist"
+    assert report["slack_app_token_status"] == "valid"
+    assert report["slack_bot_token_status"] == "valid"
+    assert report["channel_allowlist_status"] == "present"
+    assert report["user_allowlist_status"] == "present"
+    assert report["team_allowlist_status"] == "missing"
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
+
+
 def test_activation_readiness_report_rejects_malformed_shape_without_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
