@@ -43,6 +43,11 @@ Disposition: NOT-A-BUG
 Evidence: Experiment Runner attribution was verified on the real PR branch commits and is planned for the squash merge body. The connector-reviewed head is not the branch commit sequence.
 Reason: The comment repeats the same synthetic-head attribution comparison. The applicable invariant is the real branch and final squash merge metadata, not a synthetic review surface.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354139365
+Disposition: NOT-A-BUG
+Evidence: The connector-reviewed head is a synthetic review surface. Repo attribution evidence is the real PR branch history and final squash merge metadata, not the synthetic commit named by the connector.
+Reason: The comment repeats the same synthetic-head attribution comparison after mapping normalization. The Experiment Runner section now records oracle evidence without presenting synthetic reviewed commits as attribution proof.
+
 ## Implementation Evidence
 
 Evidence: `frontend/package.json` pins `react-router-dom` to `7.16.0`, and `frontend/package-lock.json` resolves both `node_modules/react-router-dom` and `node_modules/react-router` to `7.16.0`.
@@ -86,7 +91,7 @@ Post-open role order completed:
 - Packet: `artifacts/orchestration/experiments/exp-b2c2e7aeb5a1.json`
 - Artifact: `artifacts/orchestration/experiments/results/exp-b2c2e7aeb5a1.json`
 - Mode: `oracle_only_governance_reviewer`
-- Result: accepted; 4/4 oracle commands passed; `mutated_paths=[]`; Experiment Runner attribution is handled on the real PR branch commits and must be preserved in the squash merge body.
+- Result: accepted; 4/4 oracle commands passed; `mutated_paths=[]`; synthetic reviewed commits are not used as attribution proof.
 
 ## Lane Start Provenance
 
