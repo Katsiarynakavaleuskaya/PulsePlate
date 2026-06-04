@@ -279,9 +279,15 @@ def test_ru_pack_reuses_en_structural_contract_without_binaries() -> None:
     assert not unsupported_files, f"RU pack must stay text/JSON only: {unsupported_files}"
 
 
-def test_ru_preview_script_uses_ru_operational_copy() -> None:
-    """The ru-RU preview script should not mix in English storyboard boilerplate."""
-    text = (_preview_dir("ru-RU") / "preview_script.md").read_text(encoding="utf-8")
+def test_ru_preview_plan_uses_ru_operational_copy() -> None:
+    """The ru-RU preview plan should not mix in English storyboard boilerplate."""
+    storyboard = _load_json(_preview_dir("ru-RU") / "storyboard.json")
+    text = " ".join(
+        [
+            (_preview_dir("ru-RU") / "preview_script.md").read_text(encoding="utf-8"),
+            *(scene["focus"] for scene in storyboard["scenes"]),
+        ]
+    )
     blocked_english_fragments = (
         "## Duration",
         "## Script",
@@ -291,13 +297,21 @@ def test_ru_preview_script_uses_ru_operational_copy() -> None:
         "Finish on",
         " opens with ",
         "supporting cue",
+        "logo lockup",
+        "opening frame",
+        "Macro and",
+        "Weekly meal",
+        "Shopping list",
+        "Progress and",
+        "Personalized goals",
+        "assistant finish",
     )
 
     offending_fragments = sorted(
         fragment for fragment in blocked_english_fragments if fragment in text
     )
     assert not offending_fragments, (
-        "RU preview script contains English operational copy: " f"{offending_fragments}"
+        "RU preview plan contains English operational copy: " f"{offending_fragments}"
     )
 
 
