@@ -2044,12 +2044,73 @@ class TestVerificationRegistryCoverageTail:
 
         assert merged is None
 
+    def test_verification_provenance_redacts_before_hash_and_preserves_admission(
+        self,
+    ) -> None:
+        from dataclasses import asdict
+        from hashlib import sha256
+
+        from core.verification.registry import (
+            build_bundle,
+            build_verification_provenance,
+            redacted_sha256_label,
+        )
+        from core.verification.contracts import VerificationArtifact
+
+        raw_text = (
+            "email jane@example.com api_key=secret-token "
+            "/Users/example/private.txt xoxb-secret-token U1234567890"
+        )
+        artifact = VerificationArtifact(
+            artifact_id="provenance-test",
+            verifier_id="provenance_test_verifier",
+            status="pass",
+            reason_codes=("verification_checks_pass",),
+        )
+        provenance = build_verification_provenance(
+            input_text=raw_text,
+            prompt_text=raw_text,
+            context_items=(raw_text,),
+            answer_text=raw_text,
+            prompt_char_count=-5,
+            prompt_trimmed=True,
+            verification_hops="invalid",
+            verification_calls=3,
+        )
+        baseline = build_bundle(artifacts=(artifact,))
+        with_provenance = build_bundle(artifacts=(artifact,), provenance=provenance)
+
+        assert with_provenance.overall_status == baseline.overall_status
+        assert with_provenance.admission_allowed == baseline.admission_allowed
+        assert with_provenance.reason_codes == baseline.reason_codes
+        assert with_provenance.provenance is provenance
+        assert provenance.prompt_char_count == 0
+        assert provenance.prompt_trimmed is True
+        assert provenance.verification_hops == 0
+        assert provenance.verification_calls == 3
+        assert provenance.input_digest == redacted_sha256_label(raw_text)
+        assert provenance.input_digest != f"sha256:{sha256(raw_text.encode('utf-8')).hexdigest()}"
+        assert provenance.input_digest is not None
+        assert provenance.input_digest.startswith("sha256:")
+        assert len(provenance.input_digest.removeprefix("sha256:")) == 64
+        payload = str(asdict(with_provenance))
+        for forbidden in (
+            "jane@example.com",
+            "/Users/example",
+            "xoxb-secret-token",
+            "U1234567890",
+            "secret-token",
+        ):
+            assert forbidden not in payload
+
     def test_runtime_bundle_passthrough_when_runtime_verification_is_disabled(self) -> None:
         from core.verification.registry import (
             build_rag_verification_bundle,
             build_runtime_verification_bundle,
+            build_verification_provenance,
         )
 
+        provenance = build_verification_provenance(input_text="input", answer_text="answer")
         rag_bundle = build_rag_verification_bundle(
             knowledge_policy=self._knowledge_policy(),
             confidence=0.92,
@@ -2059,6 +2120,7 @@ class TestVerificationRegistryCoverageTail:
             recursive_executed=False,
             verification_calls=0,
             evidence_refs=("docs/keep.md:keep",),
+            provenance=provenance,
         )
 
         merged = build_runtime_verification_bundle(
@@ -2068,9 +2130,15 @@ class TestVerificationRegistryCoverageTail:
             contradiction_count=0,
             verification_first_path=True,
             runtime_verification_enabled=False,
+            provenance=build_verification_provenance(
+                input_text="new input",
+                answer_text="new answer",
+            ),
         )
 
+        assert merged is rag_bundle
         assert merged == rag_bundle
+        assert merged.provenance is provenance
 
     def test_runtime_bundle_reuses_rag_bundle_without_philosophical_pass(self) -> None:
         from core.verification.registry import (

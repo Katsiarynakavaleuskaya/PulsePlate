@@ -282,6 +282,14 @@ class TestPhilosophicalRuntime:
         assert "BMI stands for body mass index" in result.insight
         assert result.metadata.route_type == RouteType.DIRECT_DEFINITION.value
         assert result.metadata.depth_used == 1
+        assert result.knowledge_candidates == []
+        assert result.verification_bundle is not None
+        assert result.verification_bundle.admission_allowed is False
+        provenance = result.verification_bundle.provenance
+        assert provenance is not None
+        assert provenance.input_digest is not None
+        assert provenance.prompt_digest is None
+        assert provenance.answer_digest is not None
 
     async def test_direct_definition_localizes_known_terms(self) -> None:
         runtime = PhilosophicalRuntime()
@@ -793,6 +801,43 @@ class TestPhilosophicalRuntime:
         assert result.metadata.route_type is None
         assert result.metadata.depth_used == 0
         assert result.metadata.reason_codes == []
+
+    async def test_generated_answer_provenance_records_trim_and_redacts_answer(
+        self,
+    ) -> None:
+        from dataclasses import asdict
+        from hashlib import sha256
+
+        runtime = PhilosophicalRuntime()
+        answer = "Use balanced meals. email jane@example.com xoxb-secret-token"
+        provider = _StaticProvider(response=answer)
+
+        result = await runtime.generate_insight(
+            text="Tell me about balanced nutrition. " + ("nutrition " * 700),
+            lang="en",
+            provider=provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            philosophy_router_enabled=False,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=False,
+            philosophy_pragmatic_enabled=False,
+        )
+
+        assert provider.calls == 1
+        assert result.verification_bundle is not None
+        assert result.verification_bundle.admission_allowed is False
+        provenance = result.verification_bundle.provenance
+        assert provenance is not None
+        assert provenance.prompt_digest is not None
+        assert provenance.answer_digest is not None
+        assert provenance.answer_digest != f"sha256:{sha256(answer.encode('utf-8')).hexdigest()}"
+        assert provenance.prompt_char_count == 4000
+        assert provenance.prompt_trimmed is True
+        payload = str(asdict(provenance))
+        assert "jane@example.com" not in payload
+        assert "xoxb-secret-token" not in payload
 
     async def test_build_direct_result_requires_public_metadata_access(self) -> None:
         runtime = PhilosophicalRuntime()

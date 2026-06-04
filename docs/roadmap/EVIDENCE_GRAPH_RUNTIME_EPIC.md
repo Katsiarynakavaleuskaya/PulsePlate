@@ -131,8 +131,20 @@ After PR-E5:
   docs(ai-runtime): reconcile semantic cache gate after Evidence Graph E5
 
 After semantic-cache gate reconciliation:
-  operator-selected follow-up; semantic cache still requires a dedicated gate
+  Verification Bundle Provenance Attestation v1 follow-up; semantic cache still requires a dedicated gate
 ```
+
+## Operator-Selected Follow-Up
+
+The current follow-up is a narrow Verification Bundle Provenance Attestation v1
+slice. It adds internal-only digest/count metadata to existing
+`VerificationBundle` decisions so the product AI runtime can identify the
+redacted input, prompt, context items, final answer, prompt trim state, and
+verification hop/call counts that shaped an admission decision.
+
+This follow-up does not change public response DTOs, OpenAPI, DB persistence,
+provider selection, frontend, iOS, semantic cache, GraphRAG, Slack/operator
+authority, or runtime-serving behavior.
 
 ## Hard Boundaries
 

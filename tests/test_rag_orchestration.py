@@ -1456,11 +1456,24 @@ def test_simple_rag_skips_chunks_that_become_empty_after_redaction(
 async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() -> None:
     """Knowledge candidates must derive from surviving validated chunks only."""
 
+    from dataclasses import asdict
+
     chunks = [
-        _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9),
-        _make_chunk(chunk_id="drop", file="docs/drop.md", score=0.2),
+        _make_chunk(
+            chunk_id="keep",
+            content="Keep chunk for jane@example.com api_key=secret-token",
+            file="docs/keep.md",
+            score=0.9,
+        ),
+        _make_chunk(
+            chunk_id="drop",
+            content="Drop chunk should not enter provenance.",
+            file="docs/drop.md",
+            score=0.2,
+        ),
     ]
-    rag_ctx = _make_rag_context(chunks=chunks, confidence=0.5)
+    rag_ctx = _make_rag_context(chunks=chunks, confidence=0.5, hops=2)
+    rag_ctx.optimization_stats = cast(OptimizationStats, {"verification_calls": 2})
     pipeline_result = PipelineResult(
         filtered_chunks=[chunks[0]],
         stage_results=[],
@@ -1488,6 +1501,20 @@ async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() 
     assert result.knowledge_candidates[0].predicate == "validated_rag_evidence:docs/keep.md:keep"
     assert result.verification_bundle is not None
     assert result.verification_bundle.admission_allowed is True
+    assert result.verification_calls == 2
+    provenance = result.verification_bundle.provenance
+    assert provenance is not None
+    assert provenance.input_digest is not None
+    assert provenance.prompt_digest is not None
+    assert len(provenance.context_item_digests) == 1
+    assert provenance.prompt_char_count == len(result.formatted_prompt)
+    assert provenance.prompt_trimmed is False
+    assert provenance.verification_hops == 2
+    assert provenance.verification_calls == 2
+    provenance_payload = str(asdict(provenance))
+    assert "jane@example.com" not in provenance_payload
+    assert "api_key" not in provenance_payload
+    assert "Drop chunk" not in provenance_payload
 
 
 @pytest.mark.asyncio

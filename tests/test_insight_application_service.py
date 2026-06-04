@@ -904,7 +904,20 @@ async def test_execute_insight_request_hands_internal_candidates_to_store_withou
 
     assert observed["promoted"] == [candidate]
     assert response["provider"] == "stub"
-    assert "knowledge_candidates" not in response
+    for forbidden_key in (
+        "knowledge_candidates",
+        "verification_bundle",
+        "provenance",
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "answer_digest",
+        "prompt_char_count",
+        "prompt_trimmed",
+        "verification_hops",
+        "verification_calls",
+    ):
+        assert forbidden_key not in response
 
 
 @pytest.mark.asyncio
