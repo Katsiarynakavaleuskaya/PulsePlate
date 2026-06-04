@@ -15,7 +15,7 @@ module SemanticPolicy
   METADATA_MEDICAL_CLAIMS = /
     \b(?:BMI|IMC|medical|doctor(?:s|(?:[-\s]+led))?|diagnos(?:e|es|ed|ing|is|tic)?|patient(?:s)?|prescription(?:s)?|therapy|therapeutic)\b|
     (?:рецепт(?:а|у|ов|ы|ам)?\s+(?:на\s+)?(?:(?:[а-яё]+)\s+){0,2}(?:лекарств[а-яё]*|препарат[а-яё]*|таблет[а-яё]*))|
-    (?:(?:лекарств[а-яё]*|препарат[а-яё]*|таблет[а-яё]*)\s+(?:по\s+)?рецепт(?:а|у|ов|ы|ам)?(?:\s+(?:[а-яё]+)){0,2})|
+    (?:(?:лекарств[а-яё]*|препарат[а-яё]*|таблет[а-яё]*)\s+(?:по\s+)?(?:(?:[а-яё]+)\s+){0,2}рецепт(?:а|у|ов|ы|ам)?(?:\s+(?:[а-яё]+)){0,2})|
     \b(?:ИМТ|медицин(?:а|ский|ская|ские|ских)|врач(?:а|ей|ом)?|диагноз(?:а|ом|е|ы)?|пациент(?:а|ов)?|терап(?:ия|ии|ию|ией))\b|
     \b(?:m[eé]dic(?:o|a|os|as|al|amente)?|doctor(?:es)?|diagn[oó]stic(?:o|a|os|as)?|paciente(?:s)?|receta(?:s)?|terapia)\b
   /ix.freeze
@@ -36,7 +36,7 @@ module SemanticPolicy
     /(?:[$€£¥₽]\s*\d)|(?:\d+\s*(?:USD|EUR|GBP|JPY|RUB))/i,
     /\b(?:free\s+trial|trial\s+period|introductory\s+offer|subscribe\s+now|subscription\s+for\s+\$?\d+|auto-?renew(?:ing|al)?)\b/i,
     /\b(?:monthly\s+subscription|yearly\s+subscription)\b/i,
-    /\b(?:пробн(?:ый|ая)\s+период|вводн(?:ое|ая)\s+предложение|подпиш(?:итесь|ись)\s+сейчас|автопродлен(?:ие|ием))\b/i,
+    /\b(?:пробн(?:ый|ая)\s+период|вводн(?:ое|ая)\s+предложение|подпиш(?:итесь|ись)\s+сейчас|подписк[а-яё]*|автопродлен(?:ие|ием))\b/i,
     /\b(?:ежемесячн(?:ая|ый)\s+подписка|ежегодн(?:ая|ый)\s+подписка)\b/i,
     /\b(?:prueba\s+gratuita|per[ií]odo\s+de\s+prueba|oferta\s+introductoria|suscr[ií]bete\s+ahora|renovaci[oó]n\s+autom[aá]tica)\b/i,
     /\b(?:suscripci[oó]n\s+mensual|suscripci[oó]n\s+anual)\b/i

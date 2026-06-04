@@ -379,7 +379,9 @@ def test_validate_metadata_allows_ru_food_recipe_declensions(tmp_path: Path) -> 
         "Рецепт ваших лекарств помогает контролировать курс.",
         "Рецепт на ваши препараты помогает контролировать курс.",
         "Лекарства по рецепту помогают контролировать курс.",
+        "Лекарства по электронному рецепту помогают контролировать курс.",
         "Таблетки по рецепту врача помогают контролировать курс.",
+        "Таблетки по льготному рецепту помогают контролировать курс.",
         "Препараты по рецепту врача помогают контролировать курс.",
     ],
 )
@@ -527,6 +529,34 @@ def test_validate_metadata_allows_spanish_wellness_disclaimer_variant(tmp_path: 
     )
 
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Оформите подписку для доступа к плану.",
+        "Условия подписки остаются за StoreKit.",
+    ],
+)
+def test_validate_metadata_rejects_ru_subscription_truth_claims(
+    tmp_path: Path, content: str
+) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    promotional_text_path = metadata_root / "ru-RU" / "promotional_text.txt"
+    promotional_text_path.write_text(content, encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert (
+        f"Blocked StoreKit/App Store truth claim found in {promotional_text_path}" in result.stderr
+    )
 
 
 def test_validate_metadata_allows_non_pricing_subscription_terms(tmp_path: Path) -> None:
