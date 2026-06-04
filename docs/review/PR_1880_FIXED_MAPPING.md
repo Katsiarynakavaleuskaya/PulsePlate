@@ -48,6 +48,11 @@ Disposition: NOT-A-BUG
 Evidence: Current branch commits that reference `artifacts/orchestration/experiments/results/exp-58af46dd9734.json` include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`: `551b44835`, `2998a1743`, `9795c7164`, and `8cff6ed34`. Commit `c291e1783` is a hook-generated `.secrets.baseline` refresh before the Experiment Runner evidence was created and does not cite or use that artifact.
 Reason: The governed identity policy requires the trailer on commits materially shaped by Experiment Runner evidence; the current branch satisfies that for the implementation, mapping, and review-fix commits that used the artifact.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355859851 -> a9999242e
+Disposition: FIXED
+Commit: a9999242e
+Evidence: duplicate mapping entries for the backlog and runtime-toolchain comments were grouped under one shared Disposition/Commit/Evidence block per finding family.
+
 ## Premortem Findings
 
 - Disposition: FIXED
