@@ -54,12 +54,7 @@ because the role is not registered in the canonical inventory and
 - Oracle command: `python -m pytest -q tests/test_fitchef_app_store_pack.py`
 - Oracle result: PASS in isolated checkout
 - Co-author trailer required: yes
-- Current branch trailer evidence:
-  - `2ad3e4793` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
-  - `a6ee45ad2` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
-  - `ef3d4a8f1` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
-  - `c68ee747d` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
-  - `f18a4b835` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Current branch trailer evidence: `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD` returns `PulsePlate Experiment Runner <pulseplate@pm.me>` for branch commits materially shaped by the Experiment Runner; `AGENTS.md:374-375` defines this exact trailer.
 
 ## Discussion Thread Pass
 
@@ -77,6 +72,16 @@ Disposition: FIXED
 Commit: c68ee747d
 Evidence: `docs/review/PR_1883_FIXED_MAPPING.md` now records premortem FIXED commit proof and current branch Experiment Runner trailer evidence; `git log --format='%h %(trailers)' origin/main..HEAD` shows the governed trailer on current branch commits.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359417488
+Disposition: NOT-A-BUG
+Evidence: `git log --format='%H %h %s %(trailers:key=Co-authored-by,valueonly)' origin/main..HEAD` shows branch commits carry `PulsePlate Experiment Runner <pulseplate@pm.me>`; `AGENTS.md:374-375` defines the exact trailer for material branch commits.
+Reason: The reviewed `refs/pull/1883/merge` SHA is a GitHub synthetic merge ref, not a material authored branch commit; the Experiment Runner attribution invariant applies to commits materially shaped by the runner, and the branch commits satisfy it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1883#discussion_r3359420913
+Disposition: NOT-A-BUG
+Evidence: `AGENTS.md:374-375` requires `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`; current branch commits use that exact identity.
+Reason: The suggested `<pulseplatepm.me>` identity conflicts with the root repository governance contract, so replacing the trailer would make the mapping less compliant.
+
 ## Post-Open Role-Agent Findings
 
 Post-open mandatory review status before Codex Security and
@@ -87,6 +92,7 @@ Post-open mandatory review status before Codex Security and
 | `qa-engineer-agent` | PASS | NOT-A-BUG | Post-open rerun confirmed Phase2/body mapping, focused tests, no protected Fastlane/binary/upload scope, and no wellness/medical claim risk. |
 | `bug-hunter` | PASS | NOT-A-BUG | Post-open pass confirmed seven-shot coverage, no-upload/internal-review wording, scoped diff, and focused guard suite. |
 | `security-auditor` | BLOCK then fixed | FIXED | `c68ee747d` added premortem commit proof and current Experiment Runner trailer evidence; `f18a4b835` mapped the Codex review threads in `## Fixed in Commit Mapping`. |
+| `security-auditor` rerun | BLOCK then dispositioned | NOT-A-BUG | New Codex/CodeRabbit trailer threads were dispositioned in `## Fixed in Commit Mapping` using `AGENTS.md:374` and branch trailer evidence. |
 
 Remaining before merge readiness: Codex Security diff scan / finding discovery,
 `pulseplate-pr-review`, current-head CI, no unresolved review threads, no
