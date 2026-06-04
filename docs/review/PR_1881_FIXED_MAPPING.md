@@ -26,10 +26,15 @@ backend/OpenAPI/iOS/frontend runtime changes, or new Slack authority.
 
 ### Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#pullrequestreview-4427935168 -> b45ef0081
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#pullrequestreview-4429827392 -> b45ef0081
 Disposition: FIXED
 Commit: `b45ef0081`
 Evidence: cubic identified readiness false-green and workflow-summary risks. `scripts/orchestration/experiment_slack_bridge_readiness.py` now rejects padded hypothesis digests, reports `blocked_by_smoke_input` with `status=fail`, and includes explicit false authority anchors in the summary. `.github/workflows/experiment-runner-slack-socket-smoke.yml` now preserves the readiness CLI exit code while still printing/writing sanitized summary labels. `tests/test_experiment_slack_socket_bridge.py` covers padded digest rejection, unchecked smoke-input failure, workflow summary-on-failure plumbing, and status false-authority anchors. `docs/orchestration/EXPERIMENT_RUNNER_SLACK_SOCKET_OPERATOR_RUNBOOK.md` and `docs/roadmap/BACKLOG_LEDGER.md` document `blocked_by_smoke_input`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#pullrequestreview-4430357172 -> add14ec5f
+Disposition: FIXED
+Commit: `add14ec5f`
+Evidence: CodeRabbit identified a missing renderer contract row for `blocked_by_invalid_config`. `tests/test_experiment_operator_ledger.py` now includes `blocked_by_invalid_config` in `test_operator_observability_report_renders_activation_readiness_states`, and `.venv/bin/python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` plus `make validate-changed` passed after the fix.
 
 ## Premortem Findings
 
@@ -51,8 +56,17 @@ Evidence: cubic identified readiness false-green and workflow-summary risks. `sc
   authority boundaries, manual `workflow_dispatch` Socket Mode scope, and no
   HTTPS ingress, Slack authority widening, semantic-cache rail, or product
   runtime change.
-- [ ] Codex Security diff scan / finding discovery - pending.
-- [ ] `pulseplate-pr-review` - pending.
+- [x] Codex Security diff scan / finding discovery - completed; no findings. Report: `/tmp/codex-security-scans/BMI-App_2025_clean/pr1881-slack-operator-readiness/report.md`; HTML: `/tmp/codex-security-scans/BMI-App_2025_clean/pr1881-slack-operator-readiness/report.html`; validator passed.
+- [x] `pulseplate-pr-review` - completed in dry-run/report mode. It raised one advisory large-diff planning note only.
+
+## Advisory / Bot Dispositions
+
+- Disposition: NOT-A-BUG
+  Evidence: `pulseplate-pr-review` flagged large-diff risk because the PR diff is above the 800-line review-planning threshold. The scope remains a single Socket Mode activation-readiness slice with no HTTPS ingress, semantic cache, GraphRAG, product runtime, backend/OpenAPI/iOS/frontend runtime change, or new Slack authority; `make validate-changed` passed after the latest test-contract fix.
+- Disposition: NOT-A-BUG
+  Evidence: Sourcery reported service rate limiting on the original commit only and did not provide code-actionable findings. The current Sourcery status check is PASS.
+- Disposition: NOT-A-BUG
+  Evidence: CodeRabbit issue comment `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#issuecomment-4624310967` contains review-stack/rate-limit metadata and no additional code-actionable finding beyond the mapped `blocked_by_invalid_config` review.
 
 ## Experiment Runner Evidence
 
@@ -75,7 +89,9 @@ Evidence: cubic identified readiness false-green and workflow-summary risks. `sc
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks during `git push`
-- BLOCKED / out of PR-scope required gate: full `make verify` exploratory run reached `make typecheck` and failed on unchanged current-main `app/routers/fitchef_structured.py:75` APIRoute override return-type mismatch. This file is outside the PR diff and root `main` shows the same local typecheck failure.
+- PASS: `python3 /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/265aae08/scripts/validate_report_format.py --report-md /tmp/codex-security-scans/BMI-App_2025_clean/pr1881-slack-operator-readiness/report.md`
+- PASS: `.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
+- Not required for this operator-approved lane: full `make verify`. An exploratory full verify attempt reached `make typecheck` and failed on unchanged current-main `app/routers/fitchef_structured.py:75` APIRoute override return-type mismatch. This file is outside the PR diff and root `main` shows the same local typecheck failure. The PR-required local gate remains `make validate-changed` per operator direction.
 
 ## Semantic Gate Recheck
 
