@@ -22,13 +22,13 @@ frontend, iOS, Slack/operator-plane authority, semantic cache, or GraphRAG.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass pending post-open review.
-- [x] Fixed in commit mapping artifact initialized.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - No review threads have been resolved.
 
 ### Fixed in Commit Mapping
 
-- Pending post-open review.
+- No actionable review comments
 
 ## Premortem Findings
 
@@ -57,7 +57,7 @@ frontend, iOS, Slack/operator-plane authority, semantic cache, or GraphRAG.
 
 ## Advisory / Bot Dispositions
 
-- Pending post-open review.
+- No actionable review comments
 
 ## Experiment Runner Evidence
 
