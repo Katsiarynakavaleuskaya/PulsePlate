@@ -55,6 +55,12 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor b45ef0081 HEAD`, `git merge-base --is-ancestor add14ec5f HEAD`, and `git merge-base --is-ancestor c6edfefba HEAD` all returned exit code 0 on current branch head after `c6edfefba`.
 Reason: The review comment asserted that mapped fix commits were not ancestors of current head, but current branch history contains those commits.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358578692 -> d4a78bd50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#pullrequestreview-4431083482 -> d4a78bd50
+Disposition: FIXED
+Commit: d4a78bd50
+Evidence: CodeRabbit identified a machine-local absolute path in the Codex Security validator evidence. `docs/review/PR_1881_FIXED_MAPPING.md` now records the validator invocation with `$CODEX_SECURITY_PLUGIN_ROOT` and `<REDACTED_TMP>` placeholders instead of user-specific local paths.
+
 ## Premortem Findings
 
 - Disposition: FIXED
