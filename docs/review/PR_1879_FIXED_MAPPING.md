@@ -29,6 +29,16 @@ Disposition: FIXED
 Commit: d8a8ae56d
 Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:11` through `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:53` keep RU storyboard focus text localized, and `tests/test_fitchef_app_store_pack.py:282` through `tests/test_fitchef_app_store_pack.py:312` guard both preview script and storyboard focus text against English storyboard boilerplate.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355439429 -> ed80580eb
+Disposition: FIXED
+Commit: ed80580eb
+Evidence: `appstore/fitchef/ru-RU/metadata/upload_checklist.md:1` through `appstore/fitchef/ru-RU/metadata/upload_checklist.md:13` keep the RU upload checklist directions localized while preserving Fastlane/App Store Connect/export exclusion scope, and `tests/test_fitchef_app_store_pack.py:327` through `tests/test_fitchef_app_store_pack.py:356` guard RU markdown against English operational copy.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355439433 -> ed80580eb
+Disposition: FIXED
+Commit: ed80580eb
+Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:58` remove the overbroad RU `рецепт` blocker, and `tests/test_fitchef_app_store_pack.py:317` through `tests/test_fitchef_app_store_pack.py:324` add deterministic coverage that food-recipe planning copy remains allowed.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -88,13 +98,21 @@ Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:11` through
   - Commit: `d8a8ae56d`
   - Evidence: `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:11` through `appstore/fitchef/ru-RU/iphone-6.9/preview/storyboard.json:53` translate the RU storyboard focus fields, and `tests/test_fitchef_app_store_pack.py:282` through `tests/test_fitchef_app_store_pack.py:312` extend the RU preview-plan localization guard.
 
+- `CodexConnector-1879-2` - `FIXED`
+  - Commit: `ed80580eb`
+  - Evidence: `appstore/fitchef/ru-RU/metadata/upload_checklist.md:1` through `appstore/fitchef/ru-RU/metadata/upload_checklist.md:13` translate the RU upload checklist operational copy, and `tests/test_fitchef_app_store_pack.py:327` through `tests/test_fitchef_app_store_pack.py:356` keep RU markdown localized.
+
+- `CodexConnector-1879-3` - `FIXED`
+  - Commit: `ed80580eb`
+  - Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:58` remove the overbroad RU `рецепт` blocker, and `tests/test_fitchef_app_store_pack.py:317` through `tests/test_fitchef_app_store_pack.py:324` prove ordinary food-recipe planning copy remains allowed.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py` - 17 passed
-- `make validate-changed` - 14 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py` - 18 passed
+- `make validate-changed` - 15 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
