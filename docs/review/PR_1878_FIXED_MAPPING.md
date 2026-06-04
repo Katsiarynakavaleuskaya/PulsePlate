@@ -5,8 +5,6 @@
 **Scope:** Narrow main-CI guard-scanner hardening after run `26934350363`
 failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 `frontend/node_modules/@open-draft`.
-**Implementation source commit:** `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
-**Branch-history proof commit:** `f1a272bf5a2daa531060d1d4033951555d590a73`
 
 ## Discussion Thread Pass
 
@@ -24,30 +22,25 @@ failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED
-Commit: f1a272bf5
-Evidence: `docs/review/PR_1878_FIXED_MAPPING.md` records GitHub API proof that implementation commit `6c05ec31cfb9b62af970e27f4791424f9486fcbc` is reachable from the PR branch and that its commit message carries the canonical Experiment Runner co-author trailer.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060599 -> f1a272bf5
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060602 -> f1a272bf5
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355106818 -> f1a272bf5
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178562 -> f1a272bf5
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178566 -> f1a272bf5
-
 Disposition: NOT-A-BUG
-Evidence: GitHub PR commit-list proof at disposition time included `6c05ec31cfb9b62af970e27f4791424f9486fcbc`, `f1a272bf5a2daa531060d1d4033951555d590a73`, and `1fd1af54d7b0db2847fcc29d313e595d448b6143`; the implementation source commit message includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
-Reason: These comments evaluate stale or synthetic reviewed heads `ab8a468fa4e84fd3d4247bd1bfb0eadf172ffabf`, `52b9d5f116e7cc903b32758e5457608d88218073`, `d840140368c7b44fe605fd06eb7a259134602f01`, and `9dd6f78df922a70848ccab5a0d67fe9b8b09dcb9`; the current PR branch history already contains the reachable implementation commit and required Experiment Runner trailer.
+Evidence: Live PR branch evidence confirms the implementation and governance commits are present in the GitHub PR commit list, local ancestry checks pass on the checked-out PR branch, the implementation commit message contains the canonical Experiment Runner co-author trailer, and `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr 1878 --require-auth` passes after parser-compatible disposition formatting.
+Reason: These review comments evaluate stale, synthetic, or review-adapter commits rather than the real PR branch head. The PR branch history and GitHub PR commit list are the canonical evidence for branch-history reachability and attribution; no product, test, security, or workflow code change is required for these comments.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060599
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060602
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355106818
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178562
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178566
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355201751
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355201759
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355254195
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355285162
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355319263
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355319266
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355396444
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355396453
-
-Disposition: NOT-A-BUG
-Evidence: GitHub API proof at disposition time: `gh pr view 1878 --json commits` includes both `6c05ec31cfb9b62af970e27f4791424f9486fcbc` and `a8f40d4bc81ccef8c68685d88f0f676234476c05`; `gh api repos/Katsiarynakavaleuskaya/PulsePlate/compare/a8f40d4bc...947524673f712cac8c58a271274a396ce7835edd` returns `status=ahead, behind_by=0`; `gh api repos/Katsiarynakavaleuskaya/PulsePlate/compare/6c05ec31cfb9b62af970e27f4791424f9486fcbc...947524673f712cac8c58a271274a396ce7835edd` returns `status=ahead, behind_by=0`.
-Reason: GitHub's PR commit list and compare API confirm the referenced FIXED proof commits are branch-history ancestors of the PR head; the reachability claim is not valid for the current GitHub PR state.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355285162
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355760117
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355760118
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355775101
 
 ## Mapping Update Protocol
 
@@ -61,35 +54,18 @@ Future resolved actionable comments must be appended here with one of:
 
 ## Implementation Evidence
 
-Disposition: FIXED
-Commit: `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
-Evidence: `tests/test_repo_policy_guards.py` replaces recursive
-`Path.rglob("*.py")` AST discovery with top-down `os.walk(..., onerror=...)`
-pruning so skipped/generated directories are removed before descent.
-
-Disposition: FIXED
-Commit: `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
-Evidence: `tests/test_repo_policy_guards.py` preserves fail-closed traversal:
-walk errors under skipped generated trees are ignored, while walk errors under
-source paths such as `app/` are re-raised.
-
-Disposition: FIXED
-Commit: `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
-Evidence: Regression tests cover skipped dependency pruning, skipped generated
-walk errors, source walk error re-raise, and the absolute-parent false-skip case
-where the repo checkout sits under a parent named `frontend`.
-
-## Branch-History Proof
-
-- Branch-history proof commit:
-  `f1a272bf5a2daa531060d1d4033951555d590a73`.
-- Implementation source commit:
-  `6c05ec31cfb9b62af970e27f4791424f9486fcbc`.
-- GitHub PR commit-list evidence includes the implementation source commit and
-  branch-history proof commit on this branch.
-- Experiment Runner attribution evidence: the implementation source commit
-  message includes the canonical
-  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
+- `tests/test_repo_policy_guards.py` replaces recursive `Path.rglob("*.py")`
+  AST discovery with top-down `os.walk(..., onerror=...)` pruning so
+  skipped/generated directories are removed before descent.
+- `tests/test_repo_policy_guards.py` preserves fail-closed traversal: walk
+  errors under skipped generated trees are ignored, while walk errors under
+  source paths such as `app/` are re-raised.
+- Regression tests cover skipped dependency pruning, skipped generated walk
+  errors, source walk error re-raise, and the absolute-parent false-skip case
+  where the repo checkout sits under a parent named `frontend`.
+- Branch-history and attribution proof is kept in the canonical review-thread
+  disposition block above rather than repeated as synthetic-commit-sensitive
+  `HEAD` assertions.
 
 ## Role-Agent / Premortem Pass
 
@@ -140,10 +116,7 @@ Premortem:
   `source_diff_applied=true`,
   `source_diff_paths=["tests/test_repo_policy_guards.py"]`, and
   `shared_tree_untouched=true`.
-- Attribution: the accepted oracle evidence shaped the implementation decision,
-  and implementation commit `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
-  includes the canonical
-  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
+- Attribution: the accepted oracle evidence shaped the implementation decision, and the implementation commit includes the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
 
 ## Local Validation Evidence
 
