@@ -23,7 +23,15 @@ failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: a8f40d4bc
+Evidence: `docs/review/PR_1878_FIXED_MAPPING.md` now includes branch-history proof that implementation commit `6c05ec31cfb9b62af970e27f4791424f9486fcbc` is reachable from the PR branch and that its commit message carries the canonical Experiment Runner co-author trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060599 -> a8f40d4bc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355060602 -> a8f40d4bc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355106818 -> a8f40d4bc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178562 -> a8f40d4bc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355178566 -> a8f40d4bc
 
 ## Mapping Update Protocol
 
