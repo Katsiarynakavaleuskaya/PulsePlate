@@ -8,6 +8,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
+import html
 import json
 import os
 from pathlib import Path
@@ -21,13 +22,18 @@ if str(OPERATOR_LEDGER_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(OPERATOR_LEDGER_REPO_ROOT))
 
 from scripts.orchestration.context_pack import REPO_ROOT
+from scripts.orchestration.experiment_contract import validate_experiment_result
 from scripts.orchestration.experiment_slack_bridge_config import (
     _normalized_absolute_path,
     _reject_symlinked_output_components,
 )
 from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE, SHA256_HEX_RE
 from scripts.orchestration.experiment_slack_bridge_models import SlackSocketAuditError
-from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE, safe_artifact_ref
+from scripts.orchestration.experiment_slack_redaction import (
+    LOCAL_PATH_RE,
+    SLACK_IDENTIFIER_RE,
+    safe_artifact_ref,
+)
 
 SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "operator-plane-2026-06-02-v1"
@@ -35,6 +41,10 @@ REDACTION_VERSION = "experiment-slack-redaction-v1"
 DEFAULT_RETENTION_DAYS = 30
 PROVIDER_TYPE = "experiment_runner_operator_plane"
 DEFAULT_LEDGER_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "operator_ledger"
+DEFAULT_OBSERVABILITY_REPORT_DIR = (
+    REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "operator_observability"
+)
+EXPERIMENT_RESULTS_REPO_PREFIX = "artifacts/orchestration/experiments/results/"
 IDEMPOTENCY_KEY_ITERATIONS = 120_000
 IDEMPOTENCY_KEY_NAMESPACE = b"pulseplate-operator-ledger-idempotency-v1"
 IDEMPOTENCY_KEY_CHECK_ITERATIONS = 1_000
@@ -88,6 +98,44 @@ ALLOWED_COAUTHOR_DECISIONS = frozenset(
 )
 ALLOWED_REVIEW_OUTCOMES = frozenset(
     {"pending", "approved", "rejected", "deferred", "not_applicable"}
+)
+RESULT_METADATA_ABSENT = {
+    "artifact_status": "absent",
+    "artifact_ref": "none",
+}
+RESULT_METADATA_INVALID = {
+    "artifact_status": "invalid",
+    "artifact_ref": "none",
+}
+RESULT_METADATA_MISSING = {
+    "artifact_status": "missing",
+    "artifact_ref": "none",
+}
+SAFE_RESULT_METADATA_FIELDS = (
+    "schema_version",
+    "experiment_id_hash",
+    "runner_mode",
+    "status",
+    "failure_class",
+    "mutated_paths_count",
+    "shared_tree_untouched",
+    "promotion_ready",
+    "contribution_kind",
+    "coauthor_required",
+)
+CLI_OUTPUT_PATCH_OR_LOG_RE = re.compile(
+    r"(diff\s+--git|^@@\s|^\+\+\+\s|^---\s|raw\s+patch|patch\s+text|"
+    r"oracle\s+stdout|oracle\s+stderr|raw\s+stdout|raw\s+stderr|"
+    r"stdout\s*:|stderr\s*:)",
+    re.IGNORECASE | re.MULTILINE,
+)
+CLI_OUTPUT_LOCAL_PATH_RE = re.compile(
+    r"("
+    r"/(?:Users|home|var|opt|tmp|private|Volumes|etc|usr|Library|System)/"
+    r"[^\s\"'`<>]*"
+    r"|[A-Za-z]:\\[^\s\"'`<>]+"
+    r"|\\\\[^\s\"'`<>]+"
+    r")"
 )
 
 HASH_FIELDS = frozenset(
@@ -185,6 +233,13 @@ def default_ledger_dir(repo_root: Path | None = None) -> Path:
 
     effective_root = repo_root or REPO_ROOT
     return effective_root / "artifacts" / "orchestration" / "experiments" / "operator_ledger"
+
+
+def default_observability_report_dir(repo_root: Path | None = None) -> Path:
+    """Return the default local operator observability report directory."""
+
+    effective_root = repo_root or REPO_ROOT
+    return effective_root / "artifacts" / "orchestration" / "experiments" / "operator_observability"
 
 
 def _canonical_json_bytes(payload: Any) -> bytes:
@@ -306,6 +361,21 @@ def _validate_retention_days(value: Any) -> int:
     if value <= 0 or value > 366:
         raise OperatorLedgerError("Experiment operator ledger retention is invalid.")
     return value
+
+
+def _safe_cli_stdout_payload(rendered: str) -> str:
+    """Return a CLI stdout payload only after final no-leak enforcement."""
+
+    if (
+        SECRET_SHAPED_RE.search(rendered)
+        or GITHUB_APP_TOKEN_ARTIFACT_RE.search(rendered)
+        or SLACK_IDENTIFIER_RE.search(rendered)
+        or LOCAL_PATH_RE.search(rendered)
+        or CLI_OUTPUT_LOCAL_PATH_RE.search(rendered)
+        or CLI_OUTPUT_PATCH_OR_LOG_RE.search(rendered)
+    ):
+        raise OperatorLedgerError("Experiment operator ledger output contains unsafe content.")
+    return rendered
 
 
 def _idempotency_material(payload: dict[str, Any]) -> dict[str, Any]:
@@ -885,6 +955,97 @@ def _hash_prefix(value: Any) -> str:
     return normalized[:16]
 
 
+def _value_hash_prefix(value: Any) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:16]
+
+
+def _result_metadata(artifact_status: str, artifact_ref: str, **values: Any) -> dict[str, Any]:
+    metadata = {"artifact_status": artifact_status, "artifact_ref": artifact_ref}
+    metadata.update(values)
+    return metadata
+
+
+def _validate_result_artifact_path(artifact_ref: str, *, repo_root: Path) -> Path:
+    if not artifact_ref.startswith(EXPERIMENT_RESULTS_REPO_PREFIX):
+        raise OperatorLedgerError("Experiment result artifact reference is invalid.")
+    artifact_root = _artifact_root(repo_root)
+    results_root = cast(
+        Path,
+        _normalized_absolute_path(repo_root / EXPERIMENT_RESULTS_REPO_PREFIX),
+    )
+    candidate = cast(Path, _normalized_absolute_path(repo_root / artifact_ref))
+    try:
+        candidate.relative_to(results_root)
+        candidate.relative_to(artifact_root)
+    except ValueError as exc:
+        raise OperatorLedgerError("Experiment result artifact reference is invalid.") from exc
+    try:
+        _reject_symlinked_output_components(
+            candidate,
+            artifact_dir=artifact_root,
+            repo_root=repo_root,
+        )
+    except SlackSocketAuditError as exc:
+        raise OperatorLedgerError("Experiment result artifact reference is invalid.") from exc
+    if candidate.exists() and (not candidate.is_file() or candidate.is_symlink()):
+        raise OperatorLedgerError("Experiment result artifact reference is invalid.")
+    return candidate
+
+
+def _safe_result_metadata_from_ref(
+    artifact_ref: Any,
+    *,
+    repo_root: Path,
+    expected_result_hash: Any = "none",
+) -> dict[str, Any]:
+    try:
+        normalized_ref = _validate_artifact_ref(artifact_ref)
+        normalized_expected_hash = _validate_hash(expected_result_hash)
+    except OperatorLedgerError:
+        return dict(RESULT_METADATA_INVALID)
+    if normalized_ref == "none":
+        return dict(RESULT_METADATA_ABSENT)
+    try:
+        result_path = _validate_result_artifact_path(normalized_ref, repo_root=repo_root)
+    except OperatorLedgerError:
+        return _result_metadata("invalid", normalized_ref)
+    if not result_path.exists():
+        return _result_metadata("missing", normalized_ref)
+    try:
+        if (
+            normalized_expected_hash == "none"
+            or _sha256_file(result_path) != normalized_expected_hash
+        ):
+            return _result_metadata("invalid", normalized_ref)
+        raw = json.loads(result_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("Experiment result must be a JSON object.")
+        result = validate_experiment_result(raw)
+    except (
+        OSError,
+        OperatorLedgerError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        ValueError,
+        TypeError,
+        OverflowError,
+    ):
+        return _result_metadata("invalid", normalized_ref)
+    metadata = {
+        "schema_version": result["schema_version"],
+        "experiment_id_hash": _value_hash_prefix(result["experiment_id"]),
+        "runner_mode": result["runner_mode"],
+        "status": result["status"],
+        "failure_class": result["failure_class"] or "none",
+        "mutated_paths_count": len(result["mutated_paths"]),
+        "shared_tree_untouched": result["shared_tree_untouched"],
+        "promotion_ready": result["promotion_ready"],
+        "contribution_kind": result["contribution_kind"],
+        "coauthor_required": result["coauthor_required"],
+    }
+    return _result_metadata("valid", normalized_ref, **metadata)
+
+
 def latest_operator_ledger_summary(
     *,
     ledger_dir: Path | None = None,
@@ -934,12 +1095,35 @@ def build_operator_observability_report(
 ) -> dict[str, Any]:
     """Build a redacted local observability report from operator ledger events."""
 
-    records = load_operator_ledger_events(ledger_dir=ledger_dir, repo_root=repo_root)
+    effective_root = repo_root or REPO_ROOT
+    records = load_operator_ledger_events(ledger_dir=ledger_dir, repo_root=effective_root)
     by_status = Counter(str(record.payload["status"]) for record in records)
     by_failure = Counter(str(record.payload["failure_class"]) for record in records)
     by_command = Counter(str(record.payload["command_kind"]) for record in records)
     by_dispatch_mode = Counter(str(record.payload["dispatch_mode"]) for record in records)
+    result_artifacts = [
+        _safe_result_metadata_from_ref(
+            record.payload["oracle_result_ref"],
+            repo_root=effective_root,
+            expected_result_hash=record.payload["oracle_result_hash"],
+        )
+        for record in records
+    ]
+    by_result_artifact_status = Counter(
+        str(metadata["artifact_status"]) for metadata in result_artifacts
+    )
+    source_counts = {
+        "operator_ledger_events": len(records),
+        "result_artifact_refs": sum(
+            1 for metadata in result_artifacts if metadata.get("artifact_status") != "absent"
+        ),
+    }
+    malformed_artifact_counts = {
+        "invalid_result_artifacts": by_result_artifact_status.get("invalid", 0),
+        "missing_result_artifacts": by_result_artifact_status.get("missing", 0),
+    }
     latest = records[-1].payload if records else None
+    latest_result_metadata = result_artifacts[-1] if result_artifacts else None
     return {
         "authority_boundary": {
             "claimed_merge_readiness": False,
@@ -950,15 +1134,21 @@ def build_operator_observability_report(
         "by_command_kind": dict(sorted(by_command.items())),
         "by_dispatch_mode": dict(sorted(by_dispatch_mode.items())),
         "by_failure_class": dict(sorted(by_failure.items())),
+        "by_result_artifact_status": dict(sorted(by_result_artifact_status.items())),
         "by_status": dict(sorted(by_status.items())),
         "event_count": len(records),
         "latest": (
             {
                 "branch_hash": _hash_prefix(latest["branch_hash"]),
                 "command_kind": latest["command_kind"],
+                "coauthor_decision": latest["coauthor_decision"],
+                "coauthor_required": latest["coauthor_required"],
+                "dispatch_mode": latest["dispatch_mode"],
                 "failure_class": latest["failure_class"],
+                "human_review_outcome": latest["human_review_outcome"],
                 "hypothesis_hash": _hash_prefix(latest["hypothesis_hash"]),
                 "oracle_result_ref": latest["oracle_result_ref"],
+                "result_metadata": latest_result_metadata,
                 "status": latest["status"],
                 "workflow_file": latest["workflow_file"],
                 "workflow_ref": latest["workflow_ref"],
@@ -966,10 +1156,25 @@ def build_operator_observability_report(
             if latest
             else None
         ),
+        "malformed_artifact_counts": malformed_artifact_counts,
         "policy_version": POLICY_VERSION,
         "redaction_version": REDACTION_VERSION,
+        "redaction_summary": {
+            "approval_digests_stored": False,
+            "health_data_stored": False,
+            "local_paths_stored": False,
+            "patch_text_stored": False,
+            "provider_logs_stored": False,
+            "raw_branch_refs_stored": False,
+            "raw_hypotheses_stored": False,
+            "raw_slack_text_stored": False,
+            "slack_ids_stored": False,
+            "token_prefixes_stored": False,
+        },
         "report_scope": "local_operator_plane_only",
+        "result_artifacts": result_artifacts,
         "schema_version": SCHEMA_VERSION,
+        "source_counts": source_counts,
     }
 
 
@@ -992,6 +1197,10 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
             "status",
             "failure_class",
             "command_kind",
+            "dispatch_mode",
+            "coauthor_decision",
+            "coauthor_required",
+            "human_review_outcome",
             "workflow_file",
             "workflow_ref",
             "branch_hash",
@@ -999,6 +1208,14 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
             "oracle_result_ref",
         ):
             lines.append(f"- {key}: `{latest[key]}`")
+        result_metadata = latest.get("result_metadata") or {}
+        lines.extend(["", "## Latest Result Metadata"])
+        for key in (
+            "artifact_status",
+            *SAFE_RESULT_METADATA_FIELDS,
+        ):
+            if key in result_metadata:
+                lines.append(f"- {key}: `{result_metadata[key]}`")
     else:
         lines.append("- none")
     for section, key in (
@@ -1006,9 +1223,13 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
         ("Failure Class Counts", "by_failure_class"),
         ("Command Counts", "by_command_kind"),
         ("Dispatch Mode Counts", "by_dispatch_mode"),
+        ("Result Artifact Counts", "by_result_artifact_status"),
+        ("Source Counts", "source_counts"),
+        ("Malformed Artifact Counts", "malformed_artifact_counts"),
+        ("Redaction Summary", "redaction_summary"),
     ):
         lines.extend(["", f"## {section}"])
-        counts = report[key]
+        counts = report.get(key, {})
         if counts:
             for name, count in counts.items():
                 lines.append(f"- `{name}`: `{count}`")
@@ -1026,6 +1247,177 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _html_cell(value: Any) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def _render_html_table(rows: list[tuple[str, Any]]) -> str:
+    if not rows:
+        return "<p>none</p>"
+    rendered_rows = [
+        f'<tr><th scope="row">{_html_cell(name)}</th><td>{_html_cell(value)}</td></tr>'
+        for name, value in rows
+    ]
+    return "<table><tbody>" + "".join(rendered_rows) + "</tbody></table>"
+
+
+def render_operator_observability_html(report: dict[str, Any]) -> str:
+    """Render a deterministic escaped local-only HTML report."""
+
+    latest = report["latest"] or {}
+    latest_result = latest.get("result_metadata") if latest else None
+    sections: list[str] = [
+        "<!doctype html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="utf-8">',
+        "<title>Experiment Runner Operator Ledger Report</title>",
+        "</head>",
+        "<body>",
+        "<h1>Experiment Runner Operator Ledger Report</h1>",
+        "<p>Scope: local operator-plane evidence only.</p>",
+        (
+            "<p>Authority: display-only; not PR, review-thread, merge-readiness, "
+            "or product truth.</p>"
+        ),
+        _render_html_table(
+            [
+                ("policy_version", report["policy_version"]),
+                ("redaction_version", report["redaction_version"]),
+                ("event_count", report["event_count"]),
+            ]
+        ),
+        "<h2>Latest</h2>",
+    ]
+    if latest:
+        sections.append(
+            _render_html_table(
+                [
+                    (key, latest[key])
+                    for key in (
+                        "status",
+                        "failure_class",
+                        "command_kind",
+                        "dispatch_mode",
+                        "coauthor_decision",
+                        "coauthor_required",
+                        "human_review_outcome",
+                        "workflow_file",
+                        "workflow_ref",
+                        "branch_hash",
+                        "hypothesis_hash",
+                        "oracle_result_ref",
+                    )
+                ]
+            )
+        )
+        sections.append("<h2>Latest Result Metadata</h2>")
+        if isinstance(latest_result, dict):
+            sections.append(
+                _render_html_table(
+                    [
+                        (key, latest_result[key])
+                        for key in (
+                            "artifact_status",
+                            *SAFE_RESULT_METADATA_FIELDS,
+                        )
+                        if key in latest_result
+                    ]
+                )
+            )
+        else:
+            sections.append("<p>none</p>")
+    else:
+        sections.append("<p>none</p>")
+    for title, key in (
+        ("Status Counts", "by_status"),
+        ("Failure Class Counts", "by_failure_class"),
+        ("Command Counts", "by_command_kind"),
+        ("Dispatch Mode Counts", "by_dispatch_mode"),
+        ("Result Artifact Counts", "by_result_artifact_status"),
+        ("Source Counts", "source_counts"),
+        ("Malformed Artifact Counts", "malformed_artifact_counts"),
+        ("Redaction Summary", "redaction_summary"),
+    ):
+        sections.append(f"<h2>{_html_cell(title)}</h2>")
+        values = report.get(key, {})
+        sections.append(_render_html_table(sorted(values.items())))
+    sections.extend(
+        [
+            "<h2>Boundary</h2>",
+            _render_html_table(sorted(report["authority_boundary"].items())),
+            "</body>",
+            "</html>",
+            "",
+        ]
+    )
+    return "\n".join(sections)
+
+
+def _report_set_output_paths(
+    report_dir: Path | None,
+    *,
+    repo_root: Path,
+    ledger_dir: Path | None = None,
+) -> dict[str, Path]:
+    target_dir = report_dir or default_observability_report_dir(repo_root)
+    return {
+        "json": _validate_output_path(
+            target_dir / "operator_observability_report.json",
+            repo_root=repo_root,
+            ledger_dir=ledger_dir,
+        ),
+        "markdown": _validate_output_path(
+            target_dir / "operator_observability_report.md",
+            repo_root=repo_root,
+            ledger_dir=ledger_dir,
+        ),
+        "html": _validate_output_path(
+            target_dir / "operator_observability_report.html",
+            repo_root=repo_root,
+            ledger_dir=ledger_dir,
+        ),
+    }
+
+
+def write_operator_observability_report_set(
+    report: dict[str, Any],
+    *,
+    report_dir: Path | None = None,
+    ledger_dir: Path | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, str]:
+    """Write JSON, Markdown, and HTML observability reports under local artifacts."""
+
+    effective_root = repo_root or REPO_ROOT
+    paths = _report_set_output_paths(
+        report_dir,
+        repo_root=effective_root,
+        ledger_dir=ledger_dir,
+    )
+    safe_refs = {
+        kind: _safe_artifact_ref_from_path(path, repo_root=effective_root)
+        for kind, path in paths.items()
+    }
+    rendered = {
+        "json": json.dumps(report, indent=2, sort_keys=True) + "\n",
+        "markdown": render_operator_observability_markdown(report),
+        "html": render_operator_observability_html(report),
+    }
+    for path in paths.values():
+        try:
+            _preflight_output_write(path)
+        except OSError as exc:
+            raise OperatorLedgerError("Unable to write Experiment operator ledger output.") from exc
+    for kind, path in paths.items():
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(rendered[kind], encoding="utf-8")
+        except OSError as exc:
+            raise OperatorLedgerError("Unable to write Experiment operator ledger output.") from exc
+    return safe_refs
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
@@ -1057,8 +1449,24 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Render a local observability report from the operator ledger.",
     )
     parser.add_argument(
+        "--write-report-set",
+        action="store_true",
+        help=(
+            "Write JSON, Markdown, and HTML reports under "
+            "artifacts/orchestration/experiments/operator_observability/."
+        ),
+    )
+    parser.add_argument(
+        "--report-dir",
+        default=None,
+        help=(
+            "Optional report-set directory under artifacts/orchestration/experiments. "
+            "Defaults to operator_observability/."
+        ),
+    )
+    parser.add_argument(
         "--format",
-        choices=("json", "markdown"),
+        choices=("html", "json", "markdown"),
         default="json",
         help="Summary output format.",
     )
@@ -1073,7 +1481,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     ledger_dir = Path(args.ledger_dir) if args.ledger_dir else None
+    report_dir = Path(args.report_dir) if args.report_dir else None
     try:
+        if args.write_report_set and args.record:
+            raise OperatorLedgerError("Experiment operator ledger report set cannot record events.")
+        if args.write_report_set and args.summary:
+            raise OperatorLedgerError(
+                "Experiment operator ledger report set cannot combine with summary."
+            )
+        if args.write_report_set and args.output:
+            raise OperatorLedgerError(
+                "Experiment operator ledger report set uses deterministic outputs."
+            )
         output_path = (
             _validate_output_path(
                 Path(args.output),
@@ -1083,6 +1502,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.output
             else None
         )
+        if args.summary and output_path is None:
+            raise OperatorLedgerError(
+                "Experiment operator ledger summary output requires --output."
+            )
         if output_path:
             try:
                 _preflight_output_write(output_path)
@@ -1090,6 +1513,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise OperatorLedgerError(
                     "Unable to write Experiment operator ledger output."
                 ) from exc
+        rendered: str | None = None
+        stdout_payload: str | None = None
         if args.record:
             if args.event_json is None:
                 raise OperatorLedgerError("Experiment operator ledger input is invalid.")
@@ -1101,16 +1526,33 @@ def main(argv: list[str] | None = None) -> int:
                 "idempotency_key": path.stem,
                 "status": "recorded",
             }
-            rendered = json.dumps(payload, sort_keys=True) + "\n"
+            stdout_payload = json.dumps(payload, sort_keys=True) + "\n"
+        elif args.write_report_set:
+            report = build_operator_observability_report(ledger_dir=ledger_dir)
+            stdout_payload = (
+                json.dumps(
+                    {
+                        "outputs": write_operator_observability_report_set(
+                            report,
+                            report_dir=report_dir,
+                            ledger_dir=ledger_dir,
+                        ),
+                        "status": "written",
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
         elif args.summary:
             report = build_operator_observability_report(ledger_dir=ledger_dir)
-            rendered = (
-                json.dumps(report, indent=2, sort_keys=True) + "\n"
-                if args.format == "json"
-                else render_operator_observability_markdown(report)
-            )
+            if args.format == "json":
+                rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
+            elif args.format == "html":
+                rendered = render_operator_observability_html(report)
+            else:
+                rendered = render_operator_observability_markdown(report)
         else:
-            rendered = (
+            stdout_payload = (
                 json.dumps(
                     {"policy_version": POLICY_VERSION, "status": "idle"},
                     sort_keys=True,
@@ -1118,6 +1560,10 @@ def main(argv: list[str] | None = None) -> int:
                 + "\n"
             )
         if output_path:
+            if rendered is None:
+                rendered = stdout_payload
+            if rendered is None:
+                raise OperatorLedgerError("Experiment operator ledger output is invalid.")
             try:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_text(rendered, encoding="utf-8")
@@ -1126,7 +1572,9 @@ def main(argv: list[str] | None = None) -> int:
                     "Unable to write Experiment operator ledger output."
                 ) from exc
         else:
-            print(rendered, end="")
+            if stdout_payload is None:
+                raise OperatorLedgerError("Experiment operator ledger output is invalid.")
+            sys.stdout.write(_safe_cli_stdout_payload(stdout_payload))
     except OperatorLedgerError as exc:
         print(f"FAIL: {exc}")
         return 1
