@@ -1280,6 +1280,7 @@ def test_operator_ledger_cli_writes_empty_observability_report_set(
         "blocked_by_missing_secret",
         "blocked_by_allowlist",
         "blocked_by_smoke_input",
+        "blocked_by_invalid_config",
         "manual_only",
     ),
 )
