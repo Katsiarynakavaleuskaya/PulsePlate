@@ -74,6 +74,37 @@ Reason: The governed identity policy requires the trailer on commits materially 
   diagnostics without raw Slack text, raw IDs, logs, secrets, local paths, or
   patch text.
 
+## Post-Open Review Gates
+
+- [x] `qa-engineer-agent` - completed; found Phase 2/mapping contract drift.
+  Fixed by `9795c7164`, and
+  `scripts/ci/check_pr_body_phase2_gates.py --pr-number 1880` passed.
+- [x] `bug-hunter` - completed; found `operator_plane_slack` routing holes for
+  backlog-only and runtime-toolchain-test-only changes. Fixed by `8cff6ed34`,
+  and both reviewer reproduction commands now return `operator_plane_slack=true`
+  with `run_backend_blocking=true`.
+- [x] `security-auditor` - completed at current head `99f825034`; no actionable
+  security/governance findings.
+- [x] Codex Security diff scan / finding discovery - completed under scan id
+  `99f825034e6a_20260604T120852Z`; 10/10 diff worklist rows have completion
+  receipts, the final report validator passed, HTML rendered, and no reportable
+  findings survived discovery.
+- [x] `pulseplate-pr-review` - completed in dry-run mode. It produced one
+  advisory `NEEDS-HUMAN` large-diff note because the diff exceeds 300 changed
+  lines.
+
+## PulsePlate PR Review Disposition
+
+- Disposition: NOT-A-BUG
+  Evidence: PR scope is intentionally one narrow operator-plane lane across CI
+  routing, runbook/backlog wording, fixed mapping, and deterministic tests;
+  `make validate-changed`, focused Slack/operator-plane pytest, Phase 2 body
+  gate, Codex Security diff scan, and pre-commit/pre-push gates passed for the
+  scoped surface.
+  Reason: the dry-run note is review-planning evidence, not a code defect or
+  merge-readiness claim; splitting the PR further would separate the CI route
+  from its deterministic docs/tests proof.
+
 ## Experiment Runner Evidence
 
 - Artifact: `artifacts/orchestration/experiments/results/exp-58af46dd9734.json`
@@ -94,9 +125,13 @@ Reason: The governed identity policy requires the trailer on commits materially 
 - PASS: `pytest -q tests/test_ci_risk_profile.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_operator_ledger.py tests/test_experiment_slack_kpp_renderer.py tests/test_runtime_toolchain_alignment.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py tests/guards/test_security_devtooling_regression_guards.py tests/test_current_head_pr_checks.py`
 - PASS: `scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 - PASS: `scripts/ci/ci_risk_profile.py --file scripts/orchestration/experiment_slack_socket_bridge.py --as-json`
+- PASS: `scripts/ci/ci_risk_profile.py --file docs/roadmap/BACKLOG_LEDGER.md --as-json`
+- PASS: `scripts/ci/ci_risk_profile.py --file tests/test_runtime_toolchain_alignment.py --as-json`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks during `git push`
+- PASS: `scripts/ci/check_pr_body_phase2_gates.py --pr-number 1880`
+- PASS: `pytest -q tests/test_pr_review_report.py tests/test_pr_review_context.py`
 - BLOCKED: `make verify` reached `make typecheck` and failed on unchanged
   `app/routers/fitchef_structured.py:75` with an APIRoute override return-type
   mismatch. This file is outside the PR-4 diff, so PR-4 does not widen scope to
@@ -111,6 +146,6 @@ Reason: The governed identity policy requires the trailer on commits materially 
 ## Merge Readiness
 
 - Not claimed.
-- Current-head CI, post-open role passes, Codex Security review, PR review
-  governance, bot comments, and review-thread disposition remain pending after
-  PR open.
+- Current-head CI, bot comment state, review-thread resolution, strict
+  disposition checks, strict merge-readiness checks, and wait-window remain
+  pending.
