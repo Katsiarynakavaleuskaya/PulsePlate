@@ -328,6 +328,11 @@ def test_validate_metadata_rejects_non_comma_keyword_separators(tmp_path: Path) 
     [
         ("en-US", "Doctor-led nutrition treatment for every patient."),
         ("ru-RU", "Врач ставит диагноз и лечит пациента."),
+        ("ru-RU", "Клиническая поддержка питания для каждого плана."),
+        ("ru-RU", "Поддержка приема лекарств каждый день."),
+        ("ru-RU", "План таблеток рядом с рационом."),
+        ("ru-RU", "Советы диетолога для вашего рациона."),
+        ("ru-RU", "Эксперт по питанию рядом каждый день."),
         ("es-ES", "Tratamiento médico guiado por doctor para cada paciente."),
     ],
 )
@@ -348,6 +353,61 @@ def test_validate_metadata_rejects_blocked_medical_wording_in_each_locale(
 
     assert result.returncode == 1
     assert f"Blocked medical wording found in {description_path}" in result.stderr
+
+
+def test_validate_metadata_allows_ru_food_recipe_declensions(tmp_path: Path) -> None:
+    """Normal RU food-recipe wording must not fail as prescription language."""
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    promotional_text_path = metadata_root / "ru-RU" / "promotional_text.txt"
+    promotional_text_path.write_text(
+        "Рецепты и подборка рецептов помогают собрать недельное меню.",
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Рецепт на лекарства помогает контролировать курс.",
+        "Рецепты на лекарства помогают контролировать курс.",
+        "Рецепты препаратов помогают контролировать курс.",
+        "Рецепт ваших лекарств помогает контролировать курс.",
+        "Рецепт на ваши препараты помогает контролировать курс.",
+        "Лекарства по рецепту помогают контролировать курс.",
+        "Лекарства по электронному рецепту помогают контролировать курс.",
+        "Таблетки по рецепту врача помогают контролировать курс.",
+        "Таблетки по льготному рецепту помогают контролировать курс.",
+        "Препараты по рецепту врача помогают контролировать курс.",
+    ],
+)
+def test_validate_metadata_rejects_ru_prescription_medicine_context(
+    tmp_path: Path, content: str
+) -> None:
+    """RU prescription wording remains blocked when it is about medicine."""
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    promotional_text_path = metadata_root / "ru-RU" / "promotional_text.txt"
+    promotional_text_path.write_text(content, encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Blocked medical wording found in {promotional_text_path}" in result.stderr
 
 
 def test_validate_metadata_rejects_guaranteed_promissory_claims(tmp_path: Path) -> None:
@@ -476,6 +536,60 @@ def test_validate_metadata_allows_spanish_wellness_disclaimer_variant(tmp_path: 
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Оформите подписку для доступа к плану.",
+        "Условия подписки остаются за StoreKit.",
+    ],
+)
+def test_validate_metadata_rejects_ru_subscription_truth_claims(
+    tmp_path: Path, content: str
+) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    promotional_text_path = metadata_root / "ru-RU" / "promotional_text.txt"
+    promotional_text_path.write_text(content, encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert (
+        f"Blocked StoreKit/App Store truth claim found in {promotional_text_path}" in result.stderr
+    )
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Скидка 50% на годовой план.",
+        "Промокод на годовой план.",
+    ],
+)
+def test_validate_metadata_rejects_ru_discount_truth_claims(tmp_path: Path, content: str) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    promotional_text_path = metadata_root / "ru-RU" / "promotional_text.txt"
+    promotional_text_path.write_text(content, encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert (
+        f"Blocked StoreKit/App Store truth claim found in {promotional_text_path}" in result.stderr
+    )
+
+
 def test_validate_metadata_allows_non_pricing_subscription_terms(tmp_path: Path) -> None:
     metadata_root = tmp_path / "metadata"
     review_notes, privacy_json = _prepare_metadata(metadata_root)
@@ -486,6 +600,11 @@ def test_validate_metadata_allows_non_pricing_subscription_terms(tmp_path: Path)
     )
     keywords_path = metadata_root / "en-US" / "keywords.txt"
     keywords_path.write_text("wellness,subscription,planning,coach", encoding="utf-8")
+    ru_release_notes_path = metadata_root / "ru-RU" / "release_notes.txt"
+    ru_release_notes_path.write_text(
+        "Исправлена ошибка синхронизации настроек подписки и отображения скидки.",
+        encoding="utf-8",
+    )
 
     result = _run_ruby(
         REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",

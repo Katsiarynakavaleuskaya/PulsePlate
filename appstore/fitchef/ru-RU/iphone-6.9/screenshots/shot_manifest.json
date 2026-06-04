@@ -1,0 +1,174 @@
+{
+  "locale": "ru-RU",
+  "device_class": "iPhone 6.9",
+  "canvas_px": {
+    "width": 1320,
+    "height": 2868
+  },
+  "safe_area_px": {
+    "top": 260,
+    "bottom": 260,
+    "left_right": 120
+  },
+  "shots": [
+    {
+      "id": "shot-01",
+      "expected_filename": "01_core-value.png",
+      "headline": [
+        "Умное питание",
+        "с поддержкой AI"
+      ],
+      "supporting_copy": [
+        "Нутриенты",
+        "план питания",
+        "привычки"
+      ],
+      "product_surface": "dashboard / daily overview",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/HomeView.swift",
+        "frontend/src/pages/Home.tsx"
+      ],
+      "contract_emotion": "calm",
+      "approved_mascot_asset_key": "FitChefOnboardingWelcome",
+      "asset_rationale": "Для стартового RU-кадра выбран канонический приветственный вариант FitChef из действующей таксономии активов.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-02",
+      "expected_filename": "02_nutrition-analysis.png",
+      "headline": [
+        "Понимайте",
+        "свой рацион"
+      ],
+      "supporting_copy": [
+        "Макро",
+        "Микронутриенты",
+        "Баланс дня"
+      ],
+      "product_surface": "nutrition analysis / result view",
+      "repo_source_refs": [
+        "frontend/src/pages/NutritionSetup/ResultView.tsx",
+        "frontend/src/pages/NutritionSetup/MacroCards.tsx",
+        "frontend/src/pages/NutritionSetup/MicrosGrid.tsx"
+      ],
+      "contract_emotion": "explaining",
+      "approved_mascot_asset_key": "FitChefThinking",
+      "asset_rationale": "Отдельного объясняющего варианта в PR-2 нет; FitChefThinking остается ближайшим каноническим вариантом для поясняющего кадра.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-03",
+      "expected_filename": "03_meal-planner.png",
+      "headline": [
+        "AI-план питания",
+        "под ваши цели"
+      ],
+      "supporting_copy": [
+        "Цели по весу",
+        "Фитнес-цели",
+        "Баланс рациона"
+      ],
+      "product_surface": "weekly planner",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift",
+        "ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift",
+        "frontend/src/features/weekly-plan/hooks/useWeeklyPlan.ts"
+      ],
+      "contract_emotion": "cooking",
+      "approved_mascot_asset_key": "FitChefThinking",
+      "asset_rationale": "В PR-2 нет отдельной позы готовки; до будущей волны с кухонной позой используется канонический FitChefThinking.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-04",
+      "expected_filename": "04_grocery-list.png",
+      "headline": [
+        "Умные списки",
+        "покупок"
+      ],
+      "supporting_copy": [
+        "Из плана меню",
+        "в удобный список"
+      ],
+      "product_surface": "shopping list",
+      "repo_source_refs": [
+        "frontend/src/features/shoplist/ShoplistPreview.tsx",
+        "ios/PulsePlate/ViewModels/ShoppingListReaderViewModel.swift",
+        "ios/PulsePlate/Views/HomeView.swift"
+      ],
+      "contract_emotion": "helpful",
+      "approved_mascot_asset_key": "FitChef",
+      "asset_rationale": "Нейтральный FitChef остается каноническим вариантом для полезного кадра, пока нет отдельного помощника со списком покупок.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-05",
+      "expected_filename": "05_health-progress.png",
+      "headline": [
+        "Следите",
+        "за динамикой"
+      ],
+      "supporting_copy": [
+        "Привычки",
+        "Баланс питания",
+        "Еженедельные выводы"
+      ],
+      "product_surface": "progress and weekly analytics",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/ProgressView.swift",
+        "ios/PulsePlate/Views/WeeklyProgressView.swift",
+        "frontend/src/pages/Progress.tsx"
+      ],
+      "contract_emotion": "proud",
+      "approved_mascot_asset_key": "FitChefWink",
+      "asset_rationale": "FitChefWink остается ближайшим каноническим вариантом для кадра с динамикой и поддерживающим акцентом.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-06",
+      "expected_filename": "06_personalization.png",
+      "headline": [
+        "Питание",
+        "под вас"
+      ],
+      "supporting_copy": [
+        "Цели",
+        "Предпочтения",
+        "Типы рационов"
+      ],
+      "product_surface": "profile and setup",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/ProfileView.swift",
+        "frontend/src/pages/Profile.tsx",
+        "frontend/src/pages/NutritionSetup/SetupForm.tsx"
+      ],
+      "contract_emotion": "thinking",
+      "approved_mascot_asset_key": "FitChefThinking",
+      "asset_rationale": "Кадр напрямую соответствует каноническому активу FitChefThinking.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-07",
+      "expected_filename": "07_ai-assistant.png",
+      "headline": [
+        "Ваш AI-гид",
+        "по питанию"
+      ],
+      "supporting_copy": [
+        "Подсказки",
+        "Рекомендации",
+        "Выводы"
+      ],
+      "product_surface": "bounded assistant / insight view",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/AIInsightView.swift",
+        "frontend/src/pages/Home.tsx",
+        "app/routers/fitchef_insight.py"
+      ],
+      "contract_emotion": "guiding",
+      "approved_mascot_asset_key": "FitChef",
+      "asset_rationale": "Нейтральный FitChef остается самым безопасным вариантом для направляющего кадра до отдельного коучингового варианта.",
+      "output_status": "source-approved"
+    }
+  ]
+}

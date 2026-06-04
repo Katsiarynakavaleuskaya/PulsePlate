@@ -1,0 +1,56 @@
+{
+  "locale": "ru-RU",
+  "device_class": "iPhone 6.9",
+  "target_duration_seconds": 22,
+  "scenes": [
+    {
+      "id": "scene-01",
+      "shot_id": "shot-01",
+      "start_second": 0,
+      "end_second": 3,
+      "focus": "Логотип PulsePlate и стартовый кадр с поддержкой FitChef"
+    },
+    {
+      "id": "scene-02",
+      "shot_id": "shot-02",
+      "start_second": 3,
+      "end_second": 6,
+      "focus": "Анализ макро- и микронутриентов"
+    },
+    {
+      "id": "scene-03",
+      "shot_id": "shot-03",
+      "start_second": 6,
+      "end_second": 9,
+      "focus": "Недельное планирование питания"
+    },
+    {
+      "id": "scene-04",
+      "shot_id": "shot-04",
+      "start_second": 9,
+      "end_second": 12,
+      "focus": "Формирование списка покупок"
+    },
+    {
+      "id": "scene-05",
+      "shot_id": "shot-05",
+      "start_second": 12,
+      "end_second": 15,
+      "focus": "Прогресс и наблюдения по привычкам"
+    },
+    {
+      "id": "scene-06",
+      "shot_id": "shot-06",
+      "start_second": 15,
+      "end_second": 18,
+      "focus": "Персональные цели и настройка профиля"
+    },
+    {
+      "id": "scene-07",
+      "shot_id": "shot-07",
+      "start_second": 18,
+      "end_second": 22,
+      "focus": "Финальная подсказка FitChef с AI-поддержкой"
+    }
+  ]
+}
