@@ -339,6 +339,7 @@ def test_ru_preview_plan_uses_ru_operational_copy() -> None:
             *(scene["focus"] for scene in storyboard["scenes"]),
         ]
     )
+    text_lower = text.lower()
     blocked_english_fragments = (
         "## Duration",
         "## Script",
@@ -359,7 +360,7 @@ def test_ru_preview_plan_uses_ru_operational_copy() -> None:
     )
 
     offending_fragments = sorted(
-        fragment for fragment in blocked_english_fragments if fragment in text
+        fragment for fragment in blocked_english_fragments if fragment.lower() in text_lower
     )
     assert not offending_fragments, (
         "RU preview plan contains English operational copy: " f"{offending_fragments}"
