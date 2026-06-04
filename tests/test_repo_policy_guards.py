@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import re
-from typing import Iterable, Optional
+from typing import Iterable, Iterator, Optional
 
 import pytest
 
@@ -482,16 +483,123 @@ class _AstViolation:
         return f"{self.relpath}:{self.lineno}:{self.col} [{self.rule}] {self.detail}"
 
 
+def _root_relative_parts_for_ast_scan(path: Path, root: Path) -> tuple[str, ...]:
+    if path.is_absolute():
+        try:
+            return path.relative_to(root).parts
+        except ValueError:
+            return ()
+    return path.parts
+
+
+def _path_has_ast_scan_skip_part(path: Path, root: Path) -> bool:
+    parts = _root_relative_parts_for_ast_scan(path, root)
+    return any(part in SKIP_DIRS_FOR_AST_SCAN for part in parts)
+
+
 def _iter_repo_py_files_for_ast_scan(root: Path) -> Iterable[Path]:
     paths: list[Path] = []
-    for p in root.rglob("*.py"):
-        if any(part in SKIP_DIRS_FOR_AST_SCAN for part in p.parts):
-            continue
-        if not p.exists():
-            # CI TOCTOU safety: transient files can disappear between discovery and scan.
-            continue
-        paths.append(p)
+
+    def _handle_walk_error(error: OSError) -> None:
+        if error.filename is None:
+            raise error
+        error_path = Path(os.fsdecode(error.filename))
+        if not _path_has_ast_scan_skip_part(error_path, root):
+            raise error
+
+    for dirpath, dirnames, filenames in os.walk(
+        root,
+        topdown=True,
+        onerror=_handle_walk_error,
+        followlinks=False,
+    ):
+        dirnames[:] = [name for name in dirnames if name not in SKIP_DIRS_FOR_AST_SCAN]
+        for filename in filenames:
+            if not filename.endswith(".py"):
+                continue
+            p = Path(dirpath) / filename
+            if _path_has_ast_scan_skip_part(p, root):
+                continue
+            if not p.exists():
+                # CI TOCTOU safety: transient files can disappear between discovery and scan.
+                continue
+            paths.append(p)
+
     yield from sorted(paths, key=lambda x: x.as_posix())
+
+
+def test_iter_repo_py_files_for_ast_scan_prunes_skipped_dirs(tmp_path: Path) -> None:
+    """Generated dependency trees must be pruned before AST scanning."""
+    repo_root = tmp_path / "frontend" / "repo"
+    source_file = repo_root / "app" / "real_source.py"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+
+    dependency_file = repo_root / "frontend" / "node_modules" / "@open-draft" / "generated.py"
+    dependency_file.parent.mkdir(parents=True)
+    dependency_file.write_text("importlib.reload(core.db)\n", encoding="utf-8")
+
+    yielded = {
+        path.relative_to(repo_root).as_posix()
+        for path in _iter_repo_py_files_for_ast_scan(repo_root)
+    }
+
+    assert yielded == {"app/real_source.py"}
+
+
+def test_iter_repo_py_files_for_ast_scan_ignores_skipped_walk_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Transient generated dependency paths must not crash traversal."""
+    source_file = tmp_path / "app" / "real_source.py"
+    source_file.parent.mkdir()
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+    generated_path = tmp_path / "frontend" / "node_modules" / "@open-draft"
+
+    def fake_walk(
+        top: Path,
+        topdown: bool = True,
+        onerror: object | None = None,
+        followlinks: bool = False,
+    ) -> Iterator[tuple[str, list[str], list[str]]]:
+        assert top == tmp_path
+        assert topdown is True
+        assert followlinks is False
+        if callable(onerror):
+            onerror(FileNotFoundError(2, "No such file", str(generated_path)))
+        yield str(source_file.parent), [], [source_file.name]
+
+    monkeypatch.setattr(os, "walk", fake_walk)
+
+    yielded = {
+        path.relative_to(tmp_path).as_posix() for path in _iter_repo_py_files_for_ast_scan(tmp_path)
+    }
+
+    assert yielded == {"app/real_source.py"}
+
+
+def test_iter_repo_py_files_for_ast_scan_reraises_source_walk_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Traversal failures outside skipped generated trees must fail closed."""
+
+    def fake_walk(
+        top: Path,
+        topdown: bool = True,
+        onerror: object | None = None,
+        followlinks: bool = False,
+    ) -> Iterator[tuple[str, list[str], list[str]]]:
+        assert top == tmp_path
+        assert topdown is True
+        assert followlinks is False
+        if callable(onerror):
+            onerror(FileNotFoundError(2, "source tree disappeared", str(tmp_path / "app")))
+        yield str(tmp_path), [], []
+
+    monkeypatch.setattr(os, "walk", fake_walk)
+
+    with pytest.raises(FileNotFoundError, match="source tree disappeared"):
+        list(_iter_repo_py_files_for_ast_scan(tmp_path))
 
 
 def _is_allowlisted_for_ast_scan(path: Path) -> bool:
