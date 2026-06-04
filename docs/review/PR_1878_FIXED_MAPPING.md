@@ -5,7 +5,7 @@
 **Scope:** Narrow main-CI guard-scanner hardening after run `26934350363`
 failed in `test-main (3.11, 60)` while `Path.rglob("*.py")` traversed
 `frontend/node_modules/@open-draft`.
-**Primary implementation commit:** `362224505b57fa64cdb1e5c9c77ba6156cb1c31d`
+**Primary implementation commit:** `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
 
 ## Discussion Thread Pass
 
@@ -38,19 +38,19 @@ Future resolved actionable comments must be appended here with one of:
 ## Implementation Evidence
 
 Disposition: FIXED
-Commit: `362224505b57fa64cdb1e5c9c77ba6156cb1c31d`
+Commit: `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
 Evidence: `tests/test_repo_policy_guards.py` replaces recursive
 `Path.rglob("*.py")` AST discovery with top-down `os.walk(..., onerror=...)`
 pruning so skipped/generated directories are removed before descent.
 
 Disposition: FIXED
-Commit: `362224505b57fa64cdb1e5c9c77ba6156cb1c31d`
+Commit: `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
 Evidence: `tests/test_repo_policy_guards.py` preserves fail-closed traversal:
 walk errors under skipped generated trees are ignored, while walk errors under
 source paths such as `app/` are re-raised.
 
 Disposition: FIXED
-Commit: `362224505b57fa64cdb1e5c9c77ba6156cb1c31d`
+Commit: `6c05ec31cfb9b62af970e27f4791424f9486fcbc`
 Evidence: Regression tests cover skipped dependency pruning, skipped generated
 walk errors, source walk error re-raise, and the absolute-parent false-skip case
 where the repo checkout sits under a parent named `frontend`.
@@ -95,7 +95,7 @@ Premortem:
   `source_diff_paths=["tests/test_repo_policy_guards.py"]`, and
   `shared_tree_untouched=true`.
 - Attribution: `coauthor_required=true`; implementation commit
-  `362224505b57fa64cdb1e5c9c77ba6156cb1c31d` includes the canonical
+  `6c05ec31cfb9b62af970e27f4791424f9486fcbc` includes the canonical
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
 
 ## Local Validation Evidence
