@@ -29,6 +29,10 @@ from scripts.orchestration.experiment_slack_bridge_config import (
 )
 from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE, SHA256_HEX_RE
 from scripts.orchestration.experiment_slack_bridge_models import SlackSocketAuditError
+from scripts.orchestration.experiment_slack_bridge_readiness import (
+    manual_only_activation_readiness_report,
+    render_activation_readiness_summary,
+)
 from scripts.orchestration.experiment_slack_redaction import (
     LOCAL_PATH_RE,
     SLACK_IDENTIFIER_RE,
@@ -1092,6 +1096,7 @@ def build_operator_observability_report(
     *,
     ledger_dir: Path | None = None,
     repo_root: Path | None = None,
+    activation_readiness: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a redacted local observability report from operator ledger events."""
 
@@ -1131,6 +1136,7 @@ def build_operator_observability_report(
             "product_runtime_changed": False,
             "resolved_review_threads": False,
         },
+        "activation_readiness": activation_readiness or manual_only_activation_readiness_report(),
         "by_command_kind": dict(sorted(by_command.items())),
         "by_dispatch_mode": dict(sorted(by_dispatch_mode.items())),
         "by_failure_class": dict(sorted(by_failure.items())),
@@ -1182,6 +1188,9 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
     """Render a deterministic local-only Markdown report."""
 
     latest = report["latest"] or {}
+    activation_readiness = report.get("activation_readiness") or (
+        manual_only_activation_readiness_report()
+    )
     lines = [
         "# Experiment Runner Operator Ledger Report",
         "",
@@ -1218,6 +1227,10 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
                 lines.append(f"- {key}: `{result_metadata[key]}`")
     else:
         lines.append("- none")
+    lines.extend(["", "## Activation Readiness"])
+    for summary_item in render_activation_readiness_summary(activation_readiness):
+        key, value = summary_item.split("=", 1)
+        lines.append(f"- {key}: `{value}`")
     for section, key in (
         ("Status Counts", "by_status"),
         ("Failure Class Counts", "by_failure_class"),
@@ -1268,6 +1281,9 @@ def render_operator_observability_html(report: dict[str, Any]) -> str:
 
     latest = report["latest"] or {}
     latest_result = latest.get("result_metadata") if latest else None
+    activation_readiness = report.get("activation_readiness") or (
+        manual_only_activation_readiness_report()
+    )
     sections: list[str] = [
         "<!doctype html>",
         '<html lang="en">',
@@ -1331,6 +1347,17 @@ def render_operator_observability_html(report: dict[str, Any]) -> str:
             sections.append("<p>none</p>")
     else:
         sections.append("<p>none</p>")
+    sections.extend(
+        [
+            "<h2>Activation Readiness</h2>",
+            _render_html_table(
+                [
+                    tuple(summary_item.split("=", 1))
+                    for summary_item in render_activation_readiness_summary(activation_readiness)
+                ]
+            ),
+        ]
+    )
     for title, key in (
         ("Status Counts", "by_status"),
         ("Failure Class Counts", "by_failure_class"),

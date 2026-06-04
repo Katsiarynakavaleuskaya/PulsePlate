@@ -55,6 +55,20 @@ def _configure_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID", "packet-pr2")
 
 
+def _clear_readiness_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for env_name in (
+        bridge.SLACK_APP_AUTH_ENV,
+        bridge.SLACK_BOT_AUTH_ENV,
+        bridge.SLACK_CHANNEL_ALLOWLIST_ENV,
+        bridge.SLACK_USER_ALLOWLIST_ENV,
+        bridge.SLACK_TEAM_ALLOWLIST_ENV,
+        bridge.BRIDGE_AUDIT_RETENTION_DAYS_ENV,
+        bridge.LIVE_SMOKE_BRANCH_REF_ENV,
+        bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV,
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+
+
 def _event(
     *,
     event_id: str = "Ev0SLACK01",
@@ -307,6 +321,122 @@ def test_secret_presence_validation_rejects_malformed_allowlist_env(
     assert "xoxb-" not in stdout
     assert "/tmp/channel" not in stdout
     assert "U0OPERATOR" not in stdout
+
+
+def test_activation_readiness_report_manual_only_without_runtime_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    _clear_readiness_env(monkeypatch)
+
+    assert bridge.main(["--activation-readiness-report"]) == 0
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "pass"
+    assert report["activation_state"] == "manual_only"
+    assert report["slack_app_token_status"] == "missing"
+    assert report["slack_bot_token_status"] == "missing"
+    assert report["channel_allowlist_status"] == "missing"
+    assert report["user_allowlist_status"] == "missing"
+    assert report["team_allowlist_status"] == "missing"
+    assert report["branch_ref_status"] == "not_checked"
+    assert report["hypothesis_sha256_status"] == "not_checked"
+    assert report["audit_retention_status"] == "valid"
+    assert report["manual_live_smoke"] == "operator_evidence_only"
+    assert report["dispatch_surface"] == "socket_mode_only"
+    assert report["authority_boundary"] == {
+        "backend_contract_changed": False,
+        "claimed_merge_readiness": False,
+        "created_pr": False,
+        "deterministic_ci_requires_live_slack": False,
+        "opened_http_ingress": False,
+        "product_runtime_changed": False,
+        "resolved_review_threads": False,
+        "semantic_cache_enabled": False,
+    }
+    assert "SLACK_APP_TOKEN" not in stdout
+    assert "SLACK_BOT_TOKEN" not in stdout
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
+
+
+def test_activation_readiness_report_ready_for_manual_live_smoke_without_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.BRIDGE_AUDIT_RETENTION_DAYS_ENV, "14")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "main")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "a" * 64)
+
+    assert bridge.main(["--activation-readiness-report"]) == 0
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "pass"
+    assert report["activation_state"] == "ready_for_manual_live_smoke"
+    assert report["slack_app_token_status"] == "valid"
+    assert report["slack_bot_token_status"] == "valid"
+    assert report["channel_allowlist_status"] == "present"
+    assert report["user_allowlist_status"] == "present"
+    assert report["team_allowlist_status"] == "present"
+    assert report["branch_ref_status"] == "valid"
+    assert report["hypothesis_sha256_status"] == "valid"
+    assert "xapp-" not in stdout
+    assert "xoxb-" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert "T0TEAM" not in stdout
+    assert "main" not in stdout
+    assert "a" * 64 not in stdout
+
+
+def test_activation_readiness_report_rejects_malformed_shape_without_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "present-but-not-an-app-token")
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "/tmp/channel")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.BRIDGE_AUDIT_RETENTION_DAYS_ENV, "9999")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "feature/unsafe;branch")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "raw hypothesis")
+
+    assert bridge.main(["--activation-readiness-report"]) == 1
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "fail"
+    assert report["activation_state"] == "blocked_by_invalid_config"
+    assert report["slack_app_token_status"] == "invalid"
+    assert report["slack_bot_token_status"] == "valid"
+    assert report["channel_allowlist_status"] == "invalid"
+    assert report["branch_ref_status"] == "invalid"
+    assert report["hypothesis_sha256_status"] == "invalid"
+    assert report["audit_retention_status"] == "invalid"
+    assert "present-but-not-an-app-token" not in stdout
+    assert "xoxb-" not in stdout
+    assert "/tmp/channel" not in stdout
+    assert "feature/unsafe;branch" not in stdout
+    assert "raw hypothesis" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
 
 
 def test_smoke_input_validation_accepts_digest_without_echoing_values(
@@ -1402,6 +1532,10 @@ def test_status_command_reflects_latest_operator_ledger_event_after_processing(
     assert bridge._sha256_text("feature/status-ledger")[:16] in status_reply
     assert "feature/status-ledger" not in status_reply
     assert "Validate status ledger summary" not in status_reply
+    assert "socket_mode_activation_state=blocked_by_missing_secret" in status_reply
+    assert "socket_mode_readiness_status=pass" in status_reply
+    assert "manual_live_smoke=operator_evidence_only" in status_reply
+    assert "activation_authority=display_only" in status_reply
     assert "display_only" in status_reply
 
 
@@ -2612,6 +2746,14 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "Manual live smoke is operator evidence only" in runbook
     assert "not a required CI gate" in runbook
     assert "not merge-readiness proof" in runbook
+    assert "not optional when a PR packet" in runbook
+    assert "advisory` only limits authority" in runbook
+    assert "--activation-readiness-report" in runbook
+    assert "ready_for_manual_live_smoke" in runbook
+    assert "blocked_by_missing_secret" in runbook
+    assert "blocked_by_allowlist" in runbook
+    assert "manual_only" in runbook
+    assert "Activation Readiness" in runbook
     assert "`SLACK_APP_TOKEN` must be an `xapp-` app-level Socket Mode" in runbook
     assert "`SLACK_BOT_TOKEN` must be an `xoxb-` bot token" in runbook
     assert "Semantic-Cache Gate Recheck" in runbook
@@ -2662,6 +2804,9 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     input_step = next(
         step for step in steps if step["name"] == "Validate manual smoke inputs without raw echo"
     )
+    readiness_step = next(
+        step for step in steps if step["name"] == "Report Socket Mode activation readiness"
+    )
     runtime_step = next(
         step for step in steps if step["name"] == "Run bounded live Socket Mode smoke"
     )
@@ -2693,6 +2838,25 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         input_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
         == "${{ inputs.hypothesis_sha256 }}"
     )
+    assert readiness_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
+    assert readiness_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
+    assert (
+        readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"]
+        == "${{ inputs.channel_allowlist }}"
+    )
+    assert (
+        readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"]
+        == "${{ inputs.user_allowlist }}"
+    )
+    assert (
+        readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"]
+        == "${{ inputs.team_allowlist }}"
+    )
+    assert readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
+    assert (
+        readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
+        == "${{ inputs.hypothesis_sha256 }}"
+    )
     assert runtime_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
     assert (
         runtime_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
@@ -2702,6 +2866,7 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "${{ secrets.SLACK_BOT_TOKEN }}" in workflow_text
     assert "--validate-secret-presence" in workflow_text
     assert "--validate-smoke-inputs" in workflow_text
+    assert "--activation-readiness-report" in workflow_text
     assert "--validate-live-smoke" in workflow_text
     assert "--run-socket" not in workflow_text
     assert "--audit-retention report" in workflow_text
@@ -2716,7 +2881,12 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST=%s" in workflow_text
     assert "slack-bolt" not in workflow_text
     assert steps.index(mask_step) < steps.index(presence_step)
+    assert steps.index(input_step) < steps.index(readiness_step)
+    assert steps.index(readiness_step) < steps.index(presence_step)
     assert steps.index(mask_step) < steps.index(runtime_step)
+    assert steps.index(readiness_step) < steps.index(runtime_step)
+    assert "render_activation_readiness_summary" in readiness_step["run"]
+    assert "GITHUB_STEP_SUMMARY" in readiness_step["run"]
     assert 'os.environ["GITHUB_EVENT_PATH"]' in mask_step["run"]
     assert (
         '"branch_ref", "channel_allowlist", "user_allowlist", "team_allowlist", '

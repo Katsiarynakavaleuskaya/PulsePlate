@@ -27,6 +27,7 @@ try:
     from scripts.orchestration import experiment_slack_bridge_audit as _audit
     from scripts.orchestration import experiment_slack_bridge_config as _config
     from scripts.orchestration import experiment_slack_bridge_dispatch as _dispatch
+    from scripts.orchestration import experiment_slack_bridge_readiness as _readiness
     from scripts.orchestration import experiment_slack_bridge_rendering as _rendering
     from scripts.orchestration import experiment_slack_bridge_transport as _transport
     from scripts.orchestration import experiment_operator_ledger as _operator_ledger
@@ -244,6 +245,7 @@ __all__ = (
     "_write_audit_exclusive",
     "_write_operator_ledger_event",
     "audit_retention_summary",
+    "build_activation_readiness_report",
     "build_config",
     "default_audit_artifact_dir",
     "main",
@@ -255,6 +257,7 @@ __all__ = (
     "render_kpp_status_overview",
     "render_latest_operator_ledger_summary",
     "render_mvp_evidence_summary",
+    "render_activation_readiness_summary",
     "render_operator_help_message",
     "render_operator_status_message",
     "run_socket_listener",
@@ -319,6 +322,28 @@ def validate_secret_presence(
             required_env=required_env,
         ),
     )
+
+
+def build_activation_readiness_report(
+    *,
+    branch_ref: str | None = None,
+    hypothesis_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Build a value-free Socket Mode activation-readiness report."""
+
+    return cast(
+        dict[str, Any],
+        _readiness.build_activation_readiness_report(
+            branch_ref=branch_ref,
+            hypothesis_sha256=hypothesis_sha256,
+        ),
+    )
+
+
+def render_activation_readiness_summary(report: dict[str, Any]) -> tuple[str, ...]:
+    """Render a Slack-safe activation-readiness summary tuple."""
+
+    return cast(tuple[str, ...], _readiness.render_activation_readiness_summary(report))
 
 
 def render_mvp_evidence_summary() -> SlackSafeMessage:
@@ -820,6 +845,9 @@ def _format_command_reply(
             str,
             render_operator_status_message(
                 config,
+                activation_readiness_summary=render_activation_readiness_summary(
+                    build_activation_readiness_report(),
+                ),
                 operator_ledger_summary=render_latest_operator_ledger_summary(
                     exclude_event_hash=excluded_event_hash,
                 ),
@@ -899,6 +927,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Run bounded live-smoke validation for Socket Mode and bot auth, then exit.",
     )
     parser.add_argument(
+        "--activation-readiness-report",
+        action="store_true",
+        help="Print redacted Socket Mode activation-readiness JSON, then exit.",
+    )
+    parser.add_argument(
         "--validate-smoke-inputs",
         action="store_true",
         help="Validate manual smoke branch/digest inputs without printing values.",
@@ -959,6 +992,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.validate_secret_presence:
             return 0 if validate_secret_presence()["status"] == "pass" else 1
+        if args.activation_readiness_report:
+            report = build_activation_readiness_report(
+                branch_ref=args.branch_ref,
+                hypothesis_sha256=args.hypothesis_sha256,
+            )
+            print(json.dumps(report, sort_keys=True))
+            return 0 if report["status"] == "pass" else 1
         if args.validate_live_approval:
             try:
                 approval = _live_approval_sha256()
