@@ -109,9 +109,9 @@ Disposition: FIXED
 Commit: 7dff01472d6a6fb045d612e3ce60c936e05b7e2a
 Evidence: CodeRabbit identified that the direct CLI subprocess test relied on `Path.cwd()` and relative artifact cleanup. `tests/test_experiment_operator_ledger.py` now anchors the subprocess script path, cwd, output file, and cleanup directory to `Path(__file__).resolve().parents[1]`, preventing test leakage when the caller's working directory changes.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3353259777 -> d9502e88e9114641d67c7135fb98f053c156fe77
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3353259777 -> d9502e88ef8b254b079d8c7284e76fece26788b1
 Disposition: FIXED
-Commit: d9502e88e9114641d67c7135fb98f053c156fe77
+Commit: d9502e88ef8b254b079d8c7284e76fece26788b1
 Evidence: Codex identified that result-artifact hash read failures could raise `OperatorLedgerError` outside the sanitized invalid-artifact branch. `scripts/orchestration/experiment_operator_ledger.py` now catches `OperatorLedgerError` while projecting safe result metadata, and `tests/test_experiment_operator_ledger.py` proves a hash-read failure degrades to sanitized `artifact_status=invalid` without leaking the exception text.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#pullrequestreview-4424514406
