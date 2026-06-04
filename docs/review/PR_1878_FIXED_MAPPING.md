@@ -35,10 +35,11 @@ Evidence: `docs/review/PR_1878_FIXED_MAPPING.md` now includes branch-history pro
 
 Disposition: NOT-A-BUG
 Evidence: On this PR branch, `git merge-base --is-ancestor 6c05ec31cfb9b62af970e27f4791424f9486fcbc HEAD` exits 0, and `git show -s --format=%B 6c05ec31cfb9b62af970e27f4791424f9486fcbc` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
-Reason: These comments evaluate stale reviewed head `ab8a468fa4e84fd3d4247bd1bfb0eadf172ffabf`; the current PR branch history already contains the reachable implementation commit and required Experiment Runner trailer.
+Reason: These comments evaluate stale reviewed heads `ab8a468fa4e84fd3d4247bd1bfb0eadf172ffabf` and `52b9d5f116e7cc903b32758e5457608d88218073`; the current PR branch history already contains the reachable implementation commit and required Experiment Runner trailer.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355201751
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355201759
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1878#discussion_r3355254195
 
 ## Mapping Update Protocol
 
