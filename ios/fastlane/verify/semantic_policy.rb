@@ -14,7 +14,7 @@ module SemanticPolicy
 
   METADATA_MEDICAL_CLAIMS = /
     \b(?:BMI|IMC|medical|doctor(?:s|(?:[-\s]+led))?|diagnos(?:e|es|ed|ing|is|tic)?|patient(?:s)?|prescription(?:s)?|therapy|therapeutic)\b|
-    (?:рецепт(?:а|ов)?\s+(?:на\s+)?(?:лекарств(?:а|о|ам|ами)?|препарат(?:ы|ов)?|таблетк(?:и|у|ах)?))|
+    (?:рецепт(?:а|ов|ы)?\s+(?:на\s+)?(?:(?:[а-яё]+)\s+){0,2}(?:лекарств[а-яё]*|препарат[а-яё]*|таблет[а-яё]*))|
     \b(?:ИМТ|медицин(?:а|ский|ская|ские|ских)|врач(?:а|ей|ом)?|диагноз(?:а|ом|е|ы)?|пациент(?:а|ов)?|терап(?:ия|ии|ию|ией))\b|
     \b(?:m[eé]dic(?:o|a|os|as|al|amente)?|doctor(?:es)?|diagn[oó]stic(?:o|a|os|as)?|paciente(?:s)?|receta(?:s)?|terapia)\b
   /ix.freeze

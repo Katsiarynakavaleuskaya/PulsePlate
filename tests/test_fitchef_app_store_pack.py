@@ -47,7 +47,10 @@ BLOCKED_COPY_TERMS = {
         "врач",
         "пациент",
         "клиничес",
+        "лекарств",
         "медицин",
+        "препарат",
+        "таблет",
         "гарантир",
         "мгновенн",
         "быстрые результаты",
@@ -400,6 +403,26 @@ def test_ru_wellness_blockers_do_not_reject_food_recipe_copy() -> None:
             term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in recipe_copy.lower()
         )
         assert not offending_terms, f"Food recipe copy should stay allowed: {offending_terms}"
+
+
+@pytest.mark.parametrize(
+    ("prescription_copy", "expected_term"),
+    [
+        ("Рецепт на лекарства помогает контролировать курс.", "лекарств"),
+        ("Рецепт препарата не относится к wellness-планированию.", "препарат"),
+        ("План таблеток не должен попадать в App Store pack.", "таблет"),
+    ],
+)
+def test_ru_wellness_blockers_reject_prescription_medicine_copy(
+    prescription_copy: str,
+    expected_term: str,
+) -> None:
+    """RU pack guards must block prescription-medicine context without blocking food recipes."""
+    offending_terms = sorted(
+        term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in prescription_copy.lower()
+    )
+
+    assert expected_term in offending_terms
 
 
 def test_ru_pack_docs_preserve_no_upload_scope_and_safe_claims() -> None:
