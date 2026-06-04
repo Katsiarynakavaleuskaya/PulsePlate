@@ -59,6 +59,26 @@ Disposition: FIXED
 Commit: c8f8fd7b4
 Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` align production semantic policy with normal RU food-recipe copy, and `tests/test_ios_appstore_asset_validators.py:353` through `tests/test_ios_appstore_asset_validators.py:370` proves the Fastlane metadata validator accepts `Рецепты` / `рецептов` meal-planning copy.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355921589 -> c039159f8
+Disposition: FIXED
+Commit: c039159f8
+Evidence: `tests/test_fitchef_app_store_pack.py:147` through `tests/test_fitchef_app_store_pack.py:155` align the RU keyword budget guard with the Fastlane character-count policy in `ios/fastlane/verify/validate_metadata.rb:87` through `ios/fastlane/verify/validate_metadata.rb:90`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355921597 -> c039159f8
+Disposition: FIXED
+Commit: c039159f8
+Evidence: `appstore/fitchef/ru-RU/iphone-6.9/screenshots/shot_manifest.json:33` through `appstore/fitchef/ru-RU/iphone-6.9/screenshots/shot_manifest.json:170` localize RU `asset_rationale` strings, and `tests/test_fitchef_app_store_pack.py:347` through `tests/test_fitchef_app_store_pack.py:369` add a deterministic rationale-localization guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355921602 -> c039159f8
+Disposition: FIXED
+Commit: c039159f8
+Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` restore RU prescription blocking only for medicine context, while `tests/test_ios_appstore_asset_validators.py:353` through `tests/test_ios_appstore_asset_validators.py:391` proves ordinary food-recipe copy remains allowed and `Рецепт на лекарства` is still blocked.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3355921608
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 8c69dfbd3 HEAD`, `git merge-base --is-ancestor c8f8fd7b4 HEAD`, and `git merge-base --is-ancestor b6f3047d6 HEAD` all passed on current branch head before this mapping update.
+Reason: The bot cited a transient reviewed head, but the real remote branch head contains the mapped proof commits as reachable ancestors; the canonical artifact does not rely on force-pushed or local-only objects.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -142,13 +162,29 @@ Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/veri
   - Commit: `c8f8fd7b4`
   - Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` and `tests/test_ios_appstore_asset_validators.py:353` through `tests/test_ios_appstore_asset_validators.py:370` align the production Fastlane semantic policy with the RU recipe-copy guard.
 
+- `CodexConnector-1879-6` - `FIXED`
+  - Commit: `c039159f8`
+  - Evidence: `tests/test_fitchef_app_store_pack.py:147` through `tests/test_fitchef_app_store_pack.py:155` use the same character-count keyword budget as the protected Fastlane validator.
+
+- `CodexConnector-1879-7` - `FIXED`
+  - Commit: `c039159f8`
+  - Evidence: `appstore/fitchef/ru-RU/iphone-6.9/screenshots/shot_manifest.json:33` through `appstore/fitchef/ru-RU/iphone-6.9/screenshots/shot_manifest.json:170` localize screenshot rationale strings, and `tests/test_fitchef_app_store_pack.py:347` through `tests/test_fitchef_app_store_pack.py:369` guard against English rationale boilerplate.
+
+- `CodexConnector-1879-8` - `FIXED`
+  - Commit: `c039159f8`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` plus `tests/test_ios_appstore_asset_validators.py:353` through `tests/test_ios_appstore_asset_validators.py:391` keep RU prescription wording blocked only in medicine context.
+
+- `CodexConnector-1879-9` - `NOT-A-BUG`
+  - Evidence: `git merge-base --is-ancestor 8c69dfbd3 HEAD`, `git merge-base --is-ancestor c8f8fd7b4 HEAD`, and `git merge-base --is-ancestor b6f3047d6 HEAD` passed before this mapping update.
+  - Reason: Mapped proof commits are reachable from the actual branch head; the comment appears based on a transient reviewed head rather than the current remote head.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 55 passed
-- `make validate-changed` - 15 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 57 passed
+- `make validate-changed` - 54 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
