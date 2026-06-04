@@ -154,6 +154,21 @@ Disposition: FIXED
 Commit: b1bfb8d39
 Evidence: The three actionable Codex connector inline findings in review `4428276667` are mapped above to `b1bfb8d39` with file and test evidence for the RU markdown English-fragment guard, subscription declension guard, and treatment infinitive guard.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356492071
+Disposition: NOT-A-BUG
+Evidence: `gh pr view 1879 --json headRefOid,commits` listed actual PR branch head `094999cc073bc1ea4164217bc070b3f58244bdbe` with mapped proof commits such as `8c69dfbd3` and `b1bfb8d39` in the PR commit list, while `git merge-base --is-ancestor 8c69dfbd3 HEAD` and `git merge-base --is-ancestor b1bfb8d39 HEAD` passed on local branch head `593ad2082`.
+Reason: The reviewed `dde8efa` object is not the actual PR branch head and was not fetchable in the local checkout; the canonical mapping artifact is based on the reachable PR branch lineage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356492079 -> 593ad2082
+Disposition: FIXED
+Commit: 593ad2082
+Evidence: `ios/fastlane/verify/semantic_policy.rb:39` blocks RU subscription declensions through the `подписк` stem in production Fastlane validation, and `tests/test_ios_appstore_asset_validators.py:534` through `tests/test_ios_appstore_asset_validators.py:559` prove `Оформите подписку` and `Условия подписки` are rejected.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356492082 -> 593ad2082
+Disposition: FIXED
+Commit: 593ad2082
+Evidence: `ios/fastlane/verify/semantic_policy.rb:18` allows a bounded RU adjective gap before `рецепт` in reversed medicine-to-prescription wording, and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:405` prove `Лекарства по электронному рецепту` and `Таблетки по льготному рецепту` are blocked.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -313,13 +328,25 @@ Evidence: The three actionable Codex connector inline findings in review `442827
   - Commit: `b1bfb8d39`
   - Evidence: Review summary `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#pullrequestreview-4428276667` is covered by the three inline Codex connector FIXED mappings above.
 
+- `CodexConnector-1879-18` - `NOT-A-BUG`
+  - Evidence: `gh pr view 1879 --json headRefOid,commits` and `git merge-base --is-ancestor ... HEAD` confirmed the mapped proof commits remain reachable from the actual PR branch lineage.
+  - Reason: The cited `dde8efa` reviewed object is not the actual PR branch head used by the canonical mapping artifact.
+
+- `CodexConnector-1879-19` - `FIXED`
+  - Commit: `593ad2082`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:39` and `tests/test_ios_appstore_asset_validators.py:534` through `tests/test_ios_appstore_asset_validators.py:559` align RU subscription claim blocking between the pack guard and production Fastlane validator.
+
+- `CodexConnector-1879-20` - `FIXED`
+  - Commit: `593ad2082`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:18` and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:405` align reversed RU prescription-medicine wording with bounded adjective gaps.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 70 passed
-- `make validate-changed` - 67 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 74 passed
+- `make validate-changed` - 71 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
