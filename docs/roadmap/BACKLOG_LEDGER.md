@@ -3843,7 +3843,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR #1870 (VIP Identity Loop Mapper runtime) -> PR #1873 (Signal vs Noise report/content contract lane) -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR #1870 (VIP Identity Loop Mapper runtime) -> PR #1873 (Signal vs Noise report/content contract lane) -> PR-TBD-FITCHEF-LOCALIZATION-RU (active) -> PR-TBD-FITCHEF-LOCALIZATION-ES
   - Status: 🚧 In progress
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
@@ -3867,7 +3867,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `PR #1214` merged on March 21, 2026 for the structured coach contract freeze (`29a11e62e38307dd4cc7414bffc159b508878744`)
     - `PR #1215` merged on March 21, 2026 for the feature-gated PRO Distortion Simulator runtime at `POST /api/v1/pro/fitchef/explain` (`70bdbd9e51d977d440b605eed3064c71212cff97`)
     - `PR #1870` merged on 2026-06-03 for the bounded VIP Identity Loop Mapper runtime at `POST /api/v1/vip/fitchef/insight` (`7802ed25e99e0a4f346d14487270a037bb5ec97a`)
-    - `PR #1873` is the current report/content lane for CBT coaching GTM, not a product runtime feature
+    - `PR #1873` merged on 2026-06-03 for the Signal vs Noise report/content lane after VIP identity loop (`b38808e50244176d3d0c37d94d13f3289a32b032`)
+    - `PR-TBD-FITCHEF-LOCALIZATION-RU` is the current RU App Store localization pack contract lane; it is docs/metadata only and does not mutate Fastlane upload, runtime, screenshot binaries, or ES localization
   - Subtracks:
     - FitChef visual identity and mascot system
     - App Store screenshot and preview pack
@@ -3931,11 +3932,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-signal-noise-report-lane"></a>
-- [ ] P1: Signal vs Noise report lane for CBT coaching GTM
+- [x] P1: Signal vs Noise report lane for CBT coaching GTM
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (GTM / product strategy / founder content)
   - Target PR: PR #1873 (`docs(coaching): promote Signal vs Noise report lane after VIP identity loop`)
-  - Status: Active in PR #1873 after PR #1870 landed.
+  - Status: Landed via PR #1873 on 2026-06-03 with merge commit `b38808e50244176d3d0c37d94d13f3289a32b032`.
   - Reason (EN): The article-inspired `Signal vs Noise` concept fits the repo better as a high-signal weekly report and founder-content pipeline than as a runtime feature. The lane should reuse the existing AI report templates and KPI-driven GTM structure so content decisions stay measurable and wellness-safe.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
@@ -3974,15 +3975,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (ASO / localization)
   - Target PR: PR-TBD-FITCHEF-LOCALIZATION-RU
-  - Status: 📋 Planned
-  - Reason (EN): The first FitChef App Store wave is intentionally `EN` only. Russian localization must remain deferred until the `EN` visual contract and production pack are frozen so copy, screenshot ordering, and safe-area rules do not drift.
+  - Status: 🚧 Active as the next FitChef App Store localization contract lane after PR #1873 landed.
+  - Reason (EN): The first FitChef App Store wave is intentionally `EN` only. Russian localization now opens as its own governed metadata/screenshot/preview contract pack after the `EN` visual contract and production pack are frozen, so copy, screenshot ordering, and safe-area rules do not drift.
   - Links:
     - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
+    - `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_RU.md`
+    - `appstore/fitchef/ru-RU/metadata/app_store_metadata.json`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fitchef-umbrella-foundation`
   - DoD:
     - `RU` screenshot headlines and subtext are derived from the approved `EN` App Store contract
     - `RU` metadata pack is tracked under its own follow-up PR and does not change the canonical `EN` layout rules
-    - Any `RU` asset/export work remains separated from governance-only PRs
+    - `RU` preview storyboard/script stays under 30 seconds and remains script-only until a governed capture/export path opens
+    - Any `RU` binary asset/export, Fastlane upload, or App Store Connect mutation work remains separated from governance-only PRs
+    - Deferred release-lane checks before protected upload: rendered RU screenshot/video visual QA, AI/privacy/reviewer-note reconciliation against the submitted build, and native RU/ASO copy review
 
 
 - [ ] P2: FitChef App Store localization ES

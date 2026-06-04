@@ -85,6 +85,14 @@ The current runtime anchors are stable service symbols:
 - upload checklist
 - contract artifact: `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
 
+### PR-3b RU App Store localization pack
+
+- RU metadata starter pack
+- RU screenshot package contract derived from the governed EN sequence
+- RU preview storyboard/script
+- RU upload checklist and source inventory
+- contract artifact: `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_RU.md`
+
 ### PR-4 structured coach contract
 
 Contract artifact:
@@ -134,16 +142,18 @@ Status reconciliation:
 ## Localization policy
 
 - First App Store wave: `EN`
-- Follow-up localization waves: `RU` (`PR-TBD-FITCHEF-LOCALIZATION-RU`), `ES` (`PR-TBD-FITCHEF-LOCALIZATION-ES`)
+- Current follow-up localization wave: `RU` (`PR-TBD-FITCHEF-LOCALIZATION-RU`)
+- Later follow-up localization wave: `ES` (`PR-TBD-FITCHEF-LOCALIZATION-ES`)
 
-`RU` and `ES` stay in backlog until the `EN` visual contract and production pack
-are governed.
+`RU` is promoted only as a governed metadata/screenshot/preview contract pack.
+`ES` stays in backlog until its own reviewed localization lane opens.
 
 ## Explicit non-goals for this foundation wave
 
 - migrating `/api/v1/insight/fitchef*` to a new namespace
 - shipping production screenshot binaries
 - shipping mascot or App Icon binaries
+- mutating Fastlane metadata/upload surfaces or App Store Connect draft state
 - adding new runtime behavior outside the already-landed, feature-gated PRO
   `POST /api/v1/pro/fitchef/explain` route and the bounded VIP Identity Loop
   Mapper lane at `POST /api/v1/vip/fitchef/insight`
