@@ -61,6 +61,14 @@ Disposition: FIXED
 Commit: d4a78bd50
 Evidence: CodeRabbit identified a machine-local absolute path in the Codex Security validator evidence. `docs/review/PR_1881_FIXED_MAPPING.md` now records the validator invocation with `$CODEX_SECURITY_PLUGIN_ROOT` and `<REDACTED_TMP>` placeholders instead of user-specific local paths.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358773954 -> 92135cd5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358773957 -> 92135cd5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358773962 -> 92135cd5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1881#discussion_r3358773968 -> 92135cd5a
+Disposition: FIXED
+Commit: 92135cd5a
+Evidence: Codex review identified stale fixed-mapping ancestry proof, partial-live-readiness false-pass behavior, local temporary scan paths in committed evidence, and readiness diagnostics running after fail-fast validators. `docs/review/PR_1881_FIXED_MAPPING.md` now uses current branch ancestry evidence and redacted local-scan labels, `scripts/orchestration/experiment_slack_bridge_readiness.py` marks `blocked_by_missing_secret` and `blocked_by_allowlist` as `status=fail`, `.github/workflows/experiment-runner-slack-socket-smoke.yml` emits activation-readiness JSON before fail-fast validators, and `tests/test_experiment_slack_socket_bridge.py` covers the changed status and workflow order.
+
 ## Premortem Findings
 
 - Disposition: FIXED
