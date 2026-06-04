@@ -263,6 +263,25 @@ def test_icon_source_inventory_references_only_canonical_local_assets(locale: st
 
     assert len(referenced_catalog_paths) == len(set(referenced_catalog_paths))
 
+    if locale == "ru-RU":
+        decision_log = " ".join(payload["decision_log"])
+        blocked_english_fragments = (
+            "reuses the same",
+            "localization lane",
+            "dirty local root assets",
+            "new binary exports",
+            "future binary refresh",
+            "dedicated reviewed PR",
+            "canonical asset keys",
+        )
+        assert any("А" <= char <= "я" or char == "ё" for char in decision_log)
+        offending_fragments = sorted(
+            fragment for fragment in blocked_english_fragments if fragment in decision_log
+        )
+        assert not offending_fragments, (
+            "RU icon inventory decision log contains English boilerplate: " f"{offending_fragments}"
+        )
+
 
 def test_ru_pack_reuses_en_structural_contract_without_binaries() -> None:
     """RU localization mirrors EN structure but remains text/JSON only."""

@@ -33,8 +33,8 @@
     }
   ],
   "decision_log": [
-    "RU pack reuses the same canonical source set as the governed EN production pack.",
-    "This localization lane does not promote dirty local root assets or new binary exports.",
-    "Any future binary refresh must land through a dedicated reviewed PR against the same canonical asset keys."
+    "RU-пакет использует тот же канонический набор источников, что и управляемый EN production pack.",
+    "Эта локализационная линия не продвигает грязные локальные root-активы или новые бинарные экспорты.",
+    "Любое будущее обновление бинарных активов должно пройти через отдельный reviewed PR с теми же каноническими ключами активов."
   ]
 }
