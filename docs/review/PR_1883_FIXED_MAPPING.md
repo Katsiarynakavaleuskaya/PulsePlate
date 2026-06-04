@@ -58,6 +58,8 @@ because the role is not registered in the canonical inventory and
   - `2ad3e4793` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
   - `a6ee45ad2` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
   - `ef3d4a8f1` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+  - `c68ee747d` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+  - `f18a4b835` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 ## Discussion Thread Pass
 
@@ -75,18 +77,20 @@ Disposition: FIXED
 Commit: c68ee747d
 Evidence: `docs/review/PR_1883_FIXED_MAPPING.md` now records premortem FIXED commit proof and current branch Experiment Runner trailer evidence; `git log --format='%h %(trailers)' origin/main..HEAD` shows the governed trailer on current branch commits.
 
-## Post-Open Review Requirements
+## Post-Open Role-Agent Findings
 
-Post-open mandatory review remains required before merge readiness:
+Post-open mandatory review status before Codex Security and
+`pulseplate-pr-review`:
 
-1. `qa-engineer-agent`
-2. `bug-hunter`
-3. `security-auditor`
-4. Codex Security diff scan / finding discovery
-5. `pulseplate-pr-review`
+| Role | Status | Disposition | Evidence |
+| --- | --- | --- | --- |
+| `qa-engineer-agent` | PASS | NOT-A-BUG | Post-open rerun confirmed Phase2/body mapping, focused tests, no protected Fastlane/binary/upload scope, and no wellness/medical claim risk. |
+| `bug-hunter` | PASS | NOT-A-BUG | Post-open pass confirmed seven-shot coverage, no-upload/internal-review wording, scoped diff, and focused guard suite. |
+| `security-auditor` | BLOCK then fixed | FIXED | `c68ee747d` added premortem commit proof and current Experiment Runner trailer evidence; `f18a4b835` mapped the Codex review threads in `## Fixed in Commit Mapping`. |
 
-Any post-open finding must be fixed or dispositioned here and mirrored in the PR
-body before readiness is claimed.
+Remaining before merge readiness: Codex Security diff scan / finding discovery,
+`pulseplate-pr-review`, current-head CI, no unresolved review threads, no
+actionable bot comments, and strict merge-readiness wrapper evidence.
 
 ## Validation
 
