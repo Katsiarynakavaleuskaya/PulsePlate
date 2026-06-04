@@ -109,6 +109,15 @@ Reason: The comments referenced reviewed commit `27891042a41500c030cedfebb5c37f3
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks during `git push`
+- PASS: `.venv/bin/bandit -q app/routers/fitchef_structured.py`
+- PASS: Codex Security `security-diff-scan` / finding discovery covered 1/1
+  diff-scoped source file with no candidates; report:
+  `/tmp/codex-security-scans/fitchef-structured-apiroute-typecheck/964642cfb9bc_20260604T203405Z_pr1882/report.md`,
+  HTML:
+  `/tmp/codex-security-scans/fitchef-structured-apiroute-typecheck/964642cfb9bc_20260604T203405Z_pr1882/report.html`.
+- PASS: `.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
+- PASS: `pulseplate-pr-review` dry-run report produced no deterministic findings;
+  report: `/tmp/pulseplate_pr1882_review_report.md`.
 - PARTIAL: `make verify` passed `verify-env`, `lint`, `typecheck`, and
   `test-fast`; full coverage/diff-cov was manually stopped as machine-heavy
   after entering the 10k+ coverage suite, so no full local verify green is
@@ -121,6 +130,13 @@ Reason: The comments referenced reviewed commit `27891042a41500c030cedfebb5c37f3
   `69aa9aa1aa369286f958169f46c9011d09769ed8`.
 - [x] `bug-hunter` - completed; found PR body mirror omissions and stale
   head-specific wording in the NOT-A-BUG evidence. Fixed by `eda4ab14a996f485bc17080c07302f92ed6933e5`.
-- [ ] `security-auditor` - pending rerun after mapping/body repair.
-- [ ] Codex Security diff scan / finding discovery - pending.
-- [ ] `pulseplate-pr-review` - pending.
+- [x] `security-auditor` - completed after mapping/body repair; targeted Bandit
+  on the touched router passed, and the final diff remains annotation/import
+  only with no auth, quota, rate-limit, safe-input, OpenAPI, or runtime changes.
+- [x] Codex Security diff scan / finding discovery - completed; 1/1
+  diff-scoped source file covered, no candidates emitted, validated markdown
+  and rendered HTML reports written under
+  `/tmp/codex-security-scans/fitchef-structured-apiroute-typecheck/964642cfb9bc_20260604T203405Z_pr1882/`.
+- [x] `pulseplate-pr-review` - completed in post-open-review mode; no
+  deterministic findings from the supplied context, and supporting calibration
+  tests passed under the repo `.venv`.
