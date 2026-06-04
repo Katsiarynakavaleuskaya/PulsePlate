@@ -1457,7 +1457,7 @@ def test_operator_ledger_cli_stdout_fails_closed_on_unsafe_rendered_payload(
     monkeypatch.setattr(
         ledger,
         "write_operator_observability_report_set",
-        lambda *_, **__: {"json": "xoxb-secretsecretsecret /Users/alice diff --git raw hypothesis"},
+        lambda *_, **__: {"json": "`/Users/alice/operator-secret`"},
     )
 
     assert ledger.main(["--write-report-set"]) == 1

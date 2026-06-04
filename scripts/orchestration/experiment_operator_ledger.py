@@ -129,6 +129,14 @@ CLI_OUTPUT_PATCH_OR_LOG_RE = re.compile(
     r"stdout\s*:|stderr\s*:)",
     re.IGNORECASE | re.MULTILINE,
 )
+CLI_OUTPUT_LOCAL_PATH_RE = re.compile(
+    r"("
+    r"/(?:Users|home|var|opt|tmp|private|Volumes|etc|usr|Library|System)/"
+    r"[^\s\"'`<>]*"
+    r"|[A-Za-z]:\\[^\s\"'`<>]+"
+    r"|\\\\[^\s\"'`<>]+"
+    r")"
+)
 
 HASH_FIELDS = frozenset(
     {
@@ -363,6 +371,7 @@ def _safe_cli_stdout_payload(rendered: str) -> str:
         or GITHUB_APP_TOKEN_ARTIFACT_RE.search(rendered)
         or SLACK_IDENTIFIER_RE.search(rendered)
         or LOCAL_PATH_RE.search(rendered)
+        or CLI_OUTPUT_LOCAL_PATH_RE.search(rendered)
         or CLI_OUTPUT_PATCH_OR_LOG_RE.search(rendered)
     ):
         raise OperatorLedgerError("Experiment operator ledger output contains unsafe content.")
