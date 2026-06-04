@@ -109,6 +109,16 @@ Disposition: FIXED
 Commit: 7dff01472d6a6fb045d612e3ce60c936e05b7e2a
 Evidence: CodeRabbit identified that the direct CLI subprocess test relied on `Path.cwd()` and relative artifact cleanup. `tests/test_experiment_operator_ledger.py` now anchors the subprocess script path, cwd, output file, and cleanup directory to `Path(__file__).resolve().parents[1]`, preventing test leakage when the caller's working directory changes.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3353259777 -> d9502e88e9114641d67c7135fb98f053c156fe77
+Disposition: FIXED
+Commit: d9502e88e9114641d67c7135fb98f053c156fe77
+Evidence: Codex identified that result-artifact hash read failures could raise `OperatorLedgerError` outside the sanitized invalid-artifact branch. `scripts/orchestration/experiment_operator_ledger.py` now catches `OperatorLedgerError` while projecting safe result metadata, and `tests/test_experiment_operator_ledger.py` proves a hash-read failure degrades to sanitized `artifact_status=invalid` without leaking the exception text.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#pullrequestreview-4424514406
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1874_FIXED_MAPPING.md` intentionally keeps exact per-fix local gate evidence lines so review governance can audit which rerun followed which fix.
+Reason: CodeRabbit marked the wording suggestion as a low-value nitpick. Consolidating the repeated gate lines would reduce traceability for this review-fix sequence without changing code, tests, docs contracts, or operator behavior.
+
 ## Mapping Update Protocol
 
 Actionable GitHub review threads and top-level review comments must be recorded
@@ -225,6 +235,7 @@ Evidence: final `pulseplate-pr-review` dry-run emitted one advisory `large-diff-
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the CodeQL stdout sink isolation fix in `7bca65ce`.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Cubic-identified quoted/backticked local-path stdout guard fix in `a4fc9c39`.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the CodeRabbit-identified direct CLI subprocess root anchoring fix in `7dff0147`.
+- repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Codex-identified result-artifact hash-read fail-closed fix in `d9502e88e`.
 - `git diff --check` - PASS.
 - `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed; PASS again on final head.
 - `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head; PASS again after the CodeQL stdout sink isolation fix in `7bca65ce`.
