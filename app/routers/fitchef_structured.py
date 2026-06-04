@@ -6,10 +6,10 @@ EN: Thin router for bounded structured FitChef coaching surfaces.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 import logging
 import os
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -72,7 +72,7 @@ FITCHEF_VIP_429_RESPONSES: dict[int | str, dict[str, object]] = {
 class FitChefVipEnvelopeRoute(APIRoute):
     """Wrap pre-handler VIP dependency and validation failures in the frozen envelope."""
 
-    def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         original_route_handler = super().get_route_handler()
 
         async def custom_route_handler(request: Request) -> Response:
