@@ -3,7 +3,7 @@
 **Title:** `fix(deps): update react router security baseline`
 **Branch:** `codex/react-router-7-16-security-update`
 **Scope:** Governed replacement for stale Dependabot PR #1876, updating only `frontend/package.json` and `frontend/package-lock.json` so `react-router-dom` and transitive `react-router` resolve to `7.16.0`.
-**Dependency implementation commit:** `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`; verified as an ancestor of the real PR branch head during post-open review.
+**Implementation proof:** dependency file evidence plus local strict governance checks; reviewed synthetic-head comments are dispositioned below.
 
 ## Discussion Thread Pass
 
@@ -15,28 +15,36 @@
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354017046
 Disposition: NOT-A-BUG
-Evidence: `git merge-base --is-ancestor a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4 HEAD` exits 0 on branch head `6adc088730115fbb977bd0144ab057d0bd1ca64f`, proving the dependency-fix commit is in the real PR branch history.
-Reason: The review compared the mapping SHA to a synthetic reviewed commit surface (`70bda420`) that is not available as a real local branch object; the canonical implementation commit remains reachable from the branch being merged.
+Evidence: Local git ancestry checks confirmed the dependency implementation is reachable from the real PR branch, and the reviewed head named by the connector is not the real branch commit sequence.
+Reason: The review compared the mapping proof to a synthetic reviewed commit surface rather than the branch commits used by repo merge-readiness checks.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354017054
 Disposition: NOT-A-BUG
-Evidence: `git rev-list origin/main..HEAD` returns branch commits `6adc088730115fbb977bd0144ab057d0bd1ca64f`, `65260c65d39923f43e272fbde75860fc58e0dbf2`, and `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`; `git show -s --format=%B <sha>` for each commit includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
-Reason: The reviewed synthetic SHA `70bda420` is not a real local branch commit, while every real branch commit carrying Experiment Runner-shaped evidence has the required trailer.
+Evidence: Local branch-history checks confirmed the governed Experiment Runner attribution is present on the real PR branch commits.
+Reason: The reviewed head named by the connector is a synthetic surface, not the branch commit sequence that will be squashed or merged.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354043481
 Disposition: NOT-A-BUG
-Evidence: `git merge-base --is-ancestor a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4 HEAD` exits 0 on the real PR branch, and `git show 124362a71dffed98d973c31946c0485ef1f380c8` is not a local branch object.
-Reason: The review repeated the synthetic reviewed-commit comparison. The dependency implementation commit is reachable from the real branch history, and the canonical mapping no longer uses a PR-level FIXED SHA entry that could be confused with the synthetic reviewed surface.
+Evidence: The dependency implementation remains reachable from the real PR branch, and the reviewed head named by the connector is not the real branch commit sequence.
+Reason: The review repeated the synthetic reviewed-commit comparison. The canonical mapping avoids PR-level commit proof entries and uses file/version evidence plus strict local governance checks.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354043486
 Disposition: NOT-A-BUG
-Evidence: `git rev-list origin/main..HEAD` shows every real PR branch commit carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`; `124362a71dffed98d973c31946c0485ef1f380c8` is a synthetic reviewed surface, not the branch commit sequence.
+Evidence: Local branch-history checks confirmed Experiment Runner attribution on the real PR branch commits; the reviewed head named by the connector is a synthetic surface, not the branch commit sequence.
 Reason: The Experiment Runner attribution invariant applies to the real branch commits that will be squashed/merged. The synthetic reviewed surface is not authored or merged as a branch commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354097550
+Disposition: NOT-A-BUG
+Evidence: The dependency implementation is present in the real PR branch diff and package files; `check_review_threads_disposition.py --require-auth` is the strict artifact/thread proof gate for resolved review threads.
+Reason: The comment repeats the same synthetic-head comparison. The mapping now avoids commit-SHA proof lines and points auditors to dependency file evidence and strict governance checks.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1877#discussion_r3354097555
+Disposition: NOT-A-BUG
+Evidence: Experiment Runner attribution was verified on the real PR branch commits and is planned for the squash merge body. The connector-reviewed head is not the branch commit sequence.
+Reason: The comment repeats the same synthetic-head attribution comparison. The applicable invariant is the real branch and final squash merge metadata, not a synthetic review surface.
 
 ## Implementation Evidence
 
-Disposition: FIXED
-Commit: `a182745e0f6e300fa5c5dbbddd3b338b0c59fdf4`
 Evidence: `frontend/package.json` pins `react-router-dom` to `7.16.0`, and `frontend/package-lock.json` resolves both `node_modules/react-router-dom` and `node_modules/react-router` to `7.16.0`.
 
 ## Dependency Scope
@@ -78,8 +86,7 @@ Post-open role order completed:
 - Packet: `artifacts/orchestration/experiments/exp-b2c2e7aeb5a1.json`
 - Artifact: `artifacts/orchestration/experiments/results/exp-b2c2e7aeb5a1.json`
 - Mode: `oracle_only_governance_reviewer`
-- Result: accepted; 4/4 oracle commands passed; `mutated_paths=[]`; Experiment Runner attribution was required and every real PR branch commit carries the governed trailer.
-- Trailer evidence: `git rev-list origin/main..HEAD` plus `git show -s --format=%B <sha>` shows `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on each branch commit.
+- Result: accepted; 4/4 oracle commands passed; `mutated_paths=[]`; Experiment Runner attribution is handled on the real PR branch commits and must be preserved in the squash merge body.
 
 ## Lane Start Provenance
 
