@@ -27,13 +27,13 @@ PR #1882 fixes the local mypy/APIRoute override mismatch in
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358203612 -> FIX_COMMIT_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358203616 -> FIX_COMMIT_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358203617 -> FIX_COMMIT_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358203621 -> FIX_COMMIT_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358204844 -> FIX_COMMIT_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358203612 -> 69aa9aa1aa369286f958169f46c9011d09769ed8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358203616 -> 69aa9aa1aa369286f958169f46c9011d09769ed8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358203617 -> 69aa9aa1aa369286f958169f46c9011d09769ed8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358203621 -> 69aa9aa1aa369286f958169f46c9011d09769ed8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1882#discussion_r3358204844 -> 69aa9aa1aa369286f958169f46c9011d09769ed8
 Disposition: FIXED
-Commit: FIX_COMMIT_SHA
+Commit: 69aa9aa1aa369286f958169f46c9011d09769ed8
 Evidence: `docs/review/PR_1882_FIXED_MAPPING.md` now uses canonical `## Discussion Thread Pass` and `## Fixed in Commit Mapping` sections, records the current thread dispositions, includes backlog proof for the local full-verify deferral via `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr-scoped-validation-contract-and-hook-fix`, and preserves Experiment Runner attribution proof for commits `ed5941b03d99c179890b8d9ca55e3d588c66b207` and `927ef1ba5bb2cb13f1ca0bdc5a8b0442211d9763`.
 
 ## Change Summary
@@ -112,7 +112,7 @@ Evidence: `docs/review/PR_1882_FIXED_MAPPING.md` now uses canonical `## Discussi
 
 - [x] `qa-engineer-agent` - completed; found canonical mapping/body section
   drift and unresolved review-thread proof requirements. Fixed by
-  `FIX_COMMIT_SHA`.
+  `69aa9aa1aa369286f958169f46c9011d09769ed8`.
 - [ ] `bug-hunter` - pending rerun after mapping/body repair.
 - [ ] `security-auditor` - pending rerun after mapping/body repair.
 - [ ] Codex Security diff scan / finding discovery - pending.
