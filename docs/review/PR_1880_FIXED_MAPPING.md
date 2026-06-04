@@ -26,13 +26,35 @@ changes, or new Slack authority.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- No review threads existed at PR open.
-- No review threads have been resolved.
-- No bot actionables have been dispositioned yet.
+- Post-open review comments are dispositioned below.
+- No review threads have been resolved without disposition evidence.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355497758 -> 8cff6ed34
+Disposition: FIXED
+Commit: 8cff6ed34
+Evidence: `scripts/ci/ci_risk_profile.py:180` maps `docs/roadmap/BACKLOG_LEDGER.md` to `operator_plane_slack`, `scripts/ci/ci_risk_profile.py:368` makes the group backend-blocking, `tests/test_ci_risk_profile.py:103` covers the backlog-only case, and `scripts/ci/ci_risk_profile.py --file docs/roadmap/BACKLOG_LEDGER.md --as-json` returned `operator_plane_slack=true` with `run_backend_blocking=true`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355533719 -> 8cff6ed34
+Disposition: FIXED
+Commit: 8cff6ed34
+Evidence: `scripts/ci/ci_risk_profile.py:180` maps `docs/roadmap/BACKLOG_LEDGER.md` to `operator_plane_slack`, `scripts/ci/ci_risk_profile.py:368` makes the group backend-blocking, `tests/test_ci_risk_profile.py:103` covers the backlog-only case, and `scripts/ci/ci_risk_profile.py --file docs/roadmap/BACKLOG_LEDGER.md --as-json` returned `operator_plane_slack=true` with `run_backend_blocking=true`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355497763 -> 8cff6ed34
+Disposition: FIXED
+Commit: 8cff6ed34
+Evidence: `scripts/ci/ci_risk_profile.py:186` maps `tests/test_runtime_toolchain_alignment.py` to `operator_plane_slack`, `tests/test_ci_risk_profile.py:90` covers the changed guard, and `scripts/ci/ci_risk_profile.py --file tests/test_runtime_toolchain_alignment.py --as-json` returned `operator_plane_slack=true` with `run_backend_blocking=true`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355533715 -> 8cff6ed34
+Disposition: FIXED
+Commit: 8cff6ed34
+Evidence: `scripts/ci/ci_risk_profile.py:186` maps `tests/test_runtime_toolchain_alignment.py` to `operator_plane_slack`, `tests/test_ci_risk_profile.py:90` covers the changed guard, and `scripts/ci/ci_risk_profile.py --file tests/test_runtime_toolchain_alignment.py --as-json` returned `operator_plane_slack=true` with `run_backend_blocking=true`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1880#discussion_r3355497754
+Disposition: NOT-A-BUG
+Evidence: Current branch commits that reference `artifacts/orchestration/experiments/results/exp-58af46dd9734.json` include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`: `551b44835`, `2998a1743`, `9795c7164`, and `8cff6ed34`. Commit `c291e1783` is a hook-generated `.secrets.baseline` refresh before the Experiment Runner evidence was created and does not cite or use that artifact.
+Reason: The governed identity policy requires the trailer on commits materially shaped by Experiment Runner evidence; the current branch satisfies that for the implementation, mapping, and review-fix commits that used the artifact.
 
 ## Premortem Findings
 
