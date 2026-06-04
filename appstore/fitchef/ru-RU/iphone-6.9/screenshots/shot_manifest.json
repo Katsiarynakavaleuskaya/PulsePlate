@@ -30,7 +30,7 @@
       ],
       "contract_emotion": "calm",
       "approved_mascot_asset_key": "FitChefOnboardingWelcome",
-      "asset_rationale": "The RU launch-value shot uses the canonical welcoming FitChef variant that stays inside the existing asset taxonomy.",
+      "asset_rationale": "Для стартового RU-кадра выбран канонический приветственный вариант FitChef из действующей таксономии активов.",
       "output_status": "source-approved"
     },
     {
@@ -53,7 +53,7 @@
       ],
       "contract_emotion": "explaining",
       "approved_mascot_asset_key": "FitChefThinking",
-      "asset_rationale": "No dedicated explaining variant exists in PR-2; the thinking asset is the closest canon-safe explanatory fallback.",
+      "asset_rationale": "Отдельного объясняющего варианта в PR-2 нет; FitChefThinking остается ближайшим каноническим вариантом для поясняющего кадра.",
       "output_status": "source-approved"
     },
     {
@@ -76,7 +76,7 @@
       ],
       "contract_emotion": "cooking",
       "approved_mascot_asset_key": "FitChefThinking",
-      "asset_rationale": "PR-2 has no cooking-specific mascot variant, so the canonical fallback remains the thinking bucket until a later mascot wave adds a cooking pose.",
+      "asset_rationale": "В PR-2 нет отдельной позы готовки; до будущей волны с кухонной позой используется канонический FitChefThinking.",
       "output_status": "source-approved"
     },
     {
@@ -98,7 +98,7 @@
       ],
       "contract_emotion": "helpful",
       "approved_mascot_asset_key": "FitChef",
-      "asset_rationale": "The default neutral FitChef asset is the canon-safe helpful fallback when no basket/helper variant exists.",
+      "asset_rationale": "Нейтральный FitChef остается каноническим вариантом для полезного кадра, пока нет отдельного помощника со списком покупок.",
       "output_status": "source-approved"
     },
     {
@@ -121,7 +121,7 @@
       ],
       "contract_emotion": "proud",
       "approved_mascot_asset_key": "FitChefWink",
-      "asset_rationale": "The wink variant is the closest canonical proud/celebratory mascot surface currently available.",
+      "asset_rationale": "FitChefWink остается ближайшим каноническим вариантом для кадра с динамикой и поддерживающим акцентом.",
       "output_status": "source-approved"
     },
     {
@@ -144,7 +144,7 @@
       ],
       "contract_emotion": "thinking",
       "approved_mascot_asset_key": "FitChefThinking",
-      "asset_rationale": "This shot matches the existing thinking asset directly.",
+      "asset_rationale": "Кадр напрямую соответствует каноническому активу FitChefThinking.",
       "output_status": "source-approved"
     },
     {
@@ -167,7 +167,7 @@
       ],
       "contract_emotion": "guiding",
       "approved_mascot_asset_key": "FitChef",
-      "asset_rationale": "The default neutral asset remains the safest guiding fallback until a dedicated guided-coach variant exists.",
+      "asset_rationale": "Нейтральный FitChef остается самым безопасным вариантом для направляющего кадра до отдельного коучингового варианта.",
       "output_status": "source-approved"
     }
   ]

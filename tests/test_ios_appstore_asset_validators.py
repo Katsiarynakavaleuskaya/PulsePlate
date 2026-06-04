@@ -370,6 +370,27 @@ def test_validate_metadata_allows_ru_food_recipe_declensions(tmp_path: Path) -> 
     assert result.returncode == 0, result.stderr
 
 
+def test_validate_metadata_rejects_ru_prescription_medicine_context(tmp_path: Path) -> None:
+    """RU prescription wording remains blocked when it is about medicine."""
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    promotional_text_path = metadata_root / "ru-RU" / "promotional_text.txt"
+    promotional_text_path.write_text(
+        "Рецепт на лекарства помогает контролировать курс.",
+        encoding="utf-8",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Blocked medical wording found in {promotional_text_path}" in result.stderr
+
+
 def test_validate_metadata_rejects_guaranteed_promissory_claims(tmp_path: Path) -> None:
     metadata_root = tmp_path / "metadata"
     review_notes, privacy_json = _prepare_metadata(metadata_root)

@@ -152,7 +152,7 @@ def test_app_store_metadata_stays_locale_scoped_and_within_limits(locale: str) -
     assert payload["product_name"] == "PulsePlate"
     assert payload["brand_mascot"] == "FitChef"
     assert len(payload["subtitle"]) <= 30
-    assert len(",".join(payload["keywords"]).encode("utf-8")) <= 100
+    assert len(",".join(payload["keywords"])) <= 100
     if locale == "en-US":
         assert all(keyword.isascii() for keyword in payload["keywords"])
     assert len(payload["promo_text"]) <= 170
@@ -341,6 +341,31 @@ def test_ru_preview_plan_uses_ru_operational_copy() -> None:
     )
     assert not offending_fragments, (
         "RU preview plan contains English operational copy: " f"{offending_fragments}"
+    )
+
+
+def test_ru_screenshot_manifest_rationales_are_localized() -> None:
+    """RU handoff rationale strings should not retain EN manifest boilerplate."""
+    manifest = _load_json(_screenshots_dir("ru-RU") / "shot_manifest.json")
+    rationales = " ".join(shot["asset_rationale"] for shot in manifest["shots"])
+    blocked_english_fragments = (
+        "canonical welcoming",
+        "existing asset taxonomy",
+        "dedicated explaining",
+        "explanatory fallback",
+        "cooking-specific",
+        "mascot variant",
+        "default neutral",
+        "currently available",
+        "guiding fallback",
+    )
+
+    assert any("А" <= char <= "я" or char == "ё" for char in rationales)
+    offending_fragments = sorted(
+        fragment for fragment in blocked_english_fragments if fragment in rationales
+    )
+    assert not offending_fragments, (
+        "RU manifest rationale contains English boilerplate: " f"{offending_fragments}"
     )
 
 
