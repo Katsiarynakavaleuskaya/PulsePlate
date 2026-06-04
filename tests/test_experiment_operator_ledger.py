@@ -1343,6 +1343,32 @@ def test_operator_ledger_cli_report_set_rejects_reserved_event_store(
     ).exists()
 
 
+def test_operator_ledger_cli_report_set_rejects_unsafe_report_dir_before_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    ledger.write_operator_ledger_event(_event_for_result(tmp_path), repo_root=tmp_path)
+
+    assert (
+        ledger.main(
+            [
+                "--write-report-set",
+                "--report-dir",
+                "artifacts/orchestration/experiments/C0SECRETID",
+            ]
+        )
+        == 1
+    )
+    failure = capsys.readouterr().out
+
+    assert "artifact reference is invalid" in failure
+    assert "C0SECRETID" not in failure
+    assert str(tmp_path) not in failure
+    assert not (tmp_path / "artifacts" / "orchestration" / "experiments" / "C0SECRETID").exists()
+
+
 def test_operator_ledger_cli_report_set_rejects_summary_combination(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -1397,6 +1397,10 @@ def write_operator_observability_report_set(
         repo_root=effective_root,
         ledger_dir=ledger_dir,
     )
+    safe_refs = {
+        kind: _safe_artifact_ref_from_path(path, repo_root=effective_root)
+        for kind, path in paths.items()
+    }
     rendered = {
         "json": json.dumps(report, indent=2, sort_keys=True) + "\n",
         "markdown": render_operator_observability_markdown(report),
@@ -1413,10 +1417,7 @@ def write_operator_observability_report_set(
             path.write_text(rendered[kind], encoding="utf-8")
         except OSError as exc:
             raise OperatorLedgerError("Unable to write Experiment operator ledger output.") from exc
-    return {
-        kind: _safe_artifact_ref_from_path(path, repo_root=effective_root)
-        for kind, path in paths.items()
-    }
+    return safe_refs
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
