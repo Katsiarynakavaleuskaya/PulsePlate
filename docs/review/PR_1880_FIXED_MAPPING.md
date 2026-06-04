@@ -13,7 +13,7 @@ changes, or new Slack authority.
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Branch: `codex/slack-operator-ci-live-smoke`
 - Base: `origin/main` at `67700a921`
-- Bootstrap packet: `artifacts/orchestration/task_packets/20c687f71395.json`
+- Packet: `artifacts/orchestration/task_packets/20c687f71395.json`
 - Role dispatch:
   `scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/20c687f71395.json --mode runtime --implementation-owner security-auditor --pretty`
 - Required role order completed before implementation:
@@ -24,13 +24,15 @@ changes, or new Slack authority.
 
 ## Discussion Thread Pass
 
-- PR opened with no review threads yet.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- No review threads existed at PR open.
 - No review threads have been resolved.
 - No bot actionables have been dispositioned yet.
 
 ## Fixed in Commit Mapping
 
-- No resolved review threads at PR open.
+- No actionable review comments
 
 ## Premortem Findings
 
