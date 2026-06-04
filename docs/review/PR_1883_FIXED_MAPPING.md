@@ -11,8 +11,9 @@ iOS runtime, telemetry, Slack commands, or ES localization.
 
 ## Lane Start Provenance
 
+Packet: artifacts/orchestration/task_packets/a8146f2ac773.json
+
 - Starter: `scripts/orchestration/start_pr_lane.sh`
-- Task packet: `artifacts/orchestration/task_packets/a8146f2ac773.json`
 - Branch: `codex/fitchef-ru-appstore-visual-qa-prep`
 - Base after rebase: `5f03b0ed5`
 - Operator override: current `main` CI for `5f03b0ed5` was pending at PR open;
@@ -54,9 +55,18 @@ because the role is not registered in the canonical inventory and
 - Oracle result: PASS in isolated checkout
 - Co-author trailer required: yes
 
-## Review Thread Pass
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 No resolved PR review threads exist at artifact creation time.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Post-Open Review Requirements
 
 Post-open mandatory review remains required before merge readiness:
 
