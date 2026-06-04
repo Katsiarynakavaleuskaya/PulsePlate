@@ -177,11 +177,13 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         ".github/workflows/experiment-runner-*.yml",
         ".github/workflows/experiment-runner-*.yaml",
         "docs/orchestration/EXPERIMENT_RUNNER_SLACK_*",
+        "docs/roadmap/BACKLOG_LEDGER.md",
         "scripts/orchestration/experiment_operator_ledger.py",
         "scripts/orchestration/experiment_slack*.py",
         "tests/test_experiment_operator_ledger.py",
         "tests/test_experiment_slack_kpp_renderer.py",
         "tests/test_experiment_slack_socket_bridge.py",
+        "tests/test_runtime_toolchain_alignment.py",
     ),
 }
 
@@ -363,6 +365,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
         or backend_shared
         or group_hits["openapi_contract"]
         or group_hits["food_catalog"]
+        or group_hits["operator_plane_slack"]
     )
     run_main_ci_diagnostic = any(_is_main_ci_diagnostic_surface(path) for path in normalized_files)
     run_security = run_backend_blocking

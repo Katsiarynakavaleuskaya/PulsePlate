@@ -87,12 +87,23 @@ def test_hidden_workflow_path_preserves_leading_dot_for_routing() -> None:
         "tests/test_experiment_slack_socket_bridge.py",
         "tests/test_experiment_operator_ledger.py",
         "tests/test_experiment_slack_kpp_renderer.py",
+        "tests/test_runtime_toolchain_alignment.py",
     ),
 )
 def test_operator_plane_slack_surfaces_hit_operator_group(changed_file: str) -> None:
     profile = risk_profile.build_risk_profile([changed_file])
 
     assert profile.backend_shared is True
+    assert profile.operator_plane_slack is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == ("operator_plane_slack",)
+
+
+def test_operator_plane_slack_backlog_surface_runs_operator_group() -> None:
+    profile = risk_profile.build_risk_profile(["docs/roadmap/BACKLOG_LEDGER.md"])
+
+    assert profile.docs_only is True
     assert profile.operator_plane_slack is True
     assert profile.run_backend_blocking is True
     assert profile.run_security is True
