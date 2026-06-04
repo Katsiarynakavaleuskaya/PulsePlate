@@ -329,6 +329,10 @@ def test_validate_metadata_rejects_non_comma_keyword_separators(tmp_path: Path) 
         ("en-US", "Doctor-led nutrition treatment for every patient."),
         ("ru-RU", "Врач ставит диагноз и лечит пациента."),
         ("ru-RU", "Клиническая поддержка питания для каждого плана."),
+        ("ru-RU", "Поддержка приема лекарств каждый день."),
+        ("ru-RU", "План таблеток рядом с рационом."),
+        ("ru-RU", "Советы диетолога для вашего рациона."),
+        ("ru-RU", "Эксперт по питанию рядом каждый день."),
         ("es-ES", "Tratamiento médico guiado por doctor para cada paciente."),
     ],
 )
@@ -598,7 +602,7 @@ def test_validate_metadata_allows_non_pricing_subscription_terms(tmp_path: Path)
     keywords_path.write_text("wellness,subscription,planning,coach", encoding="utf-8")
     ru_release_notes_path = metadata_root / "ru-RU" / "release_notes.txt"
     ru_release_notes_path.write_text(
-        "Исправлена ошибка синхронизации настроек подписки.",
+        "Исправлена ошибка синхронизации настроек подписки и отображения скидки.",
         encoding="utf-8",
     )
 
