@@ -169,6 +169,21 @@ Disposition: FIXED
 Commit: 593ad2082
 Evidence: `ios/fastlane/verify/semantic_policy.rb:18` allows a bounded RU adjective gap before `рецепт` in reversed medicine-to-prescription wording, and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:405` prove `Лекарства по электронному рецепту` and `Таблетки по льготному рецепту` are blocked.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356699145 -> 6c5a1e128
+Disposition: FIXED
+Commit: 6c5a1e128
+Evidence: `ios/fastlane/verify/semantic_policy.rb:39` through `ios/fastlane/verify/semantic_policy.rb:40` narrow RU subscription blocking to CTA/terms/price/access contexts, and `tests/test_ios_appstore_asset_validators.py:589` through `tests/test_ios_appstore_asset_validators.py:612` prove benign RU release-note wording such as `настроек подписки` remains allowed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356699153 -> 6c5a1e128
+Disposition: FIXED
+Commit: 6c5a1e128
+Evidence: `ios/fastlane/verify/semantic_policy.rb:19` mirrors the RU `клиничес` blocker in production Fastlane validation, and `tests/test_ios_appstore_asset_validators.py:326` through `tests/test_ios_appstore_asset_validators.py:351` prove `Клиническая поддержка питания` is rejected.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356699161 -> 6c5a1e128
+Disposition: FIXED
+Commit: 6c5a1e128
+Evidence: `ios/fastlane/verify/semantic_policy.rb:41` mirrors RU discount and promo-code blockers in production Fastlane validation, and `tests/test_ios_appstore_asset_validators.py:563` through `tests/test_ios_appstore_asset_validators.py:586` prove `Скидка 50%` and `Промокод` copy is rejected.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -340,13 +355,25 @@ Evidence: `ios/fastlane/verify/semantic_policy.rb:18` allows a bounded RU adject
   - Commit: `593ad2082`
   - Evidence: `ios/fastlane/verify/semantic_policy.rb:18` and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:405` align reversed RU prescription-medicine wording with bounded adjective gaps.
 
+- `CodexConnector-1879-21` - `FIXED`
+  - Commit: `6c5a1e128`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:39` through `ios/fastlane/verify/semantic_policy.rb:40` and `tests/test_ios_appstore_asset_validators.py:589` through `tests/test_ios_appstore_asset_validators.py:612` keep RU subscription maintenance release notes allowed while blocking claim contexts.
+
+- `CodexConnector-1879-22` - `FIXED`
+  - Commit: `6c5a1e128`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:19` and `tests/test_ios_appstore_asset_validators.py:326` through `tests/test_ios_appstore_asset_validators.py:351` align RU clinical-positioning blocking between pack and production Fastlane validation.
+
+- `CodexConnector-1879-23` - `FIXED`
+  - Commit: `6c5a1e128`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:41` and `tests/test_ios_appstore_asset_validators.py:563` through `tests/test_ios_appstore_asset_validators.py:586` align RU discount/promo-code blocking between pack and production Fastlane validation.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 74 passed
-- `make validate-changed` - 71 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 77 passed
+- `make validate-changed` - 74 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
