@@ -84,6 +84,36 @@ Disposition: FIXED
 Commit: 67f83cd37
 Evidence: `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:35` through `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:39` localize the RU source-inventory decision log, and `tests/test_fitchef_app_store_pack.py:245` through `tests/test_fitchef_app_store_pack.py:283` add a deterministic guard against English source-inventory operational notes.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356129465
+Disposition: NOT-A-BUG
+Evidence: `gh pr view 1879 --json headRefOid` reported remote branch head `e9460a8b5011e8072ffc970a62451b3147585243` before this review-driven fix; `git merge-base --is-ancestor 8c69dfbd3 HEAD`, `git merge-base --is-ancestor c8f8fd7b4 HEAD`, and `git merge-base --is-ancestor 8de6bbc9b HEAD` passed on local branch head `8de6bbc9bb3567066fb5a48471036350a926c207`.
+Reason: The reviewed `6c5abbe` SHA is not the actual PR branch head; the real branch lineage contains the mapped proof commits as reachable ancestors, so the canonical mapping does not depend on local-only or force-pushed objects.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356129478 -> 8de6bbc9b
+Disposition: FIXED
+Commit: 8de6bbc9b
+Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:61` add RU medicine-context blocker terms without reintroducing the overbroad `рецепт` blocker, and `tests/test_fitchef_app_store_pack.py:408` through `tests/test_fitchef_app_store_pack.py:425` prove prescription-medicine copy is rejected while ordinary food-recipe copy remains allowed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356129482 -> 8de6bbc9b
+Disposition: FIXED
+Commit: 8de6bbc9b
+Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` cover RU prescription plural wording in medicine context, and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:400` prove `Рецепты на лекарства` and `Рецепты препаратов` are blocked by the production metadata validator.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356160226 -> 8de6bbc9b
+Disposition: FIXED
+Commit: 8de6bbc9b
+Evidence: `ios/fastlane/verify/semantic_policy.rb:17` allows up to two intervening RU words between prescription and medicine terms, and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:400` prove `Рецепт ваших лекарств` and `Рецепт на ваши препараты` are blocked.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356160231
+Disposition: NOT-A-BUG
+Evidence: `ios/fastlane/verify/validate_metadata.rb:87` through `ios/fastlane/verify/validate_metadata.rb:90` enforce a 100-character keyword budget with Ruby `raw_keywords.length`, and `tests/test_fitchef_app_store_pack.py:147` through `tests/test_fitchef_app_store_pack.py:155` mirrors that character-count release verifier contract for the governed pack.
+Reason: Reverting the pack guard to UTF-8 bytes would intentionally diverge from the protected Fastlane verifier and create false red failures for valid Cyrillic keyword payloads.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3356160250 -> 8de6bbc9b
+Disposition: FIXED
+Commit: 8de6bbc9b
+Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` cover `рецепты` in prescription-medicine context, and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:400` prove plural RU prescription phrasing is blocked without rejecting ordinary food recipes.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -187,13 +217,37 @@ Evidence: `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:35` throug
   - Commit: `67f83cd37`
   - Evidence: `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:35` through `appstore/fitchef/ru-RU/metadata/icon_source_inventory.json:39` localize source-inventory notes, and `tests/test_fitchef_app_store_pack.py:245` through `tests/test_fitchef_app_store_pack.py:283` guard the RU decision log.
 
+- `CodexConnector-1879-11` - `NOT-A-BUG`
+  - Evidence: `gh pr view 1879 --json headRefOid` reported remote branch head `e9460a8b5011e8072ffc970a62451b3147585243` before this review-driven fix, and `git merge-base --is-ancestor 8c69dfbd3 HEAD`, `git merge-base --is-ancestor c8f8fd7b4 HEAD`, and `git merge-base --is-ancestor 8de6bbc9b HEAD` passed on local branch head `8de6bbc9bb3567066fb5a48471036350a926c207`.
+  - Reason: The cited `6c5abbe` reviewed SHA is not the actual PR branch head and does not describe the reachable current branch lineage.
+
+- `CodexConnector-1879-12` - `FIXED`
+  - Commit: `8de6bbc9b`
+  - Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:61` add RU medicine-context blocker terms, and `tests/test_fitchef_app_store_pack.py:408` through `tests/test_fitchef_app_store_pack.py:425` cover pack-level prescription-medicine rejection.
+
+- `CodexConnector-1879-13` - `FIXED`
+  - Commit: `8de6bbc9b`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` and `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:400` cover plural RU prescription wording in medicine context.
+
+- `Cubic-1879-5` - `FIXED`
+  - Commit: `8de6bbc9b`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:17` plus `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:400` cover possessive-pronoun gaps in RU prescription-medicine wording.
+
+- `Cubic-1879-6` - `NOT-A-BUG`
+  - Evidence: `ios/fastlane/verify/validate_metadata.rb:87` through `ios/fastlane/verify/validate_metadata.rb:90` use character count for Fastlane keyword validation, and `tests/test_fitchef_app_store_pack.py:147` through `tests/test_fitchef_app_store_pack.py:155` mirrors that same contract.
+  - Reason: The suggested UTF-8 byte budget conflicts with the protected release verifier and would create false red checks for valid Cyrillic keywords.
+
+- `Cubic-1879-7` - `FIXED`
+  - Commit: `8de6bbc9b`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:15` through `ios/fastlane/verify/semantic_policy.rb:19` plus `tests/test_ios_appstore_asset_validators.py:373` through `tests/test_ios_appstore_asset_validators.py:400` cover plural `рецепты` prescription-medicine phrasing.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 57 passed
-- `make validate-changed` - 54 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 64 passed
+- `make validate-changed` - 61 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
