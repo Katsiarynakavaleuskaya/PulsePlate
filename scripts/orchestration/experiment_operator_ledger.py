@@ -1023,6 +1023,7 @@ def _safe_result_metadata_from_ref(
         result = validate_experiment_result(raw)
     except (
         OSError,
+        OperatorLedgerError,
         UnicodeDecodeError,
         json.JSONDecodeError,
         ValueError,

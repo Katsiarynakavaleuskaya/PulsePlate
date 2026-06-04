@@ -607,6 +607,39 @@ def test_operator_ledger_result_metadata_fails_closed_for_malformed_artifact(
     _assert_no_raw_leak(rendered)
 
 
+def test_operator_ledger_result_metadata_fails_closed_for_hash_read_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result_path = _write_result(tmp_path, "operator-plane.json", _result())
+    ledger.write_operator_ledger_event(
+        _event(oracle_result_hash=hashlib.sha256(result_path.read_bytes()).hexdigest()),
+        repo_root=tmp_path,
+    )
+
+    def fail_hash(_: Path) -> str:
+        raise ledger.OperatorLedgerError("hash unavailable")
+
+    monkeypatch.setattr(ledger, "_sha256_file", fail_hash)
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    rendered = json.dumps(report, sort_keys=True) + ledger.render_operator_observability_html(
+        report
+    )
+
+    assert report["by_result_artifact_status"] == {"invalid": 1}
+    assert report["malformed_artifact_counts"] == {
+        "invalid_result_artifacts": 1,
+        "missing_result_artifacts": 0,
+    }
+    assert report["latest"]["result_metadata"] == {
+        "artifact_status": "invalid",
+        "artifact_ref": "artifacts/orchestration/experiments/results/operator-plane.json",
+    }
+    assert "hash unavailable" not in rendered
+    _assert_no_raw_leak(rendered)
+
+
 def test_operator_ledger_result_metadata_fails_closed_for_type_errors(
     tmp_path: Path,
 ) -> None:
