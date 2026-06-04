@@ -119,6 +119,11 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1874_FIXED_MAPPING.md` intentionally keeps exact per-fix local gate evidence lines so review governance can audit which rerun followed which fix.
 Reason: CodeRabbit marked the wording suggestion as a low-value nitpick. Consolidating the repeated gate lines would reduce traceability for this review-fix sequence without changing code, tests, docs contracts, or operator behavior.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1874#discussion_r3353944709 -> 34a7bf36344f948bb33a7f18d8ee3609e11755c7
+Disposition: FIXED
+Commit: 34a7bf36344f948bb33a7f18d8ee3609e11755c7
+Evidence: Codex identified that unsafe `--report-dir` values could create report files before safe artifact-ref rejection. `scripts/orchestration/experiment_operator_ledger.py` now precomputes safe artifact refs for every report-set output before preflight and write operations, and `tests/test_experiment_operator_ledger.py` proves a Slack-ID-shaped report directory fails closed without creating that directory or leaking the identifier.
+
 ## Mapping Update Protocol
 
 Actionable GitHub review threads and top-level review comments must be recorded
@@ -236,6 +241,7 @@ Evidence: final `pulseplate-pr-review` dry-run emitted one advisory `large-diff-
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Cubic-identified quoted/backticked local-path stdout guard fix in `a4fc9c39`.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the CodeRabbit-identified direct CLI subprocess root anchoring fix in `7dff0147`.
 - repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Codex-identified result-artifact hash-read fail-closed fix in `d9502e88e`.
+- repo-resolved Python `-m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py` - PASS after the Codex-identified report-set output-ref prevalidation fix in `34a7bf36`.
 - `git diff --check` - PASS.
 - `pre-commit run --all-files` - PASS after Black hook rewrote files and rerun passed; PASS again on final head.
 - `PREPUSH_DEBUG=1 make validate-changed` - PASS on final head; PASS again after the CodeQL stdout sink isolation fix in `7bca65ce`.
