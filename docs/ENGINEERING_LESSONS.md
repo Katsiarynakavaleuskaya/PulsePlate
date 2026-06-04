@@ -609,6 +609,29 @@ For non-trivial PRs:
 - explicit `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition for any finding
 - backlog evidence before intentionally deferring a real risk
 
+## 24) Positive enumeration beats stale-SHA-only workflow guards
+
+### Problem
+Action-runtime cleanup PRs can enter a fix-commit loop when reviewers find one
+more stale workflow pin after each push. A guard that only bans a few known old
+SHAs can miss a newly discovered active workflow surface.
+
+### Rule
+For GitHub Actions runtime migrations, guard the whole active action surface:
+
+1. enumerate every active `.github/workflows/*.yml` and `*.yaml` workflow
+2. assert every matching `uses:` family points at the approved pinned SHA
+3. keep old-SHA denylist checks as a backstop, not the only proof
+4. exclude disabled/historical workflow templates unless the lane explicitly
+   reactivates or scopes them
+
+### Use instead
+- positive tests such as "every active `actions/upload-artifact@*` use equals
+  the Node 24 SHA"
+- targeted old-SHA denylist entries for known regressions
+- one coherent guard update before publishing, rather than mapping-only
+  follow-up commits after each bot rediscovery
+
 ---
 
 ## Repo Commands Reference

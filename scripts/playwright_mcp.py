@@ -65,8 +65,8 @@ class CheckResult:
 
 def _normalize_node_version(version: str) -> str:
     """Normalize Node version strings before parity checks."""
-    # RU: `.nvmrc` может хранить версию как `v22.22.1`, а runtime возвращает `22.22.1`.
-    # EN: `.nvmrc` may store `v22.22.1` while the runtime reports `22.22.1`.
+    # RU: `.nvmrc` может хранить версию как `v24.16.0`, а runtime возвращает `24.16.0`.
+    # EN: `.nvmrc` may store `v24.16.0` while the runtime reports `24.16.0`.
     return version.strip().lstrip("vV")
 
 

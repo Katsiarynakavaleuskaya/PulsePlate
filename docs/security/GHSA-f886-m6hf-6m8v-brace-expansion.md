@@ -56,11 +56,11 @@ graph and replaced by a local deterministic Node scanner.
 ## Validation
 
 ```bash
-npx -y -p node@22.22.1 -c 'npm install --package-lock-only'
-npx -y -p node@22.22.1 -c 'npm ci'
-npx -y -p node@22.22.1 -c 'npm ls brace-expansion minimatch glob @goplus/agentguard'
-npx -y -p node@22.22.1 -c 'npm audit --package-lock-only --omit=dev'
-printf '{"text":"How can I build a steady breakfast habit?","filename":"payload.py"}' | npx -y -p node@22.22.1 node tools/agentguard/scan_text.mjs
+npx -y -p node@24.16.0 -c 'npm install --package-lock-only'
+npx -y -p node@24.16.0 -c 'npm ci'
+npx -y -p node@24.16.0 -c 'npm ls brace-expansion minimatch glob @goplus/agentguard'
+npx -y -p node@24.16.0 -c 'npm audit --package-lock-only --omit=dev'
+printf '{"text":"How can I build a steady breakfast habit?","filename":"payload.py"}' | npx -y -p node@24.16.0 node tools/agentguard/scan_text.mjs
 pytest -q tests/test_root_npm_dependency_guards.py
 pytest -q tests/test_agent_input_guard.py -k goplus
 pre-commit run --all-files

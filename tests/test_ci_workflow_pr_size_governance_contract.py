@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 import fnmatch
+import json
 from pathlib import Path
 import re
 from typing import cast
@@ -11,6 +12,7 @@ from typing import cast
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+ACTIONLINT_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "actionlint.yml"
 BUILD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "build.yml"
 CD_TEST_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd-test.yml"
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -197,6 +199,20 @@ OLD_CHECKOUT_NODE20_SHA = "".join(
         "6955",
     )
 )
+OLD_CHECKOUT_V6_NODE20_SHA = "".join(
+    (
+        "8e8c",
+        "483d",
+        "b84b",
+        "4bee",
+        "98b6",
+        "0c05",
+        "9352",
+        "1ed3",
+        "4d99",
+        "90e8",
+    )
+)
 OLD_DOWNLOAD_ARTIFACT_SHA = "".join(
     (
         "fa0a",
@@ -337,6 +353,20 @@ OLD_UPLOAD_ARTIFACT_SHA = "".join(
         "fa02",
     )
 )
+OLD_UPLOAD_ARTIFACT_V7_SHA = "".join(
+    (
+        "bbbc",
+        "a2dd",
+        "aa5d",
+        "8fea",
+        "a63e",
+        "36b7",
+        "6fda",
+        "ad77",
+        "386f",
+        "024f",
+    )
+)
 GITHUB_SCRIPT_V9_TAG_OBJECT_SHA = "".join(
     (
         "d746",
@@ -414,6 +444,38 @@ def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...
         assert (
             token in expression
         ), f"Missing token {token!r} in expression excerpt: {expression[:500]!r}"
+
+
+def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
+    """Guard the repo Node baseline across local, frontend, Docker, and devcontainer surfaces."""
+
+    nvmrc = (REPO_ROOT / ".nvmrc").read_text(encoding="utf-8").strip()
+    frontend_package = json.loads(
+        (REPO_ROOT / "frontend" / "package.json").read_text(encoding="utf-8")
+    )
+    frontend_lock = json.loads(
+        (REPO_ROOT / "frontend" / "package-lock.json").read_text(encoding="utf-8")
+    )
+    devcontainer = json.loads(
+        (REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8")
+    )
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+
+    assert nvmrc == "24.16.0"
+    assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
+    assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
+    assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.6"
+    assert frontend_package["overrides"]["ws"] == "8.20.1"
+    assert (
+        frontend_lock["packages"][
+            "node_modules/@bundled-es-modules/glob/node_modules/brace-expansion"
+        ]["version"]
+        == "5.0.6"
+    )
+    assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.20.1"
+    assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
+    assert "FROM node:24.16.0-bookworm-slim AS frontend-build" in dockerfile
+    assert "node:22.22.1" not in dockerfile
 
 
 def _extract_shell_conditional_block(
@@ -697,6 +759,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     )
     old_node20_shas = (
         OLD_CHECKOUT_NODE20_SHA,
+        OLD_CHECKOUT_V6_NODE20_SHA,
         OLD_DOCKER_SETUP_BUILDX_SHA,
         OLD_DOCKER_LOGIN_SHA,
         OLD_DOCKER_METADATA_SHA,
@@ -704,18 +767,21 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         OLD_TRIVY_INTERNAL_CACHE_NODE20_SHA,
         OLD_SETUP_GO_SHA,
         OLD_UPLOAD_ARTIFACT_SHA,
+        OLD_UPLOAD_ARTIFACT_V7_SHA,
     )
     for old_sha in old_node20_shas:
         assert old_sha not in active_workflow_text
 
     forbidden_override_env_vars = (
         "ACTIONS_ALLOW_USE_UNSECURE_" "NODE_VERSION",
+        "FORCE_JAVASCRIPT_ACTIONS_TO_" "NODE24",
         "CI_ALLOW_" "MERGE_OVERRIDE",
     )
     for env_var in forbidden_override_env_vars:
         assert env_var not in active_workflow_text
 
     checkout_workflows = {
+        ACTIONLINT_WORKFLOW_PATH: 1,
         CD_TEST_WORKFLOW_PATH: 2,
         CODECOV_UPLOAD_WORKFLOW_PATH: 1,
         CODEQL_WORKFLOW_PATH: 1,
@@ -998,6 +1064,32 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
+
+
+def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
+    """Guard every active upload-artifact use, not only historically touched workflows."""
+
+    expected_uses = f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}"
+    expected_line = f"{expected_uses} # v7.0.1 / Node 24"
+    observed_upload_steps: list[tuple[str, str, object]] = []
+
+    for workflow_path in _active_workflow_paths():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        workflow_upload_count = 0
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if not isinstance(uses, str) or not uses.startswith("actions/upload-artifact@"):
+                continue
+            workflow_upload_count += 1
+            observed_upload_steps.append(
+                (str(workflow_path.relative_to(REPO_ROOT)), job_id, step.get("name"))
+            )
+            assert uses == expected_uses
+
+        if workflow_upload_count:
+            assert workflow_text.count(expected_line) == workflow_upload_count
+
+    assert observed_upload_steps
 
 
 def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() -> None:
