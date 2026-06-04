@@ -279,6 +279,28 @@ def test_ru_pack_reuses_en_structural_contract_without_binaries() -> None:
     assert not unsupported_files, f"RU pack must stay text/JSON only: {unsupported_files}"
 
 
+def test_ru_preview_script_uses_ru_operational_copy() -> None:
+    """The ru-RU preview script should not mix in English storyboard boilerplate."""
+    text = (_preview_dir("ru-RU") / "preview_script.md").read_text(encoding="utf-8")
+    blocked_english_fragments = (
+        "## Duration",
+        "## Script",
+        "seconds target total",
+        "Show ",
+        "Caption:",
+        "Finish on",
+        " opens with ",
+        "supporting cue",
+    )
+
+    offending_fragments = sorted(
+        fragment for fragment in blocked_english_fragments if fragment in text
+    )
+    assert not offending_fragments, (
+        "RU preview script contains English operational copy: " f"{offending_fragments}"
+    )
+
+
 def test_ru_pack_docs_preserve_no_upload_scope_and_safe_claims() -> None:
     """RU markdown/script files must stay scoped to repo prep, not upload readiness."""
     text = "\n".join(
