@@ -184,6 +184,26 @@ Disposition: FIXED
 Commit: 6c5a1e128
 Evidence: `ios/fastlane/verify/semantic_policy.rb:41` mirrors RU discount and promo-code blockers in production Fastlane validation, and `tests/test_ios_appstore_asset_validators.py:563` through `tests/test_ios_appstore_asset_validators.py:586` prove `Скидка 50%` and `Промокод` copy is rejected.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3357451996
+Disposition: NOT-A-BUG
+Evidence: `gh pr view 1879 --json headRefOid,commits` reported actual PR branch head `070be6dc43e226a3e03165b08677dea3421d18c0` with mapped proof commits in the PR commit list before this review-driven fix; `git merge-base --is-ancestor 8c69dfbd3 HEAD` and `git merge-base --is-ancestor 6c5a1e128 HEAD` passed on local branch head `070be6dc43e226a3e03165b08677dea3421d18c0`, while `git show --no-patch --oneline c215936cc939070939fe555346795adfe255ce07` failed because that reviewed object is not available in this PR branch checkout.
+Reason: The canonical mapping artifact is based on the actual PR branch lineage, not the connector's synthetic reviewed object.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3357451999 -> a42179774
+Disposition: FIXED
+Commit: a42179774
+Evidence: `ios/fastlane/verify/semantic_policy.rb:41` narrows RU discount and promo-code blocking to offer, pricing, CTA, or StoreKit contexts, while `tests/test_ios_appstore_asset_validators.py:567` through `tests/test_ios_appstore_asset_validators.py:616` prove discount offers are rejected and benign RU release-note wording such as `отображения скидки` remains allowed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3357452005 -> a42179774
+Disposition: FIXED
+Commit: a42179774
+Evidence: `ios/fastlane/verify/semantic_policy.rb:19` blocks standalone RU medication stems such as `лекарств`, `препарат`, and `таблет`, and `tests/test_ios_appstore_asset_validators.py:326` through `tests/test_ios_appstore_asset_validators.py:355` prove `Поддержка приема лекарств` and `План таблеток` are rejected without re-blocking ordinary food recipes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1879#discussion_r3357452013 -> a42179774
+Disposition: FIXED
+Commit: a42179774
+Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:64` and `tests/test_fitchef_app_store_pack.py:473` through `tests/test_fitchef_app_store_pack.py:490` block RU professional nutrition-role framing in the source pack, while `ios/fastlane/verify/semantic_policy.rb:19` and `tests/test_ios_appstore_asset_validators.py:326` through `tests/test_ios_appstore_asset_validators.py:355` mirror that boundary in production Fastlane validation.
+
 ## Agent Findings And Dispositions
 
 - `BH-1` - `FIXED`
@@ -367,13 +387,29 @@ Evidence: `ios/fastlane/verify/semantic_policy.rb:41` mirrors RU discount and pr
   - Commit: `6c5a1e128`
   - Evidence: `ios/fastlane/verify/semantic_policy.rb:41` and `tests/test_ios_appstore_asset_validators.py:563` through `tests/test_ios_appstore_asset_validators.py:586` align RU discount/promo-code blocking between pack and production Fastlane validation.
 
+- `CodexConnector-1879-24` - `NOT-A-BUG`
+  - Evidence: `gh pr view 1879 --json headRefOid,commits`, `git merge-base --is-ancestor ... HEAD`, and failed `git show c215936cc939070939fe555346795adfe255ce07` confirm the comment references a synthetic reviewed object rather than the actual PR branch lineage.
+  - Reason: The mapping artifact records proof commits reachable from the real branch head.
+
+- `CodexConnector-1879-25` - `FIXED`
+  - Commit: `a42179774`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:41` and `tests/test_ios_appstore_asset_validators.py:567` through `tests/test_ios_appstore_asset_validators.py:616` narrow RU discount blocking to claim contexts while allowing benign release-note mentions.
+
+- `CodexConnector-1879-26` - `FIXED`
+  - Commit: `a42179774`
+  - Evidence: `ios/fastlane/verify/semantic_policy.rb:19` and `tests/test_ios_appstore_asset_validators.py:326` through `tests/test_ios_appstore_asset_validators.py:355` mirror standalone RU medication blocking in production Fastlane validation.
+
+- `CodexConnector-1879-27` - `FIXED`
+  - Commit: `a42179774`
+  - Evidence: `tests/test_fitchef_app_store_pack.py:42` through `tests/test_fitchef_app_store_pack.py:64`, `tests/test_fitchef_app_store_pack.py:473` through `tests/test_fitchef_app_store_pack.py:490`, `ios/fastlane/verify/semantic_policy.rb:19`, and `tests/test_ios_appstore_asset_validators.py:326` through `tests/test_ios_appstore_asset_validators.py:355` block RU professional nutrition-role framing in both pack and production validator surfaces.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md --path tests/test_fitchef_app_store_pack.py --path appstore/fitchef/ru-RU` - PASS
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 77 passed
-- `make validate-changed` - 74 changed-scope backend tests passed
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py tests/guards/test_wellness_language_blockers_guard.py tests/test_ios_appstore_asset_validators.py` - 83 passed
+- `make validate-changed` - 80 changed-scope backend tests passed
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push tests, and full-repo Bandit
 - Experiment Runner oracle artifact - accepted with validation of `tests/test_fitchef_app_store_pack.py`, `tests/guards/test_wellness_language_blockers_guard.py`, and `git diff --check`
