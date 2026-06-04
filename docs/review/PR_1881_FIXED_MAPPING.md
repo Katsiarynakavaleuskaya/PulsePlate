@@ -108,7 +108,7 @@ Reason: The review comment asserted that mapped fix commits were not ancestors o
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks during `git push`
-- PASS: `python3 /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/265aae08/scripts/validate_report_format.py --report-md /tmp/codex-security-scans/BMI-App_2025_clean/pr1881-slack-operator-readiness/report.md`
+- PASS: `python3 $CODEX_SECURITY_PLUGIN_ROOT/scripts/validate_report_format.py --report-md <REDACTED_TMP>/codex-security-scans/BMI-App_2025_clean/pr1881-slack-operator-readiness/report.md`
 - PASS: `.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
 - Not required for this operator-approved lane: full `make verify`. An exploratory full verify attempt reached `make typecheck` and failed on unchanged current-main `app/routers/fitchef_structured.py:75` APIRoute override return-type mismatch. This file is outside the PR diff and root `main` shows the same local typecheck failure. The PR-required local gate remains `make validate-changed` per operator direction.
 
