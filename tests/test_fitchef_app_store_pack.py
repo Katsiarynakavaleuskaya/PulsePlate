@@ -42,6 +42,7 @@ BLOCKED_COPY_TERMS = {
     "ru-RU": (
         "диагноз",
         "лечит",
+        "лечить",
         "лечение",
         "терап",
         "врач",
@@ -56,7 +57,7 @@ BLOCKED_COPY_TERMS = {
         "быстрые результаты",
         "доказанн",
         "пробный период",
-        "подписка",
+        "подписк",
         "скидк",
     ),
 }
@@ -446,6 +447,9 @@ def test_ru_pack_docs_preserve_no_upload_scope_and_safe_claims() -> None:
         "screenshot order",
         "headlines and subtext",
         "metadata matches",
+        "wellness-only",
+        "placeholder lorem ipsum",
+        "lorem ipsum",
         "remain out of scope",
     )
 
@@ -461,3 +465,23 @@ def test_ru_pack_docs_preserve_no_upload_scope_and_safe_claims() -> None:
         term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in safe_boundary_text
     )
     assert not offending_terms, f"Blocked term(s) found in RU docs: {offending_terms}"
+
+
+@pytest.mark.parametrize(
+    ("blocked_copy", "expected_term"),
+    [
+        ("Оформите подписку для доступа к плану.", "подписк"),
+        ("Условия подписки остаются за StoreKit.", "подписк"),
+        ("Помогает лечить привычки.", "лечить"),
+    ],
+)
+def test_ru_wellness_blockers_reject_storekit_and_treatment_copy(
+    blocked_copy: str,
+    expected_term: str,
+) -> None:
+    """RU pack guards should catch subscription and treatment declensions."""
+    offending_terms = sorted(
+        term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in blocked_copy.lower()
+    )
+
+    assert expected_term in offending_terms
