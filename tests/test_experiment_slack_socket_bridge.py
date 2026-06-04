@@ -578,6 +578,23 @@ def test_smoke_input_validation_accepts_digest_without_echoing_values(
     assert "a" * 64 not in stdout
 
 
+def test_smoke_input_validation_rejects_padded_digest_without_echoing_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", "main")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256", " " + "a" * 64)
+
+    assert bridge.main(["--validate-smoke-inputs"]) == 1
+    stdout = capsys.readouterr().out
+
+    assert "Slack live smoke input configuration is invalid" in stdout
+    assert "a" * 64 not in stdout
+    assert "main" not in stdout
+
+
 def test_dispatch_input_validation_alias_accepts_digest_without_echoing_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1658,6 +1675,32 @@ def test_status_command_reflects_latest_operator_ledger_event_after_processing(
     assert "claimed_merge_readiness=false" in status_reply
     assert "activation_authority=display_only" in status_reply
     assert "display_only" in status_reply
+
+
+def test_status_command_does_not_fail_on_absent_manual_smoke_inputs_for_live_listener(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.delenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, raising=False)
+    monkeypatch.delenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, raising=False)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+
+    status_reply = bridge._format_command_reply(bridge.OperatorCommand(kind="status"), config)
+
+    assert "socket_mode_readiness_status=pass" in status_reply
+    assert "socket_mode_activation_state=manual_only" in status_reply
+    assert "branch_ref_status=not_checked" in status_reply
+    assert "hypothesis_sha256_status=not_checked" in status_reply
+    assert "blocked_by_smoke_input" not in status_reply
+    assert "xapp-" not in status_reply
+    assert "xoxb-" not in status_reply
+    assert "C0ALERTS" not in status_reply
+    assert "U0OPERATOR" not in status_reply
+    assert str(tmp_path) not in status_reply
 
 
 def test_repeated_status_commands_keep_dispatch_ledger_summary(
@@ -2926,8 +2969,15 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     input_step = next(
         step for step in steps if step["name"] == "Validate manual smoke inputs without raw echo"
     )
-    readiness_step = next(
-        step for step in steps if step["name"] == "Report Socket Mode activation readiness"
+    dry_readiness_step = next(
+        step
+        for step in steps
+        if step["name"] == "Report Socket Mode activation readiness without live secrets"
+    )
+    live_readiness_step = next(
+        step
+        for step in steps
+        if step["name"] == "Report Socket Mode activation readiness for live smoke"
     )
     runtime_step = next(
         step for step in steps if step["name"] == "Run bounded live Socket Mode smoke"
@@ -2960,23 +3010,41 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         input_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
         == "${{ inputs.hypothesis_sha256 }}"
     )
-    assert readiness_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
-    assert readiness_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
+    assert dry_readiness_step["if"] == "inputs.dry_run != 'false'"
+    assert live_readiness_step["if"] == "inputs.dry_run == 'false'"
+    assert "SLACK_APP_TOKEN" not in dry_readiness_step["env"]
+    assert "SLACK_BOT_TOKEN" not in dry_readiness_step["env"]
+    assert "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST" not in dry_readiness_step["env"]
+    assert "EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST" not in dry_readiness_step["env"]
+    assert "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST" not in dry_readiness_step["env"]
     assert (
-        readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"]
+        dry_readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"]
+        == "${{ inputs.branch_ref }}"
+    )
+    assert (
+        dry_readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
+        == "${{ inputs.hypothesis_sha256 }}"
+    )
+    assert live_readiness_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
+    assert live_readiness_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
+    assert (
+        live_readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"]
         == "${{ inputs.channel_allowlist }}"
     )
     assert (
-        readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"]
+        live_readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"]
         == "${{ inputs.user_allowlist }}"
     )
     assert (
-        readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"]
+        live_readiness_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"]
         == "${{ inputs.team_allowlist }}"
     )
-    assert readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
     assert (
-        readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
+        live_readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"]
+        == "${{ inputs.branch_ref }}"
+    )
+    assert (
+        live_readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
         == "${{ inputs.hypothesis_sha256 }}"
     )
     assert runtime_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
@@ -3003,15 +3071,18 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST=%s" in workflow_text
     assert "slack-bolt" not in workflow_text
     assert steps.index(mask_step) < steps.index(presence_step)
-    assert steps.index(input_step) < steps.index(readiness_step)
-    assert steps.index(readiness_step) < steps.index(presence_step)
+    assert steps.index(input_step) < steps.index(dry_readiness_step)
+    assert steps.index(input_step) < steps.index(live_readiness_step)
+    assert steps.index(live_readiness_step) < steps.index(presence_step)
     assert steps.index(mask_step) < steps.index(runtime_step)
-    assert steps.index(readiness_step) < steps.index(runtime_step)
-    assert "render_activation_readiness_summary" in readiness_step["run"]
-    assert "GITHUB_STEP_SUMMARY" in readiness_step["run"]
-    assert "set +e" in readiness_step["run"]
-    assert "readiness_status=$?" in readiness_step["run"]
-    assert 'exit "$readiness_status"' in readiness_step["run"]
+    assert steps.index(dry_readiness_step) < steps.index(runtime_step)
+    assert steps.index(live_readiness_step) < steps.index(runtime_step)
+    for readiness_step in (dry_readiness_step, live_readiness_step):
+        assert "render_activation_readiness_summary" in readiness_step["run"]
+        assert "GITHUB_STEP_SUMMARY" in readiness_step["run"]
+        assert "set +e" in readiness_step["run"]
+        assert "readiness_status=$?" in readiness_step["run"]
+        assert 'exit "$readiness_status"' in readiness_step["run"]
     assert "deterministic_ci_requires_live_slack" in workflow_text
     assert "opened_http_ingress" in workflow_text
     assert "semantic_cache_enabled" in workflow_text

@@ -134,6 +134,7 @@ def _activation_state(
     branch_ref_status: str,
     hypothesis_sha256_status: str,
     audit_retention_status: str,
+    require_smoke_inputs: bool,
 ) -> str:
     invalid_values = {
         *token_statuses.values(),
@@ -152,9 +153,11 @@ def _activation_state(
         return "blocked_by_missing_secret"
     if any(status == "missing" for status in allowlist_statuses.values()):
         return "blocked_by_allowlist"
-    if branch_ref_status != "valid" or hypothesis_sha256_status != "valid":
+    if require_smoke_inputs and (
+        branch_ref_status != "valid" or hypothesis_sha256_status != "valid"
+    ):
         return "blocked_by_smoke_input"
-    return "ready_for_manual_live_smoke"
+    return "ready_for_manual_live_smoke" if require_smoke_inputs else "manual_only"
 
 
 def build_activation_readiness_report(
@@ -162,6 +165,7 @@ def build_activation_readiness_report(
     env: Mapping[str, str] | None = None,
     branch_ref: str | None = None,
     hypothesis_sha256: str | None = None,
+    require_smoke_inputs: bool = True,
 ) -> dict[str, Any]:
     """Build a value-free Socket Mode activation-readiness report."""
 
@@ -182,6 +186,7 @@ def build_activation_readiness_report(
         branch_ref_status=branch_status,
         hypothesis_sha256_status=hypothesis_status,
         audit_retention_status=audit_status,
+        require_smoke_inputs=require_smoke_inputs,
     )
     report: dict[str, Any] = {
         "activation_state": activation_state,
@@ -192,6 +197,7 @@ def build_activation_readiness_report(
         "hypothesis_sha256_status": hypothesis_status,
         "manual_live_smoke": "operator_evidence_only",
         "redaction": "labels_only",
+        "smoke_input_requirement": "required" if require_smoke_inputs else "not_required",
         "status": (
             "fail"
             if activation_state in {"blocked_by_invalid_config", "blocked_by_smoke_input"}

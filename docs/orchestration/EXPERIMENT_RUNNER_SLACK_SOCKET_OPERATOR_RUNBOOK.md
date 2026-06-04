@@ -131,10 +131,12 @@ diagnostic must not print secret values, token prefixes, raw channel/user IDs,
 raw hypotheses, local absolute paths, Slack payload bodies, GitHub tokens,
 oracle stdout/stderr, or patch text.
 
-Before `dry_run: false` live checks, the workflow also records the sanitized
-activation-readiness summary in `GITHUB_STEP_SUMMARY`. That summary is operator
-evidence only and does not replace GitHub Actions/current-head truth, review
-thread disposition, fixed mapping, or merge-readiness gates.
+The default `dry_run: true` activation-readiness workflow step is no-secret: it
+does not pass live Slack app or bot tokens to the checked-out branch. Before
+`dry_run: false` live checks, a separate live-only readiness step records the
+sanitized activation-readiness summary in `GITHUB_STEP_SUMMARY`. That summary is
+operator evidence only and does not replace GitHub Actions/current-head truth,
+review thread disposition, fixed mapping, or merge-readiness gates.
 
 The live-smoke network check is bounded and exits. It validates the app-level
 Socket Mode credential by opening a temporary Socket Mode connection URL with

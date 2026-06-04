@@ -328,6 +328,7 @@ def build_activation_readiness_report(
     *,
     branch_ref: str | None = None,
     hypothesis_sha256: str | None = None,
+    require_smoke_inputs: bool = True,
 ) -> dict[str, Any]:
     """Build a value-free Socket Mode activation-readiness report."""
 
@@ -336,6 +337,7 @@ def build_activation_readiness_report(
         _readiness.build_activation_readiness_report(
             branch_ref=branch_ref,
             hypothesis_sha256=hypothesis_sha256,
+            require_smoke_inputs=require_smoke_inputs,
         ),
     )
 
@@ -846,7 +848,7 @@ def _format_command_reply(
             render_operator_status_message(
                 config,
                 activation_readiness_summary=render_activation_readiness_summary(
-                    build_activation_readiness_report(),
+                    build_activation_readiness_report(require_smoke_inputs=False),
                 ),
                 operator_ledger_summary=render_latest_operator_ledger_summary(
                     exclude_event_hash=excluded_event_hash,

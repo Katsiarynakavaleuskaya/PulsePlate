@@ -37,8 +37,10 @@ def validate_live_smoke_inputs(
         hypothesis_sha256
         if hypothesis_sha256 is not None
         else os.environ.get(LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "")
-    ).strip()
+    )
     if not _is_safe_ref(raw_branch_ref):
+        raise SlackSocketConfigError("Slack live smoke input configuration is invalid.")
+    if raw_hypothesis_sha256 != raw_hypothesis_sha256.strip():
         raise SlackSocketConfigError("Slack live smoke input configuration is invalid.")
     if SHA256_HEX_RE.fullmatch(raw_hypothesis_sha256) is None:
         raise SlackSocketConfigError("Slack live smoke input configuration is invalid.")
