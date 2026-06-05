@@ -30,7 +30,7 @@
       ],
       "contract_emotion": "calm",
       "approved_mascot_asset_key": "FitChefOnboardingWelcome",
-      "asset_rationale": "Para el frame inicial ES se usa la variante canonica de bienvenida FitChef ya presente en la taxonomia de activos.",
+      "asset_rationale": "Para el frame inicial ES de nutricion se usa la variante canonica de bienvenida FitChef ya presente en la taxonomia de activos.",
       "output_status": "source-approved"
     },
     {
@@ -53,7 +53,7 @@
       ],
       "contract_emotion": "explaining",
       "approved_mascot_asset_key": "FitChefThinking",
-      "asset_rationale": "No hay una variante explicativa dedicada; FitChefThinking sigue siendo el apoyo canonico mas cercano para este frame.",
+      "asset_rationale": "Para el frame de micronutrientes no hay una variante explicativa dedicada; FitChefThinking sigue siendo el apoyo canonico mas cercano.",
       "output_status": "source-approved"
     },
     {
@@ -76,7 +76,7 @@
       ],
       "contract_emotion": "cooking",
       "approved_mascot_asset_key": "FitChefThinking",
-      "asset_rationale": "No hay una pose de cocina dedicada; hasta una futura ola de activos se usa FitChefThinking como apoyo canonico.",
+      "asset_rationale": "Para el frame de comidas no hay una pose de cocina dedicada; hasta una futura ola de activos se usa FitChefThinking como apoyo canonico.",
       "output_status": "source-approved"
     },
     {
@@ -121,7 +121,7 @@
       ],
       "contract_emotion": "proud",
       "approved_mascot_asset_key": "FitChefWink",
-      "asset_rationale": "FitChefWink sigue siendo la variante canonica mas cercana para un frame de progreso con tono de apoyo.",
+      "asset_rationale": "FitChefWink sigue siendo la variante canonica mas cercana para un frame de habitos y progreso con tono de apoyo.",
       "output_status": "source-approved"
     },
     {
@@ -144,7 +144,7 @@
       ],
       "contract_emotion": "thinking",
       "approved_mascot_asset_key": "FitChefThinking",
-      "asset_rationale": "Este frame corresponde directamente al activo canonico FitChefThinking.",
+      "asset_rationale": "Este frame de preferencias corresponde directamente al activo canonico FitChefThinking.",
       "output_status": "source-approved"
     },
     {
@@ -167,7 +167,7 @@
       ],
       "contract_emotion": "guiding",
       "approved_mascot_asset_key": "FitChef",
-      "asset_rationale": "El FitChef neutral sigue siendo la opcion mas segura para un frame de apoyo hasta una variante guiada dedicada.",
+      "asset_rationale": "El FitChef neutral sigue siendo la opcion mas segura para un frame de orientacion hasta una variante guiada dedicada.",
       "output_status": "source-approved"
     }
   ]

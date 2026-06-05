@@ -68,6 +68,7 @@ BLOCKED_COPY_TERMS = {
     ),
     "es-ES": (
         "diagnos",
+        "trata",
         "tratar",
         "tratamiento",
         "curar",
@@ -396,11 +397,13 @@ def test_es_locale_signal_rejects_copied_english_copy() -> None:
     )
     spanish_rationale = "Usa datos de nutricion y mantiene FitChef como apoyo visual."
     spanish_decision_log = "La localizacion queda fuera del alcance de la carga protegida."
+    mixed_rationales = (spanish_rationale, copied_english_rationale)
 
     assert not _has_locale_script(copied_english_rationale, "es-ES")
     assert not _has_locale_script(copied_english_decision_log, "es-ES")
     assert _has_locale_script(spanish_rationale, "es-ES")
     assert _has_locale_script(spanish_decision_log, "es-ES")
+    assert all(_has_locale_script(rationale, "es-ES") for rationale in mixed_rationales) is False
 
 
 def _unsupported_text_pack_files(locale: str) -> list[Path]:
@@ -728,12 +731,14 @@ def test_localized_preview_plan_uses_localized_operational_copy(locale: str) -> 
 def test_localized_screenshot_manifest_rationales_are_localized(locale: str) -> None:
     """Localized handoff rationale strings should not retain EN manifest boilerplate."""
     manifest = _load_json(_screenshots_dir(locale) / "shot_manifest.json")
-    rationales = " ".join(shot["asset_rationale"] for shot in manifest["shots"])
+    rationales = [shot["asset_rationale"] for shot in manifest["shots"]]
     blocked_english_fragments = LOCALIZED_MANIFEST_BLOCKED_ENGLISH[locale]
 
-    assert _has_locale_script(rationales, locale)
+    assert all(_has_locale_script(rationale, locale) for rationale in rationales)
     offending_fragments = sorted(
-        fragment for fragment in blocked_english_fragments if fragment in rationales
+        fragment
+        for fragment in blocked_english_fragments
+        if any(fragment in rationale for rationale in rationales)
     )
     assert (
         not offending_fragments
@@ -919,6 +924,7 @@ def test_es_wellness_blockers_reject_prescription_medicine_copy(
     [
         ("Ofrece diagnóstico de nutrición.", "diagnos"),
         ("Ayuda a tratar tus habitos.", "tratar"),
+        ("Trata tus habitos con apoyo diario.", "trata"),
         ("Consejos de nutricionista para tu menú.", "nutricionista"),
         ("Resultados rápidos para tu cuerpo.", "resultados rapidos"),
         ("Clínicamente probado y recomendado por médicos.", "clinicamente probado"),
