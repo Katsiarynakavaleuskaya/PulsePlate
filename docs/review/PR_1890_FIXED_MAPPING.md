@@ -86,6 +86,12 @@ Decision: proceed with changes.
 - `make validate-changed` - PASS after commit `1d59f4af9`.
 - `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `1d59f4af9`.
 - `pre-commit run --all-files` - PASS before commit `1d59f4af9`.
+- Direct validator/fixture checks after commit `ddd42468e` - PASS: schema version drift, all protected-action completion variants, and forbidden FitChef pack path segments are blocked.
+- `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` - PASS after commit `ddd42468e`.
+- `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS after commit `ddd42468e`, 11 passed / 0 failed.
+- `make validate-changed` - PASS after commit `ddd42468e`.
+- `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `ddd42468e`.
+- `pre-commit run --all-files` - PASS before commit `ddd42468e`.
 - Push pre-push hooks - PASS through commit `024729aaf` after mypy return-type/value narrowing fix in `scripts/release/check_ios_appstore_verify.py`, including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and docker build test. Final push evidence must be refreshed after the mapping update.
 
 Full local `make verify` was not run by default for this docs/release-validator PR under the operator-approved changed-scope gate policy. Merge readiness is not claimed without current-head CI, post-open role passes, Codex Security scan, `pulseplate-pr-review`, unresolved-thread checks, PR body/mapping parity, strict wrapper evidence, and wait-window.
@@ -110,6 +116,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Late bot review `discussion_r3365261866`: FIXED in `8ed1ecac5`. Evidence: localized wellness fragment scan now uses line-level `finditer` plus localized boundary-negation logic for ES/RU safe disclaimers while still rejecting repeated localized claims and actual localized medical/wellness overclaims.
 - Late bot review batch after head `20f3c33a8`: FIXED in `1d59f4af9`. Evidence: release scan now blocks localized treatment/professional-role claims, localized upload readiness claims, scalar JSON pricing/trial values, raw credential-token shapes, ruble price formats, protected-action JSON keys, symlinks, and guaranteed/clinical outcome claims. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 - Post-open `qa-engineer-agent` rerun on head `20f3c33a8`: FAIL with this artifact quoting raw localized probe text and with live unresolved GitHub review threads. Disposition: FIXED / IN PROGRESS. Evidence: raw localized probe text was rewritten into neutral evidence wording in this artifact; unresolved review threads are mapped below and must be resolved only after the mapped fixes are pushed and reviewed.
+- Late bot review batch after head `b9a8707d7`: FIXED in `ddd42468e`. Evidence: scenario matrix schema version is now value-checked, protected-action completion claims are synchronized with the blocked release action list, and forbidden local-artifact path segments under the governed FitChef pack are rejected before file-content scanning. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 
 ## Fixed in Commit Mapping
 
@@ -180,6 +187,13 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now scans localized wel
 Disposition: FIXED
 Commit: 1d59f4af9
 Evidence: `scripts/release/check_ios_appstore_verify.py` now normalizes JSON keys/values for release scanning, rejects symlinks under the governed FitChef pack, blocks raw credential-token shapes with redacted diagnostics, blocks localized upload-readiness claims, blocks ruble price formats and scalar JSON pricing/trial values, expands localized wellness blockers for Spanish treatment/professional-role wording, and rejects guaranteed/clinical outcome claims with boundary-aware logic. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for each blocked false-green class while preserving safe localized boundary-disclaimer coverage. Local evidence after the fix: direct probes for the eight bot-reported classes return blocking errors; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432376 -> ddd42468e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432378 -> ddd42468e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432383 -> ddd42468e
+Disposition: FIXED
+Commit: ddd42468e
+Evidence: `scripts/release/check_ios_appstore_verify.py` now requires the exact FitChef release-readiness schema version, blocks protected-action completion claims for all blocked release-action categories, and rejects forbidden local-artifact path segments anywhere under the governed FitChef App Store pack before content scanning. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for schema-version drift, protected-action completion variants, and forbidden path segments. Local evidence after the fix: focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` all passed locally.
 
 ## Post-Open Role-Agent Finding Closure
 
