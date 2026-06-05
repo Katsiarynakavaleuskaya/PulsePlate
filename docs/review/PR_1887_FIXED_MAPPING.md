@@ -107,11 +107,23 @@ Slack, semantic cache, GraphRAG, or runtime behavior.
 
 ## Post-Open Review Gates
 
-- [ ] `qa-engineer-agent`
-- [ ] `bug-hunter`
-- [ ] `security-auditor`
-- [ ] Codex Security diff scan / finding discovery
-- [ ] `pulseplate-pr-review`
+- [x] `qa-engineer-agent`: completed. Findings on mapping/body drift and nested
+  schema false-green risk were fixed in `c296721e9` and `f3974d211`.
+- [x] `bug-hunter`: completed with no blocking findings after QA fixes.
+- [x] `security-auditor`: completed with status `PASS_NO_FINDINGS_NOT_MERGE_READY`;
+  confirmed no changed `app/`, `core/`, `frontend/`, `ios`, OpenAPI, Slack, or
+  runtime API files; no new secret, workflow_dispatch, live-token, semantic-cache,
+  or runtime-authority behavior in the diff.
+- [x] Codex Security diff scan / finding discovery: completed with 12/12 explicit
+  PR diff files closed in the local work ledger, no raw candidates, validated
+  markdown report, and rendered HTML report. The default plugin diff rank helper
+  excluded governance/docs/test paths, so the scan recorded that limitation and
+  used the explicit `git diff --name-only origin/main...HEAD` worklist.
+- [x] `pulseplate-pr-review`: completed in dry-run report mode. It produced one
+  advisory large-diff note because generated report/schema/test changes exceed
+  the review-risk threshold; disposition is non-blocking because the PR scope is
+  intentionally one deterministic governance contract/report slice and
+  `make validate-changed` passed.
 
 ## Merge Readiness
 
