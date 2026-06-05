@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -9,8 +10,11 @@ def _repo_root() -> Path:
 
 
 def _git(*args: str) -> str:
+    git_binary = shutil.which("git")
+    if git_binary is None:
+        raise RuntimeError("git binary is required for repo hygiene guard.")
     result = subprocess.run(
-        ["git", *args],
+        [git_binary, *args],
         cwd=_repo_root(),
         check=True,
         capture_output=True,
