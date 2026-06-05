@@ -166,6 +166,25 @@ Disposition: FIXED
 Commit: b290796d0eccbc1cd4e09c693f1592013afb858d
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` inspects `/usr/bin/env` launcher argv and rejects disallowed short Python targets after the absolute env binary; focused pytest passed with `28 passed`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365407894 -> 930284e78a0ad1f73c77c302507ad3be6def3b68
+Disposition: FIXED
+Commit: 930284e78a0ad1f73c77c302507ad3be6def3b68
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now resolves `/usr/bin/env` targets after `-S`, env options, and `KEY=value` assignment prefixes; focused pytest passed with `30 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#pullrequestreview-4439751748
+Disposition: NOT-A-BUG
+Evidence: Cubic review summary is covered by its two individual mapped review comments in this section; no separate code change is required for the summary URL itself.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365428490 -> 930284e78a0ad1f73c77c302507ad3be6def3b68
+Disposition: FIXED
+Commit: 930284e78a0ad1f73c77c302507ad3be6def3b68
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now treats only branch-dependent assignments as multi-reach checks and allows a later linear safe overwrite; focused pytest passed with `30 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365428493 -> 930284e78a0ad1f73c77c302507ad3be6def3b68
+Disposition: FIXED
+Commit: 930284e78a0ad1f73c77c302507ad3be6def3b68
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now skips `/usr/bin/env` options and env assignment prefixes before evaluating the actual launcher target; focused pytest passed with `30 passed`.
+
 ## Implementation Evidence
 
 - Implementation commit: `85b9af618`
@@ -175,6 +194,7 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` inspects `/us
 - Python executable edge-case follow-up commit: `a403b8e`
 - String-form and scope-aware assignment follow-up commit: `1c37c8a`
 - Env-based Python and env-launcher follow-up commit: `b290796`
+- Env launcher option and assignment-overwrite follow-up commit: `930284e`
 - Mapping artifact commit: `aa478a2e0`
 - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
@@ -237,6 +257,8 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` inspects `/us
   after string-form subprocess and scope-aware assignment follow-up (`24 passed`)
 - PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
   after env-based Python and `/usr/bin/env` launcher follow-up (`28 passed`)
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  after env launcher option and assignment-overwrite follow-up (`30 passed`)
 - PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
   (`10 passed`)
 - PASS: `make validate-changed` after commit selected
