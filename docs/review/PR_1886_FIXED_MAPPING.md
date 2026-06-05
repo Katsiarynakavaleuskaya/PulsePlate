@@ -214,6 +214,18 @@ Disposition: NOT-A-BUG
 Evidence: Root `AGENTS.md`, `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md`, and `scripts/orchestration/check_experiment_runner_identity.py` define/enforce the canonical Experiment Runner trailer as `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 Reason: The CodeRabbit top-level review repeats the earlier trailer suggestion to use `pulseplatepm.me`, which conflicts with repository source of truth and the identity checker.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362681546 -> 6a8dd8f5cdd485afca430038625f324e364a2092
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362681556 -> 6a8dd8f5cdd485afca430038625f324e364a2092
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362681559 -> 6a8dd8f5cdd485afca430038625f324e364a2092
+Disposition: FIXED
+Commit: 6a8dd8f5cdd485afca430038625f324e364a2092
+Evidence: `tests/test_fitchef_app_store_pack.py` now token-matches every single-word ES locale signal, enforces localized `expected_filename` parity with EN manifests, and applies locale wellness blockers to the cross-locale QA prep artifact; `appstore/fitchef/localization_qa/cross_locale_review_prep.md` removes blocked negative-claim phrasing from reviewer notes. `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `68 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362681552
+Disposition: NOT-A-BUG
+Evidence: Current branch head `6a8dd8f5cdd485afca430038625f324e364a2092` contains the mapped fix commit `b0a114bb49b237b03a8fc63482cb91da063ca00f`; `git merge-base --is-ancestor b0a114bb49b237b03a8fc63482cb91da063ca00f HEAD` returns 0 locally.
+Reason: The comment was generated against reviewed head `0dac39d536ef38ca0d2d4099e58743d2b618adbb`, not the current PR branch head. The current branch history contains the mapped fix commit.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897842
 Disposition: NOT-A-BUG
