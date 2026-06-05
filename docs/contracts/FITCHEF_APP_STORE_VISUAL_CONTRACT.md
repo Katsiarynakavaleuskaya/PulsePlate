@@ -224,13 +224,21 @@ The future production pack must follow this folder contract:
 Rules:
 
 - PR-1 does not create or populate these folders
-- PR-3 may populate them only with reviewed release-ready assets
-- `RU` and `ES` folders remain follow-up waves after `EN`
+- PR-3 and protected media/upload lanes may populate these folders with
+  reviewed release-ready final screenshot and preview assets
+- Locale-governance lanes may populate the same locale folder contract with
+  text/JSON metadata, manifests, checklists, and review-prep files only when
+  they are explicitly classified as internal review and carry no screenshot or
+  video binaries, Fastlane upload authority, App Store Connect mutation, or
+  submission-readiness claim
+- `RU` and `ES` folders are follow-up waves after `EN`; `RU` is now landed as
+  a governed pack and `ES` opens as the current reviewed localization lane
 
 ## Localization policy
 
 - First governed App Store wave: `EN` only
-- Follow-up waves remain backlog-tracked: `RU`, `ES`
+- Follow-up waves are backlog-tracked and separated by locale:
+  `RU` is landed, `ES` is current
 - No bilingual or mixed-language screenshot sets are allowed in the same export
   pack
 

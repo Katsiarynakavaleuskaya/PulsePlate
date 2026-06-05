@@ -1,0 +1,30 @@
+{
+  "locale": "es-ES",
+  "product_name": "PulsePlate",
+  "brand_mascot": "FitChef",
+  "subtitle": "Nutrición con FitChef",
+  "keywords": [
+    "nutrición",
+    "plan comidas",
+    "calorías",
+    "macros",
+    "menú",
+    "lista compra",
+    "hábitos",
+    "recetas",
+    "IMC",
+    "alimentos",
+    "IA"
+  ],
+  "promo_text": "Planifica comidas, revisa nutrientes y mantén un ritmo tranquilo con sugerencias de FitChef basadas en tus datos de PulsePlate.",
+  "description_paragraphs": [
+    "PulsePlate te ayuda a planificar comidas con más calma, ver el balance diario y sostener hábitos de alimentación realistas.",
+    "Revisa macros y micronutrientes, organiza un menú semanal, prepara tu lista de compra y observa tu progreso.",
+    "FitChef suma sugerencias amigables basadas en datos de PulsePlate, sin ruido ni pantallas inventadas."
+  ],
+  "compliance_notes": [
+    "Solo paquete de localización App Store para es-ES",
+    "Texto de apoyo diario sin rol profesional ni promesas de resultado",
+    "Todo el texto se apoya en capacidades ya entregadas o gestionadas por el canon del producto"
+  ]
+}
