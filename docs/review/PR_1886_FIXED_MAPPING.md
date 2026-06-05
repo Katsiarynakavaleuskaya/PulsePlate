@@ -40,7 +40,7 @@ This standard governance/design PR intentionally keeps 16 files together because
 - `creative-designer`: FIXED. Evidence: `appstore/fitchef/localization_qa/cross_locale_review_prep.md` compares EN/RU/ES by shot id, timing, product surface, mascot key, line length risk, safe-area risk, FitChef overlap risk, UI/copy mismatch risk, and wellness-claim risk.
 - `cursor-specialist-agent`: FIXED. Evidence: PR opened non-draft after coherent diff, pre-open roles, focused gates, premortem, Experiment Runner oracle review, and this canonical mapping artifact.
 - `security-auditor`: FIXED. Evidence: staged diff has no protected `ios/fastlane`, App Store Connect, backend, OpenAPI, frontend, iOS runtime, workflow, media binary, or upload authority surfaces.
-- `qa-engineer-agent`: FIXED. Evidence: `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passed with `64 passed` after post-open fixes.
+- `qa-engineer-agent`: FIXED. Evidence: `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passed with `66 passed` after post-open fixes.
 - `bug-hunter` P1 untracked ES artifacts: FIXED in `5318aa3196cc81401e27d39ad64c25f529091384`. Evidence: `git diff --cached --name-status` before commit listed all ES/cross-locale/contract artifacts as staged; implementation commit creates those files.
 - `bug-hunter` P2 accented Spanish claim blind spot: FIXED in `5318aa3196cc81401e27d39ad64c25f529091384`. Evidence: `tests/test_fitchef_app_store_pack.py` adds `_claim_scan_text`, `_blocked_terms_in`, and accented Spanish negative cases for `prescripción`, `fármaco`, `píldora`, `diagnóstico`, `menú`, `rápidos`, and `Clínicamente probado`.
 - `web-research-agent`: NOT-A-BUG. Evidence: role pass confirmed the diff is docs/metadata/test-only, ES copy stays wellness-only, screenshot/preview QA remains internal-review-only, and Apple supporting context does not require protected upload or runtime changes in this PR.
@@ -66,7 +66,7 @@ This standard governance/design PR intentionally keeps 16 files together because
 - `python3 scripts/orchestration/check_preflight.py` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md` - PASS.
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` - PASS (`64 passed`).
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` - PASS (`66 passed`).
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS after Black formatting was staged and rerun.
 - Pre-push hooks - PASS, including backend pre-push and full Bandit.
@@ -166,6 +166,14 @@ Reason: The reviewed `eac57f62f6c773f9c50677cf880854ec32d1e34d` SHA is not the a
 Disposition: FIXED
 Commit: 4239d612c30f5e8fd297616d64ecfdb0f26aee68
 Evidence: `tests/test_fitchef_app_store_pack.py` now scans each localized markdown file for locale-specific copy signals, scoped review markers on non-script markdown files, upload overclaims, English operational boilerplate, and wellness blockers; `appstore/fitchef/es-ES/iphone-6.9/screenshots/README.md` and `appstore/fitchef/ru-RU/iphone-6.9/screenshots/README.md` now carry their own no-upload/out-of-scope boundary lines. `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `64 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362341997 -> 8f0e1d27cc7d83d8d1a53a10886d13823e720322
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362342000 -> 8f0e1d27cc7d83d8d1a53a10886d13823e720322
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362342002 -> 8f0e1d27cc7d83d8d1a53a10886d13823e720322
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362342005 -> 8f0e1d27cc7d83d8d1a53a10886d13823e720322
+Disposition: FIXED
+Commit: 8f0e1d27cc7d83d8d1a53a10886d13823e720322
+Evidence: `tests/test_fitchef_app_store_pack.py` now normalizes localized manifest and icon-decision English-boilerplate matching, applies `NO_UPLOAD_CLAIMS` to App Store-visible metadata with case/accent folding, and ties each cross-locale QA row to the exact manifest headline/supporting copy plus derived length fields; `appstore/fitchef/localization_qa/cross_locale_review_prep.md` updates stale EN/RU/ES derived length fields. `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `66 passed`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897842
