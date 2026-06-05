@@ -271,6 +271,7 @@ OPEN
 
 - `GH_TOKEN` preflight
 - Absolute binaries via `shutil.which()`
+- Repo-approved Python interpreters for direct Python subprocesses
 - Subprocess guard
 - No blind `# nosec`
 - Allowlist discipline

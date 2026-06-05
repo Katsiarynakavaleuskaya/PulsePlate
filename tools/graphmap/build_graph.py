@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -74,16 +75,18 @@ def _repo_root() -> Path:
     1) `git rev-parse --show-toplevel`
     2) Walk up from this script to find `.git` or `AGENTS.md`
     """
-    try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-        if out:
-            return Path(out)
-    except Exception:
-        pass
+    git_binary = shutil.which("git")
+    if git_binary:
+        try:
+            out = subprocess.check_output(
+                [git_binary, "rev-parse", "--show-toplevel"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+            ).strip()
+            if out:
+                return Path(out)
+        except Exception:
+            pass
 
     here = Path(__file__).resolve()
     for parent in [here.parent] + list(here.parents):
