@@ -18,6 +18,7 @@ import plistlib
 import re
 import struct
 import sys
+import unicodedata
 from typing import Any, List, Tuple
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -146,6 +147,11 @@ FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS = (
     "subscription",
     "improve health",
 )
+FITCHEF_RELEASE_LOCAL_PATH_PATTERNS = (
+    re.compile(r"[a-z]:[\\/]+users[\\/]+", re.IGNORECASE),
+    re.compile(r"[\\/]+appdata[\\/]+local[\\/]+temp[\\/]+", re.IGNORECASE),
+    re.compile(r"%temp%", re.IGNORECASE),
+)
 FITCHEF_RELEASE_CREDENTIAL_PATTERNS = (
     re.compile(r"secret\s*[:=]\s*\S+", re.IGNORECASE),
     re.compile(r"password\s*[:=]\s*\S+", re.IGNORECASE),
@@ -244,6 +250,24 @@ FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS = (
     re.compile(r"\bdiabetes\b", re.IGNORECASE),
     re.compile(r"\bpatients?\b", re.IGNORECASE),
 )
+FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
+    "diagnostico",
+    "diagnosticos",
+    "tratamiento medico",
+    "tratamientos medicos",
+    "terapia",
+    "paciente",
+    "pacientes",
+    "nutricion clinica",
+    "диагноз",
+    "диагност",
+    "лечение",
+    "терап",
+    "медицинск",
+    "клиническая нутри",
+    "клиническое питание",
+    "пациент",
+)
 FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS = (
     "no ",
     "not ",
@@ -297,6 +321,7 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
 # Pricing patterns that should NOT appear in metadata (hardcoded prices/trials).
 PRICING_PATTERNS = [
     re.compile(r"\$\d"),
+    re.compile(r"\d+(?:[.,]\d+)?\s*€"),
     re.compile(r"\d+\s*USD", re.IGNORECASE),
     re.compile(r"\d+\s*EUR", re.IGNORECASE),
     re.compile(r"\d+\s*RUB", re.IGNORECASE),
@@ -305,6 +330,16 @@ PRICING_PATTERNS = [
     re.compile(r"(?:free|бесплатн)\s+(?:for|на)\s+\d+", re.IGNORECASE),
     re.compile(r"(?:7|14|30)[\s-]*day\s+trial", re.IGNORECASE),
 ]
+FITCHEF_RELEASE_LOCALIZED_PRICING_FRAGMENTS = (
+    "prueba gratis",
+    "periodo de prueba",
+    "precio",
+    "suscripcion",
+    "descuento",
+    "пробный период",
+    "пробныи период",
+    "подписк",
+)
 
 # --- Helpers ---
 
@@ -346,6 +381,11 @@ def _flatten_strings(value: Any) -> list[str]:
         for item in value:
             strings.extend(_flatten_strings(item))
     return strings
+
+
+def _claim_scan_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", text.lower())
+    return "".join(char for char in normalized if not unicodedata.combining(char))
 
 
 def _is_safe_repo_relative_path(value: str) -> bool:
@@ -408,13 +448,21 @@ def _release_readiness_scan_text() -> tuple[str, str | None]:
 
 def _validate_release_readiness_scan_text(text: str) -> str | None:
     lowered = text.lower()
+    normalized = _claim_scan_text(text)
     for fragment in FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS:
         if fragment in lowered:
             return f"Forbidden release-readiness fragment found: {fragment}"
+    for pattern in FITCHEF_RELEASE_LOCAL_PATH_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return "Forbidden release-readiness local path found: <redacted>"
     for pattern in PRICING_PATTERNS:
         match = pattern.search(text)
         if match:
             return f"Pricing/trial claim found: {match.group()}"
+    for fragment in FITCHEF_RELEASE_LOCALIZED_PRICING_FRAGMENTS:
+        if fragment in normalized:
+            return f"Localized pricing/trial claim found: {fragment}"
     for pattern in FITCHEF_RELEASE_CREDENTIAL_PATTERNS:
         match = pattern.search(text)
         if match:
@@ -430,6 +478,9 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
                 if _medical_term_is_boundary_negated(line, match.start()):
                     continue
                 return f"Medical/wellness overclaim found: {match.group()}"
+    for fragment in FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS:
+        if fragment in normalized:
+            return f"Localized medical/wellness overclaim found: {fragment}"
     return None
 
 
@@ -492,6 +543,10 @@ def _swift_case_return_literal(source: str, property_name: str, enum_case: str) 
         re.MULTILINE,
     )
     return match.group(1) if match else None
+
+
+def _swift_test_method_name(enum_case: str) -> str:
+    return "test" + enum_case[0].upper() + enum_case[1:] + "Screenshot"
 
 
 def _validate_non_empty_string(value: Any, *, label: str) -> str | None:
@@ -565,6 +620,17 @@ def _validate_ios_screenshot_sources() -> str | None:
             return (
                 f"iOS screenshot test screenshot name drift for {scenario_id}: "
                 f"{test_screenshot_name!r} != {expected['screenshot_name']!r}"
+            )
+
+        test_method_name = _swift_test_method_name(enum_case)
+        method_body = _swift_balanced_block_after(test_text, f"func {test_method_name}()")
+        if method_body is None:
+            return f"iOS screenshot XCTest method missing for {scenario_id}: {test_method_name}"
+        expected_capture_call = f"captureScreenshot(for: .{enum_case})"
+        if expected_capture_call not in method_body:
+            return (
+                f"iOS screenshot XCTest method drift for {scenario_id}: "
+                f"missing {expected_capture_call!r}"
             )
     return None
 

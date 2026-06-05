@@ -293,6 +293,76 @@ def test_fitchef_release_readiness_validator_scans_locale_pack_text(
     assert "abcd1234efgh5678" not in messages
 
 
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Wellness copy: diagnóstico y tratamiento médico para pacientes.",
+        "Текст обещает медицинское лечение для пациентов.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_localized_medical_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = claim
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Localized medical/wellness overclaim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Oferta prueba gratis.",
+        "Precio 9,99 €.",
+        "Условия подписки остаются за StoreKit.",
+        "Пробный период скрыт от скриншота.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_localized_pricing_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\n{claim}\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    messages = _failed_messages(results)
+    assert "Pricing/trial claim" in messages or "Localized pricing/trial claim" in messages
+
+
+def test_fitchef_release_readiness_validator_rejects_windows_local_path(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\nLocal render output: C:\\\\Users\\\\alice\\\\AppData\\\\Local\\\\Temp\\\\shot.png\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    messages = _failed_messages(results)
+    assert "local path" in messages
+    assert "alice" not in messages
+
+
 def test_fitchef_release_readiness_validator_rejects_source_path_drift(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -489,6 +559,50 @@ def test_fitchef_release_readiness_validator_rejects_ios_screenshot_case_swap(
 
     results = module.check_fitchef_release_readiness_bundle()
     assert "iOS screenshot test screenshot name drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_missing_xctest_capture_method(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_fitchef_bundle_fixture(module, tmp_path, monkeypatch)
+    ios_tests = tmp_path / "AppStoreScreenshotTests.swift"
+    method_block = """    @MainActor
+    func testMealPlannerScreenshot() {
+        captureScreenshot(for: .mealPlanner)
+    }
+
+"""
+    ios_tests.write_text(
+        module.APPSTORE_SCREENSHOT_TESTS.read_text(encoding="utf-8").replace(method_block, ""),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "APPSTORE_SCREENSHOT_TESTS", ios_tests)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "XCTest method missing for meal_planner" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_wrong_xctest_capture_call(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_fitchef_bundle_fixture(module, tmp_path, monkeypatch)
+    ios_tests = tmp_path / "AppStoreScreenshotTests.swift"
+    ios_tests.write_text(
+        module.APPSTORE_SCREENSHOT_TESTS.read_text(encoding="utf-8").replace(
+            "captureScreenshot(for: .mealPlanner)",
+            "captureScreenshot(for: .coreValue)",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "APPSTORE_SCREENSHOT_TESTS", ios_tests)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "XCTest method drift for meal_planner" in _failed_messages(results)
 
 
 def test_fitchef_release_readiness_validator_rejects_blank_privacy_note(
