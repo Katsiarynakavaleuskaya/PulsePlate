@@ -85,9 +85,28 @@ Full local `make verify` was not run by default for this docs/release-validator 
 
 No GitHub review threads existed when this artifact was created. Any post-open human, bot, role-agent, Codex Security, or PulsePlate PR review finding must be added below with `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before resolution or readiness claims.
 
+## Post-Open Review Evidence
+
+- `qa-engineer-agent`: PASS. Evidence: post-open pass at head `acca8fc14df4df301d6e4fb4cb10d2b6475055e7` found no QA blockers, verified Phase2 mirror, focused validator/tests, `make validate-changed`, `make ios-appstore-verify`, and clean worktree; merge readiness was not claimed because CI/post-open gates remained pending.
+- `bug-hunter`: pending after review-driven validator hardening commit `f57b215e8`.
+- `security-auditor`: pending.
+- Codex Security diff scan / finding discovery: pending.
+- `pulseplate-pr-review`: pending.
+
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950396 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950401 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950404 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950408 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950409 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950415 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978756 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978760 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978762 -> f57b215e8
+Disposition: FIXED
+Commit: f57b215e8
+Evidence: `scripts/release/check_ios_appstore_verify.py` now scans the whole FitChef App Store pack for media/text boundaries, validates `source_paths` values and iOS source files, enforces `blocked_release_actions`, scans every release-readiness JSON/Markdown file for protected claims/secrets/pricing/wellness overclaims, requires `testflight_smoke_status: not_started`, and constrains locale rows to governed FitChef manifest/storyboard paths; `Makefile` adds `tests/test_fitchef_app_store_pack.py` to `ios-appstore-verify`; `tests/ios/test_ios_appstore_verify.py` adds regression tests for all nine review false-greens; focused pytest, validator, `make ios-appstore-verify`, changed-scope validation, and mypy passed locally.
 
 ## Merge Readiness
 
