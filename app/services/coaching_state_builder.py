@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import math
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -39,25 +40,71 @@ def _validate_analyzer_key(analyzer_key: str) -> None:
         raise ValueError(f"unsupported analyzer_key: {analyzer_key}")
 
 
+def _finite_float_metric(
+    value: object,
+    *,
+    field_name: str,
+    min_value: float | None = None,
+    max_value: float | None = None,
+) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a finite number")
+    if not isinstance(value, (int, float, str)):
+        raise TypeError(f"{field_name} must be numeric")
+    metric = float(value)
+    if not math.isfinite(metric):
+        raise ValueError(f"{field_name} must be finite")
+    if min_value is not None and metric < min_value:
+        raise ValueError(f"{field_name} must be >= {min_value}")
+    if max_value is not None and metric > max_value:
+        raise ValueError(f"{field_name} must be <= {max_value}")
+    return metric
+
+
+def _non_negative_int_metric(value: object, *, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a non-negative integer")
+    if not isinstance(value, (int, str)):
+        raise TypeError(f"{field_name} must be an integer")
+    metric = int(value)
+    if metric < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+    return metric
+
+
 def _build_adherence_snapshot(
     *, user_id: int, session: Session, analyzer_key: str
 ) -> AdherenceSnapshot:
     service = AdherenceService(store=SQLAlchemyAnalyzerStore(session=session))
     try:
         result = service.get(user_id=user_id, analyzer_key=analyzer_key)
-    except ValueError:
+        alpha = _finite_float_metric(result.alpha, field_name="alpha", min_value=0.0)
+        beta = _finite_float_metric(result.beta, field_name="beta", min_value=0.0)
+        n = _non_negative_int_metric(result.n, field_name="n")
+        risk_slip = _finite_float_metric(
+            result.risk_slip,
+            field_name="risk_slip",
+            min_value=0.0,
+            max_value=1.0,
+        )
+        confidence = _finite_float_metric(
+            result.confidence,
+            field_name="confidence",
+            min_value=0.0,
+            max_value=1.0,
+        )
+        return AdherenceSnapshot(
+            analyzer_key="v1:adherence",
+            alpha=alpha,
+            beta=beta,
+            n=n,
+            risk_slip=risk_slip,
+            confidence=confidence,
+            needs_more_data=result.needs_more_data,
+            source_status="loaded" if n > 0 else "default",
+        )
+    except (TypeError, ValueError):
         return AdherenceSnapshot(source_status="invalid_degraded")
-
-    return AdherenceSnapshot(
-        analyzer_key="v1:adherence",
-        alpha=result.alpha,
-        beta=result.beta,
-        n=result.n,
-        risk_slip=result.risk_slip,
-        confidence=result.confidence,
-        needs_more_data=result.needs_more_data,
-        source_status="loaded" if result.n > 0 else "default",
-    )
 
 
 def _payload_score(payload: object) -> float | None:
@@ -204,8 +251,9 @@ def _confidence_bucket(confidence: float) -> ConfidenceBucket:
 def to_prompt_safe_context(state: UserCoachingStateV1) -> PromptSafeCoachingContext:
     """Return a static allowlist projection without identifiers or raw text."""
 
-    adherence = state.adherence
-    behavior = state.recent_behavior
+    safe_state = UserCoachingStateV1.model_validate(state.model_dump(mode="python"))
+    adherence = safe_state.adherence
+    behavior = safe_state.recent_behavior
     return PromptSafeCoachingContext(
         adherence=PromptSafeAdherenceContext(
             risk_slip=adherence.risk_slip,
@@ -225,16 +273,16 @@ def to_prompt_safe_context(state: UserCoachingStateV1) -> PromptSafeCoachingCont
             events_capped=behavior.events_capped,
         ),
         profile=PromptSafeProfileSignalContext(
-            bmi_value=state.profile.bmi_value,
-            bmi_group=state.profile.bmi_group,
-            goal_profile=state.profile.goal_profile,
-            goal_direction=state.profile.goal_direction,
-            nutrition_profile=state.profile.nutrition_profile,
-            nutrition_goal=state.profile.nutrition_goal,
-            data_status=state.profile.data_status,
+            bmi_value=safe_state.profile.bmi_value,
+            bmi_group=safe_state.profile.bmi_group,
+            goal_profile=safe_state.profile.goal_profile,
+            goal_direction=safe_state.profile.goal_direction,
+            nutrition_profile=safe_state.profile.nutrition_profile,
+            nutrition_goal=safe_state.profile.nutrition_goal,
+            data_status=safe_state.profile.data_status,
         ),
-        coaching_urgency=state.coaching_urgency,
-        next_recommended_scenario=state.next_recommended_scenario,
+        coaching_urgency=safe_state.coaching_urgency,
+        next_recommended_scenario=safe_state.next_recommended_scenario,
     )
 
 

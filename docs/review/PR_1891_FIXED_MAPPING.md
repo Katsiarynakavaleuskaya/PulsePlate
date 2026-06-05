@@ -98,9 +98,7 @@ Premortem / role-agent findings closed before PR open:
   - PASS: selected `tests/test_user_coaching_state.py`, `14 passed`.
 - `pre-commit run --all-files`
   - PASS.
-- `pre-commit run --all-files` from isolated worktree
-  `/Users/katsiaryna_kavaleuskaya/.codex/worktrees/pr1891-user-coaching`
-  after rebase
+- `pre-commit run --all-files` from isolated PR worktree after rebase
   - PASS.
 - `git push --force-with-lease origin codex/user-coaching-state-service-v1`
   - PASS: pre-push backend pytest, Bandit full repo, and Docker build test passed.

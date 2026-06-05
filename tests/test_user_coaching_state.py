@@ -217,6 +217,43 @@ def test_builder_rejects_unsupported_analyzer_key_and_degrades_invalid_state(
     assert "adherence_state_invalid_degraded" in state.degrade_reasons
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"alpha": None, "beta": 2.0, "n": 4},
+        {"alpha": 2.0, "beta": None, "n": 4},
+        {"alpha": 2.0, "beta": 2.0, "n": None},
+        {"alpha": "nan", "beta": 2.0, "n": 4},
+        {"alpha": 2.0, "beta": "inf", "n": 4},
+    ],
+)
+def test_builder_degrades_malformed_analyzer_payloads(
+    configure_sqlite_database: Any,
+    payload: dict[str, object],
+) -> None:
+    user_id = 91_012
+    with configure_sqlite_database.session_scope() as session:
+        _reset_subjects(session, user_id)
+        session.add(
+            AnalyzerStateModel(
+                user_id=user_id,
+                analyzer_key=DEFAULT_ANALYZER_KEY,
+                state_schema_version=1,
+                state_version=4,
+                payload=payload,
+            )
+        )
+
+    with configure_sqlite_database.session_scope() as session:
+        state = build_user_coaching_state(user_id=user_id, session=session)
+
+    assert state.adherence.source_status == "invalid_degraded"
+    assert state.adherence.alpha == 1.0
+    assert state.adherence.beta == 1.0
+    assert state.adherence.n == 0
+    assert "adherence_state_invalid_degraded" in state.degrade_reasons
+
+
 def test_builder_aggregates_bounded_events_without_raw_text_or_cross_user_leakage(
     configure_sqlite_database: Any,
     monkeypatch: pytest.MonkeyPatch,
@@ -533,6 +570,33 @@ def test_schema_models_are_frozen_strict_and_recompute_derived_fields() -> None:
         RecentBehaviorSnapshot.model_validate({"extra_field": True})
     with pytest.raises(ValidationError):
         setattr(state, "coaching_urgency", 0.1)
+
+
+def test_prompt_safe_context_recomputes_model_copy_derived_injection() -> None:
+    state = UserCoachingStateV1(
+        user_id=91_013,
+        assembled_at=datetime(2026, 6, 5, 15, 0, tzinfo=timezone.utc),
+        adherence=AdherenceSnapshot(
+            alpha=1.0,
+            beta=1.0,
+            n=0,
+            risk_slip=0.5,
+            confidence=0.35,
+            needs_more_data=True,
+        ),
+        available_scenarios=("mascot_insight",),
+    )
+    copied_state = state.model_copy(
+        update={
+            "coaching_urgency": 0.99,
+            "next_recommended_scenario": "identity_loop_mapper",
+        }
+    )
+
+    context = to_prompt_safe_context(copied_state)
+
+    assert context.coaching_urgency == state.coaching_urgency
+    assert context.next_recommended_scenario == "mascot_insight"
 
 
 def test_service_only_files_do_not_wire_public_runtime_or_write_paths() -> None:
