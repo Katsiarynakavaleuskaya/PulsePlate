@@ -80,6 +80,8 @@ Premortem / role-agent findings closed before PR open:
 
 ## Validation Evidence
 
+- Rebased branch head: `b4cf8acb2` on top of
+  `9252c6c6292ebc1ae18a2f7d63e199919cbe1c96`.
 - `python3 scripts/orchestration/check_preflight.py` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `. .venv/bin/activate && python -m pytest -q tests/test_user_coaching_state.py tests/test_bayes_adherence_model.py tests/test_bayes_adherence_service.py tests/test_nutrition_log_idempotency.py`
@@ -96,16 +98,51 @@ Premortem / role-agent findings closed before PR open:
   - PASS: selected `tests/test_user_coaching_state.py`, `14 passed`.
 - `pre-commit run --all-files`
   - PASS.
-- `git push -u origin codex/user-coaching-state-service-v1`
+- `pre-commit run --all-files` from isolated worktree
+  `/Users/katsiaryna_kavaleuskaya/.codex/worktrees/pr1891-user-coaching`
+  after rebase
+  - PASS.
+- `git push --force-with-lease origin codex/user-coaching-state-service-v1`
   - PASS: pre-push backend pytest, Bandit full repo, and Docker build test passed.
+
+## Post-Open Evidence
+
+- Post-open task packet: `artifacts/orchestration/task_packets/269d25c63e9a.json`.
+- Role dispatch bridge: PASS; mandatory post-open role agents reported as
+  `qa-engineer-agent`, `bug-hunter`, `security-auditor`.
+- `qa-engineer-agent`: PASS for code/test review.
+  - Evidence: QA reran preflight, agent consistency, focused pytest,
+    focused mypy/flake8, and `make validate-changed`; no actionable schema,
+    builder, serializer, or deterministic-test blockers.
+- `bug-hunter`: BLOCKED / not closed.
+  - Evidence: existing bug-hunter agent returned empty completion payload twice;
+    replacement adapter errored with usage-limit exhaustion.
+  - Status: still required before readiness.
+- `security-auditor`: PENDING.
+  - Reason: ordered post-open role chain is blocked on the unresolved
+    `bug-hunter` pass.
+- Codex Security diff scan: PASS / no findings.
+  - Report: `/tmp/codex-security-scans/BMI-App_2025_clean/b4cf8acb_pr1891_20260605T194527Z/report.md`.
+  - HTML: `/tmp/codex-security-scans/BMI-App_2025_clean/b4cf8acb_pr1891_20260605T194527Z/report.html`.
+  - Coverage: 2 of 2 diff-scoped source-like rows completed.
+- `pulseplate-pr-review` dry run: completed.
+  - Markdown: `/tmp/pulseplate_pr_1891_review_report.md`.
+  - JSON: `/tmp/pulseplate_pr_1891_review_report.json`.
+  - Finding: large-diff advisory note.
+  - Disposition: NOT-A-BUG.
+  - Evidence: diff is one coherent service-only slice; implementation files are
+    `app/schemas/user_coaching_state.py` and
+    `app/services/coaching_state_builder.py`, with deterministic tests in
+    `tests/test_user_coaching_state.py` and review artifact
+    `docs/review/PR_1891_FIXED_MAPPING.md`. Rebased-head focused pytest,
+    mypy, flake8, `make validate-changed`, `pre-commit run --all-files`, and
+    pre-push hooks passed.
 
 ## Post-Open Review Plan
 
 Required before any readiness claim:
 
-- post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
-- Codex Security diff scan / finding discovery
-- `pulseplate-pr-review`
+- close post-open `bug-hunter -> security-auditor`
 - current-head CI evidence
 - CodeRabbit / Sourcery / Cubic disposition pass
 - strict merge-readiness wrapper with auth
