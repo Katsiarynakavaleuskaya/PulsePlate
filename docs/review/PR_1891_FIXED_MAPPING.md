@@ -112,13 +112,34 @@ Premortem / role-agent findings closed before PR open:
   - Evidence: QA reran preflight, agent consistency, focused pytest,
     focused mypy/flake8, and `make validate-changed`; no actionable schema,
     builder, serializer, or deterministic-test blockers.
-- `bug-hunter`: BLOCKED / not closed.
-  - Evidence: existing bug-hunter agent returned empty completion payload twice;
-    replacement adapter errored with usage-limit exhaustion.
-  - Status: still required before readiness.
+- `bug-hunter`: BLOCK then FIXED.
+  - Initial adapter issue: existing bug-hunter agent returned empty completion
+    payload twice; first replacement adapter errored with usage-limit exhaustion.
+  - Replacement pass: completed on current PR head and produced three findings.
+  - Finding 1: local absolute path in review artifact.
+    - Disposition: FIXED.
+    - Commit: `e0db06bc3`.
+    - Evidence: `docs/review/PR_1891_FIXED_MAPPING.md` now uses relative
+      isolated-worktree wording; local-path guard rerun is part of the required
+      validation bundle below.
+  - Finding 2: malformed analyzer state did not fully degrade.
+    - Disposition: FIXED.
+    - Commit: `e0db06bc3`.
+    - Evidence: `app/services/coaching_state_builder.py` now catches malformed
+      analyzer reads and validates finite `alpha`, `beta`, `risk_slip`, and
+      `confidence` before snapshot construction; regression coverage in
+      `tests/test_user_coaching_state.py`.
+  - Finding 3: `model_copy(update=...)` could inject derived prompt fields.
+    - Disposition: FIXED.
+    - Commit: `e0db06bc3`.
+    - Evidence: `to_prompt_safe_context(...)` revalidates/recomputes the state
+      before projection; regression coverage in `tests/test_user_coaching_state.py`.
+  - Fix validation run:
+    `.venv/bin/python -m pytest -q tests/test_user_coaching_state.py tests/test_bayes_adherence_model.py tests/test_bayes_adherence_service.py`
+    PASS: `28 passed`.
+  - Focused mypy/flake8: PASS.
 - `security-auditor`: PENDING.
-  - Reason: ordered post-open role chain is blocked on the unresolved
-    `bug-hunter` pass.
+  - Reason: required ordered role pass remains to be run after bug-hunter fixes.
 - Codex Security diff scan: PASS / no findings.
   - Report: `/tmp/codex-security-scans/BMI-App_2025_clean/b4cf8acb_pr1891_20260605T194527Z/report.md`.
   - HTML: `/tmp/codex-security-scans/BMI-App_2025_clean/b4cf8acb_pr1891_20260605T194527Z/report.html`.
