@@ -473,9 +473,8 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
             return f"Protected release action claim found: {match.group()}"
     for line in text.splitlines():
         for pattern in FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS:
-            match = pattern.search(line)
-            if match:
-                if _medical_term_is_boundary_negated(line, match.start()):
+            for match in pattern.finditer(line):
+                if _medical_term_is_boundary_negated(line, match.start(), match.group()):
                     continue
                 return f"Medical/wellness overclaim found: {match.group()}"
     for fragment in FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS:
@@ -484,7 +483,7 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
     return None
 
 
-def _medical_term_is_boundary_negated(line: str, match_start: int) -> bool:
+def _medical_term_is_boundary_negated(line: str, match_start: int, match_text: str) -> bool:
     """Return whether a medical term is only named as a nearby forbidden boundary."""
 
     prefix = line[:match_start].lower()
@@ -502,6 +501,11 @@ def _medical_term_is_boundary_negated(line: str, match_start: int) -> bool:
     text_between_marker_and_term = same_clause_prefix[marker_match.end() :]
     if not text_between_marker_and_term.strip():
         return True
+
+    if re.search(
+        rf"(?<![a-z]){re.escape(match_text.lower())}(?![a-z])", text_between_marker_and_term
+    ):
+        return False
 
     context_words = re.findall(r"[a-z]+", text_between_marker_and_term)
     return bool(context_words) and all(

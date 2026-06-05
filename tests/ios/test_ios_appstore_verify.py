@@ -489,6 +489,29 @@ def test_fitchef_release_readiness_validator_rejects_punctuation_only_negation_g
     assert "Medical/wellness overclaim" in _failed_messages(results)
 
 
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "No diagnosis and diagnosis patients.",
+        "No diagnosis, diagnosis patients.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_later_same_term_overclaim(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = claim
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Medical/wellness overclaim" in _failed_messages(results)
+
+
 def test_fitchef_release_readiness_validator_allows_boundary_lists(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
