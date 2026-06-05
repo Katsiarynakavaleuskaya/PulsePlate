@@ -135,7 +135,7 @@ Reason: These bot messages do not identify an actionable code defect in this PR 
   - Evidence: local Codex Security diff scan reviewed 3/3 changed source rows, wrote `work_ledger.jsonl`, validated `report.md`, rendered `report.html`, and found zero surviving reportable candidates after the readiness fix.
 - `pulseplate-pr-review`
   - Disposition: NOT-A-BUG
-  - Evidence: dry-run report produced one advisory large-diff planning note for a 9-file, 603-line coherent readiness slice. The operator explicitly chose this as one connected Private Pilot Operator Readiness v1 PR, and focused tests, `make validate-changed`, `pre-commit run --all-files`, and Codex Security discovery passed.
+  - Evidence: latest dry-run report produced one advisory large-diff planning note because the coherent readiness/governance slice is above the review-risk threshold. The operator explicitly chose this as one connected Private Pilot Operator Readiness v1 PR, and focused tests, `make validate-changed`, `pre-commit run --all-files`, role-agent review, strict thread disposition, current-head merge-readiness gate, and Codex Security discovery passed.
   - Reason: the advisory size note is review-planning evidence, not a code defect or merge-readiness claim.
 
 ## Premortem Findings
