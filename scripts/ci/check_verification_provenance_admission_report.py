@@ -761,20 +761,24 @@ def _validate_schema_matches_report(
         required = schema_node.get("required")
         properties = schema_node.get("properties")
         has_required = "required" in schema_node
-        if has_required and (
-            not isinstance(required, list) or not all(isinstance(item, str) for item in required)
+        required_items: list[str] = []
+        if (
+            has_required
+            and isinstance(required, list)
+            and all(isinstance(item, str) for item in required)
         ):
+            required_items = required
+        elif has_required:
             errors.append(
                 f"verification provenance admission schema {path}.required must be a string list"
             )
-            required = []
         if not isinstance(properties, dict):
             errors.append(
                 f"verification provenance admission schema {path}.properties must be an object"
             )
             properties = {}
         report_keys = set(report_node)
-        required_keys = set(required) if has_required else set()
+        required_keys = set(required_items)
         property_keys = set(properties)
         if has_required and _schema_path_requires_all_report_keys(path):
             for key in sorted(report_keys - required_keys):
