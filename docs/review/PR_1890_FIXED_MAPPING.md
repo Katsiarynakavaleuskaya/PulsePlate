@@ -88,7 +88,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 ## Post-Open Review Evidence
 
 - `qa-engineer-agent`: PASS. Evidence: post-open pass at head `acca8fc14df4df301d6e4fb4cb10d2b6475055e7` found no QA blockers, verified Phase2 mirror, focused validator/tests, `make validate-changed`, `make ios-appstore-verify`, and clean worktree; merge readiness was not claimed because CI/post-open gates remained pending.
-- `bug-hunter`: BLOCK then fixed. Evidence: `f57b215e8` fixed the original whole-pack scan, source path, blocked action, TestFlight status, Makefile coverage, governed path, and iOS source-linkage false-greens; `854ee4c2f` fixed the remaining negation-plus-overclaim bypass and added validator/pack guard regressions. Focused pytest, direct validator, `make ios-appstore-verify`, `make validate-changed`, and mypy passed locally after the final fix.
+- `bug-hunter`: BLOCK then fixed; current-head rerun pending after push. Evidence: `f57b215e8` fixed the original whole-pack scan, source path, blocked action, TestFlight status, Makefile coverage, governed path, and iOS source-linkage false-greens; `854ee4c2f` fixed the first negation-plus-overclaim bypass; `8a2c136a2` fixed the remaining comma-clause bypass and added validator/pack guard regressions. Focused pytest, direct validator, `make ios-appstore-verify`, mypy, flake8, commit hooks, and previous `make validate-changed` passed locally after the final fix.
 - `security-auditor`: pending.
 - Codex Security diff scan / finding discovery: pending.
 - `pulseplate-pr-review`: pending.
@@ -107,6 +107,13 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 Disposition: FIXED
 Commit: f57b215e8
 Evidence: `scripts/release/check_ios_appstore_verify.py` now scans the whole FitChef App Store pack for media/text boundaries, validates `source_paths` values and iOS source files, enforces `blocked_release_actions`, scans every release-readiness JSON/Markdown file for protected claims/secrets/pricing/wellness overclaims, requires `testflight_smoke_status: not_started`, and constrains locale rows to governed FitChef manifest/storyboard paths; `Makefile` adds `tests/test_fitchef_app_store_pack.py` to `ios-appstore-verify`; `tests/ios/test_ios_appstore_verify.py` adds regression tests for all nine review false-greens; focused pytest, validator, `make ios-appstore-verify`, changed-scope validation, and mypy passed locally.
+
+## Post-Open Role-Agent Finding Closure
+
+Finding: post-open `bug-hunter` agent `019e98b2-aa05-7c81-b31a-e3ea0daba98c` reported a comma-clause wellness overclaim bypass.
+Disposition: FIXED
+Commit: 8a2c136a2
+Evidence: `scripts/release/check_ios_appstore_verify.py` now limits boundary-negation to explicit forbidden-claim context words instead of broad same-line negation; `tests/ios/test_ios_appstore_verify.py` and `tests/test_fitchef_app_store_pack.py` cover `:`, `.`, `;`, `!`, `?`, and `,` separators plus safe boundary-list language. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `../../.venv/bin/python -m mypy scripts/release/check_ios_appstore_verify.py` PASS; `../../.venv/bin/python -m flake8 scripts/release/check_ios_appstore_verify.py tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS.
 
 
 ## Merge Readiness
