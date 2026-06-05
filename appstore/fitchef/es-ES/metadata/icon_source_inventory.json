@@ -33,8 +33,8 @@
     }
   ],
   "decision_log": [
-    "El paquete ES usa el mismo conjunto canonico de fuentes que los paquetes EN y RU gestionados.",
-    "Esta linea de localizacion no promociona activos root locales ni nuevos binarios exportados.",
-    "Cualquier actualizacion binaria futura debe pasar por un PR revisado con los mismos asset keys canonicos."
+    "El paquete ES usa el mismo conjunto canónico de fuentes que los paquetes EN y RU gestionados.",
+    "Esta línea de localización no promociona activos root locales ni nuevos binarios exportados.",
+    "Cualquier actualización binaria futura debe pasar por un PR revisado con los mismos asset keys canónicos."
   ]
 }
