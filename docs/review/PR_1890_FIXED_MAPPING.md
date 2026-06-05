@@ -2,8 +2,8 @@
 
 PR: `docs(release): promote FitChef App Store rendered review and TestFlight readiness wave`
 Branch: `codex/fitchef-appstore-rendered-review-testflight-readiness`
-Base after refresh: `origin/main` at `854562d20`
-Implementation commit: `506d82322fa1cee017dd574deebbca0bcd397cf9`
+Base after refresh: `origin/main` at `889e9a0ad`
+Implementation commit: `8e3900c7b996e2f2e8794b960378aa99aa7cd473`
 
 ## Scope
 
@@ -62,7 +62,7 @@ Decision: proceed with changes.
 - Shared tree untouched: true
 - Source diff paths: 11
 - Oracle commands: `python scripts/release/check_ios_appstore_verify.py` and `python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py`, both return code 0.
-- Contribution: Experiment Runner shaped the commit decision and fixed-mapping evidence; implementation commit `506d82322fa1cee017dd574deebbca0bcd397cf9` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Contribution: Experiment Runner shaped the commit decision and fixed-mapping evidence; implementation commit `8e3900c7b996e2f2e8794b960378aa99aa7cd473` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Tests And Gates
 
@@ -73,26 +73,27 @@ Decision: proceed with changes.
 - `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS, 11 passed / 0 failed.
 - `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS.
 - `make validate-changed` - PASS.
-- `pre-commit run --all-files` - PASS after commit `2621360a8` review hardening.
-- Direct localized wellness probes after commit `8ed1ecac5` - PASS: ES/RU boundary disclaimers are allowed, repeated localized claims and actual ES/RU medical claims are rejected.
-- `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` - PASS after commit `8ed1ecac5`.
-- `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS after commit `8ed1ecac5`, 11 passed / 0 failed.
-- `make validate-changed` - PASS after commit `8ed1ecac5`.
-- `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `8ed1ecac5`.
-- `pre-commit run --all-files` - PASS after commit `8ed1ecac5`.
-- Direct release-scan probes after commit `1d59f4af9` - PASS: localized treatment/professional-role claims, localized upload readiness claims, scalar JSON pricing/trial values, raw credential-token shapes, ruble price formats, protected-action JSON keys, symlinks, and guaranteed/clinical outcome claims are all blocked while localized boundary-disclaimer fixtures remain allowed.
-- `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` - PASS after commit `1d59f4af9`.
-- `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS after commit `1d59f4af9`, 11 passed / 0 failed.
-- `make validate-changed` - PASS after commit `1d59f4af9`.
-- `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `1d59f4af9`.
-- `pre-commit run --all-files` - PASS before commit `1d59f4af9`.
-- Direct validator/fixture checks after commit `ddd42468e` - PASS: schema version drift, all protected-action completion variants, and forbidden FitChef pack path segments are blocked.
-- `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` - PASS after commit `ddd42468e`.
-- `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS after commit `ddd42468e`, 11 passed / 0 failed.
-- `make validate-changed` - PASS after commit `ddd42468e`.
-- `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `ddd42468e`.
-- `pre-commit run --all-files` - PASS before commit `ddd42468e`.
-- Push pre-push hooks - PASS through commit `024729aaf` after mypy return-type/value narrowing fix in `scripts/release/check_ios_appstore_verify.py`, including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and docker build test. Final push evidence must be refreshed after the mapping update.
+- `pre-commit run --all-files` - PASS after commit `aa49d1492` review hardening.
+- Direct localized wellness probes after commit `c227b9a93` - PASS: ES/RU boundary disclaimers are allowed, repeated localized claims and actual ES/RU medical claims are rejected.
+- `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` - PASS after commit `c227b9a93`.
+- `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS after commit `c227b9a93`, 11 passed / 0 failed.
+- `make validate-changed` - PASS after commit `c227b9a93`.
+- `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `c227b9a93`.
+- `pre-commit run --all-files` - PASS after commit `c227b9a93`.
+- Direct release-scan probes after commit `4b1c1c089` - PASS: localized treatment/professional-role claims, localized upload readiness claims, scalar JSON pricing/trial values, raw credential-token shapes, ruble price formats, protected-action JSON keys, symlinks, and guaranteed/clinical outcome claims are all blocked while localized boundary-disclaimer fixtures remain allowed.
+- `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` - PASS after commit `4b1c1c089`.
+- `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS after commit `4b1c1c089`, 11 passed / 0 failed.
+- `make validate-changed` - PASS after commit `4b1c1c089`.
+- `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `4b1c1c089`.
+- `pre-commit run --all-files` - PASS before commit `4b1c1c089`.
+- Direct validator/fixture checks after commit `4c8d71688` - PASS: schema version drift, all protected-action completion variants, and forbidden FitChef pack path segments are blocked.
+- `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` - PASS after commit `4c8d71688`.
+- `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS after commit `4c8d71688`, 11 passed / 0 failed.
+- `make validate-changed` - PASS after commit `4c8d71688`.
+- `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `4c8d71688`.
+- `pre-commit run --all-files` - PASS before commit `4c8d71688`.
+- Push pre-push hooks - PASS through commit `cb0fd0f26` after mypy return-type/value narrowing fix in `scripts/release/check_ios_appstore_verify.py`, including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and docker build test. Final push evidence must be refreshed after the mapping update.
+- Post-rebase validation on `origin/main` at `889e9a0ad`: `python3 scripts/orchestration/check_preflight.py` PASS; `python3 scripts/orchestration/check_agent_consistency.py` PASS; `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md` PASS; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS; `python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1890` PASS for 10 resolved review threads.
 
 Full local `make verify` was not run by default for this docs/release-validator PR under the operator-approved changed-scope gate policy. Merge readiness is not claimed without current-head CI, post-open role passes, Codex Security scan, `pulseplate-pr-review`, unresolved-thread checks, PR body/mapping parity, strict wrapper evidence, and wait-window.
 
@@ -105,113 +106,113 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 
 ## Post-Open Review Evidence
 
-- `qa-engineer-agent`: PASS. Evidence: post-open pass at head `acca8fc14df4df301d6e4fb4cb10d2b6475055e7` found no QA blockers, verified Phase2 mirror, focused validator/tests, `make validate-changed`, `make ios-appstore-verify`, and clean worktree; merge readiness was not claimed because CI/post-open gates remained pending.
-- `bug-hunter`: PASS on head `8a5d032f9` after fixes. Evidence: `f57b215e8` fixed the original whole-pack scan, source path, blocked action, TestFlight status, Makefile coverage, governed path, and iOS source-linkage false-greens; `854ee4c2f` fixed the first negation-plus-overclaim bypass; `8a2c136a2` fixed the remaining comma-clause bypass and added validator/pack guard regressions; rerun agent `019e9946-d0e9-7571-b8f1-3739faa60b7a` returned PASS with no findings and no file changes. Later bot review hardening in `2621360a8` expands the protected text scan to the whole FitChef pack, redacts credential diagnostics, binds Swift screenshot expectations per case, validates wellness status/text evidence, removes forbidden dynamic test loading, and closes punctuation-only negation gaps.
-- `security-auditor`: PASS on current head `8a5d032f9`. Evidence: agent `019e994b-6730-7890-a6b8-62bd3b75315f` found no protected release-surface drift, no screenshot/video binaries, no `ios/fastlane/metadata` mutation, no upload automation or App Store Connect mutation, no secret/local-path leakage, no unsafe pricing/trial/medical overclaim, and no validator fail-open/path-boundary regression.
-- Codex Security diff scan / finding discovery: PASS / no findings. Evidence: scan id `8a5d032f9de3_20260605224323`; merge-base-corrected deep review closed 3/3 generated rows (`appstore/fitchef/en-US/iphone-6.9/screenshots/shot_manifest.json`, `appstore/fitchef/release_readiness/shot_scenario_matrix.json`, `scripts/release/check_ios_appstore_verify.py`); `report.md` format validation passed and `report.html` rendered in the gitignored scan workspace.
+- `qa-engineer-agent`: PASS. Evidence: post-open pass at post-rebase equivalent head `91b44a22bf7a3c15a755c9016ed1c5118f61e2be` found no QA blockers, verified Phase2 mirror, focused validator/tests, `make validate-changed`, `make ios-appstore-verify`, and clean worktree; merge readiness was not claimed because CI/post-open gates remained pending.
+- `bug-hunter`: PASS on head `283cfa00b` after fixes. Evidence: `9840d503d` fixed the original whole-pack scan, source path, blocked action, TestFlight status, Makefile coverage, governed path, and iOS source-linkage false-greens; `ddeb83f95` fixed the first negation-plus-overclaim bypass; `1a588778f` fixed the remaining comma-clause bypass and added validator/pack guard regressions; rerun agent `019e9946-d0e9-7571-b8f1-3739faa60b7a` returned PASS with no findings and no file changes. Later bot review hardening in `aa49d1492` expands the protected text scan to the whole FitChef pack, redacts credential diagnostics, binds Swift screenshot expectations per case, validates wellness status/text evidence, removes forbidden dynamic test loading, and closes punctuation-only negation gaps.
+- `security-auditor`: PASS on current head `283cfa00b`. Evidence: agent `019e994b-6730-7890-a6b8-62bd3b75315f` found no protected release-surface drift, no screenshot/video binaries, no `ios/fastlane/metadata` mutation, no upload automation or App Store Connect mutation, no secret/local-path leakage, no unsafe pricing/trial/medical overclaim, and no validator fail-open/path-boundary regression.
+- Codex Security diff scan / finding discovery: PASS / no findings. Evidence: pre-rebase scan id `8a5d032f9de3_20260605224323`; merge-base-corrected deep review closed 3/3 generated rows (`appstore/fitchef/en-US/iphone-6.9/screenshots/shot_manifest.json`, `appstore/fitchef/release_readiness/shot_scenario_matrix.json`, `scripts/release/check_ios_appstore_verify.py`); `report.md` format validation passed and `report.html` rendered in the gitignored scan workspace.
 - `pulseplate-pr-review`: NOTE dispositioned as NOT-A-BUG. Evidence: dry-run report produced one advisory large-diff planning note only; the operator explicitly requested a broader MVP release-readiness slice, scope remained release-validator/App Store metadata only, no protected runtime/upload surfaces entered the PR, and `make validate-changed`, focused validator/tests, full pre-commit, current-head CI, post-open QA, bug-hunter, security-auditor, and Codex Security scan all passed. `.venv` calibration command `../../.venv/bin/python -m pytest tests/test_pr_review_report.py -q` passed; the earlier system `python3` attempt failed with missing local dependency `fastapi` and was not used as gate evidence.
-- Late bot review hardening: FIXED in `0f9094f85`. Evidence: source PR provenance is now exact and fail-closed against PR #1886 / `26b7cf4f`; focused tests, direct validator, `make validate-changed`, and `pre-commit run --all-files` passed locally.
-- Post-open `qa-engineer-agent` rerun on head `396909ff7`: FAIL with localized release-gate false-greens. Disposition: FIXED in `dd8803779`. Evidence: validator now blocks localized wellness/pricing/trial claims, Windows local temp paths, and missing/wrong XCTest capture methods; focused tests, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
-- Post-open `qa-engineer-agent` rerun on head `aca73dc8b`: FAIL with disposition-governance gap for already-resolved threads `discussion_r3364079340`, `discussion_r3364127016`, and `discussion_r3364127022`. Disposition: FIXED in `48e9ba365` plus this mapping update. Evidence: validator now evaluates every medical-term match per line and rejects repeated same-term overclaims after a boundary mention; mapping below lists the resolved thread URLs with commit evidence.
-- Late bot review `discussion_r3365261866`: FIXED in `8ed1ecac5`. Evidence: localized wellness fragment scan now uses line-level `finditer` plus localized boundary-negation logic for ES/RU safe disclaimers while still rejecting repeated localized claims and actual localized medical/wellness overclaims.
-- Late bot review batch after head `20f3c33a8`: FIXED in `1d59f4af9`. Evidence: release scan now blocks localized treatment/professional-role claims, localized upload readiness claims, scalar JSON pricing/trial values, raw credential-token shapes, ruble price formats, protected-action JSON keys, symlinks, and guaranteed/clinical outcome claims. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
-- Post-open `qa-engineer-agent` rerun on head `20f3c33a8`: FAIL with this artifact quoting raw localized probe text. Disposition: FIXED. Evidence: raw localized probe text was rewritten into neutral evidence wording in this artifact.
-- Post-open `qa-engineer-agent` rerun on head `20f3c33a8`: live GitHub review threads remained unresolved. Disposition: DEFERRED. Evidence: unresolved review threads are mapped below and must be resolved only after the mapped fixes are pushed and reviewed.
-- Late bot review batch after head `b9a8707d7`: FIXED in `ddd42468e`. Evidence: scenario matrix schema version is now value-checked, protected-action completion claims are synchronized with the blocked release action list, and forbidden local-artifact path segments under the governed FitChef pack are rejected before file-content scanning. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
-- CodeRabbit review after head `3206bbd17`: FIXED in `530a6ad8c` and `5f0c5911f`. Evidence: committed test fixtures no longer contain complete credential-like values as source literals, and this artifact now uses canonical single dispositions instead of combined disposition wording.
+- Late bot review hardening: FIXED in `ee9407828`. Evidence: source PR provenance is now exact and fail-closed against PR #1886 / `26b7cf4f`; focused tests, direct validator, `make validate-changed`, and `pre-commit run --all-files` passed locally.
+- Post-open `qa-engineer-agent` rerun on head `0594295f3`: FAIL with localized release-gate false-greens. Disposition: FIXED in `396afada8`. Evidence: validator now blocks localized wellness/pricing/trial claims, Windows local temp paths, and missing/wrong XCTest capture methods; focused tests, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
+- Post-open `qa-engineer-agent` rerun on head `08e13f25e`: FAIL with disposition-governance gap for already-resolved threads `discussion_r3364079340`, `discussion_r3364127016`, and `discussion_r3364127022`. Disposition: FIXED in `c613cc153` plus this mapping update. Evidence: validator now evaluates every medical-term match per line and rejects repeated same-term overclaims after a boundary mention; mapping below lists the resolved thread URLs with commit evidence.
+- Late bot review `discussion_r3365261866`: FIXED in `c227b9a93`. Evidence: localized wellness fragment scan now uses line-level `finditer` plus localized boundary-negation logic for ES/RU safe disclaimers while still rejecting repeated localized claims and actual localized medical/wellness overclaims.
+- Late bot review batch after head `7d1b47bab`: FIXED in `4b1c1c089`. Evidence: release scan now blocks localized treatment/professional-role claims, localized upload readiness claims, scalar JSON pricing/trial values, raw credential-token shapes, ruble price formats, protected-action JSON keys, symlinks, and guaranteed/clinical outcome claims. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
+- Post-open `qa-engineer-agent` rerun on head `7d1b47bab`: FAIL with this artifact quoting raw localized probe text. Disposition: FIXED. Evidence: raw localized probe text was rewritten into neutral evidence wording in this artifact.
+- Post-open `qa-engineer-agent` rerun on head `7d1b47bab`: live GitHub review threads remained unresolved. Disposition: DEFERRED. Evidence: unresolved review threads are mapped below and must be resolved only after the mapped fixes are pushed and reviewed.
+- Late bot review batch after head `831007886`: FIXED in `4c8d71688`. Evidence: scenario matrix schema version is now value-checked, protected-action completion claims are synchronized with the blocked release action list, and forbidden local-artifact path segments under the governed FitChef pack are rejected before file-content scanning. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
+- CodeRabbit review after head `e31c1b616`: FIXED in `ebf9eeafc` and `09ee45c21`. Evidence: committed test fixtures no longer contain complete credential-like values as source literals, and this artifact now uses canonical single dispositions instead of combined disposition wording.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950396 -> f57b215e8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950401 -> f57b215e8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950404 -> f57b215e8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950408 -> f57b215e8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950409 -> f57b215e8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950415 -> f57b215e8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978756 -> f57b215e8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978760 -> f57b215e8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978762 -> f57b215e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950396 -> 9840d503d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950401 -> 9840d503d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950404 -> 9840d503d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950408 -> 9840d503d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950409 -> 9840d503d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363950415 -> 9840d503d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978756 -> 9840d503d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978760 -> 9840d503d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3363978762 -> 9840d503d
 Disposition: FIXED
-Commit: f57b215e8
+Commit: 9840d503d
 Evidence: `scripts/release/check_ios_appstore_verify.py` now scans the whole FitChef App Store pack for media/text boundaries, validates `source_paths` values and iOS source files, enforces `blocked_release_actions`, scans every release-readiness JSON/Markdown file for protected claims/secrets/pricing/wellness overclaims, requires `testflight_smoke_status: not_started`, and constrains locale rows to governed FitChef manifest/storyboard paths; `Makefile` adds `tests/test_fitchef_app_store_pack.py` to `ios-appstore-verify`; `tests/ios/test_ios_appstore_verify.py` adds regression tests for all nine review false-greens; focused pytest, validator, `make ios-appstore-verify`, changed-scope validation, and mypy passed locally.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364054086 -> 8a2c136a2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364054086 -> 1a588778f
 Disposition: FIXED
-Commit: 8a2c136a2
+Commit: 1a588778f
 Evidence: `scripts/release/check_ios_appstore_verify.py` replaced broad same-line negation with bounded forbidden-boundary context logic; `tests/ios/test_ios_appstore_verify.py` and `tests/test_fitchef_app_store_pack.py` reject negation-plus-overclaim separators including comma while preserving safe boundary-list language.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364054091 -> 2621360a8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364079331 -> 2621360a8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364134870 -> 2621360a8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364134876 -> 2621360a8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364134880 -> 2621360a8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364134882 -> 2621360a8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364218433 -> 2621360a8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364241495 -> 2621360a8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364241498 -> 2621360a8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364054091 -> aa49d1492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364079331 -> aa49d1492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364134870 -> aa49d1492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364134876 -> aa49d1492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364134880 -> aa49d1492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364134882 -> aa49d1492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364218433 -> aa49d1492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364241495 -> aa49d1492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364241498 -> aa49d1492
 Disposition: FIXED
-Commit: 2621360a8
+Commit: aa49d1492
 Evidence: `scripts/release/check_ios_appstore_verify.py` now scans all JSON/Markdown text under `appstore/fitchef`, redacts credential-like values in release-gate diagnostics, validates per-case Swift `screenshotName` and `accessibilityIdentifier` returns, enforces non-empty scenario/reviewer text and allowed `wellness_claim_status` values, allows natural wellness boundary disclaimers, and rejects punctuation-only negation gaps. `tests/ios/test_ios_appstore_verify.py` removes dynamic `importlib.util` loading and adds regressions for locale-pack protected claims/secrets, redaction, Swift case swaps, blank wellness notes, unsafe wellness statuses, natural disclaimers, and punctuation-only negation bypasses. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `make validate-changed` PASS; `pre-commit run --all-files` PASS.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365020667 -> 0f9094f85
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365020667 -> ee9407828
 Disposition: FIXED
-Commit: 0f9094f85
+Commit: ee9407828
 Evidence: `scripts/release/check_ios_appstore_verify.py` now validates `source_pr` exactly against the landed multilingual localization QA provenance (`number: 1886`, `merge_commit: 26b7cf4f`), and `tests/ios/test_ios_appstore_verify.py` rejects `source_pr: {"number": 0, "merge_commit": ""}`. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `pre-commit run --all-files` PASS.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125647 -> dd8803779
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125654 -> dd8803779
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125659 -> dd8803779
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125664 -> dd8803779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125647 -> 396afada8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125654 -> 396afada8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125659 -> 396afada8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125664 -> 396afada8
 Disposition: FIXED
-Commit: dd8803779
+Commit: 396afada8
 Evidence: `scripts/release/check_ios_appstore_verify.py` now normalizes release-pack text with accent folding, blocks localized ES/RU medical/wellness fragments, blocks localized trial/pricing fragments and euro price forms, rejects Windows local temp paths with redacted diagnostics, and verifies every FitChef screenshot scenario has a matching XCTest capture method that calls `captureScreenshot(for: .<scenario>)`. `tests/ios/test_ios_appstore_verify.py` adds regressions for Spanish/Russian localized medical claims, Spanish/Russian pricing/trial claims, Windows temp paths, missing XCTest methods, and wrong XCTest capture calls. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; isolated QA probes return blocking errors for localized claims/pricing/path cases; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364079340 -> 48e9ba365
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364127016 -> 48e9ba365
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364127022 -> 48e9ba365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364079340 -> c613cc153
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364127016 -> c613cc153
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3364127022 -> c613cc153
 Disposition: FIXED
-Commit: 48e9ba365
+Commit: c613cc153
 Evidence: `scripts/release/check_ios_appstore_verify.py` now uses `finditer` to evaluate every medical/wellness term occurrence on each line and refuses boundary negation when the same matched term already appears between the marker and current occurrence. `tests/ios/test_ios_appstore_verify.py` adds regressions for `No diagnosis and diagnosis patients.` and `No diagnosis, diagnosis patients.` while existing safe boundary-list and natural disclaimer tests continue to pass. Local evidence after the fix: direct probes reject repeated same-term overclaims and allow natural disclaimers; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365261866 -> 8ed1ecac5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365261866 -> c227b9a93
 Disposition: FIXED
-Commit: 8ed1ecac5
+Commit: c227b9a93
 Evidence: `scripts/release/check_ios_appstore_verify.py` now scans localized wellness fragments per line with `finditer` and applies localized ES/RU boundary-negation context instead of treating every boundary disclaimer as an overclaim. `tests/ios/test_ios_appstore_verify.py` adds ES/RU safe-disclaimer regressions plus repeated localized-claim regressions. Local evidence after the fix: direct probes allow localized no-medical-boundary disclaimer fixtures while rejecting repeated localized claims and actual localized medical claims; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` all passed locally.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279308 -> 1d59f4af9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279316 -> 1d59f4af9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279320 -> 1d59f4af9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279327 -> 1d59f4af9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279335 -> 1d59f4af9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365376634 -> 1d59f4af9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365376637 -> 1d59f4af9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365376640 -> 1d59f4af9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279308 -> 4b1c1c089
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279316 -> 4b1c1c089
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279320 -> 4b1c1c089
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279327 -> 4b1c1c089
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365279335 -> 4b1c1c089
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365376634 -> 4b1c1c089
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365376637 -> 4b1c1c089
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365376640 -> 4b1c1c089
 Disposition: FIXED
-Commit: 1d59f4af9
+Commit: 4b1c1c089
 Evidence: `scripts/release/check_ios_appstore_verify.py` now normalizes JSON keys/values for release scanning, rejects symlinks under the governed FitChef pack, blocks raw credential-token shapes with redacted diagnostics, blocks localized upload-readiness claims, blocks ruble price formats and scalar JSON pricing/trial values, expands localized wellness blockers for Spanish treatment/professional-role wording, and rejects guaranteed/clinical outcome claims with boundary-aware logic. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for each blocked false-green class while preserving safe localized boundary-disclaimer coverage. Local evidence after the fix: direct probes for the eight bot-reported classes return blocking errors; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432376 -> ddd42468e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432378 -> ddd42468e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432383 -> ddd42468e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432376 -> 4c8d71688
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432378 -> 4c8d71688
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365432383 -> 4c8d71688
 Disposition: FIXED
-Commit: ddd42468e
+Commit: 4c8d71688
 Evidence: `scripts/release/check_ios_appstore_verify.py` now requires the exact FitChef release-readiness schema version, blocks protected-action completion claims for all blocked release-action categories, and rejects forbidden local-artifact path segments anywhere under the governed FitChef App Store pack before content scanning. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for schema-version drift, protected-action completion variants, and forbidden path segments. Local evidence after the fix: focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` all passed locally.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365497863 -> 530a6ad8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365497863 -> ebf9eeafc
 Disposition: FIXED
-Commit: 530a6ad8c
+Commit: ebf9eeafc
 Evidence: `tests/ios/test_ios_appstore_verify.py` now composes credential-like dummy fixture labels and values from scanner-safe parts at runtime instead of storing complete credential-like assignment strings in source. Local evidence after the fix: focused pytest, direct validator, and `pre-commit run --all-files` passed locally.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365497854 -> 5f0c5911f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365497854 -> 09ee45c21
 Disposition: FIXED
-Commit: 5f0c5911f
+Commit: 09ee45c21
 Evidence: `docs/review/PR_1890_FIXED_MAPPING.md` now splits the combined `FIXED / IN PROGRESS` wording into separate canonical `FIXED` and `DEFERRED` entries with matching evidence. Local evidence after the fix: commit hooks passed, including detect-secrets and conventional commit checks.
 
 ## Post-Open Role-Agent Finding Closure
 
 Finding: post-open `bug-hunter` agent `019e98b2-aa05-7c81-b31a-e3ea0daba98c` reported a comma-clause wellness overclaim bypass.
 Disposition: FIXED
-Commit: 8a2c136a2
+Commit: 1a588778f
 Evidence: `scripts/release/check_ios_appstore_verify.py` now limits boundary-negation to explicit forbidden-claim context words instead of broad same-line negation; `tests/ios/test_ios_appstore_verify.py` and `tests/test_fitchef_app_store_pack.py` cover `:`, `.`, `;`, `!`, `?`, and `,` separators plus safe boundary-list language. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `../../.venv/bin/python -m mypy scripts/release/check_ios_appstore_verify.py` PASS; `../../.venv/bin/python -m flake8 scripts/release/check_ios_appstore_verify.py tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS.
 
 Finding: `pulseplate-pr-review` dry-run report flagged an advisory large-diff planning note for human review.
