@@ -28,7 +28,7 @@ authority, semantic-cache authority, or public response shapes.
 
 ## Implementation Evidence
 
-- Implementation commit: `0b6b7d4b555e51f1ef399aae0c2c756afe4ef64d`
+- Implementation commit: `2f2ef01178d79e331f83e6daf5ad5637a230b122`
 - Implementation evidence: `core/verification/contracts.py`, `core/verification/registry.py`, `core/rag/orchestration.py`, `core/insight/philosophical_runtime.py`, `scripts/ci/check_verification_provenance_admission_report.py`, and focused tests add internal SHA alias mirrors, prompt trim metadata, merge behavior, and public non-exposure coverage.
 - Evidence:
   - `core/verification/contracts.py`
@@ -73,7 +73,7 @@ authority, semantic-cache authority, or public response shapes.
 - `promotion_ready`: `false`
 - `coauthor_required`: `true`
 - Co-author trailer is present on
-  `0b6b7d4b555e51f1ef399aae0c2c756afe4ef64d`.
+  `2f2ef01178d79e331f83e6daf5ad5637a230b122`.
 - Immutable oracles:
   - PASS: `python3 scripts/ci/check_verification_provenance_admission_report.py --check`
   - PASS: `python3 -m pytest -q tests/test_remaining_modules.py tests/test_rag_orchestration.py tests/test_philosophical_runtime.py tests/test_insight_application_service.py tests/test_verification_provenance_admission_report.py tests/test_knowledge_promotion.py`
@@ -107,11 +107,21 @@ authority, semantic-cache authority, or public response shapes.
 - [x] `qa-engineer-agent`: completed. Findings on admission report schema
   field-inventory drift, parser-safe fixed mapping, RAG no-trim limit semantics,
   and digest-drift diagnostics were fixed in
-  `62ac7641ab0d0a8a0cbb82a4b38527dff93c343d`.
-- [ ] `bug-hunter`: pending.
-- [ ] `security-auditor`: pending.
-- [ ] Codex Security diff scan / finding discovery: pending.
-- [ ] `pulseplate-pr-review`: pending.
+  `b7ab1886ecb0dd57a1ae249edf3f6e59408c695d`. The follow-up finding on
+  non-string context digest array validation was fixed in
+  `9dfcab5e625eafa84365c82121fd80894ff7b61a`.
+- [x] `bug-hunter`: completed with no actionable code findings at rebased head
+  `ad1847c7b`.
+- [x] `security-auditor`: completed with no actionable findings at rebased head
+  `ad1847c7b`.
+- [x] Codex Security diff scan / finding discovery: completed with no findings.
+  Artifact: `/tmp/codex-security-scans/BMI-App_2025_clean/pr1893_ad1847c7b_20260606012633`;
+  report format validated; 4/4 source-like diff rows have no-finding receipts.
+- [x] `pulseplate-pr-review`: completed in dry-run report mode. It produced one
+  advisory large-diff note because the current diff has 824 changed lines, just
+  above the 800-line review-risk threshold; disposition is non-blocking because
+  the PR is one coherent internal provenance/report/test slice and
+  `make validate-changed` passed on the rebased branch.
 
 ## Merge Readiness
 
