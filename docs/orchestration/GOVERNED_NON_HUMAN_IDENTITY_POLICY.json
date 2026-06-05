@@ -70,6 +70,24 @@
     "default_sink": "local_artifact",
     "v1_email_recipient": "pulseplate@pm.me"
   },
+  "github_app_dispatch": {
+    "status": "selected_repo_workflow_dispatch_boundary",
+    "source": "externally_minted_installation",
+    "repository_scope": "runtime_allowlist_selected_repositories",
+    "requires_repo_allowlist": true,
+    "requires_installation_class_for_cross_repo": true,
+    "requires_actions_write": true,
+    "workflow_file": "experiment-runner-dispatch.yml",
+    "workflow_ref": "main",
+    "can_dispatch_repository_events": false,
+    "can_dispatch_arbitrary_workflow": false,
+    "can_mutate_pull_requests": false,
+    "can_merge_pull_requests": false,
+    "can_write_contents": false,
+    "can_write_workflows": false,
+    "can_administer": false,
+    "can_manage_sensitive_store": false
+  },
   "slack_identity": {
     "status": "operator_notification_boundary_defined",
     "purpose": "ops_notification_and_operator_command_boundary_only",

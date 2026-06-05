@@ -84,6 +84,7 @@ CANONICAL_BOUNDARY_KEYS = frozenset(
         "contribution_attribution",
         "cryptographic_boundary",
         "git_attribution",
+        "github_app_dispatch",
         "notification_boundary",
         "slack_identity",
         "validator_mutation_boundary",
@@ -441,6 +442,38 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
         raise IdentityPolicyError(
             "notification_boundary.v1_email_recipient must be pulseplate@pm.me."
         )
+
+    github_app_dispatch = _require_mapping(payload, "github_app_dispatch")
+    if github_app_dispatch.get("status") != "selected_repo_workflow_dispatch_boundary":
+        raise IdentityPolicyError(
+            "github_app_dispatch.status must be selected_repo_workflow_dispatch_boundary."
+        )
+    if github_app_dispatch.get("source") != "externally_minted_installation":
+        raise IdentityPolicyError(
+            "github_app_dispatch.source must be externally_minted_installation."
+        )
+    if github_app_dispatch.get("repository_scope") != "runtime_allowlist_selected_repositories":
+        raise IdentityPolicyError(
+            "github_app_dispatch.repository_scope must be "
+            "runtime_allowlist_selected_repositories."
+        )
+    _require_bool(github_app_dispatch, "requires_repo_allowlist", True)
+    _require_bool(github_app_dispatch, "requires_installation_class_for_cross_repo", True)
+    _require_bool(github_app_dispatch, "requires_actions_write", True)
+    if github_app_dispatch.get("workflow_file") != "experiment-runner-dispatch.yml":
+        raise IdentityPolicyError(
+            "github_app_dispatch.workflow_file must be experiment-runner-dispatch.yml."
+        )
+    if github_app_dispatch.get("workflow_ref") != "main":
+        raise IdentityPolicyError("github_app_dispatch.workflow_ref must be main.")
+    _require_bool(github_app_dispatch, "can_dispatch_repository_events", False)
+    _require_bool(github_app_dispatch, "can_dispatch_arbitrary_workflow", False)
+    _require_bool(github_app_dispatch, "can_mutate_pull_requests", False)
+    _require_bool(github_app_dispatch, "can_merge_pull_requests", False)
+    _require_bool(github_app_dispatch, "can_write_contents", False)
+    _require_bool(github_app_dispatch, "can_write_workflows", False)
+    _require_bool(github_app_dispatch, "can_administer", False)
+    _require_bool(github_app_dispatch, "can_manage_sensitive_store", False)
 
     slack_identity = _require_mapping(payload, "slack_identity")
     if slack_identity.get("status") != "operator_notification_boundary_defined":

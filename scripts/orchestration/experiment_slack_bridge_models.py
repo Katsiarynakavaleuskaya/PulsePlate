@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from scripts.orchestration.context_pack import normalize_repo_path
 from scripts.orchestration.experiment_slack_redaction import slack_text as _slack_text
@@ -61,6 +61,55 @@ class SlackApiTransport(Protocol):
         """Call one fixed Slack Web API method and return parsed JSON."""
 
 
+GitHubDispatchAuthClass = Literal["installation", "runtime"]
+
+
+@dataclass(frozen=True)
+class GitHubDispatchAuth:
+    """Opaque runtime GitHub credential classification for fixed workflow dispatch."""
+
+    token: str = field(repr=False)
+    source_env: str
+    auth_class: GitHubDispatchAuthClass
+
+    @property
+    def is_installation_token(self) -> bool:
+        """Return whether the opaque token is a GitHub App installation token class."""
+
+        return self.auth_class == "installation"
+
+
+@dataclass(frozen=True)
+class GitHubDispatchTarget:
+    """Validated fixed GitHub workflow dispatch target."""
+
+    repo: str = field(repr=False)
+    workflow_file: str
+    workflow_ref: str
+    current_repo: str | None = field(default=None, repr=False)
+    repo_allowlist: frozenset[str] = field(default_factory=frozenset, repr=False)
+
+    @property
+    def is_cross_repo(self) -> bool:
+        """Return whether the known ambient repository differs from the target."""
+
+        return self.current_repo is not None and self.repo != self.current_repo
+
+    @property
+    def is_allowlisted(self) -> bool:
+        """Return whether this target is exactly present in the runtime allowlist."""
+
+        return self.repo in self.repo_allowlist
+
+
+@dataclass(frozen=True)
+class GitHubDispatchConfig:
+    """Typed GitHub workflow dispatch adapter config."""
+
+    auth: GitHubDispatchAuth | None
+    target: GitHubDispatchTarget | None
+
+
 @dataclass(frozen=True)
 class BridgeConfig:
     """Runtime configuration for one bridge event or validation pass."""
@@ -76,11 +125,12 @@ class BridgeConfig:
     timeout_seconds: int
     min_interval_seconds: int
     audit_retention_days: int
-    slack_app_token: str | None
-    slack_bot_token: str | None
-    github_token: str | None
+    slack_app_token: str | None = field(repr=False)
+    slack_bot_token: str | None = field(repr=False)
+    github_token: str | None = field(repr=False)
     live_approval_sha256: str | None
     operator_ledger_task_packet_id: str
+    github_dispatch: GitHubDispatchConfig | None = None
 
 
 @dataclass(frozen=True)

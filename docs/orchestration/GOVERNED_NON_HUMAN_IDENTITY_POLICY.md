@@ -122,6 +122,19 @@ workflow dispatch must be explicitly selected by an operator, use a fixed
 workflow allowlist, require machine-readable GitHub runtime auth sourced from
 runtime environment only, and remain idempotent and audit-backed.
 
+For cross-repo private pilots, the bridge may consume only externally minted
+GitHub App installation credentials from the existing GitHub runtime auth
+precedence (`GH_TOKEN`, then `GITHUB_TOKEN`). The repository must not generate
+GitHub App JWTs, read app private keys, or create installation credentials. A
+cross-repo target must be an exact `owner/repo` entry in
+`EXPERIMENT_GITHUB_DISPATCH_REPO_ALLOWLIST`, and dispatch remains limited to
+`experiment-runner-dispatch.yml` on `main` with the typed `branch_ref`,
+`hypothesis_sha256`, `dry_run`, and `approval_ref` inputs. The app installation
+scope is selected pilot repositories with Actions write for workflow dispatch
+only. It must not grant `pull_requests:write`, `contents:write`,
+`workflows:write`, administration, sensitive-store, review-thread, repository
+event dispatch, or merge permissions.
+
 Socket Mode uses runtime credentials outside the repository. Operators configure
 the app-level Socket Mode credential as `SLACK_APP_TOKEN` and the bot credential
 as `SLACK_BOT_TOKEN` in their secret store; the repository may reference those

@@ -41,6 +41,8 @@ try:
     from scripts.orchestration.experiment_slack_bridge_config import (
         _allowlist_from_env,
         _compute_live_approval_digest,
+        _github_auth,
+        _github_dispatch_repo_allowlist,
         _github_token,
         _is_safe_ref,
         _live_approval_sha256,
@@ -64,12 +66,17 @@ try:
         BRIDGE_TIMEOUT_ENV,
         CONTROL_CHAR_RE,
         DEFAULT_AUDIT_RETENTION_DAYS,
+        DEFAULT_GITHUB_REPOSITORY,
         DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID,
         DEFAULT_WORKFLOW_FILE,
         DEFAULT_WORKFLOW_REF,
         ENV_ASSIGNMENT_RE,
         GITHUB_API_HOST,
+        GITHUB_DISPATCH_REPO_ALLOWLIST_ENV,
+        GITHUB_INSTALLATION_AUTH_CLASS,
+        GITHUB_INSTALLATION_AUTH_PREFIX,
         GITHUB_TOKEN_RE,
+        GITHUB_RUNTIME_AUTH_CLASS,
         LIVE_APPROVAL_SHA256_ENV,
         LIVE_SECRET_PRESENCE_ENV,
         LIVE_SMOKE_BRANCH_REF_ENV,
@@ -99,6 +106,10 @@ try:
     from scripts.orchestration.experiment_slack_bridge_models import (
         BridgeConfig,
         BridgeDecision,
+        GitHubDispatchAuth,
+        GitHubDispatchAuthClass,
+        GitHubDispatchConfig,
+        GitHubDispatchTarget,
         OperatorCommand,
         OperatorEvent,
         SlackApiTransport,
@@ -154,12 +165,21 @@ __all__ = (
     "BridgeDecision",
     "CONTROL_CHAR_RE",
     "DEFAULT_AUDIT_RETENTION_DAYS",
+    "DEFAULT_GITHUB_REPOSITORY",
     "DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID",
     "DEFAULT_WORKFLOW_FILE",
     "DEFAULT_WORKFLOW_REF",
     "ENV_ASSIGNMENT_RE",
     "GITHUB_API_HOST",
+    "GITHUB_DISPATCH_REPO_ALLOWLIST_ENV",
+    "GITHUB_INSTALLATION_AUTH_CLASS",
+    "GITHUB_INSTALLATION_AUTH_PREFIX",
+    "GITHUB_RUNTIME_AUTH_CLASS",
     "GITHUB_TOKEN_RE",
+    "GitHubDispatchAuth",
+    "GitHubDispatchAuthClass",
+    "GitHubDispatchConfig",
+    "GitHubDispatchTarget",
     "LIVE_APPROVAL_SHA256_ENV",
     "LIVE_SECRET_PRESENCE_ENV",
     "LIVE_SMOKE_BRANCH_REF_ENV",
@@ -207,6 +227,8 @@ __all__ = (
     "_cleanup_partial_rate_limit_claim",
     "_compute_live_approval_digest",
     "_format_command_reply",
+    "_github_auth",
+    "_github_dispatch_repo_allowlist",
     "_github_dispatch_inputs",
     "_github_token",
     "_is_safe_ref",
@@ -572,8 +594,8 @@ def _check_rate_limit(config: BridgeConfig) -> None:
     _audit._check_rate_limit(config)
 
 
-def _require_execute_config(config: BridgeConfig) -> tuple[str, str]:
-    return cast(tuple[str, str], _dispatch._require_execute_config(config))
+def _require_execute_config(config: BridgeConfig) -> GitHubDispatchConfig:
+    return cast(GitHubDispatchConfig, _dispatch._require_execute_config(config))
 
 
 def _github_dispatch_inputs(command: OperatorCommand, *, config: BridgeConfig) -> dict[str, str]:
@@ -702,14 +724,16 @@ def process_operator_event(
     failure_class: str | None = None
     try:
         if config.dispatch_mode == "execute" and command.kind == "run-experiment":
-            repo, token = _require_execute_config(config)
+            github_dispatch = _require_execute_config(config)
+            target = cast(GitHubDispatchTarget, github_dispatch.target)
+            auth = cast(GitHubDispatchAuth, github_dispatch.auth)
             transport = dispatch_transport or _send_github_workflow_dispatch
             transport(
-                repo=repo,
-                workflow_file=config.workflow_file,
-                ref=config.workflow_ref,
+                repo=target.repo,
+                workflow_file=target.workflow_file,
+                ref=target.workflow_ref,
                 inputs=_github_dispatch_inputs(command, config=config),
-                token=token,
+                token=auth.token,
                 timeout_seconds=config.timeout_seconds,
             )
             status = "dispatched"
