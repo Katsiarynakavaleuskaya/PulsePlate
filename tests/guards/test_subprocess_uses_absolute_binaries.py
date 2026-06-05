@@ -133,8 +133,8 @@ def _scope_chain_for_lineno(tree: ast.AST, lineno: int) -> tuple[ast.AST, ...]:
     return tuple(scopes) if scopes else (tree,)
 
 
-def _find_recent_assignment(tree: ast.AST, upto_lineno: int, name: str) -> ast.expr | None:
-    best: tuple[int, ast.expr] | None = None
+def _find_recent_assignments(tree: ast.AST, upto_lineno: int, name: str) -> list[ast.expr]:
+    matches: list[tuple[int, ast.expr]] = []
     parents = _parent_map(tree)
     allowed_scopes = {id(scope) for scope in _scope_chain_for_lineno(tree, upto_lineno)}
     for node in ast.walk(tree):
@@ -156,9 +156,32 @@ def _find_recent_assignment(tree: ast.AST, upto_lineno: int, name: str) -> ast.e
             continue
         if id(_nearest_scope(node, parents)) not in allowed_scopes:
             continue
-        if best is None or node.lineno > best[0]:
-            best = (node.lineno, value)
-    return best[1] if best is not None else None
+        matches.append((node.lineno, value))
+    matches.sort(key=lambda item: item[0], reverse=True)
+    return [value for _, value in matches]
+
+
+def _literal_subscript_key(expr: ast.Subscript) -> str | None:
+    key = expr.slice
+    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+        return key.value
+    return None
+
+
+def _is_os_environ_subscript(expr: ast.Subscript) -> bool:
+    value = expr.value
+    return (
+        isinstance(value, ast.Attribute)
+        and value.attr == "environ"
+        and isinstance(value.value, ast.Name)
+        and value.value.id == "os"
+    ) or (isinstance(value, ast.Name) and value.id == "environ")
+
+
+def _is_disallowed_binary_token(value: str) -> bool:
+    if value.startswith("/"):
+        return _is_disallowed_absolute_python(value)
+    return value in DISALLOWED_SHORT_BINARIES or _is_python_binary_name(value)
 
 
 def _resolve_binary_expr(
@@ -169,15 +192,29 @@ def _resolve_binary_expr(
     if isinstance(expr, ast.Name):
         if expr.id in seen_names:
             return None
-        assignment = _find_recent_assignment(tree, upto_lineno, expr.id)
-        if assignment is None:
+        resolved: str | None = None
+        assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
+        if not assignments:
             return None
-        return _resolve_binary_expr(
-            tree,
-            assignment,
-            upto_lineno=getattr(assignment, "lineno", upto_lineno),
-            seen_names=seen_names | {expr.id},
-        )
+        for assignment in assignments:
+            candidate = _resolve_binary_expr(
+                tree,
+                assignment,
+                upto_lineno=getattr(assignment, "lineno", upto_lineno),
+                seen_names=seen_names | {expr.id},
+            )
+            if candidate is not None and _is_disallowed_binary_token(candidate):
+                return candidate
+            if resolved is None:
+                resolved = candidate
+        return resolved
+    if isinstance(expr, ast.Subscript) and _is_os_environ_subscript(expr):
+        key = _literal_subscript_key(expr)
+        if key in {"DEV_PYTHON", "VENV_PYTHON"}:
+            return None
+        if key is not None and "PYTHON" in key.upper():
+            return "python"
+        return None
     if isinstance(expr, ast.Call) and expr.args:
         function = expr.func
         is_string_or_path_wrapper = (
@@ -200,21 +237,34 @@ def _resolve_argv_binary(
         parts = shlex.split(expr.value.strip())
         return parts[0] if parts else None
     if isinstance(expr, (ast.List, ast.Tuple)) and expr.elts:
-        return _resolve_binary_expr(
+        first_binary = _resolve_binary_expr(
             tree, expr.elts[0], upto_lineno=upto_lineno, seen_names=seen_names
         )
+        if first_binary is not None and Path(first_binary).name == "env" and len(expr.elts) > 1:
+            env_target = _resolve_binary_expr(
+                tree, expr.elts[1], upto_lineno=upto_lineno, seen_names=seen_names
+            )
+            return env_target or first_binary
+        return first_binary
     if isinstance(expr, ast.Name):
         if expr.id in seen_names:
             return None
-        assignment = _find_recent_assignment(tree, upto_lineno, expr.id)
-        if assignment is None:
+        resolved: str | None = None
+        assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
+        if not assignments:
             return None
-        return _resolve_argv_binary(
-            tree,
-            assignment,
-            upto_lineno=getattr(assignment, "lineno", upto_lineno),
-            seen_names=seen_names | {expr.id},
-        )
+        for assignment in assignments:
+            candidate = _resolve_argv_binary(
+                tree,
+                assignment,
+                upto_lineno=getattr(assignment, "lineno", upto_lineno),
+                seen_names=seen_names | {expr.id},
+            )
+            if candidate is not None and _is_disallowed_binary_token(candidate):
+                return candidate
+            if resolved is None:
+                resolved = candidate
+        return resolved
     return None
 
 
@@ -510,6 +560,66 @@ subprocess.check_output("git status", shell=True)
     assert "repo-approved interpreter path" in violations[0].reason
     assert violations[1].lineno == 4
     assert "resolve with shutil.which('git')" in violations[1].reason
+
+
+def test_guard_flags_unapproved_python_environment_variable() -> None:
+    source = """\
+import os
+from pathlib import Path
+import subprocess
+
+cmd = Path(os.environ["PYTHON"])
+subprocess.run([str(cmd), "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 6
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_allows_approved_python_environment_variable() -> None:
+    source = """\
+import os
+from pathlib import Path
+import subprocess
+
+cmd = Path(os.environ["VENV_PYTHON"])
+subprocess.run([str(cmd), "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
+
+
+def test_guard_flags_any_reaching_disallowed_assignment() -> None:
+    source = """\
+import subprocess
+import sys
+
+cmd = "python"
+if use_current:
+    cmd = sys.executable
+subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 7
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_usr_bin_env_python_launcher() -> None:
+    source = 'import subprocess\nsubprocess.run(["/usr/bin/env", "python", "-c", "pass"])\n'
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 2
+    assert "repo-approved interpreter path" in violations[0].reason
 
 
 def test_guard_flags_absolute_system_python_literal() -> None:
