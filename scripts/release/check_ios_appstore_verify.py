@@ -240,6 +240,36 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS = (
     "avoids",
     "without ",
 )
+FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
+    "advice",
+    "autonomy",
+    "care",
+    "claim",
+    "clinical",
+    "crisis",
+    "diagnosis",
+    "diagnose",
+    "diagnostic",
+    "diet",
+    "efficiency",
+    "guidance",
+    "guaranteed",
+    "hidden",
+    "imply",
+    "medical",
+    "nutrition",
+    "or",
+    "outcome",
+    "patient",
+    "patients",
+    "pricing",
+    "support",
+    "tailoring",
+    "therapy",
+    "treat",
+    "treatment",
+    "trial",
+}
 
 # Pricing patterns that should NOT appear in metadata (hardcoded prices/trials).
 PRICING_PATTERNS = [
@@ -385,7 +415,22 @@ def _medical_term_is_boundary_negated(line: str, match_start: int) -> bool:
 
     prefix = line[:match_start].lower()
     same_clause_prefix = re.split(r"[.:;!?]", prefix)[-1]
-    return any(marker in same_clause_prefix for marker in FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS)
+    marker_matches: list[re.Match[str]] = []
+    for marker in FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS:
+        marker_text = marker.strip()
+        marker_matches.extend(
+            re.finditer(rf"(?<![a-z]){re.escape(marker_text)}(?![a-z])", same_clause_prefix)
+        )
+    if not marker_matches:
+        return False
+
+    marker_match = max(marker_matches, key=lambda match: match.start())
+    text_between_marker_and_term = same_clause_prefix[marker_match.end() :]
+    if not text_between_marker_and_term.strip():
+        return True
+
+    context_words = re.findall(r"[a-z]+", text_between_marker_and_term)
+    return all(word in FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS for word in context_words)
 
 
 def _validate_source_paths(source_paths: dict[str, Any]) -> str | None:

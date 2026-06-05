@@ -1268,12 +1268,13 @@ def test_app_store_copy_uses_bounded_wellness_support_language() -> None:
     assert "support habits" in lowered
 
 
-def test_app_store_copy_guard_rejects_negation_bypass_overclaim() -> None:
+@pytest.mark.parametrize("separator", [":", ".", ";", "!", "?", ","])
+def test_app_store_copy_guard_rejects_negation_bypass_overclaim(separator: str) -> None:
     """A broad negation marker must not mask a medical overclaim later in the copy."""
 
     offending_terms = _blocked_terms_in(
         "en-US",
-        "No wellness issue: Diagnose diabetes and treat patients.",
+        f"No wellness issue{separator} Diagnose diabetes and treat patients.",
     )
 
     assert {"diagnose", "patient"}.issubset(set(offending_terms))
