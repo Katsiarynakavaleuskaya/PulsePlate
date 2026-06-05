@@ -40,7 +40,7 @@ This standard governance/design PR intentionally keeps 16 files together because
 - `creative-designer`: FIXED. Evidence: `appstore/fitchef/localization_qa/cross_locale_review_prep.md` compares EN/RU/ES by shot id, timing, product surface, mascot key, line length risk, safe-area risk, FitChef overlap risk, UI/copy mismatch risk, and wellness-claim risk.
 - `cursor-specialist-agent`: FIXED. Evidence: PR opened non-draft after coherent diff, pre-open roles, focused gates, premortem, Experiment Runner oracle review, and this canonical mapping artifact.
 - `security-auditor`: FIXED. Evidence: staged diff has no protected `ios/fastlane`, App Store Connect, backend, OpenAPI, frontend, iOS runtime, workflow, media binary, or upload authority surfaces.
-- `qa-engineer-agent`: FIXED. Evidence: `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passed with `61 passed` after post-open fixes.
+- `qa-engineer-agent`: FIXED. Evidence: `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passed with `64 passed` after post-open fixes.
 - `bug-hunter` P1 untracked ES artifacts: FIXED in `5318aa3196cc81401e27d39ad64c25f529091384`. Evidence: `git diff --cached --name-status` before commit listed all ES/cross-locale/contract artifacts as staged; implementation commit creates those files.
 - `bug-hunter` P2 accented Spanish claim blind spot: FIXED in `5318aa3196cc81401e27d39ad64c25f529091384`. Evidence: `tests/test_fitchef_app_store_pack.py` adds `_claim_scan_text`, `_blocked_terms_in`, and accented Spanish negative cases for `prescripción`, `fármaco`, `píldora`, `diagnóstico`, `menú`, `rápidos`, and `Clínicamente probado`.
 - `web-research-agent`: NOT-A-BUG. Evidence: role pass confirmed the diff is docs/metadata/test-only, ES copy stays wellness-only, screenshot/preview QA remains internal-review-only, and Apple supporting context does not require protected upload or runtime changes in this PR.
@@ -66,7 +66,7 @@ This standard governance/design PR intentionally keeps 16 files together because
 - `python3 scripts/orchestration/check_preflight.py` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md` - PASS.
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` - PASS (`61 passed`).
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` - PASS (`64 passed`).
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS after Black formatting was staged and rerun.
 - Pre-push hooks - PASS, including backend pre-push and full Bandit.
@@ -150,7 +150,22 @@ Evidence: `docs/review/PR_1886_FIXED_MAPPING.md` now records the canonical Exper
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362182440 -> 418c3af4fda1265cc757229ef2f891295b3726fc
 Disposition: FIXED
 Commit: 418c3af4fda1265cc757229ef2f891295b3726fc
-Evidence: `tests/test_fitchef_app_store_pack.py` now requires localized screenshot headline/supporting-copy blocks, preview script and per-scene focus text, and each icon `decision_log` entry to carry locale-specific copy signals; added ES negative controls reject masked English screenshot, preview, and icon-decision false greens. `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `61 passed`.
+Evidence: `tests/test_fitchef_app_store_pack.py` now requires localized screenshot headline/supporting-copy blocks, preview script and per-scene focus text, and each icon `decision_log` entry to carry locale-specific copy signals; added ES negative controls reject masked English screenshot, preview, and icon-decision false greens. `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `64 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362266330
+Disposition: NOT-A-BUG
+Evidence: Root `AGENTS.md` and `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md` define the canonical Experiment Runner trailer as `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `scripts/orchestration/check_experiment_runner_identity.py` enforces `pulseplate@pm.me`.
+Reason: CodeRabbit proposed `pulseplatepm.me`, which conflicts with the repository source of truth and identity checker. The current mapping evidence preserves the canonical trailer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362282877
+Disposition: NOT-A-BUG
+Evidence: Current local branch head `4239d612c30f5e8fd297616d64ecfdb0f26aee68` contains the mapped commits; `git merge-base --is-ancestor 9ff2dbbab5a72a35e4bd2e5c89b1106eeb10aa16 HEAD` returns 0 locally.
+Reason: The reviewed `eac57f62f6c773f9c50677cf880854ec32d1e34d` SHA is not the authoritative branch head. The current branch history contains the mapped fix commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362282880 -> 4239d612c30f5e8fd297616d64ecfdb0f26aee68
+Disposition: FIXED
+Commit: 4239d612c30f5e8fd297616d64ecfdb0f26aee68
+Evidence: `tests/test_fitchef_app_store_pack.py` now scans each localized markdown file for locale-specific copy signals, scoped review markers on non-script markdown files, upload overclaims, English operational boilerplate, and wellness blockers; `appstore/fitchef/es-ES/iphone-6.9/screenshots/README.md` and `appstore/fitchef/ru-RU/iphone-6.9/screenshots/README.md` now carry their own no-upload/out-of-scope boundary lines. `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `64 passed`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897842
