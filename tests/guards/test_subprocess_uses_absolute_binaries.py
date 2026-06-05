@@ -19,6 +19,7 @@ SCAN_DIRS = (
     REPO_ROOT / "core",
     REPO_ROOT / "scripts",
     REPO_ROOT / "tests",
+    REPO_ROOT / "tools" / "graphmap",
 )
 DISALLOWED_SHORT_BINARIES: frozenset[str] = frozenset(
     {"curl", "gh", "git", "python", "python3", "ssh", "wget"}

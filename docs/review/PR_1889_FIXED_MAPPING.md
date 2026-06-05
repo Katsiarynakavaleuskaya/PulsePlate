@@ -42,21 +42,26 @@ Experiment Runner runtime.
 Disposition: FIXED
 Commit: 009061a5210aaa6b1a4af5e33722d06feb464175
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now reads subprocess argv from the first positional argument or keyword `args=`, and `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q` passed with `11 passed`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3363940005
 Disposition: NOT-A-BUG
 Evidence: `git show -s --format=full 85b9af6181ed90ff949a18103a4db86dc5f1360e` shows the governed trailer `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on the implementation commit referenced by this artifact; this PR has not been squash-merged yet, so the synthetic squash-preview commit mentioned in the review comment is not the branch commit used as Experiment Runner evidence.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117348 -> 8a7248590199893f7977754f3998d00a2368b679
 Disposition: FIXED
 Commit: 8a7248590199893f7977754f3998d00a2368b679
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` resolves simple argv-list and argv-binary variables before evaluating the first subprocess binary; `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q` passed with `17 passed`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117355 -> 8a7248590199893f7977754f3998d00a2368b679
 Disposition: FIXED
 Commit: 8a7248590199893f7977754f3998d00a2368b679
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now rejects absolute Python interpreter literals outside repo `.venv/bin/python` while preserving repo-approved `.venv/bin/python`; focused pytest passed with `17 passed`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117359 -> 8a7248590199893f7977754f3998d00a2368b679
 Disposition: FIXED
 Commit: 8a7248590199893f7977754f3998d00a2368b679
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` tracks `import subprocess as <alias>` and `from subprocess import <helper>` aliases for guarded subprocess helpers; focused pytest passed with `17 passed`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117362 -> 8a7248590199893f7977754f3998d00a2368b679
 Disposition: FIXED
 Commit: 8a7248590199893f7977754f3998d00a2368b679
