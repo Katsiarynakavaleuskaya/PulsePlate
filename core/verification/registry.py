@@ -30,11 +30,18 @@ _DIGEST_PREFIX = "sha256:"
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _WHITESPACE_RE = re.compile(r"\s+")
 _LOCAL_PATH_RE = re.compile(
-    r"(?<!\w)(?:file://)?/(?:Users|private|var|tmp|Volumes|home|opt|etc|root)"
+    r"(?<!\w)(?:file://)?/"
+    r"(?:Users|private|var|tmp|Volumes|home|opt|etc|root|workspace|workspaces|app|srv|mnt)"
     r"(?:/[^\s:;,'\")]+)+",
     re.IGNORECASE,
 )
 _WINDOWS_PATH_RE = re.compile(r"\b[A-Za-z]:\\(?:[^\s:;,'\")]+\\?)+")
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b(?:DATABASE_URL|DB_FALLBACK_URL|REDIS_URL|SERVER_SALT|SECRET_KEY|JWT_SECRET|"
+    r"OPENAI_API_KEY|SLACK_APP_TOKEN|SLACK_BOT_TOKEN|"
+    r"[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|SALT|PRIVATE_KEY|ENCRYPTION_KEY)[A-Z0-9_]*)"
+    r"\s*[:=]\s*[^\s,;]+"
+)
 _TOKEN_RE = re.compile(
     r"(?i)\b(?:xox[abprs]-|xapp-|github_pat_|gh[pousr]_|ghs_|sk-[a-z0-9]|"
     r"api[_-]?key\s*[:=]|bearer\s+)[^\s,;]+"
@@ -274,6 +281,7 @@ def _redact_provenance_text(value: str) -> str:
     if not isinstance(redacted, str):
         raise TypeError("provenance redactor returned non-string output")
     redacted = _CONTROL_CHAR_RE.sub(" ", redacted)
+    redacted = _SECRET_ASSIGNMENT_RE.sub("[SECRET_REDACTED]", redacted)
     redacted = _TOKEN_RE.sub("[SECRET_REDACTED]", redacted)
     redacted = _LOCAL_PATH_RE.sub("[PATH_REDACTED]", redacted)
     redacted = _WINDOWS_PATH_RE.sub("[PATH_REDACTED]", redacted)

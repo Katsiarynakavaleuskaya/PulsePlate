@@ -2080,7 +2080,9 @@ class TestVerificationRegistryCoverageTail:
 
         raw_text = (
             "email jane@example.com api_key=secret-token "
-            "/Users/example/private.txt xoxb-secret-token U1234567890"
+            "/Users/example/private.txt /workspace/PulsePlate/.env /app/secrets/key "
+            "DATABASE_URL=postgres://example.invalid/db SERVER_SALT=salt SECRET_KEY=value "
+            "xoxb-secret-token U1234567890"
         )
         artifact = VerificationArtifact(
             artifact_id="provenance-test",
@@ -2123,6 +2125,11 @@ class TestVerificationRegistryCoverageTail:
         for forbidden in (
             "jane@example.com",
             "/Users/example",
+            "/workspace/PulsePlate",
+            "/app/secrets",
+            "postgres://example.invalid/db",
+            "SERVER_SALT=salt",
+            "SECRET_KEY=value",
             "xoxb-secret-token",
             "U1234567890",
             "secret-token",
