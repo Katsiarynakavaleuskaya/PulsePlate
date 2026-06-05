@@ -49,6 +49,24 @@ def test_default_policy_validates() -> None:
         "can_create_pull_requests": False,
         "can_run_shell_commands": False,
     }
+    assert policy["github_app_dispatch"] == {
+        "status": "selected_repo_workflow_dispatch_boundary",
+        "source": "externally_minted_installation",
+        "repository_scope": "runtime_allowlist_selected_repositories",
+        "requires_repo_allowlist": True,
+        "requires_installation_class_for_cross_repo": True,
+        "requires_actions_write": True,
+        "workflow_file": "experiment-runner-dispatch.yml",
+        "workflow_ref": "main",
+        "can_dispatch_repository_events": False,
+        "can_dispatch_arbitrary_workflow": False,
+        "can_mutate_pull_requests": False,
+        "can_merge_pull_requests": False,
+        "can_write_contents": False,
+        "can_write_workflows": False,
+        "can_administer": False,
+        "can_manage_sensitive_store": False,
+    }
     assert policy["validator_mutation_boundary"]["status"] == "threat_model_only"
     assert policy["validator_mutation_boundary"]["active_mutation_access"] is False
     assert policy["contribution_attribution"]["basis"] == "material_evidence_contribution"
@@ -594,6 +612,59 @@ def test_rejects_slack_socket_bridge_pull_request_authority() -> None:
     policy["slack_identity"]["operator_command_boundary"]["can_create_pull_requests"] = True
 
     with pytest.raises(identity_check.IdentityPolicyError, match="can_create_pull_requests"):
+        identity_check.validate_identity_policy(policy)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "requires_repo_allowlist",
+        "requires_installation_class_for_cross_repo",
+        "requires_actions_write",
+    ],
+)
+def test_rejects_github_app_dispatch_missing_required_boundary(field: str) -> None:
+    policy = _valid_policy()
+    policy["github_app_dispatch"][field] = False
+
+    with pytest.raises(identity_check.IdentityPolicyError, match=field):
+        identity_check.validate_identity_policy(policy)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "can_dispatch_repository_events",
+        "can_dispatch_arbitrary_workflow",
+        "can_mutate_pull_requests",
+        "can_merge_pull_requests",
+        "can_write_contents",
+        "can_write_workflows",
+        "can_administer",
+        "can_manage_sensitive_store",
+    ],
+)
+def test_rejects_github_app_dispatch_authority_expansion(field: str) -> None:
+    policy = _valid_policy()
+    policy["github_app_dispatch"][field] = True
+
+    with pytest.raises(identity_check.IdentityPolicyError, match=field):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_github_app_dispatch_arbitrary_workflow_file() -> None:
+    policy = _valid_policy()
+    policy["github_app_dispatch"]["workflow_file"] = "operator-supplied.yml"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="workflow_file"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_github_app_dispatch_non_main_ref() -> None:
+    policy = _valid_policy()
+    policy["github_app_dispatch"]["workflow_ref"] = "operator-branch"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="workflow_ref"):
         identity_check.validate_identity_policy(policy)
 
 

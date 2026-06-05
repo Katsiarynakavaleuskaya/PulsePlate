@@ -19,7 +19,11 @@ from scripts.orchestration.experiment_slack_bridge_constants import (
     DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID,
     DEFAULT_WORKFLOW_FILE,
     DEFAULT_WORKFLOW_REF,
+    GITHUB_DISPATCH_REPO_ALLOWLIST_ENV,
+    GITHUB_INSTALLATION_AUTH_CLASS,
+    GITHUB_INSTALLATION_AUTH_PREFIX,
     GITHUB_TOKEN_RE,
+    GITHUB_RUNTIME_AUTH_CLASS,
     LIVE_APPROVAL_SHA256_ENV,
     LIVE_SECRET_PRESENCE_ENV,
     MAX_AUDIT_RETENTION_DAYS,
@@ -39,6 +43,10 @@ from scripts.orchestration.experiment_slack_bridge_constants import (
 )
 from scripts.orchestration.experiment_slack_bridge_models import (
     BridgeConfig,
+    GitHubDispatchAuth,
+    GitHubDispatchAuthClass,
+    GitHubDispatchConfig,
+    GitHubDispatchTarget,
     SlackSocketAuditError,
     SlackSocketConfigError,
     _sha256_text,
@@ -81,13 +89,39 @@ def _optional_token(env_name: str) -> str | None:
     return token
 
 
+def _github_auth() -> GitHubDispatchAuth | None:
+    for env_name in ("GH_TOKEN", "GITHUB_TOKEN"):
+        raw_token = os.environ.get(env_name)
+        if raw_token is None or not raw_token.strip():
+            continue
+        token = raw_token.strip()
+        if (
+            CONTROL_CHAR_RE.search(token)
+            or "`" in token
+            or GITHUB_TOKEN_RE.fullmatch(token) is None
+        ):
+            raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
+        auth_class = cast(
+            GitHubDispatchAuthClass,
+            (
+                GITHUB_INSTALLATION_AUTH_CLASS
+                if token.startswith(GITHUB_INSTALLATION_AUTH_PREFIX)
+                else GITHUB_RUNTIME_AUTH_CLASS
+            ),
+        )
+        return GitHubDispatchAuth(
+            token=token,
+            source_env=env_name,
+            auth_class=auth_class,
+        )
+    return None
+
+
 def _github_token() -> str | None:
-    token = os.environ.get("GH_TOKEN", "").strip() or os.environ.get("GITHUB_TOKEN", "").strip()
-    if not token:
+    auth = _github_auth()
+    if auth is None:
         return None
-    if CONTROL_CHAR_RE.search(token) or "`" in token or GITHUB_TOKEN_RE.fullmatch(token) is None:
-        raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
-    return token
+    return cast(str, auth.token)
 
 
 def _live_approval_sha256() -> str | None:
@@ -254,12 +288,41 @@ def _validate_workflow_file(workflow_file: str) -> str:
 
 
 def _validate_repo(raw_repo: str | None) -> str | None:
-    if raw_repo is None or not raw_repo.strip():
+    if raw_repo is None or raw_repo == "":
         return None
-    repo = raw_repo.strip()
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+    if raw_repo != raw_repo.strip():
+        raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
+    repo = raw_repo
+    if (
+        CONTROL_CHAR_RE.search(repo)
+        or SHELL_META_RE.search(repo)
+        or "%" in repo
+        or "\\" in repo
+        or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo)
+    ):
+        raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
+    owner, name = repo.split("/", maxsplit=1)
+    if any(
+        part in {"", ".", ".."} or part.startswith(".") or part.endswith(".") or ".." in part
+        for part in (owner, name)
+    ):
         raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
     return repo
+
+
+def _github_dispatch_repo_allowlist() -> frozenset[str]:
+    raw_allowlist = os.environ.get(GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, "")
+    if not raw_allowlist.strip():
+        return frozenset()
+    values: set[str] = set()
+    for candidate in raw_allowlist.split(","):
+        if not candidate or candidate != candidate.strip():
+            raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
+        repo = _validate_repo(candidate)
+        if repo is None:
+            raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
+        values.add(repo)
+    return frozenset(values)
 
 
 def build_config(
@@ -276,6 +339,23 @@ def build_config(
 
     if dispatch_mode not in {"dry-run", "execute"}:
         raise SlackSocketConfigError("Slack operator bridge dispatch mode is invalid.")
+    github_auth = _github_auth()
+    repo_allowlist = _github_dispatch_repo_allowlist()
+    workflow_file_value = _validate_workflow_file(workflow_file)
+    workflow_ref_value = _validate_workflow_ref(workflow_ref)
+    target_repo = _validate_repo(repo if repo is not None else os.environ.get("GITHUB_REPOSITORY"))
+    current_repo = _validate_repo(os.environ.get("GITHUB_REPOSITORY"))
+    github_target = (
+        GitHubDispatchTarget(
+            repo=target_repo,
+            workflow_file=workflow_file_value,
+            workflow_ref=workflow_ref_value,
+            current_repo=current_repo,
+            repo_allowlist=repo_allowlist,
+        )
+        if target_repo is not None
+        else None
+    )
     return BridgeConfig(
         dispatch_mode=dispatch_mode,
         allowed_channels=_allowlist_from_env(SLACK_CHANNEL_ALLOWLIST_ENV, label="channel"),
@@ -286,9 +366,9 @@ def build_config(
             repo_root=repo_root,
             audit_artifact_dir=audit_artifact_dir,
         ),
-        repo=_validate_repo(repo or os.environ.get("GITHUB_REPOSITORY")),
-        workflow_file=_validate_workflow_file(workflow_file),
-        workflow_ref=_validate_workflow_ref(workflow_ref),
+        repo=target_repo,
+        workflow_file=workflow_file_value,
+        workflow_ref=workflow_ref_value,
         timeout_seconds=_positive_int_from_env(BRIDGE_TIMEOUT_ENV, 10, maximum=30),
         min_interval_seconds=_positive_int_from_env(
             BRIDGE_MIN_INTERVAL_ENV,
@@ -302,9 +382,10 @@ def build_config(
         ),
         slack_app_token=_optional_token(SLACK_APP_AUTH_ENV),
         slack_bot_token=_optional_token(SLACK_BOT_AUTH_ENV),
-        github_token=_github_token(),
+        github_token=github_auth.token if github_auth is not None else None,
         live_approval_sha256=_live_approval_sha256(),
         operator_ledger_task_packet_id=_operator_ledger_task_packet_id(),
+        github_dispatch=GitHubDispatchConfig(auth=github_auth, target=github_target),
     )
 
 

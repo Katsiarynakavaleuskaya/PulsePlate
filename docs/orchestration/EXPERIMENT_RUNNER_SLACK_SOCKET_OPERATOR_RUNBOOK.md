@@ -14,7 +14,16 @@ Configure these outside the repository, for example as GitHub Actions secrets:
   execute-mode fixed workflow dispatch path. Execute mode also requires
   `EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=reviewed-dry-run-dispatch`. It
   defaults to workflow input `dry_run: true`; `dry_run: false` is allowed only
-  when the reviewed live-dispatch approval digest matches exactly.
+  when the reviewed live-dispatch approval digest matches exactly. `GH_TOKEN`
+  takes precedence over `GITHUB_TOKEN`. Cross-repo private-pilot dispatch must
+  use an externally minted GitHub App installation credential in the `ghs_`
+  class; the repository must not mint app JWTs, read app private keys, or create
+  installation credentials.
+- Optional `EXPERIMENT_GITHUB_DISPATCH_REPO_ALLOWLIST`: comma-separated
+  `owner/repo` list for private-pilot workflow dispatch targets. This is runtime
+  configuration only. When the target differs from `GITHUB_REPOSITORY`, execute
+  mode fails closed unless the target is exactly listed here and the GitHub
+  dispatch credential is a GitHub App installation class.
 - Optional `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`: SHA256 digest that
   authorizes a single reviewed live dispatch for one specific
   `branch_ref` + `hypothesis` pair. When absent, dispatch defaults to
@@ -42,6 +51,10 @@ time:
 - `EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST`: optional workspace/team ID
   allowlist for local dry-run config checks, and required for live-smoke,
   live-listener, and execute-mode paths.
+- `EXPERIMENT_GITHUB_DISPATCH_REPO_ALLOWLIST`: optional for same-repo dispatch,
+  required for cross-repo private pilots, and exact-match only. Do not use
+  wildcards, glob patterns, path traversal, percent-encoded names, or checked-in
+  pilot repo defaults.
 
 Use the approved `#experiment-runner` channel ID only as a runtime input. The
 repository must not hardcode it as a default.
@@ -347,13 +360,19 @@ redacted Guided Planning MVP evidence contract summaries, and in explicit execut
 `.github/workflows/experiment-runner-dispatch.yml` workflow with typed,
 sanitized inputs. The dispatch workflow is manual-only, defaults to `dry_run:
 true`, and allows `dry_run: false` only when the reviewed approval digest
-matches the requested branch and hypothesis exactly. It must not:
+matches the requested branch and hypothesis exactly. Cross-repo private-pilot
+targets must be selected by runtime allowlist and dispatched with an externally
+minted GitHub App installation credential scoped to the selected repository.
+The GitHub App needs Actions write for workflow dispatch and must not receive
+`pull_requests:write`, `contents:write`, `workflows:write`, administration,
+sensitive-store, review-thread, or merge permissions. It must not:
 
 - create or update pull requests,
 - resolve review threads,
 - claim merge readiness,
 - satisfy Git co-author attribution,
 - run arbitrary workflows,
+- dispatch repository events,
 - execute shell commands from Slack text,
 - auto-run experiments by default.
 

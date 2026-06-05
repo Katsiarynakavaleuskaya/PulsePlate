@@ -16,6 +16,7 @@ from scripts.orchestration.experiment_slack_bridge_constants import (
 )
 from scripts.orchestration.experiment_slack_bridge_models import (
     BridgeConfig,
+    GitHubDispatchConfig,
     OperatorCommand,
     SlackSocketConfigError,
     SlackSocketDispatchError,
@@ -23,14 +24,27 @@ from scripts.orchestration.experiment_slack_bridge_models import (
 )
 
 
-def _require_execute_config(config: BridgeConfig) -> tuple[str, str]:
+def _require_execute_config(config: BridgeConfig) -> GitHubDispatchConfig:
     if os.environ.get(BRIDGE_EXECUTE_ENABLED_ENV, "").strip() != BRIDGE_EXECUTE_ENABLED_VALUE:
         raise SlackSocketConfigError("Slack execute-mode promotion gate is not enabled.")
     if not config.allowed_channels or not config.allowed_users or not config.allowed_teams:
         raise SlackSocketConfigError("Slack Socket Mode allowlist configuration is incomplete.")
-    if not config.repo or not config.github_token:
+    if config.github_dispatch is None or config.github_dispatch.auth is None:
         raise SlackSocketConfigError("GitHub dispatch configuration is incomplete.")
-    return config.repo, config.github_token
+    if config.github_dispatch.target is None:
+        raise SlackSocketConfigError("GitHub dispatch configuration is incomplete.")
+    auth = config.github_dispatch.auth
+    target = config.github_dispatch.target
+    if (
+        target.repo != config.repo
+        or target.workflow_file != config.workflow_file
+        or target.workflow_ref != config.workflow_ref
+    ):
+        raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
+    if target.is_cross_repo:
+        if not target.is_allowlisted or not auth.is_installation_token:
+            raise SlackSocketConfigError("GitHub dispatch configuration is invalid.")
+    return config.github_dispatch
 
 
 def _github_dispatch_inputs(command: OperatorCommand, *, config: BridgeConfig) -> dict[str, str]:

@@ -53,6 +53,7 @@ def _configure_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_MIN_INTERVAL_SECONDS", "60")
     monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_TIMEOUT_SECONDS", "5")
     monkeypatch.setenv("EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID", "packet-pr2")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "Katsiarynakavaleuskaya/PulsePlate")
 
 
 def _clear_readiness_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -127,6 +128,7 @@ def _config_without_rate_limit(
         github_token=config.github_token,
         live_approval_sha256=config.live_approval_sha256,
         operator_ledger_task_packet_id=config.operator_ledger_task_packet_id,
+        github_dispatch=config.github_dispatch,
     )
 
 
@@ -1313,6 +1315,224 @@ def test_github_token_env_precedence_accepts_stateless_installation_token(
     )
 
     assert config.github_token == gh_token
+    assert config.github_dispatch is not None
+    assert config.github_dispatch.auth is not None
+    assert config.github_dispatch.auth.token == gh_token
+    assert config.github_dispatch.auth.is_installation_token
+
+
+def test_github_dispatch_auth_repr_redacts_installation_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    token = "ghs_header.payload.signature" + "_A" * 260
+    monkeypatch.setenv("GH_TOKEN", token)
+
+    config = bridge.build_config(
+        dispatch_mode="execute",
+        audit_dir=str(audit_dir),
+        repo="Katsiarynakavaleuskaya/PulsePlate",
+    )
+
+    assert config.github_dispatch is not None
+    assert config.github_dispatch.auth is not None
+    assert token not in repr(config.github_dispatch.auth)
+    assert token not in repr(config.github_dispatch)
+    assert token not in repr(config)
+    assert "ghs_" not in repr(config)
+
+
+def test_cross_repo_execute_accepts_allowlisted_installation_token_without_leakage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    target_repo = "PilotOrg/PrivatePilot"
+    token = "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 15
+    monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+        repo=target_repo,
+    )
+    calls: list[dict[str, Any]] = []
+
+    decision = bridge.process_payload(
+        _event(text="release/private-pilot Validate bounded private pilot dispatch"),
+        config,
+        dispatch_transport=lambda **kwargs: calls.append(kwargs),
+    )
+
+    assert decision.status == "dispatched"
+    assert calls == [
+        {
+            "inputs": {
+                "approval_ref": "none",
+                "branch_ref": "release/private-pilot",
+                "dry_run": "true",
+                "hypothesis_sha256": bridge._sha256_text("Validate bounded private pilot dispatch"),
+            },
+            "ref": "main",
+            "repo": target_repo,
+            "timeout_seconds": 5,
+            "token": token,
+            "workflow_file": "experiment-runner-dispatch.yml",
+        }
+    ]
+    audit_payload = json.loads(
+        (audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json").read_text()
+    )
+    records = _ledger_records(audit_dir)
+    serialized_governance = json.dumps(
+        {"audit": audit_payload, "ledger": [record.payload for record in records]},
+        sort_keys=True,
+    )
+    assert "PilotOrg" not in serialized_governance
+    assert "PrivatePilot" not in serialized_governance
+    assert token not in serialized_governance
+    assert "ghs_" not in serialized_governance
+    assert records[0].payload["created_pr"] is False
+    assert records[0].payload["resolved_review_threads"] is False
+    assert records[0].payload["claimed_merge_readiness"] is False
+
+
+@pytest.mark.parametrize("allowlist", ["", "OtherOrg/OtherRepo"])
+def test_cross_repo_execute_rejects_missing_or_nonmatching_allowlist_before_dispatch(
+    allowlist: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    target_repo = "PilotOrg/PrivatePilot"
+    monkeypatch.setenv("GH_TOKEN", "ghs_" + "a" * 24)
+    if allowlist:
+        monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, allowlist)
+    else:
+        monkeypatch.delenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, raising=False)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+        repo=target_repo,
+    )
+    calls: list[dict[str, Any]] = []
+
+    with pytest.raises(bridge.SlackSocketDispatchError):
+        bridge.process_payload(
+            _event(),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
+    audit_payload = json.loads(
+        (audit_dir / f"{bridge._sha256_text('Ev0SLACK01')}.json").read_text()
+    )
+    serialized_audit = json.dumps(audit_payload, sort_keys=True)
+    assert "PilotOrg" not in serialized_audit
+    assert "PrivatePilot" not in serialized_audit
+    assert "ghs_" not in serialized_audit
+
+
+def test_cross_repo_execute_rejects_non_installation_token_even_when_allowlisted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    target_repo = "PilotOrg/PrivatePilot"
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "b" * 24)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+        repo=target_repo,
+    )
+    calls: list[dict[str, Any]] = []
+
+    with pytest.raises(bridge.SlackSocketDispatchError):
+        bridge.process_payload(
+            _event(),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
+
+
+def test_cross_repo_execute_preserves_gh_token_precedence_without_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    target_repo = "PilotOrg/PrivatePilot"
+    gh_token = "ghp_" + "c" * 24
+    github_token = "ghs_" + "d" * 24
+    monkeypatch.setenv("GH_TOKEN", gh_token)
+    monkeypatch.setenv("GITHUB_TOKEN", github_token)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+        repo=target_repo,
+    )
+    calls: list[dict[str, Any]] = []
+
+    assert config.github_dispatch is not None
+    assert config.github_dispatch.auth is not None
+    assert config.github_dispatch.auth.token == gh_token
+    with pytest.raises(bridge.SlackSocketDispatchError):
+        bridge.process_payload(
+            _event(),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "allowlist",
+    [
+        "PilotOrg/PrivatePilot,",
+        " PilotOrg/PrivatePilot",
+        "PilotOrg/PrivatePilot ",
+        "PilotOrg/PrivatePilot,,OtherOrg/Repo",
+        "PilotOrg/..",
+        "../PrivatePilot",
+        "PilotOrg/%2e%2e",
+        "PilotOrg/Private/Pilot",
+        "*/PrivatePilot",
+    ],
+)
+def test_github_dispatch_repo_allowlist_rejects_malformed_entries(
+    allowlist: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, allowlist)
+
+    with pytest.raises(bridge.SlackSocketConfigError, match="GitHub dispatch configuration"):
+        bridge.build_config(
+            dispatch_mode="execute",
+            audit_dir=str(audit_dir),
+            repo="PilotOrg/PrivatePilot",
+        )
 
 
 @pytest.mark.parametrize("token", ["xapp-" + "a" * 24, "sk-" + "b" * 24])
@@ -2931,6 +3151,13 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "redacted audit contract" in runbook
     execute_gate = "EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=" + "reviewed-dry-run-dispatch"
     assert execute_gate in runbook
+    assert "EXPERIMENT_GITHUB_DISPATCH_REPO_ALLOWLIST" in runbook
+    assert "GitHub App installation" in runbook
+    assert "selected repository" in runbook
+    assert "`pull_requests:write`" in runbook
+    assert "`contents:write`" in runbook
+    assert "`workflows:write`" in runbook
+    assert "dispatch repository events" in runbook
     assert "Operators must not put emails, names, phone numbers" in runbook
     assert "SLACK_SIGNING_SECRET=" not in runbook
     assert "hooks.slack.com" not in runbook
