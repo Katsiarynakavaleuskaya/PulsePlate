@@ -484,6 +484,49 @@ def test_activation_readiness_report_projects_cross_repo_private_pilot_without_v
     assert str(tmp_path) not in stdout
 
 
+def test_activation_readiness_report_labels_cross_repo_dry_run_without_dispatch_eligibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    target_repo = "PilotOrg/PrivatePilot"
+    token = "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 15
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "release/private-pilot")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "c" * 64)
+    monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+
+    assert bridge.main(["--activation-readiness-report", "--repo", target_repo]) == 0
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "pass"
+    assert report["github_dispatch_readiness_state"] == "cross_repo_dry_run_available"
+    assert report["github_dispatch_auth_status"] == "present"
+    assert report["github_dispatch_auth_class"] == "installation"
+    assert report["github_dispatch_target_status"] == "cross_repo"
+    assert report["github_dispatch_repo_allowlist_status"] == "matched"
+    assert report["github_dispatch_execute_gate_status"] == "not_required"
+    assert report["github_dispatch_live_approval_status"] == "dry_run_default"
+    assert "eligible_for_private_pilot_dispatch" not in stdout
+    assert "PilotOrg" not in stdout
+    assert "PrivatePilot" not in stdout
+    assert target_repo not in stdout
+    assert token not in stdout
+    assert "ghs_" not in stdout
+    assert "release/private-pilot" not in stdout
+    assert "c" * 64 not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
+
+
 def test_activation_readiness_report_blocks_cross_repo_non_installation_without_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

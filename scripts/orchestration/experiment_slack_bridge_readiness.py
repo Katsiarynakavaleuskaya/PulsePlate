@@ -244,6 +244,8 @@ def _github_dispatch_readiness(
         readiness_state = "blocked_by_missing_auth"
     elif target.is_cross_repo and not auth.is_installation_token:
         readiness_state = "blocked_by_auth_class"
+    elif target.is_cross_repo and config.dispatch_mode != "execute":
+        readiness_state = "cross_repo_dry_run_available"
     elif target.is_cross_repo:
         readiness_state = "eligible_for_private_pilot_dispatch"
     else:
