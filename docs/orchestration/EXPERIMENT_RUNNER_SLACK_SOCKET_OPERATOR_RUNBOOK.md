@@ -23,7 +23,9 @@ Configure these outside the repository, for example as GitHub Actions secrets:
   `owner/repo` list for private-pilot workflow dispatch targets. This is runtime
   configuration only. When the target differs from `GITHUB_REPOSITORY`, execute
   mode fails closed unless the target is exactly listed here and the GitHub
-  dispatch credential is a GitHub App installation class.
+  dispatch credential is a GitHub App installation class. If `GITHUB_REPOSITORY`
+  is absent, only the canonical PulsePlate repository is treated as same-repo;
+  every other explicit target remains cross-repo and must satisfy this gate.
 - Optional `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`: SHA256 digest that
   authorizes a single reviewed live dispatch for one specific
   `branch_ref` + `hypothesis` pair. When absent, dispatch defaults to

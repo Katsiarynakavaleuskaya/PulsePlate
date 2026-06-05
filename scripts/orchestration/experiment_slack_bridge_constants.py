@@ -32,6 +32,7 @@ GITHUB_API_HOST = "api.github.com"
 SLACK_API_HOST = "slack.com"
 DEFAULT_WORKFLOW_FILE = "experiment-runner-dispatch.yml"
 DEFAULT_WORKFLOW_REF = "main"
+DEFAULT_GITHUB_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 DEFAULT_OPERATOR_LEDGER_TASK_PACKET_ID: str = "operator-plane-slack-bridge"
 ALLOWED_WORKFLOW_REFS = {DEFAULT_WORKFLOW_REF}
 SAFE_SLACK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$")
