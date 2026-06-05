@@ -230,22 +230,22 @@ def _github_dispatch_readiness(
         readiness_state = "blocked_by_execute_gate"
     elif config.dispatch_mode == "execute" and not slack_allowlists_complete:
         readiness_state = "blocked_by_slack_allowlist"
-    elif auth is None and config.dispatch_mode == "execute":
-        readiness_state = "blocked_by_missing_auth"
     elif target is None and config.dispatch_mode == "execute":
         readiness_state = "blocked_by_missing_target"
+    elif auth is None and config.dispatch_mode == "execute":
+        readiness_state = "blocked_by_missing_auth"
     elif target is None:
         readiness_state = "manual_only"
-    elif config.live_approval_sha256 is not None:
+    elif config.dispatch_mode == "execute" and config.live_approval_sha256 is not None:
         readiness_state = "blocked_by_live_approval_verification"
     elif target.is_cross_repo and allowlist_status != "matched":
         readiness_state = "blocked_by_allowlist"
+    elif target.is_cross_repo and config.dispatch_mode != "execute":
+        readiness_state = "cross_repo_dry_run_available"
     elif target.is_cross_repo and auth is None:
         readiness_state = "blocked_by_missing_auth"
     elif target.is_cross_repo and not auth.is_installation_token:
         readiness_state = "blocked_by_auth_class"
-    elif target.is_cross_repo and config.dispatch_mode != "execute":
-        readiness_state = "cross_repo_dry_run_available"
     elif target.is_cross_repo:
         readiness_state = "eligible_for_private_pilot_dispatch"
     else:

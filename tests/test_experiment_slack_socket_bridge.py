@@ -527,6 +527,88 @@ def test_activation_readiness_report_labels_cross_repo_dry_run_without_dispatch_
     assert str(tmp_path) not in stdout
 
 
+def test_activation_readiness_report_allows_cross_repo_dry_run_without_auth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    target_repo = "PilotOrg/PrivatePilot"
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "release/private-pilot")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "c" * 64)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+
+    assert bridge.main(["--activation-readiness-report", "--repo", target_repo]) == 0
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "pass"
+    assert report["github_dispatch_readiness_state"] == "cross_repo_dry_run_available"
+    assert report["github_dispatch_auth_status"] == "missing"
+    assert report["github_dispatch_auth_class"] == "none"
+    assert report["github_dispatch_target_status"] == "cross_repo"
+    assert report["github_dispatch_repo_allowlist_status"] == "matched"
+    assert report["github_dispatch_execute_gate_status"] == "not_required"
+    assert "blocked_by_missing_auth" not in stdout
+    assert "eligible_for_private_pilot_dispatch" not in stdout
+    assert "PilotOrg" not in stdout
+    assert "PrivatePilot" not in stdout
+    assert target_repo not in stdout
+    assert "release/private-pilot" not in stdout
+    assert "c" * 64 not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
+
+
+def test_activation_readiness_report_allows_cross_repo_dry_run_with_runtime_auth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    target_repo = "PilotOrg/PrivatePilot"
+    runtime_token = "ghp_" + "b" * 24
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "release/private-pilot")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "d" * 64)
+    monkeypatch.setenv("GH_TOKEN", runtime_token)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+
+    assert bridge.main(["--activation-readiness-report", "--repo", target_repo]) == 0
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "pass"
+    assert report["github_dispatch_readiness_state"] == "cross_repo_dry_run_available"
+    assert report["github_dispatch_auth_status"] == "present"
+    assert report["github_dispatch_auth_class"] == "runtime"
+    assert report["github_dispatch_target_status"] == "cross_repo"
+    assert report["github_dispatch_repo_allowlist_status"] == "matched"
+    assert report["github_dispatch_execute_gate_status"] == "not_required"
+    assert "blocked_by_auth_class" not in stdout
+    assert "eligible_for_private_pilot_dispatch" not in stdout
+    assert "PilotOrg" not in stdout
+    assert "PrivatePilot" not in stdout
+    assert target_repo not in stdout
+    assert runtime_token not in stdout
+    assert "ghp_" not in stdout
+    assert "release/private-pilot" not in stdout
+    assert "d" * 64 not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
+
+
 def test_activation_readiness_report_blocks_cross_repo_non_installation_without_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -745,6 +827,50 @@ def test_activation_readiness_report_blocks_unverified_live_approval_digest(
     assert "ghs_" not in stdout
     assert stale_approval not in stdout
     assert "release/private-pilot" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
+
+
+def test_activation_readiness_report_allows_cross_repo_dry_run_with_live_approval_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    target_repo = "PilotOrg/PrivatePilot"
+    token = "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 15
+    stale_approval = "f" * 64
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "release/private-pilot")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "f" * 64)
+    monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+    monkeypatch.setenv(bridge.LIVE_APPROVAL_SHA256_ENV, stale_approval)
+
+    assert bridge.main(["--activation-readiness-report", "--repo", target_repo]) == 0
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "pass"
+    assert report["github_dispatch_readiness_state"] == "cross_repo_dry_run_available"
+    assert report["github_dispatch_live_approval_status"] == "present_unverified"
+    assert report["github_dispatch_target_status"] == "cross_repo"
+    assert report["github_dispatch_repo_allowlist_status"] == "matched"
+    assert "blocked_by_live_approval_verification" not in stdout
+    assert "eligible_for_private_pilot_dispatch" not in stdout
+    assert "PilotOrg" not in stdout
+    assert "PrivatePilot" not in stdout
+    assert target_repo not in stdout
+    assert token not in stdout
+    assert "ghs_" not in stdout
+    assert stale_approval not in stdout
+    assert "release/private-pilot" not in stdout
+    assert "f" * 64 not in stdout
     assert "C0ALERTS" not in stdout
     assert "U0OPERATOR" not in stdout
     assert str(tmp_path) not in stdout
