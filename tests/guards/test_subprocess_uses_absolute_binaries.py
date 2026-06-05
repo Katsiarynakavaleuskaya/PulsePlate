@@ -62,10 +62,16 @@ def _subprocess_call_name(node: ast.Call) -> str | None:
     return function.attr
 
 
+def _argv_expr(node: ast.Call) -> ast.expr | None:
+    if node.args:
+        return node.args[0]
+    return next((keyword.value for keyword in node.keywords if keyword.arg == "args"), None)
+
+
 def _first_argv_binary(node: ast.Call) -> str | None:
-    if not node.args:
+    argv = _argv_expr(node)
+    if argv is None:
         return None
-    argv = node.args[0]
     if not isinstance(argv, (ast.List, ast.Tuple)) or not argv.elts:
         return None
     first_arg = argv.elts[0]
@@ -186,6 +192,30 @@ subprocess.Popen(
     assert len(violations) == 1
     assert violations[0].lineno == 3
     assert "calls 'python3' by short name" in violations[0].reason
+
+
+def test_guard_flags_keyword_args_bare_python_subprocess_literals() -> None:
+    source = 'import subprocess\nsubprocess.run(args=["python", "-c", "print(42)"])\n'
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 2
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_keyword_args_short_external_binary() -> None:
+    source = """\
+import subprocess
+
+subprocess.Popen(args=["git", "status"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 3
+    assert "resolve with shutil.which('git')" in violations[0].reason
 
 
 def test_guard_allows_current_interpreter_subprocess() -> None:
