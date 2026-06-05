@@ -88,7 +88,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 ## Post-Open Review Evidence
 
 - `qa-engineer-agent`: PASS. Evidence: post-open pass at head `acca8fc14df4df301d6e4fb4cb10d2b6475055e7` found no QA blockers, verified Phase2 mirror, focused validator/tests, `make validate-changed`, `make ios-appstore-verify`, and clean worktree; merge readiness was not claimed because CI/post-open gates remained pending.
-- `bug-hunter`: pending after review-driven validator hardening commit `f57b215e8`.
+- `bug-hunter`: BLOCK then fixed. Evidence: `f57b215e8` fixed the original whole-pack scan, source path, blocked action, TestFlight status, Makefile coverage, governed path, and iOS source-linkage false-greens; `854ee4c2f` fixed the remaining negation-plus-overclaim bypass and added validator/pack guard regressions. Focused pytest, direct validator, `make ios-appstore-verify`, `make validate-changed`, and mypy passed locally after the final fix.
 - `security-auditor`: pending.
 - Codex Security diff scan / finding discovery: pending.
 - `pulseplate-pr-review`: pending.
@@ -107,6 +107,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 Disposition: FIXED
 Commit: f57b215e8
 Evidence: `scripts/release/check_ios_appstore_verify.py` now scans the whole FitChef App Store pack for media/text boundaries, validates `source_paths` values and iOS source files, enforces `blocked_release_actions`, scans every release-readiness JSON/Markdown file for protected claims/secrets/pricing/wellness overclaims, requires `testflight_smoke_status: not_started`, and constrains locale rows to governed FitChef manifest/storyboard paths; `Makefile` adds `tests/test_fitchef_app_store_pack.py` to `ios-appstore-verify`; `tests/ios/test_ios_appstore_verify.py` adds regression tests for all nine review false-greens; focused pytest, validator, `make ios-appstore-verify`, changed-scope validation, and mypy passed locally.
+
 
 ## Merge Readiness
 
