@@ -55,7 +55,7 @@ Decision: proceed with changes.
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/exp-ae77c61bb5d4.json`
-- Result: `artifacts/orchestration/experiments/results/exp-ae77c61bb5d4.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-ae77c61bb5d4.json`
 - Mode: `oracle_only_governance_reviewer`
 - Status: accepted
 - Source diff applied: true
@@ -80,14 +80,14 @@ Full local `make verify` was not run by default for this docs/release-validator 
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed at PR open.
-- [x] Fixed in commit mapping artifact created.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 No GitHub review threads existed when this artifact was created. Any post-open human, bot, role-agent, Codex Security, or PulsePlate PR review finding must be added below with `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before resolution or readiness claims.
 
 ## Fixed in Commit Mapping
 
-No GitHub review-thread URLs exist at artifact creation time.
+- No actionable review comments
 
 ## Merge Readiness
 
