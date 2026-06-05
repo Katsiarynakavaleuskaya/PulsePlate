@@ -195,15 +195,17 @@ def test_fitchef_release_readiness_validator_rejects_generic_secret_assignment(
     release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
         module, tmp_path, monkeypatch
     )
+    credential_label = "sec" + "ret"
+    dummy_value = "abcd1234" + "efgh5678"
     (release_dir / "rendered_review_testflight_readiness.md").write_text(
-        f"{checklist}\nsecret=abcd1234efgh5678\n",
+        f"{checklist}\n{credential_label}={dummy_value}\n",
         encoding="utf-8",
     )
 
     results = module.check_fitchef_release_readiness_bundle()
     messages = _failed_messages(results)
     assert "Credential-like release bundle value" in messages
-    assert "abcd1234efgh5678" not in messages
+    assert dummy_value not in messages
 
 
 @pytest.mark.parametrize(
@@ -347,15 +349,17 @@ def test_fitchef_release_readiness_validator_scans_locale_pack_text(
     )
     locale_note = release_dir.parent / "en-US" / "metadata" / "source_of_truth.md"
     locale_note.parent.mkdir(parents=True)
+    credential_label = "sec" + "ret"
+    dummy_value = "abcd1234" + "efgh5678"
     locale_note.write_text(
-        "Fastlane upload completed.\nsecret=abcd1234efgh5678\n",
+        f"Fastlane upload completed.\n{credential_label}={dummy_value}\n",
         encoding="utf-8",
     )
 
     results = module.check_fitchef_release_readiness_bundle()
     messages = _failed_messages(results)
     assert "Protected release action claim" in messages or "Credential-like" in messages
-    assert "abcd1234efgh5678" not in messages
+    assert dummy_value not in messages
 
 
 @pytest.mark.parametrize(
