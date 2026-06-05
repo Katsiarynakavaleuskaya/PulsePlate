@@ -70,6 +70,14 @@ DIGEST_FIELDS = frozenset(
     {"input_digest", "prompt_digest", "context_item_digests", "answer_digest"}
 )
 COUNT_FIELDS = frozenset({"prompt_char_count", "verification_hops", "verification_calls"})
+COUNT_LABEL_KEYS: tuple[str, ...] = (
+    "artifact_count",
+    "reason_code_count",
+    "context_item_digest_count",
+    "prompt_char_count",
+    "verification_hops",
+    "verification_calls",
+)
 
 TOP_LEVEL_KEYS: tuple[str, ...] = (
     "schema_version",
@@ -717,6 +725,7 @@ def _validate_object_schema(
         if not isinstance(spec, dict) or spec.get("const") != report.get(key):
             errors.append(f"verification provenance admission schema const mismatch for {key}")
     errors.extend(_validate_required_schema_consts(schema))
+    errors.extend(_validate_required_schema_shapes(schema))
     errors.extend(_validate_nested_object_schema_flags(schema=schema, label="schema"))
     return errors
 
@@ -795,6 +804,121 @@ def _validate_required_schema_consts(schema: Mapping[str, object]) -> list[str]:
             errors.append(
                 "verification provenance admission schema const mismatch for " + ".".join(path)
             )
+    return errors
+
+
+def _validate_required_schema_shapes(schema: Mapping[str, object]) -> list[str]:
+    errors: list[str] = []
+    provenance_fields_items = _schema_node_at(schema, ("$defs", "provenanceFields", "items"))
+    if not isinstance(provenance_fields_items, dict) or provenance_fields_items.get("enum") != list(
+        VERIFICATION_PROVENANCE_FIELDS
+    ):
+        errors.append("verification provenance admission schema provenanceFields enum drift")
+
+    for key in ("expected_provenance_fields", "present_provenance_fields"):
+        node = _schema_node_at(
+            schema,
+            ("properties", "path_categories", "items", "properties", key),
+        )
+        if not isinstance(node, dict) or node.get("$ref") != "#/$defs/provenanceFields":
+            errors.append(f"verification provenance admission schema {key} ref drift")
+
+    missing_fields = _schema_node_at(
+        schema,
+        (
+            "properties",
+            "path_categories",
+            "items",
+            "properties",
+            "missing_required_provenance_fields",
+        ),
+    )
+    if (
+        not isinstance(missing_fields, dict)
+        or missing_fields.get("type") != "array"
+        or missing_fields.get("items") is not False
+        or missing_fields.get("maxItems") != 0
+    ):
+        errors.append(
+            "verification provenance admission schema missing_required_provenance_fields "
+            "must remain an empty array"
+        )
+
+    field_inventory = _schema_node_at(
+        schema,
+        (
+            "properties",
+            "provenance_contract",
+            "properties",
+            "field_inventory",
+            "items",
+            "properties",
+        ),
+    )
+    if not isinstance(field_inventory, dict):
+        errors.append("verification provenance admission schema field_inventory shape drift")
+    else:
+        field_spec = field_inventory.get("field")
+        if not isinstance(field_spec, dict) or field_spec.get("enum") != list(
+            VERIFICATION_PROVENANCE_FIELDS
+        ):
+            errors.append("verification provenance admission schema field_inventory.field drift")
+        kind_spec = field_inventory.get("kind")
+        expected_kinds = list(dict.fromkeys(PROVENANCE_FIELD_KINDS.values()))
+        if not isinstance(kind_spec, dict) or kind_spec.get("enum") != expected_kinds:
+            errors.append("verification provenance admission schema field_inventory.kind drift")
+
+    digest_props = _schema_node_at(
+        schema,
+        (
+            "properties",
+            "path_categories",
+            "items",
+            "properties",
+            "redacted_digest_labels",
+            "properties",
+        ),
+    )
+    if not isinstance(digest_props, dict) or set(digest_props) != set(DIGEST_FIELDS):
+        errors.append("verification provenance admission schema redacted_digest_labels keys drift")
+    elif any(
+        not isinstance(digest_props.get(key), dict)
+        or digest_props[key].get("$ref") != "#/$defs/digestLabel"
+        for key in ("input_digest", "prompt_digest", "answer_digest")
+    ):
+        errors.append("verification provenance admission schema digest label ref drift")
+    else:
+        context_digest = digest_props.get("context_item_digests")
+        if (
+            not isinstance(context_digest, dict)
+            or context_digest.get("type") != "array"
+            or not isinstance(context_digest.get("items"), dict)
+            or context_digest["items"].get("$ref") != "#/$defs/digestLabel"
+            or context_digest.get("minItems") != 1
+        ):
+            errors.append("verification provenance admission schema context digest ref drift")
+
+    count_props = _schema_node_at(
+        schema,
+        (
+            "properties",
+            "path_categories",
+            "items",
+            "properties",
+            "count_labels",
+            "properties",
+        ),
+    )
+    if not isinstance(count_props, dict) or set(count_props) != set(COUNT_LABEL_KEYS):
+        errors.append("verification provenance admission schema count_labels keys drift")
+    elif any(
+        not isinstance(count_props.get(key), dict)
+        or count_props[key].get("type") != "integer"
+        or count_props[key].get("minimum") != 0
+        for key in COUNT_LABEL_KEYS
+    ):
+        errors.append("verification provenance admission schema count_labels integer drift")
+
     return errors
 
 
@@ -978,6 +1102,8 @@ def _validate_path_category(category: Mapping[str, object]) -> list[str]:
         errors.append(f"{category_id}.count_labels must be an object")
     else:
         for key, value in count_labels.items():
+            if key not in COUNT_LABEL_KEYS:
+                errors.append(f"{category_id}.count_labels unknown key: {key}")
             if type(value) is not int or value < 0:
                 errors.append(f"{category_id}.count_labels.{key} must be a non-negative integer")
 

@@ -173,6 +173,27 @@ def test_report_rejects_nested_schema_const_drift() -> None:
     assert any("redaction_assertions.properties.secrets_absent" in error for error in errors)
 
 
+def test_report_rejects_nested_schema_shape_drift() -> None:
+    schema = json.loads(_schema_text())
+    schema["$defs"]["provenanceFields"]["items"]["enum"].remove("answer_digest")
+    schema["properties"]["path_categories"]["items"]["properties"]["expected_provenance_fields"] = {
+        "type": "array"
+    }
+    del schema["properties"]["path_categories"]["items"]["properties"]["redacted_digest_labels"][
+        "properties"
+    ]["answer_digest"]
+    schema["properties"]["path_categories"]["items"]["properties"]["count_labels"]["properties"][
+        "prompt_char_count"
+    ]["minimum"] = -1
+
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert any("provenanceFields enum drift" in error for error in errors)
+    assert any("expected_provenance_fields ref drift" in error for error in errors)
+    assert any("redacted_digest_labels keys drift" in error for error in errors)
+    assert any("count_labels integer drift" in error for error in errors)
+
+
 def test_report_rejects_raw_leak_patterns() -> None:
     report = _report()
     categories = report["path_categories"]
