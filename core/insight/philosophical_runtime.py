@@ -522,7 +522,7 @@ class PhilosophicalRuntime:
                     rewrite_prompt
                 )
                 final_prompt_text = rewritten_prompt
-                prompt_trimmed = rewrite_prompt_trimmed
+                prompt_trimmed = prompt_trimmed or rewrite_prompt_trimmed
                 final_prompt_original_char_count = len(rewrite_prompt)
                 final_prompt_trimmed_char_count = len(rewrite_prompt) - len(rewritten_prompt)
                 answer = await provider.generate(rewritten_prompt)

@@ -672,7 +672,6 @@ def _path_categories() -> list[dict[str, object]]:
         "prompt_trimmed",
         "prompt_original_char_count",
         "prompt_final_char_count",
-        "prompt_trim_limit",
         "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls",

@@ -885,6 +885,37 @@ class TestPhilosophicalRuntime:
         assert provenance.prompt_trim_limit == 4000
         assert provenance.prompt_trimmed_char_count == 0
 
+    async def test_rewrite_provenance_preserves_initial_prompt_trim_state(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _SequenceProvider(
+            responses=[
+                "Draft answer with weak evidence.",
+                "Rewritten answer with clearer evidence.",
+            ]
+        )
+
+        with patch.object(runtime, "_build_rewrite_prompt", return_value="short rewrite prompt"):
+            result = await runtime.generate_insight(
+                text="Tell me about balanced nutrition. " + ("nutrition " * 700),
+                lang="en",
+                provider=provider,
+                use_rag=False,
+                philo_validation_enabled=False,
+                recursive_rag_enabled=False,
+                philosophy_router_enabled=False,
+                philosophy_phase12_enabled=True,
+                philosophy_linguistic_enabled=False,
+                philosophy_pragmatic_enabled=False,
+            )
+
+        assert provider.calls == 2
+        assert result.verification_bundle is not None
+        provenance = result.verification_bundle.provenance
+        assert provenance is not None
+        assert provenance.prompt_trimmed is True
+        assert provenance.prompt_final_char_count == len("short rewrite prompt")
+        assert provenance.prompt_trimmed_char_count == 0
+
     async def test_build_direct_result_requires_public_metadata_access(self) -> None:
         runtime = PhilosophicalRuntime()
 

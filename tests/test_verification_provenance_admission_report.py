@@ -433,6 +433,7 @@ def test_admitted_paths_use_non_recursive_count_labels() -> None:
         assert count_labels["verification_hops"] == 1
         assert count_labels["verification_calls"] == 0
     assert "prompt_trim_limit" not in by_id["rag_pre_generation"]["count_labels"]
+    assert "prompt_trim_limit" not in by_id["rag_pre_generation"]["present_provenance_fields"]
     runtime_counts = by_id["rag_runtime_merged"]["count_labels"]
     assert runtime_counts["prompt_trim_limit"] >= runtime_counts["prompt_final_char_count"]
 
