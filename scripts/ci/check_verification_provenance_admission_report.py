@@ -716,7 +716,85 @@ def _validate_object_schema(
         spec = properties.get(key)
         if not isinstance(spec, dict) or spec.get("const") != report.get(key):
             errors.append(f"verification provenance admission schema const mismatch for {key}")
+    errors.extend(_validate_required_schema_consts(schema))
     errors.extend(_validate_nested_object_schema_flags(schema=schema, label="schema"))
+    return errors
+
+
+def _schema_const_requirements() -> tuple[tuple[tuple[str, ...], object], ...]:
+    requirements: list[tuple[tuple[str, ...], object]] = []
+    for key in AUTHORITY_FLAG_KEYS:
+        expected: object = (
+            SEMANTIC_CACHE_GATE_STATUS if key == "semantic_cache_gate_status" else False
+        )
+        requirements.append((("properties", "authority_flags", "properties", key), expected))
+    for key in PATH_AUTHORITY_KEYS:
+        expected = SEMANTIC_CACHE_GATE_STATUS if key == "semantic_cache_gate_status" else False
+        requirements.append(
+            (
+                (
+                    "properties",
+                    "path_categories",
+                    "items",
+                    "properties",
+                    "authority",
+                    "properties",
+                    key,
+                ),
+                expected,
+            )
+        )
+    for key in REDACTION_ASSERTION_KEYS:
+        requirements.append(
+            (
+                (
+                    "properties",
+                    "path_categories",
+                    "items",
+                    "properties",
+                    "redaction_assertions",
+                    "properties",
+                    key,
+                ),
+                True,
+            )
+        )
+    for key in ("raw_values_persisted", "public_response_surface"):
+        requirements.append((("properties", "provenance_contract", "properties", key), False))
+    requirements.append(
+        (
+            (
+                "properties",
+                "provenance_contract",
+                "properties",
+                "field_inventory",
+                "items",
+                "properties",
+                "raw_value_allowed",
+            ),
+            False,
+        )
+    )
+    return tuple(requirements)
+
+
+def _schema_node_at(schema: Mapping[str, object], path: tuple[str, ...]) -> object:
+    current: object = schema
+    for part in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(part)
+    return current
+
+
+def _validate_required_schema_consts(schema: Mapping[str, object]) -> list[str]:
+    errors: list[str] = []
+    for path, expected in _schema_const_requirements():
+        node = _schema_node_at(schema, path)
+        if not isinstance(node, dict) or node.get("const") != expected:
+            errors.append(
+                "verification provenance admission schema const mismatch for " + ".".join(path)
+            )
     return errors
 
 

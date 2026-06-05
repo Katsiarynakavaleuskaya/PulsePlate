@@ -24,13 +24,16 @@ Slack, semantic cache, GraphRAG, or runtime behavior.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after bot review cycle.
-- [ ] Fixed in commit mapping completed after review-thread disposition pass.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - Initial PR open has no resolved review threads.
 
 ## Fixed in Commit Mapping
 
-- Initial PR open: no review threads yet.
+- No actionable review comments
+
+## Implementation Evidence
+
 - Implementation commit:
   `0bada0dc35c603cc3f102850a2623f3adb80e902`
 - Evidence:

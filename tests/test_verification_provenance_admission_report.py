@@ -150,6 +150,29 @@ def test_report_rejects_schema_drift_and_unknown_schema_properties() -> None:
     )
 
 
+def test_report_rejects_nested_schema_const_drift() -> None:
+    schema = json.loads(_schema_text())
+    del schema["properties"]["authority_flags"]["properties"]["semantic_cache_allowed"]["const"]
+    schema["properties"]["authority_flags"]["properties"]["semantic_cache_allowed"][
+        "type"
+    ] = "boolean"
+    del schema["properties"]["path_categories"]["items"]["properties"]["authority"]["properties"][
+        "cache_write_allowed"
+    ]["const"]
+    schema["properties"]["path_categories"]["items"]["properties"]["authority"]["properties"][
+        "cache_write_allowed"
+    ]["type"] = "boolean"
+    schema["properties"]["path_categories"]["items"]["properties"]["redaction_assertions"][
+        "properties"
+    ]["secrets_absent"]["const"] = False
+
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert any("authority_flags.properties.semantic_cache_allowed" in error for error in errors)
+    assert any("authority.properties.cache_write_allowed" in error for error in errors)
+    assert any("redaction_assertions.properties.secrets_absent" in error for error in errors)
+
+
 def test_report_rejects_raw_leak_patterns() -> None:
     report = _report()
     categories = report["path_categories"]
