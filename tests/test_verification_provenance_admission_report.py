@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 import scripts.ci.check_verification_provenance_admission_report as report_check
 from scripts.ci.check_verification_provenance_admission_report import (
     render_verification_provenance_admission_report,
@@ -210,6 +212,15 @@ def test_report_rejects_raw_leak_patterns() -> None:
     assert any("forbidden diagnostic log label" in error for error in errors)
 
 
+def test_schema_rejects_raw_leak_patterns() -> None:
+    schema = json.loads(_schema_text())
+    schema["properties"]["scope"]["description"] = "/Users/example/private.txt"
+
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert any("schema contains forbidden absolute local path" in error for error in errors)
+
+
 def test_report_rejects_absolute_local_path_leak() -> None:
     report = _report()
     categories = report["path_categories"]
@@ -225,6 +236,31 @@ def test_report_rejects_absolute_local_path_leak() -> None:
     errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
 
     assert any("forbidden absolute local path" in error for error in errors)
+
+
+def test_report_rejects_invalid_source_ref_symbols() -> None:
+    report = _report()
+    categories = report["path_categories"]
+    assert isinstance(categories, list)
+    category = categories[3]
+    assert isinstance(category, dict)
+    source_refs = category["source_refs"]
+    assert isinstance(source_refs, list)
+    ref = source_refs[0]
+    assert isinstance(ref, dict)
+    ref["symbol"] = "return rag_bundle"
+
+    errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
+
+    assert any("source_ref symbol missing" in error for error in errors)
+
+
+def test_report_validates_redaction_source_symbol(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(report_check, "_defined_source_symbols", lambda _tree: set())
+
+    errors = _validate()
+
+    assert any("redaction_source.source_ref symbol missing" in error for error in errors)
 
 
 def test_report_rejects_invalid_digest_labels() -> None:

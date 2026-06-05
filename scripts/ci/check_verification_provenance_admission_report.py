@@ -558,7 +558,7 @@ def _path_categories() -> list[dict[str, object]]:
             verification_calls=3,
             artifact_count=5,
             source_refs=(
-                _source_ref(PHILOSOPHICAL_RUNTIME_PATH, "build_runtime_verification_bundle"),
+                _source_ref(PHILOSOPHICAL_RUNTIME_PATH, "generate_insight"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "_merge_provenance"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_runtime_verification_bundle"),
             ),
@@ -602,9 +602,9 @@ def _path_categories() -> list[dict[str, object]]:
             verification_calls=2,
             artifact_count=3,
             source_refs=(
-                _source_ref(VERIFICATION_REGISTRY_PATH, "runtime_verification_enabled"),
-                _source_ref(VERIFICATION_REGISTRY_PATH, "return rag_bundle"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_runtime_verification_bundle"),
+                _source_ref(VERIFICATION_REGISTRY_PATH, "build_rag_verification_bundle"),
+                _source_ref(VERIFICATION_REGISTRY_PATH, "build_verification_provenance"),
             ),
         ),
         _path_category(
@@ -620,8 +620,9 @@ def _path_categories() -> list[dict[str, object]]:
             verification_calls=0,
             artifact_count=1,
             source_refs=(
-                _source_ref(VERIFICATION_REGISTRY_PATH, "rag_bundle_missing"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_runtime_verification_bundle"),
+                _source_ref(VERIFICATION_REGISTRY_PATH, "build_bundle"),
+                _source_ref(VERIFICATION_REGISTRY_PATH, "build_verification_provenance"),
             ),
         ),
     ]
@@ -1040,6 +1041,9 @@ def _validate_provenance_contract(contract: Mapping[str, object]) -> list[str]:
     for key, expected in expected_scalars.items():
         if contract.get(key) != expected:
             errors.append(f"provenance_contract.{key}: expected {expected!r}")
+    redaction_source = contract.get("redaction_source")
+    if isinstance(redaction_source, str):
+        errors.extend(_validate_redaction_source(redaction_source))
     if contract.get("verification_status_values") != list(VERIFICATION_STATUS_VALUES):
         errors.append("provenance_contract.verification_status_values drift")
     inventory = _object_items(contract.get("field_inventory"))
@@ -1169,9 +1173,37 @@ def _validate_source_symbol(*, path: str, symbol: str, category_id: str) -> list
     if not source_path.exists():
         return [f"{category_id}.source_ref missing file: {path}"]
     text = source_path.read_text(encoding="utf-8", errors="replace")
-    if symbol not in text:
+    tree = ast.parse(text, filename=str(source_path))
+    defined_symbols = _defined_source_symbols(tree)
+    if symbol not in defined_symbols:
         return [f"{category_id}.source_ref symbol missing: {path}:{symbol}"]
     return []
+
+
+def _defined_source_symbols(tree: ast.AST) -> set[str]:
+    symbols: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            symbols.add(node.name)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    symbols.add(target.id)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            symbols.add(node.target.id)
+    return symbols
+
+
+def _validate_redaction_source(redaction_source: str) -> list[str]:
+    module, _, symbol = redaction_source.rpartition(".")
+    expected_module = VERIFICATION_REGISTRY_PATH.removesuffix(".py").replace("/", ".")
+    if module != expected_module or symbol != "redacted_sha256_label":
+        return ["provenance_contract.redaction_source drift"]
+    return _validate_source_symbol(
+        path=VERIFICATION_REGISTRY_PATH,
+        symbol=symbol,
+        category_id="provenance_contract.redaction_source",
+    )
 
 
 def _walk_json(value: object, *, path: str = "$") -> Iterable[tuple[str, object]]:
@@ -1245,6 +1277,7 @@ def validate_verification_provenance_admission_report(
     errors.extend(_validate_object_schema(schema=schema, report=report))
     errors.extend(_validate_report_shape(report))
     errors.extend(_validate_no_raw_leaks(report, label="verification provenance admission report"))
+    errors.extend(_validate_no_raw_leaks(schema, label="verification provenance admission schema"))
     return errors
 
 

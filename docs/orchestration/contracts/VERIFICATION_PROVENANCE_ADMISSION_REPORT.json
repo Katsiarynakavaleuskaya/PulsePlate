@@ -251,7 +251,7 @@
       "source_refs": [
         {
           "path": "core/insight/philosophical_runtime.py",
-          "symbol": "build_runtime_verification_bundle"
+          "symbol": "generate_insight"
         },
         {
           "path": "core/verification/registry.py",
@@ -403,15 +403,15 @@
       "source_refs": [
         {
           "path": "core/verification/registry.py",
-          "symbol": "runtime_verification_enabled"
-        },
-        {
-          "path": "core/verification/registry.py",
-          "symbol": "return rag_bundle"
-        },
-        {
-          "path": "core/verification/registry.py",
           "symbol": "build_runtime_verification_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_rag_verification_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_verification_provenance"
         }
       ]
     },
@@ -471,11 +471,15 @@
       "source_refs": [
         {
           "path": "core/verification/registry.py",
-          "symbol": "rag_bundle_missing"
+          "symbol": "build_runtime_verification_bundle"
         },
         {
           "path": "core/verification/registry.py",
-          "symbol": "build_runtime_verification_bundle"
+          "symbol": "build_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_verification_provenance"
         }
       ]
     }
