@@ -92,6 +92,10 @@ def _metadata_dir(locale: str) -> Path:
     return _pack_root(locale) / "metadata"
 
 
+def _visual_qa_prep_path() -> Path:
+    return _pack_root("ru-RU") / "iphone-6.9" / "visual_qa_prep.md"
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     """Load a UTF-8 JSON file from the governed App Store pack."""
     return json.loads(path.read_text(encoding="utf-8"))
@@ -332,6 +336,115 @@ def test_ru_pack_reuses_en_structural_contract_without_binaries() -> None:
         if path.is_file() and path.suffix.lower() not in ALLOWED_RU_PACK_SUFFIXES
     ]
     assert not unsupported_files, f"RU pack must stay text/JSON only: {unsupported_files}"
+
+
+def test_ru_visual_qa_prep_exists_and_pack_stays_text_only() -> None:
+    """The RU visual-QA prep bundle must stay as governed text, not media output."""
+    prep_path = _visual_qa_prep_path()
+
+    assert prep_path.exists()
+    assert prep_path.suffix == ".md"
+
+    unsupported_files = [
+        path
+        for path in _pack_root("ru-RU").rglob("*")
+        if path.is_file() and path.suffix.lower() not in ALLOWED_RU_PACK_SUFFIXES
+    ]
+    assert not unsupported_files, f"RU pack must stay text/JSON only: {unsupported_files}"
+
+
+def test_ru_visual_qa_prep_covers_manifest_and_storyboard_in_order() -> None:
+    """Prep notes should cover the governed seven-shot RU sequence once in order."""
+    manifest = _load_json(_screenshots_dir("ru-RU") / "shot_manifest.json")
+    storyboard = _load_json(_preview_dir("ru-RU") / "storyboard.json")
+    scenes_by_shot_id = {scene["shot_id"]: scene for scene in storyboard["scenes"]}
+    text = _visual_qa_prep_path().read_text(encoding="utf-8")
+
+    previous_index = -1
+    for shot in manifest["shots"]:
+        shot_id = shot["id"]
+        scene = scenes_by_shot_id[shot_id]
+        shot_anchor = f"`{shot_id}`"
+        shot_index = text.find(shot_anchor)
+
+        assert shot_index > previous_index
+        assert text.count(shot_anchor) == 1
+        assert f"`{shot['expected_filename']}`" in text
+        assert f"`{scene['id']}`" in text
+        assert f"`{scene['start_second']}-{scene['end_second']}s`" in text
+        assert shot["product_surface"] in text
+        assert shot["approved_mascot_asset_key"] in text
+        for source_ref in shot["repo_source_refs"]:
+            assert f"`{source_ref}`" in text
+            assert _repo_path(source_ref).exists()
+        previous_index = shot_index
+
+
+def test_ru_visual_qa_prep_preserves_manual_no_upload_scope() -> None:
+    """Visual QA prep must not imply protected release or upload authority."""
+    text = _visual_qa_prep_path().read_text(encoding="utf-8").lower()
+    blocked_claims = (
+        "submit_ready",
+        "release-ready",
+        "submission-ready",
+        "ready for upload",
+        "upload proof",
+        "app store connect draft",
+        "готов к загрузке",
+        "готова к загрузке",
+        "готов к отправке",
+        "готова к отправке",
+        "готов к релизу",
+    )
+
+    assert "fastlane" in text
+    assert "app store connect" in text
+    assert "вне области" in text
+    assert "internal_review_only" in text
+    offending_claims = sorted(claim for claim in blocked_claims if claim in text)
+    assert not offending_claims, f"RU visual QA prep overclaims release scope: {offending_claims}"
+
+
+def test_ru_visual_qa_prep_avoids_local_paths_and_blocked_claim_terms() -> None:
+    """Prep notes must stay repo-relative and wellness-safe."""
+    text = _visual_qa_prep_path().read_text(encoding="utf-8")
+    text_lower = text.lower()
+    blocked_fragments = (
+        "/users/",
+        "/tmp/",
+        "file://",
+        "worktrees/",
+        "artifacts/",
+        ".venv/",
+        "node_modules/",
+        "gh_token",
+        "github_token",
+        "api_key",
+        "secret",
+        "password",
+    )
+    blocked_english_fragments = (
+        "this folder",
+        "this pr",
+        "wellness-only",
+        "remain out of scope",
+        "placeholder lorem ipsum",
+        "lorem ipsum",
+    )
+
+    assert any("А" <= char <= "я" or char == "ё" for char in text)
+    offending_fragments = sorted(
+        fragment
+        for fragment in (*blocked_fragments, *blocked_english_fragments)
+        if fragment in text_lower
+    )
+    assert not offending_fragments, (
+        "RU visual QA prep contains unsafe local or English boilerplate fragments: "
+        f"{offending_fragments}"
+    )
+
+    offending_terms = sorted(term for term in BLOCKED_COPY_TERMS["ru-RU"] if term in text_lower)
+    assert not offending_terms, "Blocked term(s) found in RU visual QA prep: " f"{offending_terms}"
 
 
 def test_ru_preview_plan_uses_ru_operational_copy() -> None:
