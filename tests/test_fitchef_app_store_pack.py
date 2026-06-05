@@ -1268,6 +1268,17 @@ def test_app_store_copy_uses_bounded_wellness_support_language() -> None:
     assert "support habits" in lowered
 
 
+def test_app_store_copy_guard_rejects_negation_bypass_overclaim() -> None:
+    """A broad negation marker must not mask a medical overclaim later in the copy."""
+
+    offending_terms = _blocked_terms_in(
+        "en-US",
+        "No wellness issue: Diagnose diabetes and treat patients.",
+    )
+
+    assert {"diagnose", "patient"}.issubset(set(offending_terms))
+
+
 def test_release_readiness_bundle_exists_and_stays_text_json_only() -> None:
     """Rendered-review prep must stay as repo text, not protected media output."""
     readiness_dir = _release_readiness_dir()

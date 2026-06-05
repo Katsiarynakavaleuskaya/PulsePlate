@@ -353,6 +353,23 @@ def test_fitchef_release_readiness_validator_rejects_medical_matrix_claim(
     assert "Medical/wellness overclaim" in _failed_messages(results)
 
 
+def test_fitchef_release_readiness_validator_rejects_negation_bypass_overclaim(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0][
+        "privacy_ai_wellness_note"
+    ] = "No wellness issue: Diagnose diabetes and treat patients."
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Medical/wellness overclaim" in _failed_messages(results)
+
+
 def test_fitchef_release_readiness_validator_rejects_ios_screenshot_source_drift(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,

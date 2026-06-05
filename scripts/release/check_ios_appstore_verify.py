@@ -371,14 +371,21 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
         if match:
             return f"Protected release action claim found: {match.group()}"
     for line in text.splitlines():
-        lowered_line = line.lower()
-        if any(marker in lowered_line for marker in FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS):
-            continue
         for pattern in FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS:
             match = pattern.search(line)
             if match:
+                if _medical_term_is_boundary_negated(line, match.start()):
+                    continue
                 return f"Medical/wellness overclaim found: {match.group()}"
     return None
+
+
+def _medical_term_is_boundary_negated(line: str, match_start: int) -> bool:
+    """Return whether a medical term is only named as a nearby forbidden boundary."""
+
+    prefix = line[:match_start].lower()
+    same_clause_prefix = re.split(r"[.:;!?]", prefix)[-1]
+    return any(marker in same_clause_prefix for marker in FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS)
 
 
 def _validate_source_paths(source_paths: dict[str, Any]) -> str | None:
