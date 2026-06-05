@@ -59,6 +59,7 @@ Evidence: post-open Codex and cubic false-green readiness findings are fixed by 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3362845091 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3362845098 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3362845101 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3363270522 -> 451b5c728
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3362876184 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3362876187 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#pullrequestreview-4436506435 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
@@ -92,6 +93,10 @@ Reason: These bot messages do not identify an actionable code defect in this PR 
   - Disposition: FIXED
   - Source: identified by Codex GitHub review.
   - Evidence: `scripts/orchestration/experiment_slack_bridge_readiness.py` now incorporates Slack allowlist label state before execute eligibility; `tests/test_experiment_slack_socket_bridge.py::test_activation_readiness_report_blocks_cross_repo_execute_without_slack_allowlists` proves cross-repo execute fails closed when Slack allowlists are absent.
+- `discussion_r3363270522`
+  - Disposition: FIXED
+  - Source: identified by Codex GitHub review.
+  - Evidence: `scripts/orchestration/experiment_slack_bridge_readiness.py` now reports `cross_repo_dry_run_available` for allowlisted cross-repo dry-run configuration instead of execute-dispatch eligibility; `tests/test_experiment_slack_socket_bridge.py::test_activation_readiness_report_labels_cross_repo_dry_run_without_dispatch_eligibility` covers the dry-run case without leaking target, token, Slack, branch, or digest values.
 - `discussion_r3362876184`
   - Disposition: FIXED
   - Source: identified by cubic.
@@ -157,6 +162,7 @@ Reason: These bot messages do not identify an actionable code defect in this PR 
 - PASS: `python scripts/orchestration/check_experiment_runner_identity.py`
 - PASS: `python scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 - PASS: `python -m pytest -q tests/test_experiment_slack_socket_bridge.py -k "activation_readiness_report_blocks_execute_without_dispatch_target or activation_readiness_report_blocks_cross_repo_execute_without_slack_allowlists or activation_readiness_report_blocks_unverified_live_approval_digest or activation_readiness_report_projects_cross_repo_private_pilot_without_values"`
+- PASS: `python -m pytest -q tests/test_experiment_slack_socket_bridge.py -k "cross_repo_dry_run_without_dispatch_eligibility or activation_readiness_report_projects_cross_repo_private_pilot_without_values or activation_readiness_report_blocks_cross_repo_execute_without_slack_allowlists"`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files` after Black formatting pass
 - PASS: commit hooks
