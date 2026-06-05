@@ -78,7 +78,15 @@ Full local `make verify` was not run by default for this docs/metadata PR under 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads existed at PR open. Post-open review threads must be added here with `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before resolution.
+Post-open review threads are recorded below with `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before resolution.
+
+## Post-Open Review Evidence
+
+- `qa-engineer-agent`: PASS after post-open fixes. Evidence: no remaining QA findings after the localized markdown-per-file guard and cross-locale QA guard fixes; `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `66 passed`.
+- `bug-hunter`: PASS after post-open fixes. Evidence: stale-copy and false-green risks are covered by per-file localized docs guards, localized manifest/icon/preview guards, no-upload metadata guards, and cross-locale row-to-manifest copy/length guards.
+- `security-auditor`: PASS on head `30756c8853a194a3b71ab683edd47baa018fb676`. Evidence: no protected `ios/fastlane`, App Store Connect, upload automation, screenshot/video binary, runtime, backend/OpenAPI/DB, frontend/iOS runtime, telemetry, billing, Slack, semantic-cache, or GraphRAG surface changes; all 39 resolved review threads pass disposition/commit-after-comment guard.
+- `Codex Security diff scan`: PASS. Evidence: diff-scoped scan reviewed all 17 changed files, produced a validated no-findings report, and closed every worklist row with a completion receipt.
+- `pulseplate-pr-review`: NOTE dispositioned below. Evidence: dry-run review found only large-diff review-planning risk and no correctness, security, wellness, architecture, or test finding after split justification and changed-scope gates.
 
 ## Fixed in Commit Mapping
 
@@ -181,14 +189,16 @@ Disposition: NOT-A-BUG
 Evidence: Current branch head includes `9ff2dbbab5a72a35e4bd2e5c89b1106eeb10aa16`, which changed `docs/review/PR_1886_FIXED_MAPPING.md` to the machine-parseable `## Fixed in Commit Mapping` heading, required discussion checklist items, and exact Experiment Runner artifact shape; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1886 --body "$(gh pr view 1886 --json body --jq .body)" --commit-range origin/main..HEAD` passes.
 Reason: These Cubic comments were generated against the earlier mapping artifact shape but are already addressed in the current branch and live PR-body mirror.
 
+- PulsePlate PR review dry-run large-diff note
+Disposition: NOT-A-BUG
+Evidence: `## Split Justification` in this mapping records why the ES locale pack, EN/RU/ES QA artifact, contract anchors, backlog truth, and deterministic guard belong in one reviewable App Store localization contract; `python3 scripts/ci/check_pr_size_governance.py --base-sha cf3e4c9c4d87e5c5f4e39d7bb5470984b0d0176c --head-sha HEAD --body "$(sed 's/^## Fixed in Commit Mapping$/### Fixed in Commit Mapping/' docs/review/PR_1886_FIXED_MAPPING.md)"` passes as `standard_governance_design`; `make validate-changed` passes.
+Reason: The review note is valid review-planning signal, but it is not a code/docs defect after split justification and targeted deterministic gates.
+
 ## Merge Readiness
 
 Not merge-ready yet. Required before readiness claim:
 
 - Current-head CI pass.
-- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Codex Security diff scan / finding discovery.
-- `pulseplate-pr-review`.
 - No unresolved review threads.
 - No actionable bot comments.
 - PR body mirrors this mapping artifact.
