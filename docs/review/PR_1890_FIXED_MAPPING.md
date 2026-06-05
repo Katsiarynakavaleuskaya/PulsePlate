@@ -118,6 +118,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Post-open `qa-engineer-agent` rerun on head `20f3c33a8`: FAIL with this artifact quoting raw localized probe text. Disposition: FIXED. Evidence: raw localized probe text was rewritten into neutral evidence wording in this artifact.
 - Post-open `qa-engineer-agent` rerun on head `20f3c33a8`: live GitHub review threads remained unresolved. Disposition: DEFERRED. Evidence: unresolved review threads are mapped below and must be resolved only after the mapped fixes are pushed and reviewed.
 - Late bot review batch after head `b9a8707d7`: FIXED in `ddd42468e`. Evidence: scenario matrix schema version is now value-checked, protected-action completion claims are synchronized with the blocked release action list, and forbidden local-artifact path segments under the governed FitChef pack are rejected before file-content scanning. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
+- CodeRabbit review after head `3206bbd17`: FIXED in `530a6ad8c` and `5f0c5911f`. Evidence: committed test fixtures no longer contain complete credential-like values as source literals, and this artifact now uses canonical single dispositions instead of combined disposition wording.
 
 ## Fixed in Commit Mapping
 
@@ -195,6 +196,16 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now normalizes JSON key
 Disposition: FIXED
 Commit: ddd42468e
 Evidence: `scripts/release/check_ios_appstore_verify.py` now requires the exact FitChef release-readiness schema version, blocks protected-action completion claims for all blocked release-action categories, and rejects forbidden local-artifact path segments anywhere under the governed FitChef App Store pack before content scanning. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for schema-version drift, protected-action completion variants, and forbidden path segments. Local evidence after the fix: focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` all passed locally.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365497863 -> 530a6ad8c
+Disposition: FIXED
+Commit: 530a6ad8c
+Evidence: `tests/ios/test_ios_appstore_verify.py` now composes credential-like dummy fixture labels and values from scanner-safe parts at runtime instead of storing complete credential-like assignment strings in source. Local evidence after the fix: focused pytest, direct validator, and `pre-commit run --all-files` passed locally.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365497854 -> 5f0c5911f
+Disposition: FIXED
+Commit: 5f0c5911f
+Evidence: `docs/review/PR_1890_FIXED_MAPPING.md` now splits the combined `FIXED / IN PROGRESS` wording into separate canonical `FIXED` and `DEFERRED` entries with matching evidence. Local evidence after the fix: commit hooks passed, including detect-secrets and conventional commit checks.
 
 ## Post-Open Role-Agent Finding Closure
 
