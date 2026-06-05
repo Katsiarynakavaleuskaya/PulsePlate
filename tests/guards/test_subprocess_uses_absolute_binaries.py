@@ -135,6 +135,18 @@ def _resolve_binary_expr(
             upto_lineno=getattr(assignment, "lineno", upto_lineno),
             seen_names=seen_names | {expr.id},
         )
+    if isinstance(expr, ast.Call) and expr.args:
+        function = expr.func
+        is_string_or_path_wrapper = (
+            isinstance(function, ast.Name) and function.id in {"Path", "str"}
+        ) or (isinstance(function, ast.Attribute) and function.attr == "Path")
+        if is_string_or_path_wrapper:
+            return _resolve_binary_expr(
+                tree,
+                expr.args[0],
+                upto_lineno=upto_lineno,
+                seen_names=seen_names,
+            )
     return None
 
 
@@ -168,6 +180,8 @@ def _is_repo_approved_python_literal(value: str) -> bool:
     path = Path(value)
     if not path.is_absolute() or not _is_python_binary_name(path.name):
         return False
+    if ".." in path.parts:
+        return False
     try:
         path.relative_to(REPO_ROOT / ".venv" / "bin")
     except ValueError:
@@ -188,11 +202,22 @@ def _argv_expr(node: ast.Call) -> ast.expr | None:
     return next((keyword.value for keyword in node.keywords if keyword.arg == "args"), None)
 
 
+def _keyword_expr(node: ast.Call, name: str) -> ast.expr | None:
+    return next((keyword.value for keyword in node.keywords if keyword.arg == name), None)
+
+
 def _first_argv_binary(tree: ast.AST, node: ast.Call) -> str | None:
     argv = _argv_expr(node)
     if argv is None:
         return None
     return _resolve_argv_binary(tree, argv, upto_lineno=node.lineno, seen_names=set())
+
+
+def _executable_override_binary(tree: ast.AST, node: ast.Call) -> str | None:
+    executable = _keyword_expr(node, "executable")
+    if executable is None:
+        return None
+    return _resolve_binary_expr(tree, executable, upto_lineno=node.lineno, seen_names=set())
 
 
 def _find_recent_which_var(tree: ast.AST, upto_lineno: int, bin_name: str) -> str | None:
@@ -241,7 +266,7 @@ def _reason_for_binary(tree: ast.AST, *, lineno: int, bin_token: str) -> str:
             "repo-approved interpreter path such as VENV_PYTHON, DEV_PYTHON, "
             "repo .venv/bin/python, or the Experiment Runner resolver pattern"
         )
-    if bin_token in PYTHON_SHORT_BINARIES:
+    if _is_python_binary_name(bin_token):
         return (
             f"calls '{bin_token}' by short name; use sys.executable for current-interpreter "
             "subprocesses or a repo-approved interpreter path such as VENV_PYTHON, "
@@ -272,32 +297,42 @@ def _find_subprocess_violations_in_source(
             continue
         if _subprocess_call_name(node, imports=imports) is None:
             continue
-        bin_token = _first_argv_binary(tree, node)
-        if bin_token is None:
-            continue
-        if bin_token.startswith("/"):
-            if _is_disallowed_absolute_python(bin_token):
-                line = lines[node.lineno - 1].strip() if 0 < node.lineno <= len(lines) else ""
-                violations.append(
-                    SubprocessViolation(
-                        relpath=relpath,
-                        lineno=node.lineno,
-                        line=line,
-                        reason=_reason_for_binary(tree, lineno=node.lineno, bin_token=bin_token),
-                    )
-                )
-            continue
-        if bin_token not in DISALLOWED_SHORT_BINARIES:
-            continue
-        line = lines[node.lineno - 1].strip() if 0 < node.lineno <= len(lines) else ""
-        violations.append(
-            SubprocessViolation(
-                relpath=relpath,
-                lineno=node.lineno,
-                line=line,
-                reason=_reason_for_binary(tree, lineno=node.lineno, bin_token=bin_token),
+        bin_tokens = [
+            token
+            for token in (
+                _first_argv_binary(tree, node),
+                _executable_override_binary(tree, node),
             )
-        )
+            if token is not None
+        ]
+        if not bin_tokens:
+            continue
+        for bin_token in dict.fromkeys(bin_tokens):
+            if bin_token.startswith("/"):
+                if _is_disallowed_absolute_python(bin_token):
+                    line = lines[node.lineno - 1].strip() if 0 < node.lineno <= len(lines) else ""
+                    violations.append(
+                        SubprocessViolation(
+                            relpath=relpath,
+                            lineno=node.lineno,
+                            line=line,
+                            reason=_reason_for_binary(
+                                tree, lineno=node.lineno, bin_token=bin_token
+                            ),
+                        )
+                    )
+                continue
+            if bin_token not in DISALLOWED_SHORT_BINARIES and not _is_python_binary_name(bin_token):
+                continue
+            line = lines[node.lineno - 1].strip() if 0 < node.lineno <= len(lines) else ""
+            violations.append(
+                SubprocessViolation(
+                    relpath=relpath,
+                    lineno=node.lineno,
+                    line=line,
+                    reason=_reason_for_binary(tree, lineno=node.lineno, bin_token=bin_token),
+                )
+            )
     return violations
 
 
@@ -389,6 +424,62 @@ def test_guard_flags_absolute_system_python_literal() -> None:
     assert len(violations) == 1
     assert violations[0].lineno == 2
     assert "outside repo-approved paths" in violations[0].reason
+
+
+def test_guard_flags_versioned_python_short_name() -> None:
+    source = 'import subprocess\nsubprocess.run(["python3.12", "-c", "pass"])\n'
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 2
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_path_wrapped_absolute_system_python_literal() -> None:
+    source = """\
+from pathlib import Path
+import subprocess
+
+subprocess.run([Path("/usr/bin/python3"), "-c", "pass"])
+subprocess.run([str("/usr/bin/python3"), "-c", "pass"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 2
+    assert violations[0].lineno == 4
+    assert "outside repo-approved paths" in violations[0].reason
+    assert violations[1].lineno == 5
+    assert "outside repo-approved paths" in violations[1].reason
+
+
+def test_guard_rejects_parent_traversal_under_repo_venv_python_literal() -> None:
+    traversing_python = (
+        REPO_ROOT / ".venv" / "bin" / ".." / ".." / ".." / ".." / "usr" / "bin" / "python3"
+    ).as_posix()
+    source = f'import subprocess\nsubprocess.run(["{traversing_python}", "-c", "pass"])\n'
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 2
+    assert "outside repo-approved paths" in violations[0].reason
+
+
+def test_guard_flags_executable_override_short_python() -> None:
+    source = """\
+import subprocess
+import sys
+
+subprocess.run([sys.executable, "-c", "pass"], executable="python3")
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 4
+    assert "repo-approved interpreter path" in violations[0].reason
 
 
 def test_guard_allows_absolute_repo_venv_python_literal() -> None:
