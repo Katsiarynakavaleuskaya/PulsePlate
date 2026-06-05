@@ -73,6 +73,12 @@ Reason: Calling these properties as methods would be the runtime bug; the CodeRa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#pullrequestreview-4436520411
 
 Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/experiment_slack_bridge_readiness.py` now checks `target.is_cross_repo and config.dispatch_mode != "execute"` before the cross-repo execute eligibility branch, and `tests/test_experiment_slack_socket_bridge.py::test_activation_readiness_report_labels_cross_repo_dry_run_without_dispatch_eligibility` proves allowlisted cross-repo dry-run reports `cross_repo_dry_run_available` instead of `eligible_for_private_pilot_dispatch`.
+Reason: The Codex comment reviewed stale evidence from before `451b5c728`; current head already keeps dry-run readiness out of execute dispatch eligibility without changing authority.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3363308892
+
+Disposition: NOT-A-BUG
 Evidence: Sourcery and CodeRabbit reported service/rate-limit or optional finishing-touch status rather than a repository code defect. Repo-owned local gates and Codex Security discovery were run independently; no merge-readiness claim is made while external bot status is still pending or rate-limited.
 Reason: These bot messages do not identify an actionable code defect in this PR diff.
 
@@ -97,6 +103,11 @@ Reason: These bot messages do not identify an actionable code defect in this PR 
   - Disposition: FIXED
   - Source: identified by Codex GitHub review.
   - Evidence: `scripts/orchestration/experiment_slack_bridge_readiness.py` now reports `cross_repo_dry_run_available` for allowlisted cross-repo dry-run configuration instead of execute-dispatch eligibility; `tests/test_experiment_slack_socket_bridge.py::test_activation_readiness_report_labels_cross_repo_dry_run_without_dispatch_eligibility` covers the dry-run case without leaking target, token, Slack, branch, or digest values.
+- `discussion_r3363308892`
+  - Disposition: NOT-A-BUG
+  - Source: identified by Codex GitHub review.
+  - Evidence: current head already checks cross-repo dry-run before private-pilot execute eligibility and the dry-run regression test above proves the guarded label.
+  - Reason: the review thread referenced stale evidence from before the dry-run fix commit and is not a surviving code defect.
 - `discussion_r3362876184`
   - Disposition: FIXED
   - Source: identified by cubic.
