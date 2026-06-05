@@ -83,8 +83,7 @@ semantic-cache gate opening remain out of scope.
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/semantic-cache-offline-admission-runner-v1-oracle-packet-v2.json`
-- Accepted artifact:
-  `artifacts/orchestration/experiments/results/semantic-cache-offline-admission-runner-v1-oracle-result-v4.json`
+- Artifact: `artifacts/orchestration/experiments/results/semantic-cache-offline-admission-runner-v1-oracle-result-v4.json`
 - Mode: `oracle_only_governance_reviewer`
 - Status: `accepted`
 - `mutated_paths=[]`; `shared_tree_untouched=true`; `coauthor_required=true`
@@ -109,8 +108,8 @@ path. Current-head CI parity remains required before merge readiness.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Post-open review threads must be recorded below with `FIXED`, `NOT-A-BUG`, or
 `DEFERRED` disposition before resolution. No post-open review threads have been
@@ -128,5 +127,4 @@ Pending:
 
 ## Fixed in Commit Mapping
 
-No review-thread mappings yet. This section must be updated before merge
-readiness if any actionable human or bot review threads are opened.
+- No actionable review comments
