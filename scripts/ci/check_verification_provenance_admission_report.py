@@ -1520,12 +1520,17 @@ def _validate_digest_labels(
             errors.append(f"{category_id}.redacted_digest_labels unknown key: {key}")
             continue
         if key in {"context_item_digests", "context_item_shas"}:
-            labels = _string_items(value)
-            if not labels:
+            if not isinstance(value, list):
+                errors.append(f"{category_id}.{key} must be a string list")
+                continue
+            if not value:
                 errors.append(f"{category_id}.{key} must not be empty")
-            for label in labels:
+            for index, label in enumerate(value):
+                if not isinstance(label, str):
+                    errors.append(f"{category_id}.{key}[{index}] must be a string")
+                    continue
                 if not DIGEST_RE.match(label):
-                    errors.append(f"{category_id}.{key} invalid digest label")
+                    errors.append(f"{category_id}.{key}[{index}] invalid digest label")
         elif not isinstance(value, str) or not DIGEST_RE.match(value):
             errors.append(f"{category_id}.{key} invalid digest label")
     return errors

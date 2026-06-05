@@ -322,6 +322,29 @@ def test_report_rejects_invalid_digest_labels() -> None:
     assert any("input_digest invalid digest label" in error for error in errors)
 
 
+def test_report_rejects_non_string_context_digest_labels() -> None:
+    report = _report()
+    categories = report["path_categories"]
+    assert isinstance(categories, list)
+    category = categories[0]
+    assert isinstance(category, dict)
+    digest_labels = category["redacted_digest_labels"]
+    assert isinstance(digest_labels, dict)
+    digest_labels["context_item_digests"] = [
+        "sha256:" + "a" * 64,
+        123,
+    ]
+    digest_labels["context_item_shas"] = [
+        "sha256:" + "b" * 64,
+        None,
+    ]
+
+    errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
+
+    assert any("context_item_digests[1] must be a string" in error for error in errors)
+    assert any("context_item_shas[1] must be a string" in error for error in errors)
+
+
 def test_report_records_sha_aliases_as_digest_label_mirrors() -> None:
     categories = _report()["path_categories"]
     assert isinstance(categories, list)
