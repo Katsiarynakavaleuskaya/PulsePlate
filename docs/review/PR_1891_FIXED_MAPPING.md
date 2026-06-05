@@ -55,6 +55,12 @@ Out of scope:
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#pullrequestreview-4438107720 -> e2ce99e51
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364169298 -> e2ce99e51
+Disposition: FIXED
+Commit: e2ce99e51
+Evidence: docs/review/PR_1891_FIXED_MAPPING.md now keeps only GitHub review URLs and disposition proof in Fixed in Commit Mapping; internal findings moved to Internal Finding Dispositions.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364145266 -> e0db06bc3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364186147 -> e0db06bc3
 Disposition: FIXED
@@ -69,7 +75,7 @@ Evidence: docs/review/PR_1891_FIXED_MAPPING.md records f93432ee6 as the existing
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364995580
 Disposition: NOT-A-BUG
-Evidence: git branch --contains f93432ee6 includes codex/user-coaching-state-service-v1 and git log shows f93432ee6 is an ancestor of current head 931cdb156.
+Evidence: git branch --contains f93432ee6 includes codex/user-coaching-state-service-v1 and git log shows f93432ee6 is an ancestor of the PR branch.
 Reason: The comment evaluated stale reviewed-SHA context after the rebase; current PR ancestry contains f93432ee6.
 
 ## Internal Finding Dispositions
