@@ -2112,6 +2112,14 @@ class TestVerificationRegistryCoverageTail:
         assert provenance.verification_hops == 0
         assert provenance.verification_calls == 3
         assert provenance.input_digest == redacted_sha256_label(raw_text)
+        assert provenance.input_sha == provenance.input_digest
+        assert provenance.prompt_sha == provenance.prompt_digest
+        assert provenance.context_item_shas == provenance.context_item_digests
+        assert provenance.answer_sha == provenance.answer_digest
+        assert provenance.prompt_original_char_count == 0
+        assert provenance.prompt_final_char_count == 0
+        assert provenance.prompt_trim_limit is None
+        assert provenance.prompt_trimmed_char_count is None
         assert provenance.input_digest != f"sha256:{sha256(raw_text.encode('utf-8')).hexdigest()}"
         assert provenance.input_digest is not None
         assert provenance.input_digest.startswith("sha256:")
@@ -2226,6 +2234,10 @@ class TestVerificationRegistryCoverageTail:
             answer_text="runtime answer",
             prompt_text="runtime prompt",
             prompt_trimmed=True,
+            prompt_original_char_count=80,
+            prompt_final_char_count=40,
+            prompt_trim_limit=40,
+            prompt_trimmed_char_count=40,
             verification_hops=0,
             verification_calls=3,
         )
@@ -2261,8 +2273,37 @@ class TestVerificationRegistryCoverageTail:
         assert merged.provenance.context_item_digests == rag_provenance.context_item_digests
         assert merged.provenance.prompt_digest == runtime_provenance.prompt_digest
         assert merged.provenance.answer_digest == runtime_provenance.answer_digest
+        assert merged.provenance.input_sha == rag_provenance.input_digest
+        assert merged.provenance.prompt_sha == runtime_provenance.prompt_digest
+        assert merged.provenance.context_item_shas == rag_provenance.context_item_digests
+        assert merged.provenance.answer_sha == runtime_provenance.answer_digest
         assert merged.provenance.prompt_trimmed is True
+        assert merged.provenance.prompt_original_char_count == 80
+        assert merged.provenance.prompt_final_char_count == 40
+        assert merged.provenance.prompt_trim_limit == 40
+        assert merged.provenance.prompt_trimmed_char_count == 40
         assert merged.provenance.verification_calls == runtime_provenance.verification_calls
+
+    def test_verification_provenance_aliases_cannot_drift_when_constructed_directly(
+        self,
+    ) -> None:
+        from core.verification.contracts import VerificationProvenance
+
+        provenance = VerificationProvenance(
+            input_digest="sha256:" + "a" * 64,
+            prompt_digest="sha256:" + "b" * 64,
+            context_item_digests=("sha256:" + "c" * 64,),
+            answer_digest="sha256:" + "d" * 64,
+            input_sha="sha256:" + "1" * 64,
+            prompt_sha="sha256:" + "2" * 64,
+            context_item_shas=("sha256:" + "3" * 64,),
+            answer_sha="sha256:" + "4" * 64,
+        )
+
+        assert provenance.input_sha == provenance.input_digest
+        assert provenance.prompt_sha == provenance.prompt_digest
+        assert provenance.context_item_shas == provenance.context_item_digests
+        assert provenance.answer_sha == provenance.answer_digest
 
     def test_runtime_bundle_reuses_rag_bundle_without_philosophical_pass(self) -> None:
         from core.verification.registry import (

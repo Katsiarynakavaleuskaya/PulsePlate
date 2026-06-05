@@ -1507,8 +1507,15 @@ async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() 
     assert provenance.input_digest is not None
     assert provenance.prompt_digest is not None
     assert len(provenance.context_item_digests) == 1
+    assert provenance.input_sha == provenance.input_digest
+    assert provenance.prompt_sha == provenance.prompt_digest
+    assert provenance.context_item_shas == provenance.context_item_digests
     assert provenance.prompt_char_count == len(result.formatted_prompt)
     assert provenance.prompt_trimmed is False
+    assert provenance.prompt_original_char_count == len(result.formatted_prompt)
+    assert provenance.prompt_final_char_count == len(result.formatted_prompt)
+    assert provenance.prompt_trim_limit == len(result.formatted_prompt)
+    assert provenance.prompt_trimmed_char_count == 0
     assert provenance.verification_hops == 2
     assert provenance.verification_calls == 2
     provenance_payload = str(asdict(provenance))
@@ -1582,6 +1589,22 @@ async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context
     assert filtered_result.verification_bundle.admission_allowed is False
     assert redacted_empty_result.verification_bundle is not None
     assert redacted_empty_result.verification_bundle.admission_allowed is False
+    filtered_provenance = filtered_result.verification_bundle.provenance
+    assert filtered_provenance is not None
+    assert filtered_provenance.input_sha == filtered_provenance.input_digest
+    assert filtered_provenance.prompt_sha is None
+    assert filtered_provenance.context_item_shas == ()
+    assert filtered_provenance.prompt_char_count is None
+    assert filtered_provenance.prompt_trimmed_char_count is None
+    redacted_empty_provenance = redacted_empty_result.verification_bundle.provenance
+    assert redacted_empty_provenance is not None
+    assert redacted_empty_provenance.input_sha == redacted_empty_provenance.input_digest
+    assert (
+        redacted_empty_provenance.context_item_shas
+        == redacted_empty_provenance.context_item_digests
+    )
+    assert redacted_empty_provenance.prompt_char_count is None
+    assert redacted_empty_provenance.prompt_trimmed_char_count is None
 
 
 @pytest.mark.asyncio

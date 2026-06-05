@@ -838,12 +838,52 @@ class TestPhilosophicalRuntime:
         assert provenance is not None
         assert provenance.prompt_digest is not None
         assert provenance.answer_digest is not None
+        assert provenance.prompt_sha == provenance.prompt_digest
+        assert provenance.answer_sha == provenance.answer_digest
         assert provenance.answer_digest != f"sha256:{sha256(answer.encode('utf-8')).hexdigest()}"
         assert provenance.prompt_char_count == 4000
         assert provenance.prompt_trimmed is True
+        assert provenance.prompt_original_char_count is not None
+        assert provenance.prompt_original_char_count > provenance.prompt_char_count
+        assert provenance.prompt_final_char_count == 4000
+        assert provenance.prompt_trim_limit == 4000
+        assert provenance.prompt_trimmed_char_count is not None
+        assert provenance.prompt_trimmed_char_count > 0
         payload = str(asdict(provenance))
         assert "jane@example.com" not in payload
         assert "xoxb-secret-token" not in payload
+
+    async def test_generated_answer_provenance_records_untrimmed_prompt_metadata(
+        self,
+    ) -> None:
+        runtime = PhilosophicalRuntime()
+        answer = "General wellness habits can support steady energy."
+        provider = _StaticProvider(response=answer)
+
+        result = await runtime.generate_insight(
+            text="Share one general wellness meal tip.",
+            lang="en",
+            provider=provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            philosophy_router_enabled=False,
+            philosophy_phase12_enabled=True,
+            philosophy_linguistic_enabled=False,
+            philosophy_pragmatic_enabled=False,
+        )
+
+        assert result.verification_bundle is not None
+        provenance = result.verification_bundle.provenance
+        assert provenance is not None
+        assert provenance.prompt_digest is not None
+        assert provenance.prompt_sha == provenance.prompt_digest
+        assert provenance.answer_sha == provenance.answer_digest
+        assert provenance.prompt_trimmed is False
+        assert provenance.prompt_char_count == provenance.prompt_final_char_count
+        assert provenance.prompt_original_char_count == provenance.prompt_final_char_count
+        assert provenance.prompt_trim_limit == 4000
+        assert provenance.prompt_trimmed_char_count == 0
 
     async def test_build_direct_result_requires_public_metadata_access(self) -> None:
         runtime = PhilosophicalRuntime()
@@ -1199,7 +1239,7 @@ class TestPhilosophicalRuntime:
         runtime = PhilosophicalRuntime()
         provider = _SequenceProvider(
             responses=[
-                "Draft answer with weak evidence.",
+                "Draft answer with weak evidence. " * 240,
                 "Rewritten answer with clearer evidence.",
             ]
         )
@@ -1259,7 +1299,15 @@ class TestPhilosophicalRuntime:
         provenance = result.verification_bundle.provenance
         assert provenance is not None
         assert provenance.prompt_digest is not None
-        assert provenance.prompt_trimmed is False
+        assert provenance.prompt_sha == provenance.prompt_digest
+        assert provenance.answer_sha == provenance.answer_digest
+        assert provenance.prompt_trimmed is True
+        assert provenance.prompt_original_char_count is not None
+        assert provenance.prompt_original_char_count > 4000
+        assert provenance.prompt_final_char_count == 4000
+        assert provenance.prompt_trim_limit == 4000
+        assert provenance.prompt_trimmed_char_count is not None
+        assert provenance.prompt_trimmed_char_count > 0
 
     async def test_rag_backed_answer_falls_back_after_failed_rewrite(self) -> None:
         runtime = PhilosophicalRuntime()

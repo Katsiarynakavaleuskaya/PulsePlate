@@ -46,6 +46,7 @@ from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
 
 _APPROX_CHARS_PER_TOKEN = 4
 _DEFAULT_BASELINE_DEPTH = 3
+_PROMPT_TRIM_LIMIT = 4000
 _VERIFICATION_FIRST_THRESHOLD = 0.7
 _BASELINE_VALIDATION_THRESHOLD = 0.5
 _DEFINITION_TEMPLATES = {
@@ -483,6 +484,8 @@ class PhilosophicalRuntime:
         )
         prompt_text, prompt_trimmed = _trim_prompt_with_metadata(prompt_text_untrimmed)
         final_prompt_text = prompt_text
+        final_prompt_original_char_count = len(prompt_text_untrimmed)
+        final_prompt_trimmed_char_count = len(prompt_text_untrimmed) - len(prompt_text)
 
         answer = await provider.generate(prompt_text)
         rewrite_count = 0
@@ -519,7 +522,9 @@ class PhilosophicalRuntime:
                     rewrite_prompt
                 )
                 final_prompt_text = rewritten_prompt
-                prompt_trimmed = prompt_trimmed or rewrite_prompt_trimmed
+                prompt_trimmed = rewrite_prompt_trimmed
+                final_prompt_original_char_count = len(rewrite_prompt)
+                final_prompt_trimmed_char_count = len(rewrite_prompt) - len(rewritten_prompt)
                 answer = await provider.generate(rewritten_prompt)
                 verification_report = self._verification.validate(answer, citations=citations)
                 falsification_report = self._falsification.validate(answer)
@@ -555,6 +560,10 @@ class PhilosophicalRuntime:
             answer_text=answer,
             prompt_char_count=len(final_prompt_text),
             prompt_trimmed=prompt_trimmed,
+            prompt_original_char_count=final_prompt_original_char_count,
+            prompt_final_char_count=len(final_prompt_text),
+            prompt_trim_limit=_PROMPT_TRIM_LIMIT,
+            prompt_trimmed_char_count=final_prompt_trimmed_char_count,
             verification_hops=hops,
             verification_calls=(
                 0 if rag_result is None else getattr(rag_result, "verification_calls", 0)
@@ -919,7 +928,9 @@ class PhilosophicalRuntime:
         )
 
 
-def _trim_prompt_with_metadata(prompt: str, max_chars: int = 4000) -> tuple[str, bool]:
+def _trim_prompt_with_metadata(
+    prompt: str, max_chars: int = _PROMPT_TRIM_LIMIT
+) -> tuple[str, bool]:
     """Keep prompt bounded and report whether trimming happened."""
     if len(prompt) > max_chars:
         return prompt[:max_chars], True

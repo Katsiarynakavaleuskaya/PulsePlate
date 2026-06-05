@@ -66,6 +66,30 @@
         "raw_value_allowed": false
       },
       {
+        "field": "input_sha",
+        "kind": "redacted_digest_label",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "prompt_sha",
+        "kind": "redacted_digest_label",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "context_item_shas",
+        "kind": "redacted_digest_label_tuple",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "answer_sha",
+        "kind": "redacted_digest_label",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
         "field": "prompt_char_count",
         "kind": "non_negative_count",
         "safe_surface": "internal_metadata_only",
@@ -74,6 +98,30 @@
       {
         "field": "prompt_trimmed",
         "kind": "boolean_or_null",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "prompt_original_char_count",
+        "kind": "non_negative_count",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "prompt_final_char_count",
+        "kind": "non_negative_count",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "prompt_trim_limit",
+        "kind": "non_negative_count",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "prompt_trimmed_char_count",
+        "kind": "non_negative_count",
         "safe_surface": "internal_metadata_only",
         "raw_value_allowed": false
       },
@@ -108,8 +156,15 @@
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
         "prompt_char_count",
         "prompt_trimmed",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trim_limit",
+        "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls"
       ],
@@ -117,8 +172,15 @@
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
         "prompt_char_count",
         "prompt_trimmed",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trim_limit",
+        "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls"
       ],
@@ -129,6 +191,12 @@
         "context_item_digests": [
           "sha256:53c69efb77e27de118bdbf3a4600ffe483c084b9299856f13de366155c06eb78",
           "sha256:8180779067ea012f6e6c548c6856998826e5df34ae510aec412647ecfd969ffc"
+        ],
+        "input_sha": "sha256:df6975cdc9d16914597c221d30f88fea472eb614cb2e6c5a50e1cda95feb8e9e",
+        "prompt_sha": "sha256:2c427a268fe8040ef87d73ac80c4496d3a1c6a2f1972954272cf91d781e72b49",
+        "context_item_shas": [
+          "sha256:53c69efb77e27de118bdbf3a4600ffe483c084b9299856f13de366155c06eb78",
+          "sha256:8180779067ea012f6e6c548c6856998826e5df34ae510aec412647ecfd969ffc"
         ]
       },
       "count_labels": {
@@ -136,6 +204,10 @@
         "reason_code_count": 3,
         "context_item_digest_count": 2,
         "prompt_char_count": 184,
+        "prompt_original_char_count": 184,
+        "prompt_final_char_count": 184,
+        "prompt_trim_limit": 184,
+        "prompt_trimmed_char_count": 0,
         "verification_hops": 1,
         "verification_calls": 0
       },
@@ -193,8 +265,16 @@
         "prompt_digest",
         "context_item_digests",
         "answer_digest",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
+        "answer_sha",
         "prompt_char_count",
         "prompt_trimmed",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trim_limit",
+        "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls"
       ],
@@ -203,8 +283,16 @@
         "prompt_digest",
         "context_item_digests",
         "answer_digest",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
+        "answer_sha",
         "prompt_char_count",
         "prompt_trimmed",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trim_limit",
+        "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls"
       ],
@@ -216,13 +304,24 @@
           "sha256:ccbc75fbfb81186dca8d04d8f00a476ade7d8f00534cc13acc2458a667da795b",
           "sha256:59f392a1076f520599f6706b4dc33078b0dbe6bcc0ced7335e4c0f8dc3a9408c"
         ],
-        "answer_digest": "sha256:b46494e73a7127dff74d6bf01c4401dacf319cdde20396607ed21fd88a960147"
+        "answer_digest": "sha256:b46494e73a7127dff74d6bf01c4401dacf319cdde20396607ed21fd88a960147",
+        "input_sha": "sha256:21c59486d7edf58553cfe5e08d8b3d42b3623205665c76acbc83b627229cc45e",
+        "prompt_sha": "sha256:dea75288ec5c6d1bf10709d925a6a95e00fac2782882959a78fa80dbb42e6517",
+        "context_item_shas": [
+          "sha256:ccbc75fbfb81186dca8d04d8f00a476ade7d8f00534cc13acc2458a667da795b",
+          "sha256:59f392a1076f520599f6706b4dc33078b0dbe6bcc0ced7335e4c0f8dc3a9408c"
+        ],
+        "answer_sha": "sha256:b46494e73a7127dff74d6bf01c4401dacf319cdde20396607ed21fd88a960147"
       },
       "count_labels": {
         "artifact_count": 5,
         "reason_code_count": 5,
         "context_item_digest_count": 2,
         "prompt_char_count": 4000,
+        "prompt_original_char_count": 5200,
+        "prompt_final_char_count": 4000,
+        "prompt_trim_limit": 4000,
+        "prompt_trimmed_char_count": 1200,
         "verification_hops": 1,
         "verification_calls": 0
       },
@@ -274,19 +373,25 @@
       "expected_provenance_fields": [
         "input_digest",
         "answer_digest",
+        "input_sha",
+        "answer_sha",
         "verification_hops",
         "verification_calls"
       ],
       "present_provenance_fields": [
         "input_digest",
         "answer_digest",
+        "input_sha",
+        "answer_sha",
         "verification_hops",
         "verification_calls"
       ],
       "missing_required_provenance_fields": [],
       "redacted_digest_labels": {
         "input_digest": "sha256:a22c5801f4115ceeb9bcb87ba4f0c2b12fe86a1c053bedc34408c6afc2c5a0d7",
-        "answer_digest": "sha256:be3518d6191f9047d10e0a9ad8cdc7a8669d079be64b54385d57aafe5be5a4ba"
+        "answer_digest": "sha256:be3518d6191f9047d10e0a9ad8cdc7a8669d079be64b54385d57aafe5be5a4ba",
+        "input_sha": "sha256:a22c5801f4115ceeb9bcb87ba4f0c2b12fe86a1c053bedc34408c6afc2c5a0d7",
+        "answer_sha": "sha256:be3518d6191f9047d10e0a9ad8cdc7a8669d079be64b54385d57aafe5be5a4ba"
       },
       "count_labels": {
         "artifact_count": 1,
@@ -346,8 +451,15 @@
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
         "prompt_char_count",
         "prompt_trimmed",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trim_limit",
+        "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls"
       ],
@@ -355,8 +467,15 @@
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
         "prompt_char_count",
         "prompt_trimmed",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trim_limit",
+        "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls"
       ],
@@ -367,6 +486,12 @@
         "context_item_digests": [
           "sha256:fc83a91b2f1b994f70347a3c3d9432a57e94fc4f2fe9655978d08fd8c5391f5a",
           "sha256:d729207a70ab0a424f866fe91526364723160dd1e9d5998cfc4d320920554717"
+        ],
+        "input_sha": "sha256:d5012c87fe2568a7f88441b0695b46e69f230b1615927eb2bb17a83739216a82",
+        "prompt_sha": "sha256:67fc446d4a01a3f15dd7e57213ed6c94ade9c3d7abf6180af448febe0974997b",
+        "context_item_shas": [
+          "sha256:fc83a91b2f1b994f70347a3c3d9432a57e94fc4f2fe9655978d08fd8c5391f5a",
+          "sha256:d729207a70ab0a424f866fe91526364723160dd1e9d5998cfc4d320920554717"
         ]
       },
       "count_labels": {
@@ -374,6 +499,10 @@
         "reason_code_count": 4,
         "context_item_digest_count": 2,
         "prompt_char_count": 184,
+        "prompt_original_char_count": 184,
+        "prompt_final_char_count": 184,
+        "prompt_trim_limit": 184,
+        "prompt_trimmed_char_count": 0,
         "verification_hops": 2,
         "verification_calls": 2
       },
@@ -425,19 +554,25 @@
       "expected_provenance_fields": [
         "input_digest",
         "answer_digest",
+        "input_sha",
+        "answer_sha",
         "verification_hops",
         "verification_calls"
       ],
       "present_provenance_fields": [
         "input_digest",
         "answer_digest",
+        "input_sha",
+        "answer_sha",
         "verification_hops",
         "verification_calls"
       ],
       "missing_required_provenance_fields": [],
       "redacted_digest_labels": {
         "input_digest": "sha256:38557752339bd7a1460a941bb6fd718de1e50c5b8c05d0edc2ccd322e4df2b72",
-        "answer_digest": "sha256:e92495322cf83ee8c920105a5f8b55fc16603ae867e3a4ee1c873e8e4f3e36a8"
+        "answer_digest": "sha256:e92495322cf83ee8c920105a5f8b55fc16603ae867e3a4ee1c873e8e4f3e36a8",
+        "input_sha": "sha256:38557752339bd7a1460a941bb6fd718de1e50c5b8c05d0edc2ccd322e4df2b72",
+        "answer_sha": "sha256:e92495322cf83ee8c920105a5f8b55fc16603ae867e3a4ee1c873e8e4f3e36a8"
       },
       "count_labels": {
         "artifact_count": 1,

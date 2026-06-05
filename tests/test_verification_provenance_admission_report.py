@@ -318,6 +318,24 @@ def test_report_rejects_invalid_digest_labels() -> None:
     assert any("input_digest invalid digest label" in error for error in errors)
 
 
+def test_report_records_sha_aliases_as_digest_label_mirrors() -> None:
+    categories = _report()["path_categories"]
+    assert isinstance(categories, list)
+
+    for category in categories:
+        assert isinstance(category, dict)
+        digest_labels = category["redacted_digest_labels"]
+        assert isinstance(digest_labels, dict)
+        if "input_sha" in digest_labels:
+            assert digest_labels["input_sha"] == digest_labels["input_digest"]
+        if "prompt_sha" in digest_labels:
+            assert digest_labels["prompt_sha"] == digest_labels["prompt_digest"]
+        if "context_item_shas" in digest_labels:
+            assert digest_labels["context_item_shas"] == digest_labels["context_item_digests"]
+        if "answer_sha" in digest_labels:
+            assert digest_labels["answer_sha"] == digest_labels["answer_digest"]
+
+
 def test_report_rejects_missing_required_digest_label() -> None:
     report = _report()
     categories = report["path_categories"]
@@ -332,6 +350,24 @@ def test_report_rejects_missing_required_digest_label() -> None:
 
     assert any(
         "rag_runtime_merged.redacted_digest_labels missing required key: answer_digest" in error
+        for error in errors
+    )
+
+
+def test_report_rejects_missing_required_sha_alias_label() -> None:
+    report = _report()
+    categories = report["path_categories"]
+    assert isinstance(categories, list)
+    category = categories[1]
+    assert isinstance(category, dict)
+    digest_labels = category["redacted_digest_labels"]
+    assert isinstance(digest_labels, dict)
+    del digest_labels["answer_sha"]
+
+    errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
+
+    assert any(
+        "rag_runtime_merged.redacted_digest_labels missing required key: answer_sha" in error
         for error in errors
     )
 
@@ -365,6 +401,9 @@ def test_admitted_paths_use_non_recursive_count_labels() -> None:
         count_labels = by_id[category_id]["count_labels"]
         assert isinstance(count_labels, dict)
         assert by_id[category_id]["admission_allowed"] is True
+        assert count_labels["prompt_final_char_count"] == count_labels["prompt_char_count"]
+        assert count_labels["prompt_trim_limit"] >= count_labels["prompt_final_char_count"]
+        assert count_labels["prompt_trimmed_char_count"] >= 0
         assert count_labels["verification_hops"] == 1
         assert count_labels["verification_calls"] == 0
 
@@ -410,6 +449,10 @@ def test_schema_pins_path_category_digest_label_constraints() -> None:
         "prompt_digest",
         "context_item_digests",
         "answer_digest",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
+        "answer_sha",
     ]
     digest_labels["required"].remove("answer_digest")
     errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
