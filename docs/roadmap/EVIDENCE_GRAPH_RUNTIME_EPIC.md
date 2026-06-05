@@ -136,15 +136,23 @@ After semantic-cache gate reconciliation:
 
 ## Operator-Selected Follow-Up
 
-The current follow-up is a narrow Verification Bundle Provenance Attestation v1
-slice. It adds internal-only digest/count metadata to existing
+The current follow-up is PR `#1884`, a narrow Verification Bundle Provenance
+Attestation v1 slice. It adds internal-only digest/count metadata to existing
 `VerificationBundle` decisions so the product AI runtime can identify the
 redacted input, prompt, context items, final answer, prompt trim state, and
-verification hop/call counts that shaped an admission decision.
+verification hop/call counts that shaped an admission decision. Evidence:
+`core/verification/contracts.py:16`, `core/verification/contracts.py:45`,
+`core/verification/registry.py:161`, and
+`core/verification/registry.py:194`.
 
 This follow-up does not change public response DTOs, OpenAPI, DB persistence,
 provider selection, frontend, iOS, semantic cache, GraphRAG, Slack/operator
-authority, or runtime-serving behavior.
+authority, or runtime-serving behavior. Evidence:
+`core/insight/philosophical_runtime.py:195`,
+`core/insight/philosophical_runtime.py:208`,
+`app/services/insight_application_service.py:202`,
+`docs/roadmap/BACKLOG_LEDGER.md:2591`, and
+`docs/review/PR_1884_FIXED_MAPPING.md`.
 
 ## Hard Boundaries
 

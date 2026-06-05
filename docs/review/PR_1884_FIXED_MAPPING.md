@@ -87,8 +87,8 @@ Evidence: `docs/review/PR_1884_FIXED_MAPPING.md` now records the `security-audit
 - `mutated_paths`: `[]`
 - `shared_tree_untouched`: `true`
 - `coauthor_required`: `true`
-- Co-author trailer was applied to the commit materially shaped by the
-  oracle-only Experiment Runner review.
+- Co-author trailer is present on `c3bd36235`, the commit materially shaped by
+  the oracle-only Experiment Runner review.
 
 ## Validation
 

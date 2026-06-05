@@ -2044,6 +2044,27 @@ class TestVerificationRegistryCoverageTail:
 
         assert merged is None
 
+    def test_runtime_bundle_disabled_path_ignores_provenance_without_rag_bundle(self) -> None:
+        from core.verification.registry import (
+            build_runtime_verification_bundle,
+            build_verification_provenance,
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=None,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=False,
+            runtime_verification_enabled=False,
+            provenance=build_verification_provenance(
+                input_text="disabled runtime input",
+                answer_text="disabled runtime answer",
+            ),
+        )
+
+        assert merged is None
+
     def test_verification_provenance_redacts_before_hash_and_preserves_admission(
         self,
     ) -> None:
