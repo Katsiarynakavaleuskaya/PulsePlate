@@ -4005,11 +4005,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deferred release-lane checks before protected upload: rendered RU screenshot/video visual QA, AI/privacy/reviewer-note reconciliation against the submitted build, and native RU/ASO copy review
 
 
-- [ ] P2: FitChef App Store localization ES
+- [x] P2: FitChef App Store localization ES
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (ASO / localization)
-  - Target PR: PR-TBD-FITCHEF-LOCALIZATION-ES
-  - Status: 🚧 Active as the current multilingual App Store localization QA lane after RU contract and visual-QA prep landed.
+  - Target PR: PR #1886 (`docs(fitchef): promote multilingual App Store localization QA wave`)
+  - Status: ✅ Landed via PR #1886 on 2026-06-05 with merge commit `26b7cf4fd817d0db5d761fddb4acbcc7b476c917`; EN/RU/ES packs now share a governed localization QA contract.
   - Reason (EN): Spanish localization is a follow-up wave after the governed `EN` and `RU` contract packs. It now opens as a peer metadata/screenshot/preview contract plus cross-locale EN/RU/ES review prep so future ASO copy, screenshot exports, and review metadata remain traceable in the canonical backlog.
   - Links:
     - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
@@ -4023,6 +4023,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ES` preview storyboard/script stays under 30 seconds and remains script-only until a governed capture/export path opens
     - Cross-locale EN/RU/ES QA prep flags copy length, safe-area, FitChef overlap, UI/copy mismatch, and wellness-claim review risks
     - Any `ES` asset/export, Fastlane upload, preview binary, screenshot binary, or App Store Connect mutation work remains separated from governance-only PRs
+
+
+- [ ] P1: FitChef App Store rendered review and TestFlight readiness
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (release readiness / App Store evidence)
+  - Target PR: PR-TBD-FITCHEF-APPSTORE-RENDERED-REVIEW-TESTFLIGHT-READINESS
+  - Status: 🚧 Active as the current FitChef App Store release-readiness review lane after EN/RU/ES localization packs landed.
+  - Reason (EN): The localized FitChef packs are governed as text/JSON contracts, but release review still needs a single internal matrix tying the seven App Store shots to iOS screenshot scenarios, accessibility identifiers, reviewer classifications, privacy/AI/wellness notes, and rendered-review requirements before protected upload work can open.
+  - Links:
+    - `appstore/fitchef/release_readiness/shot_scenario_matrix.json`
+    - `appstore/fitchef/release_readiness/rendered_review_testflight_readiness.md`
+    - `docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md`
+    - `docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md`
+    - `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift`
+    - `ios/PulsePlateUITests/AppStoreScreenshotTests.swift`
+  - DoD:
+    - All seven FitChef shot IDs are mapped across `en-US`, `ru-RU`, and `es-ES` to canonical iOS `AppStoreScreenshotScenario` values, accessibility identifiers, and UI-test screenshot names
+    - The rendered-review checklist remains `INTERNAL_REVIEW_ONLY` and records privacy, AI, wellness, line-fit, safe-area, and FitChef-overlap review requirements
+    - `make ios-appstore-verify` validates the matrix, locale parity, reviewer-gate linkage, wellness-safe copy, and no-binary/no-upload boundaries
+    - Protected follow-ups remain separate: Fastlane upload, App Store Connect mutation, screenshot/video binaries, final media export, and protected environment activation
 
 
 - [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)

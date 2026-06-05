@@ -43,6 +43,7 @@ BLOCKED_COPY_TERMS = {
         "best app",
         "free trial",
         "subscription",
+        "improve health",
     ),
     "ru-RU": (
         "диагноз",
@@ -126,6 +127,64 @@ EXPECTED_SHOT_IDS = [
     "shot-06",
     "shot-07",
 ]
+EXPECTED_SCENARIO_MATRIX = {
+    "shot-01": {
+        "scenario_id": "core_value",
+        "expected_filename": "01_core-value.png",
+        "ui_test_screenshot_name": "01_core-value",
+        "accessibility_identifier": "appstore.core_value.screen",
+        "classification": "SUBMIT_READY",
+        "scene_id": "scene-01",
+    },
+    "shot-02": {
+        "scenario_id": "nutrition_analysis",
+        "expected_filename": "02_nutrition-analysis.png",
+        "ui_test_screenshot_name": "02_nutrition-analysis",
+        "accessibility_identifier": "appstore.nutrition_analysis.screen",
+        "classification": "IMPLEMENTATION_REQUIRED",
+        "scene_id": "scene-02",
+    },
+    "shot-03": {
+        "scenario_id": "meal_planner",
+        "expected_filename": "03_meal-planner.png",
+        "ui_test_screenshot_name": "03_meal-planner",
+        "accessibility_identifier": "appstore.meal_planner.screen",
+        "classification": "IMPLEMENTATION_REQUIRED",
+        "scene_id": "scene-03",
+    },
+    "shot-04": {
+        "scenario_id": "grocery_list",
+        "expected_filename": "04_grocery-list.png",
+        "ui_test_screenshot_name": "04_grocery-list",
+        "accessibility_identifier": "appstore.grocery_list.screen",
+        "classification": "IMPLEMENTATION_REQUIRED",
+        "scene_id": "scene-04",
+    },
+    "shot-05": {
+        "scenario_id": "health_progress",
+        "expected_filename": "05_health-progress.png",
+        "ui_test_screenshot_name": "05_health-progress",
+        "accessibility_identifier": "appstore.health_progress.screen",
+        "classification": "IMPLEMENTATION_REQUIRED",
+        "scene_id": "scene-05",
+    },
+    "shot-06": {
+        "scenario_id": "personalization",
+        "expected_filename": "06_personalization.png",
+        "ui_test_screenshot_name": "06_personalization",
+        "accessibility_identifier": "appstore.personalization.screen",
+        "classification": "IMPLEMENTATION_REQUIRED",
+        "scene_id": "scene-06",
+    },
+    "shot-07": {
+        "scenario_id": "ai_assistant",
+        "expected_filename": "07_ai-assistant.png",
+        "ui_test_screenshot_name": "07_ai-assistant",
+        "accessibility_identifier": "appstore.ai_assistant.screen",
+        "classification": "IMPLEMENTATION_REQUIRED",
+        "scene_id": "scene-07",
+    },
+}
 LOCALIZED_REQUIRED_MARKERS = {
     "ru-RU": ("вне области",),
     "es-ES": ("fuera del alcance", "internal_review_only"),
@@ -388,6 +447,18 @@ def _visual_qa_prep_path(locale: str = "ru-RU") -> Path:
 
 def _cross_locale_review_prep_path() -> Path:
     return PACK_BASE / "localization_qa" / "cross_locale_review_prep.md"
+
+
+def _release_readiness_dir() -> Path:
+    return PACK_BASE / "release_readiness"
+
+
+def _shot_scenario_matrix_path() -> Path:
+    return _release_readiness_dir() / "shot_scenario_matrix.json"
+
+
+def _rendered_review_readiness_path() -> Path:
+    return _release_readiness_dir() / "rendered_review_testflight_readiness.md"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -1162,6 +1233,10 @@ def test_cross_locale_review_prep_covers_sources_and_seven_shots() -> None:
             assert headline_text in row
             assert supporting_text in row
             assert f"| {max_line_chars} | {longest_token_chars} |" in row
+            assert any(status in row for status in ("review", "pass-length", "render-risk"))
+            assert "pending render" in row
+            assert "FitChef" in row
+            assert "Human render review before any protected upload." in row
             for source_ref in shot["repo_source_refs"]:
                 assert f"`{source_ref}`" in row
                 assert _repo_path(source_ref).exists()
@@ -1177,6 +1252,126 @@ def test_cross_locale_review_prep_covers_sources_and_seven_shots() -> None:
         "Cross-locale QA prep contains unsafe local/upload fragments: "
         f"{[*unsafe_fragments, *upload_claims, wellness_blockers]}"
     )
+
+
+def test_app_store_copy_uses_bounded_wellness_support_language() -> None:
+    """Reject the stale promissory EN benefit wording found by role review."""
+    scanned_paths = [
+        _screenshots_dir("en-US") / "shot_manifest.json",
+        _cross_locale_review_prep_path(),
+        REPO_ROOT / "docs" / "contracts" / "FITCHEF_APP_STORE_VISUAL_CONTRACT.md",
+    ]
+    combined_text = "\n".join(path.read_text(encoding="utf-8") for path in scanned_paths)
+    lowered = _claim_scan_text(combined_text)
+
+    assert "improve health" not in lowered
+    assert "support habits" in lowered
+
+
+def test_release_readiness_bundle_exists_and_stays_text_json_only() -> None:
+    """Rendered-review prep must stay as repo text, not protected media output."""
+    readiness_dir = _release_readiness_dir()
+    matrix_path = _shot_scenario_matrix_path()
+    checklist_path = _rendered_review_readiness_path()
+
+    assert readiness_dir.exists()
+    assert matrix_path.exists()
+    assert checklist_path.exists()
+    assert matrix_path.suffix == ".json"
+    assert checklist_path.suffix == ".md"
+
+    unsupported_files = [
+        path
+        for path in readiness_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() not in ALLOWED_TEXT_PACK_SUFFIXES
+    ]
+    media_files = _media_files_under(readiness_dir)
+    assert (
+        not unsupported_files
+    ), f"Release-readiness bundle must stay text/JSON: {unsupported_files}"
+    assert not media_files, f"Release-readiness bundle must not contain media: {media_files}"
+
+
+def test_shot_scenario_matrix_links_locale_packs_to_ios_scenarios() -> None:
+    """The matrix must bind every locale shot to iOS scenario and reviewer truth."""
+    payload = _load_json(_shot_scenario_matrix_path())
+
+    assert payload["schema_version"] == "fitchef-appstore-release-readiness.v1"
+    assert payload["classification"] == "INTERNAL_REVIEW_ONLY"
+    assert payload["validation_gate"] == "make ios-appstore-verify"
+    assert tuple(payload["locales"]) == LOCALES
+    for source_path in payload["source_paths"].values():
+        assert _repo_path(source_path).exists()
+
+    scenarios_by_shot = {scenario["shot_id"]: scenario for scenario in payload["scenarios"]}
+    assert list(scenarios_by_shot) == EXPECTED_SHOT_IDS
+    for shot_id, expected in EXPECTED_SCENARIO_MATRIX.items():
+        scenario = scenarios_by_shot[shot_id]
+        assert scenario["scenario_id"] == expected["scenario_id"]
+        assert scenario["expected_filename"] == expected["expected_filename"]
+        assert scenario["ui_test_screenshot_name"] == expected["ui_test_screenshot_name"]
+        assert scenario["accessibility_identifier"] == expected["accessibility_identifier"]
+        assert scenario["reviewer_matrix_classification"] == expected["classification"]
+        assert scenario["screenshot_gate_classification"] == expected["classification"]
+        assert scenario["public_submission_allowed"] is False
+        assert scenario["rendered_review_required"] is True
+        assert scenario["testflight_smoke_status"] == "not_started"
+        assert "wellness" in scenario["privacy_ai_wellness_note"].lower()
+
+    locale_rows = payload["locale_review_matrix"]
+    observed_pairs = {(row["locale"], row["shot_id"]) for row in locale_rows}
+    expected_pairs = {(locale, shot_id) for locale in LOCALES for shot_id in EXPECTED_SHOT_IDS}
+    assert len(locale_rows) == len(expected_pairs)
+    assert observed_pairs == expected_pairs
+
+    for row in locale_rows:
+        locale = row["locale"]
+        shot_id = row["shot_id"]
+        expected = EXPECTED_SCENARIO_MATRIX[shot_id]
+        manifest = _load_json(_repo_path(row["manifest_path"]))
+        storyboard = _load_json(_repo_path(row["storyboard_path"]))
+        matching_shots = [shot for shot in manifest["shots"] if shot["id"] == shot_id]
+        matching_scenes = [scene for scene in storyboard["scenes"] if scene["shot_id"] == shot_id]
+
+        assert manifest["locale"] == locale
+        assert storyboard["locale"] == locale
+        assert len(matching_shots) == 1
+        assert len(matching_scenes) == 1
+        assert matching_shots[0]["expected_filename"] == expected["expected_filename"]
+        assert matching_scenes[0]["id"] == expected["scene_id"]
+        assert row["scene_id"] == expected["scene_id"]
+        assert (
+            row["time_range"]
+            == f"{matching_scenes[0]['start_second']}-{matching_scenes[0]['end_second']}s"
+        )
+        assert row["line_fit_status"] in {"review", "pass-length", "render-risk"}
+        assert row["safe_area_status"] == "pending_render"
+        assert "fitchef" in row["fitchef_overlap_status"].lower()
+        assert "rendered review" in row["reviewer_action"].lower()
+
+
+def test_release_readiness_bundle_preserves_internal_no_upload_boundary() -> None:
+    """The bundle supports review only and must not imply public upload authority."""
+    payload = _load_json(_shot_scenario_matrix_path())
+    checklist = _rendered_review_readiness_path().read_text(encoding="utf-8")
+    strings_without_expected_classes = [
+        value
+        for value in _flatten_strings(payload)
+        if value not in {"SUBMIT_READY", "IMPLEMENTATION_REQUIRED"}
+    ]
+    scan_text = "\n".join([checklist, *strings_without_expected_classes])
+    lower_scan_text = _claim_scan_text(scan_text)
+
+    assert "Classification: INTERNAL_REVIEW_ONLY" in checklist
+    assert "make ios-appstore-verify" in checklist
+    assert all(scenario["public_submission_allowed"] is False for scenario in payload["scenarios"])
+    assert not [
+        fragment for fragment in LOCAL_PATH_AND_SECRET_FRAGMENTS if fragment in lower_scan_text
+    ]
+    assert not _blocked_upload_claims_in(scan_text)
+    assert "free trial" not in lower_scan_text
+    assert "subscription" not in lower_scan_text
+    assert "improve health" not in lower_scan_text
 
 
 def test_es_wellness_blockers_do_not_reject_food_recipe_copy() -> None:

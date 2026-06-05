@@ -9,9 +9,15 @@ Verifies that:
 
 from __future__ import annotations
 
+import importlib.util
+import json
 import pathlib
 import subprocess
 import sys
+from types import ModuleType
+from typing import Any
+
+import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 VALIDATOR_SCRIPT = REPO_ROOT / "scripts" / "release" / "check_ios_appstore_verify.py"
@@ -27,6 +33,7 @@ REQUIRED_CHECKS = [
     "check_ai_wellness_consent",
     "check_reviewer_pack",
     "check_screenshot_policy",
+    "check_fitchef_release_readiness_bundle",
     "check_storekit_pricing_truth",
 ]
 
@@ -45,6 +52,12 @@ def test_makefile_target_exists() -> None:
     assert (
         "ios-appstore-verify" in content.split(".PHONY:")[-1]
     ), "ios-appstore-verify not declared in .PHONY"
+    target_block = content.split("ios-appstore-verify:", maxsplit=1)[1].split(
+        "# --- Dev Container targets",
+        maxsplit=1,
+    )[0]
+    assert "repo-local release gates" in target_block
+    assert "submission readiness" not in target_block.lower()
 
 
 def test_validator_script_passes() -> None:
@@ -69,6 +82,8 @@ def test_validator_has_required_checks() -> None:
     content = VALIDATOR_SCRIPT.read_text(encoding="utf-8")
     missing = [name for name in REQUIRED_CHECKS if f"def {name}(" not in content]
     assert not missing, f"Validator missing check functions: {missing}"
+    assert "repo-local release validation" in content
+    assert "submission readiness" not in content.lower()
 
 
 def test_validator_registers_all_checks() -> None:
@@ -78,3 +93,272 @@ def test_validator_registers_all_checks() -> None:
     assert "ALL_CHECKS" in content, "Validator missing ALL_CHECKS list"
     for name in REQUIRED_CHECKS:
         assert name in content.split("ALL_CHECKS")[1], f"Check {name} not registered in ALL_CHECKS"
+
+
+def _load_validator_module() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("check_ios_appstore_verify", VALIDATOR_SCRIPT)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _prepare_fitchef_bundle_fixture(
+    module: ModuleType,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[pathlib.Path, dict[str, Any], str]:
+    release_dir = tmp_path / "release_readiness"
+    release_dir.mkdir()
+
+    matrix_path = release_dir / "shot_scenario_matrix.json"
+    checklist_path = release_dir / "rendered_review_testflight_readiness.md"
+    payload = json.loads(module.FITCHEF_SHOT_SCENARIO_MATRIX.read_text(encoding="utf-8"))
+    checklist = module.FITCHEF_RENDERED_REVIEW_CHECKLIST.read_text(encoding="utf-8")
+    matrix_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    checklist_path.write_text(checklist, encoding="utf-8")
+
+    monkeypatch.setattr(module, "FITCHEF_RELEASE_READINESS_DIR", release_dir)
+    monkeypatch.setattr(module, "FITCHEF_SHOT_SCENARIO_MATRIX", matrix_path)
+    monkeypatch.setattr(module, "FITCHEF_RENDERED_REVIEW_CHECKLIST", checklist_path)
+    return release_dir, payload, checklist
+
+
+def _failed_messages(results: list[tuple[bool, str, str]]) -> str:
+    return "\n".join(message for ok, _tag, message in results if not ok)
+
+
+def test_fitchef_release_readiness_validator_rejects_missing_matrix(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir = tmp_path / "release_readiness"
+    release_dir.mkdir()
+    checklist_path = release_dir / "rendered_review_testflight_readiness.md"
+    checklist_path.write_text("Classification: INTERNAL_REVIEW_ONLY", encoding="utf-8")
+
+    monkeypatch.setattr(module, "FITCHEF_RELEASE_READINESS_DIR", release_dir)
+    monkeypatch.setattr(module, "FITCHEF_SHOT_SCENARIO_MATRIX", release_dir / "missing.json")
+    monkeypatch.setattr(module, "FITCHEF_RENDERED_REVIEW_CHECKLIST", checklist_path)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "File missing" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_submit_ready_overclaim(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["public_submission_allowed"] = True
+    (release_dir / "shot_scenario_matrix.json").write_text(
+        json.dumps(payload, indent=2),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "must not claim public submission allowed" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_secret_or_local_path(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\nGH_TOKEN stored at /Users/example/token\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    messages = _failed_messages(results)
+    assert "gh_token" in messages or "/users/" in messages
+
+
+def test_fitchef_release_readiness_validator_rejects_generic_secret_assignment(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\nsecret=abcd1234efgh5678\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Credential-like release bundle value" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_protected_json_keys(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["github_token"] = "redacted"
+    (release_dir / "shot_scenario_matrix.json").write_text(
+        json.dumps(payload, indent=2),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Scenario matrix top-level schema key drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_media_file(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "shot-01.png").write_bytes(b"not a real screenshot")
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Media file is not allowed" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_locale_manifest_mismatch(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["locale_review_matrix"][0][
+        "manifest_path"
+    ] = "appstore/fitchef/ru-RU/iphone-6.9/screenshots/shot_manifest.json"
+    (release_dir / "shot_scenario_matrix.json").write_text(
+        json.dumps(payload, indent=2),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Manifest locale drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_time_range_drift(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["locale_review_matrix"][1]["time_range"] = "3-7s"
+    (release_dir / "shot_scenario_matrix.json").write_text(
+        json.dumps(payload, indent=2),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Time range drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_duplicate_locale_rows(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["locale_review_matrix"].append(payload["locale_review_matrix"][0])
+    (release_dir / "shot_scenario_matrix.json").write_text(
+        json.dumps(payload, indent=2),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Locale review matrix row count drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_reviewer_matrix_drift(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    reviewer_matrix = tmp_path / "APPSTORE_REVIEWER_SUBMISSION_MATRIX.md"
+    reviewer_text = module.REVIEWER_SUBMISSION_MATRIX.read_text(encoding="utf-8")
+    reviewer_text += "\n| `core_value` | `IMPLEMENTATION_REQUIRED` |\n"
+    reviewer_matrix.write_text(reviewer_text, encoding="utf-8")
+    monkeypatch.setattr(module, "REVIEWER_SUBMISSION_MATRIX", reviewer_matrix)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Reviewer submission matrix classification drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_protected_action_claims(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        "\n".join(
+            [
+                checklist,
+                "Fastlane upload completed for all screenshots.",
+                "App Store Connect mutation completed for the draft.",
+                "Screenshot binary export completed.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Protected release action claim" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_pricing_text(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\nOffer a 14-day free trial in the rendered copy.\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "free trial" in _failed_messages(results).lower()
+
+
+def test_fitchef_release_readiness_validator_rejects_stale_wellness_promise(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\nRendered copy may improve health.\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "improve health" in _failed_messages(results)

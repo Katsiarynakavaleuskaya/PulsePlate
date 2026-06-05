@@ -96,7 +96,7 @@ Layout rules:
 ### Shot 1. Core value
 
 - Headline: `Smart Nutrition` / `Powered by AI`
-- Supporting copy: `Track nutrients` / `plan meals` / `improve health`
+- Supporting copy: `Track nutrients` / `plan meals` / `support habits`
 - Product surface: dashboard with calories, macros, micronutrients, and daily
   score
 - FitChef emotion: calm / welcoming
@@ -231,14 +231,15 @@ Rules:
   they are explicitly classified as internal review and carry no screenshot or
   video binaries, Fastlane upload authority, App Store Connect mutation, or
   submission-readiness claim
-- `RU` and `ES` folders are follow-up waves after `EN`; `RU` is now landed as
-  a governed pack and `ES` opens as the current reviewed localization lane
+- `RU` and `ES` folders are landed governed follow-up waves after `EN`; the
+  current review lane is the internal rendered-review/TestFlight readiness
+  bundle for EN/RU/ES parity
 
 ## Localization policy
 
 - First governed App Store wave: `EN` only
 - Follow-up waves are backlog-tracked and separated by locale:
-  `RU` is landed, `ES` is current
+  `RU` and `ES` are landed; rendered review/TestFlight readiness is current
 - No bilingual or mixed-language screenshot sets are allowed in the same export
   pack
 
