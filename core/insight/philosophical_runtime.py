@@ -38,7 +38,10 @@ from core.i18n import normalize_lang
 import core.rag.orchestration as rag_orchestration
 from core.rag.orchestration import RAGOrchestrationResult
 from core.verification.contracts import VerificationBundle
-from core.verification.registry import build_runtime_verification_bundle
+from core.verification.registry import (
+    build_runtime_verification_bundle,
+    build_verification_provenance,
+)
 from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
 
 _APPROX_CHARS_PER_TOKEN = 4
@@ -420,6 +423,7 @@ class PhilosophicalRuntime:
                 answer=_SAFE_WELLNESS_DISCLAIMER[_normalize_runtime_lang(lang)],
                 provider_name="philosophical_runtime",
                 decision=decision,
+                input_text=text,
                 public_metadata_enabled=policy.public_metadata_enabled,
                 verification_report=None,
                 falsification_report=None,
@@ -434,6 +438,7 @@ class PhilosophicalRuntime:
                 answer=local_direct,
                 provider_name="philosophical_runtime",
                 decision=decision,
+                input_text=text,
                 public_metadata_enabled=policy.public_metadata_enabled,
                 verification_report=None,
                 falsification_report=None,
@@ -471,12 +476,13 @@ class PhilosophicalRuntime:
             if rag_result.chunks:
                 rag_source_dicts = build_rag_source_dicts(rag_result.chunks)
 
-        prompt_text = self._build_prompt(
+        prompt_text_untrimmed = self._build_prompt(
             base_prompt=prompt_input,
             decision=decision,
             phase12_enabled=policy.phase12_enabled,
         )
-        prompt_text = _trim_prompt(prompt_text)
+        prompt_text, prompt_trimmed = _trim_prompt_with_metadata(prompt_text_untrimmed)
+        final_prompt_text = prompt_text
 
         answer = await provider.generate(prompt_text)
         rewrite_count = 0
@@ -509,7 +515,11 @@ class PhilosophicalRuntime:
                     falsification_report=falsification_report,
                     contradiction_count=contradiction_count,
                 )
-                rewritten_prompt = _trim_prompt(rewrite_prompt)
+                rewritten_prompt, rewrite_prompt_trimmed = _trim_prompt_with_metadata(
+                    rewrite_prompt
+                )
+                final_prompt_text = rewritten_prompt
+                prompt_trimmed = prompt_trimmed or rewrite_prompt_trimmed
                 answer = await provider.generate(rewritten_prompt)
                 verification_report = self._verification.validate(answer, citations=citations)
                 falsification_report = self._falsification.validate(answer)
@@ -534,6 +544,22 @@ class PhilosophicalRuntime:
             rewrite_count=rewrite_count,
             fallback_reason=fallback_reason,
         )
+        runtime_provenance = build_verification_provenance(
+            input_text=text,
+            prompt_text=final_prompt_text,
+            context_items=(
+                tuple(chunk.content for chunk in rag_result.chunks)
+                if rag_result is not None
+                else ()
+            ),
+            answer_text=answer,
+            prompt_char_count=len(final_prompt_text),
+            prompt_trimmed=prompt_trimmed,
+            verification_hops=hops,
+            verification_calls=(
+                0 if rag_result is None else getattr(rag_result, "verification_calls", 0)
+            ),
+        )
         verification_bundle = build_runtime_verification_bundle(
             rag_bundle=(
                 None if rag_result is None else getattr(rag_result, "verification_bundle", None)
@@ -546,6 +572,7 @@ class PhilosophicalRuntime:
                 rag_used=rag_used,
             ),
             runtime_verification_enabled=policy.phase12_enabled,
+            provenance=runtime_provenance,
         )
 
         tokens_saved_estimate = _estimate_tokens_saved(
@@ -833,6 +860,7 @@ class PhilosophicalRuntime:
         contradiction_count: int,
         fallback_reason: str,
         rewrite_count: int,
+        input_text: str | None = None,
     ) -> RuntimeResult:
         """Build a result for fully local/direct answers.
 
@@ -855,6 +883,12 @@ class PhilosophicalRuntime:
             rewrite_count=rewrite_count,
             fallback_reason=fallback_reason or "none",
         )
+        provenance = build_verification_provenance(
+            input_text=input_text or decision.simplified_query,
+            answer_text=answer,
+            verification_hops=0,
+            verification_calls=0,
+        )
         return RuntimeResult(
             insight=answer,
             provider_name=provider_name,
@@ -873,12 +907,28 @@ class PhilosophicalRuntime:
                 reason_codes=list(decision.reason_codes),
                 optimization_applied=True,
             ),
+            verification_bundle=build_runtime_verification_bundle(
+                rag_bundle=None,
+                verification_report=verification_report,
+                falsification_report=falsification_report,
+                contradiction_count=contradiction_count,
+                verification_first_path=False,
+                runtime_verification_enabled=True,
+                provenance=provenance,
+            ),
         )
+
+
+def _trim_prompt_with_metadata(prompt: str, max_chars: int = 4000) -> tuple[str, bool]:
+    """Keep prompt bounded and report whether trimming happened."""
+    if len(prompt) > max_chars:
+        return prompt[:max_chars], True
+    return prompt, False
 
 
 def _trim_prompt(prompt: str, max_chars: int = 4000) -> str:
     """Keep prompt bounded deterministically."""
-    return prompt[:max_chars] if len(prompt) > max_chars else prompt
+    return _trim_prompt_with_metadata(prompt, max_chars=max_chars)[0]
 
 
 def _approx_tokens(text: str) -> int:

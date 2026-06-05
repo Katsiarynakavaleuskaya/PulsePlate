@@ -2044,12 +2044,106 @@ class TestVerificationRegistryCoverageTail:
 
         assert merged is None
 
+    def test_runtime_bundle_disabled_path_ignores_provenance_without_rag_bundle(self) -> None:
+        from core.verification.registry import (
+            build_runtime_verification_bundle,
+            build_verification_provenance,
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=None,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=False,
+            runtime_verification_enabled=False,
+            provenance=build_verification_provenance(
+                input_text="disabled runtime input",
+                answer_text="disabled runtime answer",
+            ),
+        )
+
+        assert merged is None
+
+    def test_verification_provenance_redacts_before_hash_and_preserves_admission(
+        self,
+    ) -> None:
+        from dataclasses import asdict
+        from hashlib import sha256
+
+        from core.verification.registry import (
+            build_bundle,
+            build_verification_provenance,
+            redacted_sha256_label,
+        )
+        from core.verification.contracts import VerificationArtifact
+
+        raw_text = (
+            "email jane@example.com api_key=secret-token "
+            "/Users/example/private.txt /workspace/PulsePlate/.env /app/secrets/key "
+            "DATABASE_URL=postgres://example.invalid/db SERVER_SALT=salt SECRET_KEY=value "
+            "xoxb-secret-token U1234567890"
+        )
+        artifact = VerificationArtifact(
+            artifact_id="provenance-test",
+            verifier_id="provenance_test_verifier",
+            status="pass",
+            reason_codes=("verification_checks_pass",),
+        )
+        provenance = build_verification_provenance(
+            input_text=raw_text,
+            prompt_text=raw_text,
+            context_items=(raw_text,),
+            answer_text=raw_text,
+            prompt_char_count=-5,
+            prompt_trimmed=True,
+            verification_hops="invalid",
+            verification_calls=3,
+        )
+        baseline = build_bundle(artifacts=(artifact,))
+        with_provenance = build_bundle(artifacts=(artifact,), provenance=provenance)
+
+        assert with_provenance.overall_status == baseline.overall_status
+        assert with_provenance.admission_allowed == baseline.admission_allowed
+        assert with_provenance.reason_codes == baseline.reason_codes
+        assert with_provenance.provenance is provenance
+        assert provenance.prompt_char_count == 0
+        assert provenance.prompt_trimmed is True
+        assert provenance.verification_hops == 0
+        assert provenance.verification_calls == 3
+        assert provenance.input_digest == redacted_sha256_label(raw_text)
+        assert provenance.input_digest != f"sha256:{sha256(raw_text.encode('utf-8')).hexdigest()}"
+        assert provenance.input_digest is not None
+        assert provenance.input_digest.startswith("sha256:")
+        assert len(provenance.input_digest.removeprefix("sha256:")) == 64
+        assert build_verification_provenance(prompt_text="count me").prompt_char_count == 8
+        github_pat_text = "github_pat_fake_fake_fake"
+        github_pat_digest = redacted_sha256_label(github_pat_text)
+        assert github_pat_digest is not None
+        assert github_pat_digest != f"sha256:{sha256(github_pat_text.encode('utf-8')).hexdigest()}"
+        payload = str(asdict(with_provenance))
+        for forbidden in (
+            "jane@example.com",
+            "/Users/example",
+            "/workspace/PulsePlate",
+            "/app/secrets",
+            "postgres://example.invalid/db",
+            "SERVER_SALT=salt",
+            "SECRET_KEY=value",
+            "xoxb-secret-token",
+            "U1234567890",
+            "secret-token",
+        ):
+            assert forbidden not in payload
+
     def test_runtime_bundle_passthrough_when_runtime_verification_is_disabled(self) -> None:
         from core.verification.registry import (
             build_rag_verification_bundle,
             build_runtime_verification_bundle,
+            build_verification_provenance,
         )
 
+        provenance = build_verification_provenance(input_text="input", answer_text="answer")
         rag_bundle = build_rag_verification_bundle(
             knowledge_policy=self._knowledge_policy(),
             confidence=0.92,
@@ -2059,6 +2153,7 @@ class TestVerificationRegistryCoverageTail:
             recursive_executed=False,
             verification_calls=0,
             evidence_refs=("docs/keep.md:keep",),
+            provenance=provenance,
         )
 
         merged = build_runtime_verification_bundle(
@@ -2068,9 +2163,106 @@ class TestVerificationRegistryCoverageTail:
             contradiction_count=0,
             verification_first_path=True,
             runtime_verification_enabled=False,
+            provenance=build_verification_provenance(
+                input_text="new input",
+                answer_text="new answer",
+            ),
         )
 
+        assert merged is rag_bundle
         assert merged == rag_bundle
+        assert merged.provenance is provenance
+
+    def test_runtime_bundle_preserves_rag_provenance_without_overlay(self) -> None:
+        from core.insight.analytical import FalsificationReport, VerificationReport
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+            build_verification_provenance,
+        )
+
+        provenance = build_verification_provenance(input_text="rag input")
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+            provenance=provenance,
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=VerificationReport(verification_rate=1.0, unverified_claims=[]),
+            falsification_report=FalsificationReport(
+                falsifiability_rate=1.0,
+                unfalsifiable_claims=[],
+            ),
+            contradiction_count=0,
+            verification_first_path=True,
+        )
+
+        assert merged is not None
+        assert merged.provenance is provenance
+
+    def test_runtime_bundle_merges_rag_and_runtime_provenance(self) -> None:
+        from core.insight.analytical import FalsificationReport, VerificationReport
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+            build_verification_provenance,
+        )
+
+        rag_provenance = build_verification_provenance(
+            input_text="rag input",
+            context_items=("rag context",),
+            verification_hops=2,
+            verification_calls=2,
+        )
+        runtime_provenance = build_verification_provenance(
+            answer_text="runtime answer",
+            prompt_text="runtime prompt",
+            prompt_trimmed=True,
+            verification_hops=0,
+            verification_calls=3,
+        )
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+            provenance=rag_provenance,
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=VerificationReport(verification_rate=1.0, unverified_claims=[]),
+            falsification_report=FalsificationReport(
+                falsifiability_rate=1.0,
+                unfalsifiable_claims=[],
+            ),
+            contradiction_count=0,
+            verification_first_path=True,
+            provenance=runtime_provenance,
+        )
+
+        assert merged is not None
+        assert merged.provenance is not None
+        assert merged.provenance is not rag_provenance
+        assert merged.provenance is not runtime_provenance
+        assert merged.provenance.input_digest == rag_provenance.input_digest
+        assert merged.provenance.context_item_digests == rag_provenance.context_item_digests
+        assert merged.provenance.prompt_digest == runtime_provenance.prompt_digest
+        assert merged.provenance.answer_digest == runtime_provenance.answer_digest
+        assert merged.provenance.prompt_trimmed is True
+        assert merged.provenance.verification_calls == runtime_provenance.verification_calls
 
     def test_runtime_bundle_reuses_rag_bundle_without_philosophical_pass(self) -> None:
         from core.verification.registry import (
@@ -2098,6 +2290,48 @@ class TestVerificationRegistryCoverageTail:
         )
 
         assert merged == rag_bundle
+
+    @pytest.mark.asyncio
+    async def test_runtime_rewrite_provenance_records_rewrite_prompt_trim(self) -> None:
+        from core.insight.philosophical_runtime import PhilosophicalRuntime
+
+        class _Provider:
+            name = "coverage-provider"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def generate(self, text: str) -> str:
+                self.calls += 1
+                return "This may help. It depends on the individual."
+
+        runtime = PhilosophicalRuntime()
+        provider = _Provider()
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery? " + ("nutrition " * 700),
+            lang="en",
+            provider=provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=True,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+        )
+
+        assert provider.calls == 2
+        assert result.verification_bundle is not None
+        assert result.verification_bundle.provenance is not None
+        assert result.verification_bundle.provenance.prompt_char_count == 4000
+        assert result.verification_bundle.provenance.prompt_trimmed is True
+
+    def test_runtime_trim_prompt_legacy_wrapper_returns_text_only(self) -> None:
+        from core.insight import philosophical_runtime as runtime_mod
+
+        assert runtime_mod._trim_prompt("abcdef", max_chars=3) == "abc"
+        assert runtime_mod._trim_prompt("abc", max_chars=3) == "abc"
 
     def test_rag_bundle_denies_disabled_policy_and_string_degraded_reason(self) -> None:
         from dataclasses import replace

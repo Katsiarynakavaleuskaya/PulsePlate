@@ -14,6 +14,20 @@ VerificationStatus = Literal["pass", "warn", "fail"]
 
 
 @dataclass(frozen=True)
+class VerificationProvenance:
+    """Internal-only provenance labels for a verification admission decision."""
+
+    input_digest: str | None = None
+    prompt_digest: str | None = None
+    context_item_digests: tuple[str, ...] = field(default_factory=tuple)
+    answer_digest: str | None = None
+    prompt_char_count: int | None = None
+    prompt_trimmed: bool | None = None
+    verification_hops: int = 0
+    verification_calls: int = 0
+
+
+@dataclass(frozen=True)
 class VerificationArtifact:
     """Deterministic verification artifact emitted by one runtime verifier."""
 
@@ -35,3 +49,4 @@ class VerificationBundle:
     overall_status: VerificationStatus
     admission_allowed: bool
     reason_codes: tuple[str, ...] = field(default_factory=tuple)
+    provenance: VerificationProvenance | None = field(default=None, compare=False)

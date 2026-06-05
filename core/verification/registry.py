@@ -9,16 +9,48 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from hashlib import sha256
 import math
+import re
+import unicodedata
 
 from core.insight.analytical import FalsificationReport, VerificationReport
 from core.knowledge.policy import KnowledgePolicy
 from core.rag.contracts import RAGDegradedReason
-from core.verification.contracts import VerificationArtifact, VerificationBundle, VerificationStatus
+from core.verification.contracts import (
+    VerificationArtifact,
+    VerificationBundle,
+    VerificationProvenance,
+    VerificationStatus,
+)
 from core.verification.policy import KNOWLEDGE_WRITE_POLICY, VerificationPolicy
 
 _PASS: VerificationStatus = "pass"
 _WARN: VerificationStatus = "warn"
 _FAIL: VerificationStatus = "fail"
+_DIGEST_PREFIX = "sha256:"
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_WHITESPACE_RE = re.compile(r"\s+")
+_LOCAL_PATH_RE = re.compile(
+    r"(?<!\w)(?:file://)?/"
+    r"(?:Users|private|var|tmp|Volumes|home|opt|etc|root|workspace|workspaces|app|srv|mnt)"
+    r"(?:/[^\s:;,'\")]+)+",
+    re.IGNORECASE,
+)
+_WINDOWS_PATH_RE = re.compile(r"\b[A-Za-z]:\\(?:[^\s:;,'\")]+\\?)+")
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b(?:DATABASE_URL|DB_FALLBACK_URL|REDIS_URL|SERVER_SALT|SECRET_KEY|JWT_SECRET|"
+    r"OPENAI_API_KEY|SLACK_APP_TOKEN|SLACK_BOT_TOKEN|"
+    r"[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|SALT|PRIVATE_KEY|ENCRYPTION_KEY)[A-Z0-9_]*)"
+    r"\s*[:=]\s*[^\s,;]+"
+)
+_TOKEN_RE = re.compile(
+    r"(?i)\b(?:xox[abprs]-|xapp-|github_pat_|gh[pousr]_|ghs_|sk-[a-z0-9]|"
+    r"api[_-]?key\s*[:=]|bearer\s+)[^\s,;]+"
+)
+_SLACK_ID_RE = re.compile(r"\b[UTC][A-Z0-9]{8,}\b")
+_DIAGNOSTIC_LABEL_RE = re.compile(
+    r"(?i)\b(?:provider[_ -]?log|workflow[_ -]?log|health[_ -]?data|slack[_ -]?payload)"
+    r"\s*[:=]\s*[^\s,;]+"
+)
 
 
 def build_rag_verification_bundle(
@@ -31,6 +63,7 @@ def build_rag_verification_bundle(
     recursive_executed: bool,
     verification_calls: int,
     evidence_refs: Sequence[str] = (),
+    provenance: VerificationProvenance | None = None,
     policy: VerificationPolicy = KNOWLEDGE_WRITE_POLICY,
 ) -> VerificationBundle:
     """Build a canonical pre-generation bundle for knowledge-write admission."""
@@ -59,7 +92,7 @@ def build_rag_verification_bundle(
     )
     if recursive_artifact is not None:
         artifacts.append(recursive_artifact)
-    return build_bundle(artifacts=artifacts, policy=policy)
+    return build_bundle(artifacts=artifacts, policy=policy, provenance=provenance)
 
 
 def build_runtime_verification_bundle(
@@ -70,15 +103,29 @@ def build_runtime_verification_bundle(
     contradiction_count: int,
     verification_first_path: bool,
     runtime_verification_enabled: bool = True,
+    provenance: VerificationProvenance | None = None,
     policy: VerificationPolicy = KNOWLEDGE_WRITE_POLICY,
 ) -> VerificationBundle | None:
     """Merge pre-generation and runtime verification into one admission bundle."""
 
-    if rag_bundle is None and not verification_first_path:
-        return None
-
     if not runtime_verification_enabled:
         return rag_bundle
+
+    if rag_bundle is None and not verification_first_path:
+        if provenance is None:
+            return None
+        return build_bundle(
+            artifacts=(
+                _artifact(
+                    verifier_id="runtime_preconditions_verifier",
+                    status=_FAIL,
+                    reason_codes=("rag_bundle_missing",),
+                    failure_reason="rag_bundle_missing",
+                ),
+            ),
+            policy=policy,
+            provenance=provenance,
+        )
 
     artifacts: list[VerificationArtifact] = []
     if rag_bundle is None:
@@ -108,13 +155,68 @@ def build_runtime_verification_bundle(
             )
         )
 
-    return build_bundle(artifacts=artifacts, policy=policy)
+    return build_bundle(
+        artifacts=artifacts,
+        policy=policy,
+        provenance=_merge_provenance(
+            None if rag_bundle is None else rag_bundle.provenance,
+            provenance,
+        ),
+    )
+
+
+def build_verification_provenance(
+    *,
+    input_text: str | None = None,
+    prompt_text: str | None = None,
+    context_items: Sequence[str] = (),
+    answer_text: str | None = None,
+    prompt_char_count: object | None = None,
+    prompt_trimmed: bool | None = None,
+    verification_hops: object | None = None,
+    verification_calls: object | None = None,
+) -> VerificationProvenance:
+    """Build deterministic, redacted provenance labels for internal audit only."""
+
+    resolved_prompt_count: int | None = None
+    if prompt_char_count is not None:
+        resolved_prompt_count = _non_negative_count(prompt_char_count)
+    elif prompt_text is not None:
+        resolved_prompt_count = len(prompt_text)
+
+    return VerificationProvenance(
+        input_digest=redacted_sha256_label(input_text),
+        prompt_digest=redacted_sha256_label(prompt_text),
+        context_item_digests=tuple(
+            digest for item in context_items if (digest := redacted_sha256_label(item)) is not None
+        ),
+        answer_digest=redacted_sha256_label(answer_text),
+        prompt_char_count=resolved_prompt_count,
+        prompt_trimmed=prompt_trimmed if type(prompt_trimmed) is bool else None,
+        verification_hops=_non_negative_count(verification_hops),
+        verification_calls=_non_negative_count(verification_calls),
+    )
+
+
+def redacted_sha256_label(value: str | None) -> str | None:
+    """Return a stable SHA-256 label over normalized/redacted text."""
+
+    if value is None:
+        return None
+    try:
+        redacted = _redact_provenance_text(value)
+    except (RuntimeError, TypeError, ValueError):
+        return None
+    if not redacted:
+        return None
+    return f"{_DIGEST_PREFIX}{sha256(redacted.encode('utf-8')).hexdigest()}"
 
 
 def build_bundle(
     *,
     artifacts: Sequence[VerificationArtifact],
     policy: VerificationPolicy = KNOWLEDGE_WRITE_POLICY,
+    provenance: VerificationProvenance | None = None,
 ) -> VerificationBundle:
     """Build a deterministic bundle and derive admission from artifact statuses."""
 
@@ -141,7 +243,55 @@ def build_bundle(
         overall_status=overall_status,
         admission_allowed=admission_allowed,
         reason_codes=reason_codes,
+        provenance=provenance,
     )
+
+
+def _merge_provenance(
+    base: VerificationProvenance | None,
+    overlay: VerificationProvenance | None,
+) -> VerificationProvenance | None:
+    if base is None:
+        return overlay
+    if overlay is None:
+        return base
+    return VerificationProvenance(
+        input_digest=overlay.input_digest or base.input_digest,
+        prompt_digest=overlay.prompt_digest or base.prompt_digest,
+        context_item_digests=overlay.context_item_digests or base.context_item_digests,
+        answer_digest=overlay.answer_digest or base.answer_digest,
+        prompt_char_count=(
+            overlay.prompt_char_count
+            if overlay.prompt_char_count is not None
+            else base.prompt_char_count
+        ),
+        prompt_trimmed=(
+            overlay.prompt_trimmed if overlay.prompt_trimmed is not None else base.prompt_trimmed
+        ),
+        verification_hops=overlay.verification_hops,
+        verification_calls=overlay.verification_calls,
+    )
+
+
+def _redact_provenance_text(value: str) -> str:
+    from core.insight.safety import redact_rag_context_for_insight
+
+    normalized = unicodedata.normalize("NFKC", value).replace("\r\n", "\n").replace("\r", "\n")
+    redacted = redact_rag_context_for_insight(normalized)
+    if not isinstance(redacted, str):
+        raise TypeError("provenance redactor returned non-string output")
+    redacted = _CONTROL_CHAR_RE.sub(" ", redacted)
+    redacted = _SECRET_ASSIGNMENT_RE.sub("[SECRET_REDACTED]", redacted)
+    redacted = _TOKEN_RE.sub("[SECRET_REDACTED]", redacted)
+    redacted = _LOCAL_PATH_RE.sub("[PATH_REDACTED]", redacted)
+    redacted = _WINDOWS_PATH_RE.sub("[PATH_REDACTED]", redacted)
+    redacted = _SLACK_ID_RE.sub("[SLACK_ID_REDACTED]", redacted)
+    redacted = _DIAGNOSTIC_LABEL_RE.sub("[DIAGNOSTIC_REDACTED]", redacted)
+    return _WHITESPACE_RE.sub(" ", redacted).strip()
+
+
+def _non_negative_count(value: object | None) -> int:
+    return value if type(value) is int and value >= 0 else 0
 
 
 def _policy_artifact(
