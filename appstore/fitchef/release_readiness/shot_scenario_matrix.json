@@ -16,7 +16,9 @@
   "blocked_release_actions": [
     "fastlane_upload",
     "app_store_connect_mutation",
+    "screenshot_binary_export",
     "screenshot_binary_commit",
+    "preview_video_export",
     "preview_video_binary_commit",
     "environment_activation"
   ],

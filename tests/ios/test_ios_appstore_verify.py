@@ -483,6 +483,9 @@ def test_fitchef_release_readiness_validator_rejects_repeated_localized_claims(
         "Пробный период скрыт от скриншота.",
         "Цена 9,99 ₽.",
         "Стоимость 9,99 руб.",
+        "€9,99",
+        "₽ 999",
+        "EUR 9.99",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_localized_pricing_claims(
@@ -717,6 +720,25 @@ def test_fitchef_release_readiness_validator_rejects_blocked_action_drift(
         module, tmp_path, monkeypatch
     )
     payload["blocked_release_actions"] = []
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "blocked_release_actions drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_requires_protected_export_actions(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["blocked_release_actions"] = [
+        action
+        for action in payload["blocked_release_actions"]
+        if action != "screenshot_binary_export"
+    ]
     _write_matrix_payload(release_dir, payload)
 
     results = module.check_fitchef_release_readiness_bundle()
@@ -1118,6 +1140,7 @@ def test_fitchef_release_readiness_validator_rejects_protected_action_claims(
     "claim",
     [
         "Environment activation completed.",
+        "Preview video export completed.",
         "Screenshot binary commit completed.",
         "Preview video binary commit completed.",
     ],

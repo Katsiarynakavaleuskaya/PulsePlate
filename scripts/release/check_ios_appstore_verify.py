@@ -220,7 +220,9 @@ EXPECTED_FITCHEF_SOURCE_PATHS = {
 EXPECTED_FITCHEF_BLOCKED_RELEASE_ACTIONS = (
     "fastlane_upload",
     "app_store_connect_mutation",
+    "screenshot_binary_export",
     "screenshot_binary_commit",
+    "preview_video_export",
     "preview_video_binary_commit",
     "environment_activation",
 )
@@ -465,11 +467,16 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
 # Pricing patterns that should NOT appear in metadata (hardcoded prices/trials).
 PRICING_PATTERNS = [
     re.compile(r"\$\d"),
+    re.compile(r"€\s*\d", re.IGNORECASE),
+    re.compile(r"₽\s*\d", re.IGNORECASE),
     re.compile(r"\d+(?:[.,]\d+)?\s*€"),
     re.compile(r"\d+(?:[.,]\d+)?\s*(?:₽|руб(?:\.|ля|лей)?)", re.IGNORECASE),
     re.compile(r"\d+\s*USD", re.IGNORECASE),
     re.compile(r"\d+\s*EUR", re.IGNORECASE),
     re.compile(r"\d+\s*RUB", re.IGNORECASE),
+    re.compile(r"\bUSD\s+\d", re.IGNORECASE),
+    re.compile(r"\bEUR\s+\d", re.IGNORECASE),
+    re.compile(r"\bRUB\s+\d", re.IGNORECASE),
     re.compile(r"\bprice\s+(?:eur|rub|usd)\s+\d", re.IGNORECASE),
     re.compile(r"\btrial\s+(?:days?|months?)\s+\d", re.IGNORECASE),
     re.compile(r"\d+[\s-]*day\s+(?:free\s+)?trial", re.IGNORECASE),
