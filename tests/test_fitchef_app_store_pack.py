@@ -134,16 +134,28 @@ LOCALE_SCRIPT_RANGES = {
 LOCALE_COPY_SIGNALS = {
     "es-ES": (
         "balance diario",
+        "apoyo",
+        "actualizacion",
+        "activos",
+        "analisis",
+        "canonico",
         "comidas",
+        "configuracion",
         "compra",
         "fuera del alcance",
         "habitos",
+        "lista",
         "localizacion",
+        "metas",
         "micronutrientes",
         "nutricion",
         "orientacion",
+        "paquete",
+        "perfil",
         "planificacion",
         "preferencias",
+        "progreso",
+        "sugerencia",
         "sugerencias",
     ),
 }
@@ -527,6 +539,15 @@ def test_screenshot_manifest_defines_seven_governed_shots_with_real_refs(
         assert len(shot["headline"]) == 2
         assert 2 <= len(shot["supporting_copy"]) <= 3
         visible_copy = " ".join([*shot["headline"], *shot["supporting_copy"]])
+        if locale in LOCALIZED_LOCALES:
+            headline_copy = " ".join(shot["headline"])
+            supporting_copy = " ".join(shot["supporting_copy"])
+            assert _has_locale_script(
+                headline_copy, locale
+            ), f"{locale} headline for {shot['id']} lacks locale-specific copy signal"
+            assert _has_locale_script(
+                supporting_copy, locale
+            ), f"{locale} supporting copy for {shot['id']} lacks locale-specific copy signal"
         offending_terms = _blocked_terms_in(locale, visible_copy)
         assert not offending_terms, f"Blocked term(s) found in shot copy: {offending_terms}"
         for source_ref in shot["repo_source_refs"]:
@@ -580,11 +601,14 @@ def test_icon_source_inventory_references_only_canonical_local_assets(locale: st
     assert len(referenced_catalog_paths) == len(set(referenced_catalog_paths))
 
     if locale in LOCALIZED_LOCALES:
-        decision_log = " ".join(payload["decision_log"])
         blocked_english_fragments = LOCALIZED_DECISION_LOG_BLOCKED_ENGLISH[locale]
-        assert _has_locale_script(decision_log, locale)
+        assert all(
+            _has_locale_script(entry, locale) for entry in payload["decision_log"]
+        ), f"{locale} icon inventory decision entry lacks locale-specific copy signal"
         offending_fragments = sorted(
-            fragment for fragment in blocked_english_fragments if fragment in decision_log
+            fragment
+            for fragment in blocked_english_fragments
+            if any(fragment in entry for entry in payload["decision_log"])
         )
         assert not offending_fragments, (
             f"{locale} icon inventory decision log contains English boilerplate: "
@@ -718,9 +742,10 @@ def test_ru_visual_qa_prep_avoids_local_paths_and_blocked_claim_terms() -> None:
 def test_localized_preview_plan_uses_localized_operational_copy(locale: str) -> None:
     """Localized preview plans should not mix in English storyboard boilerplate."""
     storyboard = _load_json(_preview_dir(locale) / "storyboard.json")
+    preview_script = (_preview_dir(locale) / "preview_script.md").read_text(encoding="utf-8")
     text = " ".join(
         [
-            (_preview_dir(locale) / "preview_script.md").read_text(encoding="utf-8"),
+            preview_script,
             *(scene["focus"] for scene in storyboard["scenes"]),
         ]
     )
@@ -733,6 +758,12 @@ def test_localized_preview_plan_uses_localized_operational_copy(locale: str) -> 
     assert (
         not offending_fragments
     ), f"{locale} preview plan contains English operational copy: {offending_fragments}"
+    assert _has_locale_script(
+        preview_script, locale
+    ), f"{locale} preview script lacks locale-specific copy signal"
+    assert all(
+        _has_locale_script(scene["focus"], locale) for scene in storyboard["scenes"]
+    ), f"{locale} preview scene focus lacks locale-specific copy signal"
 
 
 @pytest.mark.parametrize("locale", LOCALIZED_LOCALES)
@@ -829,6 +860,33 @@ def test_es_metadata_locale_guard_rejects_single_signal_false_green() -> None:
 
     assert _has_locale_script(",".join(payload["keywords"]), "es-ES")
     assert not all(_has_locale_script(field, "es-ES") for field in localized_visible_fields)
+
+
+def test_es_screenshot_copy_guard_rejects_masked_english_headline() -> None:
+    """Spanish support copy must not mask a copied-English screenshot headline."""
+    english_headline = "Smart Nutrition Powered by AI"
+    spanish_support = "Nutrientes plan comidas hábitos"
+
+    assert not _has_locale_script(english_headline, "es-ES")
+    assert _has_locale_script(spanish_support, "es-ES")
+
+
+def test_es_preview_guard_rejects_masked_english_scene_focus() -> None:
+    """Spanish script text must not mask an untranslated storyboard scene focus."""
+    english_focus = "Understand daily balance"
+    spanish_script = "Mostrar el análisis de macros y micronutrientes."
+
+    assert not _has_locale_script(english_focus, "es-ES")
+    assert _has_locale_script(spanish_script, "es-ES")
+
+
+def test_es_icon_decision_guard_rejects_masked_english_entry() -> None:
+    """One Spanish decision entry must not mask an untranslated sibling entry."""
+    english_decision = "The approved EN production pack references canonical source assets."
+    spanish_decision = "Esta línea de localización no promociona nuevos binarios."
+
+    assert not _has_locale_script(english_decision, "es-ES")
+    assert _has_locale_script(spanish_decision, "es-ES")
 
 
 def test_localized_pack_docs_reject_no_upload_claims() -> None:
