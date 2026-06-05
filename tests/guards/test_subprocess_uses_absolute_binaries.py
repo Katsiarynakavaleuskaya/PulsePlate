@@ -8,6 +8,7 @@ interpreter path.
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,10 @@ DISALLOWED_SHORT_BINARIES: frozenset[str] = frozenset(
     {"curl", "gh", "git", "python", "python3", "ssh", "wget"}
 )
 PYTHON_SHORT_BINARIES: frozenset[str] = frozenset({"python", "python3"})
+SUBPROCESS_FUNCTIONS: frozenset[str] = frozenset(
+    {"Popen", "call", "check_call", "check_output", "run"}
+)
+PYTHON_BINARY_NAME_RE = re.compile(r"^python(?:3(?:\.\d+)?)?$")
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,12 @@ class SubprocessViolation:
     lineno: int
     line: str
     reason: str
+
+
+@dataclass(frozen=True)
+class SubprocessImportContext:
+    module_aliases: frozenset[str]
+    function_aliases: dict[str, str]
 
 
 def _iter_files() -> list[Path]:
@@ -50,16 +61,124 @@ def _iter_files() -> list[Path]:
     return sorted(out)
 
 
-def _subprocess_call_name(node: ast.Call) -> str | None:
+def _subprocess_import_context(tree: ast.AST) -> SubprocessImportContext:
+    module_aliases: set[str] = {"subprocess"}
+    function_aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "subprocess":
+                    module_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+            for alias in node.names:
+                if alias.name in SUBPROCESS_FUNCTIONS:
+                    function_aliases[alias.asname or alias.name] = alias.name
+    return SubprocessImportContext(
+        module_aliases=frozenset(module_aliases),
+        function_aliases=function_aliases,
+    )
+
+
+def _subprocess_call_name(node: ast.Call, *, imports: SubprocessImportContext) -> str | None:
     function = node.func
-    if not isinstance(function, ast.Attribute):
-        return None
-    if function.attr not in {"run", "Popen"}:
-        return None
-    owner = function.value
-    if not isinstance(owner, ast.Name) or owner.id != "subprocess":
-        return None
-    return function.attr
+    if isinstance(function, ast.Attribute):
+        if function.attr not in SUBPROCESS_FUNCTIONS:
+            return None
+        owner = function.value
+        if not isinstance(owner, ast.Name) or owner.id not in imports.module_aliases:
+            return None
+        return function.attr
+    if isinstance(function, ast.Name) and function.id in imports.function_aliases:
+        return imports.function_aliases[function.id]
+    return None
+
+
+def _find_recent_assignment(tree: ast.AST, upto_lineno: int, name: str) -> ast.expr | None:
+    best: tuple[int, ast.expr] | None = None
+    for node in ast.walk(tree):
+        target: ast.expr | None
+        value: ast.expr
+        if isinstance(node, ast.Assign):
+            target = next((item for item in node.targets if isinstance(item, ast.Name)), None)
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            target = node.target
+            if node.value is None:
+                continue
+            value = node.value
+        else:
+            continue
+        if not isinstance(target, ast.Name) or target.id != name:
+            continue
+        if not (1 <= node.lineno < upto_lineno):
+            continue
+        if best is None or node.lineno > best[0]:
+            best = (node.lineno, value)
+    return best[1] if best is not None else None
+
+
+def _resolve_binary_expr(
+    tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
+) -> str | None:
+    if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
+        return expr.value.strip()
+    if isinstance(expr, ast.Name):
+        if expr.id in seen_names:
+            return None
+        assignment = _find_recent_assignment(tree, upto_lineno, expr.id)
+        if assignment is None:
+            return None
+        return _resolve_binary_expr(
+            tree,
+            assignment,
+            upto_lineno=getattr(assignment, "lineno", upto_lineno),
+            seen_names=seen_names | {expr.id},
+        )
+    return None
+
+
+def _resolve_argv_binary(
+    tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
+) -> str | None:
+    if isinstance(expr, (ast.List, ast.Tuple)) and expr.elts:
+        return _resolve_binary_expr(
+            tree, expr.elts[0], upto_lineno=upto_lineno, seen_names=seen_names
+        )
+    if isinstance(expr, ast.Name):
+        if expr.id in seen_names:
+            return None
+        assignment = _find_recent_assignment(tree, upto_lineno, expr.id)
+        if assignment is None:
+            return None
+        return _resolve_argv_binary(
+            tree,
+            assignment,
+            upto_lineno=getattr(assignment, "lineno", upto_lineno),
+            seen_names=seen_names | {expr.id},
+        )
+    return None
+
+
+def _is_python_binary_name(value: str) -> bool:
+    return bool(PYTHON_BINARY_NAME_RE.fullmatch(value))
+
+
+def _is_repo_approved_python_literal(value: str) -> bool:
+    path = Path(value)
+    if not path.is_absolute() or not _is_python_binary_name(path.name):
+        return False
+    try:
+        path.relative_to(REPO_ROOT / ".venv" / "bin")
+    except ValueError:
+        return False
+    return True
+
+
+def _is_disallowed_absolute_python(value: str) -> bool:
+    path = Path(value)
+    if not path.is_absolute() or not _is_python_binary_name(path.name):
+        return False
+    return not _is_repo_approved_python_literal(value)
 
 
 def _argv_expr(node: ast.Call) -> ast.expr | None:
@@ -68,16 +187,11 @@ def _argv_expr(node: ast.Call) -> ast.expr | None:
     return next((keyword.value for keyword in node.keywords if keyword.arg == "args"), None)
 
 
-def _first_argv_binary(node: ast.Call) -> str | None:
+def _first_argv_binary(tree: ast.AST, node: ast.Call) -> str | None:
     argv = _argv_expr(node)
     if argv is None:
         return None
-    if not isinstance(argv, (ast.List, ast.Tuple)) or not argv.elts:
-        return None
-    first_arg = argv.elts[0]
-    if not isinstance(first_arg, ast.Constant) or not isinstance(first_arg.value, str):
-        return None
-    return first_arg.value.strip()
+    return _resolve_argv_binary(tree, argv, upto_lineno=node.lineno, seen_names=set())
 
 
 def _find_recent_which_var(tree: ast.AST, upto_lineno: int, bin_name: str) -> str | None:
@@ -118,7 +232,14 @@ def _find_recent_which_var(tree: ast.AST, upto_lineno: int, bin_name: str) -> st
     return None
 
 
-def _reason_for_short_binary(tree: ast.AST, *, lineno: int, bin_token: str) -> str:
+def _reason_for_binary(tree: ast.AST, *, lineno: int, bin_token: str) -> str:
+    if _is_disallowed_absolute_python(bin_token):
+        return (
+            f"calls '{bin_token}' as an absolute Python interpreter outside repo-approved "
+            "paths; use sys.executable for current-interpreter subprocesses or a "
+            "repo-approved interpreter path such as VENV_PYTHON, DEV_PYTHON, "
+            "repo .venv/bin/python, or the Experiment Runner resolver pattern"
+        )
     if bin_token in PYTHON_SHORT_BINARIES:
         return (
             f"calls '{bin_token}' by short name; use sys.executable for current-interpreter "
@@ -142,17 +263,28 @@ def _find_subprocess_violations_in_source(
     source: str, *, relpath: str
 ) -> list[SubprocessViolation]:
     tree = ast.parse(source, filename=relpath)
+    imports = _subprocess_import_context(tree)
     lines = source.splitlines()
     violations: list[SubprocessViolation] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if _subprocess_call_name(node) is None:
+        if _subprocess_call_name(node, imports=imports) is None:
             continue
-        bin_token = _first_argv_binary(node)
+        bin_token = _first_argv_binary(tree, node)
         if bin_token is None:
             continue
         if bin_token.startswith("/"):
+            if _is_disallowed_absolute_python(bin_token):
+                line = lines[node.lineno - 1].strip() if 0 < node.lineno <= len(lines) else ""
+                violations.append(
+                    SubprocessViolation(
+                        relpath=relpath,
+                        lineno=node.lineno,
+                        line=line,
+                        reason=_reason_for_binary(tree, lineno=node.lineno, bin_token=bin_token),
+                    )
+                )
             continue
         if bin_token not in DISALLOWED_SHORT_BINARIES:
             continue
@@ -162,7 +294,7 @@ def _find_subprocess_violations_in_source(
                 relpath=relpath,
                 lineno=node.lineno,
                 line=line,
-                reason=_reason_for_short_binary(tree, lineno=node.lineno, bin_token=bin_token),
+                reason=_reason_for_binary(tree, lineno=node.lineno, bin_token=bin_token),
             )
         )
     return violations
@@ -216,6 +348,82 @@ subprocess.Popen(args=["git", "status"])
     assert len(violations) == 1
     assert violations[0].lineno == 3
     assert "resolve with shutil.which('git')" in violations[0].reason
+
+
+def test_guard_flags_subprocess_argv_list_variable() -> None:
+    source = """\
+import subprocess
+
+args = ["git", "status"]
+subprocess.run(args)
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 4
+    assert "resolve with shutil.which('git')" in violations[0].reason
+
+
+def test_guard_flags_subprocess_argv_binary_variable() -> None:
+    source = """\
+import subprocess
+
+cmd = "python"
+subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 4
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_absolute_system_python_literal() -> None:
+    source = 'import subprocess\nsubprocess.run(["/usr/bin/python3", "-c", "pass"])\n'
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 2
+    assert "outside repo-approved paths" in violations[0].reason
+
+
+def test_guard_allows_absolute_repo_venv_python_literal() -> None:
+    repo_python = (REPO_ROOT / ".venv" / "bin" / "python").as_posix()
+    source = f'import subprocess\nsubprocess.run(["{repo_python}", "-c", "pass"])\n'
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
+
+
+def test_guard_flags_subprocess_module_alias() -> None:
+    source = 'import subprocess as sp\nsp.run(["python", "-c", "print(42)"])\n'
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 2
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_imported_subprocess_helpers() -> None:
+    source = """\
+from subprocess import check_call, check_output
+
+check_call(["python", "-c", "print(42)"])
+check_output(["git", "status"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 2
+    assert violations[0].lineno == 3
+    assert "repo-approved interpreter path" in violations[0].reason
+    assert violations[1].lineno == 4
+    assert "resolve with shutil.which('git')" in violations[1].reason
 
 
 def test_guard_allows_current_interpreter_subprocess() -> None:
