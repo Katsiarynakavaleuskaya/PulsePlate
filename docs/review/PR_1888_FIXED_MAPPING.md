@@ -68,20 +68,17 @@ Evidence: post-open Codex and cubic false-green readiness findings are fixed by 
 Disposition: NOT-A-BUG
 Evidence: `GitHubDispatchAuth.is_installation_token`, `GitHubDispatchTarget.is_cross_repo`, and `GitHubDispatchTarget.is_allowlisted` are `@property` attributes in `scripts/orchestration/experiment_slack_bridge_models.py`, not methods. Using attribute access is correct.
 Reason: Calling these properties as methods would be the runtime bug; the CodeRabbit suggestion is based on an incorrect model-shape assumption.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3362855738
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#pullrequestreview-4436520411
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/orchestration/experiment_slack_bridge_readiness.py` now checks `target.is_cross_repo and config.dispatch_mode != "execute"` before the cross-repo execute eligibility branch, and `tests/test_experiment_slack_socket_bridge.py::test_activation_readiness_report_labels_cross_repo_dry_run_without_dispatch_eligibility` proves allowlisted cross-repo dry-run reports `cross_repo_dry_run_available` instead of `eligible_for_private_pilot_dispatch`.
 Reason: The Codex comment reviewed stale evidence from before `451b5c728`; current head already keeps dry-run readiness out of execute dispatch eligibility without changing authority.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3363308892
 
 Disposition: NOT-A-BUG
 Evidence: Sourcery and CodeRabbit reported service/rate-limit or optional finishing-touch status rather than a repository code defect. Repo-owned local gates and Codex Security discovery were run independently; no merge-readiness claim is made while external bot status is still pending or rate-limited.
 Reason: These bot messages do not identify an actionable code defect in this PR diff.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#pullrequestreview-4436461188
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#issuecomment-4631789221
 
