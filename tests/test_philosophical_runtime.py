@@ -826,12 +826,12 @@ class TestPhilosophicalRuntime:
             philo_validation_enabled=False,
             recursive_rag_enabled=False,
             philosophy_router_enabled=False,
-            philosophy_phase12_enabled=False,
+            philosophy_phase12_enabled=True,
             philosophy_linguistic_enabled=False,
             philosophy_pragmatic_enabled=False,
         )
 
-        assert provider.calls == 1
+        assert provider.calls == 2
         assert result.verification_bundle is not None
         assert result.verification_bundle.admission_allowed is False
         provenance = result.verification_bundle.provenance
