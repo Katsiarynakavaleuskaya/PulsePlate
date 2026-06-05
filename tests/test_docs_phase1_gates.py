@@ -520,6 +520,23 @@ def test_ci_docs_phase1_protected_json_targets_include_deletions() -> None:
     assert '--diff-filter=ACDMRT "$BASE_REF"...HEAD -- \\' in protected_diff_command
 
 
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        gates.VERIFICATION_PROVENANCE_ADMISSION_REPORT,
+        gates.VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA,
+    ],
+)
+def test_phase1_guard_rejects_deleted_verification_provenance_contract(
+    relpath: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == [f"{relpath}: protected contract file missing"]
+
+
 def test_phase1_guard_validates_philosophy_gate_open_preconditions_report_edits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

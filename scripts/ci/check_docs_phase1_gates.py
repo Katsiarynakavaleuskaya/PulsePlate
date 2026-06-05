@@ -403,6 +403,8 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
     for relpath in markdown_files:
         fullpath = REPO_ROOT / relpath
         if not fullpath.exists():
+            if relpath in VERIFICATION_PROVENANCE_ADMISSION_REPORT_INPUTS:
+                errors.append(f"{relpath}: protected contract file missing")
             continue
         content = _read_text(relpath)
 

@@ -226,6 +226,78 @@
     },
     "path_categories": {
       "type": "array",
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "id": {
+                "const": "rag_pre_generation"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "id": {
+                "const": "rag_runtime_merged"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "id": {
+                "const": "direct_local_non_verification_first_answer"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "id": {
+                "const": "runtime_verification_disabled_passthrough"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "id": {
+                "const": "fail_closed_missing_bundle_with_provenance"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ],
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -466,6 +538,13 @@
               "properties": {
                 "admission_allowed": {
                   "const": true
+                },
+                "redacted_digest_labels": {
+                  "required": [
+                    "input_digest",
+                    "prompt_digest",
+                    "context_item_digests"
+                  ]
                 }
               }
             }
@@ -485,6 +564,14 @@
               "properties": {
                 "admission_allowed": {
                   "const": true
+                },
+                "redacted_digest_labels": {
+                  "required": [
+                    "input_digest",
+                    "prompt_digest",
+                    "context_item_digests",
+                    "answer_digest"
+                  ]
                 }
               }
             }
@@ -504,6 +591,12 @@
               "properties": {
                 "admission_allowed": {
                   "const": false
+                },
+                "redacted_digest_labels": {
+                  "required": [
+                    "input_digest",
+                    "answer_digest"
+                  ]
                 }
               }
             }
@@ -523,6 +616,13 @@
               "properties": {
                 "admission_allowed": {
                   "const": false
+                },
+                "redacted_digest_labels": {
+                  "required": [
+                    "input_digest",
+                    "prompt_digest",
+                    "context_item_digests"
+                  ]
                 }
               }
             }
@@ -542,6 +642,12 @@
               "properties": {
                 "admission_allowed": {
                   "const": false
+                },
+                "redacted_digest_labels": {
+                  "required": [
+                    "input_digest",
+                    "answer_digest"
+                  ]
                 }
               }
             }

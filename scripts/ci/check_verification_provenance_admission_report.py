@@ -66,6 +66,32 @@ ADMITTED_PATH_CATEGORY_IDS = tuple(
     for category_id in PATH_CATEGORY_IDS
     if category_id not in NON_ADMITTED_PATH_CATEGORY_IDS
 )
+DIGEST_LABEL_REQUIRED_BY_CATEGORY: Mapping[str, tuple[str, ...]] = {
+    "rag_pre_generation": (
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+    ),
+    "rag_runtime_merged": (
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "answer_digest",
+    ),
+    "direct_local_non_verification_first_answer": (
+        "input_digest",
+        "answer_digest",
+    ),
+    "runtime_verification_disabled_passthrough": (
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+    ),
+    "fail_closed_missing_bundle_with_provenance": (
+        "input_digest",
+        "answer_digest",
+    ),
+}
 
 PROVENANCE_FIELD_KINDS: Mapping[str, str] = {
     "input_digest": "redacted_digest_label",
@@ -487,11 +513,34 @@ def _path_category_admission_schema_constraints() -> list[dict[str, object]]:
                         "admission_allowed": {
                             "const": category_id in ADMITTED_PATH_CATEGORY_IDS,
                         },
+                        "redacted_digest_labels": {
+                            "required": list(DIGEST_LABEL_REQUIRED_BY_CATEGORY[category_id]),
+                        },
                     },
                 },
             }
         )
     return constraints
+
+
+def _path_category_exact_once_schema_constraints() -> list[dict[str, object]]:
+    return [
+        {
+            "contains": {
+                "properties": {
+                    "id": {
+                        "const": category_id,
+                    },
+                },
+                "required": [
+                    "id",
+                ],
+            },
+            "minContains": 1,
+            "maxContains": 1,
+        }
+        for category_id in PATH_CATEGORY_IDS
+    ]
 
 
 def _path_category(
@@ -1088,6 +1137,15 @@ def _validate_required_schema_shapes(schema: Mapping[str, object]) -> list[str]:
             "verification provenance admission schema path category admission constraints drift"
         )
 
+    path_categories = _schema_node_at(schema, ("properties", "path_categories"))
+    if (
+        not isinstance(path_categories, dict)
+        or path_categories.get("allOf") != _path_category_exact_once_schema_constraints()
+    ):
+        errors.append(
+            "verification provenance admission schema path category exact-once constraints drift"
+        )
+
     return errors
 
 
@@ -1325,6 +1383,9 @@ def _validate_digest_labels(
     category_id: str,
 ) -> list[str]:
     errors: list[str] = []
+    for key in DIGEST_LABEL_REQUIRED_BY_CATEGORY.get(category_id, ()):
+        if key not in digest_labels:
+            errors.append(f"{category_id}.redacted_digest_labels missing required key: {key}")
     for key, value in digest_labels.items():
         if key not in DIGEST_FIELDS:
             errors.append(f"{category_id}.redacted_digest_labels unknown key: {key}")

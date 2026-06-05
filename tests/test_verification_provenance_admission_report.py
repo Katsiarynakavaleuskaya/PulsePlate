@@ -318,6 +318,24 @@ def test_report_rejects_invalid_digest_labels() -> None:
     assert any("input_digest invalid digest label" in error for error in errors)
 
 
+def test_report_rejects_missing_required_digest_label() -> None:
+    report = _report()
+    categories = report["path_categories"]
+    assert isinstance(categories, list)
+    category = categories[1]
+    assert isinstance(category, dict)
+    digest_labels = category["redacted_digest_labels"]
+    assert isinstance(digest_labels, dict)
+    del digest_labels["answer_digest"]
+
+    errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
+
+    assert any(
+        "rag_runtime_merged.redacted_digest_labels missing required key: answer_digest" in error
+        for error in errors
+    )
+
+
 def test_direct_and_disabled_paths_do_not_overclaim_admission() -> None:
     categories = _report()["path_categories"]
     assert isinstance(categories, list)
@@ -377,6 +395,39 @@ def test_schema_pins_path_category_admission_constraints() -> None:
     errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
 
     assert any("path category admission constraints drift" in error for error in errors)
+
+
+def test_schema_pins_path_category_digest_label_constraints() -> None:
+    schema = json.loads(_schema_text())
+    category_items = schema["properties"]["path_categories"]["items"]
+    assert isinstance(category_items, dict)
+
+    assert category_items["allOf"] == report_check._path_category_admission_schema_constraints()
+
+    digest_labels = category_items["allOf"][1]["then"]["properties"]["redacted_digest_labels"]
+    assert digest_labels["required"] == [
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "answer_digest",
+    ]
+    digest_labels["required"].remove("answer_digest")
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert any("path category admission constraints drift" in error for error in errors)
+
+
+def test_schema_pins_path_category_exact_once_constraints() -> None:
+    schema = json.loads(_schema_text())
+    path_categories = schema["properties"]["path_categories"]
+    assert isinstance(path_categories, dict)
+
+    assert path_categories["allOf"] == (report_check._path_category_exact_once_schema_constraints())
+
+    path_categories["allOf"][2]["contains"]["properties"]["id"]["const"] = "rag_pre_generation"
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert any("path category exact-once constraints drift" in error for error in errors)
 
 
 def test_report_rejects_missing_provenance_coverage() -> None:
