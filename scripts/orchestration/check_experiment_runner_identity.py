@@ -84,6 +84,7 @@ CANONICAL_BOUNDARY_KEYS = frozenset(
         "contribution_attribution",
         "cryptographic_boundary",
         "git_attribution",
+        "github_app_dispatch",
         "notification_boundary",
         "slack_identity",
         "validator_mutation_boundary",

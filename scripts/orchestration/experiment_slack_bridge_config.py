@@ -345,7 +345,7 @@ def build_config(
     workflow_file_value = _validate_workflow_file(workflow_file)
     workflow_ref_value = _validate_workflow_ref(workflow_ref)
     target_repo = _validate_repo(repo if repo is not None else os.environ.get("GITHUB_REPOSITORY"))
-    current_repo = _validate_repo(os.environ.get("GITHUB_REPOSITORY")) or DEFAULT_GITHUB_REPOSITORY
+    current_repo = DEFAULT_GITHUB_REPOSITORY
     github_target = (
         GitHubDispatchTarget(
             repo=target_repo,

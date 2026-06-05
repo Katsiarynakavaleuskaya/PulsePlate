@@ -73,8 +73,8 @@ workflow dispatch and explicit least-privilege repo targeting.
 
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path ...`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_slack_socket_bridge.py tests/test_experiment_runner_identity_policy.py`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_slack_socket_bridge.py tests/test_experiment_runner_identity_policy.py tests/test_experiment_operator_ledger.py`
+- PASS: `python3 -m pytest -q tests/test_experiment_slack_socket_bridge.py tests/test_experiment_runner_identity_policy.py`
+- PASS: `python3 -m pytest -q tests/test_experiment_slack_socket_bridge.py tests/test_experiment_runner_identity_policy.py tests/test_experiment_operator_ledger.py`
 - PASS: `python3 scripts/orchestration/check_experiment_runner_identity.py --json`
 - PASS: `python3 scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 - PASS: `pre-commit run --all-files`

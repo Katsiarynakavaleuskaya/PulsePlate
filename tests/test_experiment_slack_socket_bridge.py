@@ -2172,6 +2172,37 @@ def test_unknown_ambient_repo_does_not_bypass_cross_repo_gate(
     assert calls == []
 
 
+def test_spoofed_github_repository_does_not_bypass_cross_repo_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    target_repo = "PilotOrg/PrivatePilot"
+    monkeypatch.setenv("GITHUB_REPOSITORY", target_repo)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "v" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+        repo=target_repo,
+    )
+    calls: list[dict[str, Any]] = []
+
+    assert config.github_dispatch is not None
+    assert config.github_dispatch.target is not None
+    assert config.github_dispatch.target.is_cross_repo is True
+    with pytest.raises(bridge.SlackSocketDispatchError):
+        bridge.process_payload(
+            _event(text="release/private-pilot Validate bounded private pilot dispatch"),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
+
+
 def test_execute_mode_keeps_dispatched_outcome_when_post_dispatch_ledger_write_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

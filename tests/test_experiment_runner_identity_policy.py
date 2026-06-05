@@ -729,6 +729,8 @@ def test_rejects_duplicate_slack_identity_camel_case_boundary() -> None:
         ("new_git_attribution", "git_attribution"),
         ("notificationBoundaryV2", "notification_boundary"),
         ("experimental_notification_boundary", "notification_boundary"),
+        ("githubAppDispatchBoundaryV2", "github_app_dispatch"),
+        ("experimental_github_app_dispatch", "github_app_dispatch"),
         ("cryptographic-boundary-v2", "cryptographic_boundary"),
         ("github_app_cryptographic_boundary", "cryptographic_boundary"),
     ],

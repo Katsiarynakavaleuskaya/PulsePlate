@@ -725,15 +725,15 @@ def process_operator_event(
     try:
         if config.dispatch_mode == "execute" and command.kind == "run-experiment":
             github_dispatch = _require_execute_config(config)
-            if github_dispatch.target is None or github_dispatch.auth is None:
-                raise SlackSocketConfigError("GitHub dispatch configuration is incomplete.")
+            target = cast(GitHubDispatchTarget, github_dispatch.target)
+            auth = cast(GitHubDispatchAuth, github_dispatch.auth)
             transport = dispatch_transport or _send_github_workflow_dispatch
             transport(
-                repo=github_dispatch.target.repo,
-                workflow_file=github_dispatch.target.workflow_file,
-                ref=github_dispatch.target.workflow_ref,
+                repo=target.repo,
+                workflow_file=target.workflow_file,
+                ref=target.workflow_ref,
                 inputs=_github_dispatch_inputs(command, config=config),
-                token=github_dispatch.auth.token,
+                token=auth.token,
                 timeout_seconds=config.timeout_seconds,
             )
             status = "dispatched"
