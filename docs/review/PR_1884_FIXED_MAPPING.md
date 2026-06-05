@@ -28,7 +28,11 @@ frontend, iOS, Slack/operator-plane authority, semantic cache, or GraphRAG.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#pullrequestreview-4432302250 -> ee8b58d65
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3359533605 -> ee8b58d65
+Disposition: FIXED
+Commit: ee8b58d65
+Evidence: cubic identified that the canonical fixed-mapping artifact used the PR-body mirror heading level. `docs/review/PR_1884_FIXED_MAPPING.md` now uses `## Fixed in Commit Mapping`, the canonical artifact heading.
 
 ## Premortem Findings
 
@@ -49,15 +53,16 @@ frontend, iOS, Slack/operator-plane authority, semantic cache, or GraphRAG.
 
 ## Post-Open Review Gates
 
-- [ ] `qa-engineer-agent` - pending.
-- [ ] `bug-hunter` - pending.
+- [x] `qa-engineer-agent` - completed; no findings. It reran scoped preflight, focused provenance/public-response pytest, semantic-cache gate, `git diff --check`, and `make validate-changed`.
+- [x] `bug-hunter` - completed; found `github_pat_` token inputs were hashed before redaction. Fixed by `ee8b58d65` in `core/verification/registry.py`, with regression coverage in `tests/test_remaining_modules.py`.
 - [ ] `security-auditor` - pending.
 - [ ] Codex Security diff scan / finding discovery - pending.
 - [ ] `pulseplate-pr-review` - pending.
 
 ## Advisory / Bot Dispositions
 
-- No actionable review comments
+- Disposition: FIXED
+  Evidence: bug-hunter found `github_pat_` token inputs were hashed before redaction; `ee8b58d65` adds `github_pat_` to the redaction token pattern and asserts the provenance digest no longer equals the raw-token digest.
 
 ## Experiment Runner Evidence
 
@@ -78,6 +83,8 @@ frontend, iOS, Slack/operator-plane authority, semantic cache, or GraphRAG.
 - PASS: `python3 scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 - PASS: `PATH="$REPO_ROOT/.venv/bin:$PATH" make openapi-check`
 - PASS: `git diff --exit-code origin/main...HEAD -- frontend ios providers alembic app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts`
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_remaining_modules.py::TestVerificationRegistryCoverageTail`
+- PASS: focused local diff-cover check on provenance/runtime tests reached 98% diff coverage against `origin/main`.
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks during `git push`
