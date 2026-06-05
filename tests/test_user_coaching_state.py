@@ -225,6 +225,11 @@ def test_builder_rejects_unsupported_analyzer_key_and_degrades_invalid_state(
         {"alpha": 2.0, "beta": 2.0, "n": None},
         {"alpha": "nan", "beta": 2.0, "n": 4},
         {"alpha": 2.0, "beta": "inf", "n": 4},
+        {"alpha": True, "beta": 2.0, "n": 4},
+        {"alpha": 2.0, "beta": False, "n": 4},
+        {"alpha": 2.0, "beta": 2.0, "n": True},
+        {"alpha": 2.0, "beta": 2.0, "n": 1.9},
+        {"alpha": True, "beta": 2.0, "n": 1.9},
     ],
 )
 def test_builder_degrades_malformed_analyzer_payloads(

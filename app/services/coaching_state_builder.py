@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta, timezone
 import math
 
@@ -72,11 +73,39 @@ def _non_negative_int_metric(value: object, *, field_name: str) -> int:
     return metric
 
 
+def _strict_raw_positive_float(value: object, *, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{field_name} must be a raw numeric value")
+    metric = float(value)
+    if not math.isfinite(metric) or metric <= 0:
+        raise ValueError(f"{field_name} must be a positive finite number")
+
+
+def _strict_raw_non_negative_int(value: object, *, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{field_name} must be a raw integer")
+    if value < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+
+
+def _validate_raw_adherence_payload(payload: object | None) -> None:
+    if payload is None:
+        return
+    if not isinstance(payload, Mapping):
+        raise TypeError("adherence payload must be an object")
+    _strict_raw_positive_float(payload.get("alpha", 1.0), field_name="alpha")
+    _strict_raw_positive_float(payload.get("beta", 1.0), field_name="beta")
+    _strict_raw_non_negative_int(payload.get("n", 0), field_name="n")
+
+
 def _build_adherence_snapshot(
     *, user_id: int, session: Session, analyzer_key: str
 ) -> AdherenceSnapshot:
-    service = AdherenceService(store=SQLAlchemyAnalyzerStore(session=session))
+    store = SQLAlchemyAnalyzerStore(session=session)
+    service = AdherenceService(store=store)
     try:
+        existing = store.get_state(user_id=user_id, analyzer_key=analyzer_key)
+        _validate_raw_adherence_payload(existing.payload if existing else None)
         result = service.get(user_id=user_id, analyzer_key=analyzer_key)
         alpha = _finite_float_metric(result.alpha, field_name="alpha", min_value=0.0)
         beta = _finite_float_metric(result.beta, field_name="beta", min_value=0.0)
