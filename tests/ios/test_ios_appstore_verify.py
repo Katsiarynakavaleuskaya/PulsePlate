@@ -206,6 +206,35 @@ def test_fitchef_release_readiness_validator_rejects_generic_secret_assignment(
     assert "abcd1234efgh5678" not in messages
 
 
+@pytest.mark.parametrize(
+    "token",
+    [
+        "gh" + "p_" + ("a" * 36),
+        "gh" + "s_" + ("a" * 36),
+        "github" + "_pat_" + ("a" * 36),
+        "sk-" + "proj-" + ("a" * 36),
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_raw_token_strings(
+    token: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\nOperator paste: {token}\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    messages = _failed_messages(results)
+    assert "Credential-like release bundle value" in messages
+    assert token not in messages
+
+
 def test_fitchef_release_readiness_validator_rejects_protected_json_keys(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -252,6 +281,21 @@ def test_fitchef_release_readiness_validator_rejects_media_anywhere_in_pack(
 
     results = module.check_fitchef_release_readiness_bundle()
     assert "Media file is not allowed in FitChef App Store pack" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_symlinks_in_pack(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    symlink_path = release_dir.parent / "operator_notes.md"
+    symlink_path.symlink_to(tmp_path / "local-release-note.md")
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Symlink is not allowed" in _failed_messages(results)
 
 
 def test_fitchef_release_readiness_validator_rejects_extra_release_note_claims(
@@ -301,6 +345,29 @@ def test_fitchef_release_readiness_validator_scans_locale_pack_text(
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_localized_medical_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = claim
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Localized medical/wellness overclaim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Ayuda a tratar tus habitos.",
+        "Consejos de medico para tu menu.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_spanish_treatment_role_claims(
     claim: str,
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -369,6 +436,8 @@ def test_fitchef_release_readiness_validator_rejects_repeated_localized_claims(
         "Precio 9,99 €.",
         "Условия подписки остаются за StoreKit.",
         "Пробный период скрыт от скриншота.",
+        "Цена 9,99 ₽.",
+        "Стоимость 9,99 руб.",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_localized_pricing_claims(
@@ -388,6 +457,90 @@ def test_fitchef_release_readiness_validator_rejects_localized_pricing_claims(
     results = module.check_fitchef_release_readiness_bundle()
     messages = _failed_messages(results)
     assert "Pricing/trial claim" in messages or "Localized pricing/trial claim" in messages
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "listo para subir",
+        "subida completada",
+        "готов к загрузке",
+        "готов к релизу",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_localized_upload_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\n{claim}\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Localized protected release action claim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Guaranteed weight loss results.",
+        "Clinically proven meal plan.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_guaranteed_outcome_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = claim
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Guaranteed/clinical outcome claim" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_scalar_json_pricing_claims(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "pricing_note.json").write_text(
+        json.dumps({"price_eur": 9.99, "trial_days": 14}),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Pricing/trial claim" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_json_action_status_claims(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "operator_status.json").write_text(
+        json.dumps({"fastlane_upload": True, "app_store_connect_mutation": True}),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Protected release action claim" in _failed_messages(results)
 
 
 def test_fitchef_release_readiness_validator_rejects_windows_local_path(
@@ -697,7 +850,7 @@ def test_fitchef_release_readiness_validator_rejects_unsafe_wellness_status(
     release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
         module, tmp_path, monkeypatch
     )
-    payload["locale_review_matrix"][0]["wellness_claim_status"] = "medical_claim_ok"
+    payload["locale_review_matrix"][0]["wellness_claim_status"] = "unsafe_status_ok"
     _write_matrix_payload(release_dir, payload)
 
     results = module.check_fitchef_release_readiness_bundle()

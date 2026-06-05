@@ -157,16 +157,24 @@ FITCHEF_RELEASE_CREDENTIAL_PATTERNS = (
     re.compile(r"password\s*[:=]\s*\S+", re.IGNORECASE),
     re.compile(r"api[_-]?key\s*[:=]\s*\S+", re.IGNORECASE),
     re.compile(r"(?:gh|github)[_-]?token\s*[:=]\s*\S+", re.IGNORECASE),
+    re.compile(r"\b(?:ghp|ghs)_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bsk-proj-[A-Za-z0-9_-]{20,}\b"),
 )
 FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS = (
-    re.compile(r"fastlane\s+upload\s+(?:completed|succeeded|done|passed)", re.IGNORECASE),
+    re.compile(r"fastlane\s+upload\s+(?:true|yes|completed|succeeded|done|passed)", re.IGNORECASE),
     re.compile(
-        r"app\s+store\s+connect\s+mutation\s+(?:completed|succeeded|done|passed)", re.IGNORECASE
+        r"app\s+store\s+connect\s+mutation\s+(?:true|yes|completed|succeeded|done|passed)",
+        re.IGNORECASE,
     ),
     re.compile(
-        r"screenshot\s+binary\s+export\s+(?:completed|succeeded|done|passed)", re.IGNORECASE
+        r"screenshot\s+binary\s+export\s+(?:true|yes|completed|succeeded|done|passed)",
+        re.IGNORECASE,
     ),
-    re.compile(r"preview\s+video\s+export\s+(?:completed|succeeded|done|passed)", re.IGNORECASE),
+    re.compile(
+        r"preview\s+video\s+export\s+(?:true|yes|completed|succeeded|done|passed)",
+        re.IGNORECASE,
+    ),
 )
 FITCHEF_RELEASE_TOP_LEVEL_KEYS = {
     "schema_version",
@@ -250,9 +258,20 @@ FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS = (
     re.compile(r"\bdiabetes\b", re.IGNORECASE),
     re.compile(r"\bpatients?\b", re.IGNORECASE),
 )
+FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS = (
+    re.compile(
+        r"\bguaranteed[-\s]+(?:health[-\s]+)?(?:weight[-\s]+loss|outcomes?|results?)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bclinically[-\s]+proven\b", re.IGNORECASE),
+)
 FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
     "diagnostico",
     "diagnosticos",
+    "tratar",
+    "trata",
+    "medico",
+    "medicos",
     "tratamiento medico",
     "tratamientos medicos",
     "terapia",
@@ -267,6 +286,19 @@ FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
     "клиническая нутри",
     "клиническое питание",
     "пациент",
+)
+FITCHEF_RELEASE_LOCALIZED_UPLOAD_FRAGMENTS = (
+    "listo para subir",
+    "lista para subir",
+    "subida completada",
+    "carga completada",
+    "listo para lanzamiento",
+    "listo para release",
+    "готов к загрузке",
+    "готова к загрузке",
+    "готов к релизу",
+    "готова к релизу",
+    "загрузка завершена",
 )
 FITCHEF_RELEASE_LOCALIZED_WELLNESS_BOUNDARY_MARKERS = (
     "sin ",
@@ -394,9 +426,12 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
 PRICING_PATTERNS = [
     re.compile(r"\$\d"),
     re.compile(r"\d+(?:[.,]\d+)?\s*€"),
+    re.compile(r"\d+(?:[.,]\d+)?\s*(?:₽|руб(?:\.|ля|лей)?)", re.IGNORECASE),
     re.compile(r"\d+\s*USD", re.IGNORECASE),
     re.compile(r"\d+\s*EUR", re.IGNORECASE),
     re.compile(r"\d+\s*RUB", re.IGNORECASE),
+    re.compile(r"\bprice\s+(?:eur|rub|usd)\s+\d", re.IGNORECASE),
+    re.compile(r"\btrial\s+(?:days?|months?)\s+\d", re.IGNORECASE),
     re.compile(r"\d+[\s-]*day\s+(?:free\s+)?trial", re.IGNORECASE),
     re.compile(r"\d+[\s-]*month\s+(?:free\s+)?trial", re.IGNORECASE),
     re.compile(r"(?:free|бесплатн)\s+(?:for|на)\s+\d+", re.IGNORECASE),
@@ -416,6 +451,13 @@ FITCHEF_RELEASE_LOCALIZED_PRICING_FRAGMENTS = (
 # --- Helpers ---
 
 Results = List[Tuple[bool, str, str]]
+
+
+def _scan_text_variants(value: str) -> list[str]:
+    collapsed = re.sub(r"[_-]+", " ", value)
+    if collapsed == value:
+        return [value]
+    return [value, collapsed]
 
 
 def _read_png_dimensions(path: pathlib.Path) -> Tuple[int, int]:
@@ -444,14 +486,18 @@ def _load_json_file(path: pathlib.Path) -> tuple[Any | None, str | None]:
 def _flatten_strings(value: Any) -> list[str]:
     strings: list[str] = []
     if isinstance(value, str):
-        strings.append(value)
+        strings.extend(_scan_text_variants(value))
     elif isinstance(value, dict):
-        strings.extend(str(key) for key in value)
-        for item in value.values():
+        for key, item in value.items():
+            strings.extend(_scan_text_variants(str(key)))
+            if isinstance(item, (str, int, float, bool)) or item is None:
+                strings.extend(_scan_text_variants(f"{key} {item}"))
             strings.extend(_flatten_strings(item))
     elif isinstance(value, list):
         for item in value:
             strings.extend(_flatten_strings(item))
+    elif isinstance(value, (int, float, bool)) or value is None:
+        strings.append(str(value))
     return strings
 
 
@@ -497,6 +543,8 @@ def _validate_fitchef_pack_file_boundaries() -> str | None:
     if not FITCHEF_PACK_BASE.exists():
         return f"FitChef App Store pack directory missing: {FITCHEF_PACK_BASE}"
     for path in FITCHEF_PACK_BASE.rglob("*"):
+        if path.is_symlink():
+            return f"Symlink is not allowed in FitChef App Store pack: {path}"
         if not path.is_file():
             continue
         if path.suffix.lower() in FITCHEF_MEDIA_SUFFIXES:
@@ -543,12 +591,20 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
         match = pattern.search(text)
         if match:
             return f"Protected release action claim found: {match.group()}"
+    for fragment in FITCHEF_RELEASE_LOCALIZED_UPLOAD_FRAGMENTS:
+        if fragment in normalized:
+            return f"Localized protected release action claim found: {fragment}"
     for line in text.splitlines():
         for pattern in FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS:
             for match in pattern.finditer(line):
                 if _medical_term_is_boundary_negated(line, match.start(), match.group()):
                     continue
                 return f"Medical/wellness overclaim found: {match.group()}"
+        for pattern in FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS:
+            for match in pattern.finditer(line):
+                if _medical_term_is_boundary_negated(line, match.start(), match.group()):
+                    continue
+                return f"Guaranteed/clinical outcome claim found: {match.group()}"
     for line in normalized.splitlines():
         for fragment in FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS:
             for match in re.finditer(re.escape(fragment), line):
