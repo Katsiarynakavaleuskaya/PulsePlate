@@ -74,6 +74,12 @@ Decision: proceed with changes.
 - `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS.
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS after commit `2621360a8` review hardening.
+- Direct localized wellness probes after commit `8ed1ecac5` - PASS: ES/RU boundary disclaimers are allowed, repeated localized claims and actual ES/RU medical claims are rejected.
+- `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` - PASS after commit `8ed1ecac5`.
+- `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` - PASS after commit `8ed1ecac5`, 11 passed / 0 failed.
+- `make validate-changed` - PASS after commit `8ed1ecac5`.
+- `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` - PASS after commit `8ed1ecac5`.
+- `pre-commit run --all-files` - PASS after commit `8ed1ecac5`.
 - Push pre-push hooks - PASS through commit `024729aaf` after mypy return-type/value narrowing fix in `scripts/release/check_ios_appstore_verify.py`, including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and docker build test. Final push evidence must be refreshed after the mapping update.
 
 Full local `make verify` was not run by default for this docs/release-validator PR under the operator-approved changed-scope gate policy. Merge readiness is not claimed without current-head CI, post-open role passes, Codex Security scan, `pulseplate-pr-review`, unresolved-thread checks, PR body/mapping parity, strict wrapper evidence, and wait-window.
@@ -95,6 +101,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Late bot review hardening: FIXED in `0f9094f85`. Evidence: source PR provenance is now exact and fail-closed against PR #1886 / `26b7cf4f`; focused tests, direct validator, `make validate-changed`, and `pre-commit run --all-files` passed locally.
 - Post-open `qa-engineer-agent` rerun on head `396909ff7`: FAIL with localized release-gate false-greens. Disposition: FIXED in `dd8803779`. Evidence: validator now blocks localized wellness/pricing/trial claims, Windows local temp paths, and missing/wrong XCTest capture methods; focused tests, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 - Post-open `qa-engineer-agent` rerun on head `aca73dc8b`: FAIL with disposition-governance gap for already-resolved threads `discussion_r3364079340`, `discussion_r3364127016`, and `discussion_r3364127022`. Disposition: FIXED in `48e9ba365` plus this mapping update. Evidence: validator now evaluates every medical-term match per line and rejects repeated same-term overclaims after a boundary mention; mapping below lists the resolved thread URLs with commit evidence.
+- Late bot review `discussion_r3365261866`: FIXED in `8ed1ecac5`. Evidence: localized wellness fragment scan now uses line-level `finditer` plus localized boundary-negation logic for ES/RU safe disclaimers while still rejecting repeated localized claims and actual localized medical/wellness overclaims.
 
 ## Fixed in Commit Mapping
 
@@ -148,6 +155,11 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now normalizes release-
 Disposition: FIXED
 Commit: 48e9ba365
 Evidence: `scripts/release/check_ios_appstore_verify.py` now uses `finditer` to evaluate every medical/wellness term occurrence on each line and refuses boundary negation when the same matched term already appears between the marker and current occurrence. `tests/ios/test_ios_appstore_verify.py` adds regressions for `No diagnosis and diagnosis patients.` and `No diagnosis, diagnosis patients.` while existing safe boundary-list and natural disclaimer tests continue to pass. Local evidence after the fix: direct probes reject repeated same-term overclaims and allow natural disclaimers; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365261866 -> 8ed1ecac5
+Disposition: FIXED
+Commit: 8ed1ecac5
+Evidence: `scripts/release/check_ios_appstore_verify.py` now scans localized wellness fragments per line with `finditer` and applies localized ES/RU boundary-negation context instead of treating every boundary disclaimer as an overclaim. `tests/ios/test_ios_appstore_verify.py` adds ES/RU safe-disclaimer regressions plus repeated localized-claim regressions. Local evidence after the fix: direct probes allow `FitChef no proporciona diagnostico, tratamiento medico ni terapia.` and `FitChef не предоставляет диагноз, лечение или терапию.` while rejecting repeated localized claims and actual localized medical claims; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` all passed locally.
 
 ## Post-Open Role-Agent Finding Closure
 
