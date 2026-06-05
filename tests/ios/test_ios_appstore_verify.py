@@ -213,6 +213,7 @@ def test_fitchef_release_readiness_validator_rejects_generic_secret_assignment(
     [
         "gh" + "p_" + ("a" * 36),
         "gh" + "s_" + ("a" * 36),
+        "gh" + "s_" + ("a" * 24) + "." + ("b" * 24) + "." + ("c" * 24),
         "github" + "_pat_" + ("a" * 36),
         "sk-" + "proj-" + ("a" * 36),
     ],
@@ -362,6 +363,23 @@ def test_fitchef_release_readiness_validator_scans_locale_pack_text(
     assert dummy_value not in messages
 
 
+def test_fitchef_release_readiness_validator_scans_pack_paths_for_claims(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "cure-notes.md").write_text(
+        "Internal rendered-review note only.\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Medical/wellness overclaim" in _failed_messages(results)
+
+
 @pytest.mark.parametrize(
     "claim",
     [
@@ -390,6 +408,8 @@ def test_fitchef_release_readiness_validator_rejects_localized_medical_claims(
     [
         "Ayuda a tratar tus habitos.",
         "Consejos de medico para tu menu.",
+        "Prescripcion medica y medicamento para tu menu.",
+        "Лекарство и медикамент для плана питания.",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_spanish_treatment_role_claims(
@@ -519,6 +539,62 @@ def test_fitchef_release_readiness_validator_rejects_localized_upload_claims(
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_guaranteed_outcome_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = claim
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Guaranteed/clinical outcome claim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Cure headaches with this plan.",
+        "The app is diagnosing eating patterns.",
+        "The app provides treatments for nutrition issues.",
+        "Ask a doctor about your menu inside FitChef.",
+        "Guidance from a healthcare professional.",
+        "Prescription and medication guidance.",
+        "Lower cholesterol and blood pressure.",
+        "Avoid diabetes with weekly menus.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_expanded_medical_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = claim
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Medical/wellness overclaim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Instant results for every meal.",
+        "Rapid outcomes for busy weeks.",
+        "#1 nutrition assistant for families.",
+        "Number one wellness planner.",
+        "Top-ranked diet app.",
+        "Best nutrition plan.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_ranking_and_speed_claims(
     claim: str,
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -865,6 +941,69 @@ def test_fitchef_release_readiness_validator_rejects_wrong_xctest_capture_call(
 
     results = module.check_fitchef_release_readiness_bundle()
     assert "XCTest method drift for meal_planner" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_ignores_commented_xctest_capture_call(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_fitchef_bundle_fixture(module, tmp_path, monkeypatch)
+    ios_tests = tmp_path / "AppStoreScreenshotTests.swift"
+    ios_tests.write_text(
+        module.APPSTORE_SCREENSHOT_TESTS.read_text(encoding="utf-8").replace(
+            "captureScreenshot(for: .mealPlanner)",
+            "// captureScreenshot(for: .mealPlanner)",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "APPSTORE_SCREENSHOT_TESTS", ios_tests)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "XCTest method drift for meal_planner" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_ignores_commented_swift_return_literal(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_fitchef_bundle_fixture(module, tmp_path, monkeypatch)
+    ios_tests = tmp_path / "AppStoreScreenshotTests.swift"
+    ios_tests.write_text(
+        module.APPSTORE_SCREENSHOT_TESTS.read_text(encoding="utf-8").replace(
+            'return "03_meal-planner"',
+            '// return "03_meal-planner"\n                return "03_wrong"',
+            1,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "APPSTORE_SCREENSHOT_TESTS", ios_tests)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "screenshot name drift for meal_planner" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_unbound_rendered_scenario_case(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_fitchef_bundle_fixture(module, tmp_path, monkeypatch)
+    ios_context = tmp_path / "AppStoreScreenshotContext.swift"
+    ios_context.write_text(
+        module.APPSTORE_SCREENSHOT_CONTEXT.read_text(encoding="utf-8").replace(
+            ".appStoreScreenshotRoot(scenario.accessibilityIdentifier)",
+            ".accessibilityIdentifier(scenario.accessibilityIdentifier)",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "APPSTORE_SCREENSHOT_CONTEXT", ios_context)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "rendered scenarioView case drift for core_value" in _failed_messages(results)
 
 
 def test_fitchef_release_readiness_validator_rejects_blank_privacy_note(

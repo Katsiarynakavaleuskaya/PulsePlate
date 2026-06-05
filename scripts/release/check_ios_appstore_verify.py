@@ -157,7 +157,7 @@ FITCHEF_RELEASE_CREDENTIAL_PATTERNS = (
     re.compile(r"password\s*[:=]\s*\S+", re.IGNORECASE),
     re.compile(r"api[_-]?key\s*[:=]\s*\S+", re.IGNORECASE),
     re.compile(r"(?:gh|github)[_-]?token\s*[:=]\s*\S+", re.IGNORECASE),
-    re.compile(r"\b(?:ghp|ghs)_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\b(?:ghp|ghs)_[A-Za-z0-9_.-]{20,}\b"),
     re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
     re.compile(r"\bsk-proj-[A-Za-z0-9_-]{20,}\b"),
 )
@@ -270,13 +270,21 @@ FITCHEF_RELEASE_WELLNESS_STATUS_VALUES = {
     "user_control_only",
 }
 FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS = (
-    re.compile(r"\bdiagnos(?:e|es|is|tic)\b", re.IGNORECASE),
-    re.compile(r"\btreat(?:s|ed|ing|ment)?\b", re.IGNORECASE),
+    re.compile(r"\bdiagnos(?:e|es|ed|ing|is|tic)\b", re.IGNORECASE),
+    re.compile(r"\btreat(?:s|ed|ing|ments?)?\b", re.IGNORECASE),
+    re.compile(r"\bcur(?:e|es|ed|ing)\b", re.IGNORECASE),
     re.compile(r"\btherapy\b", re.IGNORECASE),
-    re.compile(r"\bmedical\s+(?:advice|claim|care|treatment|therapy)\b", re.IGNORECASE),
+    re.compile(
+        r"\bmedical\s+(?:advice|claim|care|professional|provider|treatment|therapy)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bhealthcare\s+(?:professional|provider)\b", re.IGNORECASE),
+    re.compile(r"\b(?:doctor|physician|clinician)\b", re.IGNORECASE),
+    re.compile(r"\b(?:medication|prescription)s?\b", re.IGNORECASE),
     re.compile(r"\bclinical\s+nutrition\b", re.IGNORECASE),
     re.compile(r"\bcrisis\s+support\b", re.IGNORECASE),
     re.compile(r"\bemergency\s+care\b", re.IGNORECASE),
+    re.compile(r"\b(?:cholesterol|hypertension|blood\s+pressure)\b", re.IGNORECASE),
     re.compile(r"\bdiabetes\b", re.IGNORECASE),
     re.compile(r"\bpatients?\b", re.IGNORECASE),
 )
@@ -286,6 +294,12 @@ FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(r"\bclinically[-\s]+proven\b", re.IGNORECASE),
+    re.compile(r"\b(?:instant|rapid|immediate)[-\s]+(?:outcomes?|results?)\b", re.IGNORECASE),
+    re.compile(r"(?<!\w)#\s*1(?!\w)", re.IGNORECASE),
+    re.compile(r"\bnumber[-\s]+one\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:best|top[-\s]+ranked|top[-\s]+rated)\s+(?:nutrition|wellness|diet)\b", re.IGNORECASE
+    ),
 )
 FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
     "diagnostico",
@@ -294,6 +308,11 @@ FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
     "trata",
     "medico",
     "medicos",
+    "medicacion",
+    "medicamento",
+    "medicamentos",
+    "prescripcion medica",
+    "prescripciones medicas",
     "tratamiento medico",
     "tratamientos medicos",
     "terapia",
@@ -302,7 +321,9 @@ FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
     "nutricion clinica",
     "диагноз",
     "диагност",
+    "лекарств",
     "лечение",
+    "медикамент",
     "терап",
     "медицинск",
     "клиническая нутри",
@@ -327,7 +348,6 @@ FITCHEF_RELEASE_LOCALIZED_WELLNESS_BOUNDARY_MARKERS = (
     "no ",
     "no ofrece",
     "no proporciona",
-    "evita",
     "без ",
     "не ",
     "не является",
@@ -399,8 +419,6 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS = (
     "not ",
     "does not",
     "do not",
-    "avoid",
-    "avoids",
     "without ",
 )
 FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
@@ -553,12 +571,19 @@ def _read_text_file(path: pathlib.Path) -> tuple[str, str | None]:
 
 
 def _fitchef_pack_file_scan_text(path: pathlib.Path) -> tuple[str, str | None]:
+    try:
+        scan_path = path.relative_to(FITCHEF_PACK_BASE).as_posix()
+    except ValueError:
+        scan_path = path.name
     if path.suffix.lower() == ".json":
         payload, error = _load_json_file(path)
         if error:
             return "", f"Invalid JSON file under FitChef App Store pack: {path}: {error}"
-        return "\n".join(_flatten_strings(payload)), None
-    return _read_text_file(path)
+        return "\n".join([scan_path, *_flatten_strings(payload)]), None
+    text, error = _read_text_file(path)
+    if error:
+        return "", error
+    return "\n".join([scan_path, text]), None
 
 
 def _validate_fitchef_pack_file_boundaries() -> str | None:
@@ -745,6 +770,65 @@ def _swift_case_return_literal(source: str, property_name: str, enum_case: str) 
     return match.group(1) if match else None
 
 
+def _strip_swift_comments(source: str) -> str:
+    """Remove Swift comments while preserving string literals for source contract checks."""
+
+    output: list[str] = []
+    index = 0
+    in_string = False
+    while index < len(source):
+        char = source[index]
+        next_char = source[index + 1] if index + 1 < len(source) else ""
+        if in_string:
+            output.append(char)
+            if char == "\\" and next_char:
+                output.append(next_char)
+                index += 2
+                continue
+            if char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == '"':
+            in_string = True
+            output.append(char)
+            index += 1
+            continue
+        if char == "/" and next_char == "/":
+            while index < len(source) and source[index] != "\n":
+                index += 1
+            if index < len(source):
+                output.append("\n")
+                index += 1
+            continue
+        if char == "/" and next_char == "*":
+            index += 2
+            while index + 1 < len(source) and not (
+                source[index] == "*" and source[index + 1] == "/"
+            ):
+                if source[index] == "\n":
+                    output.append("\n")
+                index += 1
+            index += 2 if index + 1 < len(source) else 0
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
+def _swift_switch_case_block(block: str, enum_case: str) -> str | None:
+    match = re.search(
+        rf"case\s+\.{re.escape(enum_case)}\s*:",
+        block,
+        re.MULTILINE,
+    )
+    if not match:
+        return None
+    next_match = re.search(r"\n\s*case\s+\.", block[match.end() :], re.MULTILINE)
+    end = match.end() + next_match.start() if next_match else len(block)
+    return block[match.end() : end]
+
+
 def _swift_test_method_name(enum_case: str) -> str:
     return "test" + enum_case[0].upper() + enum_case[1:] + "Screenshot"
 
@@ -785,6 +869,11 @@ def _validate_ios_screenshot_sources() -> str | None:
     test_text, test_error = _read_text_file(APPSTORE_SCREENSHOT_TESTS)
     if test_error:
         return f"Cannot read iOS screenshot tests: {test_error}"
+    context_text = _strip_swift_comments(context_text)
+    test_text = _strip_swift_comments(test_text)
+    scenario_view_block = _swift_balanced_block_after(context_text, "static func scenarioView()")
+    if scenario_view_block is None:
+        return "iOS screenshot context rendered scenarioView missing"
     for scenario_id, expected in EXPECTED_FITCHEF_SCENARIOS.items():
         enum_case = _swift_enum_case_name(scenario_id)
         case_declaration = f'case {enum_case} = "{scenario_id}"'
@@ -820,6 +909,15 @@ def _validate_ios_screenshot_sources() -> str | None:
             return (
                 f"iOS screenshot test screenshot name drift for {scenario_id}: "
                 f"{test_screenshot_name!r} != {expected['screenshot_name']!r}"
+            )
+
+        rendered_case_block = _swift_switch_case_block(scenario_view_block, enum_case)
+        if rendered_case_block is None:
+            return f"iOS screenshot rendered scenarioView case missing for {scenario_id}"
+        if ".appStoreScreenshotRoot(scenario.accessibilityIdentifier)" not in rendered_case_block:
+            return (
+                f"iOS screenshot rendered scenarioView case drift for {scenario_id}: "
+                "missing screenshot root accessibility binding"
             )
 
         test_method_name = _swift_test_method_name(enum_case)
