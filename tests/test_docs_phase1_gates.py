@@ -470,6 +470,44 @@ def test_phase1_guard_validates_philosophy_admission_dry_run_schema_only_edits(
     assert any("dry-run schema const missing for gate_status" in error for error in errors)
 
 
+def test_phase1_guard_validates_verification_provenance_admission_report_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_verification_provenance_admission_report_validator",
+        lambda: lambda **_kwargs: ["verification provenance validator called"],
+    )
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.VERIFICATION_PROVENANCE_ADMISSION_REPORT]
+    )
+
+    assert any("verification provenance validator called" in error for error in errors)
+
+
+def test_phase1_guard_validates_verification_provenance_admission_schema_only_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_report = gates.REPO_ROOT / gates.VERIFICATION_PROVENANCE_ADMISSION_REPORT
+    source_schema = gates.REPO_ROOT / gates.VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA
+    report = tmp_path / gates.VERIFICATION_PROVENANCE_ADMISSION_REPORT
+    schema_path = tmp_path / gates.VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA
+    report.parent.mkdir(parents=True, exist_ok=True)
+    schema_path.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(source_report.read_text(encoding="utf-8"), encoding="utf-8")
+    schema = json.loads(source_schema.read_text(encoding="utf-8"))
+    del schema["properties"]["generated_at"]["const"]
+    schema_path.write_text(json.dumps(schema, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA]
+    )
+
+    assert any("schema const mismatch for generated_at" in error for error in errors)
+
+
 def test_phase1_guard_validates_philosophy_gate_open_preconditions_report_edits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
