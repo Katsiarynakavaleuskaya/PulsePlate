@@ -268,6 +268,78 @@ FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
     "клиническое питание",
     "пациент",
 )
+FITCHEF_RELEASE_LOCALIZED_WELLNESS_BOUNDARY_MARKERS = (
+    "sin ",
+    "no ",
+    "no ofrece",
+    "no proporciona",
+    "evita",
+    "без ",
+    "не ",
+    "не является",
+    "не предоставляет",
+    "исключает",
+)
+FITCHEF_RELEASE_LOCALIZED_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
+    "consejo",
+    "diagnostico",
+    "diagnosticos",
+    "el",
+    "la",
+    "las",
+    "los",
+    "medico",
+    "medicos",
+    "ni",
+    "nutricion",
+    "o",
+    "paciente",
+    "pacientes",
+    "para",
+    "terapia",
+    "tratamiento",
+    "tratamientos",
+    "y",
+    "без",
+    "врачебный",
+    "врачебных",
+    "диагноз",
+    "диагностика",
+    "для",
+    "и",
+    "или",
+    "как",
+    "клиническая",
+    "клиническое",
+    "лечение",
+    "медицинский",
+    "медицинских",
+    "медицинскую",
+    "не",
+    "нутриция",
+    "пациент",
+    "пациентов",
+    "питание",
+    "поддержка",
+    "совет",
+    "терапия",
+}
+FITCHEF_RELEASE_LOCALIZED_WELLNESS_BOUNDARY_CONTEXT_STEMS = (
+    "diagnostic",
+    "medic",
+    "nutricion",
+    "pacient",
+    "terap",
+    "tratamient",
+    "диагноз",
+    "диагност",
+    "клиническ",
+    "лечени",
+    "медицинск",
+    "нутри",
+    "пациент",
+    "терап",
+)
 FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS = (
     "no ",
     "not ",
@@ -477,9 +549,12 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
                 if _medical_term_is_boundary_negated(line, match.start(), match.group()):
                     continue
                 return f"Medical/wellness overclaim found: {match.group()}"
-    for fragment in FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS:
-        if fragment in normalized:
-            return f"Localized medical/wellness overclaim found: {fragment}"
+    for line in normalized.splitlines():
+        for fragment in FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS:
+            for match in re.finditer(re.escape(fragment), line):
+                if _localized_wellness_fragment_is_boundary_negated(line, match.start(), fragment):
+                    continue
+                return f"Localized medical/wellness overclaim found: {fragment}"
     return None
 
 
@@ -497,7 +572,7 @@ def _medical_term_is_boundary_negated(line: str, match_start: int, match_text: s
     if not marker_matches:
         return False
 
-    marker_match = max(marker_matches, key=lambda match: match.start())
+    marker_match = max(marker_matches, key=lambda match: (match.start(), match.end()))
     text_between_marker_and_term = same_clause_prefix[marker_match.end() :]
     if not text_between_marker_and_term.strip():
         return True
@@ -510,6 +585,45 @@ def _medical_term_is_boundary_negated(line: str, match_start: int, match_text: s
     context_words = re.findall(r"[a-z]+", text_between_marker_and_term)
     return bool(context_words) and all(
         word in FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS for word in context_words
+    )
+
+
+def _localized_wellness_fragment_is_boundary_negated(
+    normalized_line: str, match_start: int, fragment: str
+) -> bool:
+    """Return whether a localized medical fragment is listed as a forbidden boundary."""
+
+    prefix = normalized_line[:match_start]
+    same_clause_prefix = re.split(r"[.:;!?]", prefix)[-1]
+    marker_matches: list[re.Match[str]] = []
+    for marker in FITCHEF_RELEASE_LOCALIZED_WELLNESS_BOUNDARY_MARKERS:
+        marker_text = marker.strip()
+        marker_pattern = re.escape(marker_text).replace(r"\ ", r"\s+")
+        marker_matches.extend(
+            re.finditer(
+                rf"(?<![a-zа-яё]){marker_pattern}(?![a-zа-яё])",
+                same_clause_prefix,
+            )
+        )
+    if not marker_matches:
+        return False
+
+    marker_match = max(marker_matches, key=lambda match: (match.start(), match.end()))
+    text_between_marker_and_term = same_clause_prefix[marker_match.end() :]
+    if not text_between_marker_and_term.strip():
+        return True
+
+    if re.search(re.escape(fragment), text_between_marker_and_term):
+        return False
+
+    context_words = re.findall(r"[a-zа-яё]+", text_between_marker_and_term)
+    return bool(context_words) and all(
+        word in FITCHEF_RELEASE_LOCALIZED_WELLNESS_BOUNDARY_CONTEXT_WORDS
+        or any(
+            word.startswith(stem)
+            for stem in FITCHEF_RELEASE_LOCALIZED_WELLNESS_BOUNDARY_CONTEXT_STEMS
+        )
+        for word in context_words
     )
 
 

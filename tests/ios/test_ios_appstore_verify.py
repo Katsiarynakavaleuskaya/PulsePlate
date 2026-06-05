@@ -319,6 +319,52 @@ def test_fitchef_release_readiness_validator_rejects_localized_medical_claims(
 @pytest.mark.parametrize(
     "claim",
     [
+        "FitChef no proporciona diagnostico, tratamiento medico ni terapia.",
+        "FitChef не предоставляет диагноз, лечение или терапию.",
+    ],
+)
+def test_fitchef_release_readiness_validator_allows_localized_boundary_disclaimers(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = claim
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert not _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Sin diagnostico y diagnostico para pacientes.",
+        "Без диагноз и диагноз для пациентов.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_repeated_localized_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = claim
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Localized medical/wellness overclaim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
         "Oferta prueba gratis.",
         "Precio 9,99 €.",
         "Условия подписки остаются за StoreKit.",
