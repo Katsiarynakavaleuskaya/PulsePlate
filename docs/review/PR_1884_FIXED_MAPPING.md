@@ -55,9 +55,9 @@ Evidence: cubic identified that the canonical fixed-mapping artifact used the PR
 
 - [x] `qa-engineer-agent` - completed; no findings. It reran scoped preflight, focused provenance/public-response pytest, semantic-cache gate, `git diff --check`, and `make validate-changed`.
 - [x] `bug-hunter` - completed; found `github_pat_` token inputs were hashed before redaction. Fixed by `ee8b58d65` in `core/verification/registry.py`, with regression coverage in `tests/test_remaining_modules.py`.
-- [x] `security-auditor` - completed; found a machine-local absolute path in committed review evidence. Fixed by replacing it with `$REPO_ROOT/.venv/bin/python`; exact guard rerun pending after this artifact commit.
-- [ ] Codex Security diff scan / finding discovery - pending.
-- [ ] `pulseplate-pr-review` - pending.
+- [x] `security-auditor` - completed; found a machine-local absolute path in committed review evidence. Fixed by replacing it with `$REPO_ROOT/.venv/bin/python`; exact guard passed after the artifact cleanup.
+- [x] Codex Security diff scan / finding discovery - completed; no reportable findings after the bug-hunter and security-auditor remediations. Local report format validation and HTML rendering passed.
+- [x] `pulseplate-pr-review` - completed in report mode. The large-diff planning note is dispositioned as NOT-A-BUG because this is one coherent internal provenance slice and changed-surface gates passed.
 
 ## Advisory / Bot Dispositions
 
@@ -65,6 +65,9 @@ Evidence: cubic identified that the canonical fixed-mapping artifact used the PR
   Evidence: bug-hunter found `github_pat_` token inputs were hashed before redaction; `ee8b58d65` adds `github_pat_` to the redaction token pattern and asserts the provenance digest no longer equals the raw-token digest.
 - Disposition: FIXED
   Evidence: security-auditor found a machine-local absolute path in review evidence; `docs/review/PR_1884_FIXED_MAPPING.md` now records `$REPO_ROOT/.venv/bin/python` instead of a user-specific `/Users/...` path.
+- Disposition: NOT-A-BUG
+  Evidence: `pulseplate-pr-review` reported a large-diff planning note because the branch exceeds the advisory line threshold. This PR intentionally keeps one narrow verification-bundle provenance slice across the contract, registry, RAG orchestration, philosophical runtime, deterministic tests, and backlog wording. Focused pytest, semantic-cache gate, OpenAPI drift check, `make validate-changed`, `pre-commit run --all-files`, and local diff-cover passed.
+  Reason: Splitting the slice would separate the internal `VerificationBundle` contract from the runtime paths and tests that prove it does not leak into public responses.
 
 ## Experiment Runner Evidence
 
@@ -87,6 +90,9 @@ Evidence: cubic identified that the canonical fixed-mapping artifact used the PR
 - PASS: `git diff --exit-code origin/main...HEAD -- frontend ios providers alembic app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts`
 - PASS: `$REPO_ROOT/.venv/bin/python -m pytest -q tests/test_remaining_modules.py::TestVerificationRegistryCoverageTail`
 - PASS: `$REPO_ROOT/.venv/bin/python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths` after artifact path redaction.
+- PASS: `python3 $CODEX_SECURITY_PLUGIN_ROOT/scripts/validate_report_format.py --report-md artifacts/security_lab/codex-security/pr1884-verification-provenance/report.md`
+- PASS: `python3 $CODEX_SECURITY_PLUGIN_ROOT/scripts/render_report_html.py --template $CODEX_SECURITY_PLUGIN_ROOT/assets/report_template_inlined.html --report-md artifacts/security_lab/codex-security/pr1884-verification-provenance/report.md --report-html artifacts/security_lab/codex-security/pr1884-verification-provenance/report.html --title "PulsePlate PR 1884 Codex Security Scan"`
+- PASS: `$REPO_ROOT/.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
 - PASS: focused local diff-cover check on provenance/runtime tests reached 98% diff coverage against `origin/main`.
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
@@ -103,7 +109,6 @@ Evidence: cubic identified that the canonical fixed-mapping artifact used the PR
 ## Merge Readiness
 
 - Not claimed.
-- Current-head CI, bot review state, final discussion-thread pass, post-open
-  role review, Codex Security diff scan / finding discovery,
-  `pulseplate-pr-review`, strict disposition checks, strict merge-readiness
-  checks, and wait-window remain pending.
+- Current-head CI, bot review state, final discussion-thread pass, strict
+  disposition checks, strict merge-readiness checks, and wait-window remain
+  pending.
