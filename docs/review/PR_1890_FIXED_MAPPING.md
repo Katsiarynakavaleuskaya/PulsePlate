@@ -93,6 +93,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Codex Security diff scan / finding discovery: PASS / no findings. Evidence: scan id `8a5d032f9de3_20260605224323`; merge-base-corrected deep review closed 3/3 generated rows (`appstore/fitchef/en-US/iphone-6.9/screenshots/shot_manifest.json`, `appstore/fitchef/release_readiness/shot_scenario_matrix.json`, `scripts/release/check_ios_appstore_verify.py`); `report.md` format validation passed and `report.html` rendered in the gitignored scan workspace.
 - `pulseplate-pr-review`: NOTE dispositioned as NOT-A-BUG. Evidence: dry-run report produced one advisory large-diff planning note only; the operator explicitly requested a broader MVP release-readiness slice, scope remained release-validator/App Store metadata only, no protected runtime/upload surfaces entered the PR, and `make validate-changed`, focused validator/tests, full pre-commit, current-head CI, post-open QA, bug-hunter, security-auditor, and Codex Security scan all passed. `.venv` calibration command `../../.venv/bin/python -m pytest tests/test_pr_review_report.py -q` passed; the earlier system `python3` attempt failed with missing local dependency `fastapi` and was not used as gate evidence.
 - Late bot review hardening: FIXED in `0f9094f85`. Evidence: source PR provenance is now exact and fail-closed against PR #1886 / `26b7cf4f`; focused tests, direct validator, `make validate-changed`, and `pre-commit run --all-files` passed locally.
+- Post-open `qa-engineer-agent` rerun on head `396909ff7`: FAIL with localized release-gate false-greens. Disposition: FIXED in `dd8803779`. Evidence: validator now blocks localized wellness/pricing/trial claims, Windows local temp paths, and missing/wrong XCTest capture methods; focused tests, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 
 ## Fixed in Commit Mapping
 
@@ -131,6 +132,14 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now scans all JSON/Mark
 Disposition: FIXED
 Commit: 0f9094f85
 Evidence: `scripts/release/check_ios_appstore_verify.py` now validates `source_pr` exactly against the landed multilingual localization QA provenance (`number: 1886`, `merge_commit: 26b7cf4f`), and `tests/ios/test_ios_appstore_verify.py` rejects `source_pr: {"number": 0, "merge_commit": ""}`. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `pre-commit run --all-files` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125647 -> dd8803779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125654 -> dd8803779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125659 -> dd8803779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365125664 -> dd8803779
+Disposition: FIXED
+Commit: dd8803779
+Evidence: `scripts/release/check_ios_appstore_verify.py` now normalizes release-pack text with accent folding, blocks localized ES/RU medical/wellness fragments, blocks localized trial/pricing fragments and euro price forms, rejects Windows local temp paths with redacted diagnostics, and verifies every FitChef screenshot scenario has a matching XCTest capture method that calls `captureScreenshot(for: .<scenario>)`. `tests/ios/test_ios_appstore_verify.py` adds regressions for Spanish/Russian localized medical claims, Spanish/Russian pricing/trial claims, Windows temp paths, missing XCTest methods, and wrong XCTest capture calls. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; isolated QA probes return blocking errors for localized claims/pricing/path cases; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 ## Post-Open Role-Agent Finding Closure
 
