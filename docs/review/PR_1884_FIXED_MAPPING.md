@@ -55,6 +55,18 @@ Evidence: `core/verification/registry.py` now returns the existing `rag_bundle` 
 Disposition: FIXED
 Commit: 202eb70436653b2fc83f5bb107f9eb843839f481
 Evidence: `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md` now cites PR `#1884`, implementation file:line references, the backlog ledger entry, and this review artifact for the internal-only provenance and public-response-boundary claims.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361572631
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor ee8b58d65 HEAD`, `git merge-base --is-ancestor 3a738e078faaa4f8458d1fa034a809c6a3f93efc HEAD`, and `git merge-base --is-ancestor 202eb70436653b2fc83f5bb107f9eb843839f481 HEAD` all succeeded locally on the checked PR branch lineage.
+Reason: The cited mappings are reachable on the current PR branch; the review comment compared against a stale reviewed head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361572634 -> 17802c24cac855f405e84ac5b704d01efc4537c5
+Disposition: FIXED
+Commit: 17802c24cac855f405e84ac5b704d01efc4537c5
+Evidence: `_LOCAL_PATH_RE` now redacts Linux CI/container roots such as `/workspace` and `/app` before hashing, with regression coverage in `tests/test_remaining_modules.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361572636 -> 17802c24cac855f405e84ac5b704d01efc4537c5
+Disposition: FIXED
+Commit: 17802c24cac855f405e84ac5b704d01efc4537c5
+Evidence: `_SECRET_ASSIGNMENT_RE` now redacts common secret/env assignment names before hashing, with regression coverage for `DATABASE_URL`, `SERVER_SALT`, and `SECRET_KEY` inputs.
 
 ## Premortem Findings
 
@@ -112,6 +124,7 @@ Evidence: `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md` now cites PR `#1884`, im
 - PASS: `git diff --exit-code origin/main...HEAD -- frontend ios providers alembic app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts`
 - PASS: `$REPO_ROOT/.venv/bin/python -m pytest -q tests/test_remaining_modules.py::TestVerificationRegistryCoverageTail`
 - PASS: `git log -1 --format=%B c3bd36235 | rg "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>"`
+- PASS: `git merge-base --is-ancestor ee8b58d65 HEAD && git merge-base --is-ancestor 3a738e078faaa4f8458d1fa034a809c6a3f93efc HEAD && git merge-base --is-ancestor 202eb70436653b2fc83f5bb107f9eb843839f481 HEAD`
 - PASS: `$REPO_ROOT/.venv/bin/python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths` after artifact path redaction.
 - PASS: `python3 $CODEX_SECURITY_PLUGIN_ROOT/scripts/validate_report_format.py --report-md artifacts/security_lab/codex-security/pr1884-verification-provenance/report.md`
 - PASS: `python3 $CODEX_SECURITY_PLUGIN_ROOT/scripts/render_report_html.py --template $CODEX_SECURITY_PLUGIN_ROOT/assets/report_template_inlined.html --report-md artifacts/security_lab/codex-security/pr1884-verification-provenance/report.md --report-html artifacts/security_lab/codex-security/pr1884-verification-provenance/report.html --title "PulsePlate PR 1884 Codex Security Scan"`
