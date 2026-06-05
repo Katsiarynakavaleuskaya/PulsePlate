@@ -141,12 +141,12 @@ Premortem / role-agent findings closed before PR open:
 - `security-auditor`: PENDING.
   - Reason: required ordered role pass remains to be run after bug-hunter fixes.
 - Codex Security diff scan: PASS / no findings.
-  - Report: `/tmp/codex-security-scans/BMI-App_2025_clean/b4cf8acb_pr1891_20260605T194527Z/report.md`.
-  - HTML: `/tmp/codex-security-scans/BMI-App_2025_clean/b4cf8acb_pr1891_20260605T194527Z/report.html`.
+  - Local-only artifact id: `b4cf8acb_pr1891_20260605T194527Z`.
+  - Local report paths are intentionally omitted from this tracked review
+    artifact.
   - Coverage: 2 of 2 diff-scoped source-like rows completed.
 - `pulseplate-pr-review` dry run: completed.
-  - Markdown: `/tmp/pulseplate_pr_1891_review_report.md`.
-  - JSON: `/tmp/pulseplate_pr_1891_review_report.json`.
+  - Local-only dry-run markdown/json artifacts retained outside git.
   - Finding: large-diff advisory note.
   - Disposition: NOT-A-BUG.
   - Evidence: diff is one coherent service-only slice; implementation files are
