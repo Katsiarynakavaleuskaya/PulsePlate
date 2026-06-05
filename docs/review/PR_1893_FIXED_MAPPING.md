@@ -24,7 +24,21 @@ authority, semantic-cache authority, or public response shapes.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-explicit-trim-limit metadata, digest schema diagnostics, field-inventory schema bounds, rewrite trim-state preservation, and strict digest-array validation. Focused provenance tests and the admission-report checker pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#pullrequestreview-4439872260 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365509361 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365509374 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365518751 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365543935 -> cad9450b94a0e949fd742a0f36fb9e31deabc987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#pullrequestreview-4439964343 -> cad9450b94a0e949fd742a0f36fb9e31deabc987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365568641 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365568644 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365568650 -> 28e961818fafb38769d000202ba33d08115031f9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365568656 -> 9dfcab5e625eafa84365c82121fd80894ff7b61a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365616019 -> cad9450b94a0e949fd742a0f36fb9e31deabc987
 
 ## Implementation Evidence
 
