@@ -62,10 +62,12 @@ Evidence: post-open Codex and cubic false-green readiness findings are fixed by 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3363270522 -> 451b5c728
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3363471044 -> 1b62d4a2e8c43a882d7d34f0a2971162b627ce52
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3363471048 -> 1b62d4a2e8c43a882d7d34f0a2971162b627ce52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3363656194 -> 24f27e73244a948106c3d133faf8e62b6d974e97
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3362876184 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#discussion_r3362876187 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#pullrequestreview-4436506435 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#pullrequestreview-4436544874 -> f7d5a3e5c1c9af74926749adf7e7dc9df003b098
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1888#pullrequestreview-4437473540 -> 24f27e73244a948106c3d133faf8e62b6d974e97
 
 Disposition: NOT-A-BUG
 Evidence: `GitHubDispatchAuth.is_installation_token`, `GitHubDispatchTarget.is_cross_repo`, and `GitHubDispatchTarget.is_allowlisted` are `@property` attributes in `scripts/orchestration/experiment_slack_bridge_models.py`, not methods. Using attribute access is correct.
@@ -115,6 +117,10 @@ Reason: These bot messages do not identify an actionable code defect in this PR 
   - Disposition: FIXED
   - Source: identified by Codex GitHub review.
   - Evidence: `scripts/orchestration/experiment_slack_bridge_readiness.py` now blocks unverified live approval only in execute mode; `tests/test_experiment_slack_socket_bridge.py::test_activation_readiness_report_allows_cross_repo_dry_run_with_live_approval_digest` covers dry-run with a stale approval digest while `::test_activation_readiness_report_blocks_unverified_live_approval_digest` preserves execute-mode fail-closed behavior.
+- `discussion_r3363656194`
+  - Disposition: FIXED
+  - Source: identified by CodeRabbit.
+  - Evidence: `tests/test_experiment_slack_socket_bridge.py::test_activation_readiness_report_blocks_cross_repo_execute_without_slack_allowlists` now calls `_clear_readiness_env(monkeypatch)` before setting the GitHub token and repo allowlist, so the blocked Slack-allowlist path is isolated from ambient runner env. Targeted pytest, focused trio, `make validate-changed`, and pre-commit passed after the fix.
 - `discussion_r3362876184`
   - Disposition: FIXED
   - Source: identified by cubic.
@@ -181,6 +187,7 @@ Reason: These bot messages do not identify an actionable code defect in this PR 
 - PASS: `python -m pytest -q tests/test_experiment_slack_socket_bridge.py -k "activation_readiness_report_blocks_execute_without_dispatch_target or activation_readiness_report_blocks_cross_repo_execute_without_slack_allowlists or activation_readiness_report_blocks_unverified_live_approval_digest or activation_readiness_report_projects_cross_repo_private_pilot_without_values"`
 - PASS: `python -m pytest -q tests/test_experiment_slack_socket_bridge.py -k "cross_repo_dry_run_without_dispatch_eligibility or activation_readiness_report_projects_cross_repo_private_pilot_without_values or activation_readiness_report_blocks_cross_repo_execute_without_slack_allowlists"`
 - PASS: `python -m pytest -q tests/test_experiment_slack_socket_bridge.py -k "cross_repo_dry_run_without_dispatch_eligibility or allows_cross_repo_dry_run_without_auth or allows_cross_repo_dry_run_with_runtime_auth or allows_cross_repo_dry_run_with_live_approval_digest or blocks_cross_repo_non_installation_without_values or blocks_unverified_live_approval_digest"`
+- PASS: `python -m pytest -q tests/test_experiment_slack_socket_bridge.py -k "blocks_cross_repo_execute_without_slack_allowlists"`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files` after Black formatting pass
 - PASS: commit hooks
