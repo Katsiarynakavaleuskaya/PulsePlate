@@ -185,6 +185,24 @@ Disposition: FIXED
 Commit: 930284e78a0ad1f73c77c302507ad3be6def3b68
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now skips `/usr/bin/env` options and env assignment prefixes before evaluating the actual launcher target; focused pytest passed with `30 passed`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365552626 -> c78f1b1fcb5d7f840df6167152cd54030b59a437
+Disposition: FIXED
+Commit: c78f1b1fcb5d7f840df6167152cd54030b59a437
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now evaluates shell-string command positions after env assignment prefixes and shell control operators; focused pytest passed with `31 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365552634
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=full 765e6d9dde0fa1f436e1a425b1f75339f3ffd966` and `git branch --contains 765e6d9dde0fa1f436e1a425b1f75339f3ffd966` both fail because that synthetic reviewed SHA is not a branch commit; `git show -s --format=full 85b9af6181ed90ff949a18103a4db86dc5f1360e` shows the governed trailer `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on the implementation commit that carries the Experiment Runner-shaped diff.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#pullrequestreview-4439960867
+Disposition: NOT-A-BUG
+Evidence: Cubic review summary is covered by its individual mapped review comment in this section; no separate code change is required for the summary URL itself.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365565743 -> c78f1b1fcb5d7f840df6167152cd54030b59a437
+Disposition: FIXED
+Commit: c78f1b1fcb5d7f840df6167152cd54030b59a437
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now detects disallowed shell-string command targets after env assignment prefixes and shell control operators while preserving safe argument-only text; focused pytest passed with `31 passed`.
+
 ## Implementation Evidence
 
 - Implementation commit: `85b9af618`
@@ -195,6 +213,7 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now skips `/u
 - String-form and scope-aware assignment follow-up commit: `1c37c8a`
 - Env-based Python and env-launcher follow-up commit: `b290796`
 - Env launcher option and assignment-overwrite follow-up commit: `930284e`
+- Shell string prefix follow-up commit: `c78f1b1`
 - Mapping artifact commit: `aa478a2e0`
 - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
@@ -259,6 +278,8 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now skips `/u
   after env-based Python and `/usr/bin/env` launcher follow-up (`28 passed`)
 - PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
   after env launcher option and assignment-overwrite follow-up (`30 passed`)
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  after shell string prefix follow-up (`31 passed`)
 - PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
   (`10 passed`)
 - PASS: `make validate-changed` after commit selected
