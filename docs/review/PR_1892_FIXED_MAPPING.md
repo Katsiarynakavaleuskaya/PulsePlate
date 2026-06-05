@@ -97,7 +97,7 @@ semantic-cache gate opening remain out of scope.
 - `python3 scripts/orchestration/check_preflight.py` - PASS.
 - `python3 scripts/ci/check_semantic_cache_offline_admission_runner.py --check` - PASS.
 - `python3 scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` - PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/core/ai/test_semantic_cache_offline_admission_runner.py tests/core/ai/test_exact_fuzzy_cache.py tests/core/ai/test_cache_observability.py tests/core/ai/test_bounded_insight_semantic_cache.py tests/core/ai/test_semantic_cache_backend_selection.py tests/test_docs_phase1_gates.py tests/test_semantic_cache_gate.py` - PASS.
+- `.venv/bin/python -m pytest -q tests/core/ai/test_semantic_cache_offline_admission_runner.py tests/core/ai/test_exact_fuzzy_cache.py tests/core/ai/test_cache_observability.py tests/core/ai/test_bounded_insight_semantic_cache.py tests/core/ai/test_semantic_cache_backend_selection.py tests/test_docs_phase1_gates.py tests/test_semantic_cache_gate.py` - PASS.
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including mypy changed files, pip-audit, backend

@@ -5,13 +5,16 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from typing import cast
 
 import pytest
 
+import core.ai.semantic_cache_offline_admission_runner as runner
 from core.ai.semantic_cache_offline_admission_runner import (
     PHASE_IDS,
     SCENARIO_IDS,
     SemanticCacheOfflineAdmissionInput,
+    SemanticCacheOfflineAdmissionReport,
     build_default_semantic_cache_offline_admission_input,
     compose_semantic_cache_offline_admission_report,
     to_stable_mapping,
@@ -221,6 +224,11 @@ def test_runner_output_contains_no_raw_runtime_or_operator_material() -> None:
 def test_runner_rejects_bad_inputs_before_rendering() -> None:
     with pytest.raises(ValueError, match="non-empty"):
         SemanticCacheOfflineAdmissionInput(produced_at="2026-06-05T00:00:00Z", scenario_ids=())
+    with pytest.raises(ValueError, match="must include all default scenarios"):
+        SemanticCacheOfflineAdmissionInput(
+            produced_at="2026-06-05T00:00:00Z",
+            scenario_ids=SCENARIO_IDS[:-1],
+        )
     with pytest.raises(ValueError, match="duplicate"):
         SemanticCacheOfflineAdmissionInput(
             produced_at="2026-06-05T00:00:00Z",
@@ -233,6 +241,73 @@ def test_runner_rejects_bad_inputs_before_rendering() -> None:
         )
     with pytest.raises(ValueError, match="UTC timestamp"):
         SemanticCacheOfflineAdmissionInput(produced_at="2026-06-05", scenario_ids=SCENARIO_IDS)
+
+
+def test_runner_rejects_wrong_report_object_types() -> None:
+    with pytest.raises(ValueError, match="SemanticCacheOfflineAdmissionInput"):
+        compose_semantic_cache_offline_admission_report(
+            cast(SemanticCacheOfflineAdmissionInput, "not-input")
+        )
+
+    with pytest.raises(ValueError, match="SemanticCacheOfflineAdmissionReport"):
+        to_stable_mapping(cast(SemanticCacheOfflineAdmissionReport, {"not": "a-report"}))
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    (
+        (123, "must be a string"),
+        ("", "must be non-empty"),
+        ("bad token", "must not contain whitespace"),
+        ("bad/token", "contains unsupported characters"),
+    ),
+)
+def test_runner_token_validation_rejects_unsafe_values(value: object, match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        runner._validate_token("scenario_id", cast(str, value))
+
+
+def test_runner_json_helpers_normalize_tuple_values() -> None:
+    tuple_value = ("digest:111111111111", {"nested": ("label", "digest:222222222222")})
+
+    assert runner._freeze_json_value(tuple_value) == [
+        "digest:111111111111",
+        {"nested": ["label", "digest:222222222222"]},
+    ]
+    assert runner._json_safe_copy(tuple_value) == [
+        "digest:111111111111",
+        {"nested": ["label", "digest:222222222222"]},
+    ]
+
+
+def test_runner_rejects_malformed_backend_label_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    matrix = runner._build_backend_label_context()
+
+    monkeypatch.setattr(
+        runner.sc_g5,
+        "to_stable_mapping",
+        lambda _matrix: {"final_decision": [], "candidate_decisions": []},
+    )
+    with pytest.raises(ValueError, match="final_decision must be a mapping"):
+        runner._backend_label_context(matrix)
+
+    monkeypatch.setattr(
+        runner.sc_g5,
+        "to_stable_mapping",
+        lambda _matrix: {"final_decision": {}, "candidate_decisions": {}},
+    )
+    with pytest.raises(ValueError, match="candidate_decisions must be a list"):
+        runner._backend_label_context(matrix)
+
+    monkeypatch.setattr(
+        runner.sc_g5,
+        "to_stable_mapping",
+        lambda _matrix: {"final_decision": {}, "candidate_decisions": ["not-a-mapping"]},
+    )
+    with pytest.raises(ValueError, match="candidate_decisions entries must be mappings"):
+        runner._backend_label_context(matrix)
 
 
 def test_checker_rejects_authority_expansion_and_backend_selection() -> None:
