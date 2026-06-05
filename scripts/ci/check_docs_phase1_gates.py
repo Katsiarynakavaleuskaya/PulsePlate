@@ -48,6 +48,9 @@ try:
     from scripts.ci.check_verification_provenance_admission_report import (
         validate_verification_provenance_admission_report as _validate_verification_provenance_admission_report,
     )
+    from scripts.ci.check_semantic_cache_offline_admission_runner import (
+        validate_semantic_cache_offline_admission_runner_report as _validate_semantic_cache_offline_admission_runner_report,
+    )
 except ModuleNotFoundError:
     from check_semantic_cache_gate import (  # noqa: E402
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
@@ -77,6 +80,9 @@ except ModuleNotFoundError:
     )
     from check_verification_provenance_admission_report import (  # noqa: E402
         validate_verification_provenance_admission_report as _validate_verification_provenance_admission_report,
+    )
+    from check_semantic_cache_offline_admission_runner import (  # noqa: E402
+        validate_semantic_cache_offline_admission_runner_report as _validate_semantic_cache_offline_admission_runner_report,
     )
 
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
@@ -134,6 +140,12 @@ VERIFICATION_PROVENANCE_ADMISSION_REPORT = (
 VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA = (
     "docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.schema.json"
 )
+SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT.json"
+)
+SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT_SCHEMA = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT.schema.json"
+)
 PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX = "docs/orchestration/contracts/philosophy_alignment_rules/"
 PHILOSOPHY_ADMISSION_DRY_RUN_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY,
@@ -163,6 +175,10 @@ PHILOSOPHY_SOURCE_CORPUS_INPUTS: tuple[str, ...] = (
 VERIFICATION_PROVENANCE_ADMISSION_REPORT_INPUTS: tuple[str, ...] = (
     VERIFICATION_PROVENANCE_ADMISSION_REPORT,
     VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA,
+)
+SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT_INPUTS: tuple[str, ...] = (
+    SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT,
+    SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT_SCHEMA,
 )
 PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/PHILOSOPHY_",
@@ -347,6 +363,19 @@ def _load_verification_provenance_admission_report_validator() -> (
     )
 
 
+class SemanticCacheOfflineAdmissionRunnerReportValidator(Protocol):
+    def __call__(self, *, report_text: str, schema_text: str) -> list[str]: ...
+
+
+def _load_semantic_cache_offline_admission_runner_report_validator() -> (
+    SemanticCacheOfflineAdmissionRunnerReportValidator
+):
+    return cast(
+        SemanticCacheOfflineAdmissionRunnerReportValidator,
+        _validate_semantic_cache_offline_admission_runner_report,
+    )
+
+
 def _is_philosophy_alignment_rule_record(path: str) -> bool:
     return path.startswith(PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX) and path.endswith(".json")
 
@@ -403,7 +432,10 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
     for relpath in markdown_files:
         fullpath = REPO_ROOT / relpath
         if not fullpath.exists():
-            if relpath in VERIFICATION_PROVENANCE_ADMISSION_REPORT_INPUTS:
+            if (
+                relpath in VERIFICATION_PROVENANCE_ADMISSION_REPORT_INPUTS
+                or relpath in SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT_INPUTS
+            ):
                 errors.append(f"{relpath}: protected contract file missing")
             continue
         content = _read_text(relpath)
@@ -792,6 +824,32 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                 errors.extend(
                     f"{relpath}: {error}"
                     for error in validate_verification_provenance_report(
+                        report_text=report_text,
+                        schema_text=schema_text,
+                    )
+                )
+
+        if relpath in SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT_INPUTS:
+            validate_semantic_cache_offline_report = (
+                _load_semantic_cache_offline_admission_runner_report_validator()
+            )
+            try:
+                report_text = (
+                    content
+                    if relpath == SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT
+                    else _read_text(SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT)
+                )
+                schema_text = (
+                    content
+                    if relpath == SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT_SCHEMA
+                    else _read_text(SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT_SCHEMA)
+                )
+            except FileNotFoundError as exc:
+                errors.append(f"{relpath}: missing companion file {exc.filename}")
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_semantic_cache_offline_report(
                         report_text=report_text,
                         schema_text=schema_text,
                     )

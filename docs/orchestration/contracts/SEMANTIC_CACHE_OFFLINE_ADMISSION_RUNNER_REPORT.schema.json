@@ -1,0 +1,1308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "report_version",
+    "generated_at",
+    "scope",
+    "generation_mode",
+    "source_ids",
+    "authority_flags",
+    "phase_results",
+    "scenario_results",
+    "backend_label_context",
+    "final_admission_decision",
+    "redaction_assertions",
+    "source_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "report_id": {
+      "type": "string",
+      "const": "semantic_cache_offline_admission_runner_report"
+    },
+    "report_version": {
+      "type": "string",
+      "const": "2026-06-05"
+    },
+    "generated_at": {
+      "type": "string",
+      "const": "static-2026-06-05"
+    },
+    "scope": {
+      "type": "string",
+      "const": "internal_only_semantic_cache_offline_admission_runner"
+    },
+    "generation_mode": {
+      "type": "string",
+      "const": "deterministic_static_synthetic_redacted_inputs"
+    },
+    "source_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sc_g2",
+        "sc_g3",
+        "sc_g4",
+        "sc_g5",
+        "semantic_cache_gate"
+      ],
+      "properties": {
+        "sc_g2": {
+          "type": "string",
+          "const": "core/ai/exact_fuzzy_cache.py"
+        },
+        "sc_g3": {
+          "type": "string",
+          "const": "core/ai/cache_observability.py"
+        },
+        "sc_g4": {
+          "type": "string",
+          "const": "core/ai/bounded_insight_semantic_cache.py"
+        },
+        "sc_g5": {
+          "type": "string",
+          "const": "core/ai/semantic_cache_backend_selection.py"
+        },
+        "semantic_cache_gate": {
+          "type": "string",
+          "const": "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+        }
+      }
+    },
+    "authority_flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_api_changed",
+        "openapi_changed",
+        "db_persistence_changed",
+        "provider_changed",
+        "frontend_or_ios_changed",
+        "runtime_authority_changed",
+        "runtime_allowed",
+        "implementation_allowed",
+        "cache_read_allowed",
+        "cache_write_allowed",
+        "serving_allowed",
+        "semantic_cache_runtime_allowed",
+        "semantic_cache_implementation_allowed",
+        "slack_or_operator_authority_allowed",
+        "graphrag_allowed",
+        "semantic_cache_gate_status"
+      ],
+      "properties": {
+        "public_api_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "openapi_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "db_persistence_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "provider_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "frontend_or_ios_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "runtime_authority_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_read_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_write_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "serving_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_cache_runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_cache_implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "slack_or_operator_authority_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "graphrag_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_cache_gate_status": {
+          "type": "string",
+          "const": "closed"
+        }
+      }
+    },
+    "phase_results": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "phase_id",
+              "scenario_count",
+              "scenario_ids",
+              "cache_read_allowed",
+              "cache_write_allowed",
+              "serving_allowed",
+              "results"
+            ],
+            "properties": {
+              "phase_id": {
+                "type": "string",
+                "const": "sc_g2_exact_fuzzy"
+              },
+              "scenario_count": {
+                "type": "integer",
+                "const": 12
+              },
+              "scenario_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cache_read_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "cache_write_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "serving_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cache_read_allowed",
+                    "cache_write_allowed",
+                    "checked_record_count",
+                    "lookup_decision",
+                    "match_mode",
+                    "matched_record_id",
+                    "reason_codes",
+                    "request_fingerprint",
+                    "scenario_id",
+                    "score_bps",
+                    "serving_allowed"
+                  ],
+                  "properties": {
+                    "cache_read_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "cache_write_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "checked_record_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "lookup_decision": {
+                      "type": "string"
+                    },
+                    "match_mode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matched_record_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "reason_codes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "request_fingerprint": {
+                      "type": "string"
+                    },
+                    "scenario_id": {
+                      "type": "string"
+                    },
+                    "score_bps": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "serving_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "phase_id",
+              "scenario_count",
+              "scenario_ids",
+              "cache_read_allowed",
+              "cache_write_allowed",
+              "serving_allowed",
+              "results"
+            ],
+            "properties": {
+              "phase_id": {
+                "type": "string",
+                "const": "sc_g3_observability_false_hit"
+              },
+              "scenario_count": {
+                "type": "integer",
+                "const": 12
+              },
+              "scenario_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cache_read_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "cache_write_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "serving_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "allowed",
+                    "audit_event_id",
+                    "blocking_reasons",
+                    "cache_read_allowed",
+                    "cache_write_allowed",
+                    "evaluation_id",
+                    "fallback_rate_bps",
+                    "false_hit_rate_bps",
+                    "is_false_hit",
+                    "metrics_id",
+                    "outcome_class",
+                    "reason_codes",
+                    "rollback_required",
+                    "scenario_id",
+                    "serving_allowed",
+                    "stop_decision_id",
+                    "stop_serving"
+                  ],
+                  "properties": {
+                    "allowed": {
+                      "type": "boolean"
+                    },
+                    "audit_event_id": {
+                      "type": "string"
+                    },
+                    "blocking_reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cache_read_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "cache_write_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "evaluation_id": {
+                      "type": "string"
+                    },
+                    "fallback_rate_bps": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "false_hit_rate_bps": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "is_false_hit": {
+                      "type": "boolean"
+                    },
+                    "metrics_id": {
+                      "type": "string"
+                    },
+                    "outcome_class": {
+                      "type": "string"
+                    },
+                    "reason_codes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rollback_required": {
+                      "type": "boolean"
+                    },
+                    "scenario_id": {
+                      "type": "string"
+                    },
+                    "serving_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "stop_decision_id": {
+                      "type": "string"
+                    },
+                    "stop_serving": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "phase_id",
+              "scenario_count",
+              "scenario_ids",
+              "cache_read_allowed",
+              "cache_write_allowed",
+              "serving_allowed",
+              "results"
+            ],
+            "properties": {
+              "phase_id": {
+                "type": "string",
+                "const": "sc_g4_bounded_insight"
+              },
+              "scenario_count": {
+                "type": "integer",
+                "const": 12
+              },
+              "scenario_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cache_read_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "cache_write_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "serving_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cache_read_allowed",
+                    "cache_write_allowed",
+                    "candidate_record_id",
+                    "decision",
+                    "decision_id",
+                    "match_mode",
+                    "reason_codes",
+                    "scenario_id",
+                    "score_bps",
+                    "serving_allowed"
+                  ],
+                  "properties": {
+                    "cache_read_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "cache_write_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "candidate_record_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": "string"
+                    },
+                    "decision_id": {
+                      "type": "string"
+                    },
+                    "match_mode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "reason_codes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "scenario_id": {
+                      "type": "string"
+                    },
+                    "score_bps": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "serving_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "phase_id",
+              "scenario_count",
+              "scenario_ids",
+              "cache_read_allowed",
+              "cache_write_allowed",
+              "serving_allowed",
+              "matrix_id",
+              "final_decision",
+              "candidate_decisions"
+            ],
+            "properties": {
+              "phase_id": {
+                "type": "string",
+                "const": "sc_g5_backend_label_context"
+              },
+              "scenario_count": {
+                "type": "integer",
+                "const": 12
+              },
+              "scenario_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cache_read_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "cache_write_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "serving_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "matrix_id": {
+                "type": "string"
+              },
+              "final_decision": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "backend_label",
+                  "candidate_id",
+                  "decision",
+                  "decision_id",
+                  "implementation_allowed",
+                  "metadata",
+                  "policy_version",
+                  "reason_codes",
+                  "rejected_candidate_ids",
+                  "runtime_allowed",
+                  "selected_backend_label",
+                  "selected_candidate_id"
+                ],
+                "properties": {
+                  "backend_label": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "candidate_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "decision": {
+                    "type": "string"
+                  },
+                  "decision_id": {
+                    "type": "string"
+                  },
+                  "implementation_allowed": {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "decision_scope",
+                      "serves_cached_payload"
+                    ],
+                    "properties": {
+                      "decision_scope": {
+                        "type": "string",
+                        "const": "label_only"
+                      },
+                      "serves_cached_payload": {
+                        "type": "boolean",
+                        "const": false
+                      }
+                    }
+                  },
+                  "policy_version": {
+                    "type": "string"
+                  },
+                  "reason_codes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "rejected_candidate_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "runtime_allowed": {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  "selected_backend_label": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "selected_candidate_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "candidate_decisions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "backend_label",
+                    "candidate_id",
+                    "decision",
+                    "decision_id",
+                    "implementation_allowed",
+                    "metadata",
+                    "policy_version",
+                    "reason_codes",
+                    "rejected_candidate_ids",
+                    "runtime_allowed",
+                    "selected_backend_label",
+                    "selected_candidate_id"
+                  ],
+                  "properties": {
+                    "backend_label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "candidate_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": "string"
+                    },
+                    "decision_id": {
+                      "type": "string"
+                    },
+                    "implementation_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "decision_scope",
+                        "serves_cached_payload"
+                      ],
+                      "properties": {
+                        "decision_scope": {
+                          "type": "string",
+                          "const": "label_only"
+                        },
+                        "serves_cached_payload": {
+                          "type": "boolean",
+                          "const": false
+                        }
+                      }
+                    },
+                    "policy_version": {
+                      "type": "string"
+                    },
+                    "reason_codes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rejected_candidate_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "runtime_allowed": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "selected_backend_label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "selected_candidate_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "scenario_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scenario_id",
+          "risk_class",
+          "expected_action",
+          "record_id",
+          "request_fingerprint",
+          "response_fingerprint",
+          "source_fingerprints",
+          "policy_version",
+          "provider_key",
+          "model_key",
+          "user_tier",
+          "context_fingerprint",
+          "transparency_notice_id",
+          "lookup_decision",
+          "match_mode",
+          "score_bps",
+          "audit_event_id",
+          "false_hit_outcome",
+          "false_hit_allowed",
+          "false_hit_is_false_hit",
+          "false_hit_reason_codes",
+          "false_hit_blocking_reasons",
+          "metrics_id",
+          "stop_serving",
+          "rollback_required",
+          "stop_reason_codes",
+          "bounded_decision",
+          "bounded_decision_id",
+          "bounded_reason_codes",
+          "cache_read_allowed",
+          "cache_write_allowed",
+          "serving_allowed"
+        ],
+        "properties": {
+          "scenario_id": {
+            "type": "string"
+          },
+          "risk_class": {
+            "type": "string"
+          },
+          "expected_action": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "request_fingerprint": {
+            "type": "string"
+          },
+          "response_fingerprint": {
+            "type": "string"
+          },
+          "policy_version": {
+            "type": "string"
+          },
+          "provider_key": {
+            "type": "string"
+          },
+          "model_key": {
+            "type": "string"
+          },
+          "user_tier": {
+            "type": "string"
+          },
+          "context_fingerprint": {
+            "type": "string"
+          },
+          "transparency_notice_id": {
+            "type": "string"
+          },
+          "lookup_decision": {
+            "type": "string"
+          },
+          "audit_event_id": {
+            "type": "string"
+          },
+          "false_hit_outcome": {
+            "type": "string"
+          },
+          "metrics_id": {
+            "type": "string"
+          },
+          "bounded_decision": {
+            "type": "string"
+          },
+          "bounded_decision_id": {
+            "type": "string"
+          },
+          "source_fingerprints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "match_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score_bps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "false_hit_allowed": {
+            "type": "boolean"
+          },
+          "false_hit_is_false_hit": {
+            "type": "boolean"
+          },
+          "false_hit_reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "false_hit_blocking_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stop_serving": {
+            "type": "boolean"
+          },
+          "rollback_required": {
+            "type": "boolean"
+          },
+          "stop_reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bounded_reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cache_read_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "cache_write_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "serving_allowed": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      }
+    },
+    "backend_label_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matrix_id",
+        "policy_version",
+        "backend_labels",
+        "final_decision",
+        "candidate_decisions",
+        "runtime_allowed",
+        "implementation_allowed",
+        "cache_read_allowed",
+        "cache_write_allowed",
+        "serving_allowed"
+      ],
+      "properties": {
+        "matrix_id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "backend_labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "final_decision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "backend_label",
+            "candidate_id",
+            "decision",
+            "decision_id",
+            "implementation_allowed",
+            "metadata",
+            "policy_version",
+            "reason_codes",
+            "rejected_candidate_ids",
+            "runtime_allowed",
+            "selected_backend_label",
+            "selected_candidate_id"
+          ],
+          "properties": {
+            "backend_label": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "candidate_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "decision": {
+              "type": "string"
+            },
+            "decision_id": {
+              "type": "string"
+            },
+            "implementation_allowed": {
+              "type": "boolean",
+              "const": false
+            },
+            "metadata": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision_scope",
+                "serves_cached_payload"
+              ],
+              "properties": {
+                "decision_scope": {
+                  "type": "string",
+                  "const": "label_only"
+                },
+                "serves_cached_payload": {
+                  "type": "boolean",
+                  "const": false
+                }
+              }
+            },
+            "policy_version": {
+              "type": "string"
+            },
+            "reason_codes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rejected_candidate_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "runtime_allowed": {
+              "type": "boolean",
+              "const": false
+            },
+            "selected_backend_label": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "selected_candidate_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "candidate_decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "backend_label",
+              "candidate_id",
+              "decision",
+              "decision_id",
+              "implementation_allowed",
+              "metadata",
+              "policy_version",
+              "reason_codes",
+              "rejected_candidate_ids",
+              "runtime_allowed",
+              "selected_backend_label",
+              "selected_candidate_id"
+            ],
+            "properties": {
+              "backend_label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "candidate_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": "string"
+              },
+              "decision_id": {
+                "type": "string"
+              },
+              "implementation_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "metadata": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "decision_scope",
+                  "serves_cached_payload"
+                ],
+                "properties": {
+                  "decision_scope": {
+                    "type": "string",
+                    "const": "label_only"
+                  },
+                  "serves_cached_payload": {
+                    "type": "boolean",
+                    "const": false
+                  }
+                }
+              },
+              "policy_version": {
+                "type": "string"
+              },
+              "reason_codes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rejected_candidate_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "runtime_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "selected_backend_label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "selected_candidate_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_read_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_write_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "serving_allowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "final_admission_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "reason_codes",
+        "semantic_cache_gate_status",
+        "runtime_allowed",
+        "implementation_allowed",
+        "cache_read_allowed",
+        "cache_write_allowed",
+        "serving_allowed"
+      ],
+      "properties": {
+        "decision": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "semantic_cache_gate_status": {
+          "type": "string",
+          "const": "closed"
+        },
+        "runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_read_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_write_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "serving_allowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "redaction_assertions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_prompt_absent",
+        "raw_query_absent",
+        "normalized_query_absent",
+        "raw_context_absent",
+        "raw_answer_absent",
+        "raw_response_absent",
+        "provider_payloads_absent",
+        "local_paths_absent",
+        "secrets_absent",
+        "slack_ids_absent",
+        "workflow_logs_absent",
+        "provider_logs_absent",
+        "operator_artifacts_absent",
+        "health_data_absent",
+        "user_data_absent"
+      ],
+      "properties": {
+        "raw_prompt_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_query_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "normalized_query_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_context_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_answer_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_response_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "provider_payloads_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "local_paths_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "secrets_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "slack_ids_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "workflow_logs_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "provider_logs_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "operator_artifacts_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "health_data_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "user_data_absent": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "symbol"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
