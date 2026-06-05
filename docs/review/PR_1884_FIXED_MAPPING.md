@@ -33,6 +33,15 @@ frontend, iOS, Slack/operator-plane authority, semantic cache, or GraphRAG.
 Disposition: FIXED
 Commit: ee8b58d65
 Evidence: cubic identified that the canonical fixed-mapping artifact used the PR-body mirror heading level. `docs/review/PR_1884_FIXED_MAPPING.md` now uses `## Fixed in Commit Mapping`, the canonical artifact heading.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361468672 -> 3a738e078faaa4f8458d1fa034a809c6a3f93efc
+Disposition: FIXED
+Commit: 3a738e078faaa4f8458d1fa034a809c6a3f93efc
+Evidence: `docs/review/PR_1884_FIXED_MAPPING.md` now states that resolved review threads are tracked below with disposition evidence instead of claiming no threads were resolved.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361491362 -> 3a738e078faaa4f8458d1fa034a809c6a3f93efc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361498490 -> 3a738e078faaa4f8458d1fa034a809c6a3f93efc
+Disposition: FIXED
+Commit: 3a738e078faaa4f8458d1fa034a809c6a3f93efc
+Evidence: `docs/review/PR_1884_FIXED_MAPPING.md` now records the `security-auditor` gate as completed after the exact local-path guard passed, removing the completed-vs-pending contradiction.
 
 ## Premortem Findings
 
