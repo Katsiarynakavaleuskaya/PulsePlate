@@ -76,7 +76,17 @@ No review threads existed at PR open. Post-open review threads must be added her
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361890418 -> c2e4f5051dccc4247009dee0f02e41b5f4548ae7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361890425 -> c2e4f5051dccc4247009dee0f02e41b5f4548ae7
+Disposition: FIXED
+Commit: c2e4f5051dccc4247009dee0f02e41b5f4548ae7
+Evidence: `tests/test_fitchef_app_store_pack.py` now requires Spanish-specific copy signals and rejects copied English rationale/decision-log text; `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` now distinguishes release-ready final media lanes from governed internal-review text/JSON localization packs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897837
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897842
+Disposition: NOT-A-BUG
+Evidence: Current branch head includes `9ff2dbbab5a72a35e4bd2e5c89b1106eeb10aa16`, which changed `docs/review/PR_1886_FIXED_MAPPING.md` to the machine-parseable `## Fixed in Commit Mapping` heading, required discussion checklist items, and exact Experiment Runner artifact shape; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1886 --body "$(gh pr view 1886 --json body --jq .body)" --commit-range origin/main..HEAD` passes.
+Reason: These Cubic comments were generated against the earlier mapping artifact shape but are already addressed in the current branch and live PR-body mirror.
 
 ## Merge Readiness
 
