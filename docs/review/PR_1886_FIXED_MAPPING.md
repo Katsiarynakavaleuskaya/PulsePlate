@@ -198,6 +198,22 @@ Disposition: NOT-A-BUG
 Evidence: Current branch head `b9187b6814913cb72cb52e70f6115d779b010879` contains the mapped commits cited in the stale-head reviews; `git merge-base --is-ancestor 418c3af4fda1265cc757229ef2f891295b3726fc HEAD`, `git merge-base --is-ancestor 8f0e1d27cc7d83d8d1a53a10886d13823e720322 HEAD`, and `git merge-base --is-ancestor 30756c8853a194a3b71ab683edd47baa018fb676 HEAD` all return 0 locally.
 Reason: These comments were generated against older reviewed commits before later fix and mapping commits landed. The current PR branch head contains the mapped fix commits.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362570406 -> b0a114bb49b237b03a8fc63482cb91da063ca00f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362570412 -> b0a114bb49b237b03a8fc63482cb91da063ca00f
+Disposition: FIXED
+Commit: b0a114bb49b237b03a8fc63482cb91da063ca00f
+Evidence: `tests/test_fitchef_app_store_pack.py` now validates each localized screenshot headline/supporting-copy line independently, uses token-aware matching for short locale signals such as `ia`, and keeps phrase matching for multi-word Spanish signals; `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `68 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362570415
+Disposition: NOT-A-BUG
+Evidence: Current branch head `b0a114bb49b237b03a8fc63482cb91da063ca00f` contains the mapped fix commits cited in the stale-head review; `git merge-base --is-ancestor b9187b6814913cb72cb52e70f6115d779b010879 HEAD`, `git merge-base --is-ancestor 8f0e1d27cc7d83d8d1a53a10886d13823e720322 HEAD`, and `git merge-base --is-ancestor 30756c8853a194a3b71ab683edd47baa018fb676 HEAD` all return 0 locally.
+Reason: The comment was generated against reviewed commit `13df31a729248fe5b0b5590c43f8ce297b930afa`, not the current PR branch head. The current branch history contains the mapped fix commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#pullrequestreview-4435816619
+Disposition: NOT-A-BUG
+Evidence: Root `AGENTS.md`, `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md`, and `scripts/orchestration/check_experiment_runner_identity.py` define/enforce the canonical Experiment Runner trailer as `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The CodeRabbit top-level review repeats the earlier trailer suggestion to use `pulseplatepm.me`, which conflicts with repository source of truth and the identity checker.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897842
 Disposition: NOT-A-BUG
