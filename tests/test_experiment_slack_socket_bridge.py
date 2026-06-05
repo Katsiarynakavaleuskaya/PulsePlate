@@ -433,6 +433,7 @@ def test_activation_readiness_report_projects_cross_repo_private_pilot_without_v
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _configure_repo(monkeypatch, tmp_path)
+    _clear_readiness_env(monkeypatch)
     target_repo = "PilotOrg/PrivatePilot"
     token = "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 15
     monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
