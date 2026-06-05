@@ -9,15 +9,14 @@ Verifies that:
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import pathlib
 import subprocess
 import sys
-from types import ModuleType
 from typing import Any
 
 import pytest
+from scripts.release import check_ios_appstore_verify as validator_module
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 VALIDATOR_SCRIPT = REPO_ROOT / "scripts" / "release" / "check_ios_appstore_verify.py"
@@ -96,17 +95,12 @@ def test_validator_registers_all_checks() -> None:
         assert name in content.split("ALL_CHECKS")[1], f"Check {name} not registered in ALL_CHECKS"
 
 
-def _load_validator_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("check_ios_appstore_verify", VALIDATOR_SCRIPT)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _load_validator_module() -> Any:
+    return validator_module
 
 
 def _prepare_fitchef_bundle_fixture(
-    module: ModuleType,
+    module: Any,
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[pathlib.Path, dict[str, Any], str]:
@@ -207,7 +201,9 @@ def test_fitchef_release_readiness_validator_rejects_generic_secret_assignment(
     )
 
     results = module.check_fitchef_release_readiness_bundle()
-    assert "Credential-like release bundle value" in _failed_messages(results)
+    messages = _failed_messages(results)
+    assert "Credential-like release bundle value" in messages
+    assert "abcd1234efgh5678" not in messages
 
 
 def test_fitchef_release_readiness_validator_rejects_protected_json_keys(
@@ -274,6 +270,27 @@ def test_fitchef_release_readiness_validator_rejects_extra_release_note_claims(
     results = module.check_fitchef_release_readiness_bundle()
     messages = _failed_messages(results)
     assert "gh_token" in messages.lower() or "Protected release action claim" in messages
+
+
+def test_fitchef_release_readiness_validator_scans_locale_pack_text(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    locale_note = release_dir.parent / "en-US" / "metadata" / "source_of_truth.md"
+    locale_note.parent.mkdir(parents=True)
+    locale_note.write_text(
+        "Fastlane upload completed.\nsecret=abcd1234efgh5678\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    messages = _failed_messages(results)
+    assert "Protected release action claim" in messages or "Credential-like" in messages
+    assert "abcd1234efgh5678" not in messages
 
 
 def test_fitchef_release_readiness_validator_rejects_source_path_drift(
@@ -353,7 +370,7 @@ def test_fitchef_release_readiness_validator_rejects_medical_matrix_claim(
     assert "Medical/wellness overclaim" in _failed_messages(results)
 
 
-@pytest.mark.parametrize("separator", [":", ".", ";", "!", "?", ","])
+@pytest.mark.parametrize("separator", [":", ".", ";", "!", "?", ",", " - "])
 def test_fitchef_release_readiness_validator_rejects_negation_bypass_overclaim(
     separator: str,
     tmp_path: pathlib.Path,
@@ -372,6 +389,21 @@ def test_fitchef_release_readiness_validator_rejects_negation_bypass_overclaim(
     assert "Medical/wellness overclaim" in _failed_messages(results)
 
 
+def test_fitchef_release_readiness_validator_rejects_punctuation_only_negation_gap(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = "No, Diagnose patients."
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Medical/wellness overclaim" in _failed_messages(results)
+
+
 def test_fitchef_release_readiness_validator_allows_boundary_lists(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -383,6 +415,23 @@ def test_fitchef_release_readiness_validator_allows_boundary_lists(
     payload["scenarios"][0][
         "privacy_ai_wellness_note"
     ] = "Wellness-only copy with no diagnosis, treatment, therapy, or clinical nutrition claim."
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert not _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_allows_natural_disclaimer_phrasing(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0][
+        "privacy_ai_wellness_note"
+    ] = "PulsePlate does not provide medical diagnosis, treatment, or therapy advice."
     _write_matrix_payload(release_dir, payload)
 
     results = module.check_fitchef_release_readiness_bundle()
@@ -407,6 +456,54 @@ def test_fitchef_release_readiness_validator_rejects_ios_screenshot_source_drift
 
     results = module.check_fitchef_release_readiness_bundle()
     assert "iOS screenshot test screenshot name drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_ios_screenshot_case_swap(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_fitchef_bundle_fixture(module, tmp_path, monkeypatch)
+    ios_tests = tmp_path / "AppStoreScreenshotTests.swift"
+    ios_test_text = module.APPSTORE_SCREENSHOT_TESTS.read_text(encoding="utf-8")
+    ios_test_text = ios_test_text.replace('"01_core-value"', '"__tmp_core_value__"', 1)
+    ios_test_text = ios_test_text.replace('"02_nutrition-analysis"', '"01_core-value"', 1)
+    ios_test_text = ios_test_text.replace('"__tmp_core_value__"', '"02_nutrition-analysis"', 1)
+    ios_tests.write_text(ios_test_text, encoding="utf-8")
+    monkeypatch.setattr(module, "APPSTORE_SCREENSHOT_TESTS", ios_tests)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "iOS screenshot test screenshot name drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_blank_privacy_note(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["privacy_ai_wellness_note"] = ""
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "privacy_ai_wellness_note must be non-empty text" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_unsafe_wellness_status(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["locale_review_matrix"][0]["wellness_claim_status"] = "medical_claim_ok"
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Unknown wellness-claim status" in _failed_messages(results)
 
 
 def test_fitchef_release_readiness_validator_rejects_time_range_drift(

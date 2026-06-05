@@ -220,6 +220,15 @@ FITCHEF_RELEASE_LOCALE_ROW_KEYS = {
     "wellness_claim_status",
     "reviewer_action",
 }
+FITCHEF_RELEASE_WELLNESS_STATUS_VALUES = {
+    "ai_wellness_disclosure_required",
+    "convenience_only",
+    "educational_support_only",
+    "habit_support_only",
+    "habit_tracking_only",
+    "support_framing_only",
+    "user_control_only",
+}
 FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS = (
     re.compile(r"\bdiagnos(?:e|es|is|tic)\b", re.IGNORECASE),
     re.compile(r"\btreat(?:s|ed|ing|ment)?\b", re.IGNORECASE),
@@ -241,10 +250,15 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS = (
     "without ",
 )
 FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
+    "a",
     "advice",
+    "an",
+    "and",
+    "any",
     "autonomy",
     "care",
     "claim",
+    "claims",
     "clinical",
     "crisis",
     "diagnosis",
@@ -256,15 +270,20 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
     "guaranteed",
     "hidden",
     "imply",
+    "implies",
+    "make",
     "medical",
     "nutrition",
+    "offer",
     "or",
     "outcome",
     "patient",
     "patients",
     "pricing",
+    "provide",
     "support",
     "tailoring",
+    "the",
     "therapy",
     "treat",
     "treatment",
@@ -373,7 +392,7 @@ def _validate_fitchef_pack_file_boundaries() -> str | None:
 
 def _release_readiness_scan_text() -> tuple[str, str | None]:
     scan_parts: list[str] = []
-    for path in sorted(FITCHEF_RELEASE_READINESS_DIR.rglob("*")):
+    for path in sorted(FITCHEF_PACK_BASE.rglob("*")):
         if not path.is_file():
             continue
         text, error = _fitchef_pack_file_scan_text(path)
@@ -395,7 +414,7 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
     for pattern in FITCHEF_RELEASE_CREDENTIAL_PATTERNS:
         match = pattern.search(text)
         if match:
-            return f"Credential-like release bundle value found: {match.group()}"
+            return "Credential-like release bundle value found: <redacted>"
     for pattern in FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS:
         match = pattern.search(text)
         if match:
@@ -430,7 +449,51 @@ def _medical_term_is_boundary_negated(line: str, match_start: int) -> bool:
         return True
 
     context_words = re.findall(r"[a-z]+", text_between_marker_and_term)
-    return all(word in FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS for word in context_words)
+    return bool(context_words) and all(
+        word in FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS for word in context_words
+    )
+
+
+def _swift_enum_case_name(scenario_id: str) -> str:
+    head, *tail = scenario_id.split("_")
+    return head + "".join(part.capitalize() for part in tail)
+
+
+def _swift_balanced_block_after(source: str, needle: str) -> str | None:
+    start = source.find(needle)
+    if start < 0:
+        return None
+    open_index = source.find("{", start)
+    if open_index < 0:
+        return None
+    depth = 0
+    for index in range(open_index, len(source)):
+        char = source[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return source[open_index + 1 : index]
+    return None
+
+
+def _swift_case_return_literal(source: str, property_name: str, enum_case: str) -> str | None:
+    block = _swift_balanced_block_after(source, f"var {property_name}: String")
+    if block is None:
+        return None
+    match = re.search(
+        rf"case\s+\.{re.escape(enum_case)}\s*:\s*return\s+\"([^\"]+)\"",
+        block,
+        re.MULTILINE,
+    )
+    return match.group(1) if match else None
+
+
+def _validate_non_empty_string(value: Any, *, label: str) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return f"{label} must be non-empty text"
+    return None
 
 
 def _validate_source_paths(source_paths: dict[str, Any]) -> str | None:
@@ -455,15 +518,41 @@ def _validate_ios_screenshot_sources() -> str | None:
     if test_error:
         return f"Cannot read iOS screenshot tests: {test_error}"
     for scenario_id, expected in EXPECTED_FITCHEF_SCENARIOS.items():
-        for label, needle, source_text in (
-            ("context scenario id", scenario_id, context_text),
-            ("test scenario id", scenario_id, test_text),
-            ("context accessibility id", expected["accessibility_identifier"], context_text),
-            ("test accessibility id", expected["accessibility_identifier"], test_text),
-            ("test screenshot name", expected["screenshot_name"], test_text),
-        ):
-            if needle not in source_text:
-                return f"iOS screenshot {label} drift for {scenario_id}: missing {needle!r}"
+        enum_case = _swift_enum_case_name(scenario_id)
+        case_declaration = f'case {enum_case} = "{scenario_id}"'
+        if case_declaration not in context_text:
+            return f"iOS screenshot context scenario id drift for {scenario_id}"
+        if case_declaration not in test_text:
+            return f"iOS screenshot test scenario id drift for {scenario_id}"
+
+        context_accessibility_id = _swift_case_return_literal(
+            context_text,
+            "accessibilityIdentifier",
+            enum_case,
+        )
+        if context_accessibility_id != expected["accessibility_identifier"]:
+            return (
+                f"iOS screenshot context accessibility id drift for {scenario_id}: "
+                f"{context_accessibility_id!r} != {expected['accessibility_identifier']!r}"
+            )
+
+        test_accessibility_id = _swift_case_return_literal(
+            test_text,
+            "accessibilityIdentifier",
+            enum_case,
+        )
+        if test_accessibility_id != expected["accessibility_identifier"]:
+            return (
+                f"iOS screenshot test accessibility id drift for {scenario_id}: "
+                f"{test_accessibility_id!r} != {expected['accessibility_identifier']!r}"
+            )
+
+        test_screenshot_name = _swift_case_return_literal(test_text, "screenshotName", enum_case)
+        if test_screenshot_name != expected["screenshot_name"]:
+            return (
+                f"iOS screenshot test screenshot name drift for {scenario_id}: "
+                f"{test_screenshot_name!r} != {expected['screenshot_name']!r}"
+            )
     return None
 
 
@@ -1123,6 +1212,14 @@ def check_fitchef_release_readiness_bundle() -> Results:
                 )
             )
             return results
+        for field in ("privacy_ai_wellness_note", "reviewer_action"):
+            text_error = _validate_non_empty_string(
+                item.get(field),
+                label=f"{scenario_id} {field}",
+            )
+            if text_error:
+                results.append((False, tag, text_error))
+                return results
 
     locale_rows = payload.get("locale_review_matrix")
     if not isinstance(locale_rows, list):
@@ -1305,8 +1402,19 @@ def check_fitchef_release_readiness_bundle() -> Results:
         if row.get("line_fit_status") not in {"review", "pass-length", "render-risk"}:
             results.append((False, tag, f"Unknown line-fit status: {row.get('line_fit_status')}"))
             return results
+        wellness_status = row.get("wellness_claim_status")
+        if wellness_status not in FITCHEF_RELEASE_WELLNESS_STATUS_VALUES:
+            results.append((False, tag, f"Unknown wellness-claim status: {wellness_status!r}"))
+            return results
         if "fitchef" not in str(row.get("fitchef_overlap_status", "")).lower():
             results.append((False, tag, f"Missing FitChef overlap cue for {(locale, shot_id)}"))
+            return results
+        reviewer_action_error = _validate_non_empty_string(
+            row.get("reviewer_action"),
+            label=f"Locale reviewer_action for {(locale, shot_id)}",
+        )
+        if reviewer_action_error:
+            results.append((False, tag, reviewer_action_error))
             return results
         if "rendered review" not in str(row.get("reviewer_action", "")).lower():
             results.append((False, tag, f"Missing rendered-review action for {(locale, shot_id)}"))
