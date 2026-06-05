@@ -160,6 +160,21 @@ LOCALE_COPY_SIGNALS = {
         "sugerencias",
     ),
 }
+LOCALE_KEYWORD_SIGNALS = {
+    "es-ES": (
+        "alimentos",
+        "calorias",
+        "habitos",
+        "imc",
+        "ia",
+        "lista compra",
+        "macros",
+        "menu",
+        "nutricion",
+        "plan comidas",
+        "recetas",
+    ),
+}
 LOCALE_BOILERPLATE_FRAGMENTS = {
     "ru-RU": (
         "localization pack",
@@ -311,8 +326,11 @@ NO_UPLOAD_CLAIMS = (
     "готова к отправке",
     "готов к релизу",
     "listo para subir",
+    "lista para subir",
     "listo para enviar",
+    "lista para enviar",
     "listo para lanzamiento",
+    "lista para lanzamiento",
     "subida completada",
     "publicado en app store",
 )
@@ -389,6 +407,13 @@ def _has_locale_script(text: str, locale: str) -> bool:
     return any(start <= char.lower() <= end or char.lower() == extra for char in text)
 
 
+def _has_locale_keyword_signal(keyword: str, locale: str) -> bool:
+    if locale in LOCALE_KEYWORD_SIGNALS:
+        scan_text = _claim_scan_text(keyword)
+        return any(signal in scan_text for signal in LOCALE_KEYWORD_SIGNALS[locale])
+    return _has_locale_script(keyword, locale)
+
+
 def _claim_scan_text(text: str) -> str:
     """Normalize localized App Store copy before matching safety blocker stems."""
     normalized = unicodedata.normalize("NFKD", text.lower())
@@ -417,6 +442,10 @@ def _blocked_upload_claims_in(text: str) -> list[str]:
     """Return upload/submission claims after locale-safe normalization."""
     scan_text = _claim_scan_text(text)
     return sorted(claim for claim in NO_UPLOAD_CLAIMS if _claim_scan_text(claim) in scan_text)
+
+
+def _safety_blockers_in(locale: str, text: str) -> list[str]:
+    return [*_blocked_terms_in(locale, text), *_blocked_upload_claims_in(text)]
 
 
 def test_es_locale_signal_rejects_copied_english_copy() -> None:
@@ -536,7 +565,9 @@ def test_app_store_metadata_stays_locale_scoped_and_within_limits(locale: str) -
         assert all(
             _has_locale_script(field, locale) for field in localized_visible_fields
         ), f"{locale} visible metadata field lacks locale-specific copy signal"
-        assert _has_locale_script(",".join(payload["keywords"]), locale)
+        assert all(
+            _has_locale_keyword_signal(keyword, locale) for keyword in payload["keywords"]
+        ), f"{locale} metadata keyword lacks locale-specific copy signal"
     offending_terms = _blocked_terms_in(locale, visible_metadata)
     assert not offending_terms, f"Blocked term(s) found in metadata: {offending_terms}"
     upload_claims = _blocked_upload_claims_in(visible_metadata)
@@ -578,6 +609,8 @@ def test_screenshot_manifest_defines_seven_governed_shots_with_real_refs(
             ), f"{locale} supporting copy for {shot['id']} lacks locale-specific copy signal"
         offending_terms = _blocked_terms_in(locale, visible_copy)
         assert not offending_terms, f"Blocked term(s) found in shot copy: {offending_terms}"
+        upload_claims = _blocked_upload_claims_in(visible_copy)
+        assert not upload_claims, f"{locale} shot copy overclaims release scope: {upload_claims}"
         for source_ref in shot["repo_source_refs"]:
             assert _repo_path(source_ref).exists(), f"Missing source ref: {source_ref}"
 
@@ -641,6 +674,11 @@ def test_icon_source_inventory_references_only_canonical_local_assets(locale: st
             f"{locale} icon inventory decision log contains English boilerplate: "
             f"{offending_fragments}"
         )
+        for entry in payload["decision_log"]:
+            safety_blockers = _safety_blockers_in(locale, entry)
+            assert not safety_blockers, (
+                f"{locale} icon inventory decision log contains unsafe claim: " f"{safety_blockers}"
+            )
 
 
 @pytest.mark.parametrize("localized_locale", LOCALIZED_LOCALES)
@@ -791,6 +829,11 @@ def test_localized_preview_plan_uses_localized_operational_copy(locale: str) -> 
     assert all(
         _has_locale_script(scene["focus"], locale) for scene in storyboard["scenes"]
     ), f"{locale} preview scene focus lacks locale-specific copy signal"
+    for scene in storyboard["scenes"]:
+        safety_blockers = _safety_blockers_in(locale, scene["focus"])
+        assert (
+            not safety_blockers
+        ), f"{locale} preview scene focus contains unsafe claim: {safety_blockers}"
 
 
 @pytest.mark.parametrize("locale", LOCALIZED_LOCALES)
@@ -808,6 +851,11 @@ def test_localized_screenshot_manifest_rationales_are_localized(locale: str) -> 
     assert (
         not offending_fragments
     ), f"{locale} manifest rationale contains English boilerplate: {offending_fragments}"
+    for rationale in rationales:
+        safety_blockers = _safety_blockers_in(locale, rationale)
+        assert (
+            not safety_blockers
+        ), f"{locale} manifest rationale contains unsafe claim: {safety_blockers}"
 
 
 def test_ru_wellness_blockers_do_not_reject_food_recipe_copy() -> None:
@@ -912,8 +960,15 @@ def test_es_metadata_locale_guard_rejects_single_signal_false_green() -> None:
         *payload["description_paragraphs"],
     )
 
-    assert _has_locale_script(",".join(payload["keywords"]), "es-ES")
+    assert _has_locale_keyword_signal("nutrición", "es-ES")
     assert not all(_has_locale_script(field, "es-ES") for field in localized_visible_fields)
+
+
+def test_es_metadata_keyword_guard_rejects_masked_english_keyword() -> None:
+    """One Spanish keyword must not mask an untranslated keyword sibling."""
+    assert _has_locale_keyword_signal("nutrición", "es-ES")
+    assert _has_locale_keyword_signal("IA", "es-ES")
+    assert not _has_locale_keyword_signal("weekly planner", "es-ES")
 
 
 def test_es_screenshot_copy_guard_rejects_masked_english_headline() -> None:
@@ -949,6 +1004,17 @@ def test_localized_pack_docs_reject_no_upload_claims() -> None:
     assert "готов к загрузке" in NO_UPLOAD_CLAIMS
     assert "listo para subir" in _blocked_upload_claims_in("Paquete Listo Para Subir")
     assert "ready for upload" in _blocked_upload_claims_in("Metadata Ready For Upload")
+
+
+def test_localized_json_copy_guards_reject_upload_and_safety_claims() -> None:
+    """Localized JSON handoff fields must reject upload and wellness overclaims."""
+    upload_claim = "Planificación lista para enviar"
+    guaranteed_claim = "Vista con resultados garantizados"
+
+    assert "lista para enviar" in _blocked_upload_claims_in(upload_claim)
+    assert "garantiz" in _blocked_terms_in("es-ES", guaranteed_claim)
+    assert _safety_blockers_in("es-ES", upload_claim)
+    assert _safety_blockers_in("es-ES", guaranteed_claim)
 
 
 def test_localized_manifest_boilerplate_guard_is_case_insensitive() -> None:
