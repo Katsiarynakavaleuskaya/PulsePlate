@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unicodedata
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -399,6 +400,25 @@ def _blocked_terms_in(locale: str, text: str) -> list[str]:
     return sorted(term for term in BLOCKED_COPY_TERMS[locale] if term in scan_text)
 
 
+def _blocked_fragments_in_texts(
+    blocked_fragments: Iterable[str],
+    texts: Iterable[str],
+) -> list[str]:
+    """Match blocked fragments case-insensitively with accent folding."""
+    scan_texts = [_claim_scan_text(text) for text in texts]
+    return sorted(
+        fragment
+        for fragment in blocked_fragments
+        if any(_claim_scan_text(fragment) in scan_text for scan_text in scan_texts)
+    )
+
+
+def _blocked_upload_claims_in(text: str) -> list[str]:
+    """Return upload/submission claims after locale-safe normalization."""
+    scan_text = _claim_scan_text(text)
+    return sorted(claim for claim in NO_UPLOAD_CLAIMS if _claim_scan_text(claim) in scan_text)
+
+
 def test_es_locale_signal_rejects_copied_english_copy() -> None:
     """ES localization guards must not accept copied EN operational text."""
     copied_english_rationale = (
@@ -519,6 +539,8 @@ def test_app_store_metadata_stays_locale_scoped_and_within_limits(locale: str) -
         assert _has_locale_script(",".join(payload["keywords"]), locale)
     offending_terms = _blocked_terms_in(locale, visible_metadata)
     assert not offending_terms, f"Blocked term(s) found in metadata: {offending_terms}"
+    upload_claims = _blocked_upload_claims_in(visible_metadata)
+    assert not upload_claims, f"{locale} metadata overclaims release scope: {upload_claims}"
 
 
 @pytest.mark.parametrize("locale", LOCALES)
@@ -611,10 +633,9 @@ def test_icon_source_inventory_references_only_canonical_local_assets(locale: st
         assert all(
             _has_locale_script(entry, locale) for entry in payload["decision_log"]
         ), f"{locale} icon inventory decision entry lacks locale-specific copy signal"
-        offending_fragments = sorted(
-            fragment
-            for fragment in blocked_english_fragments
-            if any(fragment in entry for entry in payload["decision_log"])
+        offending_fragments = _blocked_fragments_in_texts(
+            blocked_english_fragments,
+            payload["decision_log"],
         )
         assert not offending_fragments, (
             f"{locale} icon inventory decision log contains English boilerplate: "
@@ -780,10 +801,9 @@ def test_localized_screenshot_manifest_rationales_are_localized(locale: str) -> 
     blocked_english_fragments = LOCALIZED_MANIFEST_BLOCKED_ENGLISH[locale]
 
     assert all(_has_locale_script(rationale, locale) for rationale in rationales)
-    offending_fragments = sorted(
-        fragment
-        for fragment in blocked_english_fragments
-        if any(fragment in rationale for rationale in rationales)
+    offending_fragments = _blocked_fragments_in_texts(
+        blocked_english_fragments,
+        rationales,
     )
     assert (
         not offending_fragments
@@ -837,7 +857,7 @@ def test_localized_pack_docs_preserve_no_upload_scope_and_safe_claims(locale: st
     assert (
         not english_fragments
     ), f"{locale} docs contain English operational copy: {english_fragments}"
-    upload_claims = sorted(claim for claim in NO_UPLOAD_CLAIMS if claim in text)
+    upload_claims = _blocked_upload_claims_in(text)
     assert not upload_claims, f"{locale} docs overclaim release scope: {upload_claims}"
     safe_boundary_text = text.replace("неклиническим", "")
     offending_terms = _blocked_terms_in(locale, safe_boundary_text)
@@ -867,7 +887,7 @@ def test_localized_pack_docs_are_localized_per_file(locale: str) -> None:
         assert (
             not english_fragments
         ), f"{locale} markdown file contains English operational copy: {english_fragments}"
-        upload_claims = sorted(claim for claim in NO_UPLOAD_CLAIMS if claim in text_lower)
+        upload_claims = _blocked_upload_claims_in(text_lower)
         assert not upload_claims, f"{locale} markdown file overclaims release scope: {path}"
         safe_boundary_text = text_lower.replace("неклиническим", "")
         offending_terms = _blocked_terms_in(locale, safe_boundary_text)
@@ -927,6 +947,30 @@ def test_localized_pack_docs_reject_no_upload_claims() -> None:
     """Localized docs must not become protected upload or submission-readiness proof."""
     assert "listo para subir" in NO_UPLOAD_CLAIMS
     assert "готов к загрузке" in NO_UPLOAD_CLAIMS
+    assert "listo para subir" in _blocked_upload_claims_in("Paquete Listo Para Subir")
+    assert "ready for upload" in _blocked_upload_claims_in("Metadata Ready For Upload")
+
+
+def test_localized_manifest_boilerplate_guard_is_case_insensitive() -> None:
+    """Capitalized copied EN rationale fragments must stay blocked."""
+    blocked = _blocked_fragments_in_texts(
+        LOCALIZED_MANIFEST_BLOCKED_ENGLISH["es-ES"],
+        ["Mantiene apoyo visual. Canonical Welcoming mascot variant."],
+    )
+
+    assert "canonical welcoming" in blocked
+    assert "mascot variant" in blocked
+
+
+def test_localized_icon_decision_guard_is_case_insensitive() -> None:
+    """Capitalized copied EN decision-log fragments must stay blocked."""
+    blocked = _blocked_fragments_in_texts(
+        LOCALIZED_DECISION_LOG_BLOCKED_ENGLISH["es-ES"],
+        ["Reuses The Same localization lane without Dirty Local Root Assets."],
+    )
+
+    assert "reuses the same" in blocked
+    assert "dirty local root assets" in blocked
 
 
 def test_es_doc_file_guard_rejects_masked_english_doc() -> None:
@@ -1005,23 +1049,36 @@ def test_cross_locale_review_prep_covers_sources_and_seven_shots() -> None:
         storyboard = _load_json(_preview_dir(locale) / "storyboard.json")
         for shot, scene in zip(manifest["shots"], storyboard["scenes"], strict=True):
             row_anchor = f"| `{locale}` | `{shot['id']}` |"
-            assert row_anchor in text
-            assert f"`{shot['expected_filename']}`" in text
-            assert f"`{scene['id']}`" in text
-            assert f"`{scene['start_second']}-{scene['end_second']}s`" in text
-            assert shot["product_surface"] in text
-            assert shot["approved_mascot_asset_key"] in text
+            matching_rows = [line for line in text.splitlines() if line.startswith(row_anchor)]
+            assert len(matching_rows) == 1
+            row = matching_rows[0]
+            headline_text = " / ".join(shot["headline"])
+            supporting_text = " / ".join(shot["supporting_copy"])
+            copy_lines = [*shot["headline"], *shot["supporting_copy"]]
+            max_line_chars = max(len(line) for line in copy_lines)
+            longest_token_chars = max(
+                len(token) for line in copy_lines for token in line.replace("/", " ").split()
+            )
+
+            assert f"`{shot['expected_filename']}`" in row
+            assert f"`{scene['id']}`" in row
+            assert f"`{scene['start_second']}-{scene['end_second']}s`" in row
+            assert shot["product_surface"] in row
+            assert shot["approved_mascot_asset_key"] in row
+            assert headline_text in row
+            assert supporting_text in row
+            assert f"| {max_line_chars} | {longest_token_chars} |" in row
             for source_ref in shot["repo_source_refs"]:
-                assert f"`{source_ref}`" in text
+                assert f"`{source_ref}`" in row
                 assert _repo_path(source_ref).exists()
 
-    blocked_fragments = sorted(
-        fragment
-        for fragment in (*LOCAL_PATH_AND_SECRET_FRAGMENTS, *NO_UPLOAD_CLAIMS)
-        if fragment in lower_text
+    unsafe_fragments = sorted(
+        fragment for fragment in LOCAL_PATH_AND_SECRET_FRAGMENTS if fragment in lower_text
     )
-    assert not blocked_fragments, (
-        "Cross-locale QA prep contains unsafe local/upload fragments: " f"{blocked_fragments}"
+    upload_claims = _blocked_upload_claims_in(lower_text)
+    assert not unsafe_fragments and not upload_claims, (
+        "Cross-locale QA prep contains unsafe local/upload fragments: "
+        f"{[*unsafe_fragments, *upload_claims]}"
     )
 
 
