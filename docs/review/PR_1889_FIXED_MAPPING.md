@@ -45,9 +45,13 @@ Experiment Runner runtime.
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365241000`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365241009`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365249101`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#pullrequestreview-4439503013`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271688`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271691`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271696`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365321503`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365321512`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365321518`
 
 ## Fixed in Commit Mapping
 
@@ -129,6 +133,10 @@ Disposition: FIXED
 Commit: 1c37c8afb33d93861933690fa74c8da6274823ad
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses literal string-form subprocess commands with `shlex.split(...)`; focused pytest passed with `24 passed`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#pullrequestreview-4439503013
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit review summary is covered by its individual mapped review comments in this section; no separate code change is required for the summary URL itself.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271688 -> 1c37c8afb33d93861933690fa74c8da6274823ad
 Disposition: FIXED
 Commit: 1c37c8afb33d93861933690fa74c8da6274823ad
@@ -143,6 +151,21 @@ Disposition: FIXED
 Commit: 1c37c8afb33d93861933690fa74c8da6274823ad
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses literal string-form subprocess commands with `shlex.split(...)`; focused pytest passed with `24 passed`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365321503 -> b290796d0eccbc1cd4e09c693f1592013afb858d
+Disposition: FIXED
+Commit: b290796d0eccbc1cd4e09c693f1592013afb858d
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` treats non-approved Python environment keys such as `PYTHON` as disallowed interpreter sources while preserving approved `VENV_PYTHON`/`DEV_PYTHON`; focused pytest passed with `28 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365321512 -> b290796d0eccbc1cd4e09c693f1592013afb858d
+Disposition: FIXED
+Commit: b290796d0eccbc1cd4e09c693f1592013afb858d
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` checks all same-scope reaching assignments for disallowed subprocess binaries before accepting a later safe assignment; focused pytest passed with `28 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365321518 -> b290796d0eccbc1cd4e09c693f1592013afb858d
+Disposition: FIXED
+Commit: b290796d0eccbc1cd4e09c693f1592013afb858d
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` inspects `/usr/bin/env` launcher argv and rejects disallowed short Python targets after the absolute env binary; focused pytest passed with `28 passed`.
+
 ## Implementation Evidence
 
 - Implementation commit: `85b9af618`
@@ -151,6 +174,7 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses li
 - Graphmap scan and mapping-separation follow-up commit: `6a4241d`
 - Python executable edge-case follow-up commit: `a403b8e`
 - String-form and scope-aware assignment follow-up commit: `1c37c8a`
+- Env-based Python and env-launcher follow-up commit: `b290796`
 - Mapping artifact commit: `aa478a2e0`
 - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
@@ -211,6 +235,8 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses li
   (`21 passed`)
 - PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
   after string-form subprocess and scope-aware assignment follow-up (`24 passed`)
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  after env-based Python and `/usr/bin/env` launcher follow-up (`28 passed`)
 - PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
   (`10 passed`)
 - PASS: `make validate-changed` after commit selected
