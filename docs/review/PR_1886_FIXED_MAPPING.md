@@ -11,10 +11,14 @@ This PR closes the RU FitChef App Store localization truth, promotes ES as the a
 
 Out of scope: Fastlane upload, App Store Connect mutation, screenshot/video binaries, protected release evidence, frontend/iOS runtime, backend/OpenAPI, DB, telemetry/events, billing, semantic cache, GraphRAG, Slack commands, and ES upload automation.
 
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/871d57deae12.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Branch/worktree: `codex/fitchef-multilingual-appstore-localization-qa` / `worktrees/fitchef-multilingual-appstore-localization-qa`.
+
 ## Startup And Role Evidence
 
-- Starter packet: `artifacts/orchestration/task_packets/871d57deae12.json` (local gitignored artifact).
-- Branch/worktree: `codex/fitchef-multilingual-appstore-localization-qa` / `worktrees/fitchef-multilingual-appstore-localization-qa`.
 - Pre-open role order executed: `agent-coordinator -> architecture-specialist -> app-store-release-agent -> wellness-analyst-agent -> marketing-strategist -> creative-designer -> cursor-specialist-agent -> security-auditor -> qa-engineer-agent -> bug-hunter -> web-research-agent`.
 - Post-open role order required before readiness: `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff scan / finding discovery -> pulseplate-pr-review`.
 
@@ -44,7 +48,7 @@ Out of scope: Fastlane upload, App Store Connect mutation, screenshot/video bina
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/artifacts/orchestration/experiments/fitchef-multilingual-appstore-localization-qa-oracle-packet.json` (local gitignored artifact).
-- Result: `artifacts/orchestration/experiments/results/fitchef-multilingual-appstore-localization-qa-oracle-result.json` (local gitignored artifact).
+- Artifact: `artifacts/orchestration/experiments/results/fitchef-multilingual-appstore-localization-qa-oracle-result.json`
 - Mode: `oracle_only_governance_reviewer`.
 - Status: accepted.
 - Oracle evidence: `python -m pytest -q tests/test_fitchef_app_store_pack.py` passed, `python scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md` passed, and `git diff --check HEAD` passed.
@@ -65,12 +69,14 @@ Full local `make verify` was not run by default for this docs/metadata PR under 
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No review threads existed at PR open. Post-open review threads must be added here with `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before resolution.
 
-### Fixed In Commit Mapping
+## Fixed in Commit Mapping
 
-- Pre-open implementation and role findings -> `5318aa3196cc81401e27d39ad64c25f529091384`.
-- Mapping artifact creation is provenance-only; no review thread disposition existed at PR open.
+- No actionable review comments
 
 ## Merge Readiness
 
