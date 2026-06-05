@@ -69,6 +69,13 @@ Evidence: admitted RAG examples now use non-recursive count labels, disabled-pat
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362699585 -> bb30a15dd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362699589 -> bb30a15dd
 
+Disposition: FIXED
+Commit: 7c8172993
+Evidence: Docs Phase1 now fails deleted protected verification-provenance report/schema files, the schema requires each path category exactly once with array-level `contains` constraints, and per-category digest-label requirements are enforced by both schema drift guards and report validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362793951 -> 7c8172993
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362793956 -> 7c8172993
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362793962 -> 7c8172993
+
 ## Implementation Evidence
 
 - Implementation commit:
@@ -77,6 +84,8 @@ Evidence: admitted RAG examples now use non-recursive count labels, disabled-pat
   `afd995a5c76eee6a06015dbfa7a96c3ab59be2e4`
 - Follow-up review hardening commit:
   `bb30a15dd9b260f104834373dcea52780d70c250`
+- Schema guard hardening commit:
+  `7c8172993fd5f702c2839b74983f2b398a0e9070`
 - Evidence:
   - `docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json`
   - `docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.schema.json`
