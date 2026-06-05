@@ -1514,7 +1514,7 @@ async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() 
     assert provenance.prompt_trimmed is False
     assert provenance.prompt_original_char_count == len(result.formatted_prompt)
     assert provenance.prompt_final_char_count == len(result.formatted_prompt)
-    assert provenance.prompt_trim_limit == len(result.formatted_prompt)
+    assert provenance.prompt_trim_limit is None
     assert provenance.prompt_trimmed_char_count == 0
     assert provenance.verification_hops == 2
     assert provenance.verification_calls == 2

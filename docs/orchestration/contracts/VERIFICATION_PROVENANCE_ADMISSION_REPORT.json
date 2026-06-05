@@ -206,7 +206,6 @@
         "prompt_char_count": 184,
         "prompt_original_char_count": 184,
         "prompt_final_char_count": 184,
-        "prompt_trim_limit": 184,
         "prompt_trimmed_char_count": 0,
         "verification_hops": 1,
         "verification_calls": 0
@@ -501,7 +500,6 @@
         "prompt_char_count": 184,
         "prompt_original_char_count": 184,
         "prompt_final_char_count": 184,
-        "prompt_trim_limit": 184,
         "prompt_trimmed_char_count": 0,
         "verification_hops": 2,
         "verification_calls": 2

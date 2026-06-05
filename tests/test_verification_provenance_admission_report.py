@@ -84,6 +84,10 @@ def test_report_tracks_current_verification_provenance_fields() -> None:
     assert [item["field"] for item in inventory if isinstance(item, dict)] == list(
         report_check.VERIFICATION_PROVENANCE_FIELDS
     )
+    schema = json.loads(_schema_text())
+    schema_inventory = schema["properties"]["provenance_contract"]["properties"]["field_inventory"]
+    assert schema_inventory["minItems"] == len(report_check.VERIFICATION_PROVENANCE_FIELDS)
+    assert schema_inventory["maxItems"] == len(report_check.VERIFICATION_PROVENANCE_FIELDS)
 
 
 def test_report_keeps_authority_and_cache_flags_closed() -> None:
@@ -402,10 +406,12 @@ def test_admitted_paths_use_non_recursive_count_labels() -> None:
         assert isinstance(count_labels, dict)
         assert by_id[category_id]["admission_allowed"] is True
         assert count_labels["prompt_final_char_count"] == count_labels["prompt_char_count"]
-        assert count_labels["prompt_trim_limit"] >= count_labels["prompt_final_char_count"]
         assert count_labels["prompt_trimmed_char_count"] >= 0
         assert count_labels["verification_hops"] == 1
         assert count_labels["verification_calls"] == 0
+    assert "prompt_trim_limit" not in by_id["rag_pre_generation"]["count_labels"]
+    runtime_counts = by_id["rag_runtime_merged"]["count_labels"]
+    assert runtime_counts["prompt_trim_limit"] >= runtime_counts["prompt_final_char_count"]
 
 
 def test_report_rejects_reason_and_artifact_count_mismatch() -> None:

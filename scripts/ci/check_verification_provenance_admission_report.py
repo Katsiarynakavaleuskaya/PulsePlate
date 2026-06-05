@@ -702,7 +702,7 @@ def _path_categories() -> list[dict[str, object]]:
             prompt_char_count=184,
             prompt_original_char_count=184,
             prompt_final_char_count=184,
-            prompt_trim_limit=184,
+            prompt_trim_limit=None,
             prompt_trimmed_char_count=0,
             verification_hops=1,
             verification_calls=0,
@@ -779,7 +779,7 @@ def _path_categories() -> list[dict[str, object]]:
             prompt_char_count=184,
             prompt_original_char_count=184,
             prompt_final_char_count=184,
-            prompt_trim_limit=184,
+            prompt_trim_limit=None,
             prompt_trimmed_char_count=0,
             verification_hops=2,
             verification_calls=2,
@@ -993,6 +993,21 @@ def _validate_schema_matches_report(
             return errors
         if schema_node.get("type") != "array":
             errors.append(f"verification provenance admission schema {path}.type must be array")
+        if path == "report.provenance_contract.field_inventory":
+            min_items = schema_node.get("minItems")
+            max_items = schema_node.get("maxItems")
+            if isinstance(min_items, int) and min_items != len(report_node):
+                errors.append(
+                    "verification provenance admission schema "
+                    f"{path}.minItems must match report length: "
+                    f"expected {len(report_node)}, got {min_items}"
+                )
+            if isinstance(max_items, int) and max_items != len(report_node):
+                errors.append(
+                    "verification provenance admission schema "
+                    f"{path}.maxItems must match report length: "
+                    f"expected {len(report_node)}, got {max_items}"
+                )
         items_schema = schema_node.get("items")
         if report_node and not isinstance(items_schema, dict):
             errors.append(
@@ -1202,7 +1217,9 @@ def _validate_required_schema_shapes(schema: Mapping[str, object]) -> list[str]:
                 not isinstance(digest_props.get(key), dict)
                 or digest_props[key].get("$ref") != "#/$defs/digestLabel"
             ):
-                errors.append("verification provenance admission schema digest label ref drift")
+                errors.append(
+                    "verification provenance admission schema digest label ref drift: " f"{key}"
+                )
                 break
         for key in ("context_item_digests", "context_item_shas"):
             context_digest = digest_props.get(key)
