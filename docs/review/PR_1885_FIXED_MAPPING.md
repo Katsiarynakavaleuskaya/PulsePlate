@@ -139,15 +139,25 @@ Completed:
     `GITHUB_REPOSITORY` is absent; explicit non-default targets remain
     cross-repo, and `tests/test_experiment_slack_socket_bridge.py` covers the
     bypass regression.
-
-Pending:
-
 - `security-auditor`
+  - Disposition: NOT-A-BUG
+  - Evidence: no actionable security findings at head `7a43cc010`; reviewed
+    token classification/redaction, cross-repo gate before dispatch, fixed
+    workflow dispatch, and identity-policy authority denials. Focused security
+    tests and `check_experiment_runner_identity.py --json` pass.
 - Codex Security diff scan / finding discovery
+  - Disposition: NOT-A-BUG
+  - Evidence: `/tmp/codex-security-scans/BMI-App_2025_clean/7a43cc010_pr1885_github_app_adapter/report.md`
+    reports no actionable security findings; `deep_review_input.csv` contains
+    6 source-like diff rows and `work_ledger.jsonl` has 6 completion receipts.
 - `pulseplate-pr-review`
+  - Disposition: NOT-A-BUG
+  - Evidence: advisory large-diff note was reviewed. The 12 changed files match
+    the requested narrow lane (operator bridge config/contracts/tests/docs and
+    canonical review artifact), no implementation scope was split across product
+    runtime/web/iOS/OpenAPI, and `make validate-changed` plus focused tests pass.
 
 ## Merge Readiness
 
-Not claimed. Pending current-head CI, post-open review passes, Codex Security,
-`pulseplate-pr-review`, bot review disposition, PR body mirror update,
-review-thread/fixed-mapping gates, and strict merge-readiness checks.
+Not claimed. Pending current-head CI, bot review disposition, review-thread /
+fixed-mapping gates, and strict merge-readiness checks.
