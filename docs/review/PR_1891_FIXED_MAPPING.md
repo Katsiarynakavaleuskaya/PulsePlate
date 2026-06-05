@@ -148,8 +148,9 @@ Premortem / role-agent findings closed before PR open:
     - Commit: `fd0eed936`.
     - Evidence: local-only artifact paths are omitted from the tracked mapping;
       the security-auditor local-path hygiene grep returned no matches.
-  - Required follow-up: Codex Security diff scan must be rerun after
-    `e0db06bc3` because that commit changed security-relevant hardening code.
+  - Codex Security rerun after `e0db06bc3`: PASS / no findings.
+    - Local-only artifact id: `7bd80b60_pr1891_20260605T201151Z`.
+    - Coverage: 2 of 2 diff-scoped source-like rows completed.
 - Codex Security diff scan: PASS / no findings.
   - Local-only artifact id: `b4cf8acb_pr1891_20260605T194527Z`.
   - Local report paths are intentionally omitted from this tracked review
