@@ -15,7 +15,7 @@ Experiment Runner runtime.
 - Base: `origin/main` at `854562d203c300161360f2b2c453e3b5daf7dd78`
 - Current-head `main` CI before implementation: run `27022824181` completed
   successfully.
-- Task packet: `artifacts/orchestration/task_packets/6d720c0d1e1c.json`
+- Packet: `artifacts/orchestration/task_packets/6d720c0d1e1c.json`
 - Dispatch manifest:
   `.venv/bin/python scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/6d720c0d1e1c.json --mode runtime --implementation-owner security-auditor --pretty`
 - Declared pre-open role order:
@@ -26,19 +26,19 @@ Experiment Runner runtime.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [x] Fixed in commit mapping artifact created
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - No review threads exist at PR open time.
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED
-Commit: 85b9af618
-Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses
-direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare
-`python` / `python3` literals, preserves `sys.executable` and repo interpreter
-variable usage, and keeps existing `shutil.which` guidance for external tools.
-Root policy and the orchestration contract matrix document the invariant.
+- No actionable review comments
+
+## Implementation Evidence
+
+- Implementation commit: `85b9af618`
+- Mapping artifact commit: `aa478a2e0`
+- Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
 ## Premortem Findings
 
@@ -62,7 +62,7 @@ Root policy and the orchestration contract matrix document the invariant.
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/exp-616bdc7819d9.json`
-- Result: `artifacts/orchestration/experiments/results/exp-616bdc7819d9.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-616bdc7819d9.json`
 - Mode: `oracle_only_governance_reviewer`
 - Status: `accepted`
 - Contribution kind: `commit_decision`
