@@ -244,6 +244,33 @@ def _env_launcher_target_from_tokens(tokens: list[str]) -> str | None:
     return None
 
 
+def _shell_command_binary_from_tokens(tokens: list[str]) -> str | None:
+    candidates: list[str] = []
+    index = 0
+    command_start = True
+    control_operators = {"&&", "||", ";", "|"}
+    while index < len(tokens):
+        token = tokens[index]
+        if token in control_operators:
+            command_start = True
+            index += 1
+            continue
+        if not command_start:
+            index += 1
+            continue
+        if _is_env_assignment_token(token):
+            index += 1
+            continue
+        candidates.append(token)
+        command_start = False
+        index += 1
+
+    for candidate in candidates:
+        if _is_disallowed_binary_token(candidate):
+            return candidate
+    return candidates[0] if candidates else None
+
+
 def _resolve_binary_expr(
     tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
 ) -> str | None:
@@ -306,7 +333,7 @@ def _resolve_argv_binary(
         parts = shlex.split(expr.value.strip())
         if parts and Path(parts[0]).name == "env":
             return _env_launcher_target_from_tokens(parts) or parts[0]
-        return parts[0] if parts else None
+        return _shell_command_binary_from_tokens(parts)
     if isinstance(expr, (ast.List, ast.Tuple)) and expr.elts:
         first_binary = _resolve_binary_expr(
             tree, expr.elts[0], upto_lineno=upto_lineno, seen_names=seen_names
@@ -654,6 +681,22 @@ subprocess.check_output("git status", shell=True)
     assert "repo-approved interpreter path" in violations[0].reason
     assert violations[1].lineno == 4
     assert "resolve with shutil.which('git')" in violations[1].reason
+
+
+def test_guard_flags_shell_string_command_prefixes_without_substring_matching() -> None:
+    source = """\
+import subprocess
+
+subprocess.run("FOO=bar python -c pass", shell=True)
+subprocess.run("cd /tmp && python3 -c pass", shell=True)
+subprocess.run("echo python", shell=True)
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 2
+    assert {violation.lineno for violation in violations} == {3, 4}
+    assert all("repo-approved interpreter path" in violation.reason for violation in violations)
 
 
 def test_guard_flags_unapproved_python_environment_variable() -> None:
