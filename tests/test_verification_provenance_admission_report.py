@@ -338,6 +338,47 @@ def test_direct_and_disabled_paths_do_not_overclaim_admission() -> None:
     assert "knowledge_policy_missing" in disabled["reason_labels"]
 
 
+def test_admitted_paths_use_non_recursive_count_labels() -> None:
+    categories = _report()["path_categories"]
+    assert isinstance(categories, list)
+    by_id = {category["id"]: category for category in categories if isinstance(category, dict)}
+
+    for category_id in ("rag_pre_generation", "rag_runtime_merged"):
+        count_labels = by_id[category_id]["count_labels"]
+        assert isinstance(count_labels, dict)
+        assert by_id[category_id]["admission_allowed"] is True
+        assert count_labels["verification_hops"] == 1
+        assert count_labels["verification_calls"] == 0
+
+
+def test_report_rejects_reason_and_artifact_count_mismatch() -> None:
+    report = _report()
+    categories = report["path_categories"]
+    assert isinstance(categories, list)
+    category = categories[3]
+    assert isinstance(category, dict)
+    count_labels = category["count_labels"]
+    assert isinstance(count_labels, dict)
+    count_labels["artifact_count"] = 3
+
+    errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
+
+    assert any("artifact_count must match reason_labels" in error for error in errors)
+
+
+def test_schema_pins_path_category_admission_constraints() -> None:
+    schema = json.loads(_schema_text())
+    category_items = schema["properties"]["path_categories"]["items"]
+    assert isinstance(category_items, dict)
+
+    assert category_items["allOf"] == report_check._path_category_admission_schema_constraints()
+
+    category_items["allOf"][2]["then"]["properties"]["admission_allowed"]["const"] = True
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert any("path category admission constraints drift" in error for error in errors)
+
+
 def test_report_rejects_missing_provenance_coverage() -> None:
     report = _report()
     categories = report["path_categories"]

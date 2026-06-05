@@ -50,8 +50,8 @@ Evidence: recursive schema/report validation now catches nested required/propert
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362504268 -> afd995a5c
 
 Disposition: FIXED
-Commit: 68bb09c1f; afd995a5c
-Evidence: schema raw-leak validation was added in `68bb09c1f`; `afd995a5c` adds a stronger regression covering workflow-log, token, and local-path schema annotation leakage together.
+Commit: 68bb09c1f
+Evidence: schema raw-leak validation was added in `68bb09c1f`; follow-up regression coverage in `afd995a5c` also covers workflow-log, token, and local-path schema annotation leakage together.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362405132 -> 68bb09c1f
 
 Disposition: FIXED

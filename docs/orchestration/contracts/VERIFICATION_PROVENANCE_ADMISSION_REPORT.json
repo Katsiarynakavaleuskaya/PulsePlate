@@ -136,8 +136,8 @@
         "reason_code_count": 3,
         "context_item_digest_count": 2,
         "prompt_char_count": 184,
-        "verification_hops": 2,
-        "verification_calls": 2
+        "verification_hops": 1,
+        "verification_calls": 0
       },
       "redaction_assertions": {
         "raw_prompt_absent": true,
@@ -223,8 +223,8 @@
         "reason_code_count": 5,
         "context_item_digest_count": 2,
         "prompt_char_count": 4000,
-        "verification_hops": 2,
-        "verification_calls": 3
+        "verification_hops": 1,
+        "verification_calls": 0
       },
       "redaction_assertions": {
         "raw_prompt_absent": true,
@@ -370,7 +370,7 @@
         ]
       },
       "count_labels": {
-        "artifact_count": 3,
+        "artifact_count": 4,
         "reason_code_count": 4,
         "context_item_digest_count": 2,
         "prompt_char_count": 184,

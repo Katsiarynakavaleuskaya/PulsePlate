@@ -61,6 +61,11 @@ NON_ADMITTED_PATH_CATEGORY_IDS = frozenset(
         "fail_closed_missing_bundle_with_provenance",
     }
 )
+ADMITTED_PATH_CATEGORY_IDS = tuple(
+    category_id
+    for category_id in PATH_CATEGORY_IDS
+    if category_id not in NON_ADMITTED_PATH_CATEGORY_IDS
+)
 
 PROVENANCE_FIELD_KINDS: Mapping[str, str] = {
     "input_digest": "redacted_digest_label",
@@ -462,6 +467,33 @@ def _source_ref(path: str, symbol: str) -> dict[str, str]:
     return {"path": path, "symbol": symbol}
 
 
+def _path_category_admission_schema_constraints() -> list[dict[str, object]]:
+    constraints: list[dict[str, object]] = []
+    for category_id in PATH_CATEGORY_IDS:
+        constraints.append(
+            {
+                "if": {
+                    "properties": {
+                        "id": {
+                            "const": category_id,
+                        },
+                    },
+                    "required": [
+                        "id",
+                    ],
+                },
+                "then": {
+                    "properties": {
+                        "admission_allowed": {
+                            "const": category_id in ADMITTED_PATH_CATEGORY_IDS,
+                        },
+                    },
+                },
+            }
+        )
+    return constraints
+
+
 def _path_category(
     *,
     category_id: str,
@@ -537,8 +569,8 @@ def _path_categories() -> list[dict[str, object]]:
             present_fields=rag_fields,
             context_count=2,
             prompt_char_count=184,
-            verification_hops=2,
-            verification_calls=2,
+            verification_hops=1,
+            verification_calls=0,
             artifact_count=3,
             source_refs=(
                 _source_ref(RAG_ORCHESTRATION_PATH, "_build_orchestration_verification_bundle"),
@@ -561,8 +593,8 @@ def _path_categories() -> list[dict[str, object]]:
             present_fields=runtime_fields,
             context_count=2,
             prompt_char_count=4000,
-            verification_hops=2,
-            verification_calls=3,
+            verification_hops=1,
+            verification_calls=0,
             artifact_count=5,
             source_refs=(
                 _source_ref(PHILOSOPHICAL_RUNTIME_PATH, "generate_insight"),
@@ -604,7 +636,7 @@ def _path_categories() -> list[dict[str, object]]:
             prompt_char_count=184,
             verification_hops=2,
             verification_calls=2,
-            artifact_count=3,
+            artifact_count=4,
             source_refs=(
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_runtime_verification_bundle"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_rag_verification_bundle"),
@@ -1044,6 +1076,18 @@ def _validate_required_schema_shapes(schema: Mapping[str, object]) -> list[str]:
     ):
         errors.append("verification provenance admission schema count_labels integer drift")
 
+    path_category_items = _schema_node_at(
+        schema,
+        ("properties", "path_categories", "items"),
+    )
+    if (
+        not isinstance(path_category_items, dict)
+        or path_category_items.get("allOf") != _path_category_admission_schema_constraints()
+    ):
+        errors.append(
+            "verification provenance admission schema path category admission constraints drift"
+        )
+
     return errors
 
 
@@ -1205,6 +1249,10 @@ def _validate_path_category(category: Mapping[str, object]) -> list[str]:
     elif category.get("admission_allowed") is not True:
         errors.append(f"{category_id}.admission_allowed must be true")
 
+    reason_labels = _string_items(category.get("reason_labels"))
+    if not reason_labels:
+        errors.append(f"{category_id}.reason_labels must not be empty")
+
     expected_fields = _string_items(category.get("expected_provenance_fields"))
     present_fields = _string_items(category.get("present_provenance_fields"))
     missing_fields = category.get("missing_required_provenance_fields")
@@ -1231,6 +1279,10 @@ def _validate_path_category(category: Mapping[str, object]) -> list[str]:
                 errors.append(f"{category_id}.count_labels unknown key: {key}")
             if type(value) is not int or value < 0:
                 errors.append(f"{category_id}.count_labels.{key} must be a non-negative integer")
+        if count_labels.get("reason_code_count") != len(reason_labels):
+            errors.append(f"{category_id}.count_labels.reason_code_count must match reason_labels")
+        if count_labels.get("artifact_count") != len(reason_labels):
+            errors.append(f"{category_id}.count_labels.artifact_count must match reason_labels")
 
     redaction_assertions = category.get("redaction_assertions")
     if not isinstance(redaction_assertions, dict):

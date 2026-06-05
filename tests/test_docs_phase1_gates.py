@@ -508,6 +508,18 @@ def test_phase1_guard_validates_verification_provenance_admission_schema_only_ed
     assert any("schema const mismatch for generated_at" in error for error in errors)
 
 
+def test_ci_docs_phase1_protected_json_targets_include_deletions() -> None:
+    workflow_text = (gates.REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    protected_target = (
+        "'docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json' \\"
+    )
+    target_index = workflow_text.index(protected_target)
+    diff_index = workflow_text.rfind("git diff --name-only", 0, target_index)
+    protected_diff_command = workflow_text[diff_index:target_index]
+
+    assert '--diff-filter=ACDMRT "$BASE_REF"...HEAD -- \\' in protected_diff_command
+
+
 def test_phase1_guard_validates_philosophy_gate_open_preconditions_report_edits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

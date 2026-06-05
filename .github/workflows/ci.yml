@@ -321,7 +321,7 @@ jobs:
 
           while IFS= read -r -d '' path; do
             PHASE1_CHANGED_FILES+=("$path")
-          done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- \
+          done < <(git diff --name-only -z --diff-filter=ACDMRT "$BASE_REF"...HEAD -- \
             'docs/orchestration/contracts/*.schema.json' \
             'docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json' \
             'docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json' \
