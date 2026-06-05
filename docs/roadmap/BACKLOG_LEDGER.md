@@ -4028,8 +4028,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef App Store rendered review and TestFlight readiness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (release readiness / App Store evidence)
-  - Target PR: PR-TBD-FITCHEF-APPSTORE-RENDERED-REVIEW-TESTFLIGHT-READINESS
+  - Target PR: PR #1890 `codex/fitchef-appstore-rendered-review-testflight-readiness`
   - Status: 🚧 Active as the current FitChef App Store release-readiness review lane after EN/RU/ES localization packs landed.
+  - Carryover note: PR #1890 also includes a test-only coverage bump for `tests/test_user_coaching_state.py` after `main` CI for `889e9a0ad` reported total coverage `96.99% < 97.00%` in `app/services/coaching_state_builder.py`; no coaching-state runtime code changes are included.
   - Reason (EN): The localized FitChef packs are governed as text/JSON contracts, but release review still needs a single internal matrix tying the seven App Store shots to iOS screenshot scenarios, accessibility identifiers, reviewer classifications, privacy/AI/wellness notes, and rendered-review requirements before protected upload work can open.
   - Links:
     - `appstore/fitchef/release_readiness/shot_scenario_matrix.json`

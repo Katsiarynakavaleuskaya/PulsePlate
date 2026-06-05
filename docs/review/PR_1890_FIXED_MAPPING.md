@@ -94,6 +94,7 @@ Decision: proceed with changes.
 - `pre-commit run --all-files` - PASS before commit `4c8d71688`.
 - Push pre-push hooks - PASS through commit `cb0fd0f26` after mypy return-type/value narrowing fix in `scripts/release/check_ios_appstore_verify.py`, including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and docker build test. Final push evidence must be refreshed after the mapping update.
 - Post-rebase validation on `origin/main` at `889e9a0ad`: `python3 scripts/orchestration/check_preflight.py` PASS; `python3 scripts/orchestration/check_agent_consistency.py` PASS; `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md` PASS; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS; `python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1890` PASS for 10 resolved review threads.
+- Main coverage carryover validation after commit `c98d318c4`: `../../.venv/bin/python -m pytest -q tests/test_user_coaching_state.py` PASS; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 Full local `make verify` was not run by default for this docs/release-validator PR under the operator-approved changed-scope gate policy. Merge readiness is not claimed without current-head CI, post-open role passes, Codex Security scan, `pulseplate-pr-review`, unresolved-thread checks, PR body/mapping parity, strict wrapper evidence, and wait-window.
 
@@ -218,6 +219,13 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now limits boundary-neg
 Finding: `pulseplate-pr-review` dry-run report flagged an advisory large-diff planning note for human review.
 Disposition: NOT-A-BUG
 Evidence: Operator scope intentionally broadened this release-readiness PR beyond a microscopic docs lane while keeping it bounded to repo-local App Store release-readiness metadata, validators, and tests. The PR does not touch protected upload/runtime surfaces, and the targeted gates plus current-head CI and role reviews cover the expanded scope. No code, security, wellness, or release-boundary defect was reported by the PR review.
+
+## Main Coverage Carryover
+
+Finding: `main` CI for `889e9a0ad` failed `test-main (3.11, 60)` because global coverage was `96.99%`, below the `97.00%` threshold; `app/services/coaching_state_builder.py` carried 14 missed statements.
+Disposition: FIXED
+Commit: c98d318c4
+Evidence: `tests/test_user_coaching_state.py` now covers fail-closed metric coercion, raw adherence payload object validation, non-dict payload score fallback, and non-datetime event timestamp fallback in the existing coaching-state service. This is a test-only carryover to restore the main coverage threshold; no coaching-state runtime code, route, OpenAPI, DB, frontend, iOS, or App Store release behavior changed.
 
 
 ## Merge Readiness
