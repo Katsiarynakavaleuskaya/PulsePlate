@@ -159,6 +159,7 @@ LOCALE_COPY_SIGNALS = {
         "micronutrientes",
         "nutrientes",
         "nutricion",
+        "nutricional",
         "orientacion",
         "paquete",
         "peso",
@@ -435,11 +436,7 @@ def _has_locale_signal(text: str, signals: Iterable[str]) -> bool:
             if normalized_signal in scan_text:
                 return True
             continue
-        if len(normalized_signal) <= 3:
-            if normalized_signal in tokens:
-                return True
-            continue
-        if normalized_signal in scan_text:
+        if normalized_signal in tokens:
             return True
     return False
 
@@ -721,6 +718,9 @@ def test_localized_packs_reuse_en_structural_contract_without_binaries(
 
     assert [shot["id"] for shot in localized_manifest["shots"]] == [
         shot["id"] for shot in en_manifest["shots"]
+    ]
+    assert [shot["expected_filename"] for shot in localized_manifest["shots"]] == [
+        shot["expected_filename"] for shot in en_manifest["shots"]
     ]
     assert [shot["repo_source_refs"] for shot in localized_manifest["shots"]] == [
         shot["repo_source_refs"] for shot in en_manifest["shots"]
@@ -1170,9 +1170,12 @@ def test_cross_locale_review_prep_covers_sources_and_seven_shots() -> None:
         fragment for fragment in LOCAL_PATH_AND_SECRET_FRAGMENTS if fragment in lower_text
     )
     upload_claims = _blocked_upload_claims_in(lower_text)
-    assert not unsafe_fragments and not upload_claims, (
+    wellness_blockers = {
+        locale: blockers for locale in LOCALES if (blockers := _blocked_terms_in(locale, text))
+    }
+    assert not unsafe_fragments and not upload_claims and not wellness_blockers, (
         "Cross-locale QA prep contains unsafe local/upload fragments: "
-        f"{[*unsafe_fragments, *upload_claims]}"
+        f"{[*unsafe_fragments, *upload_claims, wellness_blockers]}"
     )
 
 
