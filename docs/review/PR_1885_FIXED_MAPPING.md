@@ -47,8 +47,10 @@ Commit: see mapping entries below
 Evidence: cubic and Codex review threads are fixed by the commit mappings below; thread-level proof is recorded in Review Thread Dispositions.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361714908 -> f323421e2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#pullrequestreview-4435146580 -> f323421e2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768824 -> f323421e2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361722132 -> c910411aa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#pullrequestreview-4435208906 -> c910411aa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768797 -> c910411aa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768803 -> c910411aa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768818 -> c910411aa
@@ -62,6 +64,12 @@ Evidence: cubic and Codex review threads are fixed by the commit mappings below;
   - Evidence: canonical Phase2 mapping/body structure was restored and
     `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1885 --commit-range origin/main..HEAD --experiment-runner-evidence-mode required`
     passes.
+- `pullrequestreview-4435146580`
+  - Disposition: FIXED
+  - Source: identified by cubic.
+  - Evidence: review-level mapping for the Cubic Phase2 artifact-format finding;
+    `f323421e2` was committed after the review timestamp and restored the
+    validator-compatible mapping artifact.
 - `discussion_r3361768824`
   - Disposition: FIXED
   - Source: identified by cubic.
@@ -73,6 +81,12 @@ Evidence: cubic and Codex review threads are fixed by the commit mappings below;
   - Evidence: explicit dispatch targets are compared against the canonical
     PulsePlate repository boundary rather than mutable `GITHUB_REPOSITORY`;
     spoofed pilot targets remain cross-repo and fail before dispatch.
+- `pullrequestreview-4435208906`
+  - Disposition: FIXED
+  - Source: identified by cubic.
+  - Evidence: review-level mapping for the later Cubic multi-finding review;
+    `c910411aa` was committed after the review timestamp and fixed the remaining
+    target-identity, duplicate-boundary, dead-guard, and PII evidence issues.
 - `discussion_r3361768797`
   - Disposition: FIXED
   - Source: identified by cubic.
