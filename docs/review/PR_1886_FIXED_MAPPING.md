@@ -34,7 +34,7 @@ Out of scope: Fastlane upload, App Store Connect mutation, screenshot/video bina
 - `creative-designer`: FIXED. Evidence: `appstore/fitchef/localization_qa/cross_locale_review_prep.md` compares EN/RU/ES by shot id, timing, product surface, mascot key, line length risk, safe-area risk, FitChef overlap risk, UI/copy mismatch risk, and wellness-claim risk.
 - `cursor-specialist-agent`: FIXED. Evidence: PR opened non-draft after coherent diff, pre-open roles, focused gates, premortem, Experiment Runner oracle review, and this canonical mapping artifact.
 - `security-auditor`: FIXED. Evidence: staged diff has no protected `ios/fastlane`, App Store Connect, backend, OpenAPI, frontend, iOS runtime, workflow, media binary, or upload authority surfaces.
-- `qa-engineer-agent`: FIXED. Evidence: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passed with `54 passed`.
+- `qa-engineer-agent`: FIXED. Evidence: `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passed with `56 passed` after post-open fixes.
 - `bug-hunter` P1 untracked ES artifacts: FIXED in `5318aa3196cc81401e27d39ad64c25f529091384`. Evidence: `git diff --cached --name-status` before commit listed all ES/cross-locale/contract artifacts as staged; implementation commit creates those files.
 - `bug-hunter` P2 accented Spanish claim blind spot: FIXED in `5318aa3196cc81401e27d39ad64c25f529091384`. Evidence: `tests/test_fitchef_app_store_pack.py` adds `_claim_scan_text`, `_blocked_terms_in`, and accented Spanish negative cases for `prescripción`, `fármaco`, `píldora`, `diagnóstico`, `menú`, `rápidos`, and `Clínicamente probado`.
 - `web-research-agent`: NOT-A-BUG. Evidence: role pass confirmed the diff is docs/metadata/test-only, ES copy stays wellness-only, screenshot/preview QA remains internal-review-only, and Apple supporting context does not require protected upload or runtime changes in this PR.
@@ -60,7 +60,7 @@ Out of scope: Fastlane upload, App Store Connect mutation, screenshot/video bina
 - `python3 scripts/orchestration/check_preflight.py` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md` - PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` - PASS (`54 passed`).
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` - PASS (`56 passed`).
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS after Black formatting was staged and rerun.
 - Pre-push hooks - PASS, including backend pre-push and full Bandit.
@@ -81,6 +81,22 @@ No review threads existed at PR open. Post-open review threads must be added her
 Disposition: FIXED
 Commit: c2e4f5051dccc4247009dee0f02e41b5f4548ae7
 Evidence: `tests/test_fitchef_app_store_pack.py` now requires Spanish-specific copy signals and rejects copied English rationale/decision-log text; `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` now distinguishes release-ready final media lanes from governed internal-review text/JSON localization packs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361935120
+Disposition: NOT-A-BUG
+Evidence: Current `## Fixed in Commit Mapping` lists review-thread URLs with disposition/proof; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1886 --body "$(gh pr view 1886 --json body --jq .body)" --commit-range origin/main..HEAD` passes.
+Reason: The comment was valid against the previous `No actionable review comments` sentinel. The current artifact no longer claims no actionables and maps the review threads explicitly.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361981255 -> 29137d1577e6340f33dc4a5070674efeb95f6d6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361981258 -> 29137d1577e6340f33dc4a5070674efeb95f6d6f
+Disposition: FIXED
+Commit: 29137d1577e6340f33dc4a5070674efeb95f6d6f
+Evidence: `tests/test_fitchef_app_store_pack.py` now validates each localized `asset_rationale` independently, adds a mixed Spanish/English false-green test, and broadens ES treatment blocker coverage with `trata`; `appstore/fitchef/es-ES/iphone-6.9/screenshots/shot_manifest.json` updates ES rationales so every shot carries a Spanish domain signal.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361981264
+Disposition: NOT-A-BUG
+Evidence: Current PR branch head includes `29137d1577e6340f33dc4a5070674efeb95f6d6f`, and `git merge-base --is-ancestor 29137d1577e6340f33dc4a5070674efeb95f6d6f HEAD` returns 0 locally.
+Reason: The reviewed `17b81d10d7b2f7f405c3d1e68b8ef325a90d127e` SHA is not the authoritative branch head. The current branch history contains the mapped fix commit.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897842
