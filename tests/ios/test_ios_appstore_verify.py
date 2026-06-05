@@ -308,6 +308,21 @@ def test_fitchef_release_readiness_validator_rejects_source_path_drift(
     assert "source_paths value drift" in _failed_messages(results)
 
 
+def test_fitchef_release_readiness_validator_rejects_source_pr_drift(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["source_pr"] = {"number": 0, "merge_commit": ""}
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "source_pr provenance drift" in _failed_messages(results)
+
+
 def test_fitchef_release_readiness_validator_rejects_blocked_action_drift(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,

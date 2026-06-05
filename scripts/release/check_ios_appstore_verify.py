@@ -174,6 +174,10 @@ FITCHEF_RELEASE_TOP_LEVEL_KEYS = {
     "locale_review_matrix",
 }
 FITCHEF_RELEASE_SOURCE_PR_KEYS = {"number", "merge_commit"}
+EXPECTED_FITCHEF_SOURCE_PR = {
+    "number": 1886,
+    "merge_commit": "26b7cf4f",
+}
 FITCHEF_RELEASE_SOURCE_PATH_KEYS = {
     "screenshot_gate",
     "reviewer_matrix",
@@ -507,6 +511,15 @@ def _validate_source_paths(source_paths: dict[str, Any]) -> str | None:
             return f"Unsafe source_paths.{label}: {raw_path!r}"
         if not (REPO_ROOT / raw_path).exists():
             return f"Referenced source_paths.{label} does not exist: {raw_path}"
+    return None
+
+
+def _validate_source_pr(source_pr: dict[str, Any]) -> str | None:
+    if source_pr != EXPECTED_FITCHEF_SOURCE_PR:
+        return (
+            "Scenario matrix source_pr provenance drift: "
+            f"{source_pr!r} != {EXPECTED_FITCHEF_SOURCE_PR!r}"
+        )
     return None
 
 
@@ -1053,6 +1066,10 @@ def check_fitchef_release_readiness_bundle() -> Results:
     )
     if source_pr_schema_error:
         results.append((False, tag, source_pr_schema_error))
+        return results
+    source_pr_value_error = _validate_source_pr(source_pr)
+    if source_pr_value_error:
+        results.append((False, tag, source_pr_value_error))
         return results
 
     source_paths = payload.get("source_paths")
