@@ -41,6 +41,13 @@ Experiment Runner runtime.
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207234`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207235`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207240`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365240998`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365241000`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365241009`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365249101`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271688`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271691`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271696`
 
 ## Fixed in Commit Mapping
 
@@ -103,6 +110,39 @@ Disposition: FIXED
 Commit: a403b8e392cff88df8c0083364b82b94f447c2c9
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now inspects `executable=` overrides on guarded subprocess calls and rejects bare Python overrides even when argv uses `sys.executable`; focused pytest passed with `21 passed`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365240998 -> 1c37c8afb33d93861933690fa74c8da6274823ad
+Disposition: FIXED
+Commit: 1c37c8afb33d93861933690fa74c8da6274823ad
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now resolves simple argv variable assignments only from the current lexical scope chain, preventing sibling function/class assignments from influencing subprocess guard decisions; focused pytest passed with `24 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365241000 -> 1c37c8afb33d93861933690fa74c8da6274823ad
+Disposition: FIXED
+Commit: 1c37c8afb33d93861933690fa74c8da6274823ad
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses literal string-form subprocess commands with `shlex.split(...)` and rejects bare Python or short external binaries in that form; focused pytest passed with `24 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365241009
+Disposition: NOT-A-BUG
+Evidence: duplicate/stale versioned-Python feedback; `a403b8e392cff88df8c0083364b82b94f447c2c9` already changed the short-name predicate to use `_is_python_binary_name(...)`, and focused pytest now covers `python3.12` with `24 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365249101 -> 1c37c8afb33d93861933690fa74c8da6274823ad
+Disposition: FIXED
+Commit: 1c37c8afb33d93861933690fa74c8da6274823ad
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses literal string-form subprocess commands with `shlex.split(...)`; focused pytest passed with `24 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271688 -> 1c37c8afb33d93861933690fa74c8da6274823ad
+Disposition: FIXED
+Commit: 1c37c8afb33d93861933690fa74c8da6274823ad
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now limits recent assignment lookup to the current lexical scope chain; focused pytest passed with `24 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271691
+Disposition: NOT-A-BUG
+Evidence: duplicate/stale versioned-Python feedback; `a403b8e392cff88df8c0083364b82b94f447c2c9` already rejects versioned Python short names, and focused pytest now covers `python3.12` with `24 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365271696 -> 1c37c8afb33d93861933690fa74c8da6274823ad
+Disposition: FIXED
+Commit: 1c37c8afb33d93861933690fa74c8da6274823ad
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses literal string-form subprocess commands with `shlex.split(...)`; focused pytest passed with `24 passed`.
+
 ## Implementation Evidence
 
 - Implementation commit: `85b9af618`
@@ -110,6 +150,7 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now inspects 
 - Alias/helper/absolute-python guard follow-up commit: `8a724859`
 - Graphmap scan and mapping-separation follow-up commit: `6a4241d`
 - Python executable edge-case follow-up commit: `a403b8e`
+- String-form and scope-aware assignment follow-up commit: `1c37c8a`
 - Mapping artifact commit: `aa478a2e0`
 - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
@@ -168,6 +209,8 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now inspects 
 - PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
   after versioned-python/path-wrapper/traversal/executable override follow-up
   (`21 passed`)
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  after string-form subprocess and scope-aware assignment follow-up (`24 passed`)
 - PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
   (`10 passed`)
 - PASS: `make validate-changed` after commit selected
