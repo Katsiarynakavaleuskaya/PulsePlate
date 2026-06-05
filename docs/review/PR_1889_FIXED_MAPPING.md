@@ -1,0 +1,99 @@
+# PR 1889 Fixed in Commit Mapping
+
+## Scope
+
+This PR hardens the repo subprocess policy guard so direct Python
+`subprocess.run` / `subprocess.Popen` argv literals cannot use bare `python` or
+`python3`. It also fixes the one existing bare `git` subprocess call surfaced by
+the stricter AST scan. The PR does not change product runtime behavior,
+Makefile recipes, workflow YAML, shell snippets, docs command examples, or the
+Experiment Runner runtime.
+
+## Lane Start Provenance
+
+- Branch: `codex/harden-python-subprocess-policy`
+- Base: `origin/main` at `854562d203c300161360f2b2c453e3b5daf7dd78`
+- Current-head `main` CI before implementation: run `27022824181` completed
+  successfully.
+- Task packet: `artifacts/orchestration/task_packets/6d720c0d1e1c.json`
+- Dispatch manifest:
+  `.venv/bin/python scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/6d720c0d1e1c.json --mode runtime --implementation-owner security-auditor --pretty`
+- Declared pre-open role order:
+  `agent-coordinator -> security-auditor -> bug-hunter -> architecture-specialist`
+- Native role-agent transport note: `agent-coordinator` native subagent was
+  attempted and timed out before returning; packet and manifest evidence remain
+  attached, and post-open role review gates are still pending.
+
+## Discussion Thread Pass
+
+- [ ] Discussion-thread pass completed
+- [x] Fixed in commit mapping artifact created
+- No review threads exist at PR open time.
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: 85b9af618
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses
+direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare
+`python` / `python3` literals, preserves `sys.executable` and repo interpreter
+variable usage, and keeps existing `shutil.which` guidance for external tools.
+Root policy and the orchestration contract matrix document the invariant.
+
+## Premortem Findings
+
+- Disposition: FIXED
+  Evidence: most likely failure was the stricter AST guard surfacing a hidden
+  existing violation; it found one bare `git` subprocess in
+  `tests/test_repo_hygiene_no_worktrees_tracked_guard.py`, now fixed with
+  `shutil.which("git")`.
+- Disposition: FIXED
+  Evidence: most dangerous failure was overbroad matching of docs, shell
+  snippets, workflow YAML, or Experiment Runner oracle command strings; the
+  guard inspects only Python AST call nodes for `subprocess.run` and
+  `subprocess.Popen`.
+- Disposition: NOT-A-BUG
+  Evidence: variable-based subprocess interpreters remain allowed because this
+  PR intentionally targets first-argv string literals only; root policy now
+  names approved interpreter sources (`sys.executable`, `VENV_PYTHON`,
+  `DEV_PYTHON`, repo `.venv/bin/python`, and Experiment Runner resolver
+  pattern).
+
+## Experiment Runner Evidence
+
+- Packet: `artifacts/orchestration/experiments/exp-616bdc7819d9.json`
+- Result: `artifacts/orchestration/experiments/results/exp-616bdc7819d9.json`
+- Mode: `oracle_only_governance_reviewer`
+- Status: `accepted`
+- Contribution kind: `commit_decision`
+- `shared_tree_untouched`: `true`
+- `source_diff_applied`: `true`
+- `source_diff_paths`:
+  - `AGENTS.md`
+  - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+  - `tests/guards/test_subprocess_uses_absolute_binaries.py`
+  - `tests/test_repo_hygiene_no_worktrees_tracked_guard.py`
+- `oracle_commands_executed`: `2`
+- Co-author trailer is present on `85b9af618`.
+
+## Validation
+
+- PASS: current-head `main` CI run `27022824181` completed successfully before
+  implementation.
+- PASS: `.venv/bin/python scripts/orchestration/check_preflight.py --path AGENTS.md --path tests/guards/test_subprocess_uses_absolute_binaries.py --path tests/test_repo_hygiene_no_worktrees_tracked_guard.py --path docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+- PASS: `.venv/bin/python scripts/orchestration/check_agent_consistency.py`
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  (`9 passed`)
+- PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
+  (`10 passed`)
+- PASS: `make validate-changed` after commit selected
+  `tests/guards/test_subprocess_uses_absolute_binaries.py` and
+  `tests/test_repo_hygiene_no_worktrees_tracked_guard.py` (`9 passed`)
+- PASS: `pre-commit run --all-files`
+- PASS: pre-push hooks, including backend pytest and full-repo Bandit
+
+## Merge Readiness
+
+Not merge-ready at PR open. Required post-open role review, Codex Security diff
+scan / finding discovery, external bot review, current-head PR CI, and strict
+merge-readiness gates remain pending.
