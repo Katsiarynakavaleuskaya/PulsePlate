@@ -24,7 +24,7 @@ frontend, iOS, Slack/operator-plane authority, semantic cache, or GraphRAG.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- No review threads have been resolved.
+- Resolved review threads are tracked below with disposition evidence.
 
 ## Fixed in Commit Mapping
 
@@ -55,7 +55,7 @@ Evidence: cubic identified that the canonical fixed-mapping artifact used the PR
 
 - [x] `qa-engineer-agent` - completed; no findings. It reran scoped preflight, focused provenance/public-response pytest, semantic-cache gate, `git diff --check`, and `make validate-changed`.
 - [x] `bug-hunter` - completed; found `github_pat_` token inputs were hashed before redaction. Fixed by `ee8b58d65` in `core/verification/registry.py`, with regression coverage in `tests/test_remaining_modules.py`.
-- [x] `security-auditor` - completed; found a machine-local absolute path in committed review evidence. Fixed by replacing it with `$REPO_ROOT/.venv/bin/python`; exact guard passed after the artifact cleanup.
+- [x] `security-auditor` - completed; found a machine-local absolute path in committed review evidence. Fixed by replacing it with `$REPO_ROOT/.venv/bin/python`; the exact local-path guard passed after the artifact cleanup.
 - [x] Codex Security diff scan / finding discovery - completed; no reportable findings after the bug-hunter and security-auditor remediations. Local report format validation and HTML rendering passed.
 - [x] `pulseplate-pr-review` - completed in report mode. The large-diff planning note is dispositioned as NOT-A-BUG because this is one coherent internal provenance slice and changed-surface gates passed.
 
