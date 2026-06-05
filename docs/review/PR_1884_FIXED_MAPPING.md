@@ -26,7 +26,7 @@ frontend, iOS, Slack/operator-plane authority, semantic cache, or GraphRAG.
 - [x] Fixed in commit mapping completed
 - No review threads have been resolved.
 
-### Fixed in Commit Mapping
+## Fixed in Commit Mapping
 
 - No actionable review comments
 

@@ -374,6 +374,12 @@ class TestPhilosophicalRuntime:
         assert result.metadata.route_type == RouteType.RAG_FACTUAL.value
         assert result.provider_name == "philosophical_runtime"
         assert result.metadata.verification_rate is None
+        assert result.verification_bundle is not None
+        provenance = result.verification_bundle.provenance
+        assert provenance is not None
+        assert provenance.prompt_digest is not None
+        assert provenance.answer_digest is not None
+        assert provenance.prompt_trimmed is False
 
     async def test_rollout_policy_matches_legacy_bool_path_for_deterministic_input(self) -> None:
         """Prepared rollout policy must preserve legacy behavior for the same deterministic call."""
@@ -1249,6 +1255,11 @@ class TestPhilosophicalRuntime:
         assert "rag_recursive_path" in result.metadata.reason_codes
         assert "verification_first_rewrite" in result.metadata.reason_codes
         assert "verification_first_fallback" not in result.metadata.reason_codes
+        assert result.verification_bundle is not None
+        provenance = result.verification_bundle.provenance
+        assert provenance is not None
+        assert provenance.prompt_digest is not None
+        assert provenance.prompt_trimmed is False
 
     async def test_rag_backed_answer_falls_back_after_failed_rewrite(self) -> None:
         runtime = PhilosophicalRuntime()
@@ -1365,6 +1376,10 @@ class TestPhilosophicalRuntime:
         assert result.provider_name == "philosophical_runtime"
         assert result.metadata.verification_rate is None
         assert result.metadata.falsifiability_rate is None
+
+    async def test_trim_prompt_legacy_wrapper_returns_text_only(self) -> None:
+        assert runtime_mod._trim_prompt("abcdef", max_chars=3) == "abc"
+        assert runtime_mod._trim_prompt("abc", max_chars=3) == "abc"
 
 
 def test_runtime_telemetry_initializes_metrics_lazily(

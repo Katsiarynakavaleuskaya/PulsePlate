@@ -36,8 +36,8 @@ _LOCAL_PATH_RE = re.compile(
 )
 _WINDOWS_PATH_RE = re.compile(r"\b[A-Za-z]:\\(?:[^\s:;,'\")]+\\?)+")
 _TOKEN_RE = re.compile(
-    r"(?i)\b(?:xox[abprs]-|xapp-|gh[pousr]_|ghs_|sk-[a-z0-9]|api[_-]?key\s*[:=]|"
-    r"bearer\s+)[^\s,;]+"
+    r"(?i)\b(?:xox[abprs]-|xapp-|github_pat_|gh[pousr]_|ghs_|sk-[a-z0-9]|"
+    r"api[_-]?key\s*[:=]|bearer\s+)[^\s,;]+"
 )
 _SLACK_ID_RE = re.compile(r"\b[UTC][A-Z0-9]{8,}\b")
 _DIAGNOSTIC_LABEL_RE = re.compile(

@@ -2093,6 +2093,11 @@ class TestVerificationRegistryCoverageTail:
         assert provenance.input_digest is not None
         assert provenance.input_digest.startswith("sha256:")
         assert len(provenance.input_digest.removeprefix("sha256:")) == 64
+        assert build_verification_provenance(prompt_text="count me").prompt_char_count == 8
+        github_pat_text = "github_pat_fake_fake_fake"
+        github_pat_digest = redacted_sha256_label(github_pat_text)
+        assert github_pat_digest is not None
+        assert github_pat_digest != f"sha256:{sha256(github_pat_text.encode('utf-8')).hexdigest()}"
         payload = str(asdict(with_provenance))
         for forbidden in (
             "jane@example.com",
@@ -2138,6 +2143,41 @@ class TestVerificationRegistryCoverageTail:
 
         assert merged is rag_bundle
         assert merged == rag_bundle
+        assert merged.provenance is provenance
+
+    def test_runtime_bundle_preserves_rag_provenance_without_overlay(self) -> None:
+        from core.insight.analytical import FalsificationReport, VerificationReport
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+            build_verification_provenance,
+        )
+
+        provenance = build_verification_provenance(input_text="rag input")
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+            provenance=provenance,
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=VerificationReport(verification_rate=1.0, unverified_claims=[]),
+            falsification_report=FalsificationReport(
+                falsifiability_rate=1.0,
+                unfalsifiable_claims=[],
+            ),
+            contradiction_count=0,
+            verification_first_path=True,
+        )
+
+        assert merged is not None
         assert merged.provenance is provenance
 
     def test_runtime_bundle_reuses_rag_bundle_without_philosophical_pass(self) -> None:
