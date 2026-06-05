@@ -134,6 +134,11 @@ Disposition: NOT-A-BUG
 Evidence: Current local branch head includes the mapped commits `9ff2dbbab5a72a35e4bd2e5c89b1106eeb10aa16`, `29137d1577e6340f33dc4a5070674efeb95f6d6f`, `92e953c265f030bf58120d65f6fe836d050b533b`, `45861d5de03fbf9983fcd876c97057e7328d5acc`, and `b38870dc278603033b1ad6e0bcff4e09e36bdfbc`; each is an ancestor of `HEAD`.
 Reason: The comment was generated against an older reviewed SHA before the follow-up commits landed on the branch. The current branch history contains the mapped fix commits.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362008013 -> 1fb229fe64eb291d9daffbd44d87640f2517d51c
+Disposition: FIXED
+Commit: 1fb229fe64eb291d9daffbd44d87640f2517d51c
+Evidence: `docs/review/PR_1886_FIXED_MAPPING.md` now records the canonical Experiment Runner packet path `artifacts/orchestration/experiments/fitchef-multilingual-appstore-localization-qa-oracle-packet-v2.json` and result path `artifacts/orchestration/experiments/results/fitchef-multilingual-appstore-localization-qa-oracle-result-v4.json`; the repair commit includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897842
 Disposition: NOT-A-BUG
