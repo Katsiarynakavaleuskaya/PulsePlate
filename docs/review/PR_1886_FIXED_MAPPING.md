@@ -89,6 +89,8 @@ Reason: The comment was valid against the previous `No actionable review comment
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361981255 -> 29137d1577e6340f33dc4a5070674efeb95f6d6f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361981258 -> 29137d1577e6340f33dc4a5070674efeb95f6d6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362008017 -> 29137d1577e6340f33dc4a5070674efeb95f6d6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362008021 -> 29137d1577e6340f33dc4a5070674efeb95f6d6f
 Disposition: FIXED
 Commit: 29137d1577e6340f33dc4a5070674efeb95f6d6f
 Evidence: `tests/test_fitchef_app_store_pack.py` now validates each localized `asset_rationale` independently, adds a mixed Spanish/English false-green test, and broadens ES treatment blocker coverage with `trata`; `appstore/fitchef/es-ES/iphone-6.9/screenshots/shot_manifest.json` updates ES rationales so every shot carries a Spanish domain signal.
