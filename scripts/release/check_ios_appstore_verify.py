@@ -45,6 +45,12 @@ FITCHEF_SHOT_SCENARIO_MATRIX = FITCHEF_RELEASE_READINESS_DIR / "shot_scenario_ma
 FITCHEF_RENDERED_REVIEW_CHECKLIST = (
     FITCHEF_RELEASE_READINESS_DIR / "rendered_review_testflight_readiness.md"
 )
+APPSTORE_SCREENSHOT_CONTEXT = (
+    REPO_ROOT / "ios" / "PulsePlate" / "AppStore" / "AppStoreScreenshotContext.swift"
+)
+APPSTORE_SCREENSHOT_TESTS = (
+    REPO_ROOT / "ios" / "PulsePlateUITests" / "AppStoreScreenshotTests.swift"
+)
 
 LOCALES = ("en-US", "es-ES", "ru-RU")
 METADATA_DIR = REPO_ROOT / "ios" / "fastlane" / "metadata"
@@ -54,6 +60,7 @@ CANONICAL_BASE_URL = "https://pulseplate.app"
 FORBIDDEN_HOSTS = ("api.pulseplate.com", "api.pulseplate.app")
 EXPECTED_PRIVACY_CATEGORIES = {"HEALTH", "PURCHASE_HISTORY", "OTHER_USER_CONTENT"}
 FITCHEF_LOCALES = ("en-US", "ru-RU", "es-ES")
+FITCHEF_ALLOWED_PACK_SUFFIXES = {".json", ".md"}
 FITCHEF_MEDIA_SUFFIXES = {".heic", ".jpeg", ".jpg", ".mov", ".mp4", ".pdf", ".png", ".webp"}
 EXPECTED_FITCHEF_SCENARIOS = {
     "core_value": {
@@ -173,6 +180,19 @@ FITCHEF_RELEASE_SOURCE_PATH_KEYS = {
     "ios_context",
     "ios_ui_tests",
 }
+EXPECTED_FITCHEF_SOURCE_PATHS = {
+    "screenshot_gate": "docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md",
+    "reviewer_matrix": "docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md",
+    "ios_context": "ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift",
+    "ios_ui_tests": "ios/PulsePlateUITests/AppStoreScreenshotTests.swift",
+}
+EXPECTED_FITCHEF_BLOCKED_RELEASE_ACTIONS = (
+    "fastlane_upload",
+    "app_store_connect_mutation",
+    "screenshot_binary_commit",
+    "preview_video_binary_commit",
+    "environment_activation",
+)
 FITCHEF_RELEASE_SCENARIO_KEYS = {
     "shot_id",
     "scenario_id",
@@ -200,6 +220,26 @@ FITCHEF_RELEASE_LOCALE_ROW_KEYS = {
     "wellness_claim_status",
     "reviewer_action",
 }
+FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS = (
+    re.compile(r"\bdiagnos(?:e|es|is|tic)\b", re.IGNORECASE),
+    re.compile(r"\btreat(?:s|ed|ing|ment)?\b", re.IGNORECASE),
+    re.compile(r"\btherapy\b", re.IGNORECASE),
+    re.compile(r"\bmedical\s+(?:advice|claim|care|treatment|therapy)\b", re.IGNORECASE),
+    re.compile(r"\bclinical\s+nutrition\b", re.IGNORECASE),
+    re.compile(r"\bcrisis\s+support\b", re.IGNORECASE),
+    re.compile(r"\bemergency\s+care\b", re.IGNORECASE),
+    re.compile(r"\bdiabetes\b", re.IGNORECASE),
+    re.compile(r"\bpatients?\b", re.IGNORECASE),
+)
+FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS = (
+    "no ",
+    "not ",
+    "does not",
+    "do not",
+    "avoid",
+    "avoids",
+    "without ",
+)
 
 # Pricing patterns that should NOT appear in metadata (hardcoded prices/trials).
 PRICING_PATTERNS = [
@@ -258,6 +298,121 @@ def _flatten_strings(value: Any) -> list[str]:
 def _is_safe_repo_relative_path(value: str) -> bool:
     path = pathlib.PurePosixPath(value)
     return not path.is_absolute() and ".." not in path.parts
+
+
+def _repo_relative_path(path: pathlib.Path) -> str:
+    return path.relative_to(REPO_ROOT).as_posix()
+
+
+def _expected_fitchef_manifest_path(locale: str) -> str:
+    return f"appstore/fitchef/{locale}/iphone-6.9/screenshots/shot_manifest.json"
+
+
+def _expected_fitchef_storyboard_path(locale: str) -> str:
+    return f"appstore/fitchef/{locale}/iphone-6.9/preview/storyboard.json"
+
+
+def _read_text_file(path: pathlib.Path) -> tuple[str, str | None]:
+    try:
+        return path.read_text(encoding="utf-8"), None
+    except OSError as exc:
+        return "", str(exc)
+
+
+def _fitchef_pack_file_scan_text(path: pathlib.Path) -> tuple[str, str | None]:
+    if path.suffix.lower() == ".json":
+        payload, error = _load_json_file(path)
+        if error:
+            return "", f"Invalid JSON file under FitChef App Store pack: {path}: {error}"
+        return "\n".join(_flatten_strings(payload)), None
+    return _read_text_file(path)
+
+
+def _validate_fitchef_pack_file_boundaries() -> str | None:
+    if not FITCHEF_PACK_BASE.exists():
+        return f"FitChef App Store pack directory missing: {FITCHEF_PACK_BASE}"
+    for path in FITCHEF_PACK_BASE.rglob("*"):
+        if not path.is_file():
+            continue
+        if path.suffix.lower() in FITCHEF_MEDIA_SUFFIXES:
+            return f"Media file is not allowed in FitChef App Store pack: {path}"
+        if path.suffix.lower() not in FITCHEF_ALLOWED_PACK_SUFFIXES:
+            return f"Only JSON/Markdown files are allowed in FitChef App Store pack: {path}"
+    return None
+
+
+def _release_readiness_scan_text() -> tuple[str, str | None]:
+    scan_parts: list[str] = []
+    for path in sorted(FITCHEF_RELEASE_READINESS_DIR.rglob("*")):
+        if not path.is_file():
+            continue
+        text, error = _fitchef_pack_file_scan_text(path)
+        if error:
+            return "", error
+        scan_parts.append(text)
+    return "\n".join(scan_parts), None
+
+
+def _validate_release_readiness_scan_text(text: str) -> str | None:
+    lowered = text.lower()
+    for fragment in FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS:
+        if fragment in lowered:
+            return f"Forbidden release-readiness fragment found: {fragment}"
+    for pattern in PRICING_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return f"Pricing/trial claim found: {match.group()}"
+    for pattern in FITCHEF_RELEASE_CREDENTIAL_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return f"Credential-like release bundle value found: {match.group()}"
+    for pattern in FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return f"Protected release action claim found: {match.group()}"
+    for line in text.splitlines():
+        lowered_line = line.lower()
+        if any(marker in lowered_line for marker in FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS):
+            continue
+        for pattern in FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS:
+            match = pattern.search(line)
+            if match:
+                return f"Medical/wellness overclaim found: {match.group()}"
+    return None
+
+
+def _validate_source_paths(source_paths: dict[str, Any]) -> str | None:
+    if source_paths != EXPECTED_FITCHEF_SOURCE_PATHS:
+        return (
+            "Scenario matrix source_paths value drift: "
+            f"{source_paths!r} != {EXPECTED_FITCHEF_SOURCE_PATHS!r}"
+        )
+    for label, raw_path in source_paths.items():
+        if not isinstance(raw_path, str) or not _is_safe_repo_relative_path(raw_path):
+            return f"Unsafe source_paths.{label}: {raw_path!r}"
+        if not (REPO_ROOT / raw_path).exists():
+            return f"Referenced source_paths.{label} does not exist: {raw_path}"
+    return None
+
+
+def _validate_ios_screenshot_sources() -> str | None:
+    context_text, context_error = _read_text_file(APPSTORE_SCREENSHOT_CONTEXT)
+    if context_error:
+        return f"Cannot read iOS screenshot context: {context_error}"
+    test_text, test_error = _read_text_file(APPSTORE_SCREENSHOT_TESTS)
+    if test_error:
+        return f"Cannot read iOS screenshot tests: {test_error}"
+    for scenario_id, expected in EXPECTED_FITCHEF_SCENARIOS.items():
+        for label, needle, source_text in (
+            ("context scenario id", scenario_id, context_text),
+            ("test scenario id", scenario_id, test_text),
+            ("context accessibility id", expected["accessibility_identifier"], context_text),
+            ("test accessibility id", expected["accessibility_identifier"], test_text),
+            ("test screenshot name", expected["screenshot_name"], test_text),
+        ):
+            if needle not in source_text:
+                return f"iOS screenshot {label} drift for {scenario_id}: missing {needle!r}"
+    return None
 
 
 def _collect_markdown_scenario_classifications(
@@ -706,6 +861,11 @@ def check_fitchef_release_readiness_bundle() -> Results:
     results: Results = []
     tag = "fitchef_release_readiness_bundle"
 
+    pack_boundary_error = _validate_fitchef_pack_file_boundaries()
+    if pack_boundary_error:
+        results.append((False, tag, pack_boundary_error))
+        return results
+
     if not FITCHEF_RELEASE_READINESS_DIR.exists():
         results.append((False, tag, f"Directory missing: {FITCHEF_RELEASE_READINESS_DIR}"))
         return results
@@ -766,31 +926,39 @@ def check_fitchef_release_readiness_bundle() -> Results:
     if source_paths_schema_error:
         results.append((False, tag, source_paths_schema_error))
         return results
+    source_paths_value_error = _validate_source_paths(source_paths)
+    if source_paths_value_error:
+        results.append((False, tag, source_paths_value_error))
+        return results
+
+    blocked_actions = payload.get("blocked_release_actions")
+    if not isinstance(blocked_actions, list) or tuple(blocked_actions) != (
+        EXPECTED_FITCHEF_BLOCKED_RELEASE_ACTIONS
+    ):
+        results.append(
+            (
+                False,
+                tag,
+                "Scenario matrix blocked_release_actions drift: "
+                f"{blocked_actions!r} != {EXPECTED_FITCHEF_BLOCKED_RELEASE_ACTIONS!r}",
+            )
+        )
+        return results
+
+    ios_source_error = _validate_ios_screenshot_sources()
+    if ios_source_error:
+        results.append((False, tag, ios_source_error))
+        return results
 
     checklist = FITCHEF_RENDERED_REVIEW_CHECKLIST.read_text(encoding="utf-8")
-    combined_text = "\n".join(_flatten_strings(payload)) + "\n" + checklist
-    lowered = combined_text.lower()
-    for fragment in FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS:
-        if fragment in lowered:
-            results.append((False, tag, f"Forbidden release-readiness fragment found: {fragment}"))
-            return results
-    for pattern in PRICING_PATTERNS:
-        match = pattern.search(combined_text)
-        if match:
-            results.append((False, tag, f"Pricing/trial claim found: {match.group()}"))
-            return results
-    for pattern in FITCHEF_RELEASE_CREDENTIAL_PATTERNS:
-        match = pattern.search(combined_text)
-        if match:
-            results.append(
-                (False, tag, f"Credential-like release bundle value found: {match.group()}")
-            )
-            return results
-    for pattern in FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS:
-        match = pattern.search(combined_text)
-        if match:
-            results.append((False, tag, f"Protected release action claim found: {match.group()}"))
-            return results
+    combined_text, scan_error = _release_readiness_scan_text()
+    if scan_error:
+        results.append((False, tag, scan_error))
+        return results
+    scan_policy_error = _validate_release_readiness_scan_text(combined_text)
+    if scan_policy_error:
+        results.append((False, tag, scan_policy_error))
+        return results
 
     if payload.get("classification") != "INTERNAL_REVIEW_ONLY":
         results.append((False, tag, "Scenario matrix must be INTERNAL_REVIEW_ONLY"))
@@ -893,6 +1061,16 @@ def check_fitchef_release_readiness_bundle() -> Results:
         if item.get("rendered_review_required") is not True:
             results.append((False, tag, f"{scenario_id} must require rendered review"))
             return results
+        if item.get("testflight_smoke_status") != "not_started":
+            results.append(
+                (
+                    False,
+                    tag,
+                    f"{scenario_id} TestFlight smoke status must stay not_started: "
+                    f"{item.get('testflight_smoke_status')!r}",
+                )
+            )
+            return results
 
     locale_rows = payload.get("locale_review_matrix")
     if not isinstance(locale_rows, list):
@@ -933,6 +1111,28 @@ def check_fitchef_release_readiness_bundle() -> Results:
             results.append((False, tag, f"Unexpected locale/shot pair: {(locale, shot_id)}"))
             return results
         expected = EXPECTED_FITCHEF_SHOTS[shot_id]
+        expected_manifest_path = _expected_fitchef_manifest_path(locale)
+        expected_storyboard_path = _expected_fitchef_storyboard_path(locale)
+        if row.get("manifest_path") != expected_manifest_path:
+            results.append(
+                (
+                    False,
+                    tag,
+                    f"Manifest path must point to governed FitChef pack for {(locale, shot_id)}: "
+                    f"{row.get('manifest_path')!r}",
+                )
+            )
+            return results
+        if row.get("storyboard_path") != expected_storyboard_path:
+            results.append(
+                (
+                    False,
+                    tag,
+                    f"Storyboard path must point to governed FitChef pack for {(locale, shot_id)}: "
+                    f"{row.get('storyboard_path')!r}",
+                )
+            )
+            return results
         for field in ("manifest_path", "storyboard_path"):
             value = row.get(field)
             if not isinstance(value, str) or not _is_safe_repo_relative_path(value):

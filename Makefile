@@ -564,6 +564,7 @@ ios-appstore-verify: ## Verify repo-local App Store release gates (no upload)
 	@echo "$(YELLOW)Verifying iOS App Store repo-local release gates...$(NC)"
 	$(DEV_PYTHON) scripts/validate_icon_core_v1.py --strict
 	$(DEV_PYTHON) scripts/release/check_ios_appstore_verify.py
+	$(DEV_PYTHON) -m pytest -q tests/test_fitchef_app_store_pack.py
 	$(DEV_PYTHON) -m pytest -q tests/ios/
 	$(DEV_PYTHON) -m pytest -q tests/guards/test_wellness_language_blockers_guard.py
 	$(DEV_PYTHON) -m pytest -q tests/test_release_reviewer_packet_hashes.py
