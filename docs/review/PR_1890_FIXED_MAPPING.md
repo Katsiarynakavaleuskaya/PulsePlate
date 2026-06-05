@@ -88,10 +88,10 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 ## Post-Open Review Evidence
 
 - `qa-engineer-agent`: PASS. Evidence: post-open pass at head `acca8fc14df4df301d6e4fb4cb10d2b6475055e7` found no QA blockers, verified Phase2 mirror, focused validator/tests, `make validate-changed`, `make ios-appstore-verify`, and clean worktree; merge readiness was not claimed because CI/post-open gates remained pending.
-- `bug-hunter`: BLOCK then fixed; current-head rerun pending after push. Evidence: `f57b215e8` fixed the original whole-pack scan, source path, blocked action, TestFlight status, Makefile coverage, governed path, and iOS source-linkage false-greens; `854ee4c2f` fixed the first negation-plus-overclaim bypass; `8a2c136a2` fixed the remaining comma-clause bypass and added validator/pack guard regressions. Focused pytest, direct validator, `make ios-appstore-verify`, mypy, flake8, commit hooks, and previous `make validate-changed` passed locally after the final fix.
-- `security-auditor`: pending.
-- Codex Security diff scan / finding discovery: pending.
-- `pulseplate-pr-review`: pending.
+- `bug-hunter`: PASS on current head `8a5d032f9` after fixes. Evidence: `f57b215e8` fixed the original whole-pack scan, source path, blocked action, TestFlight status, Makefile coverage, governed path, and iOS source-linkage false-greens; `854ee4c2f` fixed the first negation-plus-overclaim bypass; `8a2c136a2` fixed the remaining comma-clause bypass and added validator/pack guard regressions; rerun agent `019e9946-d0e9-7571-b8f1-3739faa60b7a` returned PASS with no findings and no file changes.
+- `security-auditor`: PASS on current head `8a5d032f9`. Evidence: agent `019e994b-6730-7890-a6b8-62bd3b75315f` found no protected release-surface drift, no screenshot/video binaries, no `ios/fastlane/metadata` mutation, no upload automation or App Store Connect mutation, no secret/local-path leakage, no unsafe pricing/trial/medical overclaim, and no validator fail-open/path-boundary regression.
+- Codex Security diff scan / finding discovery: PASS / no findings. Evidence: scan id `8a5d032f9de3_20260605224323`; merge-base-corrected deep review closed 3/3 generated rows (`appstore/fitchef/en-US/iphone-6.9/screenshots/shot_manifest.json`, `appstore/fitchef/release_readiness/shot_scenario_matrix.json`, `scripts/release/check_ios_appstore_verify.py`); `report.md` format validation passed and `report.html` rendered in the gitignored scan workspace.
+- `pulseplate-pr-review`: NOTE dispositioned as NOT-A-BUG. Evidence: dry-run report produced one advisory large-diff planning note only; the operator explicitly requested a broader MVP release-readiness slice, scope remained release-validator/App Store metadata only, no protected runtime/upload surfaces entered the PR, and `make validate-changed`, focused validator/tests, full pre-commit, current-head CI, post-open QA, bug-hunter, security-auditor, and Codex Security scan all passed. `.venv` calibration command `../../.venv/bin/python -m pytest tests/test_pr_review_report.py -q` passed; the earlier system `python3` attempt failed with missing local dependency `fastapi` and was not used as gate evidence.
 
 ## Fixed in Commit Mapping
 
@@ -114,6 +114,10 @@ Finding: post-open `bug-hunter` agent `019e98b2-aa05-7c81-b31a-e3ea0daba98c` rep
 Disposition: FIXED
 Commit: 8a2c136a2
 Evidence: `scripts/release/check_ios_appstore_verify.py` now limits boundary-negation to explicit forbidden-claim context words instead of broad same-line negation; `tests/ios/test_ios_appstore_verify.py` and `tests/test_fitchef_app_store_pack.py` cover `:`, `.`, `;`, `!`, `?`, and `,` separators plus safe boundary-list language. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `../../.venv/bin/python -m mypy scripts/release/check_ios_appstore_verify.py` PASS; `../../.venv/bin/python -m flake8 scripts/release/check_ios_appstore_verify.py tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS.
+
+Finding: `pulseplate-pr-review` dry-run report flagged an advisory large-diff planning note for human review.
+Disposition: NOT-A-BUG
+Evidence: Operator scope intentionally broadened this release-readiness PR beyond a microscopic docs lane while keeping it bounded to repo-local App Store release-readiness metadata, validators, and tests. The PR does not touch protected upload/runtime surfaces, and the targeted gates plus current-head CI and role reviews cover the expanded scope. No code, security, wellness, or release-boundary defect was reported by the PR review.
 
 
 ## Merge Readiness
