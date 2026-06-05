@@ -42,6 +42,19 @@ Evidence: `docs/review/PR_1884_FIXED_MAPPING.md` now states that resolved review
 Disposition: FIXED
 Commit: 3a738e078faaa4f8458d1fa034a809c6a3f93efc
 Evidence: `docs/review/PR_1884_FIXED_MAPPING.md` now records the `security-auditor` gate as completed after the exact local-path guard passed, removing the completed-vs-pending contradiction.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3359557877 -> 202eb70436653b2fc83f5bb107f9eb843839f481
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3359570145 -> 202eb70436653b2fc83f5bb107f9eb843839f481
+Disposition: FIXED
+Commit: 202eb70436653b2fc83f5bb107f9eb843839f481
+Evidence: `docs/review/PR_1884_FIXED_MAPPING.md` now identifies `c3bd36235` as the Experiment Runner-shaped commit with the required `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer, instead of relying on an old review-merge commit reference.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361451889 -> 202eb70436653b2fc83f5bb107f9eb843839f481
+Disposition: FIXED
+Commit: 202eb70436653b2fc83f5bb107f9eb843839f481
+Evidence: `core/verification/registry.py` now returns the existing `rag_bundle` before constructing provenance-only `rag_bundle_missing` failures when `runtime_verification_enabled=False`, with regression coverage in `tests/test_remaining_modules.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361468682 -> 202eb70436653b2fc83f5bb107f9eb843839f481
+Disposition: FIXED
+Commit: 202eb70436653b2fc83f5bb107f9eb843839f481
+Evidence: `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md` now cites PR `#1884`, implementation file:line references, the backlog ledger entry, and this review artifact for the internal-only provenance and public-response-boundary claims.
 
 ## Premortem Findings
 
@@ -98,6 +111,7 @@ Evidence: `docs/review/PR_1884_FIXED_MAPPING.md` now records the `security-audit
 - PASS: `PATH="$REPO_ROOT/.venv/bin:$PATH" make openapi-check`
 - PASS: `git diff --exit-code origin/main...HEAD -- frontend ios providers alembic app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts`
 - PASS: `$REPO_ROOT/.venv/bin/python -m pytest -q tests/test_remaining_modules.py::TestVerificationRegistryCoverageTail`
+- PASS: `git log -1 --format=%B c3bd36235 | rg "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>"`
 - PASS: `$REPO_ROOT/.venv/bin/python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths` after artifact path redaction.
 - PASS: `python3 $CODEX_SECURITY_PLUGIN_ROOT/scripts/validate_report_format.py --report-md artifacts/security_lab/codex-security/pr1884-verification-provenance/report.md`
 - PASS: `python3 $CODEX_SECURITY_PLUGIN_ROOT/scripts/render_report_html.py --template $CODEX_SECURITY_PLUGIN_ROOT/assets/report_template_inlined.html --report-md artifacts/security_lab/codex-security/pr1884-verification-provenance/report.md --report-html artifacts/security_lab/codex-security/pr1884-verification-provenance/report.html --title "PulsePlate PR 1884 Codex Security Scan"`
