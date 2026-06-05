@@ -1,0 +1,486 @@
+{
+  "schema_version": "1.0",
+  "report_id": "verification_provenance_admission_report",
+  "report_version": "2026-06-05",
+  "generated_at": "static-2026-06-05",
+  "scope": "internal_only_verification_bundle_provenance_admission_report",
+  "generation_mode": "deterministic_static_ast_source_only",
+  "source_ids": {
+    "verification_contract": "core/verification/contracts.py",
+    "verification_registry": "core/verification/registry.py",
+    "rag_orchestration": "core/rag/orchestration.py",
+    "philosophical_runtime": "core/insight/philosophical_runtime.py",
+    "application_service": "app/services/insight_application_service.py",
+    "semantic_cache_gate": "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+  },
+  "authority_flags": {
+    "public_api_changed": false,
+    "openapi_changed": false,
+    "db_persistence_changed": false,
+    "provider_changed": false,
+    "frontend_or_ios_changed": false,
+    "runtime_authority_changed": false,
+    "runtime_serving_behavior_changed": false,
+    "admission_authority_changed": false,
+    "semantic_cache_gate_status": "closed",
+    "semantic_cache_allowed": false,
+    "semantic_cache_runtime_allowed": false,
+    "semantic_cache_implementation_allowed": false,
+    "graphrag_allowed": false,
+    "slack_or_operator_authority_allowed": false
+  },
+  "provenance_contract": {
+    "source_contract": "core/verification/contracts.py",
+    "bundle_field": "provenance",
+    "metadata_scope": "internal_only",
+    "redaction_source": "core.verification.registry.redacted_sha256_label",
+    "digest_label_format": "sha256:<64 lowercase hex>",
+    "verification_status_values": [
+      "pass",
+      "warn",
+      "fail"
+    ],
+    "field_inventory": [
+      {
+        "field": "input_digest",
+        "kind": "redacted_digest_label",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "prompt_digest",
+        "kind": "redacted_digest_label",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "context_item_digests",
+        "kind": "redacted_digest_label_tuple",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "answer_digest",
+        "kind": "redacted_digest_label",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "prompt_char_count",
+        "kind": "non_negative_count",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "prompt_trimmed",
+        "kind": "boolean_or_null",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "verification_hops",
+        "kind": "non_negative_count",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      },
+      {
+        "field": "verification_calls",
+        "kind": "non_negative_count",
+        "safe_surface": "internal_metadata_only",
+        "raw_value_allowed": false
+      }
+    ],
+    "raw_values_persisted": false,
+    "public_response_surface": false
+  },
+  "path_categories": [
+    {
+      "id": "rag_pre_generation",
+      "bundle_present": true,
+      "overall_status": "pass",
+      "admission_allowed": true,
+      "reason_labels": [
+        "policy_checks_pass",
+        "freshness_checks_pass",
+        "validated_evidence_pass"
+      ],
+      "expected_provenance_fields": [
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "prompt_char_count",
+        "prompt_trimmed",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "present_provenance_fields": [
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "prompt_char_count",
+        "prompt_trimmed",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "missing_required_provenance_fields": [],
+      "redacted_digest_labels": {
+        "input_digest": "sha256:df6975cdc9d16914597c221d30f88fea472eb614cb2e6c5a50e1cda95feb8e9e",
+        "prompt_digest": "sha256:2c427a268fe8040ef87d73ac80c4496d3a1c6a2f1972954272cf91d781e72b49",
+        "context_item_digests": [
+          "sha256:53c69efb77e27de118bdbf3a4600ffe483c084b9299856f13de366155c06eb78",
+          "sha256:8180779067ea012f6e6c548c6856998826e5df34ae510aec412647ecfd969ffc"
+        ]
+      },
+      "count_labels": {
+        "artifact_count": 3,
+        "reason_code_count": 3,
+        "context_item_digest_count": 2,
+        "prompt_char_count": 184,
+        "verification_hops": 1,
+        "verification_calls": 0
+      },
+      "redaction_assertions": {
+        "raw_prompt_absent": true,
+        "raw_context_absent": true,
+        "raw_answer_absent": true,
+        "raw_user_text_absent": true,
+        "local_paths_absent": true,
+        "secrets_absent": true,
+        "slack_ids_absent": true,
+        "workflow_logs_absent": true,
+        "provider_logs_absent": true,
+        "operator_artifacts_absent": true,
+        "health_data_absent": true
+      },
+      "authority": {
+        "public_api_changed": false,
+        "runtime_authority_changed": false,
+        "admission_authority_changed": false,
+        "semantic_cache_gate_status": "closed",
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false
+      },
+      "source_refs": [
+        {
+          "path": "core/rag/orchestration.py",
+          "symbol": "_build_orchestration_verification_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_rag_verification_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_verification_provenance"
+        }
+      ]
+    },
+    {
+      "id": "rag_runtime_merged",
+      "bundle_present": true,
+      "overall_status": "pass",
+      "admission_allowed": true,
+      "reason_labels": [
+        "policy_checks_pass",
+        "freshness_checks_pass",
+        "validated_evidence_pass",
+        "verification_checks_pass",
+        "falsification_checks_pass"
+      ],
+      "expected_provenance_fields": [
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "answer_digest",
+        "prompt_char_count",
+        "prompt_trimmed",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "present_provenance_fields": [
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "answer_digest",
+        "prompt_char_count",
+        "prompt_trimmed",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "missing_required_provenance_fields": [],
+      "redacted_digest_labels": {
+        "input_digest": "sha256:21c59486d7edf58553cfe5e08d8b3d42b3623205665c76acbc83b627229cc45e",
+        "prompt_digest": "sha256:dea75288ec5c6d1bf10709d925a6a95e00fac2782882959a78fa80dbb42e6517",
+        "context_item_digests": [
+          "sha256:ccbc75fbfb81186dca8d04d8f00a476ade7d8f00534cc13acc2458a667da795b",
+          "sha256:59f392a1076f520599f6706b4dc33078b0dbe6bcc0ced7335e4c0f8dc3a9408c"
+        ],
+        "answer_digest": "sha256:b46494e73a7127dff74d6bf01c4401dacf319cdde20396607ed21fd88a960147"
+      },
+      "count_labels": {
+        "artifact_count": 5,
+        "reason_code_count": 5,
+        "context_item_digest_count": 2,
+        "prompt_char_count": 4000,
+        "verification_hops": 1,
+        "verification_calls": 0
+      },
+      "redaction_assertions": {
+        "raw_prompt_absent": true,
+        "raw_context_absent": true,
+        "raw_answer_absent": true,
+        "raw_user_text_absent": true,
+        "local_paths_absent": true,
+        "secrets_absent": true,
+        "slack_ids_absent": true,
+        "workflow_logs_absent": true,
+        "provider_logs_absent": true,
+        "operator_artifacts_absent": true,
+        "health_data_absent": true
+      },
+      "authority": {
+        "public_api_changed": false,
+        "runtime_authority_changed": false,
+        "admission_authority_changed": false,
+        "semantic_cache_gate_status": "closed",
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false
+      },
+      "source_refs": [
+        {
+          "path": "core/insight/philosophical_runtime.py",
+          "symbol": "generate_insight"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "_merge_provenance"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_runtime_verification_bundle"
+        }
+      ]
+    },
+    {
+      "id": "direct_local_non_verification_first_answer",
+      "bundle_present": true,
+      "overall_status": "fail",
+      "admission_allowed": false,
+      "reason_labels": [
+        "rag_bundle_missing"
+      ],
+      "expected_provenance_fields": [
+        "input_digest",
+        "answer_digest",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "present_provenance_fields": [
+        "input_digest",
+        "answer_digest",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "missing_required_provenance_fields": [],
+      "redacted_digest_labels": {
+        "input_digest": "sha256:a22c5801f4115ceeb9bcb87ba4f0c2b12fe86a1c053bedc34408c6afc2c5a0d7",
+        "answer_digest": "sha256:be3518d6191f9047d10e0a9ad8cdc7a8669d079be64b54385d57aafe5be5a4ba"
+      },
+      "count_labels": {
+        "artifact_count": 1,
+        "reason_code_count": 1,
+        "verification_hops": 0,
+        "verification_calls": 0
+      },
+      "redaction_assertions": {
+        "raw_prompt_absent": true,
+        "raw_context_absent": true,
+        "raw_answer_absent": true,
+        "raw_user_text_absent": true,
+        "local_paths_absent": true,
+        "secrets_absent": true,
+        "slack_ids_absent": true,
+        "workflow_logs_absent": true,
+        "provider_logs_absent": true,
+        "operator_artifacts_absent": true,
+        "health_data_absent": true
+      },
+      "authority": {
+        "public_api_changed": false,
+        "runtime_authority_changed": false,
+        "admission_authority_changed": false,
+        "semantic_cache_gate_status": "closed",
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false
+      },
+      "source_refs": [
+        {
+          "path": "core/insight/philosophical_runtime.py",
+          "symbol": "_build_direct_result"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_runtime_verification_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_verification_provenance"
+        }
+      ]
+    },
+    {
+      "id": "runtime_verification_disabled_passthrough",
+      "bundle_present": true,
+      "overall_status": "fail",
+      "admission_allowed": false,
+      "reason_labels": [
+        "runtime_verification_disabled_inherits_existing_bundle",
+        "knowledge_policy_missing",
+        "freshness_checks_pass",
+        "validated_evidence_pass"
+      ],
+      "expected_provenance_fields": [
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "prompt_char_count",
+        "prompt_trimmed",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "present_provenance_fields": [
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "prompt_char_count",
+        "prompt_trimmed",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "missing_required_provenance_fields": [],
+      "redacted_digest_labels": {
+        "input_digest": "sha256:d5012c87fe2568a7f88441b0695b46e69f230b1615927eb2bb17a83739216a82",
+        "prompt_digest": "sha256:67fc446d4a01a3f15dd7e57213ed6c94ade9c3d7abf6180af448febe0974997b",
+        "context_item_digests": [
+          "sha256:fc83a91b2f1b994f70347a3c3d9432a57e94fc4f2fe9655978d08fd8c5391f5a",
+          "sha256:d729207a70ab0a424f866fe91526364723160dd1e9d5998cfc4d320920554717"
+        ]
+      },
+      "count_labels": {
+        "artifact_count": 4,
+        "reason_code_count": 4,
+        "context_item_digest_count": 2,
+        "prompt_char_count": 184,
+        "verification_hops": 2,
+        "verification_calls": 2
+      },
+      "redaction_assertions": {
+        "raw_prompt_absent": true,
+        "raw_context_absent": true,
+        "raw_answer_absent": true,
+        "raw_user_text_absent": true,
+        "local_paths_absent": true,
+        "secrets_absent": true,
+        "slack_ids_absent": true,
+        "workflow_logs_absent": true,
+        "provider_logs_absent": true,
+        "operator_artifacts_absent": true,
+        "health_data_absent": true
+      },
+      "authority": {
+        "public_api_changed": false,
+        "runtime_authority_changed": false,
+        "admission_authority_changed": false,
+        "semantic_cache_gate_status": "closed",
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false
+      },
+      "source_refs": [
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_runtime_verification_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_rag_verification_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_verification_provenance"
+        }
+      ]
+    },
+    {
+      "id": "fail_closed_missing_bundle_with_provenance",
+      "bundle_present": true,
+      "overall_status": "fail",
+      "admission_allowed": false,
+      "reason_labels": [
+        "rag_bundle_missing"
+      ],
+      "expected_provenance_fields": [
+        "input_digest",
+        "answer_digest",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "present_provenance_fields": [
+        "input_digest",
+        "answer_digest",
+        "verification_hops",
+        "verification_calls"
+      ],
+      "missing_required_provenance_fields": [],
+      "redacted_digest_labels": {
+        "input_digest": "sha256:38557752339bd7a1460a941bb6fd718de1e50c5b8c05d0edc2ccd322e4df2b72",
+        "answer_digest": "sha256:e92495322cf83ee8c920105a5f8b55fc16603ae867e3a4ee1c873e8e4f3e36a8"
+      },
+      "count_labels": {
+        "artifact_count": 1,
+        "reason_code_count": 1,
+        "verification_hops": 0,
+        "verification_calls": 0
+      },
+      "redaction_assertions": {
+        "raw_prompt_absent": true,
+        "raw_context_absent": true,
+        "raw_answer_absent": true,
+        "raw_user_text_absent": true,
+        "local_paths_absent": true,
+        "secrets_absent": true,
+        "slack_ids_absent": true,
+        "workflow_logs_absent": true,
+        "provider_logs_absent": true,
+        "operator_artifacts_absent": true,
+        "health_data_absent": true
+      },
+      "authority": {
+        "public_api_changed": false,
+        "runtime_authority_changed": false,
+        "admission_authority_changed": false,
+        "semantic_cache_gate_status": "closed",
+        "cache_read_allowed": false,
+        "cache_write_allowed": false,
+        "serving_allowed": false
+      },
+      "source_refs": [
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_runtime_verification_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_bundle"
+        },
+        {
+          "path": "core/verification/registry.py",
+          "symbol": "build_verification_provenance"
+        }
+      ]
+    }
+  ]
+}

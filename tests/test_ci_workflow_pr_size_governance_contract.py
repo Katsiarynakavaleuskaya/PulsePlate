@@ -604,6 +604,10 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         "'docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json'" in docs_phase1_section
     )
     assert (
+        "'docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json'"
+        in docs_phase1_section
+    )
+    assert (
         "':(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json'"
         in docs_phase1_section
     )
@@ -711,6 +715,7 @@ def test_semantic_cache_contract_suites_include_philosophy_policy_oracle() -> No
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     assert workflow_text.count("tests/test_philosophy_admission_dry_run_report.py \\") >= 2
     assert workflow_text.count("tests/test_philosophy_admission_policy_oracle.py \\") >= 2
+    assert workflow_text.count("tests/test_verification_provenance_admission_report.py \\") >= 2
 
 
 def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> None:

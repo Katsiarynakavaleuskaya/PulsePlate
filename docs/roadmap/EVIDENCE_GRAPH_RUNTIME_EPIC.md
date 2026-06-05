@@ -136,8 +136,8 @@ After semantic-cache gate reconciliation:
 
 ## Operator-Selected Follow-Up
 
-The current follow-up is PR `#1884`, a narrow Verification Bundle Provenance
-Attestation v1 slice. It adds internal-only digest/count metadata to existing
+PR `#1884` is the merged Verification Bundle Provenance Attestation v1
+baseline. It adds internal-only digest/count metadata to existing
 `VerificationBundle` decisions so the product AI runtime can identify the
 redacted input, prompt, context items, final answer, prompt trim state, and
 verification hop/call counts that shaped an admission decision. Evidence:
@@ -145,7 +145,16 @@ verification hop/call counts that shaped an admission decision. Evidence:
 `core/verification/registry.py:161`, and
 `core/verification/registry.py:194`.
 
-This follow-up does not change public response DTOs, OpenAPI, DB persistence,
+The current follow-up is Verification Provenance Admission Report v1. It adds a
+deterministic internal report/schema/validator over the PR `#1884` provenance
+metadata and records path coverage for RAG pre-generation, RAG plus
+philosophical runtime merge, direct/local answer provenance, runtime-disabled
+passthrough, and fail-closed missing-bundle behavior. Evidence:
+`docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json`,
+`docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.schema.json`,
+and `scripts/ci/check_verification_provenance_admission_report.py`.
+
+These follow-ups do not change public response DTOs, OpenAPI, DB persistence,
 provider selection, frontend, iOS, semantic cache, GraphRAG, Slack/operator
 authority, or runtime-serving behavior. Evidence:
 `core/insight/philosophical_runtime.py:195`,

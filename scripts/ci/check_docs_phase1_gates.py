@@ -45,6 +45,9 @@ try:
     from scripts.ci.check_philosophy_source_corpus_index import (
         validate_philosophy_source_corpus_index as _validate_philosophy_source_corpus_index,
     )
+    from scripts.ci.check_verification_provenance_admission_report import (
+        validate_verification_provenance_admission_report as _validate_verification_provenance_admission_report,
+    )
 except ModuleNotFoundError:
     from check_semantic_cache_gate import (  # noqa: E402
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
@@ -71,6 +74,9 @@ except ModuleNotFoundError:
     )
     from check_philosophy_source_corpus_index import (  # noqa: E402
         validate_philosophy_source_corpus_index as _validate_philosophy_source_corpus_index,
+    )
+    from check_verification_provenance_admission_report import (  # noqa: E402
+        validate_verification_provenance_admission_report as _validate_verification_provenance_admission_report,
     )
 
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
@@ -122,6 +128,12 @@ PHILOSOPHY_SOURCE_CORPUS_INDEX = "docs/orchestration/contracts/PHILOSOPHY_SOURCE
 PHILOSOPHY_SOURCE_CORPUS_INDEX_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.schema.json"
 )
+VERIFICATION_PROVENANCE_ADMISSION_REPORT = (
+    "docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json"
+)
+VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA = (
+    "docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.schema.json"
+)
 PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX = "docs/orchestration/contracts/philosophy_alignment_rules/"
 PHILOSOPHY_ADMISSION_DRY_RUN_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY,
@@ -147,6 +159,10 @@ PHILOSOPHY_SOURCE_CORPUS_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_SOURCE_CORPUS_INDEX_SCHEMA,
     SEMANTIC_CACHE_GATE_DOC,
     PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT,
+)
+VERIFICATION_PROVENANCE_ADMISSION_REPORT_INPUTS: tuple[str, ...] = (
+    VERIFICATION_PROVENANCE_ADMISSION_REPORT,
+    VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA,
 )
 PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/PHILOSOPHY_",
@@ -313,6 +329,24 @@ def _load_philosophy_source_corpus_index_validator() -> SourceCorpusIndexValidat
     return cast(SourceCorpusIndexValidator, _validate_philosophy_source_corpus_index)
 
 
+class VerificationProvenanceAdmissionReportValidator(Protocol):
+    def __call__(
+        self,
+        *,
+        report_text: str,
+        schema_text: str,
+    ) -> list[str]: ...
+
+
+def _load_verification_provenance_admission_report_validator() -> (
+    VerificationProvenanceAdmissionReportValidator
+):
+    return cast(
+        VerificationProvenanceAdmissionReportValidator,
+        _validate_verification_provenance_admission_report,
+    )
+
+
 def _is_philosophy_alignment_rule_record(path: str) -> bool:
     return path.startswith(PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX) and path.endswith(".json")
 
@@ -369,6 +403,8 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
     for relpath in markdown_files:
         fullpath = REPO_ROOT / relpath
         if not fullpath.exists():
+            if relpath in VERIFICATION_PROVENANCE_ADMISSION_REPORT_INPUTS:
+                errors.append(f"{relpath}: protected contract file missing")
             continue
         content = _read_text(relpath)
 
@@ -732,6 +768,32 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                         schema_text=schema_text,
                         roadmap_text=roadmap_text,
                         gate_report_text=gate_report_text,
+                    )
+                )
+
+        if relpath in VERIFICATION_PROVENANCE_ADMISSION_REPORT_INPUTS:
+            validate_verification_provenance_report = (
+                _load_verification_provenance_admission_report_validator()
+            )
+            try:
+                report_text = (
+                    content
+                    if relpath == VERIFICATION_PROVENANCE_ADMISSION_REPORT
+                    else _read_text(VERIFICATION_PROVENANCE_ADMISSION_REPORT)
+                )
+                schema_text = (
+                    content
+                    if relpath == VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA
+                    else _read_text(VERIFICATION_PROVENANCE_ADMISSION_REPORT_SCHEMA)
+                )
+            except FileNotFoundError as exc:
+                errors.append(f"{relpath}: missing companion file {exc.filename}")
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_verification_provenance_report(
+                        report_text=report_text,
+                        schema_text=schema_text,
                     )
                 )
 

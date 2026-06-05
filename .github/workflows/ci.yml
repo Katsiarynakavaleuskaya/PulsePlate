@@ -321,12 +321,13 @@ jobs:
 
           while IFS= read -r -d '' path; do
             PHASE1_CHANGED_FILES+=("$path")
-          done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- \
+          done < <(git diff --name-only -z --diff-filter=ACDMRT "$BASE_REF"...HEAD -- \
             'docs/orchestration/contracts/*.schema.json' \
             'docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json' \
             'docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json' \
             'docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json' \
             'docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json' \
+            'docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json' \
             ':(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json' \
             'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json')
 
@@ -771,6 +772,7 @@ jobs:
                   tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_philosophy_admission_dry_run_report.py \
                   tests/test_philosophy_admission_policy_oracle.py \
+                  tests/test_verification_provenance_admission_report.py \
                   tests/test_semantic_cache_observability_contract.py \
                   tests/test_semantic_cache_scaffold_contract.py \
                   tests/vip/test_vip_diff_coverage.py
@@ -1043,6 +1045,7 @@ jobs:
                   tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_philosophy_admission_dry_run_report.py \
                   tests/test_philosophy_admission_policy_oracle.py \
+                  tests/test_verification_provenance_admission_report.py \
                   tests/test_semantic_cache_observability_contract.py \
                   tests/test_semantic_cache_scaffold_contract.py \
                   tests/vip/test_vip_diff_coverage.py
