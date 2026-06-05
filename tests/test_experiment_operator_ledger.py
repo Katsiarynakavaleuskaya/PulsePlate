@@ -1235,9 +1235,16 @@ def test_operator_ledger_cli_writes_empty_observability_report_set(
 
     assert output["status"] == "written"
     assert json_report["event_count"] == 0
+    assert json_report["evidence_graph_admission_status"] == "contract_only_not_runtime"
     assert json_report["latest"] is None
     assert json_report["activation_readiness"]["activation_state"] == "manual_only"
     assert json_report["activation_readiness"]["manual_live_smoke"] == "operator_evidence_only"
+    assert json_report["activation_readiness"]["github_dispatch_readiness_state"] == "manual_only"
+    assert json_report["activation_readiness"]["github_dispatch_authority"] == "display_only"
+    assert (
+        json_report["activation_readiness"]["evidence_graph_admission_status"]
+        == "contract_only_not_runtime"
+    )
     assert json_report["by_status"] == {}
     assert json_report["by_dispatch_mode"] == {}
     assert json_report["by_failure_class"] == {}
@@ -1266,7 +1273,12 @@ def test_operator_ledger_cli_writes_empty_observability_report_set(
     }
     assert "Activation Readiness" in markdown
     assert "socket_mode_activation_state" in rendered
+    assert "github_dispatch_readiness_state" in rendered
+    assert "github_dispatch_authority" in rendered
+    assert "evidence_graph_admission_status" in rendered
+    assert "contract_only_not_runtime" in rendered
     assert "manual_live_smoke" in rendered
+    assert "- Evidence graph admission: `contract_only_not_runtime`" in markdown
     assert "- Event count: `0`" in markdown
     assert "<p>none</p>" in html
     assert str(tmp_path) not in rendered

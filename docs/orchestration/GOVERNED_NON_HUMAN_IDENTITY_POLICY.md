@@ -135,6 +135,18 @@ only. It must not grant `pull_requests:write`, `contents:write`,
 `workflows:write`, administration, sensitive-store, review-thread, repository
 event dispatch, or merge permissions.
 
+Private-pilot readiness reporting is label-only operator evidence. The Slack
+status path and local operator observability report may show whether a selected
+target is same-repo or cross-repo, whether an exact allowlist is matched, whether
+the runtime GitHub credential is installation-class, and whether the fixed
+workflow/ref/execute gate remain bounded. They must not print selected
+repository names, token values or prefixes, Slack identifiers, approval digests,
+raw branch refs, raw hypotheses, workflow logs, oracle output, local paths, or
+patch text. The report-level Evidence Graph hook is
+`contract_only_not_runtime`; it does not enable semantic cache, GraphRAG,
+product runtime truth, merge readiness, PR mutation, or review-thread
+disposition authority.
+
 Socket Mode uses runtime credentials outside the repository. Operators configure
 the app-level Socket Mode credential as `SLACK_APP_TOKEN` and the bot credential
 as `SLACK_BOT_TOKEN` in their secret store; the repository may reference those
