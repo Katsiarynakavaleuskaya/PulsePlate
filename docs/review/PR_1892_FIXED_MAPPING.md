@@ -117,14 +117,36 @@ resolved yet.
 
 ## Post-Open Review Evidence
 
-Pending:
-
-- `qa-engineer-agent`
-- `bug-hunter`
-- `security-auditor`
-- Codex Security diff scan / finding discovery
-- `pulseplate-pr-review`
+- `qa-engineer-agent`: PASS. No actionable findings; reviewed deterministic
+  report/schema behavior, closed authority, raw-leak coverage, and targeted
+  validation under the machine-heavy exception.
+- `bug-hunter`: PASS. No actionable findings; reviewed deterministic ordering,
+  false-green risks, Docs Phase1 wiring, and SC-G2..SC-G5 companion contract
+  coverage.
+- `security-auditor`: PASS. No actionable findings; reviewed metadata-only
+  authority, closed runtime/cache flags, raw-leak guards, source-ref traversal
+  rejection, and the Cubic scenario-id normalization fix.
+- Codex Security diff scan / finding discovery: PASS, no findings. Evidence:
+  local scan artifact label
+  `semantic-cache-offline-admission-runner-v1-6681f1b34`; source-like diff row
+  `core/ai/semantic_cache_offline_admission_runner.py` closed as
+  `no_plausible_candidate` in the local scan ledger.
+- `pulseplate-pr-review`: PASS with one advisory large-diff-risk note.
+  Disposition: NOT-A-BUG. Reason: the larger line count is generated
+  report/schema contract payload for the operator-approved medium-scope offline
+  admission runner slice; focused gates and current-head CI remain the merge
+  signal. Evidence: local review artifact label `pulseplate_pr1892_review_report`
+  and `make validate-changed` PASS.
+- Cubic P2 scenario-id normalization finding: FIXED in `6681f1b34`. Evidence:
+  `core/ai/semantic_cache_offline_admission_runner.py:915` returns canonical
+  `SCENARIO_IDS` order after validation and
+  `tests/core/ai/test_semantic_cache_offline_admission_runner.py:134` covers
+  whitespace-wrapped/reordered IDs.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1892#pullrequestreview-4438216062 -> 6681f1b34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1892#discussion_r3364250475 -> 6681f1b34
+Disposition: FIXED
+Commit: 6681f1b34
+Evidence: `core/ai/semantic_cache_offline_admission_runner.py:915` normalizes scenario IDs to canonical `SCENARIO_IDS` order before report composition; `tests/core/ai/test_semantic_cache_offline_admission_runner.py:134` covers whitespace-wrapped/reordered IDs; `.venv/bin/python -m pytest -q tests/core/ai/test_semantic_cache_offline_admission_runner.py` - PASS.
