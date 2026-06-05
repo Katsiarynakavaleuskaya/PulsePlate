@@ -67,6 +67,11 @@ Disposition: FIXED
 Commit: e0db06bc3
 Evidence: app/services/coaching_state_builder.py catches TypeError and ValueError for malformed analyzer rows and tests/test_user_coaching_state.py covers invalid payload degradation.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3365164918 -> 1f670a217
+Disposition: FIXED
+Commit: 1f670a217
+Evidence: app/services/coaching_state_builder.py validates raw analyzer payload values before service coercion and tests/test_user_coaching_state.py covers booleans plus fractional n degradation.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#pullrequestreview-4438128739 -> 32790a0f6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364186146 -> 32790a0f6
 Disposition: FIXED
