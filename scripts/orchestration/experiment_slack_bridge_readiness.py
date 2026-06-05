@@ -154,6 +154,7 @@ def _github_dispatch_readiness(
     config: BridgeConfig | None,
     config_error: Exception | None,
     env: Mapping[str, str],
+    allowlist_statuses: Mapping[str, str],
 ) -> dict[str, Any]:
     report = _manual_github_dispatch_readiness()
     if config_error is not None:
@@ -195,16 +196,18 @@ def _github_dispatch_readiness(
                 else ("missing" if config.dispatch_mode == "execute" else "not_required")
             ),
             "github_dispatch_live_approval_status": (
-                "present" if config.live_approval_sha256 is not None else "dry_run_default"
+                "present_unverified"
+                if config.live_approval_sha256 is not None
+                else "dry_run_default"
             ),
             "github_dispatch_workflow_status": workflow_status,
         }
     )
     if target is None:
-        return report
-
-    target_status = "cross_repo" if target.is_cross_repo else "same_repo"
-    if target.is_cross_repo:
+        target_status = "not_configured"
+        allowlist_status = "not_required"
+    elif target.is_cross_repo:
+        target_status = "cross_repo"
         if target.is_allowlisted:
             allowlist_status = "matched"
         elif target.repo_allowlist:
@@ -212,6 +215,7 @@ def _github_dispatch_readiness(
         else:
             allowlist_status = "missing"
     else:
+        target_status = "same_repo"
         allowlist_status = "not_required"
     report.update(
         {
@@ -219,12 +223,21 @@ def _github_dispatch_readiness(
             "github_dispatch_target_status": target_status,
         }
     )
+    slack_allowlists_complete = all(status == "present" for status in allowlist_statuses.values())
     if workflow_status == "invalid":
         readiness_state = "blocked_by_invalid_config"
     elif config.dispatch_mode == "execute" and not execute_gate_enabled:
         readiness_state = "blocked_by_execute_gate"
+    elif config.dispatch_mode == "execute" and not slack_allowlists_complete:
+        readiness_state = "blocked_by_slack_allowlist"
     elif auth is None and config.dispatch_mode == "execute":
         readiness_state = "blocked_by_missing_auth"
+    elif target is None and config.dispatch_mode == "execute":
+        readiness_state = "blocked_by_missing_target"
+    elif target is None:
+        readiness_state = "manual_only"
+    elif config.live_approval_sha256 is not None:
+        readiness_state = "blocked_by_live_approval_verification"
     elif target.is_cross_repo and allowlist_status != "matched":
         readiness_state = "blocked_by_allowlist"
     elif target.is_cross_repo and auth is None:
@@ -310,6 +323,7 @@ def build_activation_readiness_report(
         config=config,
         config_error=config_error,
         env=effective_env,
+        allowlist_statuses=allowlist_statuses,
     )
     github_state = str(github_readiness["github_dispatch_readiness_state"])
     report: dict[str, Any] = {

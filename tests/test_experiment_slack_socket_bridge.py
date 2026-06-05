@@ -577,6 +577,136 @@ def test_activation_readiness_report_blocks_malformed_github_dispatch_config_wit
     assert str(tmp_path) not in stdout
 
 
+def test_activation_readiness_report_blocks_execute_without_dispatch_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "release/private-pilot")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "e" * 64)
+    token = "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 15
+    monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv(bridge.BRIDGE_EXECUTE_ENABLED_ENV, bridge.BRIDGE_EXECUTE_ENABLED_VALUE)
+
+    assert bridge.main(["--activation-readiness-report", "--dispatch-mode", "execute"]) == 1
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "fail"
+    assert report["github_dispatch_readiness_state"] == "blocked_by_missing_target"
+    assert report["github_dispatch_target_status"] == "not_configured"
+    assert report["github_dispatch_auth_status"] == "present"
+    assert report["github_dispatch_execute_gate_status"] == "enabled"
+    assert token not in stdout
+    assert "ghs_" not in stdout
+    assert "release/private-pilot" not in stdout
+    assert "e" * 64 not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
+
+
+def test_activation_readiness_report_blocks_cross_repo_execute_without_slack_allowlists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    target_repo = "PilotOrg/PrivatePilot"
+    token = "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 15
+    monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+    monkeypatch.setenv(bridge.BRIDGE_EXECUTE_ENABLED_ENV, bridge.BRIDGE_EXECUTE_ENABLED_VALUE)
+
+    assert (
+        bridge.main(
+            [
+                "--activation-readiness-report",
+                "--dispatch-mode",
+                "execute",
+                "--repo",
+                target_repo,
+            ]
+        )
+        == 1
+    )
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "fail"
+    assert report["activation_state"] == "manual_only"
+    assert report["github_dispatch_readiness_state"] == "blocked_by_slack_allowlist"
+    assert report["github_dispatch_target_status"] == "cross_repo"
+    assert report["github_dispatch_repo_allowlist_status"] == "matched"
+    assert report["github_dispatch_auth_status"] == "present"
+    assert report["github_dispatch_auth_class"] == "installation"
+    assert "PilotOrg" not in stdout
+    assert "PrivatePilot" not in stdout
+    assert target_repo not in stdout
+    assert token not in stdout
+    assert "ghs_" not in stdout
+    assert str(tmp_path) not in stdout
+
+
+def test_activation_readiness_report_blocks_unverified_live_approval_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_repo(monkeypatch, tmp_path)
+    target_repo = "PilotOrg/PrivatePilot"
+    token = "ghs_header.payload.signature" + "_statelessinstallationtokenfixture" * 15
+    stale_approval = "f" * 64
+    monkeypatch.setenv(bridge.SLACK_APP_AUTH_ENV, "xapp-" + "a" * 24)
+    monkeypatch.setenv(bridge.SLACK_BOT_AUTH_ENV, "xoxb-" + "b" * 24)
+    monkeypatch.setenv(bridge.SLACK_CHANNEL_ALLOWLIST_ENV, "C0ALERTS")
+    monkeypatch.setenv(bridge.SLACK_USER_ALLOWLIST_ENV, "U0OPERATOR")
+    monkeypatch.setenv(bridge.SLACK_TEAM_ALLOWLIST_ENV, "T0TEAM")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_BRANCH_REF_ENV, "release/private-pilot")
+    monkeypatch.setenv(bridge.LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "f" * 64)
+    monkeypatch.setenv("GH_TOKEN", token)
+    monkeypatch.setenv(bridge.GITHUB_DISPATCH_REPO_ALLOWLIST_ENV, target_repo)
+    monkeypatch.setenv(bridge.BRIDGE_EXECUTE_ENABLED_ENV, bridge.BRIDGE_EXECUTE_ENABLED_VALUE)
+    monkeypatch.setenv(bridge.LIVE_APPROVAL_SHA256_ENV, stale_approval)
+
+    assert (
+        bridge.main(
+            [
+                "--activation-readiness-report",
+                "--dispatch-mode",
+                "execute",
+                "--repo",
+                target_repo,
+            ]
+        )
+        == 1
+    )
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+
+    assert report["status"] == "fail"
+    assert report["github_dispatch_readiness_state"] == "blocked_by_live_approval_verification"
+    assert report["github_dispatch_live_approval_status"] == "present_unverified"
+    assert report["github_dispatch_target_status"] == "cross_repo"
+    assert report["github_dispatch_repo_allowlist_status"] == "matched"
+    assert "PilotOrg" not in stdout
+    assert "PrivatePilot" not in stdout
+    assert target_repo not in stdout
+    assert token not in stdout
+    assert "ghs_" not in stdout
+    assert stale_approval not in stdout
+    assert "release/private-pilot" not in stdout
+    assert "C0ALERTS" not in stdout
+    assert "U0OPERATOR" not in stdout
+    assert str(tmp_path) not in stdout
+
+
 def test_activation_readiness_report_blocks_missing_secret_without_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
