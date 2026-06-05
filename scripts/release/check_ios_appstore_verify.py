@@ -172,7 +172,19 @@ FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
+        r"screenshot\s+binary\s+commit\s+(?:true|yes|completed|succeeded|done|passed)",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"preview\s+video\s+export\s+(?:true|yes|completed|succeeded|done|passed)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"preview\s+video\s+binary\s+commit\s+(?:true|yes|completed|succeeded|done|passed)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"environment\s+activation\s+(?:true|yes|completed|succeeded|done|passed)",
         re.IGNORECASE,
     ),
 )
@@ -192,6 +204,7 @@ EXPECTED_FITCHEF_SOURCE_PR = {
     "number": 1886,
     "merge_commit": "26b7cf4f",
 }
+EXPECTED_FITCHEF_RELEASE_SCHEMA_VERSION = "fitchef-appstore-release-readiness.v1"
 FITCHEF_RELEASE_SOURCE_PATH_KEYS = {
     "screenshot_gate",
     "reviewer_matrix",
@@ -211,6 +224,15 @@ EXPECTED_FITCHEF_BLOCKED_RELEASE_ACTIONS = (
     "preview_video_binary_commit",
     "environment_activation",
 )
+FITCHEF_FORBIDDEN_PACK_PATH_PARTS = {
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "artifacts",
+    "node_modules",
+    "worktrees",
+}
 FITCHEF_RELEASE_SCENARIO_KEYS = {
     "shot_id",
     "scenario_id",
@@ -543,6 +565,10 @@ def _validate_fitchef_pack_file_boundaries() -> str | None:
     if not FITCHEF_PACK_BASE.exists():
         return f"FitChef App Store pack directory missing: {FITCHEF_PACK_BASE}"
     for path in FITCHEF_PACK_BASE.rglob("*"):
+        relative_parts = {part.lower() for part in path.relative_to(FITCHEF_PACK_BASE).parts}
+        forbidden_parts = sorted(relative_parts & FITCHEF_FORBIDDEN_PACK_PATH_PARTS)
+        if forbidden_parts:
+            return f"Forbidden FitChef App Store pack path segment found: {forbidden_parts[0]}"
         if path.is_symlink():
             return f"Symlink is not allowed in FitChef App Store pack: {path}"
         if not path.is_file():
@@ -1293,6 +1319,16 @@ def check_fitchef_release_readiness_bundle() -> Results:
     )
     if top_level_schema_error:
         results.append((False, tag, top_level_schema_error))
+        return results
+    if payload.get("schema_version") != EXPECTED_FITCHEF_RELEASE_SCHEMA_VERSION:
+        results.append(
+            (
+                False,
+                tag,
+                "Scenario matrix schema_version drift: "
+                f"{payload.get('schema_version')!r} != {EXPECTED_FITCHEF_RELEASE_SCHEMA_VERSION!r}",
+            )
+        )
         return results
 
     source_pr = payload.get("source_pr")

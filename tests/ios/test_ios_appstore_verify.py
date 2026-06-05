@@ -298,6 +298,27 @@ def test_fitchef_release_readiness_validator_rejects_symlinks_in_pack(
     assert "Symlink is not allowed" in _failed_messages(results)
 
 
+@pytest.mark.parametrize("path_part", ["artifacts", ".venv"])
+def test_fitchef_release_readiness_validator_rejects_forbidden_pack_path_segments(
+    path_part: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    forbidden_dir = release_dir.parent / path_part
+    forbidden_dir.mkdir()
+    (forbidden_dir / "render_note.md").write_text(
+        "Internal rendered-review note only.\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Forbidden FitChef App Store pack path segment" in _failed_messages(results)
+
+
 def test_fitchef_release_readiness_validator_rejects_extra_release_note_claims(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -590,6 +611,21 @@ def test_fitchef_release_readiness_validator_rejects_source_pr_drift(
 
     results = module.check_fitchef_release_readiness_bundle()
     assert "source_pr provenance drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_schema_version_drift(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["schema_version"] = "oops"
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "schema_version drift" in _failed_messages(results)
 
 
 def test_fitchef_release_readiness_validator_rejects_blocked_action_drift(
@@ -928,6 +964,32 @@ def test_fitchef_release_readiness_validator_rejects_protected_action_claims(
                 "Screenshot binary export completed.",
             ]
         ),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Protected release action claim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Environment activation completed.",
+        "Screenshot binary commit completed.",
+        "Preview video binary commit completed.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_all_protected_action_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\n{claim}\n",
         encoding="utf-8",
     )
 
