@@ -912,7 +912,7 @@ def _normalize_scenario_ids(values: tuple[str, ...]) -> tuple[str, ...]:
     missing = set(SCENARIO_IDS) - observed
     if missing:
         raise ValueError("scenario_ids must include all default scenarios")
-    return tuple(values)
+    return tuple(scenario_id for scenario_id in SCENARIO_IDS if scenario_id in observed)
 
 
 def _validate_token(name: str, value: str) -> str:

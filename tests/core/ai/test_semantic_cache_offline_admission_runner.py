@@ -131,6 +131,17 @@ def test_runner_keeps_scenario_and_phase_order_deterministic() -> None:
     )
 
 
+def test_runner_normalizes_scenario_ids_before_ordering_specs() -> None:
+    spaced_ids = tuple(f" {scenario_id} " for scenario_id in reversed(SCENARIO_IDS))
+    input_value = SemanticCacheOfflineAdmissionInput(
+        produced_at="2026-06-05T00:00:00Z",
+        scenario_ids=spaced_ids,
+    )
+
+    assert input_value.scenario_ids == SCENARIO_IDS
+    assert _compose_mapping(input_value) == _compose_mapping()
+
+
 def test_runner_covers_expected_hit_miss_block_and_false_hit_scenarios() -> None:
     report = _report_mapping()
 
