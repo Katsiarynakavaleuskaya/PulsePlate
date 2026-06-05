@@ -129,7 +129,22 @@ LOCALIZED_REQUIRED_MARKERS = {
 }
 LOCALE_SCRIPT_RANGES = {
     "ru-RU": ("А", "я", "ё"),
-    "es-ES": ("a", "z", "ñ"),
+}
+LOCALE_COPY_SIGNALS = {
+    "es-ES": (
+        "balance diario",
+        "comidas",
+        "compra",
+        "fuera del alcance",
+        "habitos",
+        "localizacion",
+        "micronutrientes",
+        "nutricion",
+        "orientacion",
+        "planificacion",
+        "preferencias",
+        "sugerencias",
+    ),
 }
 LOCALE_BOILERPLATE_FRAGMENTS = {
     "ru-RU": (
@@ -351,6 +366,9 @@ def _flatten_strings(value: Any) -> list[str]:
 
 
 def _has_locale_script(text: str, locale: str) -> bool:
+    if locale in LOCALE_COPY_SIGNALS:
+        scan_text = _claim_scan_text(text)
+        return any(signal in scan_text for signal in LOCALE_COPY_SIGNALS[locale])
     if locale not in LOCALE_SCRIPT_RANGES:
         return True
     start, end, extra = LOCALE_SCRIPT_RANGES[locale]
@@ -366,6 +384,23 @@ def _claim_scan_text(text: str) -> str:
 def _blocked_terms_in(locale: str, text: str) -> list[str]:
     scan_text = _claim_scan_text(text)
     return sorted(term for term in BLOCKED_COPY_TERMS[locale] if term in scan_text)
+
+
+def test_es_locale_signal_rejects_copied_english_copy() -> None:
+    """ES localization guards must not accept copied EN operational text."""
+    copied_english_rationale = (
+        "Uses live dashboard context and keeps the mascot as a supportive layer."
+    )
+    copied_english_decision_log = (
+        "Reuses the same localization lane without dirty local root assets."
+    )
+    spanish_rationale = "Usa datos de nutricion y mantiene FitChef como apoyo visual."
+    spanish_decision_log = "La localizacion queda fuera del alcance de la carga protegida."
+
+    assert not _has_locale_script(copied_english_rationale, "es-ES")
+    assert not _has_locale_script(copied_english_decision_log, "es-ES")
+    assert _has_locale_script(spanish_rationale, "es-ES")
+    assert _has_locale_script(spanish_decision_log, "es-ES")
 
 
 def _unsupported_text_pack_files(locale: str) -> list[Path]:
