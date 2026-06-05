@@ -42,13 +42,71 @@ workflow dispatch and explicit least-privilege repo targeting.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: cubic and Codex review threads are fixed by the commit mappings below; thread-level proof is recorded in Review Thread Dispositions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361714908 -> f323421e2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768824 -> f323421e2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361722132 -> c910411aa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768797 -> c910411aa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768803 -> c910411aa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768818 -> c910411aa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1885#discussion_r3361768828 -> c910411aa
+
+## Review Thread Dispositions
+
+- `discussion_r3361714908`
+  - Disposition: FIXED
+  - Source: identified by cubic.
+  - Evidence: canonical Phase2 mapping/body structure was restored and
+    `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1885 --commit-range origin/main..HEAD --experiment-runner-evidence-mode required`
+    passes.
+- `discussion_r3361768824`
+  - Disposition: FIXED
+  - Source: identified by cubic.
+  - Evidence: same-repo execute fallback no longer fails when
+    `GITHUB_REPOSITORY` is absent; regression coverage lives in
+    `tests/test_experiment_slack_socket_bridge.py`.
+- `discussion_r3361722132`
+  - Disposition: FIXED
+  - Evidence: explicit dispatch targets are compared against the canonical
+    PulsePlate repository boundary rather than mutable `GITHUB_REPOSITORY`;
+    spoofed pilot targets remain cross-repo and fail before dispatch.
+- `discussion_r3361768797`
+  - Disposition: FIXED
+  - Source: identified by cubic.
+  - Evidence: `scripts/orchestration/experiment_slack_bridge_config.py`
+    derives `current_repo` from `DEFAULT_GITHUB_REPOSITORY`;
+    `tests/test_experiment_slack_socket_bridge.py::test_spoofed_github_repository_does_not_bypass_cross_repo_gate`
+    proves PAT execute dispatch is rejected before transport.
+- `discussion_r3361768803`
+  - Disposition: FIXED
+  - Source: identified by cubic.
+  - Evidence: local filesystem pytest paths were replaced with generic
+    `python3 -m pytest ...` validation entries in this artifact.
+- `discussion_r3361768818`
+  - Disposition: FIXED
+  - Source: identified by cubic.
+  - Evidence: `scripts/orchestration/check_experiment_runner_identity.py`
+    registers `github_app_dispatch` in the duplicate-boundary guard, with
+    regression cases in `tests/test_experiment_runner_identity_policy.py`.
+- `discussion_r3361768828`
+  - Disposition: FIXED
+  - Source: identified by cubic.
+  - Evidence: `scripts/orchestration/experiment_slack_socket_bridge.py`
+    removed the unreachable null guard after `_require_execute_config` and uses
+    typed casts after the required config check.
 
 ## Branch Commits
 
 - `7b0bfb28780a702bc1d8925c0e0a11cbca60650` - typed GitHub App dispatch seam,
   exact repo allowlist enforcement, least-privilege identity policy contract, and
   deterministic tests.
+- `c910411aafed7938711e01cd96d9e2722a6ab78e` - hardens explicit dispatch-target
+  identity against mutable `GITHUB_REPOSITORY`, registers the new boundary in
+  duplicate-policy checks, removes dead execute-config guard code, and scrubs
+  local filesystem paths from validation evidence.
 
 ## Lane Start Provenance
 
