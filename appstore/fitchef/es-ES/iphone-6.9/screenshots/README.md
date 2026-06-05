@@ -1,7 +1,7 @@
 # Paquete de capturas FitChef ES
 
-Esta carpeta guarda el manifiesto gobernado de capturas en espanol para la
-ola de localizacion FitChef en App Store.
+Esta carpeta guarda el manifiesto gobernado de capturas en español para la
+ola de localización FitChef en App Store.
 
 El paquete solo prepara el futuro paso de capture/export. No contiene archivos
 binarios finales de capturas.
