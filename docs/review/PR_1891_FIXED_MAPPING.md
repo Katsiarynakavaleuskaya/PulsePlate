@@ -138,8 +138,18 @@ Premortem / role-agent findings closed before PR open:
     `.venv/bin/python -m pytest -q tests/test_user_coaching_state.py tests/test_bayes_adherence_model.py tests/test_bayes_adherence_service.py`
     PASS: `28 passed`.
   - Focused mypy/flake8: PASS.
-- `security-auditor`: PENDING.
-  - Reason: required ordered role pass remains to be run after bug-hunter fixes.
+- `security-auditor`: PASS for code; governance finding FIXED.
+  - Code review: no blockers for prompt safety, raw payload leakage, cross-user
+    reads, malformed analyzer degradation, derived-field injection, persistence
+    writes, public route/OpenAPI/client/runtime/cache widening, or wellness-only
+    boundaries.
+  - Finding: tracked review artifact recorded local `/tmp` paths.
+    - Disposition: FIXED.
+    - Commit: `fd0eed936`.
+    - Evidence: local-only artifact paths are omitted from the tracked mapping;
+      the security-auditor local-path hygiene grep returned no matches.
+  - Required follow-up: Codex Security diff scan must be rerun after
+    `e0db06bc3` because that commit changed security-relevant hardening code.
 - Codex Security diff scan: PASS / no findings.
   - Local-only artifact id: `b4cf8acb_pr1891_20260605T194527Z`.
   - Local report paths are intentionally omitted from this tracked review
