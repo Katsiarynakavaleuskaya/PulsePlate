@@ -35,6 +35,8 @@ Experiment Runner runtime.
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117355`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117359`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117362`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365134732`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365147162`
 
 ## Fixed in Commit Mapping
 
@@ -67,11 +69,22 @@ Disposition: FIXED
 Commit: 8a7248590199893f7977754f3998d00a2368b679
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now covers standard subprocess helpers `call`, `check_call`, and `check_output` in addition to `run` and `Popen`; focused pytest passed with `17 passed`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365134732 -> 6a4241d4d0ebcaa1aeca42b4b6f97cc3cc0fc1b0
+Disposition: FIXED
+Commit: 6a4241d4d0ebcaa1aeca42b4b6f97cc3cc0fc1b0
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now scans `tools/graphmap`, and `tools/graphmap/build_graph.py` resolves `git` with `shutil.which("git")` before `subprocess.check_output`; focused pytest passed with `17 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365147162 -> 6a4241d4d0ebcaa1aeca42b4b6f97cc3cc0fc1b0
+Disposition: FIXED
+Commit: 6a4241d4d0ebcaa1aeca42b4b6f97cc3cc0fc1b0
+Evidence: `docs/review/PR_1889_FIXED_MAPPING.md` now separates adjacent review-thread mapping blocks with blank lines while preserving the strict canonical mapping format; `.venv/bin/python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1889` passed.
+
 ## Implementation Evidence
 
 - Implementation commit: `85b9af618`
 - Keyword-args guard follow-up commit: `009061a52`
 - Alias/helper/absolute-python guard follow-up commit: `8a724859`
+- Graphmap scan and mapping-separation follow-up commit: `6a4241d`
 - Mapping artifact commit: `aa478a2e0`
 - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
@@ -123,6 +136,10 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now covers st
   after `args=` review fix (`11 passed`)
 - PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
   after alias/helper/variable/absolute-python review fix (`17 passed`)
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  after `tools/graphmap` scan follow-up (`17 passed`)
+- PASS: `.venv/bin/python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1889`
+  after mapping block separation
 - PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
   (`10 passed`)
 - PASS: `make validate-changed` after commit selected
