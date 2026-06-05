@@ -434,6 +434,12 @@ def _media_files_under(path: Path) -> list[Path]:
     ]
 
 
+def _localized_markdown_files(locale: str) -> list[Path]:
+    return sorted(
+        path for path in _pack_root(locale).rglob("*") if path.is_file() and path.suffix == ".md"
+    )
+
+
 def _repo_path(relative_path: str) -> Path:
     """Resolve a governed repo-relative path and fail closed outside the repo."""
     source_path = Path(relative_path)
@@ -818,9 +824,7 @@ def test_ru_wellness_blockers_reject_prescription_medicine_copy(
 def test_localized_pack_docs_preserve_no_upload_scope_and_safe_claims(locale: str) -> None:
     """Localized markdown/script files must stay scoped to repo prep, not upload readiness."""
     text = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in _pack_root(locale).rglob("*")
-        if path.is_file() and path.suffix == ".md"
+        path.read_text(encoding="utf-8") for path in _localized_markdown_files(locale)
     ).lower()
     blocked_english_fragments = LOCALIZED_DOC_BLOCKED_ENGLISH[locale]
 
@@ -838,6 +842,36 @@ def test_localized_pack_docs_preserve_no_upload_scope_and_safe_claims(locale: st
     safe_boundary_text = text.replace("неклиническим", "")
     offending_terms = _blocked_terms_in(locale, safe_boundary_text)
     assert not offending_terms, f"Blocked term(s) found in {locale} docs: {offending_terms}"
+
+
+@pytest.mark.parametrize("locale", LOCALIZED_LOCALES)
+def test_localized_pack_docs_are_localized_per_file(locale: str) -> None:
+    """One localized markdown file must not mask a copied-English sibling file."""
+    blocked_english_fragments = LOCALIZED_DOC_BLOCKED_ENGLISH[locale]
+    scope_markers = LOCALIZED_REQUIRED_MARKERS[locale]
+
+    for path in _localized_markdown_files(locale):
+        text = path.read_text(encoding="utf-8")
+        text_lower = text.lower()
+
+        assert _has_locale_script(
+            text, locale
+        ), f"{locale} markdown file lacks locale-specific copy signal: {path}"
+        if path.name != "preview_script.md":
+            assert any(
+                marker in text_lower for marker in scope_markers
+            ), f"{locale} markdown file lacks scoped review marker: {path}"
+        english_fragments = sorted(
+            fragment for fragment in blocked_english_fragments if fragment in text_lower
+        )
+        assert (
+            not english_fragments
+        ), f"{locale} markdown file contains English operational copy: {english_fragments}"
+        upload_claims = sorted(claim for claim in NO_UPLOAD_CLAIMS if claim in text_lower)
+        assert not upload_claims, f"{locale} markdown file overclaims release scope: {path}"
+        safe_boundary_text = text_lower.replace("неклиническим", "")
+        offending_terms = _blocked_terms_in(locale, safe_boundary_text)
+        assert not offending_terms, f"Blocked term(s) found in {locale} docs: {offending_terms}"
 
 
 def test_es_metadata_locale_guard_rejects_single_signal_false_green() -> None:
@@ -893,6 +927,15 @@ def test_localized_pack_docs_reject_no_upload_claims() -> None:
     """Localized docs must not become protected upload or submission-readiness proof."""
     assert "listo para subir" in NO_UPLOAD_CLAIMS
     assert "готов к загрузке" in NO_UPLOAD_CLAIMS
+
+
+def test_es_doc_file_guard_rejects_masked_english_doc() -> None:
+    """One scoped Spanish markdown file must not mask a copied-English sibling file."""
+    english_doc = "This folder prepares screenshots for future review."
+    spanish_doc = "La localización queda fuera del alcance de la carga protegida."
+
+    assert not _has_locale_script(english_doc, "es-ES")
+    assert _has_locale_script(spanish_doc, "es-ES")
 
 
 @pytest.mark.parametrize(
