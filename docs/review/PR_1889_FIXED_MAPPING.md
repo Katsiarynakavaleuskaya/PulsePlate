@@ -37,6 +37,10 @@ Experiment Runner runtime.
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117362`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365134732`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365147162`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207231`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207234`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207235`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207240`
 
 ## Fixed in Commit Mapping
 
@@ -79,12 +83,33 @@ Disposition: FIXED
 Commit: 6a4241d4d0ebcaa1aeca42b4b6f97cc3cc0fc1b0
 Evidence: `docs/review/PR_1889_FIXED_MAPPING.md` now separates adjacent review-thread mapping blocks with blank lines while preserving the strict canonical mapping format; `.venv/bin/python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1889` passed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207231 -> a403b8e392cff88df8c0083364b82b94f447c2c9
+Disposition: FIXED
+Commit: a403b8e392cff88df8c0083364b82b94f447c2c9
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now treats versioned short Python names such as `python3.12` as disallowed repo interpreter bypasses; focused pytest passed with `21 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207234 -> a403b8e392cff88df8c0083364b82b94f447c2c9
+Disposition: FIXED
+Commit: a403b8e392cff88df8c0083364b82b94f447c2c9
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` resolves simple `Path(...)` and `str(...)` wrappers around subprocess argv binary literals; focused pytest passed with `21 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207235 -> a403b8e392cff88df8c0083364b82b94f447c2c9
+Disposition: FIXED
+Commit: a403b8e392cff88df8c0083364b82b94f447c2c9
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` rejects parent traversal in absolute repo `.venv/bin` Python literals instead of accepting lexical `..` paths; focused pytest passed with `21 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365207240 -> a403b8e392cff88df8c0083364b82b94f447c2c9
+Disposition: FIXED
+Commit: a403b8e392cff88df8c0083364b82b94f447c2c9
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now inspects `executable=` overrides on guarded subprocess calls and rejects bare Python overrides even when argv uses `sys.executable`; focused pytest passed with `21 passed`.
+
 ## Implementation Evidence
 
 - Implementation commit: `85b9af618`
 - Keyword-args guard follow-up commit: `009061a52`
 - Alias/helper/absolute-python guard follow-up commit: `8a724859`
 - Graphmap scan and mapping-separation follow-up commit: `6a4241d`
+- Python executable edge-case follow-up commit: `a403b8e`
 - Mapping artifact commit: `aa478a2e0`
 - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
@@ -140,6 +165,9 @@ Evidence: `docs/review/PR_1889_FIXED_MAPPING.md` now separates adjacent review-t
   after `tools/graphmap` scan follow-up (`17 passed`)
 - PASS: `.venv/bin/python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1889`
   after mapping block separation
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  after versioned-python/path-wrapper/traversal/executable override follow-up
+  (`21 passed`)
 - PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
   (`10 passed`)
 - PASS: `make validate-changed` after commit selected
