@@ -83,6 +83,11 @@ Disposition: NOT-A-BUG
 Evidence: git branch --contains f93432ee6 includes codex/user-coaching-state-service-v1 and git log shows f93432ee6 is an ancestor of the PR branch.
 Reason: The comment evaluated stale reviewed-SHA context after the rebase; current PR ancestry contains f93432ee6.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3365238389
+Disposition: NOT-A-BUG
+Evidence: gh pr view reports headRefOid 180bf712053532edaedafa9f426b1bd058525d00 and git merge-base --is-ancestor returned 0 for e2ce99e51, e0db06bc3, and 1f670a217 against HEAD.
+Reason: The review referenced synthetic or stale head 44fe7963394bbddf6710b0c42170c1cb8fdd04e7, not the published PR branch head.
+
 ## Internal Finding Dispositions
 
 Premortem / role-agent findings closed before PR open:
