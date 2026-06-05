@@ -150,3 +150,11 @@ resolved yet.
 Disposition: FIXED
 Commit: 6681f1b34
 Evidence: `core/ai/semantic_cache_offline_admission_runner.py:915` normalizes scenario IDs to canonical `SCENARIO_IDS` order before report composition; `tests/core/ai/test_semantic_cache_offline_admission_runner.py:134` covers whitespace-wrapped/reordered IDs; `.venv/bin/python -m pytest -q tests/core/ai/test_semantic_cache_offline_admission_runner.py` - PASS.
+
+## Merge Readiness
+
+- [ ] Current-head CI is green and required checks completed.
+- [ ] No unresolved review threads remain.
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`.
+- [ ] Strict merge-readiness wrapper passes with auth.
+- [ ] Wait-window completed after latest bot/review activity.
