@@ -95,6 +95,7 @@ Decision: proceed with changes.
 - Push pre-push hooks - PASS through commit `cb0fd0f26` after mypy return-type/value narrowing fix in `scripts/release/check_ios_appstore_verify.py`, including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and docker build test. Final push evidence must be refreshed after the mapping update.
 - Post-rebase validation on `origin/main` at `889e9a0ad`: `python3 scripts/orchestration/check_preflight.py` PASS; `python3 scripts/orchestration/check_agent_consistency.py` PASS; `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md` PASS; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS; `python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1890` PASS for 10 resolved review threads.
 - Main coverage carryover validation after commit `c98d318c4`: `../../.venv/bin/python -m pytest -q tests/test_user_coaching_state.py` PASS; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+- Late CodeRabbit release-validator hardening validation after commit `0c414621f`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 Full local `make verify` was not run by default for this docs/release-validator PR under the operator-approved changed-scope gate policy. Merge readiness is not claimed without current-head CI, post-open role passes, Codex Security scan, `pulseplate-pr-review`, unresolved-thread checks, PR body/mapping parity, strict wrapper evidence, and wait-window.
 
@@ -121,6 +122,8 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Post-open `qa-engineer-agent` rerun on head `7d1b47bab`: live GitHub review threads remained unresolved. Disposition: DEFERRED. Evidence: unresolved review threads are mapped below and must be resolved only after the mapped fixes are pushed and reviewed.
 - Late bot review batch after head `831007886`: FIXED in `4c8d71688`. Evidence: scenario matrix schema version is now value-checked, protected-action completion claims are synchronized with the blocked release action list, and forbidden local-artifact path segments under the governed FitChef pack are rejected before file-content scanning. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 - CodeRabbit review after head `e31c1b616`: FIXED in `ebf9eeafc` and `09ee45c21`. Evidence: committed test fixtures no longer contain complete credential-like values as source literals, and this artifact now uses canonical single dispositions instead of combined disposition wording.
+- Late CodeRabbit release-validator hardening batch after head `eac8e00f1`: FIXED in `0c414621f` for medical-professional, cure, inflected medical-term, rapid-result, ranking, disease-condition, medication/prescription, raw dotted `ghs_` token, path-scan, prevention-claim, Swift-comment, and rendered-view false-greens. Evidence: validator now blocks these claim/token/path classes, strips Swift comments before parsing returns/captures, binds each scenario to the rendered `scenarioView` case, and tests cover each reported bypass. Focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally.
+- Late CodeRabbit protected-media/locale-automation scope notes after head `eac8e00f1`: DEFERRED. Evidence: this PR is explicitly `INTERNAL_REVIEW_ONLY`, text/JSON-only, and forbids screenshot/video binaries and protected upload surfaces; `docs/roadmap/BACKLOG_LEDGER.md` keeps protected screenshot/video review, Fastlane upload, App Store Connect mutation, and locale-specific rendered evidence as protected follow-ups. Future protected media or locale-automation lanes may change validator policy with their own tests and release evidence.
 
 ## Fixed in Commit Mapping
 
@@ -208,6 +211,33 @@ Evidence: `tests/ios/test_ios_appstore_verify.py` now composes credential-like d
 Disposition: FIXED
 Commit: 09ee45c21
 Evidence: `docs/review/PR_1890_FIXED_MAPPING.md` now splits the combined `FIXED / IN PROGRESS` wording into separate canonical `FIXED` and `DEFERRED` entries with matching evidence. Local evidence after the fix: commit hooks passed, including detect-secrets and conventional commit checks.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365502368 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365502373 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365551287 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365551293 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365551295 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365551299 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365588821 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365588829 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365588838 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365588842 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365635975 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365635979 -> 0c414621f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365635982 -> 0c414621f
+Disposition: FIXED
+Commit: 0c414621f
+Evidence: `scripts/release/check_ios_appstore_verify.py` now blocks medical-professional copy, cure claims, inflected diagnosis/treatment forms, medication/prescription terms including ES/RU medical-context terms, disease-condition claims, rapid-result claims, ranking overclaims, prevention/outcome copy such as `avoid diabetes`, raw dotted `ghs_` token shapes, and protected claims in pack-relative paths. The validator strips Swift comments before parsing screenshot-name/accessibility returns and XCTest capture calls, then verifies every screenshot scenario has a rendered `scenarioView` case with `.appStoreScreenshotRoot(scenario.accessibilityIdentifier)`. `tests/ios/test_ios_appstore_verify.py` adds regressions for each class while preserving safe wellness boundary disclaimers and Spanish `recetas` recipe copy. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365502369
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md` - P1 FitChef App Store rendered review and TestFlight readiness protected follow-ups
+Evidence: Current PR scope intentionally requires text/JSON-only App Store pack artifacts and blocks screenshot/video binaries. Protected production media, screenshot/video binary commits, Fastlane upload, and App Store Connect mutation remain separate follow-up lanes; those lanes may revise the media-boundary validator under their own release evidence and tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365588823
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md` - P1 FitChef App Store rendered review and TestFlight readiness protected follow-ups
+Evidence: `appstore/fitchef/release_readiness/shot_scenario_matrix.json` records EN/RU/ES rendered-review rows for all seven shots and `appstore/fitchef/release_readiness/rendered_review_testflight_readiness.md` requires a human rendered pass across all locales before protected upload. Locale-specific screenshot launch automation and binary rendered evidence are intentionally deferred to a protected screenshot/export lane; no iOS runtime or Fastlane upload surface is changed in this PR.
 
 ## Post-Open Role-Agent Finding Closure
 
