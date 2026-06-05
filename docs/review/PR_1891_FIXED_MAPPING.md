@@ -44,9 +44,35 @@ Out of scope:
 
 - `f93432ee6` - `feat(fitchef): add coaching state service v1`
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- PR-open state initially had no resolved GitHub review threads; post-open bot
+  findings are dispositioned in the canonical mapping below.
+- Merge readiness is not claimed while unresolved threads, current-head CI, and
+  strict merge-readiness checks remain open.
+
 ## Fixed in Commit Mapping
 
-No GitHub review threads have been resolved at PR open.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364145266 -> e0db06bc3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364186147 -> e0db06bc3
+Disposition: FIXED
+Commit: e0db06bc3
+Evidence: app/services/coaching_state_builder.py catches TypeError and ValueError for malformed analyzer rows and tests/test_user_coaching_state.py covers invalid payload degradation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#pullrequestreview-4438128739 -> 32790a0f6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364186146 -> 32790a0f6
+Disposition: FIXED
+Commit: 32790a0f6
+Evidence: docs/review/PR_1891_FIXED_MAPPING.md records f93432ee6 as the existing implementation proof commit and no longer references the stale b7355f8f9 SHA.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1891#discussion_r3364995580
+Disposition: NOT-A-BUG
+Evidence: git branch --contains f93432ee6 includes codex/user-coaching-state-service-v1 and git log shows f93432ee6 is an ancestor of current head 931cdb156.
+Reason: The comment evaluated stale reviewed-SHA context after the rebase; current PR ancestry contains f93432ee6.
+
+## Internal Finding Dispositions
 
 Premortem / role-agent findings closed before PR open:
 
