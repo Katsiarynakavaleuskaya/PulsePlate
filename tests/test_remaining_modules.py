@@ -2208,6 +2208,62 @@ class TestVerificationRegistryCoverageTail:
         assert merged is not None
         assert merged.provenance is provenance
 
+    def test_runtime_bundle_merges_rag_and_runtime_provenance(self) -> None:
+        from core.insight.analytical import FalsificationReport, VerificationReport
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+            build_verification_provenance,
+        )
+
+        rag_provenance = build_verification_provenance(
+            input_text="rag input",
+            context_items=("rag context",),
+            verification_hops=2,
+            verification_calls=2,
+        )
+        runtime_provenance = build_verification_provenance(
+            answer_text="runtime answer",
+            prompt_text="runtime prompt",
+            prompt_trimmed=True,
+            verification_hops=0,
+            verification_calls=3,
+        )
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=("docs/keep.md:keep",),
+            provenance=rag_provenance,
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=VerificationReport(verification_rate=1.0, unverified_claims=[]),
+            falsification_report=FalsificationReport(
+                falsifiability_rate=1.0,
+                unfalsifiable_claims=[],
+            ),
+            contradiction_count=0,
+            verification_first_path=True,
+            provenance=runtime_provenance,
+        )
+
+        assert merged is not None
+        assert merged.provenance is not None
+        assert merged.provenance is not rag_provenance
+        assert merged.provenance is not runtime_provenance
+        assert merged.provenance.input_digest == rag_provenance.input_digest
+        assert merged.provenance.context_item_digests == rag_provenance.context_item_digests
+        assert merged.provenance.prompt_digest == runtime_provenance.prompt_digest
+        assert merged.provenance.answer_digest == runtime_provenance.answer_digest
+        assert merged.provenance.prompt_trimmed is True
+        assert merged.provenance.verification_calls == runtime_provenance.verification_calls
+
     def test_runtime_bundle_reuses_rag_bundle_without_philosophical_pass(self) -> None:
         from core.verification.registry import (
             build_rag_verification_bundle,
@@ -2234,6 +2290,48 @@ class TestVerificationRegistryCoverageTail:
         )
 
         assert merged == rag_bundle
+
+    @pytest.mark.asyncio
+    async def test_runtime_rewrite_provenance_records_rewrite_prompt_trim(self) -> None:
+        from core.insight.philosophical_runtime import PhilosophicalRuntime
+
+        class _Provider:
+            name = "coverage-provider"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def generate(self, text: str) -> str:
+                self.calls += 1
+                return "This may help. It depends on the individual."
+
+        runtime = PhilosophicalRuntime()
+        provider = _Provider()
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery? " + ("nutrition " * 700),
+            lang="en",
+            provider=provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=True,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+        )
+
+        assert provider.calls == 2
+        assert result.verification_bundle is not None
+        assert result.verification_bundle.provenance is not None
+        assert result.verification_bundle.provenance.prompt_char_count == 4000
+        assert result.verification_bundle.provenance.prompt_trimmed is True
+
+    def test_runtime_trim_prompt_legacy_wrapper_returns_text_only(self) -> None:
+        from core.insight import philosophical_runtime as runtime_mod
+
+        assert runtime_mod._trim_prompt("abcdef", max_chars=3) == "abc"
+        assert runtime_mod._trim_prompt("abc", max_chars=3) == "abc"
 
     def test_rag_bundle_denies_disabled_policy_and_string_degraded_reason(self) -> None:
         from dataclasses import replace
