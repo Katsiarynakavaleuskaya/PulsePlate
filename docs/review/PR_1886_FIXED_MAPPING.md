@@ -13,6 +13,10 @@ This PR closes the RU FitChef App Store localization truth, promotes ES as the a
 
 Fastlane upload, App Store Connect mutation, screenshot/video binaries, protected release evidence, frontend/iOS runtime, backend/OpenAPI, DB, telemetry/events, billing, semantic cache, GraphRAG, Slack commands, and ES upload automation.
 
+## Split Justification
+
+This standard governance/design PR intentionally keeps 16 files together because the ES locale pack, the EN/RU/ES cross-locale QA artifact, the FitChef contract anchors, the backlog truth, and the single deterministic pack guard form one reviewable App Store localization contract. Splitting below 16 files would leave either an unvalidated `es-ES` pack without parity tests or tests/docs that reference a locale contract not yet present in the same PR. Protected upload, rendered media, runtime implementation, and future locale release work remain separate follow-up lanes.
+
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/871d57deae12.json`
