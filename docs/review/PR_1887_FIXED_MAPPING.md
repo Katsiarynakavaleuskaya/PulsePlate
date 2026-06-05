@@ -26,7 +26,8 @@ Slack, semantic cache, GraphRAG, or runtime behavior.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- Initial PR open has no resolved review threads.
+- Post-open actionable Codex and Cubic review threads are mapped below with
+  disposition evidence.
 
 ## Fixed in Commit Mapping
 
@@ -34,11 +35,36 @@ Disposition: FIXED
 Commit: 68bb09c1f
 Evidence: source refs now validate real AST-defined symbols, redaction_source existence is checked, schema raw-leak scan is enforced, and regression tests cover all Cubic findings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#pullrequestreview-4436023126 -> 68bb09c1f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362439281 -> 68bb09c1f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362439282 -> 68bb09c1f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362439283 -> 68bb09c1f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362439286 -> 68bb09c1f
+
+Disposition: FIXED
+Commit: afd995a5c
+Evidence: recursive schema/report validation now catches nested required/properties drift, digestLabel definition is pinned, source refs are resolved fail-closed under the repository before reads, direct/local path reporting no longer claims verification-first checks, disabled runtime verification records inherited failed bundle semantics, and focused report/docs/runtime tests pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362309639 -> afd995a5c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362309643 -> afd995a5c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362504259 -> afd995a5c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362504265 -> afd995a5c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362504268 -> afd995a5c
+
+Disposition: FIXED
+Commit: 68bb09c1f; afd995a5c
+Evidence: schema raw-leak validation was added in `68bb09c1f`; `afd995a5c` adds a stronger regression covering workflow-log, token, and local-path schema annotation leakage together.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362405132 -> 68bb09c1f
+
+Disposition: FIXED
+Commit: 68bb09c1f
+Evidence: `redaction_source` is validated against the actual AST-defined `core.verification.registry.redacted_sha256_label` symbol.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362405138 -> 68bb09c1f
 
 ## Implementation Evidence
 
 - Implementation commit:
   `0bada0dc35c603cc3f102850a2623f3adb80e902`
+- Review hardening commit:
+  `afd995a5c76eee6a06015dbfa7a96c3ab59be2e4`
 - Evidence:
   - `docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json`
   - `docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.schema.json`
