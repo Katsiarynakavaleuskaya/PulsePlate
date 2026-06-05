@@ -249,7 +249,7 @@
             "enum": [
               "rag_pre_generation",
               "rag_runtime_merged",
-              "direct_local_verification_first_answer",
+              "direct_local_non_verification_first_answer",
               "runtime_verification_disabled_passthrough",
               "fail_closed_missing_bundle_with_provenance"
             ]

@@ -264,14 +264,12 @@
       ]
     },
     {
-      "id": "direct_local_verification_first_answer",
+      "id": "direct_local_non_verification_first_answer",
       "bundle_present": true,
       "overall_status": "fail",
       "admission_allowed": false,
       "reason_labels": [
-        "rag_bundle_missing",
-        "verification_checks_pass",
-        "falsification_checks_pass"
+        "rag_bundle_missing"
       ],
       "expected_provenance_fields": [
         "input_digest",
@@ -287,12 +285,12 @@
       ],
       "missing_required_provenance_fields": [],
       "redacted_digest_labels": {
-        "input_digest": "sha256:5cbef42fa3e1f2b4f3e8e865dfd29cb1a9ea87ebbbbf36b3cbc5d01ca4f3b9b6",
-        "answer_digest": "sha256:d17a82ff0ab8997f8cb20f3cf18be52e3d4217cec1b49fdf9489d833b58f92b1"
+        "input_digest": "sha256:a22c5801f4115ceeb9bcb87ba4f0c2b12fe86a1c053bedc34408c6afc2c5a0d7",
+        "answer_digest": "sha256:be3518d6191f9047d10e0a9ad8cdc7a8669d079be64b54385d57aafe5be5a4ba"
       },
       "count_labels": {
-        "artifact_count": 3,
-        "reason_code_count": 3,
+        "artifact_count": 1,
+        "reason_code_count": 1,
         "verification_hops": 0,
         "verification_calls": 0
       },
@@ -336,10 +334,11 @@
     {
       "id": "runtime_verification_disabled_passthrough",
       "bundle_present": true,
-      "overall_status": "pass",
-      "admission_allowed": true,
+      "overall_status": "fail",
+      "admission_allowed": false,
       "reason_labels": [
-        "policy_checks_pass",
+        "runtime_verification_disabled_inherits_existing_bundle",
+        "knowledge_policy_missing",
         "freshness_checks_pass",
         "validated_evidence_pass"
       ],
@@ -372,7 +371,7 @@
       },
       "count_labels": {
         "artifact_count": 3,
-        "reason_code_count": 3,
+        "reason_code_count": 4,
         "context_item_digest_count": 2,
         "prompt_char_count": 184,
         "verification_hops": 2,

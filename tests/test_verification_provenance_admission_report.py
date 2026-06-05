@@ -64,7 +64,7 @@ def test_report_covers_expected_runtime_and_rag_paths() -> None:
     assert [item["id"] for item in categories if isinstance(item, dict)] == [
         "rag_pre_generation",
         "rag_runtime_merged",
-        "direct_local_verification_first_answer",
+        "direct_local_non_verification_first_answer",
         "runtime_verification_disabled_passthrough",
         "fail_closed_missing_bundle_with_provenance",
     ]
@@ -177,6 +177,7 @@ def test_report_rejects_nested_schema_const_drift() -> None:
 
 def test_report_rejects_nested_schema_shape_drift() -> None:
     schema = json.loads(_schema_text())
+    schema["$defs"]["digestLabel"]["pattern"] = "^sha256:.*$"
     schema["$defs"]["provenanceFields"]["items"]["enum"].remove("answer_digest")
     schema["properties"]["path_categories"]["items"]["properties"]["expected_provenance_fields"] = {
         "type": "array"
@@ -190,10 +191,28 @@ def test_report_rejects_nested_schema_shape_drift() -> None:
 
     errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
 
+    assert any("digestLabel definition drift" in error for error in errors)
     assert any("provenanceFields enum drift" in error for error in errors)
     assert any("expected_provenance_fields ref drift" in error for error in errors)
     assert any("redacted_digest_labels keys drift" in error for error in errors)
     assert any("count_labels integer drift" in error for error in errors)
+
+
+def test_report_rejects_nested_schema_required_properties_drift() -> None:
+    schema = json.loads(_schema_text())
+    authority_schema = schema["properties"]["authority_flags"]
+    authority_schema["required"].remove("semantic_cache_allowed")
+    del authority_schema["properties"]["semantic_cache_allowed"]
+    category_authority_schema = schema["properties"]["path_categories"]["items"]["properties"][
+        "authority"
+    ]
+    category_authority_schema["required"].remove("cache_write_allowed")
+    del category_authority_schema["properties"]["cache_write_allowed"]
+
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert any("report.authority_flags.semantic_cache_allowed" in error for error in errors)
+    assert any("authority.cache_write_allowed" in error for error in errors)
 
 
 def test_report_rejects_raw_leak_patterns() -> None:
@@ -214,11 +233,15 @@ def test_report_rejects_raw_leak_patterns() -> None:
 
 def test_schema_rejects_raw_leak_patterns() -> None:
     schema = json.loads(_schema_text())
-    schema["properties"]["scope"]["description"] = "/Users/example/private.txt"
+    schema["properties"]["scope"][
+        "description"
+    ] = "workflow_log=xoxb-secret /Users/example/private.txt"
 
     errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
 
     assert any("schema contains forbidden absolute local path" in error for error in errors)
+    assert any("schema contains forbidden secret token" in error for error in errors)
+    assert any("schema contains forbidden diagnostic log label" in error for error in errors)
 
 
 def test_report_rejects_absolute_local_path_leak() -> None:
@@ -255,6 +278,23 @@ def test_report_rejects_invalid_source_ref_symbols() -> None:
     assert any("source_ref symbol missing" in error for error in errors)
 
 
+def test_report_rejects_source_refs_outside_repository() -> None:
+    report = _report()
+    categories = report["path_categories"]
+    assert isinstance(categories, list)
+    category = categories[0]
+    assert isinstance(category, dict)
+    source_refs = category["source_refs"]
+    assert isinstance(source_refs, list)
+    ref = source_refs[0]
+    assert isinstance(ref, dict)
+    ref["path"] = "../../../../proc/self/environ"
+
+    errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
+
+    assert any("source_ref path must stay under repository" in error for error in errors)
+
+
 def test_report_validates_redaction_source_symbol(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(report_check, "_defined_source_symbols", lambda _tree: set())
 
@@ -276,6 +316,26 @@ def test_report_rejects_invalid_digest_labels() -> None:
     errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
 
     assert any("input_digest invalid digest label" in error for error in errors)
+
+
+def test_direct_and_disabled_paths_do_not_overclaim_admission() -> None:
+    categories = _report()["path_categories"]
+    assert isinstance(categories, list)
+    by_id = {category["id"]: category for category in categories if isinstance(category, dict)}
+
+    direct = by_id["direct_local_non_verification_first_answer"]
+    assert direct["overall_status"] == "fail"
+    assert direct["admission_allowed"] is False
+    assert direct["reason_labels"] == ["rag_bundle_missing"]
+    assert direct["count_labels"]["artifact_count"] == 1
+    assert "verification_checks_pass" not in direct["reason_labels"]
+    assert "falsification_checks_pass" not in direct["reason_labels"]
+
+    disabled = by_id["runtime_verification_disabled_passthrough"]
+    assert disabled["overall_status"] == "fail"
+    assert disabled["admission_allowed"] is False
+    assert "runtime_verification_disabled_inherits_existing_bundle" in disabled["reason_labels"]
+    assert "knowledge_policy_missing" in disabled["reason_labels"]
 
 
 def test_report_rejects_missing_provenance_coverage() -> None:

@@ -50,9 +50,16 @@ SEMANTIC_CACHE_GATE_PATH = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan
 PATH_CATEGORY_IDS: tuple[str, ...] = (
     "rag_pre_generation",
     "rag_runtime_merged",
-    "direct_local_verification_first_answer",
+    "direct_local_non_verification_first_answer",
     "runtime_verification_disabled_passthrough",
     "fail_closed_missing_bundle_with_provenance",
+)
+NON_ADMITTED_PATH_CATEGORY_IDS = frozenset(
+    {
+        "direct_local_non_verification_first_answer",
+        "runtime_verification_disabled_passthrough",
+        "fail_closed_missing_bundle_with_provenance",
+    }
 )
 
 PROVENANCE_FIELD_KINDS: Mapping[str, str] = {
@@ -564,21 +571,17 @@ def _path_categories() -> list[dict[str, object]]:
             ),
         ),
         _path_category(
-            category_id="direct_local_verification_first_answer",
+            category_id="direct_local_non_verification_first_answer",
             bundle_present=True,
             overall_status="fail",
             admission_allowed=False,
-            reason_labels=(
-                "rag_bundle_missing",
-                "verification_checks_pass",
-                "falsification_checks_pass",
-            ),
+            reason_labels=("rag_bundle_missing",),
             present_fields=direct_fields,
             context_count=0,
             prompt_char_count=None,
             verification_hops=0,
             verification_calls=0,
-            artifact_count=3,
+            artifact_count=1,
             source_refs=(
                 _source_ref(PHILOSOPHICAL_RUNTIME_PATH, "_build_direct_result"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_runtime_verification_bundle"),
@@ -588,10 +591,11 @@ def _path_categories() -> list[dict[str, object]]:
         _path_category(
             category_id="runtime_verification_disabled_passthrough",
             bundle_present=True,
-            overall_status="pass",
-            admission_allowed=True,
+            overall_status="fail",
+            admission_allowed=False,
             reason_labels=(
-                "policy_checks_pass",
+                "runtime_verification_disabled_inherits_existing_bundle",
+                "knowledge_policy_missing",
                 "freshness_checks_pass",
                 "validated_evidence_pass",
             ),
@@ -727,8 +731,116 @@ def _validate_object_schema(
             errors.append(f"verification provenance admission schema const mismatch for {key}")
     errors.extend(_validate_required_schema_consts(schema))
     errors.extend(_validate_required_schema_shapes(schema))
+    errors.extend(
+        _validate_schema_matches_report(
+            schema_node=schema,
+            report_node=report,
+            path="report",
+        )
+    )
     errors.extend(_validate_nested_object_schema_flags(schema=schema, label="schema"))
     return errors
+
+
+def _validate_schema_matches_report(
+    *,
+    schema_node: object,
+    report_node: object,
+    path: str,
+) -> list[str]:
+    errors: list[str] = []
+    if isinstance(schema_node, dict) and "$ref" in schema_node:
+        return errors
+    if isinstance(report_node, dict):
+        if not isinstance(schema_node, dict):
+            return [f"verification provenance admission schema {path} must describe an object"]
+        if schema_node.get("type") != "object":
+            errors.append(f"verification provenance admission schema {path}.type must be object")
+        if schema_node.get("additionalProperties") is not False:
+            errors.append(f"verification provenance admission schema {path} object must be closed")
+        required = schema_node.get("required")
+        properties = schema_node.get("properties")
+        has_required = "required" in schema_node
+        if has_required and (
+            not isinstance(required, list) or not all(isinstance(item, str) for item in required)
+        ):
+            errors.append(
+                f"verification provenance admission schema {path}.required must be a string list"
+            )
+            required = []
+        if not isinstance(properties, dict):
+            errors.append(
+                f"verification provenance admission schema {path}.properties must be an object"
+            )
+            properties = {}
+        report_keys = set(report_node)
+        required_keys = set(required) if has_required else set()
+        property_keys = set(properties)
+        if has_required and _schema_path_requires_all_report_keys(path):
+            for key in sorted(report_keys - required_keys):
+                errors.append(
+                    "verification provenance admission key missing from schema required: "
+                    f"{path}.{key}"
+                )
+        for key in sorted(required_keys - report_keys):
+            errors.append(
+                "verification provenance admission schema required key missing: " f"{path}.{key}"
+            )
+        for key in sorted(report_keys - property_keys):
+            errors.append(
+                "verification provenance admission key missing from schema properties: "
+                f"{path}.{key}"
+            )
+        for key in sorted(report_keys & property_keys):
+            errors.extend(
+                _validate_schema_matches_report(
+                    schema_node=properties[key],
+                    report_node=report_node[key],
+                    path=f"{path}.{key}",
+                )
+            )
+    elif isinstance(report_node, list):
+        if not isinstance(schema_node, dict):
+            return [f"verification provenance admission schema {path} must describe an array"]
+        if "$ref" in schema_node:
+            return errors
+        if schema_node.get("type") != "array":
+            errors.append(f"verification provenance admission schema {path}.type must be array")
+        items_schema = schema_node.get("items")
+        if report_node and not isinstance(items_schema, dict):
+            errors.append(
+                f"verification provenance admission schema {path}.items must be an object"
+            )
+            return errors
+        if isinstance(items_schema, dict):
+            for index, item in enumerate(report_node):
+                errors.extend(
+                    _validate_schema_matches_report(
+                        schema_node=items_schema,
+                        report_node=item,
+                        path=f"{path}[{index}]",
+                    )
+                )
+    elif isinstance(schema_node, dict) and "const" in schema_node:
+        if schema_node.get("const") != report_node:
+            errors.append(f"verification provenance admission schema const mismatch for {path}")
+    return errors
+
+
+def _schema_path_requires_all_report_keys(path: str) -> bool:
+    if path in {
+        "report",
+        "report.source_ids",
+        "report.authority_flags",
+        "report.provenance_contract",
+    }:
+        return True
+    return (
+        path.endswith(".authority")
+        or path.endswith(".redaction_assertions")
+        or ".source_refs[" in path
+        or ".field_inventory[" in path
+    )
 
 
 def _schema_const_requirements() -> tuple[tuple[tuple[str, ...], object], ...]:
@@ -810,6 +922,14 @@ def _validate_required_schema_consts(schema: Mapping[str, object]) -> list[str]:
 
 def _validate_required_schema_shapes(schema: Mapping[str, object]) -> list[str]:
     errors: list[str] = []
+    digest_label = _schema_node_at(schema, ("$defs", "digestLabel"))
+    if (
+        not isinstance(digest_label, dict)
+        or digest_label.get("type") != "string"
+        or digest_label.get("pattern") != r"^sha256:[0-9a-f]{64}$"
+    ):
+        errors.append("verification provenance admission schema digestLabel definition drift")
+
     provenance_fields_items = _schema_node_at(schema, ("$defs", "provenanceFields", "items"))
     if not isinstance(provenance_fields_items, dict) or provenance_fields_items.get("enum") != list(
         VERIFICATION_PROVENANCE_FIELDS
@@ -1075,10 +1195,7 @@ def _validate_path_category(category: Mapping[str, object]) -> list[str]:
         errors.append(f"{category_id}.overall_status is not a VerificationStatus")
     if category.get("bundle_present") is not True:
         errors.append(f"{category_id}.bundle_present must be true")
-    if category_id in {
-        "direct_local_verification_first_answer",
-        "fail_closed_missing_bundle_with_provenance",
-    }:
+    if category_id in NON_ADMITTED_PATH_CATEGORY_IDS:
         if category.get("admission_allowed") is not False:
             errors.append(f"{category_id}.admission_allowed must be false")
     elif category.get("admission_allowed") is not True:
@@ -1169,7 +1286,9 @@ def _validate_digest_labels(
 
 
 def _validate_source_symbol(*, path: str, symbol: str, category_id: str) -> list[str]:
-    source_path = REPO_ROOT / path
+    source_path, path_error = _resolve_source_ref_path(path=path, category_id=category_id)
+    if path_error is not None:
+        return [path_error]
     if not source_path.exists():
         return [f"{category_id}.source_ref missing file: {path}"]
     text = source_path.read_text(encoding="utf-8", errors="replace")
@@ -1178,6 +1297,23 @@ def _validate_source_symbol(*, path: str, symbol: str, category_id: str) -> list
     if symbol not in defined_symbols:
         return [f"{category_id}.source_ref symbol missing: {path}:{symbol}"]
     return []
+
+
+def _resolve_source_ref_path(*, path: str, category_id: str) -> tuple[Path, str | None]:
+    ref_path = Path(path)
+    if ref_path.is_absolute() or ".." in ref_path.parts or path.startswith(("~", "\\")):
+        return (
+            REPO_ROOT,
+            f"{category_id}.source_ref path must stay under repository: {path}",
+        )
+    source_path = (REPO_ROOT / ref_path).resolve()
+    repo_root = REPO_ROOT.resolve()
+    if not source_path.is_relative_to(repo_root):
+        return (
+            REPO_ROOT,
+            f"{category_id}.source_ref path must stay under repository: {path}",
+        )
+    return source_path, None
 
 
 def _defined_source_symbols(tree: ast.AST) -> set[str]:
