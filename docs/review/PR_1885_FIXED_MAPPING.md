@@ -35,19 +35,30 @@ workflow dispatch and explicit least-privilege repo targeting.
 - No product runtime, semantic-cache implementation, OpenAPI, web, or iOS
   changes.
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed in Commit Mapping
 
-No review threads exist at PR open.
+- No actionable review comments
 
-Implementation commit:
+## Branch Commits
 
 - `7b0bfb28780a702bc1d8925c0e0a11cbca60650` - typed GitHub App dispatch seam,
   exact repo allowlist enforcement, least-privilege identity policy contract, and
   deterministic tests.
 
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/6f0e5c034dbf.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+
 ## Experiment Runner Evidence
 
 - Mode: `oracle_only_governance_reviewer`
+- Artifact: `artifacts/orchestration/experiments/results/github_app_adapter_oracle_result.json`
 - Result: `exp-246a3727f1c3` accepted.
 - `mutated_paths=[]`
 - `shared_tree_untouched=true`

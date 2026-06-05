@@ -2112,6 +2112,36 @@ def test_execute_mode_dispatches_only_fixed_workflow_with_typed_inputs(
     assert bridge.ALLOWED_WORKFLOWS == {"experiment-runner-dispatch.yml"}
 
 
+def test_same_repo_execute_allows_runtime_token_without_github_repository_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "s" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+        repo="Katsiarynakavaleuskaya/PulsePlate",
+    )
+    calls: list[dict[str, Any]] = []
+
+    decision = bridge.process_payload(
+        _event(text="release/smoke Validate bounded same-repo dispatch"),
+        config,
+        dispatch_transport=lambda **kwargs: calls.append(kwargs),
+    )
+
+    assert decision.status == "dispatched"
+    assert len(calls) == 1
+    assert calls[0]["repo"] == "Katsiarynakavaleuskaya/PulsePlate"
+    assert calls[0]["workflow_file"] == "experiment-runner-dispatch.yml"
+    assert calls[0]["ref"] == "main"
+
+
 def test_execute_mode_keeps_dispatched_outcome_when_post_dispatch_ledger_write_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

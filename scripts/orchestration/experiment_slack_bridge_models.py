@@ -91,9 +91,9 @@ class GitHubDispatchTarget:
 
     @property
     def is_cross_repo(self) -> bool:
-        """Return whether the target cannot be proven to be the ambient repository."""
+        """Return whether the known ambient repository differs from the target."""
 
-        return self.current_repo is None or self.repo != self.current_repo
+        return self.current_repo is not None and self.repo != self.current_repo
 
     @property
     def is_allowlisted(self) -> bool:
