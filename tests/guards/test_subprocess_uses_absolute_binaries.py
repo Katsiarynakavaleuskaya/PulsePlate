@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +30,13 @@ SUBPROCESS_FUNCTIONS: frozenset[str] = frozenset(
     {"Popen", "call", "check_call", "check_output", "run"}
 )
 PYTHON_BINARY_NAME_RE = re.compile(r"^python(?:3(?:\.\d+)?)?$")
+SCOPE_NODE_TYPES = (
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.FunctionDef,
+    ast.Lambda,
+    ast.Module,
+)
 
 
 @dataclass(frozen=True)
@@ -94,8 +102,41 @@ def _subprocess_call_name(node: ast.Call, *, imports: SubprocessImportContext) -
     return None
 
 
+def _parent_map(tree: ast.AST) -> dict[ast.AST, ast.AST]:
+    return {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+
+
+def _scope_contains_line(scope: ast.AST, lineno: int) -> bool:
+    if isinstance(scope, ast.Module):
+        return True
+    start = getattr(scope, "lineno", None)
+    end = getattr(scope, "end_lineno", None)
+    return isinstance(start, int) and isinstance(end, int) and start <= lineno <= end
+
+
+def _nearest_scope(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> ast.AST:
+    current = node
+    while current in parents:
+        if isinstance(current, SCOPE_NODE_TYPES):
+            return current
+        current = parents[current]
+    return current
+
+
+def _scope_chain_for_lineno(tree: ast.AST, lineno: int) -> tuple[ast.AST, ...]:
+    scopes = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, SCOPE_NODE_TYPES) and _scope_contains_line(node, lineno)
+    ]
+    scopes.sort(key=lambda node: getattr(node, "lineno", 0), reverse=True)
+    return tuple(scopes) if scopes else (tree,)
+
+
 def _find_recent_assignment(tree: ast.AST, upto_lineno: int, name: str) -> ast.expr | None:
     best: tuple[int, ast.expr] | None = None
+    parents = _parent_map(tree)
+    allowed_scopes = {id(scope) for scope in _scope_chain_for_lineno(tree, upto_lineno)}
     for node in ast.walk(tree):
         target: ast.expr | None
         value: ast.expr
@@ -112,6 +153,8 @@ def _find_recent_assignment(tree: ast.AST, upto_lineno: int, name: str) -> ast.e
         if not isinstance(target, ast.Name) or target.id != name:
             continue
         if not (1 <= node.lineno < upto_lineno):
+            continue
+        if id(_nearest_scope(node, parents)) not in allowed_scopes:
             continue
         if best is None or node.lineno > best[0]:
             best = (node.lineno, value)
@@ -153,6 +196,9 @@ def _resolve_binary_expr(
 def _resolve_argv_binary(
     tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
 ) -> str | None:
+    if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
+        parts = shlex.split(expr.value.strip())
+        return parts[0] if parts else None
     if isinstance(expr, (ast.List, ast.Tuple)) and expr.elts:
         return _resolve_binary_expr(
             tree, expr.elts[0], upto_lineno=upto_lineno, seen_names=seen_names
@@ -414,6 +460,56 @@ subprocess.run([cmd, "-c", "print(42)"])
     assert len(violations) == 1
     assert violations[0].lineno == 4
     assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_ignores_assignments_from_unrelated_scopes() -> None:
+    source = """\
+import subprocess
+
+def unrelated() -> None:
+    cmd = "python"
+
+def target() -> None:
+    subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
+
+
+def test_guard_resolves_assignments_from_parent_scope() -> None:
+    source = """\
+import subprocess
+
+cmd = "python"
+
+def target() -> None:
+    subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 6
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_string_form_subprocess_commands() -> None:
+    source = """\
+import subprocess
+
+subprocess.run("python -c pass", shell=True)
+subprocess.check_output("git status", shell=True)
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 2
+    assert violations[0].lineno == 3
+    assert "repo-approved interpreter path" in violations[0].reason
+    assert violations[1].lineno == 4
+    assert "resolve with shutil.which('git')" in violations[1].reason
 
 
 def test_guard_flags_absolute_system_python_literal() -> None:
