@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unicodedata
 from collections.abc import Iterable
 from pathlib import Path
@@ -143,21 +144,34 @@ LOCALE_COPY_SIGNALS = {
         "comidas",
         "configuracion",
         "compra",
+        "clara",
+        "entiende",
         "fuera del alcance",
         "habitos",
+        "ideas",
         "lista",
         "localizacion",
+        "macros",
+        "medida",
+        "menu",
+        "meta",
         "metas",
         "micronutrientes",
+        "nutrientes",
         "nutricion",
         "orientacion",
         "paquete",
+        "peso",
         "perfil",
         "planificacion",
+        "practica",
         "preferencias",
         "progreso",
+        "sigue",
         "sugerencia",
         "sugerencias",
+        "tipos",
+        "utiles",
     ),
 }
 LOCALE_KEYWORD_SIGNALS = {
@@ -399,8 +413,7 @@ def _flatten_strings(value: Any) -> list[str]:
 
 def _has_locale_script(text: str, locale: str) -> bool:
     if locale in LOCALE_COPY_SIGNALS:
-        scan_text = _claim_scan_text(text)
-        return any(signal in scan_text for signal in LOCALE_COPY_SIGNALS[locale])
+        return _has_locale_signal(text, LOCALE_COPY_SIGNALS[locale])
     if locale not in LOCALE_SCRIPT_RANGES:
         return True
     start, end, extra = LOCALE_SCRIPT_RANGES[locale]
@@ -409,9 +422,26 @@ def _has_locale_script(text: str, locale: str) -> bool:
 
 def _has_locale_keyword_signal(keyword: str, locale: str) -> bool:
     if locale in LOCALE_KEYWORD_SIGNALS:
-        scan_text = _claim_scan_text(keyword)
-        return any(signal in scan_text for signal in LOCALE_KEYWORD_SIGNALS[locale])
+        return _has_locale_signal(keyword, LOCALE_KEYWORD_SIGNALS[locale])
     return _has_locale_script(keyword, locale)
+
+
+def _has_locale_signal(text: str, signals: Iterable[str]) -> bool:
+    scan_text = _claim_scan_text(text)
+    tokens = set(re.findall(r"[a-z0-9]+", scan_text))
+    for signal in signals:
+        normalized_signal = _claim_scan_text(signal)
+        if " " in normalized_signal:
+            if normalized_signal in scan_text:
+                return True
+            continue
+        if len(normalized_signal) <= 3:
+            if normalized_signal in tokens:
+                return True
+            continue
+        if normalized_signal in scan_text:
+            return True
+    return False
 
 
 def _claim_scan_text(text: str) -> str:
@@ -599,14 +629,12 @@ def test_screenshot_manifest_defines_seven_governed_shots_with_real_refs(
         assert 2 <= len(shot["supporting_copy"]) <= 3
         visible_copy = " ".join([*shot["headline"], *shot["supporting_copy"]])
         if locale in LOCALIZED_LOCALES:
-            headline_copy = " ".join(shot["headline"])
-            supporting_copy = " ".join(shot["supporting_copy"])
-            assert _has_locale_script(
-                headline_copy, locale
-            ), f"{locale} headline for {shot['id']} lacks locale-specific copy signal"
-            assert _has_locale_script(
-                supporting_copy, locale
-            ), f"{locale} supporting copy for {shot['id']} lacks locale-specific copy signal"
+            for line_kind in ("headline", "supporting_copy"):
+                for index, copy_line in enumerate(shot[line_kind], start=1):
+                    assert _has_locale_script(copy_line, locale), (
+                        f"{locale} {line_kind} line {index} for {shot['id']} "
+                        "lacks locale-specific copy signal"
+                    )
         offending_terms = _blocked_terms_in(locale, visible_copy)
         assert not offending_terms, f"Blocked term(s) found in shot copy: {offending_terms}"
         upload_claims = _blocked_upload_claims_in(visible_copy)
