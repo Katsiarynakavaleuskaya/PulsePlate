@@ -55,10 +55,10 @@ Evidence: `core/verification/registry.py` now returns the existing `rag_bundle` 
 Disposition: FIXED
 Commit: 202eb70436653b2fc83f5bb107f9eb843839f481
 Evidence: `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md` now cites PR `#1884`, implementation file:line references, the backlog ledger entry, and this review artifact for the internal-only provenance and public-response-boundary claims.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361572631
-Disposition: NOT-A-BUG
-Evidence: `git merge-base --is-ancestor ee8b58d65 HEAD`, `git merge-base --is-ancestor 3a738e078faaa4f8458d1fa034a809c6a3f93efc HEAD`, and `git merge-base --is-ancestor 202eb70436653b2fc83f5bb107f9eb843839f481 HEAD` all succeeded locally on the checked PR branch lineage.
-Reason: The cited mappings are reachable on the current PR branch; the review comment compared against a stale reviewed head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361572631 -> 2c03c0725c4eb24642783ca3481071fd61029526
+Disposition: FIXED
+Commit: 2c03c0725c4eb24642783ca3481071fd61029526
+Evidence: `docs/review/PR_1884_FIXED_MAPPING.md` records branch-reachability validation for the earlier mapped proof commits, tying the disposition evidence back to the current PR branch lineage.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#discussion_r3361572634 -> 17802c24cac855f405e84ac5b704d01efc4537c5
 Disposition: FIXED
 Commit: 17802c24cac855f405e84ac5b704d01efc4537c5
