@@ -147,9 +147,11 @@ resolved yet.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1892#pullrequestreview-4438216062 -> 6681f1b34
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1892#discussion_r3364250475 -> 6681f1b34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1892#discussion_r3365010024 -> 6681f1b34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1892#pullrequestreview-4439193790 -> df3a12b46
 Disposition: FIXED
-Commit: 6681f1b34
-Evidence: `core/ai/semantic_cache_offline_admission_runner.py:915` normalizes scenario IDs to canonical `SCENARIO_IDS` order before report composition; `tests/core/ai/test_semantic_cache_offline_admission_runner.py:134` covers whitespace-wrapped/reordered IDs; `.venv/bin/python -m pytest -q tests/core/ai/test_semantic_cache_offline_admission_runner.py` - PASS.
+Commit: 6681f1b34; df3a12b46
+Evidence: `core/ai/semantic_cache_offline_admission_runner.py:915` normalizes scenario IDs to canonical `SCENARIO_IDS` order before report composition; `tests/core/ai/test_semantic_cache_offline_admission_runner.py:134` covers whitespace-wrapped/reordered IDs; `docs/review/PR_1892_FIXED_MAPPING.md:154` adds the required `## Merge Readiness` checklist; `.venv/bin/python -m pytest -q tests/core/ai/test_semantic_cache_offline_admission_runner.py` - PASS.
 
 ## Merge Readiness
 
