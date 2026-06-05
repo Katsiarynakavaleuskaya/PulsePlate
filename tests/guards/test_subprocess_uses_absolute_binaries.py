@@ -53,6 +53,12 @@ class SubprocessImportContext:
     function_aliases: dict[str, str]
 
 
+@dataclass(frozen=True)
+class AssignmentCandidate:
+    value: ast.expr
+    branch_dependent: bool
+
+
 def _iter_files() -> list[Path]:
     exclude = {".venv", "venv", "node_modules", "__pycache__", ".git", "disabled_hypothesis"}
     out: list[Path] = []
@@ -123,6 +129,20 @@ def _nearest_scope(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> ast.AST:
     return current
 
 
+def _is_branch_dependent_assignment(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:
+    current = node
+    while current in parents:
+        parent = parents[current]
+        if isinstance(
+            parent, (ast.If, ast.For, ast.AsyncFor, ast.While, ast.Try, ast.With, ast.AsyncWith)
+        ):
+            return True
+        if isinstance(parent, SCOPE_NODE_TYPES):
+            return False
+        current = parent
+    return False
+
+
 def _scope_chain_for_lineno(tree: ast.AST, lineno: int) -> tuple[ast.AST, ...]:
     scopes = [
         node
@@ -133,8 +153,10 @@ def _scope_chain_for_lineno(tree: ast.AST, lineno: int) -> tuple[ast.AST, ...]:
     return tuple(scopes) if scopes else (tree,)
 
 
-def _find_recent_assignments(tree: ast.AST, upto_lineno: int, name: str) -> list[ast.expr]:
-    matches: list[tuple[int, ast.expr]] = []
+def _find_recent_assignments(
+    tree: ast.AST, upto_lineno: int, name: str
+) -> list[AssignmentCandidate]:
+    matches: list[tuple[int, AssignmentCandidate]] = []
     parents = _parent_map(tree)
     allowed_scopes = {id(scope) for scope in _scope_chain_for_lineno(tree, upto_lineno)}
     for node in ast.walk(tree):
@@ -156,7 +178,15 @@ def _find_recent_assignments(tree: ast.AST, upto_lineno: int, name: str) -> list
             continue
         if id(_nearest_scope(node, parents)) not in allowed_scopes:
             continue
-        matches.append((node.lineno, value))
+        matches.append(
+            (
+                node.lineno,
+                AssignmentCandidate(
+                    value=value,
+                    branch_dependent=_is_branch_dependent_assignment(node, parents),
+                ),
+            )
+        )
     matches.sort(key=lambda item: item[0], reverse=True)
     return [value for _, value in matches]
 
@@ -184,6 +214,36 @@ def _is_disallowed_binary_token(value: str) -> bool:
     return value in DISALLOWED_SHORT_BINARIES or _is_python_binary_name(value)
 
 
+def _is_env_assignment_token(value: str) -> bool:
+    key, sep, _ = value.partition("=")
+    return bool(sep and key and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key))
+
+
+def _env_launcher_target_from_tokens(tokens: list[str]) -> str | None:
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "-S":
+            if index + 1 >= len(tokens):
+                return None
+            split_target = shlex.split(tokens[index + 1].strip())
+            return split_target[0] if split_target else None
+        if token in {"-u", "--unset"}:
+            index += 2
+            continue
+        if token.startswith("-u") and len(token) > 2:
+            index += 1
+            continue
+        if token in {"-i", "--ignore-environment"} or token.startswith("-"):
+            index += 1
+            continue
+        if _is_env_assignment_token(token):
+            index += 1
+            continue
+        return token
+    return None
+
+
 def _resolve_binary_expr(
     tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
 ) -> str | None:
@@ -196,11 +256,20 @@ def _resolve_binary_expr(
         assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
         if not assignments:
             return None
+        latest = assignments[0]
+        if not latest.branch_dependent:
+            return _resolve_binary_expr(
+                tree,
+                latest.value,
+                upto_lineno=getattr(latest.value, "lineno", upto_lineno),
+                seen_names=seen_names | {expr.id},
+            )
+        resolved: str | None = None
         for assignment in assignments:
             candidate = _resolve_binary_expr(
                 tree,
-                assignment,
-                upto_lineno=getattr(assignment, "lineno", upto_lineno),
+                assignment.value,
+                upto_lineno=getattr(assignment.value, "lineno", upto_lineno),
                 seen_names=seen_names | {expr.id},
             )
             if candidate is not None and _is_disallowed_binary_token(candidate):
@@ -235,15 +304,31 @@ def _resolve_argv_binary(
 ) -> str | None:
     if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
         parts = shlex.split(expr.value.strip())
+        if parts and Path(parts[0]).name == "env":
+            return _env_launcher_target_from_tokens(parts) or parts[0]
         return parts[0] if parts else None
     if isinstance(expr, (ast.List, ast.Tuple)) and expr.elts:
         first_binary = _resolve_binary_expr(
             tree, expr.elts[0], upto_lineno=upto_lineno, seen_names=seen_names
         )
         if first_binary is not None and Path(first_binary).name == "env" and len(expr.elts) > 1:
-            env_target = _resolve_binary_expr(
-                tree, expr.elts[1], upto_lineno=upto_lineno, seen_names=seen_names
-            )
+            resolved_tokens = [
+                first_binary,
+                *[
+                    token
+                    for token in (
+                        _resolve_binary_expr(
+                            tree,
+                            item,
+                            upto_lineno=upto_lineno,
+                            seen_names=seen_names,
+                        )
+                        for item in expr.elts[1:]
+                    )
+                    if token is not None
+                ],
+            ]
+            env_target = _env_launcher_target_from_tokens(resolved_tokens)
             return env_target or first_binary
         return first_binary
     if isinstance(expr, ast.Name):
@@ -253,11 +338,20 @@ def _resolve_argv_binary(
         assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
         if not assignments:
             return None
+        latest = assignments[0]
+        if not latest.branch_dependent:
+            return _resolve_argv_binary(
+                tree,
+                latest.value,
+                upto_lineno=getattr(latest.value, "lineno", upto_lineno),
+                seen_names=seen_names | {expr.id},
+            )
+        resolved: str | None = None
         for assignment in assignments:
             candidate = _resolve_argv_binary(
                 tree,
-                assignment,
-                upto_lineno=getattr(assignment, "lineno", upto_lineno),
+                assignment.value,
+                upto_lineno=getattr(assignment.value, "lineno", upto_lineno),
                 seen_names=seen_names | {expr.id},
             )
             if candidate is not None and _is_disallowed_binary_token(candidate):
@@ -612,6 +706,21 @@ subprocess.run([cmd, "-c", "print(42)"])
     assert "repo-approved interpreter path" in violations[0].reason
 
 
+def test_guard_allows_linear_safe_assignment_overwrite() -> None:
+    source = """\
+import subprocess
+import sys
+
+cmd = "python"
+cmd = sys.executable
+subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
+
+
 def test_guard_flags_usr_bin_env_python_launcher() -> None:
     source = 'import subprocess\nsubprocess.run(["/usr/bin/env", "python", "-c", "pass"])\n'
 
@@ -620,6 +729,22 @@ def test_guard_flags_usr_bin_env_python_launcher() -> None:
     assert len(violations) == 1
     assert violations[0].lineno == 2
     assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_usr_bin_env_python_launcher_after_options_and_assignments() -> None:
+    source = """\
+import subprocess
+
+subprocess.run(["/usr/bin/env", "-S", "python -c pass"])
+subprocess.run(["/usr/bin/env", "FOO=bar", "python3", "-c", "pass"])
+subprocess.run("/usr/bin/env -S python3.12 -c pass", shell=True)
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 3
+    assert {violation.lineno for violation in violations} == {3, 4, 5}
+    assert all("repo-approved interpreter path" in violation.reason for violation in violations)
 
 
 def test_guard_flags_absolute_system_python_literal() -> None:
