@@ -28,15 +28,24 @@ Experiment Runner runtime.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- No review threads exist at PR open time.
+- Review threads inspected after PR open:
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3363900835`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3363940005`
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3363900835` -> `009061a5210aaa6b1a4af5e33722d06feb464175`
+  - Disposition: FIXED
+  - Commit: `009061a5210aaa6b1a4af5e33722d06feb464175`
+  - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now reads subprocess argv from the first positional argument or keyword `args=`, and `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q` passed with `11 passed`.
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3363940005`
+  - Disposition: NOT-A-BUG
+  - Evidence: `git show -s --format=full 85b9af6181ed90ff949a18103a4db86dc5f1360e` shows the governed trailer `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on the implementation commit referenced by this artifact; this PR has not been squash-merged yet, so the synthetic squash-preview commit mentioned in the review comment is not the branch commit used as Experiment Runner evidence.
 
 ## Implementation Evidence
 
 - Implementation commit: `85b9af618`
+- Keyword-args guard follow-up commit: `009061a52`
 - Mapping artifact commit: `aa478a2e0`
 - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
@@ -84,6 +93,8 @@ Experiment Runner runtime.
 - PASS: `.venv/bin/python scripts/orchestration/check_agent_consistency.py`
 - PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
   (`9 passed`)
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  after `args=` review fix (`11 passed`)
 - PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
   (`10 passed`)
 - PASS: `make validate-changed` after commit selected
