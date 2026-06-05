@@ -351,6 +351,8 @@ def build_activation_readiness_report(
     branch_ref: str | None = None,
     hypothesis_sha256: str | None = None,
     require_smoke_inputs: bool = True,
+    config: BridgeConfig | None = None,
+    config_error: Exception | None = None,
 ) -> dict[str, Any]:
     """Build a value-free Socket Mode activation-readiness report."""
 
@@ -360,6 +362,8 @@ def build_activation_readiness_report(
             branch_ref=branch_ref,
             hypothesis_sha256=hypothesis_sha256,
             require_smoke_inputs=require_smoke_inputs,
+            config=config,
+            config_error=config_error,
         ),
     )
 
@@ -872,7 +876,10 @@ def _format_command_reply(
             render_operator_status_message(
                 config,
                 activation_readiness_summary=render_activation_readiness_summary(
-                    build_activation_readiness_report(require_smoke_inputs=False),
+                    build_activation_readiness_report(
+                        require_smoke_inputs=False,
+                        config=config,
+                    ),
                 ),
                 operator_ledger_summary=render_latest_operator_ledger_summary(
                     exclude_event_hash=excluded_event_hash,
@@ -1019,9 +1026,22 @@ def main(argv: list[str] | None = None) -> int:
         if args.validate_secret_presence:
             return 0 if validate_secret_presence()["status"] == "pass" else 1
         if args.activation_readiness_report:
+            readiness_config: BridgeConfig | None = None
+            readiness_config_error: Exception | None = None
+            try:
+                readiness_config = build_config(
+                    dispatch_mode=args.dispatch_mode,
+                    audit_dir=args.audit_dir,
+                    repo=args.repo,
+                    workflow_ref=args.workflow_ref,
+                )
+            except SlackSocketBridgeError as exc:
+                readiness_config_error = exc
             report = build_activation_readiness_report(
                 branch_ref=args.branch_ref,
                 hypothesis_sha256=args.hypothesis_sha256,
+                config=readiness_config,
+                config_error=readiness_config_error,
             )
             print(json.dumps(report, sort_keys=True))
             return 0 if report["status"] == "pass" else 1

@@ -1142,6 +1142,7 @@ def build_operator_observability_report(
         "by_failure_class": dict(sorted(by_failure.items())),
         "by_result_artifact_status": dict(sorted(by_result_artifact_status.items())),
         "by_status": dict(sorted(by_status.items())),
+        "evidence_graph_admission_status": "contract_only_not_runtime",
         "event_count": len(records),
         "latest": (
             {
@@ -1197,6 +1198,7 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
         "- Scope: local operator-plane evidence only",
         "- Authority: display-only; not PR, review-thread, merge-readiness, or product truth",
         f"- Policy version: `{report['policy_version']}`",
+        f"- Evidence graph admission: `{report['evidence_graph_admission_status']}`",
         f"- Event count: `{report['event_count']}`",
         "",
         "## Latest",
@@ -1302,6 +1304,13 @@ def render_operator_observability_html(report: dict[str, Any]) -> str:
             [
                 ("policy_version", report["policy_version"]),
                 ("redaction_version", report["redaction_version"]),
+                (
+                    "evidence_graph_admission_status",
+                    report.get(
+                        "evidence_graph_admission_status",
+                        "contract_only_not_runtime",
+                    ),
+                ),
                 ("event_count", report["event_count"]),
             ]
         ),

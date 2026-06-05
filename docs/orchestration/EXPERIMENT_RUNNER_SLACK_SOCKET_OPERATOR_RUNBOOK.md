@@ -61,6 +61,33 @@ time:
 Use the approved `#experiment-runner` channel ID only as a runtime input. The
 repository must not hardcode it as a default.
 
+## Private-Pilot Readiness Evidence
+
+Operators may generate a redacted private-pilot readiness projection before a
+manual smoke run:
+
+```bash
+python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+  --activation-readiness-report \
+  --dispatch-mode execute \
+  --repo <owner/repo>
+```
+
+The report is value-free operator evidence. It may show labels for GitHub auth
+presence/class, same-repo versus cross-repo target class, exact allowlist match,
+fixed workflow/ref status, execute-gate status, dry-run/live-approval state, and
+`evidence_graph_admission_status=contract_only_not_runtime`. It must not print
+the selected repository name, token values or prefixes, Slack identifiers,
+approval digests, raw branch refs, raw hypotheses, workflow logs, oracle output,
+local paths, or patch text. Malformed GitHub dispatch config returns a failed
+readiness label instead of printing the malformed value.
+
+`/pulseplate-runner status` shows the same label-only projection from the
+already loaded bridge config. It remains display-only: it is not merge
+readiness, fixed-mapping proof, review-thread disposition, PR mutation,
+workflow-authority expansion, semantic-cache enablement, or product runtime
+truth.
+
 ## Slack App Manifest
 
 The secret-free operator setup manifest lives at
@@ -355,6 +382,12 @@ events are blocked by the existing audit idempotency check before a second
 ledger record can be created. No new Slack command or Slack authority is added
 by the local observability report set.
 
+The observability report includes the private-pilot readiness projection only as
+report-level evidence. Ledger events remain hash-only and do not store selected
+repository names, token classes, approval digests, raw branch refs, raw
+hypotheses, Slack identifiers, workflow logs, oracle output, local paths, or
+patch text.
+
 ## Authority Boundary
 
 The Slack operator bridge may validate configuration, report status, render
@@ -382,8 +415,9 @@ Allowed operator display commands are bounded and redacted:
 
 - `/pulseplate-runner help`: static command summary and authority boundary.
 - `/pulseplate-runner status`: bridge mode, allowlist presence, fixed workflow
-  metadata, rate-limit setting, local audit-retention setting, and optional
-  sanitized latest local operator-ledger summary only.
+  metadata, private-pilot readiness labels, rate-limit setting, local
+  audit-retention setting, and optional sanitized latest local operator-ledger
+  summary only.
 - `/pulseplate-runner kpp-status`: static KPP outcome catalog and
   security-sensitive routing note; no experiment artifacts, local paths, Slack
   IDs, hypotheses, or provider logs.

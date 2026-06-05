@@ -9,8 +9,12 @@ from typing import Any
 from scripts.orchestration.experiment_slack_bridge_config import _is_safe_ref
 from scripts.orchestration.experiment_slack_bridge_constants import (
     BRIDGE_AUDIT_RETENTION_DAYS_ENV,
+    BRIDGE_EXECUTE_ENABLED_ENV,
+    BRIDGE_EXECUTE_ENABLED_VALUE,
     CONTROL_CHAR_RE,
     DEFAULT_AUDIT_RETENTION_DAYS,
+    DEFAULT_WORKFLOW_FILE,
+    DEFAULT_WORKFLOW_REF,
     LIVE_SMOKE_BRANCH_REF_ENV,
     LIVE_SMOKE_HYPOTHESIS_SHA256_ENV,
     MAX_AUDIT_RETENTION_DAYS,
@@ -24,6 +28,7 @@ from scripts.orchestration.experiment_slack_bridge_constants import (
     SLACK_TEAM_ALLOWLIST_ENV,
     SLACK_USER_ALLOWLIST_ENV,
 )
+from scripts.orchestration.experiment_slack_bridge_models import BridgeConfig
 
 _TOKEN_LABELS = {
     SLACK_APP_AUTH_ENV: "slack_app_token_status",
@@ -48,6 +53,22 @@ def activation_readiness_authority_boundary() -> dict[str, bool]:
         "product_runtime_changed": False,
         "resolved_review_threads": False,
         "semantic_cache_enabled": False,
+        "workflow_authority_changed": False,
+    }
+
+
+def _manual_github_dispatch_readiness() -> dict[str, Any]:
+    return {
+        "evidence_graph_admission_status": "contract_only_not_runtime",
+        "github_dispatch_auth_class": "none",
+        "github_dispatch_auth_status": "missing",
+        "github_dispatch_authority": "display_only",
+        "github_dispatch_execute_gate_status": "not_required",
+        "github_dispatch_live_approval_status": "dry_run_default",
+        "github_dispatch_readiness_state": "manual_only",
+        "github_dispatch_repo_allowlist_status": "not_required",
+        "github_dispatch_target_status": "not_configured",
+        "github_dispatch_workflow_status": "fixed",
     }
 
 
@@ -69,6 +90,7 @@ def manual_only_activation_readiness_report() -> dict[str, Any]:
         "branch_ref_status": "not_checked",
         "hypothesis_sha256_status": "not_checked",
         "status": "pass",
+        **_manual_github_dispatch_readiness(),
     }
 
 
@@ -127,6 +149,100 @@ def _audit_retention_status(env: Mapping[str, str]) -> str:
     return "valid" if 0 < value <= MAX_AUDIT_RETENTION_DAYS else "invalid"
 
 
+def _github_dispatch_readiness(
+    *,
+    config: BridgeConfig | None,
+    config_error: Exception | None,
+    env: Mapping[str, str],
+) -> dict[str, Any]:
+    report = _manual_github_dispatch_readiness()
+    if config_error is not None:
+        report.update(
+            {
+                "github_dispatch_auth_class": "invalid",
+                "github_dispatch_auth_status": "invalid",
+                "github_dispatch_execute_gate_status": "invalid",
+                "github_dispatch_live_approval_status": "invalid",
+                "github_dispatch_readiness_state": "blocked_by_invalid_config",
+                "github_dispatch_repo_allowlist_status": "invalid",
+                "github_dispatch_target_status": "invalid",
+                "github_dispatch_workflow_status": "invalid",
+            }
+        )
+        return report
+    if config is None or config.github_dispatch is None:
+        return report
+
+    dispatch = config.github_dispatch
+    auth = dispatch.auth
+    target = dispatch.target
+    execute_gate_enabled = (
+        env.get(BRIDGE_EXECUTE_ENABLED_ENV, "").strip() == BRIDGE_EXECUTE_ENABLED_VALUE
+    )
+    workflow_status = (
+        "fixed"
+        if config.workflow_file == DEFAULT_WORKFLOW_FILE
+        and config.workflow_ref == DEFAULT_WORKFLOW_REF
+        else "invalid"
+    )
+    report.update(
+        {
+            "github_dispatch_auth_class": auth.auth_class if auth is not None else "none",
+            "github_dispatch_auth_status": "present" if auth is not None else "missing",
+            "github_dispatch_execute_gate_status": (
+                "enabled"
+                if execute_gate_enabled
+                else ("missing" if config.dispatch_mode == "execute" else "not_required")
+            ),
+            "github_dispatch_live_approval_status": (
+                "present" if config.live_approval_sha256 is not None else "dry_run_default"
+            ),
+            "github_dispatch_workflow_status": workflow_status,
+        }
+    )
+    if target is None:
+        return report
+
+    target_status = "cross_repo" if target.is_cross_repo else "same_repo"
+    if target.is_cross_repo:
+        if target.is_allowlisted:
+            allowlist_status = "matched"
+        elif target.repo_allowlist:
+            allowlist_status = "nonmatching"
+        else:
+            allowlist_status = "missing"
+    else:
+        allowlist_status = "not_required"
+    report.update(
+        {
+            "github_dispatch_repo_allowlist_status": allowlist_status,
+            "github_dispatch_target_status": target_status,
+        }
+    )
+    if workflow_status == "invalid":
+        readiness_state = "blocked_by_invalid_config"
+    elif config.dispatch_mode == "execute" and not execute_gate_enabled:
+        readiness_state = "blocked_by_execute_gate"
+    elif auth is None and config.dispatch_mode == "execute":
+        readiness_state = "blocked_by_missing_auth"
+    elif target.is_cross_repo and allowlist_status != "matched":
+        readiness_state = "blocked_by_allowlist"
+    elif target.is_cross_repo and auth is None:
+        readiness_state = "blocked_by_missing_auth"
+    elif target.is_cross_repo and not auth.is_installation_token:
+        readiness_state = "blocked_by_auth_class"
+    elif target.is_cross_repo:
+        readiness_state = "eligible_for_private_pilot_dispatch"
+    else:
+        readiness_state = (
+            "eligible_for_same_repo_dispatch"
+            if config.dispatch_mode == "execute"
+            else "same_repo_dry_run_available"
+        )
+    report["github_dispatch_readiness_state"] = readiness_state
+    return report
+
+
 def _activation_state(
     *,
     token_statuses: Mapping[str, str],
@@ -166,6 +282,8 @@ def build_activation_readiness_report(
     branch_ref: str | None = None,
     hypothesis_sha256: str | None = None,
     require_smoke_inputs: bool = True,
+    config: BridgeConfig | None = None,
+    config_error: Exception | None = None,
 ) -> dict[str, Any]:
     """Build a value-free Socket Mode activation-readiness report."""
 
@@ -188,6 +306,12 @@ def build_activation_readiness_report(
         audit_retention_status=audit_status,
         require_smoke_inputs=require_smoke_inputs,
     )
+    github_readiness = _github_dispatch_readiness(
+        config=config,
+        config_error=config_error,
+        env=effective_env,
+    )
+    github_state = str(github_readiness["github_dispatch_readiness_state"])
     report: dict[str, Any] = {
         "activation_state": activation_state,
         "audit_retention_status": audit_status,
@@ -207,11 +331,13 @@ def build_activation_readiness_report(
                 "blocked_by_missing_secret",
                 "blocked_by_smoke_input",
             }
+            or github_state.startswith("blocked_by_")
             else "pass"
         ),
     }
     report.update(token_statuses)
     report.update(allowlist_statuses)
+    report.update(github_readiness)
     return report
 
 
@@ -231,10 +357,21 @@ def render_activation_readiness_summary(report: Mapping[str, Any]) -> tuple[str,
         f"branch_ref_status={report.get('branch_ref_status', 'not_checked')}",
         f"hypothesis_sha256_status={report.get('hypothesis_sha256_status', 'not_checked')}",
         f"audit_retention_status={report.get('audit_retention_status', 'not_checked')}",
+        f"github_dispatch_readiness_state={report.get('github_dispatch_readiness_state', 'manual_only')}",
+        f"github_dispatch_auth_status={report.get('github_dispatch_auth_status', 'missing')}",
+        f"github_dispatch_auth_class={report.get('github_dispatch_auth_class', 'none')}",
+        f"github_dispatch_target_status={report.get('github_dispatch_target_status', 'not_configured')}",
+        f"github_dispatch_repo_allowlist_status={report.get('github_dispatch_repo_allowlist_status', 'not_required')}",
+        f"github_dispatch_workflow_status={report.get('github_dispatch_workflow_status', 'fixed')}",
+        f"github_dispatch_execute_gate_status={report.get('github_dispatch_execute_gate_status', 'not_required')}",
+        f"github_dispatch_live_approval_status={report.get('github_dispatch_live_approval_status', 'dry_run_default')}",
+        f"github_dispatch_authority={report.get('github_dispatch_authority', 'display_only')}",
+        f"evidence_graph_admission_status={report.get('evidence_graph_admission_status', 'contract_only_not_runtime')}",
         f"manual_live_smoke={report.get('manual_live_smoke', 'operator_evidence_only')}",
         f"deterministic_ci_requires_live_slack={str(boundary.get('deterministic_ci_requires_live_slack', False)).lower()}",
         f"opened_http_ingress={str(boundary.get('opened_http_ingress', False)).lower()}",
         f"semantic_cache_enabled={str(boundary.get('semantic_cache_enabled', False)).lower()}",
+        f"workflow_authority_changed={str(boundary.get('workflow_authority_changed', False)).lower()}",
         f"product_runtime_changed={str(boundary.get('product_runtime_changed', False)).lower()}",
         f"claimed_merge_readiness={str(boundary.get('claimed_merge_readiness', False)).lower()}",
         "activation_authority=display_only",
