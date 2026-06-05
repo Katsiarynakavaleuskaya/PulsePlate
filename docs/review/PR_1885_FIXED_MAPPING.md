@@ -122,10 +122,26 @@ Findings:
 
 ## Post-Open Review Passes
 
-Pending:
+Completed:
 
 - `qa-engineer-agent`
+  - Disposition: FIXED
+  - Commit: `f323421e2`
+  - Evidence: `scripts/orchestration/experiment_slack_bridge_models.py` keeps
+    same-repo execute compatible when `GITHUB_REPOSITORY` is absent;
+    `tests/test_experiment_slack_socket_bridge.py` covers the regression, and
+    Phase2 PR body/mapping validation passes.
 - `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `b3d774e9a`
+  - Evidence: `scripts/orchestration/experiment_slack_bridge_config.py` uses the
+    canonical PulsePlate repository only as the same-repo fallback when
+    `GITHUB_REPOSITORY` is absent; explicit non-default targets remain
+    cross-repo, and `tests/test_experiment_slack_socket_bridge.py` covers the
+    bypass regression.
+
+Pending:
+
 - `security-auditor`
 - Codex Security diff scan / finding discovery
 - `pulseplate-pr-review`
