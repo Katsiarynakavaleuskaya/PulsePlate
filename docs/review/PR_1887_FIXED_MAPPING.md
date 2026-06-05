@@ -30,7 +30,10 @@ Slack, semantic cache, GraphRAG, or runtime behavior.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 68bb09c1f
+Evidence: source refs now validate real AST-defined symbols, redaction_source existence is checked, schema raw-leak scan is enforced, and regression tests cover all Cubic findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#pullrequestreview-4436023126 -> 68bb09c1f
 
 ## Implementation Evidence
 
