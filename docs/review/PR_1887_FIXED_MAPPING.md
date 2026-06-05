@@ -59,12 +59,24 @@ Commit: 68bb09c1f
 Evidence: `redaction_source` is validated against the actual AST-defined `core.verification.registry.redacted_sha256_label` symbol.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362405138 -> 68bb09c1f
 
+Disposition: FIXED
+Commit: bb30a15dd
+Evidence: admitted RAG examples now use non-recursive count labels, disabled-path `artifact_count` matches `reason_labels`, schema `allOf` conditionals pin per-category `admission_allowed`, Docs Phase1 protected JSON targets include deletion-only diffs, the mapping proof format uses a single SHA, and focused report/docs/review tests pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#pullrequestreview-4436317342 -> bb30a15dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362690185 -> bb30a15dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362690192 -> bb30a15dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362699583 -> bb30a15dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362699585 -> bb30a15dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1887#discussion_r3362699589 -> bb30a15dd
+
 ## Implementation Evidence
 
 - Implementation commit:
   `0bada0dc35c603cc3f102850a2623f3adb80e902`
 - Review hardening commit:
   `afd995a5c76eee6a06015dbfa7a96c3ab59be2e4`
+- Follow-up review hardening commit:
+  `bb30a15dd9b260f104834373dcea52780d70c250`
 - Evidence:
   - `docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json`
   - `docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.schema.json`
