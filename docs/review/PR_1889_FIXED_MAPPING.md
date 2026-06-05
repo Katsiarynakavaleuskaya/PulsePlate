@@ -31,6 +31,10 @@ Experiment Runner runtime.
 - Review threads inspected after PR open:
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3363900835`
   - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3363940005`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117348`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117355`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117359`
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117362`
 
 ## Fixed in Commit Mapping
 
@@ -41,11 +45,28 @@ Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now reads sub
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3363940005
 Disposition: NOT-A-BUG
 Evidence: `git show -s --format=full 85b9af6181ed90ff949a18103a4db86dc5f1360e` shows the governed trailer `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on the implementation commit referenced by this artifact; this PR has not been squash-merged yet, so the synthetic squash-preview commit mentioned in the review comment is not the branch commit used as Experiment Runner evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117348 -> 8a7248590199893f7977754f3998d00a2368b679
+Disposition: FIXED
+Commit: 8a7248590199893f7977754f3998d00a2368b679
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` resolves simple argv-list and argv-binary variables before evaluating the first subprocess binary; `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q` passed with `17 passed`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117355 -> 8a7248590199893f7977754f3998d00a2368b679
+Disposition: FIXED
+Commit: 8a7248590199893f7977754f3998d00a2368b679
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now rejects absolute Python interpreter literals outside repo `.venv/bin/python` while preserving repo-approved `.venv/bin/python`; focused pytest passed with `17 passed`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117359 -> 8a7248590199893f7977754f3998d00a2368b679
+Disposition: FIXED
+Commit: 8a7248590199893f7977754f3998d00a2368b679
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` tracks `import subprocess as <alias>` and `from subprocess import <helper>` aliases for guarded subprocess helpers; focused pytest passed with `17 passed`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1889#discussion_r3365117362 -> 8a7248590199893f7977754f3998d00a2368b679
+Disposition: FIXED
+Commit: 8a7248590199893f7977754f3998d00a2368b679
+Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now covers standard subprocess helpers `call`, `check_call`, and `check_output` in addition to `run` and `Popen`; focused pytest passed with `17 passed`.
 
 ## Implementation Evidence
 
 - Implementation commit: `85b9af618`
 - Keyword-args guard follow-up commit: `009061a52`
+- Alias/helper/absolute-python guard follow-up commit: `8a724859`
 - Mapping artifact commit: `aa478a2e0`
 - Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py` now parses direct `subprocess.run` / `subprocess.Popen` calls with AST, rejects bare `python` / `python3` literals, preserves `sys.executable` and repo interpreter variable usage, and keeps existing `shutil.which` guidance for external tools; root policy and the orchestration contract matrix document the invariant.
 
@@ -95,6 +116,8 @@ Evidence: `git show -s --format=full 85b9af6181ed90ff949a18103a4db86dc5f1360e` s
   (`9 passed`)
 - PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
   after `args=` review fix (`11 passed`)
+- PASS: `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_hygiene_no_worktrees_tracked_guard.py -q`
+  after alias/helper/variable/absolute-python review fix (`17 passed`)
 - PASS: `.venv/bin/python -m pytest tests/test_experiment_runner.py -k "python_oracle_path_prefix or temporary_sandbox_env" -q`
   (`10 passed`)
 - PASS: `make validate-changed` after commit selected
