@@ -40,7 +40,7 @@ This standard governance/design PR intentionally keeps 16 files together because
 - `creative-designer`: FIXED. Evidence: `appstore/fitchef/localization_qa/cross_locale_review_prep.md` compares EN/RU/ES by shot id, timing, product surface, mascot key, line length risk, safe-area risk, FitChef overlap risk, UI/copy mismatch risk, and wellness-claim risk.
 - `cursor-specialist-agent`: FIXED. Evidence: PR opened non-draft after coherent diff, pre-open roles, focused gates, premortem, Experiment Runner oracle review, and this canonical mapping artifact.
 - `security-auditor`: FIXED. Evidence: staged diff has no protected `ios/fastlane`, App Store Connect, backend, OpenAPI, frontend, iOS runtime, workflow, media binary, or upload authority surfaces.
-- `qa-engineer-agent`: FIXED. Evidence: `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passed with `66 passed` after post-open fixes.
+- `qa-engineer-agent`: FIXED. Evidence: `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passed with `68 passed` after post-open fixes.
 - `bug-hunter` P1 untracked ES artifacts: FIXED in `5318aa3196cc81401e27d39ad64c25f529091384`. Evidence: `git diff --cached --name-status` before commit listed all ES/cross-locale/contract artifacts as staged; implementation commit creates those files.
 - `bug-hunter` P2 accented Spanish claim blind spot: FIXED in `5318aa3196cc81401e27d39ad64c25f529091384`. Evidence: `tests/test_fitchef_app_store_pack.py` adds `_claim_scan_text`, `_blocked_terms_in`, and accented Spanish negative cases for `prescripción`, `fármaco`, `píldora`, `diagnóstico`, `menú`, `rápidos`, and `Clínicamente probado`.
 - `web-research-agent`: NOT-A-BUG. Evidence: role pass confirmed the diff is docs/metadata/test-only, ES copy stays wellness-only, screenshot/preview QA remains internal-review-only, and Apple supporting context does not require protected upload or runtime changes in this PR.
@@ -66,7 +66,7 @@ This standard governance/design PR intentionally keeps 16 files together because
 - `python3 scripts/orchestration/check_preflight.py` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/BACKLOG_LEDGER.md` - PASS.
-- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` - PASS (`66 passed`).
+- `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` - PASS (`68 passed`).
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS after Black formatting was staged and rerun.
 - Pre-push hooks - PASS, including backend pre-push and full Bandit.
@@ -82,7 +82,7 @@ Post-open review threads are recorded below with `FIXED`, `NOT-A-BUG`, or `DEFER
 
 ## Post-Open Review Evidence
 
-- `qa-engineer-agent`: PASS after post-open fixes. Evidence: no remaining QA findings after the localized markdown-per-file guard and cross-locale QA guard fixes; `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `66 passed`.
+- `qa-engineer-agent`: PASS after post-open fixes. Evidence: no remaining QA findings after the localized markdown-per-file guard, localized JSON safety guards, and cross-locale QA guard fixes; `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `68 passed`.
 - `bug-hunter`: PASS after post-open fixes. Evidence: stale-copy and false-green risks are covered by per-file localized docs guards, localized manifest/icon/preview guards, no-upload metadata guards, and cross-locale row-to-manifest copy/length guards.
 - `security-auditor`: PASS on head `30756c8853a194a3b71ab683edd47baa018fb676`. Evidence: no protected `ios/fastlane`, App Store Connect, upload automation, screenshot/video binary, runtime, backend/OpenAPI/DB, frontend/iOS runtime, telemetry, billing, Slack, semantic-cache, or GraphRAG surface changes; all 39 resolved review threads pass disposition/commit-after-comment guard.
 - `Codex Security diff scan`: PASS. Evidence: diff-scoped scan reviewed all 17 changed files, produced a validated no-findings report, and closed every worklist row with a completion receipt.
@@ -182,6 +182,21 @@ Evidence: `tests/test_fitchef_app_store_pack.py` now scans each localized markdo
 Disposition: FIXED
 Commit: 8f0e1d27cc7d83d8d1a53a10886d13823e720322
 Evidence: `tests/test_fitchef_app_store_pack.py` now normalizes localized manifest and icon-decision English-boilerplate matching, applies `NO_UPLOAD_CLAIMS` to App Store-visible metadata with case/accent folding, and ties each cross-locale QA row to the exact manifest headline/supporting copy plus derived length fields; `appstore/fitchef/localization_qa/cross_locale_review_prep.md` updates stale EN/RU/ES derived length fields. `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `66 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362424981 -> b9187b6814913cb72cb52e70f6115d779b010879
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362424987 -> b9187b6814913cb72cb52e70f6115d779b010879
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362424989 -> b9187b6814913cb72cb52e70f6115d779b010879
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362484854 -> b9187b6814913cb72cb52e70f6115d779b010879
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362484856 -> b9187b6814913cb72cb52e70f6115d779b010879
+Disposition: FIXED
+Commit: b9187b6814913cb72cb52e70f6115d779b010879
+Evidence: `tests/test_fitchef_app_store_pack.py` now applies no-upload and wellness-safety blockers to localized screenshot copy, preview storyboard focus text, manifest rationales, and icon decision logs; metadata keywords are validated individually with locale keyword signals so one Spanish keyword cannot mask copied-English keyword siblings. `.venv/bin/python -m pytest -q tests/test_fitchef_app_store_pack.py` passes with `68 passed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362424984
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3362484849
+Disposition: NOT-A-BUG
+Evidence: Current branch head `b9187b6814913cb72cb52e70f6115d779b010879` contains the mapped commits cited in the stale-head reviews; `git merge-base --is-ancestor 418c3af4fda1265cc757229ef2f891295b3726fc HEAD`, `git merge-base --is-ancestor 8f0e1d27cc7d83d8d1a53a10886d13823e720322 HEAD`, and `git merge-base --is-ancestor 30756c8853a194a3b71ab683edd47baa018fb676 HEAD` all return 0 locally.
+Reason: These comments were generated against older reviewed commits before later fix and mapping commits landed. The current PR branch head contains the mapped fix commits.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1886#discussion_r3361897842
