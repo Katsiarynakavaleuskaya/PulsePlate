@@ -67,6 +67,13 @@ Evidence: `_LOCAL_PATH_RE` now redacts Linux CI/container roots such as `/worksp
 Disposition: FIXED
 Commit: 17802c24cac855f405e84ac5b704d01efc4537c5
 Evidence: `_SECRET_ASSIGNMENT_RE` now redacts common secret/env assignment names before hashing, with regression coverage for `DATABASE_URL`, `SERVER_SALT`, and `SECRET_KEY` inputs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#pullrequestreview-4432346331 -> 2ceab3215c8239c2dc31554e5763231cc24383c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#pullrequestreview-4434860632 -> 2ceab3215c8239c2dc31554e5763231cc24383c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#pullrequestreview-4434885059 -> 2ceab3215c8239c2dc31554e5763231cc24383c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1884#pullrequestreview-4434927000 -> 2ceab3215c8239c2dc31554e5763231cc24383c1
+Disposition: FIXED
+Commit: 2ceab3215c8239c2dc31554e5763231cc24383c1
+Evidence: Review-level umbrella entries are mapped after all corresponding inline thread dispositions were recorded; inline review findings above carry the specific code/docs proof and this commit normalizes the final review-governance mapping artifact.
 
 ## Premortem Findings
 
