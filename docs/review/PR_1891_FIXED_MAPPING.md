@@ -80,8 +80,8 @@ Premortem / role-agent findings closed before PR open:
 
 ## Validation Evidence
 
-- Rebased branch head: `b4cf8acb2` on top of
-  `9252c6c6292ebc1ae18a2f7d63e199919cbe1c96`.
+- Rebased implementation proof commit: `f93432ee6` on top of
+  base `9252c6c6292ebc1ae18a2f7d63e199919cbe1c96`.
 - `python3 scripts/orchestration/check_preflight.py` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `. .venv/bin/activate && python -m pytest -q tests/test_user_coaching_state.py tests/test_bayes_adherence_model.py tests/test_bayes_adherence_service.py tests/test_nutrition_log_idempotency.py`
