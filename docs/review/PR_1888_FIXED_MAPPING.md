@@ -128,9 +128,8 @@ Reason: These bot messages do not identify an actionable code defect in this PR 
   - Commit: `f7d5a3e5c`
   - Evidence: confirmed the QA findings and identified the CodeRabbit predicate-method concern as a NOT-A-BUG candidate; focused regression tests now cover the three false-green states.
 - `security-auditor`
-  - Disposition: DEFERRED until transport retry
-  - Backlog: this PR lane's post-open gate; retry required before any merge-readiness claim.
-  - Evidence: subagent transport returned a usage-limit error during the mandatory security-auditor pass. A local security-auditor fallback review plus Codex Security diff scan found no surviving reportable security candidates, but this does not replace the repo role gate.
+  - Disposition: NOT-A-BUG
+  - Evidence: retry completed as PulsePlate custom role `security-auditor` at `717cbd290ecd434ad0ec86abb9dc71e010bc049b` with no blocking security/governance findings. The role verified label-only readiness output, fixed workflow-dispatch boundaries, cross-repo execute gating, local/operator-plane ledger evidence, and `contract_only_not_runtime` Evidence Graph status.
 - Codex Security diff scan / finding discovery
   - Disposition: NOT-A-BUG
   - Evidence: local Codex Security diff scan reviewed 3/3 changed source rows, wrote `work_ledger.jsonl`, validated `report.md`, rendered `report.html`, and found zero surviving reportable candidates after the readiness fix.
@@ -176,6 +175,7 @@ Reason: These bot messages do not identify an actionable code defect in this PR 
 - PASS: commit hooks
 - PASS: push hooks including changed-file mypy, pip-audit, backend pre-push tests, full Bandit, and docker build test
 - PASS: Codex Security report format validation and HTML rendering
+- PASS: mandatory post-open `security-auditor` role retry at `717cbd290ecd434ad0ec86abb9dc71e010bc049b`; no blocking security/governance findings
 - PASS: `python scripts/orchestration/pr_review_context.py --pr 1888 --output /tmp/pulseplate_pr_1888_review_context.json`
 - PASS: `python scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1888_review_context.json --format markdown`
 - PASS: `python scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1888_review_context.json --format json`
@@ -194,13 +194,6 @@ Not claimed.
 
 Required before merge readiness:
 
-- Retry and complete the mandatory `security-auditor` post-open role pass when
-  the subagent transport limit clears or a coordinator-approved equivalent is
-  recorded.
-- Run `pulseplate-pr-review` after this mapping artifact is committed.
-- Update the PR-body mirror after this artifact is committed.
-- Resolve or disposition all review threads only after this mapping evidence is
-  present.
 - Wait for current-head CI and external bot state to settle.
 - Run strict merge-readiness checks with current-head evidence and no unresolved
   actionable bot comments.
