@@ -490,7 +490,15 @@ def test_app_store_metadata_stays_locale_scoped_and_within_limits(locale: str) -
         assert not [
             fragment for fragment in english_fragments if fragment in all_metadata
         ], f"{locale} metadata contains English compliance-note copy"
-        assert _has_locale_script(all_metadata, locale)
+        localized_visible_fields = (
+            payload["subtitle"],
+            payload["promo_text"],
+            *payload["description_paragraphs"],
+        )
+        assert all(
+            _has_locale_script(field, locale) for field in localized_visible_fields
+        ), f"{locale} visible metadata field lacks locale-specific copy signal"
+        assert _has_locale_script(",".join(payload["keywords"]), locale)
     offending_terms = _blocked_terms_in(locale, visible_metadata)
     assert not offending_terms, f"Blocked term(s) found in metadata: {offending_terms}"
 
@@ -794,9 +802,39 @@ def test_localized_pack_docs_preserve_no_upload_scope_and_safe_claims(locale: st
     assert (
         not english_fragments
     ), f"{locale} docs contain English operational copy: {english_fragments}"
+    upload_claims = sorted(claim for claim in NO_UPLOAD_CLAIMS if claim in text)
+    assert not upload_claims, f"{locale} docs overclaim release scope: {upload_claims}"
     safe_boundary_text = text.replace("неклиническим", "")
     offending_terms = _blocked_terms_in(locale, safe_boundary_text)
     assert not offending_terms, f"Blocked term(s) found in {locale} docs: {offending_terms}"
+
+
+def test_es_metadata_locale_guard_rejects_single_signal_false_green() -> None:
+    """One Spanish keyword must not make copied-English visible metadata acceptable."""
+    payload = {
+        "subtitle": "Nutrition planning",
+        "promo_text": "Plan meals with calmer daily support.",
+        "keywords": ["nutrición", "IA"],
+        "description_paragraphs": [
+            "Track nutrients and plan meals.",
+            "Build a weekly menu.",
+            "Use friendly FitChef suggestions.",
+        ],
+    }
+    localized_visible_fields = (
+        payload["subtitle"],
+        payload["promo_text"],
+        *payload["description_paragraphs"],
+    )
+
+    assert _has_locale_script(",".join(payload["keywords"]), "es-ES")
+    assert not all(_has_locale_script(field, "es-ES") for field in localized_visible_fields)
+
+
+def test_localized_pack_docs_reject_no_upload_claims() -> None:
+    """Localized docs must not become protected upload or submission-readiness proof."""
+    assert "listo para subir" in NO_UPLOAD_CLAIMS
+    assert "готов к загрузке" in NO_UPLOAD_CLAIMS
 
 
 @pytest.mark.parametrize(
