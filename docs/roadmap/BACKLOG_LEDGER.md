@@ -3850,7 +3850,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR #1870 (VIP Identity Loop Mapper runtime) -> PR #1873 (Signal vs Noise report/content contract lane) -> PR-TBD-FITCHEF-LOCALIZATION-RU (active) -> PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach direction) -> PR #1214 (structured coach contract freeze) -> PR #1215 (PRO Distortion Simulator runtime) -> PR #1870 (VIP Identity Loop Mapper runtime) -> PR #1873 (Signal vs Noise report/content contract lane) -> PR #1879 (RU App Store localization contract) -> PR #1883 (RU visual-QA prep) -> PR-TBD-FITCHEF-LOCALIZATION-ES (active)
   - Status: 🚧 In progress
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
@@ -3875,7 +3875,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `PR #1215` merged on March 21, 2026 for the feature-gated PRO Distortion Simulator runtime at `POST /api/v1/pro/fitchef/explain` (`70bdbd9e51d977d440b605eed3064c71212cff97`)
     - `PR #1870` merged on 2026-06-03 for the bounded VIP Identity Loop Mapper runtime at `POST /api/v1/vip/fitchef/insight` (`7802ed25e99e0a4f346d14487270a037bb5ec97a`)
     - `PR #1873` merged on 2026-06-03 for the Signal vs Noise report/content lane after VIP identity loop (`b38808e50244176d3d0c37d94d13f3289a32b032`)
-    - `PR-TBD-FITCHEF-LOCALIZATION-RU` is the current RU App Store localization pack contract lane; it is docs/metadata only and does not mutate Fastlane upload, runtime, screenshot binaries, or ES localization
+    - `PR #1879` merged on 2026-06-04 for the RU App Store localization contract pack (`00e026d639679aac7cb3aed9ab5ad009eb056500`)
+    - `PR #1883` merged on 2026-06-05 for the RU rendered-review prep bundle (`cf3e4c9c4d87e5c5f4e39d7bb5470984b0d0176c`)
+    - `PR-TBD-FITCHEF-LOCALIZATION-ES` is the current ES App Store localization pack and cross-locale QA lane; it is docs/metadata/test-only and does not mutate Fastlane upload, runtime, screenshot binaries, preview binaries, or App Store Connect
   - Subtracks:
     - FitChef visual identity and mascot system
     - App Store screenshot and preview pack
@@ -3978,11 +3980,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The closeout remains docs/tooling-only and does not widen the Docker deploy/runtime topology scope
 
 
-- [ ] P2: FitChef App Store localization RU
+- [x] P2: FitChef App Store localization RU
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (ASO / localization)
-  - Target PR: PR-TBD-FITCHEF-LOCALIZATION-RU
-  - Status: 🚧 Active as the next FitChef App Store localization contract lane after PR #1873 landed.
+  - Target PR: PR #1879 (`docs(fitchef): promote RU App Store localization pack contract`) -> PR #1883 (`docs(fitchef): add RU App Store visual QA prep bundle`)
+  - Status: ✅ Landed via PR #1879 on 2026-06-04 with merge commit `00e026d639679aac7cb3aed9ab5ad009eb056500`; rendered-review prep landed via PR #1883 on 2026-06-05 with merge commit `cf3e4c9c4d87e5c5f4e39d7bb5470984b0d0176c`.
   - Reason (EN): The first FitChef App Store wave is intentionally `EN` only. Russian localization now opens as its own governed metadata/screenshot/preview contract pack after the `EN` visual contract and production pack are frozen, so copy, screenshot ordering, and safe-area rules do not drift.
   - Links:
     - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
@@ -4002,15 +4004,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (ASO / localization)
   - Target PR: PR-TBD-FITCHEF-LOCALIZATION-ES
-  - Status: 📋 Planned
-  - Reason (EN): Spanish localization is a follow-up wave after the `EN` contract/pack. It must stay explicitly deferred so future ASO copy, screenshot exports, and review metadata remain traceable in the canonical backlog.
+  - Status: 🚧 Active as the current multilingual App Store localization QA lane after RU contract and visual-QA prep landed.
+  - Reason (EN): Spanish localization is a follow-up wave after the governed `EN` and `RU` contract packs. It now opens as a peer metadata/screenshot/preview contract plus cross-locale EN/RU/ES review prep so future ASO copy, screenshot exports, and review metadata remain traceable in the canonical backlog.
   - Links:
     - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_ES.md`
+    - `appstore/fitchef/es-ES/metadata/app_store_metadata.json`
+    - `appstore/fitchef/localization_qa/cross_locale_review_prep.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fitchef-umbrella-foundation`
   - DoD:
     - `ES` screenshot headlines and subtext are derived from the approved `EN` App Store contract
     - `ES` metadata pack is tracked under its own follow-up PR and does not change the canonical `EN` layout rules
-    - Any `ES` asset/export work remains separated from governance-only PRs
+    - `ES` preview storyboard/script stays under 30 seconds and remains script-only until a governed capture/export path opens
+    - Cross-locale EN/RU/ES QA prep flags copy length, safe-area, FitChef overlap, UI/copy mismatch, and wellness-claim review risks
+    - Any `ES` asset/export, Fastlane upload, preview binary, screenshot binary, or App Store Connect mutation work remains separated from governance-only PRs
 
 
 - [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)

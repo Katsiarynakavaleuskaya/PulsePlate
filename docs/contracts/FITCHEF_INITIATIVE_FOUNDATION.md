@@ -93,6 +93,15 @@ The current runtime anchors are stable service symbols:
 - RU upload checklist and source inventory
 - contract artifact: `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_RU.md`
 
+### PR-3c ES App Store localization pack
+
+- ES metadata starter pack
+- ES screenshot package contract derived from the governed EN/RU sequence
+- ES preview storyboard/script
+- ES upload checklist and source inventory
+- cross-locale rendered-review prep for EN/RU/ES parity
+- contract artifact: `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_ES.md`
+
 ### PR-4 structured coach contract
 
 Contract artifact:
@@ -142,11 +151,14 @@ Status reconciliation:
 ## Localization policy
 
 - First App Store wave: `EN`
-- Current follow-up localization wave: `RU` (`PR-TBD-FITCHEF-LOCALIZATION-RU`)
-- Later follow-up localization wave: `ES` (`PR-TBD-FITCHEF-LOCALIZATION-ES`)
+- Landed follow-up localization wave: `RU` (PR #1879 / `00e026d639679aac7cb3aed9ab5ad009eb056500`; rendered-review prep PR #1883 / `cf3e4c9c4d87e5c5f4e39d7bb5470984b0d0176c`)
+- Current follow-up localization wave: `ES` (`PR-TBD-FITCHEF-LOCALIZATION-ES`)
 
-`RU` is promoted only as a governed metadata/screenshot/preview contract pack.
-`ES` stays in backlog until its own reviewed localization lane opens.
+`RU` is promoted only as a governed metadata/screenshot/preview contract pack
+plus internal rendered-review prep. `ES` is opened only as a governed
+metadata/screenshot/preview contract pack plus cross-locale review prep.
+Protected upload, final media exports, and App Store Connect mutation remain
+outside this foundation wave.
 
 ## Explicit non-goals for this foundation wave
 

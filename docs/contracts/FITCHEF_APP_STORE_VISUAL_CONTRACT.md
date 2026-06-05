@@ -225,12 +225,14 @@ Rules:
 
 - PR-1 does not create or populate these folders
 - PR-3 may populate them only with reviewed release-ready assets
-- `RU` and `ES` folders remain follow-up waves after `EN`
+- `RU` and `ES` folders are follow-up waves after `EN`; `RU` is now landed as
+  a governed pack and `ES` opens as the current reviewed localization lane
 
 ## Localization policy
 
 - First governed App Store wave: `EN` only
-- Follow-up waves remain backlog-tracked: `RU`, `ES`
+- Follow-up waves are backlog-tracked and separated by locale:
+  `RU` is landed, `ES` is current
 - No bilingual or mixed-language screenshot sets are allowed in the same export
   pack
 
