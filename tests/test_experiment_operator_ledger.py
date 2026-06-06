@@ -143,6 +143,21 @@ def _activation_evidence(**overrides: object) -> dict[str, object]:
     return payload
 
 
+def _rehash_activation_evidence(payload: dict[str, object]) -> dict[str, object]:
+    without_id = {key: value for key, value in payload.items() if key != "evidence_id"}
+    rendered = json.dumps(
+        without_id,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return {
+        **without_id,
+        "evidence_id": hashlib.sha256(rendered).hexdigest()[:24],
+    }
+
+
 def _write_result(repo_root: Path, name: str, payload: dict[str, object]) -> Path:
     path = repo_root / ledger.EXPERIMENT_RESULTS_REPO_PREFIX / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1441,6 +1456,20 @@ def test_private_pilot_activation_evidence_contract_is_exact_and_value_free() ->
         match="next_operator_action",
     ):
         activation.validate_private_pilot_activation_evidence(tampered)
+
+    contradictory = _rehash_activation_evidence(
+        {
+            **evidence,
+            "dispatch_outcome_class": "not_run",
+            "last_smoke": "none",
+            "next_operator_action": "no_action",
+        }
+    )
+    with pytest.raises(
+        activation.PrivatePilotActivationEvidenceError,
+        match="activation_state is inconsistent",
+    ):
+        activation.validate_private_pilot_activation_evidence(contradictory)
 
 
 def test_private_pilot_activation_helper_has_no_live_authority() -> None:

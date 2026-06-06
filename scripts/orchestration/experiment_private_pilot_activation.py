@@ -352,6 +352,37 @@ def _last_smoke(dispatch_outcome_class: str) -> str:
     return "not_run"
 
 
+def _assert_consistent_status_labels(payload: Mapping[str, Any]) -> None:
+    """Reject internally contradictory evidence labels."""
+
+    outcome = str(payload["dispatch_outcome_class"])
+    activation_state = str(payload["activation_state"])
+    if outcome in {"smoke_recorded", "smoke_failed_safely", "invalid_local_artifact"}:
+        if activation_state != outcome:
+            raise PrivatePilotActivationEvidenceError(
+                "Private pilot activation activation_state is inconsistent."
+            )
+    elif activation_state in {"smoke_recorded", "smoke_failed_safely", "invalid_local_artifact"}:
+        raise PrivatePilotActivationEvidenceError(
+            "Private pilot activation activation_state is inconsistent."
+        )
+
+    if str(payload["last_smoke"]) != _last_smoke(outcome):
+        raise PrivatePilotActivationEvidenceError(
+            "Private pilot activation last_smoke is inconsistent."
+        )
+
+    expected_action = _next_operator_action(
+        activation_state=activation_state,
+        readiness=payload,
+        dispatch_outcome_class=outcome,
+    )
+    if str(payload["next_operator_action"]) != expected_action:
+        raise PrivatePilotActivationEvidenceError(
+            "Private pilot activation next_operator_action is inconsistent."
+        )
+
+
 def build_private_pilot_activation_evidence(
     readiness_report: Mapping[str, Any] | None = None,
     *,
@@ -699,6 +730,7 @@ def validate_private_pilot_activation_evidence(payload: Mapping[str, Any]) -> di
             label="redaction summary",
         ),
     }
+    _assert_consistent_status_labels(normalized)
     evidence_id = payload["evidence_id"]
     if not isinstance(evidence_id, str) or EVIDENCE_ID_RE.fullmatch(evidence_id) is None:
         raise PrivatePilotActivationEvidenceError(

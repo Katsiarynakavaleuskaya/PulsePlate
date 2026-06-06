@@ -3956,8 +3956,14 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         == "${{ inputs.hypothesis_sha256 }}"
     )
     assert dry_readiness_step["if"] == "inputs.dry_run != 'false'"
+    assert dry_readiness_step["id"] == "dry_readiness"
     assert live_readiness_step["if"] == "inputs.dry_run == 'false'"
+    assert live_readiness_step["id"] == "live_readiness"
+    assert dry_config_step["id"] == "bridge_config"
+    assert input_step["id"] == "smoke_inputs"
+    assert retention_step["id"] == "audit_retention"
     assert dry_evidence_step["if"] == "inputs.dry_run != 'false'"
+    assert presence_step["id"] == "live_prerequisites"
     assert runtime_step["id"] == "live_smoke"
     assert live_evidence_step["if"] == "inputs.dry_run == 'false'"
     assert "SLACK_APP_TOKEN" not in dry_readiness_step["env"]
@@ -4033,7 +4039,9 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert 'dispatch_outcome_class="dry_run_only"' in workflow_text
     assert "dispatch_outcome_class=smoke_recorded" in workflow_text
     assert "dispatch_outcome_class=smoke_failed_safely" in workflow_text
+    assert "dispatch_outcome_class=blocked_before_dispatch" in workflow_text
     assert 'dispatch_outcome_class=os.environ["DISPATCH_OUTCOME_CLASS"]' in workflow_text
+    assert "json.JSONDecodeError" in workflow_text
     assert "private-pilot-activation-evidence/activation-evidence.json" in workflow_text
     assert "--run-socket" not in workflow_text
     assert "--audit-retention report" in workflow_text
@@ -4064,10 +4072,42 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert steps.index(mask_step) < steps.index(runtime_step)
     assert steps.index(dry_readiness_step) < steps.index(runtime_step)
     assert steps.index(live_readiness_step) < steps.index(runtime_step)
+    for status_step, output_name in (
+        (dry_config_step, "config_status"),
+        (input_step, "smoke_input_status"),
+        (retention_step, "audit_retention_status"),
+        (presence_step, "prerequisite_status"),
+    ):
+        assert "set +e" in status_step["run"]
+        assert ">/dev/null 2>&1" in status_step["run"]
+        assert f"{output_name}=$?" in status_step["run"]
+        assert f"{output_name}=%s" in status_step["run"]
+        assert "GITHUB_OUTPUT" in status_step["run"]
     assert ">/dev/null 2>&1" in runtime_step["run"]
     assert "smoke_status=$?" in runtime_step["run"]
     assert "GITHUB_OUTPUT" in runtime_step["run"]
+    assert "prerequisite_status" in runtime_step["run"]
+    assert "blocked_before_dispatch" in runtime_step["run"]
     assert "dispatch_outcome_class=smoke_failed_safely" in runtime_step["run"]
+    assert (
+        'initial_readiness_status="${{ steps.live_readiness.outputs.readiness_status }}"'
+        in live_evidence_step["run"]
+    )
+    assert (
+        'config_status="${{ steps.bridge_config.outputs.config_status }}"'
+        in live_evidence_step["run"]
+    )
+    assert 'smoke_input_status="${{ steps.smoke_inputs.outputs.smoke_input_status }}"' in (
+        live_evidence_step["run"]
+    )
+    assert (
+        'audit_retention_status="${{ steps.audit_retention.outputs.audit_retention_status }}"'
+        in live_evidence_step["run"]
+    )
+    assert (
+        'prerequisite_status="${{ steps.live_prerequisites.outputs.prerequisite_status }}"'
+        in live_evidence_step["run"]
+    )
     assert (
         'smoke_status="${{ steps.live_smoke.outputs.smoke_status }}"' in live_evidence_step["run"]
     )
@@ -4077,12 +4117,24 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     )
     assert "DISPATCH_OUTCOME_CLASS" in live_evidence_step["run"]
     assert 'exit "$smoke_status"' in live_evidence_step["run"]
+    assert 'exit "$initial_readiness_status"' in live_evidence_step["run"]
+    assert "blocked_by_invalid_config" in live_evidence_step["run"]
+    assert "blocked_before_dispatch" in live_evidence_step["run"]
+    assert (
+        'initial_readiness_status="${{ steps.dry_readiness.outputs.readiness_status }}"'
+        in dry_evidence_step["run"]
+    )
+    assert "blocked_before_dispatch" in dry_evidence_step["run"]
+    assert 'exit "$initial_readiness_status"' in dry_evidence_step["run"]
+    assert "json.JSONDecodeError" in dry_evidence_step["run"]
     for readiness_step in (dry_readiness_step, live_readiness_step):
         assert "render_activation_readiness_summary" in readiness_step["run"]
         assert "GITHUB_STEP_SUMMARY" in readiness_step["run"]
         assert "set +e" in readiness_step["run"]
         assert "readiness_status=$?" in readiness_step["run"]
-        assert 'exit "$readiness_status"' in readiness_step["run"]
+        assert "readiness_status=%s" in readiness_step["run"]
+        assert "GITHUB_OUTPUT" in readiness_step["run"]
+        assert 'exit "$readiness_status"' not in readiness_step["run"]
     assert "deterministic_ci_requires_live_slack" in workflow_text
     assert "opened_http_ingress" in workflow_text
     assert "semantic_cache_enabled" in workflow_text
