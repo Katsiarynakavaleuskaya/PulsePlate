@@ -77,7 +77,7 @@ Evidence: `ios/fastlane/Fastfile` and `ios/fastlane/Appfile` now use `com.kavale
   was rejected because the runner temp checkout lacked the shared `.venv` for
   `make validate-changed`; it is not used as PR evidence.
 
-## Validation
+## Tests
 
 - PASS: `python3 scripts/orchestration/check_preflight.py --path ios/PulsePlate.xcodeproj/project.pbxproj`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
