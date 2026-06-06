@@ -97,6 +97,7 @@ Decision: proceed with changes.
 - Main coverage carryover validation after commit `c98d318c4`: `../../.venv/bin/python -m pytest -q tests/test_user_coaching_state.py` PASS; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 - Late CodeRabbit release-validator hardening validation after commit `0c414621f`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 - Late CodeRabbit pricing/export false-green validation after commit `cef1c738e`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+- Compact ISO-prefix pricing validation after commit `941042ad3`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 Full local `make verify` was not run by default for this docs/release-validator PR under the operator-approved changed-scope gate policy. Merge readiness is not claimed without current-head CI, post-open role passes, Codex Security scan, `pulseplate-pr-review`, unresolved-thread checks, PR body/mapping parity, strict wrapper evidence, and wait-window.
 
@@ -127,6 +128,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Late CodeRabbit protected-media/locale-automation scope notes after head `eac8e00f1`: DEFERRED. Evidence: this PR is explicitly `INTERNAL_REVIEW_ONLY`, text/JSON-only, and forbids screenshot/video binaries and protected upload surfaces; `docs/roadmap/BACKLOG_LEDGER.md` keeps protected screenshot/video review, Fastlane upload, App Store Connect mutation, and locale-specific rendered evidence as protected follow-ups. Future protected media or locale-automation lanes may change validator policy with their own tests and release evidence.
 - Post-open `qa-engineer-agent` rerun on head `9327943ab`: FAIL with live unresolved review threads. Status: blocking until the mapped fixes are pushed, thread evidence is rechecked, and the live threads are resolved. Evidence: mapped FIXED/DEFERRED evidence exists for known threads, two new CodeRabbit findings were fixed in `cef1c738e`, and merge readiness is not claimed.
 - Late CodeRabbit pricing/export batch after head `9327943ab`: FIXED in `cef1c738e`. Evidence: validator now blocks prefix currency price formats and the release-readiness matrix includes protected binary export actions in `blocked_release_actions`; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally.
+- Post-open `qa-engineer-agent` rerun on head `8d4084816`: FAIL with compact ISO-prefix pricing false-greens (`EUR9.99`, `USD9.99`, `RUB999`). Disposition: FIXED in `941042ad3`. Evidence: validator now blocks compact `USD`/`EUR`/`RUB` prefixes before digits; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 
 ## Fixed in Commit Mapping
 
@@ -258,6 +260,11 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now limits boundary-neg
 Finding: `pulseplate-pr-review` dry-run report flagged an advisory large-diff planning note for human review.
 Disposition: NOT-A-BUG
 Evidence: Operator scope intentionally broadened this release-readiness PR beyond a microscopic docs lane while keeping it bounded to repo-local App Store release-readiness metadata, validators, and tests. The PR does not touch protected upload/runtime surfaces, and the targeted gates plus current-head CI and role reviews cover the expanded scope. No code, security, wellness, or release-boundary defect was reported by the PR review.
+
+Finding: post-open `qa-engineer-agent` agent `019e99f6-0eda-7a80-aaed-8ebfc90cf7db` reported compact ISO-prefix pricing false-greens for `EUR9.99`, `USD9.99`, and `RUB999`.
+Disposition: FIXED
+Commit: 941042ad3
+Evidence: `scripts/release/check_ios_appstore_verify.py` now blocks compact `USD`/`EUR`/`RUB` prefixes before digits, and `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the three reported compact forms. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 ## Main Coverage Carryover
 
