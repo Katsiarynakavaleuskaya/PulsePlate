@@ -363,6 +363,30 @@ def test_transition_plan_schema_rejects_impossible_rank_or_probability_shapes() 
         )
 
 
+def test_transition_plan_schema_rejects_unavailable_ranked_scenarios() -> None:
+    unavailable_probability = MarkovScenarioProbability(
+        rank=1,
+        scenario="slip_support",
+        probability=1.0,
+    )
+
+    with pytest.raises(ValidationError, match="available_scenarios"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="slip_support_needed",
+            available_scenarios=("mascot_insight",),
+            ranked_scenarios=(unavailable_probability,),
+            confidence=0.5,
+        )
+
+    with pytest.raises(ValidationError, match="available_scenarios"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="no_recommendation_available",
+            available_scenarios=(),
+            ranked_scenarios=(unavailable_probability,),
+            confidence=0.5,
+        )
+
+
 def test_capped_or_degraded_behavior_lowers_confidence_and_adds_reason() -> None:
     base_state = _state(
         recent_behavior=RecentBehaviorSnapshot(

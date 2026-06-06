@@ -304,6 +304,13 @@ class MarkovCoachingTransitionPlanV1(BaseModel):
         if actual_ranks != expected_ranks:
             raise ValueError("ranked_scenarios ranks must be consecutive from 1")
         if ranked_scenarios:
+            unavailable_scenarios = tuple(
+                ranked.scenario
+                for ranked in ranked_scenarios
+                if ranked.scenario not in self.available_scenarios
+            )
+            if unavailable_scenarios:
+                raise ValueError("ranked_scenarios must be limited to available_scenarios")
             total_probability = round(sum(ranked.probability for ranked in ranked_scenarios), 4)
             if total_probability != 1.0:
                 raise ValueError("ranked_scenarios probabilities must sum to 1.0")
