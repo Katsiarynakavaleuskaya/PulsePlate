@@ -67,6 +67,7 @@ Evidence: Advisory bot comments are dispositioned in Bot Review Comment Disposit
 Reason: The listed comments do not require code changes under the repo's operator-plane security boundary and machine-heavy local gate policy.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367087917
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442328144
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442276716
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#issuecomment-4638093331
 
@@ -272,6 +273,16 @@ merge-readiness claim.
     branch refs, hypotheses, local paths, oracle output, or patch text in
     workflow logs. The workflow records class labels and exit status only, with
     a redacted fallback evidence shape for parse failures.
+- Cubic aggregate review summary
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442328144>
+  - Disposition: NOT-A-BUG
+  - Evidence: The aggregate review summary pointed to the Cubic child threads
+    already dispositioned in this artifact: readiness-report parse fallback is
+    FIXED in `68882a4b3ffaf65e279b7c173c1df874eb9e0502`, and suppressed
+    readiness stderr is NOT-A-BUG under the no-raw-output workflow boundary.
+  - Reason: The review-level URL is an aggregator for those child comments and
+    does not carry an additional standalone code finding after the child thread
+    dispositions are recorded.
 - Sourcery review quota comment
   - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442276716>
   - Disposition: NOT-A-BUG
