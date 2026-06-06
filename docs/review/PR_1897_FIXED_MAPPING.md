@@ -2,8 +2,9 @@
 
 ## Scope
 
-This PR updates only the iOS app target bundle identifier to the Apple
-Developer registered identifier `com.kavaleuskaya.pulseplate`.
+This PR updates the iOS app target bundle identifier and matching local
+Fastlane bundle identifier fallbacks to the Apple Developer registered
+identifier `com.kavaleuskaya.pulseplate`.
 
 Out of scope: certificates, provisioning profiles, secrets, Fastlane protected
 environment changes, App Store Connect upload authority, metadata, screenshots,
@@ -21,9 +22,10 @@ project recovered-reference noise.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed for initial PR open; no unresolved review
-  threads were present when this artifact was created.
+- [x] Discussion-thread pass completed for initial PR open.
 - [x] Fixed in commit mapping completed for the initial implementation commit.
+- [x] Post-open Codex review finding on Fastlane snapshot bundle identifier
+  fallback was fixed and mapped.
 - Post-open review remains active; this artifact will be updated for any new
   actionable review findings.
 
@@ -35,11 +37,20 @@ Evidence: `ios/PulsePlate.xcodeproj/project.pbxproj` changes exactly the Debug a
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897
 
+Disposition: FIXED
+Commit: 264e2d2863b0b3b56f98f143c2bd106875d92eea
+Evidence: `ios/fastlane/Fastfile` and `ios/fastlane/Appfile` now use `com.kavaleuskaya.pulseplate` as their local bundle identifier fallback while preserving CI fail-closed `APP_STORE_BUNDLE_IDENTIFIER` behavior for protected App Store lanes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897#discussion_r3367169317 -> 264e2d2863b0b3b56f98f143c2bd106875d92eea
+
 ## Implementation Evidence
 
 - Implementation commit: `b48a16a0ec920700aa38a431c260060940ff4926`
+- Fastlane alignment commit: `264e2d2863b0b3b56f98f143c2bd106875d92eea`
 - Evidence:
   - `ios/PulsePlate.xcodeproj/project.pbxproj`
+  - `ios/fastlane/Fastfile`
+  - `ios/fastlane/Appfile`
 
 ## Premortem Findings
 
@@ -72,6 +83,8 @@ Evidence: `ios/PulsePlate.xcodeproj/project.pbxproj` changes exactly the Debug a
 - PASS: `python3 scripts/orchestration/check_preflight.py --path ios/PulsePlate.xcodeproj/project.pbxproj`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: `/usr/bin/plutil -lint ios/PulsePlate.xcodeproj/project.pbxproj ios/PulsePlate/Info-Release.plist`
+- PASS: `ruby -c ios/fastlane/Fastfile && ruby -c ios/fastlane/Appfile`
+- PASS: `.venv/bin/python -m pytest -q tests/test_ios_appstore_assets_workflow_contract.py tests/test_ios_appstore_asset_validators.py`
 - PASS: `xcodebuild -list -project ios/PulsePlate.xcodeproj`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files` with repo root `.venv/bin` on PATH
@@ -80,7 +93,7 @@ Evidence: `ios/PulsePlate.xcodeproj/project.pbxproj` changes exactly the Debug a
 ## Release Notes
 
 - Protected `APP_STORE_BUNDLE_IDENTIFIER` / Fastlane environment configuration
-  remains operator-owned and must be aligned to `com.kavaleuskaya.pulseplate`
+  remains operator-owned and must be set to `com.kavaleuskaya.pulseplate`
   before any protected App Store upload.
 - This PR does not claim protected upload readiness.
 
