@@ -520,6 +520,10 @@ def test_shadow_harness_rejects_malformed_offline_fragments(
         harness._offline_scenarios({"scenario_results": ["not-a-mapping"]})
     with pytest.raises(ValueError, match="scenario_id must be a string"):
         harness._offline_scenarios({"scenario_results": [{"scenario_id": 123}]})
+    with pytest.raises(ValueError, match="scenario_id duplicated"):
+        harness._offline_scenarios(
+            {"scenario_results": [{"scenario_id": "same"}, {"scenario_id": "same"}]}
+        )
     with pytest.raises(ValueError, match="backend_label_context must be a mapping"):
         harness._backend_label_context({})
 
@@ -571,6 +575,8 @@ def test_shadow_harness_rejects_malformed_scenario_value_types() -> None:
         harness._scenario_optional_string({"match_mode": 123}, "match_mode")
     with pytest.raises(ValueError, match="must be an integer or null"):
         harness._scenario_optional_int({"score_bps": "9800"}, "score_bps")
+    with pytest.raises(ValueError, match="must be an integer or null"):
+        harness._scenario_optional_int({"score_bps": True}, "score_bps")
     with pytest.raises(ValueError, match="must be a boolean"):
         harness._scenario_bool({"stop_serving": "false"}, "stop_serving")
     with pytest.raises(ValueError, match="must be a list"):

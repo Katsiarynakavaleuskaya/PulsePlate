@@ -506,6 +506,8 @@ def _offline_scenarios(mapping: Mapping[str, JsonValue]) -> Mapping[str, Mapping
         scenario_id = value.get("scenario_id")
         if not isinstance(scenario_id, str):
             raise ValueError("offline runner scenario_id must be a string")
+        if scenario_id in scenarios:
+            raise ValueError(f"offline runner scenario_id duplicated: {scenario_id}")
         scenarios[scenario_id] = _freeze_mapping(value)
     return MappingProxyType(scenarios)
 
@@ -1232,7 +1234,9 @@ def _scenario_optional_string(scenario: Mapping[str, JsonValue], key: str) -> st
 
 def _scenario_optional_int(scenario: Mapping[str, JsonValue], key: str) -> int | None:
     value = scenario.get(key)
-    if value is None or isinstance(value, int):
+    if value is None:
+        return value
+    if type(value) is int:
         return value
     raise ValueError(f"scenario {key} must be an integer or null")
 
