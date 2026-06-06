@@ -382,6 +382,98 @@ def test_transition_plan_schema_rejects_non_policy_ranked_distribution() -> None
         )
 
 
+def test_transition_plan_schema_allows_empty_policy_when_primary_is_unavailable() -> None:
+    plan = MarkovCoachingTransitionPlanV1(
+        transition_state="cold_start_default",
+        available_scenarios=("slip_support",),
+        ranked_scenarios=(),
+        recommended_scenario="slip_support",
+        confidence=0.99,
+        reasons=(
+            "cold_start_default",
+            "default_prior_not_observed_slip",
+            "scenario_unavailable",
+        ),
+    )
+
+    assert plan.ranked_scenarios == ()
+    assert plan.recommended_scenario is None
+    assert plan.confidence == 0.0
+
+
+def test_markov_transition_schemas_reject_reason_mismatches() -> None:
+    reason_cases = (
+        ("cold_start_default", "mascot_insight", ("cold_start_default",)),
+        (
+            "cold_start_default",
+            "mascot_insight",
+            (
+                "cold_start_default",
+                "default_prior_not_observed_slip",
+                "explicit_slip_event",
+            ),
+        ),
+        ("slip_support_needed", "slip_support", ()),
+        (
+            "slip_support_needed",
+            "slip_support",
+            ("explicit_slip_event", "cold_start_default"),
+        ),
+        ("weekly_reflection_due", "weekly_reflection", ()),
+        (
+            "weekly_reflection_due",
+            "weekly_reflection",
+            ("day_close_observed", "explicit_slip_event"),
+        ),
+        ("steady_state_default", "mascot_insight", ("explicit_slip_event",)),
+    )
+
+    for transition_state, scenario, reasons in reason_cases:
+        with pytest.raises(ValidationError, match="transition_state"):
+            PromptSafeMarkovTransitionContext.model_validate(
+                {
+                    "transition_state": transition_state,
+                    "recommended_scenario": scenario,
+                    "ranked_scenarios": (
+                        {
+                            "rank": 1,
+                            "scenario": scenario,
+                            "probability": 1.0,
+                            "reasons": reasons,
+                        },
+                    ),
+                    "confidence": 0.99,
+                    "reasons": reasons,
+                }
+            )
+
+    with pytest.raises(ValidationError, match="transition_state"):
+        PromptSafeMarkovTransitionContext(
+            transition_state="no_recommendation_available",
+            recommended_scenario=None,
+            ranked_scenarios=(),
+            confidence=0.0,
+        )
+
+
+def test_transition_plan_schema_rejects_ranked_reason_mismatch() -> None:
+    with pytest.raises(ValidationError, match="plan reasons"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="cold_start_default",
+            available_scenarios=("mascot_insight",),
+            ranked_scenarios=(
+                MarkovScenarioProbability(
+                    rank=1,
+                    scenario="mascot_insight",
+                    probability=1.0,
+                    reasons=("cold_start_default",),
+                ),
+            ),
+            confidence=0.35,
+            reasons=("cold_start_default", "default_prior_not_observed_slip"),
+        )
+
+
 def test_transition_plan_schema_rejects_unavailable_ranked_scenarios() -> None:
     unavailable_probability = MarkovScenarioProbability(
         rank=1,

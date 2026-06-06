@@ -398,10 +398,8 @@ def _validate_markov_ranked_scenarios(
     actual_ranks = tuple(ranked.rank for ranked in ranked_scenarios)
     if actual_ranks != expected_ranks:
         raise ValueError("ranked_scenarios ranks must be consecutive from 1")
-    if not ranked_scenarios:
-        return
 
-    if available_scenarios is not None:
+    if ranked_scenarios and available_scenarios is not None:
         unavailable_scenarios = tuple(
             ranked.scenario
             for ranked in ranked_scenarios
@@ -410,16 +408,18 @@ def _validate_markov_ranked_scenarios(
         if unavailable_scenarios:
             raise ValueError("ranked_scenarios must be limited to available_scenarios")
 
-    impossible_scenarios = tuple(
-        ranked.scenario
-        for ranked in ranked_scenarios
-        if ranked.scenario not in MARKOV_TRANSITION_SCENARIOS_BY_STATE[transition_state]
-    )
-    if impossible_scenarios:
-        raise ValueError("ranked_scenarios must be valid for transition_state")
-    total_probability = round(sum(ranked.probability for ranked in ranked_scenarios), 4)
-    if total_probability != 1.0:
-        raise ValueError("ranked_scenarios probabilities must sum to 1.0")
+    if ranked_scenarios:
+        impossible_scenarios = tuple(
+            ranked.scenario
+            for ranked in ranked_scenarios
+            if ranked.scenario not in MARKOV_TRANSITION_SCENARIOS_BY_STATE[transition_state]
+        )
+        if impossible_scenarios:
+            raise ValueError("ranked_scenarios must be valid for transition_state")
+        total_probability = round(sum(ranked.probability for ranked in ranked_scenarios), 4)
+        if total_probability != 1.0:
+            raise ValueError("ranked_scenarios probabilities must sum to 1.0")
+
     if available_scenarios is not None:
         expected_policy = _expected_markov_ranked_policy(
             transition_state=transition_state,
@@ -428,9 +428,11 @@ def _validate_markov_ranked_scenarios(
         actual_policy = tuple((ranked.scenario, ranked.probability) for ranked in ranked_scenarios)
         if actual_policy != expected_policy:
             raise ValueError("ranked_scenarios must match fixed transition policy")
+    _validate_markov_transition_reasons(transition_state=transition_state, reasons=reasons)
+    if not ranked_scenarios:
+        return
     if any(ranked.reasons != reasons for ranked in ranked_scenarios):
         raise ValueError("ranked_scenarios reasons must match plan reasons")
-    _validate_markov_transition_reasons(transition_state=transition_state, reasons=reasons)
 
 
 class MarkovCoachingTransitionPlanV1(BaseModel):
