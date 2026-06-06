@@ -26,7 +26,7 @@ authority, semantic-cache authority, or public response shapes.
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-explicit-trim-limit metadata, digest schema diagnostics, field-inventory schema bounds, rewrite trim-state preservation, accumulated rewrite trim counts, and strict digest-array validation. Focused provenance tests and the admission-report checker pass.
+Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-explicit-trim-limit metadata, digest schema diagnostics, field-inventory schema bounds, rewrite trim-state preservation, accumulated rewrite trim counts, strict digest-array validation, fail-closed context digest labels, and rewrite trim count consistency. Focused provenance tests and the admission-report checker pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#pullrequestreview-4439872260 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365509361 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
@@ -40,6 +40,10 @@ Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-ex
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365568656 -> 9dfcab5e625eafa84365c82121fd80894ff7b61a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365616019 -> cad9450b94a0e949fd742a0f36fb9e31deabc987
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365771464 -> 41beecb34327e0b4d790d3ee8869b74ce822b240
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#pullrequestreview-4440397502 -> 49c9ebe1602fb9e7c7df7124d95dd4a22a4cf924
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365878578 -> 49c9ebe1602fb9e7c7df7124d95dd4a22a4cf924
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#pullrequestreview-4440399721 -> 49c9ebe1602fb9e7c7df7124d95dd4a22a4cf924
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365880796 -> 49c9ebe1602fb9e7c7df7124d95dd4a22a4cf924
 
 ## Implementation Evidence
 
@@ -104,6 +108,9 @@ Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-ex
 - PASS: focused provenance pytest bundle:
   `python3 -m pytest -q tests/test_remaining_modules.py tests/test_rag_orchestration.py tests/test_philosophical_runtime.py tests/test_insight_application_service.py tests/test_verification_provenance_admission_report.py tests/test_knowledge_promotion.py`
 - PASS: `make validate-changed`
+- PASS: targeted regressions for fail-closed context digest labels and rewrite
+  trim count consistency:
+  `python3 -m pytest -q tests/test_remaining_modules.py::TestVerificationRegistryCoverageTail::test_verification_provenance_redacts_before_hash_and_preserves_admission tests/test_philosophical_runtime.py::TestPhilosophicalRuntime::test_rewrite_provenance_preserves_initial_prompt_trim_state`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks during `git push`, including changed-files mypy,
   backend pre-push tests, full-repo Bandit, and Docker build test.
