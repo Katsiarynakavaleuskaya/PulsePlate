@@ -49,6 +49,7 @@ TOP_LEVEL_KEYS: tuple[str, ...] = (
     "generated_at",
     "scope",
     "generation_mode",
+    "evidence_asset",
     "source_ids",
     "authority_flags",
     "path_specs",
@@ -59,6 +60,15 @@ TOP_LEVEL_KEYS: tuple[str, ...] = (
     "redaction_assertions",
     "source_refs",
 )
+EVIDENCE_ASSET_KEYS: tuple[str, ...] = (
+    "asset_type",
+    "artifact_fingerprint",
+    "idempotency_key",
+    "upstream_assets",
+    "replay_behavior",
+    "admission_behavior",
+)
+UPSTREAM_ASSET_KEYS: tuple[str, ...] = ("asset_id", "asset_type", "fingerprint")
 AUTHORITY_FLAG_KEYS: tuple[str, ...] = (*AUTHORITY_FALSE_KEYS, "semantic_cache_gate_status")
 PATH_SPEC_KEYS: tuple[str, ...] = (
     "path_id",
@@ -378,6 +388,44 @@ def _expected_schema() -> Mapping[str, object]:
             "generated_at": {"type": "string", "const": GENERATED_AT},
             "scope": {"type": "string", "const": SCOPE},
             "generation_mode": {"type": "string", "const": GENERATION_MODE},
+            "evidence_asset": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": list(EVIDENCE_ASSET_KEYS),
+                "properties": {
+                    "asset_type": {
+                        "type": "string",
+                        "const": "semantic_cache_shadow_admission_harness_report",
+                    },
+                    "artifact_fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                    "idempotency_key": {"type": "string", "pattern": "^idem:[A-Za-z0-9_.:-]+$"},
+                    "upstream_assets": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": list(UPSTREAM_ASSET_KEYS),
+                            "properties": {
+                                "asset_id": string,
+                                "asset_type": string,
+                                "fingerprint": {
+                                    "type": "string",
+                                    "pattern": "^sha256:[A-Za-z0-9_.:-]+$",
+                                },
+                            },
+                        },
+                    },
+                    "replay_behavior": {
+                        "type": "string",
+                        "const": "deterministic_static_replay_safe",
+                    },
+                    "admission_behavior": {
+                        "type": "string",
+                        "const": "metadata_only_shadow_report_no_runtime_admission",
+                    },
+                },
+            },
             "source_ids": {
                 "type": "object",
                 "additionalProperties": False,
@@ -541,6 +589,7 @@ def _validate_report_shape(report: Mapping[str, object]) -> list[str]:
     ):
         if report.get(key) != expected:
             errors.append(f"report {key} must be {expected}")
+    errors.extend(_validate_evidence_asset(report.get("evidence_asset")))
     source_ids = _as_mapping(report.get("source_ids"), "source_ids", errors)
     if source_ids:
         errors.extend(_validate_keys(source_ids, tuple(SOURCE_IDS.keys()), label="source_ids"))
@@ -574,6 +623,66 @@ def _validate_report_shape(report: Mapping[str, object]) -> list[str]:
             errors.append("final_admission_decision.decision must be shadow_report_only")
         _validate_closed_authority(final_decision, errors=errors, label="final_admission_decision")
     errors.extend(_validate_source_refs(report.get("source_refs")))
+    return errors
+
+
+def _validate_evidence_asset(value: object) -> list[str]:
+    errors: list[str] = []
+    asset = _as_mapping(value, "evidence_asset", errors)
+    if not asset:
+        return errors
+    errors.extend(_validate_keys(asset, EVIDENCE_ASSET_KEYS, label="evidence_asset"))
+    if asset.get("asset_type") != "semantic_cache_shadow_admission_harness_report":
+        errors.append("evidence_asset.asset_type mismatch")
+    fingerprint = asset.get("artifact_fingerprint")
+    if not isinstance(fingerprint, str) or not re.match(r"^sha256:[a-f0-9]{64}$", fingerprint):
+        errors.append("evidence_asset.artifact_fingerprint must be sha256 label")
+    idempotency_key = asset.get("idempotency_key")
+    if not isinstance(idempotency_key, str) or not re.match(
+        r"^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$",
+        idempotency_key,
+    ):
+        errors.append("evidence_asset.idempotency_key mismatch")
+    if asset.get("replay_behavior") != "deterministic_static_replay_safe":
+        errors.append("evidence_asset.replay_behavior mismatch")
+    if asset.get("admission_behavior") != "metadata_only_shadow_report_no_runtime_admission":
+        errors.append("evidence_asset.admission_behavior mismatch")
+    upstream = asset.get("upstream_assets")
+    if not isinstance(upstream, list) or not upstream:
+        errors.append("evidence_asset.upstream_assets must be a non-empty list")
+        return errors
+    observed_ids: list[str] = []
+    for index, item in enumerate(upstream):
+        upstream_asset = _as_object_inline(
+            item,
+            label=f"evidence_asset.upstream_assets[{index}]",
+            errors=errors,
+        )
+        if not upstream_asset:
+            continue
+        errors.extend(
+            _validate_keys(
+                upstream_asset,
+                UPSTREAM_ASSET_KEYS,
+                label=f"evidence_asset.upstream_assets[{index}]",
+            )
+        )
+        asset_id = upstream_asset.get("asset_id")
+        if isinstance(asset_id, str):
+            observed_ids.append(asset_id)
+        upstream_fingerprint = upstream_asset.get("fingerprint")
+        if not isinstance(upstream_fingerprint, str) or not upstream_fingerprint.startswith(
+            "sha256:"
+        ):
+            errors.append(
+                f"evidence_asset.upstream_assets[{index}].fingerprint must be sha256 label"
+            )
+    if observed_ids != [
+        "semantic_cache_offline_admission_runner_report",
+        "verification_provenance_contracts",
+        "semantic_cache_gate_status",
+    ]:
+        errors.append("evidence_asset.upstream_assets order mismatch")
     return errors
 
 

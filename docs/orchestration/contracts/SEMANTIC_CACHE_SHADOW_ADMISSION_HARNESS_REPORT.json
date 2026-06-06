@@ -5,6 +5,30 @@
   "generated_at": "static-2026-06-06",
   "scope": "internal_only_semantic_cache_shadow_admission_harness",
   "generation_mode": "deterministic_static_shadow_synthetic_redacted_inputs",
+  "evidence_asset": {
+    "asset_type": "semantic_cache_shadow_admission_harness_report",
+    "artifact_fingerprint": "sha256:f0968f538c1e391d13d06697610884d9396b97650ba72c23aaea50c831c57cc8",
+    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:f0968f538c1e391d",
+    "upstream_assets": [
+      {
+        "asset_id": "semantic_cache_offline_admission_runner_report",
+        "asset_type": "offline_admission_report",
+        "fingerprint": "sha256:semantic-cache-offline-admission-runner-v1"
+      },
+      {
+        "asset_id": "verification_provenance_contracts",
+        "asset_type": "verification_bundle_contract",
+        "fingerprint": "sha256:verification-provenance-contracts-v1"
+      },
+      {
+        "asset_id": "semantic_cache_gate_status",
+        "asset_type": "roadmap_gate_contract",
+        "fingerprint": "sha256:semantic-cache-gate-closed-v1"
+      }
+    ],
+    "replay_behavior": "deterministic_static_replay_safe",
+    "admission_behavior": "metadata_only_shadow_report_no_runtime_admission"
+  },
   "source_ids": {
     "insight_runtime": "core/ai/insight_runtime.py",
     "philosophical_runtime": "core/insight/philosophical_runtime.py",

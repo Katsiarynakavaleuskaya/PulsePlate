@@ -116,6 +116,29 @@ def test_shadow_harness_report_and_schema_render_byte_stable() -> None:
     assert rendered_schema == _schema_text()
 
 
+def test_shadow_harness_evidence_asset_lineage_is_metadata_only() -> None:
+    report = _report_mapping()
+    asset = report["evidence_asset"]
+    assert isinstance(asset, dict)
+
+    assert asset["asset_type"] == "semantic_cache_shadow_admission_harness_report"
+    fingerprint = asset["artifact_fingerprint"]
+    assert isinstance(fingerprint, str)
+    assert fingerprint.startswith("sha256:")
+    assert len(fingerprint.removeprefix("sha256:")) == 64
+    assert asset["idempotency_key"].startswith("idem:semantic-cache-shadow-admission-harness:")
+    assert asset["replay_behavior"] == "deterministic_static_replay_safe"
+    assert asset["admission_behavior"] == "metadata_only_shadow_report_no_runtime_admission"
+    upstream_assets = asset["upstream_assets"]
+    assert isinstance(upstream_assets, list)
+    assert [item["asset_id"] for item in upstream_assets] == [
+        "semantic_cache_offline_admission_runner_report",
+        "verification_provenance_contracts",
+        "semantic_cache_gate_status",
+    ]
+    assert all(str(item["fingerprint"]).startswith("sha256:") for item in upstream_assets)
+
+
 def test_shadow_harness_path_specs_and_results_order_are_canonical() -> None:
     default_mapping = _compose_mapping()
     reversed_input = SemanticCacheShadowAdmissionInput(
@@ -418,6 +441,25 @@ def test_checker_rejects_schema_drift_and_open_schema_claims() -> None:
     assert "semantic cache shadow admission harness schema drift: regenerate schema" in errors
 
 
+def test_checker_rejects_evidence_asset_drift() -> None:
+    report = _report_mapping()
+    asset = report["evidence_asset"]
+    assert isinstance(asset, dict)
+    asset["artifact_fingerprint"] = "sha256:"
+    asset["idempotency_key"] = "idem:wrong"
+    asset["replay_behavior"] = "runtime_replay"
+    upstream = asset["upstream_assets"]
+    assert isinstance(upstream, list)
+    upstream.reverse()
+
+    errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
+
+    assert "evidence_asset.artifact_fingerprint must be sha256 label" in errors
+    assert "evidence_asset.idempotency_key mismatch" in errors
+    assert "evidence_asset.replay_behavior mismatch" in errors
+    assert "evidence_asset.upstream_assets order mismatch" in errors
+
+
 def test_checker_rejects_raw_leak_patterns_and_duplicate_keys() -> None:
     report = _report_mapping()
     path_results = report["path_results"]
@@ -508,5 +550,25 @@ def test_shadow_harness_is_not_exported_from_core_ai_facade() -> None:
 
 
 def test_shadow_harness_core_module_uses_no_runtime_or_io_capabilities() -> None:
-    assert_no_forbidden_semantic_cache_imports(MODULE)
+    assert_no_forbidden_semantic_cache_imports(
+        MODULE,
+        additional_allowed_imports=("core.ai.semantic_cache_offline_admission_runner",),
+    )
     assert_no_forbidden_semantic_cache_calls(MODULE)
+
+
+def test_offline_runner_import_exception_is_shadow_harness_local(tmp_path: Path) -> None:
+    unsafe = tmp_path / "unsafe_lower_layer_import.py"
+    unsafe.write_text(
+        "from core.ai.semantic_cache_offline_admission_runner import "
+        "compose_semantic_cache_offline_admission_report\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="forbidden semantic-cache imports"):
+        assert_no_forbidden_semantic_cache_imports(unsafe)
+
+    assert_no_forbidden_semantic_cache_imports(
+        unsafe,
+        additional_allowed_imports=("core.ai.semantic_cache_offline_admission_runner",),
+    )

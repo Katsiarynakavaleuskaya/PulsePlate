@@ -9,6 +9,7 @@
     "generated_at",
     "scope",
     "generation_mode",
+    "evidence_asset",
     "source_ids",
     "authority_flags",
     "path_specs",
@@ -43,6 +44,65 @@
     "generation_mode": {
       "type": "string",
       "const": "deterministic_static_shadow_synthetic_redacted_inputs"
+    },
+    "evidence_asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_type",
+        "artifact_fingerprint",
+        "idempotency_key",
+        "upstream_assets",
+        "replay_behavior",
+        "admission_behavior"
+      ],
+      "properties": {
+        "asset_type": {
+          "type": "string",
+          "const": "semantic_cache_shadow_admission_harness_report"
+        },
+        "artifact_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^idem:[A-Za-z0-9_.:-]+$"
+        },
+        "upstream_assets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "asset_id",
+              "asset_type",
+              "fingerprint"
+            ],
+            "properties": {
+              "asset_id": {
+                "type": "string"
+              },
+              "asset_type": {
+                "type": "string"
+              },
+              "fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[A-Za-z0-9_.:-]+$"
+              }
+            }
+          }
+        },
+        "replay_behavior": {
+          "type": "string",
+          "const": "deterministic_static_replay_safe"
+        },
+        "admission_behavior": {
+          "type": "string",
+          "const": "metadata_only_shadow_report_no_runtime_admission"
+        }
+      }
     },
     "source_ids": {
       "type": "object",

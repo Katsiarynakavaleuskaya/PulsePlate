@@ -57,7 +57,6 @@ ALLOWED_SEMANTIC_CACHE_IMPORTS = (
     "core.ai.bounded_insight_semantic_cache",
     "core.ai.cache_observability",
     "core.ai.exact_fuzzy_cache",
-    "core.ai.semantic_cache_offline_admission_runner",
     "core.ai.semantic_cache_backend_selection",
 )
 
@@ -215,10 +214,15 @@ PATH_RETURNING_METHODS = frozenset(
 )
 
 
-def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
+def assert_no_forbidden_semantic_cache_imports(
+    path: Path,
+    *,
+    additional_allowed_imports: tuple[str, ...] = (),
+) -> None:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     imports: list[str] = []
     import_aliases: dict[str, str] = {}
+    allowed_imports = (*ALLOWED_SEMANTIC_CACHE_IMPORTS, *additional_allowed_imports)
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -280,10 +284,7 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
     offenders = [
         name
         for name in imports
-        if not any(
-            name == allowed or name.startswith(f"{allowed}.")
-            for allowed in ALLOWED_SEMANTIC_CACHE_IMPORTS
-        )
+        if not any(name == allowed or name.startswith(f"{allowed}.") for allowed in allowed_imports)
         if any(
             name == prefix or name.startswith(f"{prefix}.")
             for prefix in FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES

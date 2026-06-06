@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+import hashlib
+import json
 import re
 from types import MappingProxyType
 from typing import TypeAlias, cast
@@ -386,7 +388,7 @@ def to_stable_mapping(report: SemanticCacheShadowAdmissionReport) -> Mapping[str
 
     if not isinstance(report, SemanticCacheShadowAdmissionReport):
         raise ValueError("report must be SemanticCacheShadowAdmissionReport")
-    return {
+    payload: dict[str, JsonValue] = {
         "schema_version": report.schema_version,
         "report_id": report.report_id,
         "report_version": report.report_version,
@@ -402,6 +404,24 @@ def to_stable_mapping(report: SemanticCacheShadowAdmissionReport) -> Mapping[str
         "final_admission_decision": _json_safe_copy(report.final_admission_decision),
         "redaction_assertions": _json_safe_copy(report.redaction_assertions),
         "source_refs": [_json_safe_copy(ref) for ref in report.source_refs],
+    }
+    return {
+        "schema_version": payload["schema_version"],
+        "report_id": payload["report_id"],
+        "report_version": payload["report_version"],
+        "generated_at": payload["generated_at"],
+        "scope": payload["scope"],
+        "generation_mode": payload["generation_mode"],
+        "evidence_asset": _evidence_asset(payload),
+        "source_ids": payload["source_ids"],
+        "authority_flags": payload["authority_flags"],
+        "path_specs": payload["path_specs"],
+        "path_results": payload["path_results"],
+        "projection_summary": payload["projection_summary"],
+        "backend_label_context": payload["backend_label_context"],
+        "final_admission_decision": payload["final_admission_decision"],
+        "redaction_assertions": payload["redaction_assertions"],
+        "source_refs": payload["source_refs"],
     }
 
 
@@ -898,6 +918,45 @@ def _source_refs() -> tuple[Mapping[str, JsonValue], ...]:
         {"path": SOURCE_IDS["philosophical_runtime"], "symbol": "RuntimeResult"},
         {"path": SOURCE_IDS["semantic_cache_gate"], "symbol": "semantic_cache_gate_status"},
     )
+
+
+def _evidence_asset(payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
+    fingerprint = _stable_fingerprint(payload)
+    return {
+        "asset_type": "semantic_cache_shadow_admission_harness_report",
+        "artifact_fingerprint": fingerprint,
+        "idempotency_key": "idem:semantic-cache-shadow-admission-harness:"
+        f"{fingerprint.removeprefix('sha256:')[:16]}",
+        "upstream_assets": [
+            {
+                "asset_id": "semantic_cache_offline_admission_runner_report",
+                "asset_type": "offline_admission_report",
+                "fingerprint": "sha256:semantic-cache-offline-admission-runner-v1",
+            },
+            {
+                "asset_id": "verification_provenance_contracts",
+                "asset_type": "verification_bundle_contract",
+                "fingerprint": "sha256:verification-provenance-contracts-v1",
+            },
+            {
+                "asset_id": "semantic_cache_gate_status",
+                "asset_type": "roadmap_gate_contract",
+                "fingerprint": "sha256:semantic-cache-gate-closed-v1",
+            },
+        ],
+        "replay_behavior": "deterministic_static_replay_safe",
+        "admission_behavior": "metadata_only_shadow_report_no_runtime_admission",
+    }
+
+
+def _stable_fingerprint(payload: Mapping[str, JsonValue]) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
 def _normalize_path_ids(values: tuple[str, ...]) -> tuple[str, ...]:
