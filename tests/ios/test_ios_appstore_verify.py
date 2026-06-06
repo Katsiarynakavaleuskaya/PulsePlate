@@ -345,6 +345,23 @@ def test_fitchef_release_readiness_validator_rejects_media_anywhere_in_pack(
     assert "Media file is not allowed in FitChef App Store pack" in _failed_messages(results)
 
 
+def test_fitchef_release_readiness_validator_rejects_fastlane_screenshot_binaries(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    fastlane_screenshots = tmp_path / "ios" / "fastlane" / "screenshots" / "en-US"
+    fastlane_screenshots.mkdir(parents=True)
+    (fastlane_screenshots / "shot-01.png").write_bytes(b"not a real screenshot")
+    monkeypatch.setattr(module, "FASTLANE_SCREENSHOTS_DIR", fastlane_screenshots.parent)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Media file is not allowed in Fastlane screenshots" in _failed_messages(results)
+
+
 def test_fitchef_release_readiness_validator_rejects_symlinks_in_pack(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -582,8 +599,12 @@ def test_fitchef_release_readiness_validator_rejects_localized_pricing_claims(
     "claim",
     [
         "listo para subir",
+        "listo para enviar",
+        "lista para enviar",
+        "publicado en App Store",
         "subida completada",
         "готов к загрузке",
+        "готов к отправке",
         "готов к релизу",
     ],
 )
@@ -1466,6 +1487,8 @@ def test_fitchef_release_readiness_validator_rejects_protected_action_claims(
         "Preview video export: passed.",
         "Fastlane upload: completed.",
         "App Store Connect mutation: completed.",
+        "App Store submission complete.",
+        "ready to submit",
         "Screenshot binary commit completed.",
         "Preview video binary commit completed.",
     ],
@@ -1485,7 +1508,11 @@ def test_fitchef_release_readiness_validator_rejects_all_protected_action_claims
     )
 
     results = module.check_fitchef_release_readiness_bundle()
-    assert "Protected release action claim" in _failed_messages(results)
+    messages = _failed_messages(results)
+    assert (
+        "Protected release action claim" in messages
+        or "Forbidden release-readiness fragment" in messages
+    )
 
 
 def test_fitchef_release_readiness_validator_rejects_pricing_text(

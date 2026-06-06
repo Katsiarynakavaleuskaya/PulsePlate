@@ -46,6 +46,7 @@ FITCHEF_SHOT_SCENARIO_MATRIX = FITCHEF_RELEASE_READINESS_DIR / "shot_scenario_ma
 FITCHEF_RENDERED_REVIEW_CHECKLIST = (
     FITCHEF_RELEASE_READINESS_DIR / "rendered_review_testflight_readiness.md"
 )
+FASTLANE_SCREENSHOTS_DIR = REPO_ROOT / "ios" / "fastlane" / "screenshots"
 APPSTORE_SCREENSHOT_CONTEXT = (
     REPO_ROOT / "ios" / "PulsePlate" / "AppStore" / "AppStoreScreenshotContext.swift"
 )
@@ -145,6 +146,9 @@ FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS = (
     "release ready",
     "submission-ready",
     "submission ready",
+    "submission complete",
+    "submit complete",
+    "ready to submit",
     "app store connect draft",
     "free trial",
     "subscription",
@@ -384,8 +388,14 @@ FITCHEF_RELEASE_LOCALIZED_UPLOAD_FRAGMENTS = (
     "carga completada",
     "listo para lanzamiento",
     "listo para release",
+    "listo para enviar",
+    "lista para enviar",
+    "publicado en app store",
+    "publicada en app store",
     "готов к загрузке",
     "готова к загрузке",
+    "готов к отправке",
+    "готова к отправке",
     "готов к релизу",
     "готова к релизу",
     "загрузка завершена",
@@ -701,6 +711,19 @@ def _validate_fitchef_pack_file_boundaries() -> str | None:
             return f"Media file is not allowed in FitChef App Store pack: {path}"
         if path.suffix.lower() not in FITCHEF_ALLOWED_PACK_SUFFIXES:
             return f"Only JSON/Markdown files are allowed in FitChef App Store pack: {path}"
+    return None
+
+
+def _validate_fitchef_protected_media_boundaries() -> str | None:
+    protected_dirs = (("Fastlane screenshots", FASTLANE_SCREENSHOTS_DIR),)
+    for label, directory in protected_dirs:
+        if not directory.exists():
+            continue
+        for path in sorted(directory.rglob("*")):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() in FITCHEF_MEDIA_SUFFIXES:
+                return f"Media file is not allowed in {label}: {_display_repo_local_path(path)}"
     return None
 
 
@@ -1541,6 +1564,10 @@ def check_fitchef_release_readiness_bundle() -> Results:
     pack_boundary_error = _validate_fitchef_pack_file_boundaries()
     if pack_boundary_error:
         results.append((False, tag, pack_boundary_error))
+        return results
+    protected_media_error = _validate_fitchef_protected_media_boundaries()
+    if protected_media_error:
+        results.append((False, tag, protected_media_error))
         return results
 
     if not FITCHEF_RELEASE_READINESS_DIR.exists():
