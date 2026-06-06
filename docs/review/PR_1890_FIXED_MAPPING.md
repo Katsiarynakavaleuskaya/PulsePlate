@@ -99,6 +99,7 @@ Decision: proceed with changes.
 - Late CodeRabbit pricing/export false-green validation after commit `cef1c738e`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 - Compact ISO-prefix pricing validation after commit `941042ad3`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 - Late validator false-green validation after commit `8160d9779`: direct probes reject `No diagnosis and treat patients.`, `Resultados rapidos para tu cuerpo.`, `Guaranteed adherence with meal plan.`, and `api key: [dummy value]`; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+- App Store contract gap validation after commit `47e7dec8d`: direct probes reject `Most accurate nutrition app.`, `Available on Google Play too.`, and `Android companion app support.`; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 Full local `make verify` was not run by default for this docs/release-validator PR under the operator-approved changed-scope gate policy. Merge readiness is not claimed without current-head CI, post-open role passes, Codex Security scan, `pulseplate-pr-review`, unresolved-thread checks, PR body/mapping parity, strict wrapper evidence, and wait-window.
 
@@ -131,6 +132,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Late CodeRabbit pricing/export batch after head `9327943ab`: FIXED in `cef1c738e`. Evidence: validator now blocks prefix currency price formats and the release-readiness matrix includes protected binary export actions in `blocked_release_actions`; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally.
 - Post-open `qa-engineer-agent` rerun on head `8d4084816`: FAIL with compact ISO-prefix pricing false-greens (`EUR9.99`, `USD9.99`, `RUB999`). Disposition: FIXED in `941042ad3`. Evidence: validator now blocks compact `USD`/`EUR`/`RUB` prefixes before digits; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 - Post-open `qa-engineer-agent` rerun on head `c50193797`: FAIL with four current validator false-greens: boundary-negated treatment copy, localized rapid-results copy, generic guaranteed-adherence copy, and spaced credential labels. Disposition: FIXED in `8160d9779`. Evidence: validator now rejects those four classes, tests cover each reported seed, and focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
+- Post-open `qa-engineer-agent` rerun on head `d660b572e`: FAIL on governance only after seed regressions passed; four newer Codex threads required mapping. Status: three actionable threads are FIXED in `47e7dec8d`; one reachability thread is NOT-A-BUG with reachable-commit evidence. Evidence: validator now blocks most-accurate superlatives, cross-platform references, and capture-helper drift; mapped FIXED SHAs are ancestors of current PR head.
 
 ## Fixed in Commit Mapping
 
@@ -217,7 +219,7 @@ Evidence: `tests/ios/test_ios_appstore_verify.py` now composes credential-like d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365497854 -> 09ee45c21
 Disposition: FIXED
 Commit: 09ee45c21
-Evidence: `docs/review/PR_1890_FIXED_MAPPING.md` now splits the combined `FIXED / IN PROGRESS` wording into separate canonical `FIXED` and `DEFERRED` entries with matching evidence. Local evidence after the fix: commit hooks passed, including detect-secrets and conventional commit checks.
+Evidence: `docs/review/PR_1890_FIXED_MAPPING.md` now splits the earlier combined disposition wording into separate canonical `FIXED` and `DEFERRED` entries with matching evidence. Local evidence after the fix: commit hooks passed, including detect-secrets and conventional commit checks.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365502368 -> 0c414621f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365502373 -> 0c414621f
@@ -260,6 +262,17 @@ Disposition: FIXED
 Commit: 8160d9779
 Evidence: `scripts/release/check_ios_appstore_verify.py` now treats `treat` after a boundary marker as an actionable medical overclaim instead of a safe boundary word, rejects compact localized rapid-results copy, expands guaranteed-outcome blocking to adherence guarantees, and accepts spaced `api key`, `gh token`, and `secret key` labels as credential-like values with redacted diagnostics. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for `No diagnosis and treat patients.`, `Resultados rapidos para tu cuerpo.`, `Guaranteed adherence with meal plan.`, and spaced credential labels. Local evidence after the fix: direct probes reject all four reported seeds; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3366980299 -> 47e7dec8d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3366980303 -> 47e7dec8d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3366980306 -> 47e7dec8d
+Disposition: FIXED
+Commit: 47e7dec8d
+Evidence: `scripts/release/check_ios_appstore_verify.py` now rejects `most accurate` unverifiable superlatives, rejects cross-platform App Store copy references such as Google Play / Play Store / Android, and validates that the iOS screenshot `captureScreenshot(for:)` helper uses each scenario for launch arguments, root lookup, and snapshot naming. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the reported copy examples plus constant-scenario and constant-snapshot helper drift. Local evidence after the fix: direct probes reject the reported copy seeds; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3366980308
+Disposition: NOT-A-BUG
+Evidence: The mapped FIXED proof commits are reachable from current PR head. Local proof: `git merge-base --is-ancestor 9840d503d HEAD`, `git merge-base --is-ancestor aa49d1492 HEAD`, `git merge-base --is-ancestor 8160d9779 HEAD`, and `git merge-base --is-ancestor 47e7dec8d HEAD` all returned success; `git log origin/main..HEAD` includes the mapped fix commits. The review's referenced squashed head `1fc6837619b3c443dbf1af093615cbcc0a920b80` is not the live PR head after subsequent pushes.
+
 ## Post-Open Role-Agent Finding Closure
 
 Finding: post-open `bug-hunter` agent `019e98b2-aa05-7c81-b31a-e3ea0daba98c` reported a comma-clause wellness overclaim bypass.
@@ -280,6 +293,15 @@ Finding: post-open `qa-engineer-agent` agent `019e9bff-724a-7110-8fda-c76e016308
 Disposition: FIXED
 Commit: 8160d9779
 Evidence: `scripts/release/check_ios_appstore_verify.py` now rejects all four classes and `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions. Local evidence after the fix: direct probes reject all four reported seeds; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
+Finding: post-open `qa-engineer-agent` agent `019e9c0d-368c-7e72-bc47-5a6523a3244e` reported three actionable newer Codex threads covering most-accurate copy, cross-platform references, and screenshot capture-helper drift.
+Disposition: FIXED
+Commit: 47e7dec8d
+Evidence: Three actionable threads are FIXED in `47e7dec8d` with deterministic tests and gate evidence.
+
+Finding: post-open `qa-engineer-agent` agent `019e9c0d-368c-7e72-bc47-5a6523a3244e` reported one newer Codex thread claiming mapped FIXED SHAs were unreachable from the PR head.
+Disposition: NOT-A-BUG
+Evidence: The mapped fix commits are ancestors of current PR head; local `git merge-base --is-ancestor` checks for representative mapped SHAs returned success.
 
 ## Main Coverage Carryover
 
