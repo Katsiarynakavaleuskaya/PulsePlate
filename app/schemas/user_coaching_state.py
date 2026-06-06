@@ -63,6 +63,16 @@ MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE: dict[FitChefTransitionState, float] 
     "weekly_reflection_due": 0.66,
     "no_recommendation_available": 0.0,
 }
+MARKOV_TRANSITION_PRIMARY_SCENARIO_BY_STATE: dict[
+    FitChefTransitionState,
+    FitChefCoachingScenario | None,
+] = {
+    "cold_start_default": "mascot_insight",
+    "steady_state_default": "mascot_insight",
+    "slip_support_needed": "slip_support",
+    "weekly_reflection_due": "weekly_reflection",
+    "no_recommendation_available": None,
+}
 MARKOV_TRANSITION_SCENARIO_TIEBREAK: tuple[FitChefCoachingScenario, ...] = (
     "mascot_insight",
     "weekly_reflection",
@@ -399,6 +409,10 @@ def _validate_markov_ranked_scenarios(
     if actual_ranks != expected_ranks:
         raise ValueError("ranked_scenarios ranks must be consecutive from 1")
 
+    if available_scenarios is not None and not available_scenarios:
+        if transition_state != "no_recommendation_available":
+            raise ValueError("transition_state must match no available scenarios")
+
     if ranked_scenarios and available_scenarios is not None:
         unavailable_scenarios = tuple(
             ranked.scenario
@@ -429,6 +443,16 @@ def _validate_markov_ranked_scenarios(
         if actual_policy != expected_policy:
             raise ValueError("ranked_scenarios must match fixed transition policy")
     _validate_markov_transition_reasons(transition_state=transition_state, reasons=reasons)
+    primary_scenario = MARKOV_TRANSITION_PRIMARY_SCENARIO_BY_STATE[transition_state]
+    primary_unavailable = False
+    if primary_scenario is not None and available_scenarios is not None:
+        primary_unavailable = (
+            bool(available_scenarios) and primary_scenario not in available_scenarios
+        )
+    elif primary_scenario is not None and ranked_scenarios:
+        primary_unavailable = ranked_scenarios[0].scenario != primary_scenario
+    if primary_unavailable and "scenario_unavailable" not in reasons:
+        raise ValueError("reasons must include scenario_unavailable for fallback scenarios")
     if not ranked_scenarios:
         return
     if any(ranked.reasons != reasons for ranked in ranked_scenarios):

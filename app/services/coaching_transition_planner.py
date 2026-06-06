@@ -12,6 +12,7 @@ from app.schemas.user_coaching_state import (
     FitChefTransitionReason,
     FitChefTransitionState,
     MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE,
+    MARKOV_TRANSITION_PRIMARY_SCENARIO_BY_STATE,
     MARKOV_TRANSITION_SCENARIO_TIEBREAK,
     MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE,
     MarkovCoachingTransitionPlanV1,
@@ -22,14 +23,6 @@ from app.schemas.user_coaching_state import (
 
 _SCENARIO_ORDER = {
     scenario: index for index, scenario in enumerate(MARKOV_TRANSITION_SCENARIO_TIEBREAK)
-}
-
-_PRIMARY_SCENARIO_BY_STATE: dict[FitChefTransitionState, FitChefCoachingScenario | None] = {
-    "cold_start_default": "mascot_insight",
-    "steady_state_default": "mascot_insight",
-    "slip_support_needed": "slip_support",
-    "weekly_reflection_due": "weekly_reflection",
-    "no_recommendation_available": None,
 }
 
 
@@ -188,7 +181,7 @@ def build_markov_coaching_transition_plan(
         reason_list.append("no_available_scenarios")
         transition_state = "no_recommendation_available"
     else:
-        primary = _PRIMARY_SCENARIO_BY_STATE[transition_state]
+        primary = MARKOV_TRANSITION_PRIMARY_SCENARIO_BY_STATE[transition_state]
         if primary is not None and primary not in available:
             reason_list.append("scenario_unavailable")
         if transition_state == "cold_start_default" and "mascot_insight" in available:

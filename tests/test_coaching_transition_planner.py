@@ -401,6 +401,59 @@ def test_transition_plan_schema_allows_empty_policy_when_primary_is_unavailable(
     assert plan.confidence == 0.0
 
 
+def test_markov_schemas_require_scenario_unavailable_for_fallback_rankings() -> None:
+    fallback_probability = MarkovScenarioProbability(
+        rank=1,
+        scenario="mascot_insight",
+        probability=1.0,
+        reasons=("observed_slip_like_behavior",),
+    )
+    with pytest.raises(ValidationError, match="scenario_unavailable"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="slip_support_needed",
+            available_scenarios=("mascot_insight",),
+            ranked_scenarios=(fallback_probability,),
+            confidence=0.78,
+            reasons=("observed_slip_like_behavior",),
+        )
+
+    accepted_plan = MarkovCoachingTransitionPlanV1(
+        transition_state="slip_support_needed",
+        available_scenarios=("mascot_insight",),
+        ranked_scenarios=(
+            fallback_probability.model_copy(
+                update={
+                    "reasons": ("observed_slip_like_behavior", "scenario_unavailable"),
+                }
+            ),
+        ),
+        confidence=0.78,
+        reasons=("observed_slip_like_behavior", "scenario_unavailable"),
+    )
+    assert accepted_plan.recommended_scenario == "mascot_insight"
+    assert accepted_plan.confidence == pytest.approx(0.53)
+
+    with pytest.raises(ValidationError, match="scenario_unavailable"):
+        PromptSafeMarkovTransitionContext(
+            transition_state="slip_support_needed",
+            recommended_scenario="mascot_insight",
+            ranked_scenarios=(fallback_probability,),
+            confidence=0.78,
+            reasons=("observed_slip_like_behavior",),
+        )
+
+
+def test_transition_plan_schema_requires_no_recommendation_state_for_empty_allowlist() -> None:
+    with pytest.raises(ValidationError, match="no available scenarios"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="cold_start_default",
+            available_scenarios=(),
+            ranked_scenarios=(),
+            confidence=0.0,
+            reasons=("cold_start_default", "default_prior_not_observed_slip"),
+        )
+
+
 def test_markov_transition_schemas_reject_reason_mismatches() -> None:
     reason_cases = (
         ("cold_start_default", "mascot_insight", ("cold_start_default",)),
