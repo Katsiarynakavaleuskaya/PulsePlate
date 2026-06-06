@@ -71,6 +71,45 @@ def _compose_mapping(
     return dict(mapping)
 
 
+def _shadow_spec_kwargs() -> dict[str, object]:
+    return {
+        "path_id": "direct_local_answer_exact_shadow",
+        "path_family": "insight_route",
+        "route_label": "direct_local_answer",
+        "runner_scenario_id": "exact_safe_hit",
+        "verification_bundle_state": "pass",
+        "verification_overall_status": "pass",
+        "verification_admission_allowed": True,
+        "rag_state": "not_used",
+        "runtime_validation_state": "passed",
+        "source_freshness_label": "fresh",
+        "present_provenance_fields": PROVENANCE_FIELD_IDS,
+        "expected_shadow_label": "metadata_only_candidate_gate_closed",
+        "expected_action": "shadow_observe_only",
+        "request_fingerprint": "sha256:test-request",
+        "context_fingerprint": "sha256:test-context",
+        "response_fingerprint": "sha256:test-response",
+        "verification_bundle_fingerprint": "sha256:test-bundle",
+        "reason_codes": ("verification_passed",),
+    }
+
+
+def _scenario_kwargs(**overrides: object) -> dict[str, object]:
+    scenario: dict[str, object] = {
+        "lookup_decision": "candidate",
+        "match_mode": "fuzzy",
+        "score_bps": 9800,
+        "false_hit_outcome": "passed",
+        "false_hit_is_false_hit": False,
+        "false_hit_blocking_reasons": [],
+        "stop_serving": False,
+        "bounded_decision": "experiment_eligible",
+        "bounded_reason_codes": ["shadow_candidate"],
+    }
+    scenario.update(overrides)
+    return scenario
+
+
 def _path_result(report: dict[str, object], path_id: str) -> dict[str, object]:
     results = report["path_results"]
     assert isinstance(results, list)
@@ -449,6 +488,142 @@ def test_shadow_harness_rejects_bad_inputs_before_rendering() -> None:
             verification_bundle_fingerprint="sha256:test-bundle",
             reason_codes=("verification_passed",),
         )
+
+
+def test_shadow_harness_rejects_invalid_shadow_spec_contracts() -> None:
+    kwargs = _shadow_spec_kwargs()
+
+    with pytest.raises(ValueError, match="unsupported path_family"):
+        harness._ShadowPathSpec(**{**kwargs, "path_family": "unknown_family"})
+    with pytest.raises(ValueError, match="unsupported runner_scenario_id"):
+        harness._ShadowPathSpec(**{**kwargs, "runner_scenario_id": "unknown_scenario"})
+    with pytest.raises(ValueError, match="boolean or null"):
+        harness._ShadowPathSpec(**{**kwargs, "verification_admission_allowed": "true"})
+    with pytest.raises(ValueError, match="duplicate"):
+        harness._ShadowPathSpec(
+            **{
+                **kwargs,
+                "present_provenance_fields": (
+                    PROVENANCE_FIELD_IDS[0],
+                    PROVENANCE_FIELD_IDS[0],
+                ),
+            }
+        )
+
+
+def test_shadow_harness_rejects_malformed_offline_fragments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="scenario_results must be a list"):
+        harness._offline_scenarios({"scenario_results": {}})
+    with pytest.raises(ValueError, match="scenario entries must be mappings"):
+        harness._offline_scenarios({"scenario_results": ["not-a-mapping"]})
+    with pytest.raises(ValueError, match="scenario_id must be a string"):
+        harness._offline_scenarios({"scenario_results": [{"scenario_id": 123}]})
+    with pytest.raises(ValueError, match="backend_label_context must be a mapping"):
+        harness._backend_label_context({})
+
+    monkeypatch.setattr(harness, "_json_safe_copy", lambda _value: [])
+    with pytest.raises(ValueError, match="backend label context must be a mapping"):
+        harness._backend_label_context({"backend_label_context": {"safe": "label"}})
+
+
+def test_shadow_harness_defensive_projection_and_validator_branches() -> None:
+    spec = harness._ShadowPathSpec(**_shadow_spec_kwargs())
+    fallback_scenario = _scenario_kwargs(bounded_decision="not_eligible")
+
+    assert (
+        harness._project_shadow_label(
+            spec=spec,
+            scenario=_scenario_kwargs(stop_serving=True),
+        )
+        == "blocked_stop_rule_shadow"
+    )
+    assert (
+        harness._project_shadow_label(
+            spec=spec,
+            scenario=_scenario_kwargs(lookup_decision="miss"),
+        )
+        == "lookup_miss_fallback_shadow"
+    )
+    assert (
+        harness._project_shadow_label(spec=spec, scenario=fallback_scenario)
+        == "metadata_only_fallback_gate_closed"
+    )
+    with pytest.raises(ValueError, match="projection mismatch"):
+        harness._path_result(
+            spec=harness._ShadowPathSpec(
+                **{
+                    **_shadow_spec_kwargs(),
+                    "expected_shadow_label": "blocked_stop_rule_shadow",
+                }
+            ),
+            scenario=fallback_scenario,
+        )
+    with pytest.raises(ValueError, match="shadow_label must be a string"):
+        harness._projection_summary([{"shadow_label": 123}])
+
+
+def test_shadow_harness_rejects_malformed_scenario_value_types() -> None:
+    with pytest.raises(ValueError, match="scenario lookup_decision must be a string"):
+        harness._scenario_string({}, "lookup_decision")
+    with pytest.raises(ValueError, match="must be a string or null"):
+        harness._scenario_optional_string({"match_mode": 123}, "match_mode")
+    with pytest.raises(ValueError, match="must be an integer or null"):
+        harness._scenario_optional_int({"score_bps": "9800"}, "score_bps")
+    with pytest.raises(ValueError, match="must be a boolean"):
+        harness._scenario_bool({"stop_serving": "false"}, "stop_serving")
+    with pytest.raises(ValueError, match="must be a list"):
+        harness._scenario_string_list(
+            {"bounded_reason_codes": "reason"},
+            "bounded_reason_codes",
+        )
+    with pytest.raises(ValueError, match="entries must be strings"):
+        harness._scenario_string_list(
+            {"bounded_reason_codes": ["safe", 123]},
+            "bounded_reason_codes",
+        )
+
+
+def test_shadow_harness_rejects_malformed_lineage_and_token_sets() -> None:
+    valid_digest = "sha256:" + ("a" * 64)
+    valid_assets = (
+        {
+            "asset_id": "verification_provenance_contracts",
+            "asset_type": "verification_bundle_contract",
+            "fingerprint": valid_digest,
+        },
+        {
+            "asset_id": "semantic_cache_offline_admission_runner_report",
+            "asset_type": "offline_admission_report",
+            "fingerprint": valid_digest,
+        },
+        {
+            "asset_id": "semantic_cache_gate_status",
+            "asset_type": "roadmap_gate_contract",
+            "fingerprint": valid_digest,
+        },
+    )
+
+    with pytest.raises(ValueError, match="upstream_assets order mismatch"):
+        harness._normalize_upstream_assets(valid_assets)
+    with pytest.raises(ValueError, match="asset_id must be a string"):
+        harness._mapping_string({}, "asset_id")
+    with pytest.raises(ValueError, match="must be a sha256 digest"):
+        harness._validate_sha256_digest("fingerprint", "sha256:not-a-digest")
+    with pytest.raises(ValueError, match="must be non-empty"):
+        harness._normalize_required_tokens("reason_codes", ())
+    with pytest.raises(ValueError, match="duplicate"):
+        harness._normalize_required_tokens("reason_codes", ("same", "same"))
+
+    assert harness._freeze_json_value(("outer", {"inner": ("leaf",)})) == [
+        "outer",
+        {"inner": ["leaf"]},
+    ]
+    assert harness._json_safe_copy(("outer", {"inner": ("leaf",)})) == [
+        "outer",
+        {"inner": ["leaf"]},
+    ]
 
 
 def test_shadow_harness_rejects_wrong_report_object_types() -> None:
