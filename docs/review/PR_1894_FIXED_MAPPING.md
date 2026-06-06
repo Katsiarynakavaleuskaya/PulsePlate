@@ -57,6 +57,76 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
 - `41010c3eb` — hardens derived-field recomputation, probability/rank
   validation, canonical safety-label recovery, and scenario-unavailable
   confidence degradation.
+- `621fe1c14` — closes post-open bug-hunter fallback invariant by rejecting
+  ranked scenarios outside `available_scenarios` and adding regression coverage.
+- `5315f1235` — closes post-open bug-hunter transition-state steering by moving
+  fixed-policy scenario weights into schema validation and reusing them in the
+  planner service.
+- `004af7447` — closes post-open bug-hunter direct prompt-safe construction
+  steering by reusing the same ranked-scenario validator in
+  `PromptSafeMarkovTransitionContext`.
+- `539dcfe26` — closes post-open bug-hunter self-consistent transition-state
+  steering by requiring plan-level ranked scenarios to match the exact fixed
+  policy for `transition_state + available_scenarios` and by validating
+  transition-state reasons.
+- `5a07e4c8b` — covers all fixed-policy validator branches after `539dcfe26`
+  so diff-cover remains above the branch threshold without weakening guards.
+- `7dd9a5b4f` — closes post-open bug-hunter fallback confidence inflation by
+  requiring `scenario_unavailable` for fallback rankings and
+  `no_recommendation_available` for empty allowlists.
+
+## Post-open Role Findings
+
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `621fe1c1443e454daf9073482720bd2c7702fa5e`
+  - Evidence: `MarkovCoachingTransitionPlanV1` rejects ranked scenarios outside
+    `available_scenarios`; `test_transition_plan_schema_rejects_unavailable_ranked_scenarios`
+    covers unavailable non-empty rankings, including empty allowlist plans.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `5315f123555097669c8f7c97074532e6cfa35a02`
+  - Evidence: `MarkovCoachingTransitionPlanV1` rejects ranked scenarios not
+    valid for the current `transition_state`; `to_prompt_safe_markov_context`
+    revalidation fails closed for tampered transition-state steering in
+    `test_prompt_safe_markov_context_rejects_transition_state_steering`.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `004af744709ce86f3bfc5d35350a33e17043a2f4`
+  - Evidence: `PromptSafeMarkovTransitionContext` now reuses the same rank,
+    probability, and transition-state scenario validator as
+    `MarkovCoachingTransitionPlanV1`; `test_prompt_safe_markov_context_rejects_transition_state_steering`
+    covers direct prompt-safe schema construction.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `539dcfe26bfd61210d715cb0063966de52393447`
+  - Evidence: `MarkovCoachingTransitionPlanV1` now requires exact
+    fixed-policy ranked distributions and compatible transition-state reasons;
+    `test_transition_plan_schema_rejects_non_policy_ranked_distribution` and
+    `test_prompt_safe_markov_context_rejects_transition_state_steering` cover
+    self-consistent plan steering before prompt-safe projection.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `5a07e4c8be143cfb5774c03ae3a367e21445f79e`
+  - Evidence: `test_transition_plan_schema_allows_empty_policy_when_primary_is_unavailable`,
+    `test_markov_transition_schemas_reject_reason_mismatches`, and
+    `test_transition_plan_schema_rejects_ranked_reason_mismatch` cover the
+    fail-closed reason/policy branches added for bug-hunter findings.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `7dd9a5b4f2b5883f606360ef385a43ed2ab0582d`
+  - Evidence: `test_markov_schemas_require_scenario_unavailable_for_fallback_rankings`
+    rejects direct plan/prompt-safe fallback rankings without
+    `scenario_unavailable` and verifies fallback confidence is recomputed down;
+    `test_transition_plan_schema_requires_no_recommendation_state_for_empty_allowlist`
+    rejects empty-allowlist plans that do not use `no_recommendation_available`.
+- Role: `bug-hunter`
+  - Disposition: PASS
+  - Evidence: Repeat pass after `7dd9a5b4f2b5883f606360ef385a43ed2ab0582d`
+    found no correctness/regression findings and confirmed unavailable ranked
+    scenarios, transition-state impossible scenarios, prompt-safe steering,
+    fallback `scenario_unavailable`, confidence downgrade, and valid planner
+    round-trip probes.
 - `app/services/coaching_transition_planner.py` contains no router/runtime,
   provider, RAG/cache, DB/session, or persistence imports.
 - `tests/test_coaching_transition_planner.py` covers default-prior handling,
@@ -111,9 +181,9 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
 
 - `python3 scripts/orchestration/check_preflight.py --path app/schemas/user_coaching_state.py --path app/services/coaching_state_builder.py --path app/services/coaching_transition_planner.py --path tests/test_coaching_transition_planner.py --path tests/test_user_coaching_state.py` — PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
-- `.venv/bin/python -m pytest -q tests/test_user_coaching_state.py tests/test_coaching_transition_planner.py tests/test_bayes_adherence_model.py tests/test_bayes_adherence_service.py tests/test_nutrition_log_idempotency.py` — 64 passed
+- `.venv/bin/python -m pytest -q tests/test_user_coaching_state.py tests/test_coaching_transition_planner.py tests/test_bayes_adherence_model.py tests/test_bayes_adherence_service.py tests/test_nutrition_log_idempotency.py` — 72 passed after `7dd9a5b4f`
 - `.venv/bin/python -m mypy app/schemas/user_coaching_state.py app/services/coaching_transition_planner.py tests/test_coaching_transition_planner.py --no-incremental --cache-dir=/dev/null` — PASS
-- `.venv/bin/python -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --include-untracked --fail-under=97 --json-report /tmp/markov-diff-cover.json` — PASS, 100%
+- `.venv/bin/python -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --include-untracked --fail-under=97 --format json:/tmp/markov-diff-cover.json` — PASS, 100%
 - `make validate-changed VENV_PYTHON=.venv/bin/python` — PASS
 - `VENV_PYTHON=.venv/bin/python pre-commit run --all-files` — PASS
 - `VENV_PYTHON=.venv/bin/python git push -u origin codex/fitchef-markov-transition-planner-v1` — pre-push hooks PASS
