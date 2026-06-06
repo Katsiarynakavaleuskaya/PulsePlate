@@ -159,6 +159,27 @@ def test_shadow_harness_produced_at_changes_stable_artifact_fingerprint() -> Non
     assert default_mapping["evidence_asset"] != rerendered_mapping["evidence_asset"]
 
 
+def test_shadow_harness_evidence_asset_identity_includes_lineage_fields() -> None:
+    report = _compose_mapping()
+    asset = report["evidence_asset"]
+    assert isinstance(asset, dict)
+    payload_without_evidence = {
+        key: value for key, value in report.items() if key != "evidence_asset"
+    }
+    identity_payload = dict(payload_without_evidence)
+    identity_payload["evidence_asset"] = {
+        "asset_type": asset["asset_type"],
+        "artifact_fingerprint": None,
+        "idempotency_key": None,
+        "upstream_assets": asset["upstream_assets"],
+        "replay_behavior": asset["replay_behavior"],
+        "admission_behavior": asset["admission_behavior"],
+    }
+
+    assert asset["artifact_fingerprint"] == harness._stable_fingerprint(identity_payload)
+    assert asset["artifact_fingerprint"] != harness._stable_fingerprint(payload_without_evidence)
+
+
 def test_shadow_harness_path_specs_and_results_order_are_canonical() -> None:
     default_mapping = _compose_mapping()
     reversed_input = SemanticCacheShadowAdmissionInput(

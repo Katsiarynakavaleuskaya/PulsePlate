@@ -953,37 +953,53 @@ def _source_refs() -> tuple[Mapping[str, JsonValue], ...]:
 
 
 def _evidence_asset(payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
-    fingerprint = _stable_fingerprint(payload)
+    upstream_assets = _upstream_assets()
+    replay_behavior = "deterministic_static_replay_safe"
+    admission_behavior = "metadata_only_shadow_report_no_runtime_admission"
+    identity_payload = dict(payload)
+    identity_payload["evidence_asset"] = {
+        "asset_type": "semantic_cache_shadow_admission_harness_report",
+        "artifact_fingerprint": None,
+        "idempotency_key": None,
+        "upstream_assets": upstream_assets,
+        "replay_behavior": replay_behavior,
+        "admission_behavior": admission_behavior,
+    }
+    fingerprint = _stable_fingerprint(identity_payload)
     return {
         "asset_type": "semantic_cache_shadow_admission_harness_report",
         "artifact_fingerprint": fingerprint,
         "idempotency_key": "idem:semantic-cache-shadow-admission-harness:"
         f"{fingerprint.removeprefix('sha256:')[:16]}",
-        "upstream_assets": [
-            {
-                "asset_id": "semantic_cache_offline_admission_runner_report",
-                "asset_type": "offline_admission_report",
-                "fingerprint": _file_fingerprint(
-                    "docs/orchestration/contracts/"
-                    "SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT.json"
-                ),
-            },
-            {
-                "asset_id": "verification_provenance_contracts",
-                "asset_type": "verification_bundle_contract",
-                "fingerprint": _file_fingerprint("core/verification/contracts.py"),
-            },
-            {
-                "asset_id": "semantic_cache_gate_status",
-                "asset_type": "roadmap_gate_contract",
-                "fingerprint": _file_fingerprint(
-                    "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
-                ),
-            },
-        ],
-        "replay_behavior": "deterministic_static_replay_safe",
-        "admission_behavior": "metadata_only_shadow_report_no_runtime_admission",
+        "upstream_assets": upstream_assets,
+        "replay_behavior": replay_behavior,
+        "admission_behavior": admission_behavior,
     }
+
+
+def _upstream_assets() -> list[JsonValue]:
+    return [
+        {
+            "asset_id": "semantic_cache_offline_admission_runner_report",
+            "asset_type": "offline_admission_report",
+            "fingerprint": _file_fingerprint(
+                "docs/orchestration/contracts/"
+                "SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT.json"
+            ),
+        },
+        {
+            "asset_id": "verification_provenance_contracts",
+            "asset_type": "verification_bundle_contract",
+            "fingerprint": _file_fingerprint("core/verification/contracts.py"),
+        },
+        {
+            "asset_id": "semantic_cache_gate_status",
+            "asset_type": "roadmap_gate_contract",
+            "fingerprint": _file_fingerprint(
+                "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+            ),
+        },
+    ]
 
 
 def _file_fingerprint(repo_relative_path: str) -> str:

@@ -8,8 +8,8 @@
   "generation_mode": "deterministic_static_shadow_synthetic_redacted_inputs",
   "evidence_asset": {
     "asset_type": "semantic_cache_shadow_admission_harness_report",
-    "artifact_fingerprint": "sha256:8a6fc312c78ca240395231715496a1abb50ec263b2245ba409d3997494731f44",
-    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:8a6fc312c78ca240",
+    "artifact_fingerprint": "sha256:5caf234b4d058ab7bd0ed0f6693c4f1fe72b01ae6bca3752876ab8db704e1d40",
+    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:5caf234b4d058ab7",
     "upstream_assets": [
       {
         "asset_id": "semantic_cache_offline_admission_runner_report",
