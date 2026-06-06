@@ -36,6 +36,8 @@ GENERATION_MODE = "deterministic_static_shadow_synthetic_redacted_inputs"
 SEMANTIC_CACHE_GATE_STATUS = "closed"
 DEFAULT_PRODUCED_AT = "2026-06-06T00:00:00Z"
 DEFAULT_POLICY_VERSION = "semantic-cache-shadow-admission-v1"
+VERIFICATION_PROVENANCE_CONTRACT_VERSION = "2026-06-06:verification-provenance-v1"
+SEMANTIC_CACHE_GATE_CONTRACT_VERSION = "2026-05-25:semantic-cache-gate-plan:closed-v1"
 LOCAL_SHADOW_SCENARIO_IDS: tuple[str, ...] = (
     "not_evaluated_missing_bundle",
     "not_evaluated_failed_bundle",
@@ -50,6 +52,45 @@ PROVENANCE_FIELD_IDS: tuple[str, ...] = (
     "prompt_trimmed",
     "verification_hops",
     "verification_calls",
+)
+VERIFICATION_CONTRACT_FIELD_MAP: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "VerificationArtifact": (
+            "artifact_id",
+            "verifier_id",
+            "status",
+            "checked_at",
+            "scope",
+            "evidence_refs",
+            "reason_codes",
+            "failure_reason",
+        ),
+        "VerificationBundle": (
+            "artifacts",
+            "overall_status",
+            "admission_allowed",
+            "reason_codes",
+            "provenance",
+        ),
+        "VerificationProvenance": (
+            "input_digest",
+            "prompt_digest",
+            "context_item_digests",
+            "answer_digest",
+            "input_sha",
+            "prompt_sha",
+            "context_item_shas",
+            "answer_sha",
+            "prompt_char_count",
+            "prompt_trimmed",
+            "prompt_original_char_count",
+            "prompt_final_char_count",
+            "prompt_trim_limit",
+            "prompt_trimmed_char_count",
+            "verification_hops",
+            "verification_calls",
+        ),
+    }
 )
 PATH_IDS: tuple[str, ...] = (
     "direct_local_answer_exact_shadow",
@@ -1019,25 +1060,37 @@ def _upstream_assets(
             {
                 "asset_id": "verification_provenance_contracts",
                 "asset_type": "verification_bundle_contract",
-                "fingerprint": _stable_fingerprint(
-                    {
-                        "source_ref": SOURCE_IDS["verification_contracts"],
-                        "symbols": ["VerificationBundle", "VerificationProvenance"],
-                    }
-                ),
+                "fingerprint": _stable_fingerprint(_verification_contract_payload()),
             },
             {
                 "asset_id": "semantic_cache_gate_status",
                 "asset_type": "roadmap_gate_contract",
-                "fingerprint": _stable_fingerprint(
-                    {
-                        "semantic_cache_gate_status": SEMANTIC_CACHE_GATE_STATUS,
-                        "source_ref": SOURCE_IDS["semantic_cache_gate"],
-                    }
-                ),
+                "fingerprint": _stable_fingerprint(_semantic_cache_gate_contract_payload()),
             },
         )
     )
+
+
+def _verification_contract_payload() -> Mapping[str, JsonValue]:
+    return {
+        "source_ref": SOURCE_IDS["verification_contracts"],
+        "contract_version": VERIFICATION_PROVENANCE_CONTRACT_VERSION,
+        "classes": {
+            name: list(fields) for name, fields in sorted(VERIFICATION_CONTRACT_FIELD_MAP.items())
+        },
+        "required_shadow_provenance_fields": list(PROVENANCE_FIELD_IDS),
+    }
+
+
+def _semantic_cache_gate_contract_payload() -> Mapping[str, JsonValue]:
+    return {
+        "source_ref": SOURCE_IDS["semantic_cache_gate"],
+        "gate_contract_version": SEMANTIC_CACHE_GATE_CONTRACT_VERSION,
+        "semantic_cache_gate_status": SEMANTIC_CACHE_GATE_STATUS,
+        "semantic_cache_allowed_runtime": False,
+        "semantic_cache_implementation_allowed": False,
+        "semantic_cache_requires_dedicated_gate": True,
+    }
 
 
 def _normalize_upstream_assets(

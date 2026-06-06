@@ -151,6 +151,41 @@ def test_shadow_harness_evidence_asset_lineage_is_metadata_only() -> None:
             ),
         }
     )
+    assert upstream_assets[1]["fingerprint"] == harness._stable_fingerprint(
+        harness._verification_contract_payload()
+    )
+    assert upstream_assets[2]["fingerprint"] == harness._stable_fingerprint(
+        harness._semantic_cache_gate_contract_payload()
+    )
+
+
+def test_shadow_harness_upstream_contract_fingerprints_track_version_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default_asset = _compose_mapping()["evidence_asset"]
+    assert isinstance(default_asset, dict)
+    default_upstream_assets = default_asset["upstream_assets"]
+    assert isinstance(default_upstream_assets, list)
+
+    monkeypatch.setattr(
+        harness,
+        "SEMANTIC_CACHE_GATE_CONTRACT_VERSION",
+        "2026-06-06:semantic-cache-gate-plan:test-version",
+    )
+    changed_asset = _compose_mapping()["evidence_asset"]
+    assert isinstance(changed_asset, dict)
+    changed_upstream_assets = changed_asset["upstream_assets"]
+    assert isinstance(changed_upstream_assets, list)
+
+    assert default_upstream_assets[1]["fingerprint"] == changed_upstream_assets[1]["fingerprint"]
+    assert default_upstream_assets[2]["fingerprint"] != changed_upstream_assets[2]["fingerprint"]
+    provenance_fields = harness._verification_contract_payload()["classes"]
+    assert isinstance(provenance_fields, dict)
+    assert "VerificationProvenance" in provenance_fields
+    assert (
+        harness._verification_contract_payload()["contract_version"]
+        == harness.VERIFICATION_PROVENANCE_CONTRACT_VERSION
+    )
 
 
 def test_shadow_harness_produced_at_changes_stable_artifact_fingerprint() -> None:

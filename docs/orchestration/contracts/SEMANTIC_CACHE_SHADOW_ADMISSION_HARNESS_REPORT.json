@@ -8,8 +8,8 @@
   "generation_mode": "deterministic_static_shadow_synthetic_redacted_inputs",
   "evidence_asset": {
     "asset_type": "semantic_cache_shadow_admission_harness_report",
-    "artifact_fingerprint": "sha256:59a77a36d55a9b08218d214bf77d49b87f78e7296ec22d63434713b5750b9b46",
-    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:59a77a36d55a9b08",
+    "artifact_fingerprint": "sha256:9133073e9361af9d8fbb392898bc4942aa31d9bb44d7f5afbdb2684c42ea0630",
+    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:9133073e9361af9d",
     "upstream_assets": [
       {
         "asset_id": "semantic_cache_offline_admission_runner_report",
@@ -19,12 +19,12 @@
       {
         "asset_id": "verification_provenance_contracts",
         "asset_type": "verification_bundle_contract",
-        "fingerprint": "sha256:2b05c22fb096435a40e5418eb662e10c1a2a3ac7ec44660cbdaf048d55eb4277"
+        "fingerprint": "sha256:809b6397ac28dc2cb0c74e48107cbf86fc57fd04a2066c8e3602b4332ab93d1f"
       },
       {
         "asset_id": "semantic_cache_gate_status",
         "asset_type": "roadmap_gate_contract",
-        "fingerprint": "sha256:1b8870b4829a4ea09e5c2cb888d08049255e18b4691b3b88980fe2aed8aa6ddf"
+        "fingerprint": "sha256:16cccc133c211c53a37dd583545bb65b639f66697e9409ac668694cad0baf4e6"
       }
     ],
     "replay_behavior": "deterministic_static_replay_safe",
