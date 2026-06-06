@@ -57,6 +57,7 @@ ALLOWED_SEMANTIC_CACHE_IMPORTS = (
     "core.ai.bounded_insight_semantic_cache",
     "core.ai.cache_observability",
     "core.ai.exact_fuzzy_cache",
+    "core.ai.semantic_cache_offline_admission_runner",
     "core.ai.semantic_cache_backend_selection",
 )
 
