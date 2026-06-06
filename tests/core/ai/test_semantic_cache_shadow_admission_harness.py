@@ -143,6 +143,14 @@ def test_shadow_harness_evidence_asset_lineage_is_metadata_only() -> None:
     assert all(
         re.fullmatch(r"sha256:[a-f0-9]{64}", str(item["fingerprint"])) for item in upstream_assets
     )
+    assert upstream_assets[0]["fingerprint"] == harness._stable_fingerprint(
+        {
+            "produced_at": str(report["produced_at"]),
+            "report": dict(
+                harness._offline_decision_mapping(produced_at=str(report["produced_at"]))
+            ),
+        }
+    )
 
 
 def test_shadow_harness_produced_at_changes_stable_artifact_fingerprint() -> None:
@@ -156,7 +164,12 @@ def test_shadow_harness_produced_at_changes_stable_artifact_fingerprint() -> Non
 
     assert default_mapping["produced_at"] == "2026-06-06T00:00:00Z"
     assert rerendered_mapping["produced_at"] == "2026-06-07T00:00:00Z"
-    assert default_mapping["evidence_asset"] != rerendered_mapping["evidence_asset"]
+    default_asset = default_mapping["evidence_asset"]
+    rerendered_asset = rerendered_mapping["evidence_asset"]
+    assert isinstance(default_asset, dict)
+    assert isinstance(rerendered_asset, dict)
+    assert default_asset["artifact_fingerprint"] != rerendered_asset["artifact_fingerprint"]
+    assert default_asset["upstream_assets"] != rerendered_asset["upstream_assets"]
 
 
 def test_shadow_harness_evidence_asset_identity_includes_lineage_fields() -> None:
@@ -313,6 +326,16 @@ def test_shadow_harness_provenance_labels_cover_missing_and_malformed_cases() ->
     assert blocked["verification_bundle_present"] is True
     assert blocked["provenance_complete"] is False
     assert blocked["missing_required_provenance_fields"] == ["answer_digest"]
+    assert blocked["runner_scenario_id"] == "not_evaluated_failed_bundle"
+    assert blocked["lookup_decision"] == "not_evaluated"
+    assert blocked["match_mode"] is None
+    assert blocked["score_bps"] is None
+    assert blocked["false_hit_outcome"] == "not_evaluated"
+    assert blocked["false_hit_is_false_hit"] is False
+    assert blocked["false_hit_blocking_reasons"] == []
+    assert blocked["stop_serving"] is False
+    assert blocked["bounded_decision"] == "not_evaluated"
+    assert "fail_closed_before_cache_evaluation" in blocked["bounded_reason_codes"]
 
 
 def test_shadow_harness_output_contains_no_raw_runtime_or_operator_material() -> None:
@@ -361,6 +384,11 @@ def test_shadow_harness_rejects_bad_inputs_before_rendering() -> None:
         )
     with pytest.raises(ValueError, match="UTC timestamp"):
         SemanticCacheShadowAdmissionInput(produced_at="2026-06-06", path_ids=PATH_IDS)
+    with pytest.raises(ValueError, match="valid ISO UTC timestamp"):
+        SemanticCacheShadowAdmissionInput(
+            produced_at="2026-13-40T99:99:99Z",
+            path_ids=PATH_IDS,
+        )
     with pytest.raises(ValueError, match="sha256 label"):
         harness._validate_fingerprint("request_fingerprint", "digest:not-sha")
     with pytest.raises(ValueError, match="sha256 label"):
@@ -609,6 +637,7 @@ def test_shadow_harness_core_module_uses_no_runtime_or_io_capabilities() -> None
         additional_allowed_imports=("core.ai.semantic_cache_offline_admission_runner",),
     )
     assert_no_forbidden_semantic_cache_calls(MODULE)
+    assert "read_bytes" not in MODULE.read_text(encoding="utf-8")
 
 
 def test_offline_runner_import_exception_is_shadow_harness_local(tmp_path: Path) -> None:

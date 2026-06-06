@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
-from pathlib import Path
 import re
 from types import MappingProxyType
 from typing import TypeAlias, cast
@@ -36,8 +36,10 @@ GENERATION_MODE = "deterministic_static_shadow_synthetic_redacted_inputs"
 SEMANTIC_CACHE_GATE_STATUS = "closed"
 DEFAULT_PRODUCED_AT = "2026-06-06T00:00:00Z"
 DEFAULT_POLICY_VERSION = "semantic-cache-shadow-admission-v1"
-LOCAL_SHADOW_SCENARIO_IDS: tuple[str, ...] = ("not_evaluated_missing_bundle",)
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+LOCAL_SHADOW_SCENARIO_IDS: tuple[str, ...] = (
+    "not_evaluated_missing_bundle",
+    "not_evaluated_failed_bundle",
+)
 
 PROVENANCE_FIELD_IDS: tuple[str, ...] = (
     "input_digest",
@@ -162,6 +164,7 @@ class SemanticCacheShadowAdmissionReport:
     final_admission_decision: Mapping[str, JsonValue]
     redaction_assertions: Mapping[str, JsonValue]
     source_refs: tuple[Mapping[str, JsonValue], ...]
+    upstream_assets: tuple[Mapping[str, JsonValue], ...]
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -215,6 +218,11 @@ class SemanticCacheShadowAdmissionReport:
             self,
             "source_refs",
             tuple(_freeze_mapping(ref) for ref in self.source_refs),
+        )
+        object.__setattr__(
+            self,
+            "upstream_assets",
+            _normalize_upstream_assets(self.upstream_assets),
         )
 
 
@@ -344,6 +352,10 @@ def compose_semantic_cache_shadow_admission_report(
 
     offline_mapping = _offline_decision_mapping(produced_at=input.produced_at)
     offline_scenarios = _offline_scenarios(offline_mapping)
+    upstream_assets = _upstream_assets(
+        offline_mapping=offline_mapping,
+        produced_at=input.produced_at,
+    )
     specs = _ordered_specs(input.path_ids)
     path_specs: list[Mapping[str, JsonValue]] = []
     path_results: list[Mapping[str, JsonValue]] = []
@@ -386,6 +398,7 @@ def compose_semantic_cache_shadow_admission_report(
         },
         redaction_assertions={key: True for key in REDACTION_ASSERTION_KEYS},
         source_refs=_source_refs(),
+        upstream_assets=upstream_assets,
     )
 
 
@@ -412,6 +425,7 @@ def to_stable_mapping(report: SemanticCacheShadowAdmissionReport) -> Mapping[str
         "redaction_assertions": _json_safe_copy(report.redaction_assertions),
         "source_refs": [_json_safe_copy(ref) for ref in report.source_refs],
     }
+    upstream_assets = [_json_safe_copy(asset) for asset in report.upstream_assets]
     return {
         "schema_version": payload["schema_version"],
         "report_id": payload["report_id"],
@@ -420,7 +434,7 @@ def to_stable_mapping(report: SemanticCacheShadowAdmissionReport) -> Mapping[str
         "produced_at": payload["produced_at"],
         "scope": payload["scope"],
         "generation_mode": payload["generation_mode"],
-        "evidence_asset": _evidence_asset(payload),
+        "evidence_asset": _evidence_asset(payload, upstream_assets=upstream_assets),
         "source_ids": payload["source_ids"],
         "authority_flags": payload["authority_flags"],
         "path_specs": payload["path_specs"],
@@ -459,7 +473,12 @@ def _scenario_for_spec(
     spec: _ShadowPathSpec,
     offline_scenarios: Mapping[str, Mapping[str, JsonValue]],
 ) -> Mapping[str, JsonValue]:
-    if spec.runner_scenario_id == "not_evaluated_missing_bundle":
+    if spec.runner_scenario_id in LOCAL_SHADOW_SCENARIO_IDS:
+        bundle_reason = (
+            "verification_bundle_failed"
+            if spec.runner_scenario_id == "not_evaluated_failed_bundle"
+            else "verification_bundle_missing"
+        )
         return MappingProxyType(
             {
                 "lookup_decision": "not_evaluated",
@@ -471,7 +490,7 @@ def _scenario_for_spec(
                 "stop_serving": False,
                 "bounded_decision": "not_evaluated",
                 "bounded_reason_codes": [
-                    "verification_bundle_missing",
+                    bundle_reason,
                     "fail_closed_before_cache_evaluation",
                 ],
             }
@@ -783,7 +802,7 @@ def _path_specs() -> Mapping[str, _ShadowPathSpec]:
             path_id="blocked_bundle_fail_closed_shadow",
             path_family="philosophical_runtime_verification",
             route_label="blocked_verification_bundle",
-            runner_scenario_id="admission_blocked_candidate",
+            runner_scenario_id="not_evaluated_failed_bundle",
             verification_bundle_state="fail",
             verification_overall_status="fail",
             verification_admission_allowed=False,
@@ -952,8 +971,11 @@ def _source_refs() -> tuple[Mapping[str, JsonValue], ...]:
     )
 
 
-def _evidence_asset(payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
-    upstream_assets = _upstream_assets()
+def _evidence_asset(
+    payload: Mapping[str, JsonValue],
+    *,
+    upstream_assets: list[JsonValue],
+) -> dict[str, JsonValue]:
     replay_behavior = "deterministic_static_replay_safe"
     admission_behavior = "metadata_only_shadow_report_no_runtime_admission"
     identity_payload = dict(payload)
@@ -977,36 +999,91 @@ def _evidence_asset(payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     }
 
 
-def _upstream_assets() -> list[JsonValue]:
-    return [
-        {
-            "asset_id": "semantic_cache_offline_admission_runner_report",
-            "asset_type": "offline_admission_report",
-            "fingerprint": _file_fingerprint(
-                "docs/orchestration/contracts/"
-                "SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT.json"
-            ),
-        },
-        {
-            "asset_id": "verification_provenance_contracts",
-            "asset_type": "verification_bundle_contract",
-            "fingerprint": _file_fingerprint("core/verification/contracts.py"),
-        },
-        {
-            "asset_id": "semantic_cache_gate_status",
-            "asset_type": "roadmap_gate_contract",
-            "fingerprint": _file_fingerprint(
-                "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
-            ),
-        },
-    ]
+def _upstream_assets(
+    *,
+    offline_mapping: Mapping[str, JsonValue],
+    produced_at: str,
+) -> tuple[Mapping[str, JsonValue], ...]:
+    return _normalize_upstream_assets(
+        (
+            {
+                "asset_id": "semantic_cache_offline_admission_runner_report",
+                "asset_type": "offline_admission_report",
+                "fingerprint": _stable_fingerprint(
+                    {
+                        "produced_at": produced_at,
+                        "report": dict(offline_mapping),
+                    }
+                ),
+            },
+            {
+                "asset_id": "verification_provenance_contracts",
+                "asset_type": "verification_bundle_contract",
+                "fingerprint": _stable_fingerprint(
+                    {
+                        "source_ref": SOURCE_IDS["verification_contracts"],
+                        "symbols": ["VerificationBundle", "VerificationProvenance"],
+                    }
+                ),
+            },
+            {
+                "asset_id": "semantic_cache_gate_status",
+                "asset_type": "roadmap_gate_contract",
+                "fingerprint": _stable_fingerprint(
+                    {
+                        "semantic_cache_gate_status": SEMANTIC_CACHE_GATE_STATUS,
+                        "source_ref": SOURCE_IDS["semantic_cache_gate"],
+                    }
+                ),
+            },
+        )
+    )
 
 
-def _file_fingerprint(repo_relative_path: str) -> str:
-    path = (_REPO_ROOT / repo_relative_path).resolve()
-    if not str(path).startswith(str(_REPO_ROOT.resolve()) + "/"):
-        raise ValueError("upstream evidence path must stay under the repo root")
-    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+def _normalize_upstream_assets(
+    values: Iterable[Mapping[str, JsonValue]],
+) -> tuple[Mapping[str, JsonValue], ...]:
+    assets: list[Mapping[str, JsonValue]] = []
+    for index, value in enumerate(values):
+        asset = _freeze_mapping(value)
+        assets.append(
+            MappingProxyType(
+                {
+                    "asset_id": _validate_token(
+                        "upstream_asset_id",
+                        _mapping_string(asset, "asset_id"),
+                    ),
+                    "asset_type": _validate_token(
+                        "upstream_asset_type",
+                        _mapping_string(asset, "asset_type"),
+                    ),
+                    "fingerprint": _validate_sha256_digest(
+                        f"upstream_assets[{index}].fingerprint",
+                        _mapping_string(asset, "fingerprint"),
+                    ),
+                }
+            )
+        )
+    if [asset["asset_id"] for asset in assets] != [
+        "semantic_cache_offline_admission_runner_report",
+        "verification_provenance_contracts",
+        "semantic_cache_gate_status",
+    ]:
+        raise ValueError("upstream_assets order mismatch")
+    return tuple(assets)
+
+
+def _mapping_string(mapping: Mapping[str, JsonValue], key: str) -> str:
+    value = mapping.get(key)
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a string")
+    return value
+
+
+def _validate_sha256_digest(name: str, value: str) -> str:
+    if not re.fullmatch(r"sha256:[a-f0-9]{64}", value):
+        raise ValueError(f"{name} must be a sha256 digest")
+    return value
 
 
 def _stable_fingerprint(payload: Mapping[str, JsonValue]) -> str:
@@ -1149,6 +1226,12 @@ def _validate_fingerprint(name: str, value: str) -> str:
 def _validate_produced_at(value: str) -> str:
     if not isinstance(value, str) or not _PRODUCED_AT_RE.match(value):
         raise ValueError("produced_at must be an ISO UTC timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+    except ValueError as exc:
+        raise ValueError("produced_at must be a valid ISO UTC timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+        raise ValueError("produced_at must be a valid ISO UTC timestamp")
     return value
 
 
