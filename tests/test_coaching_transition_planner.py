@@ -453,6 +453,15 @@ def test_transition_plan_schema_requires_no_recommendation_state_for_empty_allow
             reasons=("cold_start_default", "default_prior_not_observed_slip"),
         )
 
+    with pytest.raises(ValidationError, match="no available scenarios"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="no_recommendation_available",
+            available_scenarios=("mascot_insight",),
+            ranked_scenarios=(),
+            confidence=0.0,
+            reasons=("no_available_scenarios",),
+        )
+
 
 def test_markov_transition_schemas_reject_reason_mismatches() -> None:
     reason_cases = (

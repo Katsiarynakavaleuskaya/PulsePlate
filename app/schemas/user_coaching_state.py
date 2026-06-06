@@ -412,6 +412,12 @@ def _validate_markov_ranked_scenarios(
     if available_scenarios is not None and not available_scenarios:
         if transition_state != "no_recommendation_available":
             raise ValueError("transition_state must match no available scenarios")
+    if (
+        available_scenarios is not None
+        and available_scenarios
+        and transition_state == "no_recommendation_available"
+    ):
+        raise ValueError("transition_state must match no available scenarios")
 
     if ranked_scenarios and available_scenarios is not None:
         unavailable_scenarios = tuple(
