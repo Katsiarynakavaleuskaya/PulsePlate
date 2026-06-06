@@ -780,7 +780,7 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
                     return f"Medical/wellness overclaim found: {match.group()}"
             for pattern in FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS:
                 for match in pattern.finditer(line):
-                    if _medical_term_is_boundary_negated(line, match.start(), match.group()):
+                    if _outcome_claim_is_directly_boundary_negated(line, match.start()):
                         continue
                     return f"Guaranteed/clinical outcome claim found: {match.group()}"
     for normalized in normalized_variants:
@@ -822,6 +822,31 @@ def _medical_term_is_boundary_negated(line: str, match_start: int, match_text: s
     context_words = re.findall(r"[a-z]+", text_between_marker_and_term)
     return bool(context_words) and all(
         word in FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS for word in context_words
+    )
+
+
+def _outcome_claim_is_directly_boundary_negated(line: str, match_start: int) -> bool:
+    """Allow explicit outcome-claim boundary lists without hiding later claims."""
+
+    prefix = line[:match_start].lower()
+    if re.search(r"(?:^|\b)(?:no|not|without)\s+$", prefix):
+        return True
+    same_clause_prefix = re.split(r"[.:;!?]", prefix)[-1]
+    marker_matches: list[re.Match[str]] = []
+    for marker in FITCHEF_RELEASE_WELLNESS_BOUNDARY_MARKERS:
+        marker_text = marker.strip()
+        marker_matches.extend(
+            re.finditer(rf"(?<![a-z]){re.escape(marker_text)}(?![a-z])", same_clause_prefix)
+        )
+    if not marker_matches:
+        return False
+    marker_match = max(marker_matches, key=lambda match: (match.start(), match.end()))
+    text_between_marker_and_claim = same_clause_prefix[marker_match.end() :]
+    context_words = re.findall(r"[a-z]+", text_between_marker_and_claim)
+    return (
+        bool(context_words)
+        and "and" not in context_words
+        and all(word in FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS for word in context_words)
     )
 
 

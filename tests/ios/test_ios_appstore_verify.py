@@ -664,6 +664,7 @@ def test_fitchef_release_readiness_validator_rejects_snake_case_release_status(
         "Guaranteed weight loss results.",
         "Guaranteed adherence with meal plan.",
         "Clinically proven meal plan.",
+        "No therapy and clinically proven meal plan.",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_guaranteed_outcome_claims(
@@ -726,6 +727,7 @@ def test_fitchef_release_readiness_validator_rejects_expanded_medical_claims(
         "Rapid outcomes for busy weeks.",
         "Resultados rapidos para tu cuerpo.",
         "Most accurate nutrition app.",
+        "No diagnosis and #1 nutrition app.",
         "#1 nutrition assistant for families.",
         "Number one wellness planner.",
         "Top-ranked diet app.",
