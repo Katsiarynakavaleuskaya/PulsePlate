@@ -166,6 +166,10 @@ FITCHEF_RELEASE_CREDENTIAL_PATTERNS = (
     re.compile(r"\bsk-proj-[A-Za-z0-9_-]{20,}\b"),
 )
 FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS = (
+    re.compile(
+        r"\bsubmit\s+ready\s*[:=]\s*(?:true|yes|completed|succeeded|done|passed|1)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"fastlane\s+upload\s+(?:true|yes|completed|succeeded|done|passed)", re.IGNORECASE),
     re.compile(
         r"app\s+store\s+connect\s+mutation\s+(?:true|yes|completed|succeeded|done|passed)",
@@ -491,7 +495,9 @@ PRICING_PATTERNS = [
     re.compile(r"\bEUR\s*\d", re.IGNORECASE),
     re.compile(r"\bRUB\s*\d", re.IGNORECASE),
     re.compile(r"\bprice\s+(?:eur|rub|usd)\s+\d", re.IGNORECASE),
+    re.compile(r"\bprice\s+\d+(?:[.,]\d+)?\b", re.IGNORECASE),
     re.compile(r"\btrial\s+(?:days?|months?)\s+\d", re.IGNORECASE),
+    re.compile(r"\btrial\s+\d+\b", re.IGNORECASE),
     re.compile(r"\d+[\s-]*day\s+(?:free\s+)?trial", re.IGNORECASE),
     re.compile(r"\d+[\s-]*month\s+(?:free\s+)?trial", re.IGNORECASE),
     re.compile(r"(?:free|бесплатн)\s+(?:for|на)\s+\d+", re.IGNORECASE),
@@ -638,50 +644,58 @@ def _release_readiness_scan_text() -> tuple[str, str | None]:
 
 
 def _validate_release_readiness_scan_text(text: str) -> str | None:
-    lowered = text.lower()
-    normalized = _claim_scan_text(text)
+    text_variants = _scan_text_variants(text)
+    lowered_variants = [variant.lower() for variant in text_variants]
+    normalized_variants = [_claim_scan_text(variant) for variant in text_variants]
     for fragment in FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS:
-        if fragment in lowered:
+        if any(fragment in lowered for lowered in lowered_variants):
             return f"Forbidden release-readiness fragment found: {fragment}"
     for pattern in FITCHEF_RELEASE_LOCAL_PATH_PATTERNS:
         match = pattern.search(text)
         if match:
             return "Forbidden release-readiness local path found: <redacted>"
     for pattern in PRICING_PATTERNS:
-        match = pattern.search(text)
-        if match:
-            return f"Pricing/trial claim found: {match.group()}"
+        for variant in text_variants:
+            match = pattern.search(variant)
+            if match:
+                return f"Pricing/trial claim found: {match.group()}"
     for fragment in FITCHEF_RELEASE_LOCALIZED_PRICING_FRAGMENTS:
-        if fragment in normalized:
+        if any(fragment in normalized for normalized in normalized_variants):
             return f"Localized pricing/trial claim found: {fragment}"
     for pattern in FITCHEF_RELEASE_CREDENTIAL_PATTERNS:
-        match = pattern.search(text)
-        if match:
-            return "Credential-like release bundle value found: <redacted>"
+        for variant in text_variants:
+            match = pattern.search(variant)
+            if match:
+                return "Credential-like release bundle value found: <redacted>"
     for pattern in FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS:
-        match = pattern.search(text)
-        if match:
-            return f"Protected release action claim found: {match.group()}"
+        for variant in text_variants:
+            match = pattern.search(variant)
+            if match:
+                return f"Protected release action claim found: {match.group()}"
     for fragment in FITCHEF_RELEASE_LOCALIZED_UPLOAD_FRAGMENTS:
-        if fragment in normalized:
+        if any(fragment in normalized for normalized in normalized_variants):
             return f"Localized protected release action claim found: {fragment}"
-    for line in text.splitlines():
-        for pattern in FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS:
-            for match in pattern.finditer(line):
-                if _medical_term_is_boundary_negated(line, match.start(), match.group()):
-                    continue
-                return f"Medical/wellness overclaim found: {match.group()}"
-        for pattern in FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS:
-            for match in pattern.finditer(line):
-                if _medical_term_is_boundary_negated(line, match.start(), match.group()):
-                    continue
-                return f"Guaranteed/clinical outcome claim found: {match.group()}"
-    for line in normalized.splitlines():
-        for fragment in FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS:
-            for match in re.finditer(re.escape(fragment), line):
-                if _localized_wellness_fragment_is_boundary_negated(line, match.start(), fragment):
-                    continue
-                return f"Localized medical/wellness overclaim found: {fragment}"
+    for variant in text_variants:
+        for line in variant.splitlines():
+            for pattern in FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS:
+                for match in pattern.finditer(line):
+                    if _medical_term_is_boundary_negated(line, match.start(), match.group()):
+                        continue
+                    return f"Medical/wellness overclaim found: {match.group()}"
+            for pattern in FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS:
+                for match in pattern.finditer(line):
+                    if _medical_term_is_boundary_negated(line, match.start(), match.group()):
+                        continue
+                    return f"Guaranteed/clinical outcome claim found: {match.group()}"
+    for normalized in normalized_variants:
+        for line in normalized.splitlines():
+            for fragment in FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS:
+                for match in re.finditer(re.escape(fragment), line):
+                    if _localized_wellness_fragment_is_boundary_negated(
+                        line, match.start(), fragment
+                    ):
+                        continue
+                    return f"Localized medical/wellness overclaim found: {fragment}"
     return None
 
 
@@ -757,6 +771,20 @@ def _localized_wellness_fragment_is_boundary_negated(
 def _swift_enum_case_name(scenario_id: str) -> str:
     head, *tail = scenario_id.split("_")
     return head + "".join(part.capitalize() for part in tail)
+
+
+def _swift_scenario_case_declarations(source: str) -> dict[str, str]:
+    return {
+        match.group(2): match.group(1)
+        for match in re.finditer(
+            r"\bcase\s+([A-Za-z][A-Za-z0-9]*)\s*=\s*\"([a-z][a-z0-9_]*)\"",
+            source,
+        )
+    }
+
+
+def _swift_xctest_screenshot_methods(source: str) -> set[str]:
+    return set(re.findall(r"\bfunc\s+(test[A-Za-z0-9_]*Screenshot)\s*\(", source))
 
 
 def _swift_balanced_block_after(source: str, needle: str) -> str | None:
@@ -905,6 +933,28 @@ def _validate_ios_screenshot_sources() -> str | None:
     for label, expected_fragment in required_capture_bindings.items():
         if expected_fragment not in capture_helper_body:
             return f"iOS screenshot capture helper drift: missing {label}"
+
+    expected_cases = {
+        scenario_id: _swift_enum_case_name(scenario_id)
+        for scenario_id in EXPECTED_FITCHEF_SCENARIOS
+    }
+    context_cases = _swift_scenario_case_declarations(context_text)
+    if context_cases != expected_cases:
+        return (
+            "iOS screenshot context scenario set drift: " f"{context_cases!r} != {expected_cases!r}"
+        )
+    test_cases = _swift_scenario_case_declarations(test_text)
+    if test_cases != expected_cases:
+        return f"iOS screenshot test scenario set drift: {test_cases!r} != {expected_cases!r}"
+    expected_test_methods = {
+        _swift_test_method_name(enum_case) for enum_case in expected_cases.values()
+    }
+    actual_test_methods = _swift_xctest_screenshot_methods(test_text)
+    if actual_test_methods != expected_test_methods:
+        return (
+            "iOS screenshot XCTest method set drift: "
+            f"{sorted(actual_test_methods)!r} != {sorted(expected_test_methods)!r}"
+        )
 
     scenario_view_block = _swift_balanced_block_after(context_text, "static func scenarioView()")
     if scenario_view_block is None:
