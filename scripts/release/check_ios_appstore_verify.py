@@ -167,7 +167,12 @@ FITCHEF_RELEASE_CREDENTIAL_PATTERNS = (
 )
 FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS = (
     re.compile(
-        r"\bsubmit\s+ready\s*[:=]\s*(?:true|yes|completed|succeeded|done|passed|1)\b",
+        r"\bsubmit\s+ready\s*(?::|=)?\s*(?:true|yes|completed|succeeded|done|passed|1)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bpublic\s+submission\s+allowed\s*(?::|=)?\s*"
+        r"(?:true|yes|completed|succeeded|done|passed|1)\b",
         re.IGNORECASE,
     ),
     re.compile(r"fastlane\s+upload\s+(?:true|yes|completed|succeeded|done|passed)", re.IGNORECASE),
@@ -558,6 +563,8 @@ def _flatten_strings(value: Any) -> list[str]:
             strings.extend(_scan_text_variants(str(key)))
             if isinstance(item, (str, int, float, bool)) or item is None:
                 strings.extend(_scan_text_variants(f"{key} {item}"))
+                strings.extend(_scan_text_variants(f"{key}: {item}"))
+                strings.extend(_scan_text_variants(f"{key}={item}"))
             strings.extend(_flatten_strings(item))
     elif isinstance(value, list):
         for item in value:

@@ -166,7 +166,11 @@ def test_fitchef_release_readiness_validator_rejects_submit_ready_overclaim(
     )
 
     results = module.check_fitchef_release_readiness_bundle()
-    assert "must not claim public submission allowed" in _failed_messages(results)
+    messages = _failed_messages(results)
+    assert (
+        "must not claim public submission allowed" in messages
+        or "Protected release action claim" in messages
+    )
 
 
 def test_fitchef_release_readiness_validator_rejects_secret_or_local_path(
@@ -757,6 +761,31 @@ def test_fitchef_release_readiness_validator_rejects_json_action_status_claims(
     )
     (release_dir / "operator_status.json").write_text(
         json.dumps({"fastlane_upload": True, "app_store_connect_mutation": True}),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Protected release action claim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"submit_ready": True},
+        {"public_submission_allowed": True},
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_json_submission_status_claims(
+    payload: dict[str, bool],
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "operator_status.json").write_text(
+        json.dumps(payload),
         encoding="utf-8",
     )
 
