@@ -47,10 +47,9 @@ ledger/report layer, and projects label-only state through the existing
 - Notes: initial pass completed for currently visible review comments; no
   actionable review comments were present when this artifact was created.
 - Final thread resolution and bot-actionable pass remain pending until
-  post-open agents, Codex Security, `pulseplate-pr-review`, CodeRabbit, Cubic,
-  Sourcery, and current-head CI settle.
+  CodeRabbit, Cubic, Sourcery, and current-head CI settle.
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
 
 - No actionable review comments
 
@@ -99,6 +98,9 @@ ledger/report layer, and projects label-only state through the existing
 - PASS: `python3 scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 - PASS: `python3 -m scripts.orchestration.experiment_slack_socket_bridge --activation-readiness-report --dispatch-mode dry-run`
 - PASS: `python3 scripts/orchestration/experiment_operator_ledger.py --write-report-set`
+- PASS: Codex Security diff scan report validator and HTML renderer for
+  `/tmp/codex-security-scans/BMI-App_2025_clean/47acacda10e_20260606T100729Z/report.md`
+- PASS: `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hook, including changed-file mypy, pip-audit, backend tests,
@@ -157,9 +159,48 @@ merge-readiness claim.
     consistency against the builder state machine, and
     `tests/test_experiment_operator_ledger.py::test_private_pilot_activation_evidence_contract_is_exact_and_value_free`
     rejects tampered-but-rehashed contradictory evidence.
-- [ ] `security-auditor`
-- [ ] Codex Security diff scan / finding discovery
-- [ ] `pulseplate-pr-review`
+- [x] `security-auditor`
+  - Disposition: NOT-A-BUG
+  - Evidence: mandatory post-open `security-auditor` pass reviewed pushed
+    head `b253f6eacd7fce19fd1ca1d058a4f98a2e4818e9` and returned `PASS`.
+    The role found no secret/log leakage in the manual smoke workflow; verified
+    `contents: read`, escaped input masking, suppressed validation/smoke command
+    output, pinned `actions/upload-artifact`, failure-safe evidence generation,
+    exact-key value-free activation evidence, cross-field validation,
+    local-only fail-closed ledger/report ingestion, and no authority expansion.
+    The role also ran `git diff --check origin/main...HEAD`, targeted pytest for
+    workflow/evidence/policy tests, `check_experiment_runner_identity.py`, and
+    the semantic-cache gate.
+- [x] Codex Security diff scan / finding discovery
+  - Disposition: NOT-A-BUG
+  - Evidence: Codex Security diff scan completed against
+    `origin/main...HEAD` immediately before this mapping mirror update. All 14
+    changed surfaces in
+    `deep_review_input.csv` have completed receipts in
+    `/tmp/codex-security-scans/BMI-App_2025_clean/47acacda10e_20260606T100729Z/artifacts/02_discovery/work_ledger.jsonl`;
+    `raw_candidates.jsonl` is empty; final report validator passed for
+    `/tmp/codex-security-scans/BMI-App_2025_clean/47acacda10e_20260606T100729Z/report.md`;
+    HTML report rendered to
+    `/tmp/codex-security-scans/BMI-App_2025_clean/47acacda10e_20260606T100729Z/report.html`.
+    The scan found no reportable findings and no evidence of secret/log
+    leakage, token minting, `repository_dispatch`, arbitrary workflow/ref
+    selection, PR/review/merge mutation, contents/workflows write, public Slack
+    expansion, or semantic-cache runtime enablement.
+- [x] `pulseplate-pr-review`
+  - Disposition: NOT-A-BUG
+  - Evidence: `pulseplate-pr-review` dry-run report was generated from PR #1895
+    metadata plus local `origin/main..HEAD` diff using packet
+    `66dfccd2211f`. The only advisory note was large-diff review risk
+    (`2160` changed lines), which is expected for this operator-approved broad
+    coherent slice. The scope remains bounded to orchestration workflow,
+    local-only evidence contract/reporting, existing Slack status projection,
+    docs, policy, backlog, and tests. The requested split was intentionally not
+    applied because the operator explicitly asked for this wider PR instead of
+    five micro-PRs. Evidence: `/tmp/pulseplate_pr_1895_review_report.md`,
+    `/tmp/pulseplate_pr_1895_review_report.json`, passing
+    `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`,
+    prior passing focused tests, `make validate-changed`, and
+    `pre-commit run --all-files`.
 
 ## Merge Readiness
 
@@ -167,7 +208,6 @@ Not claimed.
 
 Required before merge readiness:
 
-- Complete post-open role-agent review and Codex Security / PR review passes.
 - Fix or disposition every actionable human or bot finding.
 - Refresh this artifact and the PR-body mirror after any fixes or dispositions.
 - Wait for current-head CI and external bot state to settle.
