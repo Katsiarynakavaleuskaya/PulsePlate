@@ -123,9 +123,9 @@ path. Current-head CI parity remains required before merge readiness.
 - Pre-open role order completed.
 - Premortem completed and findings fixed/dispositioned above.
 - Experiment Runner oracle-only evidence completed.
-- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass is in progress.
-- Codex Security diff scan / finding discovery pending.
-- `pulseplate-pr-review` pending.
+- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
+- Codex Security diff scan / finding discovery completed.
+- `pulseplate-pr-review` completed.
 
 Post-open review threads must be recorded below with `FIXED`, `NOT-A-BUG`, or
 `DEFERRED` disposition before resolution.
@@ -139,9 +139,51 @@ Disposition: FIXED
 Commit: e04544951
 Evidence: Cubic identified two mapping/body format issues in `docs/review/PR_1896_FIXED_MAPPING.md`; the artifact now includes the exact canonical Phase2 checkboxes and a valid GitHub review-thread mapping entry instead of non-canonical no-actionable prose.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367098827 -> bbc2f897a
+Disposition: FIXED
+Commit: bbc2f897a
+Evidence: `tests/helpers/semantic_cache_import_guard.py` no longer globally allowlists `core.ai.semantic_cache_offline_admission_runner`; `tests/core/ai/test_semantic_cache_shadow_admission_harness.py` now passes the allowance only for the shadow harness and asserts the default guard still rejects that import.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367098828
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor e04544951 HEAD` passes on the current branch, so the Cubic Phase2 proof commit is reachable from the current PR history; `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1896 --require-auth` also passed before this update for the resolved Cubic threads.
+Reason: The concern described a stale/sibling-head evaluation; the current branch history contains the referenced proof commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367098829 -> 22542bbf3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#pullrequestreview-4442351938 -> 22542bbf3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367101076 -> 22542bbf3
+Disposition: FIXED
+Commit: 22542bbf3
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now validates fingerprints with `_DIGEST_PREFIX_RE`, and `tests/core/ai/test_semantic_cache_shadow_admission_harness.py` rejects bare `sha256:` labels.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367098830 -> bbc2f897a
+Disposition: FIXED
+Commit: bbc2f897a
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py`, `scripts/ci/check_semantic_cache_shadow_admission_harness.py`, and the generated report/schema now include evidence-asset lineage fields for asset type, upstream assets, artifact fingerprint, idempotency key, replay behavior, and admission behavior with focused tests.
+
+## Post-Open Role And Security Evidence
+
+- `qa-engineer-agent`: PASS at `9940929ac`; Phase2 body/artifact validation,
+  strict review-thread disposition guard, shadow checker, focused QA tests, and
+  diff whitespace checks passed with no runtime/cache/public surface widening.
+- `bug-hunter`: PASS at `9940929ac`; found no unstable ordering,
+  schema/report mismatch, unsafe source refs, raw prompt/query/context/answer
+  leakage, accidental runtime cache authority, provider/network/cache calls, or
+  out-of-scope public API/OpenAPI/DB/frontend/iOS/Slack/vector/GraphRAG changes.
+- `security-auditor`: PASS at `9940929ac`; confirmed closed semantic-cache
+  gate, false authority flags, `no_selection` backend context, no
+  provider/network/cache/storage calls, raw-leak guarded output, and confined
+  checker write paths/source refs.
+- Codex Security diff scan: PASS/no findings. Final report:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/pr1896-shadow-admission-20260606T095535Z/report.md`.
+- `pulseplate-pr-review`: PASS with one advisory large-diff note.
+  Disposition: NOT-A-BUG. Evidence: generated report/schema account for most
+  of the line count; this PR is intentionally medium-scope and `make
+  validate-changed`, focused semantic-cache suites, Phase2 gates, and
+  pre-commit passed before the later review-driven fixes.
+
 ## Merge Readiness
 
 - Not claimed.
-- Current-head CI, bot review state, post-open role passes, Codex Security,
-  `pulseplate-pr-review`, strict disposition checks, strict merge-readiness
-  checks, and wait-window remain pending.
+- Current-head CI, bot review state, strict disposition checks, strict
+  merge-readiness checks, and wait-window remain pending.
