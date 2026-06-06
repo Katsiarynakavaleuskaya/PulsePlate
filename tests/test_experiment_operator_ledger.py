@@ -1472,6 +1472,24 @@ def test_private_pilot_activation_evidence_contract_is_exact_and_value_free() ->
         activation.validate_private_pilot_activation_evidence(contradictory)
 
 
+def test_private_pilot_activation_evidence_blocks_github_dispatch_config() -> None:
+    evidence = activation.build_private_pilot_activation_evidence(
+        _activation_readiness(
+            activation_state="ready_for_manual_live_smoke",
+            github_dispatch_execute_gate_status="missing",
+            github_dispatch_readiness_state="blocked_by_execute_gate",
+        ),
+        dispatch_outcome_class="not_run",
+    )
+
+    assert evidence["activation_state"] == "blocked_by_invalid_config"
+    assert evidence["dispatch_outcome_class"] == "not_run"
+    assert evidence["last_smoke"] == "not_run"
+    assert evidence["next_operator_action"] == "fix_invalid_config"
+    assert evidence["github_dispatch_readiness_state"] == "blocked_by_execute_gate"
+    _assert_no_raw_leak(json.dumps(evidence, sort_keys=True))
+
+
 def test_private_pilot_activation_helper_has_no_live_authority() -> None:
     source = Path("scripts/orchestration/experiment_private_pilot_activation.py").read_text(
         encoding="utf-8"

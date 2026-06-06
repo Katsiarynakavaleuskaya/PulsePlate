@@ -307,7 +307,7 @@ def _coarse_activation_state(
         return "blocked_by_missing_secret"
     if github_state in {"blocked_by_allowlist", "blocked_by_slack_allowlist"}:
         return "blocked_by_allowlist"
-    if github_state.startswith("blocked_by_") and state == "manual_only":
+    if github_state.startswith("blocked_by_"):
         return "blocked_by_invalid_config"
     if github_state == "eligible_for_private_pilot_dispatch" and state == "manual_only":
         return "ready_for_manual_live_smoke"
@@ -337,8 +337,6 @@ def _next_operator_action(
         return "inspect_sanitized_failure"
     if dispatch_outcome_class == "smoke_recorded":
         return "review_activation_report"
-    if activation_state == "ready_for_manual_live_smoke":
-        return "run_manual_live_smoke"
     return "run_manual_live_smoke"
 
 
