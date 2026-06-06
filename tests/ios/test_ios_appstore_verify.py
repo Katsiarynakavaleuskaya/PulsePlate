@@ -439,7 +439,10 @@ def test_fitchef_release_readiness_validator_scans_pack_paths_for_claims(
     "claim",
     [
         "Wellness copy: diagnóstico y tratamiento médico para pacientes.",
+        "Recomendado por nutricionistas.",
+        "Consejo terapeutico para tu menu.",
         "Текст обещает медицинское лечение для пациентов.",
+        "Советы диетолога для меню.",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_localized_medical_claims(
@@ -628,6 +631,11 @@ def test_fitchef_release_readiness_validator_rejects_guaranteed_outcome_claims(
         "Lower cholesterol and blood pressure.",
         "Avoid diabetes with weekly menus.",
         "No diagnosis and treat patients.",
+        "Nutritionist-recommended menu.",
+        "Dietitian approved plan.",
+        "Therapeutic meal plan.",
+        "Medical-grade nutrition app.",
+        "medical monitoring support.",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_expanded_medical_claims(

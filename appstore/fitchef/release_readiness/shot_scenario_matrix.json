@@ -90,7 +90,7 @@
       "public_submission_allowed": false,
       "rendered_review_required": true,
       "testflight_smoke_status": "not_started",
-      "privacy_ai_wellness_note": "Progress copy is wellness habit-tracking support only; no HealthKit expansion, medical monitoring, or clinical outcome.",
+      "privacy_ai_wellness_note": "Progress copy is wellness habit-tracking support only; no HealthKit expansion, care tracking, or outcome promise.",
       "reviewer_action": "Render all locales and confirm chart labels, Cyrillic/Spanish wrapping, and wellness-only phrasing before any protected upload follow-up."
     },
     {
