@@ -290,6 +290,8 @@ def test_shadow_harness_rejects_bad_inputs_before_rendering() -> None:
         SemanticCacheShadowAdmissionInput(produced_at="2026-06-06", path_ids=PATH_IDS)
     with pytest.raises(ValueError, match="sha256 label"):
         harness._validate_fingerprint("request_fingerprint", "digest:not-sha")
+    with pytest.raises(ValueError, match="sha256 label"):
+        harness._validate_fingerprint("request_fingerprint", "sha256:")
     with pytest.raises(ValueError, match="unsupported provenance field"):
         harness._ShadowPathSpec(
             path_id="direct_local_answer_exact_shadow",

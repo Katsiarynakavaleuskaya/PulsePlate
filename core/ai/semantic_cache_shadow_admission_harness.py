@@ -1022,7 +1022,7 @@ def _validate_token(name: str, value: str) -> str:
 
 def _validate_fingerprint(name: str, value: str) -> str:
     token = _validate_token(name, value)
-    if not token.startswith("sha256:"):
+    if not _DIGEST_PREFIX_RE.match(token):
         raise ValueError(f"{name} must be a sha256 label")
     return token
 
