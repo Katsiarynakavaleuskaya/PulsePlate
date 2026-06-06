@@ -56,6 +56,16 @@ Evidence: `git log -1 --format=%B b48a16a0ec920700aa38a431c260060940ff4926` incl
 Reason: The Experiment Runner materially shaped the initial implementation commit, and that commit carries the governed trailer. Later mapping/checklist commits were review-governance maintenance and not material Experiment Runner outputs.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897#discussion_r3367857457
 
+Disposition: NOT-A-BUG
+Evidence: `python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1897 --require-auth` passed locally with all resolved threads mapped against the real PR branch history.
+Reason: The review comment uses a synthetic squash-preview commit as its ancestry model. Repo merge-readiness and disposition guards validate the actual PR branch checkout and reachable branch commits.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897#discussion_r3367905576
+
+Disposition: NOT-A-BUG
+Evidence: `git log -1 --format=%B b48a16a0ec920700aa38a431c260060940ff4926` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The governed Experiment Runner attribution applies to the commit materially shaped by the runner. The connector's synthetic squash-preview commit is not the repo branch commit used by local disposition proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897#discussion_r3367905578
+
 ## Implementation Evidence
 
 - Implementation commit: `b48a16a0ec920700aa38a431c260060940ff4926`
@@ -84,7 +94,6 @@ Reason: The Experiment Runner materially shaped the initial implementation commi
 - `shared_tree_untouched`: `true`
 - `source_diff_applied`: `true`
 - `promotion_ready`: `false`
-- `coauthor_required`: `true`
 - Co-author trailer is present on
   `b48a16a0ec920700aa38a431c260060940ff4926`.
 - Rejected/not-used artifact: `artifacts/orchestration/experiments/results/exp-6b9f53104928.json`
