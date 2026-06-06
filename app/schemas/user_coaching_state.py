@@ -19,6 +19,33 @@ FitChefCoachingScenario = Literal[
     "distortion_simulator",
     "identity_loop_mapper",
 ]
+FitChefTransitionState = Literal[
+    "cold_start_default",
+    "steady_state_default",
+    "slip_support_needed",
+    "weekly_reflection_due",
+    "no_recommendation_available",
+]
+FitChefTransitionReason = Literal[
+    "cold_start_default",
+    "default_prior_not_observed_slip",
+    "observed_slip_like_behavior",
+    "explicit_slip_event",
+    "observed_high_risk_adherence",
+    "day_close_observed",
+    "mascot_fallback_allowed",
+    "scenario_unavailable",
+    "no_available_scenarios",
+    "recent_behavior_capped",
+    "recent_behavior_unavailable",
+    "adherence_state_invalid_degraded",
+]
+FitChefTransitionSafetyLabel = Literal[
+    "wellness_only",
+    "service_only",
+    "no_raw_user_text",
+    "deterministic_policy",
+]
 RiskBucket = Literal["low", "moderate", "high"]
 ConfidenceBucket = Literal["low", "high"]
 
@@ -207,12 +234,70 @@ class PromptSafeCoachingContext(BaseModel):
     )
 
 
+class MarkovScenarioProbability(BaseModel):
+    """Ranked fixed-policy transition probability for one eligible scenario."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    rank: int = Field(..., ge=1)
+    scenario: FitChefCoachingScenario
+    probability: float = Field(..., ge=0.0, le=1.0)
+    reasons: tuple[FitChefTransitionReason, ...] = ()
+
+
+class MarkovCoachingTransitionPlanV1(BaseModel):
+    """Internal transition plan derived from UserCoachingStateV1 only."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    plan_version: Literal["markov_transition_v1"] = "markov_transition_v1"
+    source_state_version: Literal["v1"] = "v1"
+    transition_state: FitChefTransitionState
+    available_scenarios: tuple[FitChefCoachingScenario, ...]
+    ranked_scenarios: tuple[MarkovScenarioProbability, ...] = ()
+    recommended_scenario: FitChefCoachingScenario | None = None
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    reasons: tuple[FitChefTransitionReason, ...] = ()
+    safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = (
+        "wellness_only",
+        "service_only",
+        "no_raw_user_text",
+        "deterministic_policy",
+    )
+
+
+class PromptSafeMarkovTransitionContext(BaseModel):
+    """Prompt-safe transition projection with no identifiers or raw event data."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    plan_version: Literal["markov_transition_v1"] = "markov_transition_v1"
+    source_state_version: Literal["v1"] = "v1"
+    transition_state: FitChefTransitionState
+    recommended_scenario: FitChefCoachingScenario | None
+    ranked_scenarios: tuple[MarkovScenarioProbability, ...] = ()
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    reasons: tuple[FitChefTransitionReason, ...] = ()
+    safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = (
+        "wellness_only",
+        "service_only",
+        "no_raw_user_text",
+        "deterministic_policy",
+    )
+
+
 __all__ = [
     "AdherenceSnapshot",
     "FitChefCoachingScenario",
+    "FitChefTransitionReason",
+    "FitChefTransitionSafetyLabel",
+    "FitChefTransitionState",
+    "MarkovCoachingTransitionPlanV1",
+    "MarkovScenarioProbability",
     "ProfileSignalSnapshot",
     "PromptSafeAdherenceContext",
     "PromptSafeCoachingContext",
+    "PromptSafeMarkovTransitionContext",
     "PromptSafeProfileSignalContext",
     "PromptSafeRecentBehaviorContext",
     "RecentBehaviorSnapshot",
