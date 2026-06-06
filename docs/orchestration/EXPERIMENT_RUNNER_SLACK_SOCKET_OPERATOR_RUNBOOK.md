@@ -88,6 +88,47 @@ readiness, fixed-mapping proof, review-thread disposition, PR mutation,
 workflow-authority expansion, semantic-cache enablement, or product runtime
 truth.
 
+## Private-Pilot Activation Evidence
+
+Manual smoke evidence is captured as a redacted contract JSON, not as workflow
+logs. The contract is typed by
+`scripts/orchestration/experiment_private_pilot_activation.py` and contains only
+labels for activation state, dispatch outcome class, Slack token/allowlist
+status, GitHub dispatch auth/target/allowlist/workflow/ref/execute/approval
+status, `evidence_graph_admission_status=contract_only_not_runtime`, authority
+boundary flags, and a redaction summary.
+
+Allowed activation states are `manual_only`,
+`ready_for_manual_live_smoke`, `blocked_by_missing_secret`,
+`blocked_by_allowlist`, `blocked_by_invalid_config`, `smoke_recorded`,
+`smoke_failed_safely`, and `invalid_local_artifact`. Evidence must not include
+selected repository names, Slack IDs, token values or prefixes, raw branch refs,
+raw hypotheses, approval digests, workflow logs, local paths, oracle output, or
+patch text.
+
+After a manual smoke workflow run uploads the
+`private-pilot-activation-evidence` artifact, download the JSON locally and
+import it into the gitignored local evidence store:
+
+```bash
+python3 scripts/orchestration/experiment_operator_ledger.py \
+  --activation-evidence-json artifacts/orchestration/experiments/private_pilot_activation_inbox/incoming.json \
+  --record-activation-evidence
+```
+
+Then generate the operator report set:
+
+```bash
+python3 scripts/orchestration/experiment_operator_ledger.py --write-report-set
+```
+
+The import target defaults to
+`artifacts/orchestration/experiments/private_pilot_activation/`, and the report
+set defaults to `artifacts/orchestration/experiments/operator_observability/`.
+Both locations are local-only and gitignored. Do not commit downloaded evidence
+artifacts or generated report files; copy only redacted pass/fail labels or
+safe artifact references into PR discussion when governance asks for evidence.
+
 ## Slack App Manifest
 
 The secret-free operator setup manifest lives at
@@ -180,6 +221,13 @@ sanitized activation-readiness summary in `GITHUB_STEP_SUMMARY`. That summary is
 operator evidence only and does not replace GitHub Actions/current-head truth,
 review thread disposition, fixed mapping, or merge-readiness gates.
 
+The workflow also writes `activation-evidence.json` with the typed redacted
+private-pilot activation evidence contract and uploads it as the
+`private-pilot-activation-evidence` artifact. The artifact contains labels only;
+it is not workflow log evidence and it does not grant Slack, GitHub, PR,
+review-thread, merge, token-minting, workflow-selection, or semantic-cache
+authority.
+
 The live-smoke network check is bounded and exits. It validates the app-level
 Socket Mode credential by opening a temporary Socket Mode connection URL with
 Slack `apps.connections.open`, validates the bot credential with Slack
@@ -200,6 +248,8 @@ Committed PR evidence may record only:
 Do not commit workflow logs, raw stdout/stderr dumps, raw Slack IDs, raw
 hypothesis text, Slack WebSocket URLs, Slack payloads, token values, token
 prefixes, GitHub tokens, local absolute paths, oracle output, or patch text.
+Do not commit the downloaded activation evidence JSON or generated report set;
+import them locally and mirror only redacted labels when required.
 
 ## Current Activation Diagnostics
 
@@ -349,6 +399,15 @@ probe runtime secrets or Slack workspace state. A caller may supply a redacted
 readiness projection for operator evidence, but the report remains local-only
 and advisory.
 
+The observability report also includes a `Private Pilot Activation Evidence`
+section when a validated local activation evidence artifact exists. The status
+projection includes `private_pilot_activation_state`,
+`private_pilot_last_smoke`, `private_pilot_next_operator_action`,
+`private_pilot_dispatch_outcome_class`, and
+`private_pilot_evidence_status`. Malformed local evidence degrades to
+`invalid_local_artifact` without printing the malformed JSON, local path,
+workflow output, or validator details.
+
 The ledger and report must not store raw Slack text, Slack channel/user/team
 IDs, trigger IDs, raw branch refs, raw hypotheses, local absolute paths, health
 or wellness payloads, provider logs, token values or prefixes, approval
@@ -383,10 +442,11 @@ ledger record can be created. No new Slack command or Slack authority is added
 by the local observability report set.
 
 The observability report includes the private-pilot readiness projection only as
-report-level evidence. Ledger events remain hash-only and do not store selected
-repository names, token classes, approval digests, raw branch refs, raw
-hypotheses, Slack identifiers, workflow logs, oracle output, local paths, or
-patch text.
+report-level evidence. It may also include the latest validated private-pilot
+activation evidence projection as local report evidence. Ledger events remain
+hash-only and do not store selected repository names, token classes, approval
+digests, raw branch refs, raw hypotheses, Slack identifiers, workflow logs,
+oracle output, local paths, or patch text.
 
 ## Authority Boundary
 
@@ -416,8 +476,8 @@ Allowed operator display commands are bounded and redacted:
 - `/pulseplate-runner help`: static command summary and authority boundary.
 - `/pulseplate-runner status`: bridge mode, allowlist presence, fixed workflow
   metadata, private-pilot readiness labels, rate-limit setting, local
-  audit-retention setting, and optional sanitized latest local operator-ledger
-  summary only.
+  audit-retention setting, optional sanitized latest local operator-ledger
+  summary, and optional latest private-pilot activation evidence labels only.
 - `/pulseplate-runner kpp-status`: static KPP outcome catalog and
   security-sensitive routing note; no experiment artifacts, local paths, Slack
   IDs, hypotheses, or provider logs.

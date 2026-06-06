@@ -147,6 +147,21 @@ patch text. The report-level Evidence Graph hook is
 product runtime truth, merge readiness, PR mutation, or review-thread
 disposition authority.
 
+Private-pilot activation evidence is also contract-only. Manual smoke workflows
+may upload a redacted `private-pilot-activation-evidence` artifact and operators
+may import it into
+`artifacts/orchestration/experiments/private_pilot_activation/` for local
+reporting. That artifact may contain only typed labels for activation state,
+dispatch outcome class, Slack token/allowlist status, GitHub dispatch
+auth/target/allowlist/workflow/ref/execute/approval status, false authority
+boundary flags, and the redaction summary. It must not contain workflow logs,
+selected repository names, Slack IDs, token values or prefixes, raw branch refs,
+raw hypotheses, approval digests, local paths, oracle output, or patch text. It
+must not mint installation tokens, read GitHub App private keys, parse JWT
+credentials, mutate PRs or review threads, merge branches, dispatch repository
+events, choose arbitrary workflows, write contents/workflows, expand public
+Slack authority, or enable semantic-cache runtime behavior.
+
 Socket Mode uses runtime credentials outside the repository. Operators configure
 the app-level Socket Mode credential as `SLACK_APP_TOKEN` and the bot credential
 as `SLACK_BOT_TOKEN` in their secret store; the repository may reference those

@@ -57,16 +57,21 @@ def test_default_policy_validates() -> None:
         "requires_installation_class_for_cross_repo": True,
         "requires_actions_write": True,
         "private_pilot_readiness_projection": "label_only_operator_evidence",
+        "private_pilot_activation_evidence_loop": "redacted_manual_smoke_contract_only",
+        "activation_evidence_artifact_scope": "local_redacted_contract_only",
         "operator_ledger_evidence_loop": "local_report_projection_only",
         "evidence_graph_admission_status": "contract_only_not_runtime",
         "workflow_file": "experiment-runner-dispatch.yml",
         "workflow_ref": "main",
         "can_dispatch_repository_events": False,
         "can_dispatch_arbitrary_workflow": False,
+        "can_mint_installation_tokens": False,
         "can_mutate_pull_requests": False,
+        "can_mutate_review_threads": False,
         "can_merge_pull_requests": False,
         "can_write_contents": False,
         "can_write_workflows": False,
+        "can_enable_semantic_cache_runtime": False,
         "can_administer": False,
         "can_manage_sensitive_store": False,
     }
@@ -635,14 +640,35 @@ def test_rejects_github_app_dispatch_missing_required_boundary(field: str) -> No
 
 
 @pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("private_pilot_activation_evidence_loop", "runtime_smoke_authority"),
+        ("activation_evidence_artifact_scope", "public_runtime_artifact"),
+    ],
+)
+def test_rejects_github_app_dispatch_activation_evidence_scope_drift(
+    field: str,
+    value: str,
+) -> None:
+    policy = _valid_policy()
+    policy["github_app_dispatch"][field] = value
+
+    with pytest.raises(identity_check.IdentityPolicyError, match=field):
+        identity_check.validate_identity_policy(policy)
+
+
+@pytest.mark.parametrize(
     "field",
     [
         "can_dispatch_repository_events",
         "can_dispatch_arbitrary_workflow",
+        "can_mint_installation_tokens",
         "can_mutate_pull_requests",
+        "can_mutate_review_threads",
         "can_merge_pull_requests",
         "can_write_contents",
         "can_write_workflows",
+        "can_enable_semantic_cache_runtime",
         "can_administer",
         "can_manage_sensitive_store",
     ],
