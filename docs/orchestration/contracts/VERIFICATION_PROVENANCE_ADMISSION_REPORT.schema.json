@@ -191,8 +191,16 @@
                   "prompt_digest",
                   "context_item_digests",
                   "answer_digest",
+                  "input_sha",
+                  "prompt_sha",
+                  "context_item_shas",
+                  "answer_sha",
                   "prompt_char_count",
                   "prompt_trimmed",
+                  "prompt_original_char_count",
+                  "prompt_final_char_count",
+                  "prompt_trim_limit",
+                  "prompt_trimmed_char_count",
                   "verification_hops",
                   "verification_calls"
                 ]
@@ -213,8 +221,8 @@
               }
             }
           },
-          "minItems": 8,
-          "maxItems": 8
+          "minItems": 16,
+          "maxItems": 16
         },
         "raw_values_persisted": {
           "const": false
@@ -376,6 +384,22 @@
               },
               "answer_digest": {
                 "$ref": "#/$defs/digestLabel"
+              },
+              "input_sha": {
+                "$ref": "#/$defs/digestLabel"
+              },
+              "prompt_sha": {
+                "$ref": "#/$defs/digestLabel"
+              },
+              "context_item_shas": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/digestLabel"
+                },
+                "minItems": 1
+              },
+              "answer_sha": {
+                "$ref": "#/$defs/digestLabel"
               }
             }
           },
@@ -400,6 +424,22 @@
                 "minimum": 0
               },
               "prompt_char_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "prompt_original_char_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "prompt_final_char_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "prompt_trim_limit": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "prompt_trimmed_char_count": {
                 "type": "integer",
                 "minimum": 0
               },
@@ -543,7 +583,10 @@
                   "required": [
                     "input_digest",
                     "prompt_digest",
-                    "context_item_digests"
+                    "context_item_digests",
+                    "input_sha",
+                    "prompt_sha",
+                    "context_item_shas"
                   ]
                 }
               }
@@ -570,7 +613,11 @@
                     "input_digest",
                     "prompt_digest",
                     "context_item_digests",
-                    "answer_digest"
+                    "answer_digest",
+                    "input_sha",
+                    "prompt_sha",
+                    "context_item_shas",
+                    "answer_sha"
                   ]
                 }
               }
@@ -595,7 +642,9 @@
                 "redacted_digest_labels": {
                   "required": [
                     "input_digest",
-                    "answer_digest"
+                    "answer_digest",
+                    "input_sha",
+                    "answer_sha"
                   ]
                 }
               }
@@ -621,7 +670,12 @@
                   "required": [
                     "input_digest",
                     "prompt_digest",
-                    "context_item_digests"
+                    "context_item_digests",
+                    "answer_digest",
+                    "input_sha",
+                    "prompt_sha",
+                    "context_item_shas",
+                    "answer_sha"
                   ]
                 }
               }
@@ -646,7 +700,9 @@
                 "redacted_digest_labels": {
                   "required": [
                     "input_digest",
-                    "answer_digest"
+                    "answer_digest",
+                    "input_sha",
+                    "answer_sha"
                   ]
                 }
               }
@@ -671,8 +727,16 @@
           "prompt_digest",
           "context_item_digests",
           "answer_digest",
+          "input_sha",
+          "prompt_sha",
+          "context_item_shas",
+          "answer_sha",
           "prompt_char_count",
           "prompt_trimmed",
+          "prompt_original_char_count",
+          "prompt_final_char_count",
+          "prompt_trim_limit",
+          "prompt_trimmed_char_count",
           "verification_hops",
           "verification_calls"
         ]

@@ -71,25 +71,41 @@ DIGEST_LABEL_REQUIRED_BY_CATEGORY: Mapping[str, tuple[str, ...]] = {
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
     ),
     "rag_runtime_merged": (
         "input_digest",
         "prompt_digest",
         "context_item_digests",
         "answer_digest",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
+        "answer_sha",
     ),
     "direct_local_non_verification_first_answer": (
         "input_digest",
         "answer_digest",
+        "input_sha",
+        "answer_sha",
     ),
     "runtime_verification_disabled_passthrough": (
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "answer_digest",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
+        "answer_sha",
     ),
     "fail_closed_missing_bundle_with_provenance": (
         "input_digest",
         "answer_digest",
+        "input_sha",
+        "answer_sha",
     ),
 }
 
@@ -98,21 +114,52 @@ PROVENANCE_FIELD_KINDS: Mapping[str, str] = {
     "prompt_digest": "redacted_digest_label",
     "context_item_digests": "redacted_digest_label_tuple",
     "answer_digest": "redacted_digest_label",
+    "input_sha": "redacted_digest_label",
+    "prompt_sha": "redacted_digest_label",
+    "context_item_shas": "redacted_digest_label_tuple",
+    "answer_sha": "redacted_digest_label",
     "prompt_char_count": "non_negative_count",
     "prompt_trimmed": "boolean_or_null",
+    "prompt_original_char_count": "non_negative_count",
+    "prompt_final_char_count": "non_negative_count",
+    "prompt_trim_limit": "non_negative_count",
+    "prompt_trimmed_char_count": "non_negative_count",
     "verification_hops": "non_negative_count",
     "verification_calls": "non_negative_count",
 }
 
 DIGEST_FIELDS = frozenset(
-    {"input_digest", "prompt_digest", "context_item_digests", "answer_digest"}
+    {
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "answer_digest",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
+        "answer_sha",
+    }
 )
-COUNT_FIELDS = frozenset({"prompt_char_count", "verification_hops", "verification_calls"})
+COUNT_FIELDS = frozenset(
+    {
+        "prompt_char_count",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trim_limit",
+        "prompt_trimmed_char_count",
+        "verification_hops",
+        "verification_calls",
+    }
+)
 COUNT_LABEL_KEYS: tuple[str, ...] = (
     "artifact_count",
     "reason_code_count",
     "context_item_digest_count",
     "prompt_char_count",
+    "prompt_original_char_count",
+    "prompt_final_char_count",
+    "prompt_trim_limit",
+    "prompt_trimmed_char_count",
     "verification_hops",
     "verification_calls",
 )
@@ -461,6 +508,14 @@ def _digest_labels_for(
             ]
         elif field in DIGEST_FIELDS:
             labels[field] = _digest_label(category_id, field)
+    for digest_field, alias_field in (
+        ("input_digest", "input_sha"),
+        ("prompt_digest", "prompt_sha"),
+        ("context_item_digests", "context_item_shas"),
+        ("answer_digest", "answer_sha"),
+    ):
+        if alias_field in present_fields and digest_field in labels:
+            labels[alias_field] = labels[digest_field]
     return labels
 
 
@@ -469,6 +524,10 @@ def _count_labels_for(
     present_fields: Sequence[str],
     context_count: int,
     prompt_char_count: int | None,
+    prompt_original_char_count: int | None,
+    prompt_final_char_count: int | None,
+    prompt_trim_limit: int | None,
+    prompt_trimmed_char_count: int | None,
     verification_hops: int,
     verification_calls: int,
     artifact_count: int,
@@ -482,6 +541,14 @@ def _count_labels_for(
         labels["context_item_digest_count"] = context_count
     if "prompt_char_count" in present_fields and prompt_char_count is not None:
         labels["prompt_char_count"] = prompt_char_count
+    if "prompt_original_char_count" in present_fields and prompt_original_char_count is not None:
+        labels["prompt_original_char_count"] = prompt_original_char_count
+    if "prompt_final_char_count" in present_fields and prompt_final_char_count is not None:
+        labels["prompt_final_char_count"] = prompt_final_char_count
+    if "prompt_trim_limit" in present_fields and prompt_trim_limit is not None:
+        labels["prompt_trim_limit"] = prompt_trim_limit
+    if "prompt_trimmed_char_count" in present_fields and prompt_trimmed_char_count is not None:
+        labels["prompt_trimmed_char_count"] = prompt_trimmed_char_count
     if "verification_hops" in present_fields:
         labels["verification_hops"] = verification_hops
     if "verification_calls" in present_fields:
@@ -553,6 +620,10 @@ def _path_category(
     present_fields: Sequence[str],
     context_count: int,
     prompt_char_count: int | None,
+    prompt_original_char_count: int | None,
+    prompt_final_char_count: int | None,
+    prompt_trim_limit: int | None,
+    prompt_trimmed_char_count: int | None,
     verification_hops: int,
     verification_calls: int,
     artifact_count: int,
@@ -576,6 +647,10 @@ def _path_category(
             present_fields=present_fields,
             context_count=context_count,
             prompt_char_count=prompt_char_count,
+            prompt_original_char_count=prompt_original_char_count,
+            prompt_final_char_count=prompt_final_char_count,
+            prompt_trim_limit=prompt_trim_limit,
+            prompt_trimmed_char_count=prompt_trimmed_char_count,
             verification_hops=verification_hops,
             verification_calls=verification_calls,
             artifact_count=artifact_count,
@@ -592,8 +667,32 @@ def _path_categories() -> list[dict[str, object]]:
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
         "prompt_char_count",
         "prompt_trimmed",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trimmed_char_count",
+        "verification_hops",
+        "verification_calls",
+    )
+    disabled_runtime_fields = (
+        "input_digest",
+        "prompt_digest",
+        "context_item_digests",
+        "answer_digest",
+        "input_sha",
+        "prompt_sha",
+        "context_item_shas",
+        "answer_sha",
+        "prompt_char_count",
+        "prompt_trimmed",
+        "prompt_original_char_count",
+        "prompt_final_char_count",
+        "prompt_trim_limit",
+        "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls",
     )
@@ -601,6 +700,8 @@ def _path_categories() -> list[dict[str, object]]:
     direct_fields = (
         "input_digest",
         "answer_digest",
+        "input_sha",
+        "answer_sha",
         "verification_hops",
         "verification_calls",
     )
@@ -618,6 +719,10 @@ def _path_categories() -> list[dict[str, object]]:
             present_fields=rag_fields,
             context_count=2,
             prompt_char_count=184,
+            prompt_original_char_count=184,
+            prompt_final_char_count=184,
+            prompt_trim_limit=None,
+            prompt_trimmed_char_count=0,
             verification_hops=1,
             verification_calls=0,
             artifact_count=3,
@@ -642,6 +747,10 @@ def _path_categories() -> list[dict[str, object]]:
             present_fields=runtime_fields,
             context_count=2,
             prompt_char_count=4000,
+            prompt_original_char_count=5200,
+            prompt_final_char_count=4000,
+            prompt_trim_limit=4000,
+            prompt_trimmed_char_count=1200,
             verification_hops=1,
             verification_calls=0,
             artifact_count=5,
@@ -660,6 +769,10 @@ def _path_categories() -> list[dict[str, object]]:
             present_fields=direct_fields,
             context_count=0,
             prompt_char_count=None,
+            prompt_original_char_count=None,
+            prompt_final_char_count=None,
+            prompt_trim_limit=None,
+            prompt_trimmed_char_count=None,
             verification_hops=0,
             verification_calls=0,
             artifact_count=1,
@@ -680,13 +793,18 @@ def _path_categories() -> list[dict[str, object]]:
                 "freshness_checks_pass",
                 "validated_evidence_pass",
             ),
-            present_fields=rag_fields,
+            present_fields=disabled_runtime_fields,
             context_count=2,
-            prompt_char_count=184,
+            prompt_char_count=4000,
+            prompt_original_char_count=5200,
+            prompt_final_char_count=4000,
+            prompt_trim_limit=4000,
+            prompt_trimmed_char_count=1200,
             verification_hops=2,
             verification_calls=2,
             artifact_count=4,
             source_refs=(
+                _source_ref(PHILOSOPHICAL_RUNTIME_PATH, "generate_insight"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_runtime_verification_bundle"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_rag_verification_bundle"),
                 _source_ref(VERIFICATION_REGISTRY_PATH, "build_verification_provenance"),
@@ -701,6 +819,10 @@ def _path_categories() -> list[dict[str, object]]:
             present_fields=direct_fields,
             context_count=0,
             prompt_char_count=None,
+            prompt_original_char_count=None,
+            prompt_final_char_count=None,
+            prompt_trim_limit=None,
+            prompt_trimmed_char_count=None,
             verification_hops=0,
             verification_calls=0,
             artifact_count=1,
@@ -891,6 +1013,21 @@ def _validate_schema_matches_report(
             return errors
         if schema_node.get("type") != "array":
             errors.append(f"verification provenance admission schema {path}.type must be array")
+        if path == "report.provenance_contract.field_inventory":
+            min_items = schema_node.get("minItems")
+            max_items = schema_node.get("maxItems")
+            if isinstance(min_items, int) and min_items != len(report_node):
+                errors.append(
+                    "verification provenance admission schema "
+                    f"{path}.minItems must match report length: "
+                    f"expected {len(report_node)}, got {min_items}"
+                )
+            if isinstance(max_items, int) and max_items != len(report_node):
+                errors.append(
+                    "verification provenance admission schema "
+                    f"{path}.maxItems must match report length: "
+                    f"expected {len(report_node)}, got {max_items}"
+                )
         items_schema = schema_node.get("items")
         if report_node and not isinstance(items_schema, dict):
             errors.append(
@@ -1087,22 +1224,34 @@ def _validate_required_schema_shapes(schema: Mapping[str, object]) -> list[str]:
     )
     if not isinstance(digest_props, dict) or set(digest_props) != set(DIGEST_FIELDS):
         errors.append("verification provenance admission schema redacted_digest_labels keys drift")
-    elif any(
-        not isinstance(digest_props.get(key), dict)
-        or digest_props[key].get("$ref") != "#/$defs/digestLabel"
-        for key in ("input_digest", "prompt_digest", "answer_digest")
-    ):
-        errors.append("verification provenance admission schema digest label ref drift")
     else:
-        context_digest = digest_props.get("context_item_digests")
-        if (
-            not isinstance(context_digest, dict)
-            or context_digest.get("type") != "array"
-            or not isinstance(context_digest.get("items"), dict)
-            or context_digest["items"].get("$ref") != "#/$defs/digestLabel"
-            or context_digest.get("minItems") != 1
+        for key in (
+            "input_digest",
+            "prompt_digest",
+            "answer_digest",
+            "input_sha",
+            "prompt_sha",
+            "answer_sha",
         ):
-            errors.append("verification provenance admission schema context digest ref drift")
+            if (
+                not isinstance(digest_props.get(key), dict)
+                or digest_props[key].get("$ref") != "#/$defs/digestLabel"
+            ):
+                errors.append(
+                    "verification provenance admission schema digest label ref drift: " f"{key}"
+                )
+                break
+        for key in ("context_item_digests", "context_item_shas"):
+            context_digest = digest_props.get(key)
+            if (
+                not isinstance(context_digest, dict)
+                or context_digest.get("type") != "array"
+                or not isinstance(context_digest.get("items"), dict)
+                or context_digest["items"].get("$ref") != "#/$defs/digestLabel"
+                or context_digest.get("minItems") != 1
+            ):
+                errors.append("verification provenance admission schema context digest ref drift")
+                break
 
     count_props = _schema_node_at(
         schema,
@@ -1390,13 +1539,18 @@ def _validate_digest_labels(
         if key not in DIGEST_FIELDS:
             errors.append(f"{category_id}.redacted_digest_labels unknown key: {key}")
             continue
-        if key == "context_item_digests":
-            labels = _string_items(value)
-            if not labels:
-                errors.append(f"{category_id}.context_item_digests must not be empty")
-            for label in labels:
+        if key in {"context_item_digests", "context_item_shas"}:
+            if not isinstance(value, list):
+                errors.append(f"{category_id}.{key} must be a string list")
+                continue
+            if not value:
+                errors.append(f"{category_id}.{key} must not be empty")
+            for index, label in enumerate(value):
+                if not isinstance(label, str):
+                    errors.append(f"{category_id}.{key}[{index}] must be a string")
+                    continue
                 if not DIGEST_RE.match(label):
-                    errors.append(f"{category_id}.context_item_digests invalid digest label")
+                    errors.append(f"{category_id}.{key}[{index}] invalid digest label")
         elif not isinstance(value, str) or not DIGEST_RE.match(value):
             errors.append(f"{category_id}.{key} invalid digest label")
     return errors

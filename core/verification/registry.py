@@ -7,6 +7,7 @@ EN: First-class verification artifact assembly on top of existing runtime checks
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from dataclasses import replace
 from hashlib import sha256
 import math
 import re
@@ -109,7 +110,14 @@ def build_runtime_verification_bundle(
     """Merge pre-generation and runtime verification into one admission bundle."""
 
     if not runtime_verification_enabled:
-        return rag_bundle
+        if rag_bundle is None:
+            return None
+        if provenance is None:
+            return rag_bundle
+        return replace(
+            rag_bundle,
+            provenance=_merge_provenance(rag_bundle.provenance, provenance),
+        )
 
     if rag_bundle is None and not verification_first_path:
         if provenance is None:
@@ -173,26 +181,58 @@ def build_verification_provenance(
     answer_text: str | None = None,
     prompt_char_count: object | None = None,
     prompt_trimmed: bool | None = None,
+    prompt_original_char_count: object | None = None,
+    prompt_final_char_count: object | None = None,
+    prompt_trim_limit: object | None = None,
+    prompt_trimmed_char_count: object | None = None,
     verification_hops: object | None = None,
     verification_calls: object | None = None,
 ) -> VerificationProvenance:
     """Build deterministic, redacted provenance labels for internal audit only."""
+
+    input_digest = redacted_sha256_label(input_text)
+    prompt_digest = redacted_sha256_label(prompt_text)
+    context_item_labels = tuple(redacted_sha256_label(item) for item in context_items)
+    context_item_digests = (
+        ()
+        if any(label is None for label in context_item_labels)
+        else tuple(label for label in context_item_labels if label is not None)
+    )
+    answer_digest = redacted_sha256_label(answer_text)
 
     resolved_prompt_count: int | None = None
     if prompt_char_count is not None:
         resolved_prompt_count = _non_negative_count(prompt_char_count)
     elif prompt_text is not None:
         resolved_prompt_count = len(prompt_text)
+    resolved_prompt_final_count = (
+        _non_negative_count(prompt_final_char_count)
+        if prompt_final_char_count is not None
+        else resolved_prompt_count
+    )
+    resolved_prompt_original_count = (
+        _non_negative_count(prompt_original_char_count)
+        if prompt_original_char_count is not None
+        else resolved_prompt_final_count
+    )
+    resolved_prompt_trim_limit = _optional_non_negative_count(prompt_trim_limit)
+    resolved_prompt_trimmed_count = _optional_non_negative_count(prompt_trimmed_char_count)
 
     return VerificationProvenance(
-        input_digest=redacted_sha256_label(input_text),
-        prompt_digest=redacted_sha256_label(prompt_text),
-        context_item_digests=tuple(
-            digest for item in context_items if (digest := redacted_sha256_label(item)) is not None
-        ),
-        answer_digest=redacted_sha256_label(answer_text),
+        input_digest=input_digest,
+        prompt_digest=prompt_digest,
+        context_item_digests=context_item_digests,
+        answer_digest=answer_digest,
+        input_sha=input_digest,
+        prompt_sha=prompt_digest,
+        context_item_shas=context_item_digests,
+        answer_sha=answer_digest,
         prompt_char_count=resolved_prompt_count,
         prompt_trimmed=prompt_trimmed if type(prompt_trimmed) is bool else None,
+        prompt_original_char_count=resolved_prompt_original_count,
+        prompt_final_char_count=resolved_prompt_final_count,
+        prompt_trim_limit=resolved_prompt_trim_limit,
+        prompt_trimmed_char_count=resolved_prompt_trimmed_count,
         verification_hops=_non_negative_count(verification_hops),
         verification_calls=_non_negative_count(verification_calls),
     )
@@ -260,6 +300,10 @@ def _merge_provenance(
         prompt_digest=overlay.prompt_digest or base.prompt_digest,
         context_item_digests=overlay.context_item_digests or base.context_item_digests,
         answer_digest=overlay.answer_digest or base.answer_digest,
+        input_sha=overlay.input_sha or base.input_sha,
+        prompt_sha=overlay.prompt_sha or base.prompt_sha,
+        context_item_shas=overlay.context_item_shas or base.context_item_shas,
+        answer_sha=overlay.answer_sha or base.answer_sha,
         prompt_char_count=(
             overlay.prompt_char_count
             if overlay.prompt_char_count is not None
@@ -268,8 +312,28 @@ def _merge_provenance(
         prompt_trimmed=(
             overlay.prompt_trimmed if overlay.prompt_trimmed is not None else base.prompt_trimmed
         ),
-        verification_hops=overlay.verification_hops,
-        verification_calls=overlay.verification_calls,
+        prompt_original_char_count=(
+            overlay.prompt_original_char_count
+            if overlay.prompt_original_char_count is not None
+            else base.prompt_original_char_count
+        ),
+        prompt_final_char_count=(
+            overlay.prompt_final_char_count
+            if overlay.prompt_final_char_count is not None
+            else base.prompt_final_char_count
+        ),
+        prompt_trim_limit=(
+            overlay.prompt_trim_limit
+            if overlay.prompt_trim_limit is not None
+            else base.prompt_trim_limit
+        ),
+        prompt_trimmed_char_count=(
+            overlay.prompt_trimmed_char_count
+            if overlay.prompt_trimmed_char_count is not None
+            else base.prompt_trimmed_char_count
+        ),
+        verification_hops=_merge_count(base.verification_hops, overlay.verification_hops),
+        verification_calls=_merge_count(base.verification_calls, overlay.verification_calls),
     )
 
 
@@ -292,6 +356,14 @@ def _redact_provenance_text(value: str) -> str:
 
 def _non_negative_count(value: object | None) -> int:
     return value if type(value) is int and value >= 0 else 0
+
+
+def _merge_count(base: int, overlay: int) -> int:
+    return overlay if overlay > 0 else base
+
+
+def _optional_non_negative_count(value: object | None) -> int | None:
+    return value if type(value) is int and value >= 0 else None
 
 
 def _policy_artifact(
