@@ -920,7 +920,7 @@ def _source_refs() -> tuple[Mapping[str, JsonValue], ...]:
     )
 
 
-def _evidence_asset(payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
+def _evidence_asset(payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     fingerprint = _stable_fingerprint(payload)
     return {
         "asset_type": "semantic_cache_shadow_admission_harness_report",
