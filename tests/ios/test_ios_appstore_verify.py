@@ -209,6 +209,36 @@ def test_fitchef_release_readiness_validator_rejects_generic_secret_assignment(
 
 
 @pytest.mark.parametrize(
+    "label_parts",
+    [
+        ("api", " key"),
+        ("gh", " token"),
+        ("sec", "ret key"),
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_spaced_secret_labels(
+    label_parts: tuple[str, str],
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    credential_label = "".join(label_parts)
+    dummy_value = "placeholder1234"
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\n{credential_label}: {dummy_value}\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    messages = _failed_messages(results)
+    assert "Credential-like release bundle value" in messages
+    assert dummy_value not in messages
+
+
+@pytest.mark.parametrize(
     "token",
     [
         "gh" + "p_" + ("a" * 36),
@@ -541,6 +571,7 @@ def test_fitchef_release_readiness_validator_rejects_localized_upload_claims(
     "claim",
     [
         "Guaranteed weight loss results.",
+        "Guaranteed adherence with meal plan.",
         "Clinically proven meal plan.",
     ],
 )
@@ -571,6 +602,7 @@ def test_fitchef_release_readiness_validator_rejects_guaranteed_outcome_claims(
         "Prescription and medication guidance.",
         "Lower cholesterol and blood pressure.",
         "Avoid diabetes with weekly menus.",
+        "No diagnosis and treat patients.",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_expanded_medical_claims(
@@ -594,6 +626,7 @@ def test_fitchef_release_readiness_validator_rejects_expanded_medical_claims(
     [
         "Instant results for every meal.",
         "Rapid outcomes for busy weeks.",
+        "Resultados rapidos para tu cuerpo.",
         "#1 nutrition assistant for families.",
         "Number one wellness planner.",
         "Top-ranked diet app.",

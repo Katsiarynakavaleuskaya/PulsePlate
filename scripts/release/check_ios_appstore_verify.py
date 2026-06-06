@@ -154,9 +154,10 @@ FITCHEF_RELEASE_LOCAL_PATH_PATTERNS = (
 )
 FITCHEF_RELEASE_CREDENTIAL_PATTERNS = (
     re.compile(r"secret\s*[:=]\s*\S+", re.IGNORECASE),
+    re.compile(r"secret\s+key\s*[:=]\s*\S+", re.IGNORECASE),
     re.compile(r"password\s*[:=]\s*\S+", re.IGNORECASE),
-    re.compile(r"api[_-]?key\s*[:=]\s*\S+", re.IGNORECASE),
-    re.compile(r"(?:gh|github)[_-]?token\s*[:=]\s*\S+", re.IGNORECASE),
+    re.compile(r"api[\s_-]?key\s*[:=]\s*\S+", re.IGNORECASE),
+    re.compile(r"(?:gh|github)[\s_-]?token\s*[:=]\s*\S+", re.IGNORECASE),
     re.compile(r"\b(?:ghp|ghs)_[A-Za-z0-9_.-]{20,}\b"),
     re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
     re.compile(r"\bsk-proj-[A-Za-z0-9_-]{20,}\b"),
@@ -292,11 +293,12 @@ FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS = (
 )
 FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS = (
     re.compile(
-        r"\bguaranteed[-\s]+(?:health[-\s]+)?(?:weight[-\s]+loss|outcomes?|results?)\b",
+        r"\bguaranteed[-\s]+(?:health[-\s]+)?(?:weight[-\s]+loss|adherence|outcomes?|results?)\b",
         re.IGNORECASE,
     ),
     re.compile(r"\bclinically[-\s]+proven\b", re.IGNORECASE),
     re.compile(r"\b(?:instant|rapid|immediate)[-\s]+(?:outcomes?|results?)\b", re.IGNORECASE),
+    re.compile(r"\bresultados?\s+rapidos?\b", re.IGNORECASE),
     re.compile(r"(?<!\w)#\s*1(?!\w)", re.IGNORECASE),
     re.compile(r"\bnumber[-\s]+one\b", re.IGNORECASE),
     re.compile(
@@ -459,7 +461,6 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
     "tailoring",
     "the",
     "therapy",
-    "treat",
     "treatment",
     "trial",
 }
