@@ -278,6 +278,7 @@ __all__ = (
     "render_dispatch_dry_run_preview",
     "render_kpp_status_overview",
     "render_latest_operator_ledger_summary",
+    "render_latest_private_pilot_activation_summary",
     "render_mvp_evidence_summary",
     "render_activation_readiness_summary",
     "render_operator_help_message",
@@ -395,6 +396,15 @@ def render_latest_operator_ledger_summary(
             repo_root=Path(REPO_ROOT),
             exclude_event_hash=exclude_event_hash,
         ),
+    )
+
+
+def render_latest_private_pilot_activation_summary() -> tuple[str, ...]:
+    """Render latest local private-pilot activation evidence summary."""
+
+    return cast(
+        tuple[str, ...],
+        _operator_ledger.latest_private_pilot_activation_summary(repo_root=Path(REPO_ROOT)),
     )
 
 
@@ -884,6 +894,7 @@ def _format_command_reply(
                 operator_ledger_summary=render_latest_operator_ledger_summary(
                     exclude_event_hash=excluded_event_hash,
                 ),
+                private_pilot_activation_summary=(render_latest_private_pilot_activation_summary()),
             ).as_text(),
         )
     if command.kind == "kpp-status":

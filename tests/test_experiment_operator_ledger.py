@@ -12,6 +12,7 @@ import sys
 
 import pytest
 
+from scripts.orchestration import experiment_private_pilot_activation as activation
 from scripts.orchestration import experiment_operator_ledger as ledger
 
 
@@ -87,6 +88,76 @@ def _result(**overrides: object) -> dict[str, object]:
     return payload
 
 
+def _activation_readiness(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "activation_state": "ready_for_manual_live_smoke",
+        "audit_retention_status": "valid",
+        "branch_ref_status": "valid",
+        "channel_allowlist_status": "present",
+        "github_dispatch_auth_class": "installation",
+        "github_dispatch_auth_status": "present",
+        "github_dispatch_authority": "display_only",
+        "github_dispatch_execute_gate_status": "enabled",
+        "github_dispatch_live_approval_status": "dry_run_default",
+        "github_dispatch_readiness_state": "eligible_for_private_pilot_dispatch",
+        "github_dispatch_repo_allowlist_status": "matched",
+        "github_dispatch_target_status": "cross_repo",
+        "github_dispatch_workflow_status": "fixed",
+        "hypothesis_sha256_status": "valid",
+        "manual_live_smoke": "operator_evidence_only",
+        "slack_app_token_status": "valid",
+        "slack_bot_token_status": "valid",
+        "smoke_input_requirement": "required",
+        "status": "pass",
+        "team_allowlist_status": "present",
+        "user_allowlist_status": "present",
+        "raw_repo": "PilotOrg/PrivatePilot",
+        "raw_slack": "C0SECRETID",
+        "raw_token": "ghs_header.payload.signaturesecretsecretsecret",
+        "raw_branch": "refs/heads/feature/private-pilot",
+        "raw_hypothesis": "raw hypothesis must not render",
+        "raw_digest": "a" * 64,
+        "raw_path": "/Users/alice/PulsePlate",
+        "raw_oracle": "oracle stdout: secret",
+        "raw_patch": "diff --git a/secret b/secret",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _activation_evidence(**overrides: object) -> dict[str, object]:
+    readiness = _activation_readiness()
+    dispatch_outcome_class = str(overrides.pop("dispatch_outcome_class", "smoke_recorded"))
+    generated_at = str(
+        overrides.pop(
+            "generated_at",
+            datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        )
+    )
+    payload = activation.build_private_pilot_activation_evidence(
+        readiness,
+        dispatch_outcome_class=dispatch_outcome_class,
+        generated_at=generated_at,
+    )
+    payload.update(overrides)
+    return payload
+
+
+def _rehash_activation_evidence(payload: dict[str, object]) -> dict[str, object]:
+    without_id = {key: value for key, value in payload.items() if key != "evidence_id"}
+    rendered = json.dumps(
+        without_id,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return {
+        **without_id,
+        "evidence_id": hashlib.sha256(rendered).hexdigest()[:24],
+    }
+
+
 def _write_result(repo_root: Path, name: str, payload: dict[str, object]) -> Path:
     path = repo_root / ledger.EXPERIMENT_RESULTS_REPO_PREFIX / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,12 +188,20 @@ def _assert_no_raw_leak(value: str) -> None:
         "Ev0SECRET",
         "operator_report",
         "feature/operator-plane",
+        "feature/private-pilot",
         "raw hypothesis",
+        "PilotOrg",
+        "PrivatePilot",
+        "refs/heads",
         "/Users/",
         "../outside",
         "xoxb-",
+        "xapp-",
         "ghs_",
+        "ghp_",
+        "github_pat_",
         "diff --git",
+        "oracle stdout",
         "mergeable",
     )
     for sentinel in forbidden:
@@ -573,6 +652,7 @@ def test_operator_ledger_report_does_not_count_absent_result_refs(
 
     assert report["by_result_artifact_status"] == {"absent": 1}
     assert report["source_counts"] == {
+        "private_pilot_activation_evidence": 0,
         "operator_ledger_events": 1,
         "result_artifact_refs": 0,
     }
@@ -629,6 +709,7 @@ def test_operator_ledger_result_metadata_fails_closed_for_hash_read_error(
 
     assert report["by_result_artifact_status"] == {"invalid": 1}
     assert report["malformed_artifact_counts"] == {
+        "invalid_private_pilot_activation_evidence": 0,
         "invalid_result_artifacts": 1,
         "missing_result_artifacts": 0,
     }
@@ -666,6 +747,7 @@ def test_operator_ledger_result_metadata_fails_closed_for_type_errors(
 
     assert report["by_result_artifact_status"] == {"invalid": 1}
     assert report["malformed_artifact_counts"] == {
+        "invalid_private_pilot_activation_evidence": 0,
         "invalid_result_artifacts": 1,
         "missing_result_artifacts": 0,
     }
@@ -1249,13 +1331,16 @@ def test_operator_ledger_cli_writes_empty_observability_report_set(
     assert json_report["by_dispatch_mode"] == {}
     assert json_report["by_failure_class"] == {}
     assert json_report["by_command_kind"] == {}
+    assert json_report["by_private_pilot_activation_state"] == {}
     assert json_report["by_result_artifact_status"] == {}
     assert json_report["result_artifacts"] == []
     assert json_report["source_counts"] == {
+        "private_pilot_activation_evidence": 0,
         "operator_ledger_events": 0,
         "result_artifact_refs": 0,
     }
     assert json_report["malformed_artifact_counts"] == {
+        "invalid_private_pilot_activation_evidence": 0,
         "invalid_result_artifacts": 0,
         "missing_result_artifacts": 0,
     }
@@ -1336,6 +1421,195 @@ def test_operator_observability_report_renders_activation_readiness_states(
     assert "operator_evidence_only" in rendered
     assert str(tmp_path) not in rendered
     _assert_no_raw_leak(rendered)
+
+
+def test_private_pilot_activation_evidence_contract_is_exact_and_value_free() -> None:
+    evidence = _activation_evidence()
+    rendered = json.dumps(evidence, sort_keys=True)
+
+    assert set(evidence) == activation.EVIDENCE_FIELDS
+    assert evidence["schema_version"] == activation.SCHEMA_VERSION
+    assert evidence["policy_version"] == activation.POLICY_VERSION
+    assert evidence["activation_state"] == "smoke_recorded"
+    assert evidence["dispatch_outcome_class"] == "smoke_recorded"
+    assert evidence["github_dispatch_workflow_file"] == "experiment-runner-dispatch.yml"
+    assert evidence["github_dispatch_workflow_ref"] == "main"
+    assert evidence["last_smoke"] == "smoke_recorded"
+    assert evidence["next_operator_action"] == "review_activation_report"
+    assert evidence["evidence_graph_admission_status"] == "contract_only_not_runtime"
+    assert all(value is False for value in evidence["authority_boundary"].values())
+    assert all(value is False for value in evidence["redaction_summary"].values())
+    _assert_no_raw_leak(rendered)
+
+    with pytest.raises(
+        activation.PrivatePilotActivationEvidenceError,
+        match="schema",
+    ):
+        activation.validate_private_pilot_activation_evidence(
+            {**evidence, "raw_repo": "PilotOrg/PrivatePilot"}
+        )
+
+    tampered = dict(evidence)
+    tampered["next_operator_action"] = "merge_pr"
+    with pytest.raises(
+        activation.PrivatePilotActivationEvidenceError,
+        match="next_operator_action",
+    ):
+        activation.validate_private_pilot_activation_evidence(tampered)
+
+    contradictory = _rehash_activation_evidence(
+        {
+            **evidence,
+            "dispatch_outcome_class": "not_run",
+            "last_smoke": "none",
+            "next_operator_action": "no_action",
+        }
+    )
+    with pytest.raises(
+        activation.PrivatePilotActivationEvidenceError,
+        match="activation_state is inconsistent",
+    ):
+        activation.validate_private_pilot_activation_evidence(contradictory)
+
+
+def test_private_pilot_activation_evidence_blocks_github_dispatch_config() -> None:
+    evidence = activation.build_private_pilot_activation_evidence(
+        _activation_readiness(
+            activation_state="ready_for_manual_live_smoke",
+            github_dispatch_execute_gate_status="missing",
+            github_dispatch_readiness_state="blocked_by_execute_gate",
+        ),
+        dispatch_outcome_class="not_run",
+    )
+
+    assert evidence["activation_state"] == "blocked_by_invalid_config"
+    assert evidence["dispatch_outcome_class"] == "not_run"
+    assert evidence["last_smoke"] == "not_run"
+    assert evidence["next_operator_action"] == "fix_invalid_config"
+    assert evidence["github_dispatch_readiness_state"] == "blocked_by_execute_gate"
+    _assert_no_raw_leak(json.dumps(evidence, sort_keys=True))
+
+
+def test_private_pilot_activation_helper_has_no_live_authority() -> None:
+    source = Path("scripts/orchestration/experiment_private_pilot_activation.py").read_text(
+        encoding="utf-8"
+    )
+
+    forbidden = (
+        "os.environ",
+        "subprocess",
+        "requests",
+        "urllib",
+        "_send_github_workflow_dispatch",
+        "WorkflowDispatchTransport",
+        "SlackApiTransport",
+        "repository_dispatch",
+        "pull_requests:write",
+        "contents:write",
+        "workflows:write",
+        "private_key",
+        "jwt",
+        "semantic_cache_runtime",
+    )
+    for marker in forbidden:
+        assert marker not in source
+
+
+def test_operator_ledger_imports_private_pilot_activation_evidence_and_reports(
+    tmp_path: Path,
+) -> None:
+    evidence = _activation_evidence()
+
+    path = ledger.write_private_pilot_activation_evidence(evidence, repo_root=tmp_path)
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    rendered = (
+        json.dumps(report, sort_keys=True)
+        + ledger.render_operator_observability_markdown(report)
+        + ledger.render_operator_observability_html(report)
+    )
+
+    assert path == ledger.default_activation_evidence_dir(tmp_path) / (
+        f"{evidence['evidence_id']}.json"
+    )
+    assert report["source_counts"]["private_pilot_activation_evidence"] == 1
+    assert report["by_private_pilot_activation_state"] == {"smoke_recorded": 1}
+    assert report["malformed_artifact_counts"]["invalid_private_pilot_activation_evidence"] == 0
+    assert report["private_pilot_activation_evidence"] == {
+        "activation_state": "smoke_recorded",
+        "artifact_ref": (
+            "artifacts/orchestration/experiments/private_pilot_activation/"
+            f"{evidence['evidence_id']}.json"
+        ),
+        "artifact_status": "valid",
+        "dispatch_outcome_class": "smoke_recorded",
+        "evidence_graph_admission_status": "contract_only_not_runtime",
+        "evidence_id": evidence["evidence_id"],
+        "last_smoke": "smoke_recorded",
+        "next_operator_action": "review_activation_report",
+        "summary": tuple(report["private_pilot_activation_summary"]),
+    }
+    assert "Private Pilot Activation Evidence" in rendered
+    assert "private_pilot_activation_state" in rendered
+    assert "private_pilot_last_smoke" in rendered
+    assert "private_pilot_next_operator_action" in rendered
+    assert "smoke_recorded" in rendered
+    assert str(tmp_path) not in rendered
+    _assert_no_raw_leak(rendered)
+
+
+def test_operator_ledger_private_pilot_activation_fails_closed_for_malformed_artifact(
+    tmp_path: Path,
+) -> None:
+    evidence_dir = ledger.default_activation_evidence_dir(tmp_path)
+    evidence_dir.mkdir(parents=True)
+    (evidence_dir / "bad.json").write_text("{not-json", encoding="utf-8")
+
+    report = ledger.build_operator_observability_report(repo_root=tmp_path)
+    summary = ledger.latest_private_pilot_activation_summary(repo_root=tmp_path)
+    rendered = (
+        json.dumps(report, sort_keys=True)
+        + ledger.render_operator_observability_markdown(report)
+        + ledger.render_operator_observability_html(report)
+    )
+
+    assert summary == activation.invalid_private_pilot_activation_summary()
+    assert report["private_pilot_activation_evidence"]["artifact_status"] == "invalid"
+    assert report["by_private_pilot_activation_state"] == {"invalid_local_artifact": 1}
+    assert report["malformed_artifact_counts"]["invalid_private_pilot_activation_evidence"] == 1
+    assert "{not-json" not in rendered
+    assert str(tmp_path) not in rendered
+    _assert_no_raw_leak(rendered)
+
+
+def test_operator_ledger_cli_imports_private_pilot_activation_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    incoming = tmp_path / "incoming-activation.json"
+    incoming.write_text(json.dumps(_activation_evidence(), sort_keys=True), encoding="utf-8")
+
+    assert (
+        ledger.main(
+            [
+                "--activation-evidence-json",
+                str(incoming),
+                "--record-activation-evidence",
+            ]
+        )
+        == 0
+    )
+    stdout = capsys.readouterr().out
+    output = json.loads(stdout)
+
+    assert output["status"] == "recorded"
+    assert output["artifact_ref"].startswith(
+        "artifacts/orchestration/experiments/private_pilot_activation/"
+    )
+    assert "incoming-activation" not in stdout
+    assert str(tmp_path) not in stdout
+    _assert_no_raw_leak(stdout)
 
 
 def test_operator_ledger_report_set_is_idempotent_and_preserves_result_artifacts(
