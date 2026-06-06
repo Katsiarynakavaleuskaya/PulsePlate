@@ -74,6 +74,12 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
 - `7dd9a5b4f` — closes post-open bug-hunter fallback confidence inflation by
   requiring `scenario_unavailable` for fallback rankings and
   `no_recommendation_available` for empty allowlists.
+- `6823411ad` — closes post-open backend-engineer inverse invariant by
+  rejecting `no_recommendation_available` plans with non-empty
+  `available_scenarios`.
+- `1e8526dac` — closes post-open architecture prompt-safe policy asymmetry by
+  validating direct `PromptSafeMarkovTransitionContext` probability vectors
+  against fixed-policy ratios for the ranked subset.
 
 ## Post-open Role Findings
 
@@ -127,6 +133,39 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
     scenarios, transition-state impossible scenarios, prompt-safe steering,
     fallback `scenario_unavailable`, confidence downgrade, and valid planner
     round-trip probes.
+- Role: `security-auditor`
+  - Disposition: PASS
+  - Evidence: Local HEAD `4a6fa6e47` review found no file/line security,
+    privacy, safety, or compliance findings; verified no route/OpenAPI/provider,
+    DB/cache/RAG/runtime wiring, prompt-safe identifier/raw-event exclusion,
+    fixed-policy/fallback validation, safety tests, and runtime-wiring guards.
+- Role: `backend-engineer`
+  - Disposition: FIXED
+  - Commit: `6823411ade1884106665eb15948c6208c2b2f753`
+  - Evidence: `test_transition_plan_schema_requires_no_recommendation_state_for_empty_allowlist`
+    now rejects non-empty `available_scenarios` paired with
+    `no_recommendation_available`; focused tests, mypy, flake8, and diff-cover
+    passed after the fix.
+- Role: `backend-engineer`
+  - Disposition: PASS
+  - Evidence: Repeat pass after `6823411ade1884106665eb15948c6208c2b2f753`
+    found no backend file/line findings; verified inverse invariant,
+    deterministic fixed-policy planner outputs, schema-only service imports,
+    and no router/provider/DB/RAG/cache/persistence matches.
+- Role: `architecture-specialist`
+  - Disposition: FIXED
+  - Commit: `1e8526dac6267f63343681663bd8e9a297939988`
+  - Evidence: `PromptSafeMarkovTransitionContext` now validates direct
+    prompt-safe ranked probability vectors against the fixed-policy ranked
+    subset; `test_transition_plan_schema_rejects_non_policy_ranked_distribution`
+    covers direct prompt-safe non-policy distributions.
+- Role: `architecture-specialist`
+  - Disposition: PASS
+  - Evidence: Repeat pass after `1e8526dac6267f63343681663bd8e9a297939988`
+    found no architecture file/line findings; verified prompt-safe fixed-policy
+    validation, internal schema-only service boundary, no route/OpenAPI/client/
+    runtime/provider/DB/RAG/cache/RL/learning changes, and no Markov references
+    in `coaching_state_builder.py`.
 - `app/services/coaching_transition_planner.py` contains no router/runtime,
   provider, RAG/cache, DB/session, or persistence imports.
 - `tests/test_coaching_transition_planner.py` covers default-prior handling,
@@ -181,7 +220,7 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
 
 - `python3 scripts/orchestration/check_preflight.py --path app/schemas/user_coaching_state.py --path app/services/coaching_state_builder.py --path app/services/coaching_transition_planner.py --path tests/test_coaching_transition_planner.py --path tests/test_user_coaching_state.py` — PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
-- `.venv/bin/python -m pytest -q tests/test_user_coaching_state.py tests/test_coaching_transition_planner.py tests/test_bayes_adherence_model.py tests/test_bayes_adherence_service.py tests/test_nutrition_log_idempotency.py` — 72 passed after `7dd9a5b4f`
+- `.venv/bin/python -m pytest -q tests/test_user_coaching_state.py tests/test_coaching_transition_planner.py tests/test_bayes_adherence_model.py tests/test_bayes_adherence_service.py tests/test_nutrition_log_idempotency.py` — 72 passed after `1e8526dac`
 - `.venv/bin/python -m mypy app/schemas/user_coaching_state.py app/services/coaching_transition_planner.py tests/test_coaching_transition_planner.py --no-incremental --cache-dir=/dev/null` — PASS
 - `.venv/bin/python -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --include-untracked --fail-under=97 --format json:/tmp/markov-diff-cover.json` — PASS, 100%
 - `make validate-changed VENV_PYTHON=.venv/bin/python` — PASS
