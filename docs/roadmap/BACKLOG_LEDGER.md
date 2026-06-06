@@ -28,8 +28,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Experiment Runner Operator Plane & Slack Closeout
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1880 merged baseline; next slice `codex/slack-operator-observability-report`
-  - Status: PR #1880 merged on 2026-06-04 as the deterministic no-secret Slack operator-plane CI gate, manual live-smoke activation wording, and semantic-cache gate recheck baseline. Current slice is Socket Mode activation readiness: redacted readiness CLI/status/report/workflow diagnostics only, with no HTTPS ingress, semantic cache, GraphRAG, product runtime, or new Slack authority.
+  - Target PR: PR #1880 merged baseline; current slice `codex/private-pilot-activation-evidence-v1`
+  - Status: PR #1880 merged on 2026-06-04 as the deterministic no-secret Slack operator-plane CI gate, manual live-smoke activation wording, and semantic-cache gate recheck baseline. PR #1888 added GitHub App/private-pilot readiness. Current slice is Private Pilot Activation Evidence v1: typed redacted manual-smoke evidence contract, workflow artifact loop, local operator ledger/report ingestion, and existing `/pulseplate-runner status` projection only, with no HTTPS ingress, semantic cache, GraphRAG, product runtime, token minting, PR/review/merge authority, arbitrary workflow dispatch, or new Slack command authority.
   - Area: orchestration / Experiment Runner / Slack operator plane / local observability
   - Reason (EN): Finish the Experiment Runner as a Slack-first operator plane without widening product AI runtime, food data, semantic cache, CBT/coaching runtime, frontend MVP, or merge/review authority. Operators need bounded dry-run/approved dispatch visibility, redacted failure/status summaries, and local evidence reports that stay advisory until promoted through repo-reviewed governance.
   - Links:
@@ -46,6 +46,7 @@ If it is not recorded here — it does not exist.
     - PR-3: optional dashboard/report polish only if it remains local/dev-only under `artifacts/` with committed scripts/tests/docs only
     - PR-4: deterministic `operator_plane_slack` CI risk group and contract suite, manual live-smoke operator evidence wording, current activation diagnostics, semantic-cache gate recheck remains closed (merged as PR #1880)
     - PR-5: Socket Mode activation-readiness CLI/status/report/workflow diagnostics; live smoke remains manual operator evidence only, no HTTPS ingress, no semantic cache, no GraphRAG, no product runtime changes, and no new Slack authority
+    - PR-6: Private Pilot Activation Evidence v1; redacted manual-smoke evidence contract, workflow artifact upload, local evidence import/report, status projection, policy guards, no token minting, no PR/review/merge mutation, no arbitrary workflow/ref, no semantic-cache runtime, and no public Slack expansion
   - Out of scope: product AI runtime, backend API, OpenAPI, DB migrations, food data, semantic cache, GraphRAG, CBT/coaching runtime, frontend MVP, iOS, PR creation, review-thread resolution, fixed-mapping authority, merge-readiness authority, arbitrary workflow dispatch, HTTPS Slack ingress, and Slack/Git identity expansion.
   - DoD:
     - Slack remains operator-only, dry-run-first, allowlisted, secret-backed, and redacted.

@@ -75,6 +75,7 @@ CANONICAL_SENSITIVE_BOOLEAN_PATHS = frozenset(
         "$.cryptographic_boundary.private_key_material_allowed_in_repo",
         "$.cryptographic_boundary.repo_must_not_generate_private_keys",
         "$.cryptographic_boundary.repo_must_not_store_signing_secrets",
+        "$.github_app_dispatch.can_mint_installation_tokens",
         "$.slack_identity.requires_bot_token_secret_boundary",
     }
 )
@@ -460,6 +461,22 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     _require_bool(github_app_dispatch, "requires_repo_allowlist", True)
     _require_bool(github_app_dispatch, "requires_installation_class_for_cross_repo", True)
     _require_bool(github_app_dispatch, "requires_actions_write", True)
+    if (
+        github_app_dispatch.get("private_pilot_activation_evidence_loop")
+        != "redacted_manual_smoke_contract_only"
+    ):
+        raise IdentityPolicyError(
+            "github_app_dispatch.private_pilot_activation_evidence_loop must be "
+            "redacted_manual_smoke_contract_only."
+        )
+    if (
+        github_app_dispatch.get("activation_evidence_artifact_scope")
+        != "local_redacted_contract_only"
+    ):
+        raise IdentityPolicyError(
+            "github_app_dispatch.activation_evidence_artifact_scope must be "
+            "local_redacted_contract_only."
+        )
     if github_app_dispatch.get("workflow_file") != "experiment-runner-dispatch.yml":
         raise IdentityPolicyError(
             "github_app_dispatch.workflow_file must be experiment-runner-dispatch.yml."
@@ -468,10 +485,13 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
         raise IdentityPolicyError("github_app_dispatch.workflow_ref must be main.")
     _require_bool(github_app_dispatch, "can_dispatch_repository_events", False)
     _require_bool(github_app_dispatch, "can_dispatch_arbitrary_workflow", False)
+    _require_bool(github_app_dispatch, "can_mint_installation_tokens", False)
     _require_bool(github_app_dispatch, "can_mutate_pull_requests", False)
+    _require_bool(github_app_dispatch, "can_mutate_review_threads", False)
     _require_bool(github_app_dispatch, "can_merge_pull_requests", False)
     _require_bool(github_app_dispatch, "can_write_contents", False)
     _require_bool(github_app_dispatch, "can_write_workflows", False)
+    _require_bool(github_app_dispatch, "can_enable_semantic_cache_runtime", False)
     _require_bool(github_app_dispatch, "can_administer", False)
     _require_bool(github_app_dispatch, "can_manage_sensitive_store", False)
 

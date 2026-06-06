@@ -2112,6 +2112,19 @@ class TestVerificationRegistryCoverageTail:
         assert provenance.verification_hops == 0
         assert provenance.verification_calls == 3
         assert provenance.input_digest == redacted_sha256_label(raw_text)
+        assert provenance.input_sha == provenance.input_digest
+        assert provenance.prompt_sha == provenance.prompt_digest
+        assert provenance.context_item_shas == provenance.context_item_digests
+        assert provenance.answer_sha == provenance.answer_digest
+        assert provenance.prompt_original_char_count == 0
+        assert provenance.prompt_final_char_count == 0
+        assert provenance.prompt_trim_limit is None
+        assert provenance.prompt_trimmed_char_count is None
+        context_fail_closed_provenance = build_verification_provenance(
+            context_items=("valid context", "")
+        )
+        assert context_fail_closed_provenance.context_item_digests == ()
+        assert context_fail_closed_provenance.context_item_shas == ()
         assert provenance.input_digest != f"sha256:{sha256(raw_text.encode('utf-8')).hexdigest()}"
         assert provenance.input_digest is not None
         assert provenance.input_digest.startswith("sha256:")
@@ -2138,12 +2151,21 @@ class TestVerificationRegistryCoverageTail:
 
     def test_runtime_bundle_passthrough_when_runtime_verification_is_disabled(self) -> None:
         from core.verification.registry import (
+            build_bundle,
             build_rag_verification_bundle,
             build_runtime_verification_bundle,
             build_verification_provenance,
         )
+        from core.verification.contracts import VerificationArtifact
+        from core.verification.policy import VerificationPolicy
 
-        provenance = build_verification_provenance(input_text="input", answer_text="answer")
+        provenance = build_verification_provenance(
+            input_text="input",
+            context_items=("rag context",),
+            answer_text="answer",
+            verification_hops=2,
+            verification_calls=2,
+        )
         rag_bundle = build_rag_verification_bundle(
             knowledge_policy=self._knowledge_policy(),
             confidence=0.92,
@@ -2165,13 +2187,61 @@ class TestVerificationRegistryCoverageTail:
             runtime_verification_enabled=False,
             provenance=build_verification_provenance(
                 input_text="new input",
+                prompt_text="trimmed prompt",
                 answer_text="new answer",
+                prompt_char_count=4000,
+                prompt_trimmed=True,
+                prompt_original_char_count=4100,
+                prompt_final_char_count=4000,
+                prompt_trim_limit=4000,
+                prompt_trimmed_char_count=100,
             ),
         )
 
-        assert merged is rag_bundle
-        assert merged == rag_bundle
-        assert merged.provenance is provenance
+        assert merged is not None
+        assert merged.artifacts == rag_bundle.artifacts
+        assert merged.overall_status == rag_bundle.overall_status
+        assert merged.admission_allowed == rag_bundle.admission_allowed
+        assert merged.reason_codes == rag_bundle.reason_codes
+        assert merged.provenance is not None
+        assert merged.provenance.input_digest != provenance.input_digest
+        assert merged.provenance.context_item_digests == provenance.context_item_digests
+        assert merged.provenance.prompt_trimmed is True
+        assert merged.provenance.prompt_char_count == 4000
+        assert merged.provenance.prompt_original_char_count == 4100
+        assert merged.provenance.prompt_final_char_count == 4000
+        assert merged.provenance.prompt_trim_limit == 4000
+        assert merged.provenance.prompt_trimmed_char_count == 100
+        assert merged.provenance.verification_hops == 2
+        assert merged.provenance.verification_calls == 2
+
+        warn_policy = VerificationPolicy(scope="knowledge_write", allow_warn=True)
+        warn_bundle = build_bundle(
+            artifacts=(
+                VerificationArtifact(
+                    artifact_id="warn",
+                    verifier_id="warn_verifier",
+                    status="warn",
+                    reason_codes=("warn_allowed",),
+                ),
+            ),
+            policy=warn_policy,
+            provenance=provenance,
+        )
+        merged_warn = build_runtime_verification_bundle(
+            rag_bundle=warn_bundle,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=True,
+            runtime_verification_enabled=False,
+            provenance=build_verification_provenance(answer_text="new answer"),
+        )
+
+        assert merged_warn is not None
+        assert merged_warn.overall_status == warn_bundle.overall_status
+        assert merged_warn.admission_allowed is True
+        assert merged_warn.reason_codes == warn_bundle.reason_codes
 
     def test_runtime_bundle_preserves_rag_provenance_without_overlay(self) -> None:
         from core.insight.analytical import FalsificationReport, VerificationReport
@@ -2226,6 +2296,10 @@ class TestVerificationRegistryCoverageTail:
             answer_text="runtime answer",
             prompt_text="runtime prompt",
             prompt_trimmed=True,
+            prompt_original_char_count=80,
+            prompt_final_char_count=40,
+            prompt_trim_limit=40,
+            prompt_trimmed_char_count=40,
             verification_hops=0,
             verification_calls=3,
         )
@@ -2261,8 +2335,38 @@ class TestVerificationRegistryCoverageTail:
         assert merged.provenance.context_item_digests == rag_provenance.context_item_digests
         assert merged.provenance.prompt_digest == runtime_provenance.prompt_digest
         assert merged.provenance.answer_digest == runtime_provenance.answer_digest
+        assert merged.provenance.input_sha == rag_provenance.input_digest
+        assert merged.provenance.prompt_sha == runtime_provenance.prompt_digest
+        assert merged.provenance.context_item_shas == rag_provenance.context_item_digests
+        assert merged.provenance.answer_sha == runtime_provenance.answer_digest
         assert merged.provenance.prompt_trimmed is True
+        assert merged.provenance.prompt_original_char_count == 80
+        assert merged.provenance.prompt_final_char_count == 40
+        assert merged.provenance.prompt_trim_limit == 40
+        assert merged.provenance.prompt_trimmed_char_count == 40
+        assert merged.provenance.verification_hops == rag_provenance.verification_hops
         assert merged.provenance.verification_calls == runtime_provenance.verification_calls
+
+    def test_verification_provenance_aliases_cannot_drift_when_constructed_directly(
+        self,
+    ) -> None:
+        from core.verification.contracts import VerificationProvenance
+
+        provenance = VerificationProvenance(
+            input_digest="sha256:" + "a" * 64,
+            prompt_digest="sha256:" + "b" * 64,
+            context_item_digests=("sha256:" + "c" * 64,),
+            answer_digest="sha256:" + "d" * 64,
+            input_sha="sha256:" + "1" * 64,
+            prompt_sha="sha256:" + "2" * 64,
+            context_item_shas=("sha256:" + "3" * 64,),
+            answer_sha="sha256:" + "4" * 64,
+        )
+
+        assert provenance.input_sha == provenance.input_digest
+        assert provenance.prompt_sha == provenance.prompt_digest
+        assert provenance.context_item_shas == provenance.context_item_digests
+        assert provenance.answer_sha == provenance.answer_digest
 
     def test_runtime_bundle_reuses_rag_bundle_without_philosophical_pass(self) -> None:
         from core.verification.registry import (

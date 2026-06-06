@@ -629,6 +629,10 @@ def _build_orchestration_verification_bundle(
         context_items=tuple(chunk.content for chunk in chunks),
         prompt_char_count=None if prompt_text is None else len(prompt_text),
         prompt_trimmed=False if prompt_text is not None else None,
+        prompt_original_char_count=None if prompt_text is None else len(prompt_text),
+        prompt_final_char_count=None if prompt_text is None else len(prompt_text),
+        prompt_trim_limit=None,
+        prompt_trimmed_char_count=0 if prompt_text is not None else None,
         verification_hops=verification_hops,
         verification_calls=verification_calls,
     )

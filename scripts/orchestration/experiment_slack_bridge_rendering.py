@@ -137,6 +137,7 @@ def render_operator_status_message(
     *,
     operator_ledger_summary: tuple[str, ...] = (),
     activation_readiness_summary: tuple[str, ...] = (),
+    private_pilot_activation_summary: tuple[str, ...] = (),
 ) -> SlackSafeMessage:
     """Render sanitized bridge status without exposing runtime IDs or tokens."""
 
@@ -150,6 +151,15 @@ def render_operator_status_message(
         "socket_mode_readiness_status=pass",
         "manual_live_smoke=operator_evidence_only",
         "activation_authority=display_only",
+    )
+    private_pilot_summary = private_pilot_activation_summary or (
+        "private_pilot_activation_state=manual_only",
+        "private_pilot_last_smoke=none",
+        "private_pilot_next_operator_action=run_manual_live_smoke",
+        "private_pilot_dispatch_outcome_class=not_run",
+        "private_pilot_evidence_status=absent",
+        "private_pilot_evidence_graph_admission_status=contract_only_not_runtime",
+        "private_pilot_authority=display_only",
     )
     return SlackSafeMessage(
         message_type="operator_status",
@@ -170,6 +180,7 @@ def render_operator_status_message(
             f"rate_limit_seconds={config.min_interval_seconds}",
             f"audit_retention_days={config.audit_retention_days}",
             *readiness_summary,
+            *private_pilot_summary,
             *ledger_summary,
         ),
         action_required="Keep dry-run unless a reviewed PR promotes bounded execution.",

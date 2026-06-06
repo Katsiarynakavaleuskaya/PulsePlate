@@ -21,10 +21,24 @@ class VerificationProvenance:
     prompt_digest: str | None = None
     context_item_digests: tuple[str, ...] = field(default_factory=tuple)
     answer_digest: str | None = None
+    input_sha: str | None = None
+    prompt_sha: str | None = None
+    context_item_shas: tuple[str, ...] = field(default_factory=tuple)
+    answer_sha: str | None = None
     prompt_char_count: int | None = None
     prompt_trimmed: bool | None = None
+    prompt_original_char_count: int | None = None
+    prompt_final_char_count: int | None = None
+    prompt_trim_limit: int | None = None
+    prompt_trimmed_char_count: int | None = None
     verification_hops: int = 0
     verification_calls: int = 0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "input_sha", self.input_digest)
+        object.__setattr__(self, "prompt_sha", self.prompt_digest)
+        object.__setattr__(self, "context_item_shas", self.context_item_digests)
+        object.__setattr__(self, "answer_sha", self.answer_digest)
 
 
 @dataclass(frozen=True)

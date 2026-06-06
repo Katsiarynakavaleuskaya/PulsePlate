@@ -609,6 +609,7 @@ def test_service_only_files_do_not_wire_public_runtime_or_write_paths() -> None:
         [
             (REPO_ROOT / "app/schemas/user_coaching_state.py").read_text(encoding="utf-8"),
             (REPO_ROOT / "app/services/coaching_state_builder.py").read_text(encoding="utf-8"),
+            (REPO_ROOT / "app/services/coaching_transition_planner.py").read_text(encoding="utf-8"),
         ]
     )
 

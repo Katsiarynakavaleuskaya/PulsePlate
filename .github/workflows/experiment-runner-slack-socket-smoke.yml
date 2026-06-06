@@ -85,6 +85,7 @@ jobs:
           python-version: "3.13.6"
 
       - name: Report Socket Mode activation readiness without live secrets
+        id: dry_readiness
         if: inputs.dry_run != 'false'
         env:
           EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
@@ -97,6 +98,7 @@ jobs:
             --activation-readiness-report)"
           readiness_status=$?
           set -e
+          printf 'readiness_status=%s\n' "$readiness_status" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$report_json"
           REPORT_JSON="$report_json" python3 - <<'PY'
           import json
@@ -106,7 +108,13 @@ jobs:
               render_activation_readiness_summary,
           )
 
-          report = json.loads(os.environ["REPORT_JSON"])
+          try:
+              report = json.loads(os.environ["REPORT_JSON"])
+          except json.JSONDecodeError:
+              report = {
+                  "activation_state": "blocked_by_invalid_config",
+                  "status": "fail",
+              }
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               summary.write("### Experiment Runner Slack activation readiness\n")
               # Includes deterministic_ci_requires_live_slack, opened_http_ingress,
@@ -116,9 +124,9 @@ jobs:
                   key, value = item.split("=", 1)
                   summary.write(f"- {key}: {value}\n")
           PY
-          exit "$readiness_status"
 
       - name: Report Socket Mode activation readiness for live smoke
+        id: live_readiness
         if: inputs.dry_run == 'false'
         env:
           SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
@@ -136,6 +144,7 @@ jobs:
             --activation-readiness-report)"
           readiness_status=$?
           set -e
+          printf 'readiness_status=%s\n' "$readiness_status" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$report_json"
           REPORT_JSON="$report_json" python3 - <<'PY'
           import json
@@ -145,7 +154,13 @@ jobs:
               render_activation_readiness_summary,
           )
 
-          report = json.loads(os.environ["REPORT_JSON"])
+          try:
+              report = json.loads(os.environ["REPORT_JSON"])
+          except json.JSONDecodeError:
+              report = {
+                  "activation_state": "blocked_by_invalid_config",
+                  "status": "fail",
+              }
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               summary.write("### Experiment Runner Slack activation readiness\n")
               # Includes deterministic_ci_requires_live_slack, opened_http_ingress,
@@ -155,36 +170,111 @@ jobs:
                   key, value = item.split("=", 1)
                   summary.write(f"- {key}: {value}\n")
           PY
-          exit "$readiness_status"
 
       - name: Validate dry-run bridge config without Slack network
+        id: bridge_config
         env:
           EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
         run: |
           set -euo pipefail
+          set +e
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-runtime \
-            --dispatch-mode dry-run
+            --dispatch-mode dry-run >/dev/null 2>&1
+          config_status=$?
+          set -e
+          printf 'config_status=%s\n' "$config_status" >> "$GITHUB_OUTPUT"
 
       - name: Validate manual smoke inputs without raw echo
+        id: smoke_inputs
         env:
           EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
           EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
         run: |
           set -euo pipefail
+          set +e
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
-            --validate-smoke-inputs
+            --validate-smoke-inputs >/dev/null 2>&1
+          smoke_input_status=$?
+          set -e
+          printf 'smoke_input_status=%s\n' "$smoke_input_status" >> "$GITHUB_OUTPUT"
 
       - name: Report local Slack audit retention policy
+        id: audit_retention
         env:
           EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
         run: |
           set -euo pipefail
+          set +e
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --audit-retention report \
-            --dispatch-mode dry-run
+            --dispatch-mode dry-run >/dev/null 2>&1
+          audit_retention_status=$?
+          set -e
+          printf 'audit_retention_status=%s\n' "$audit_retention_status" >> "$GITHUB_OUTPUT"
+
+      - name: Write redacted dry-run activation evidence
+        if: inputs.dry_run != 'false'
+        env:
+          EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
+          EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
+          EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
+        run: |
+          set -euo pipefail
+          initial_readiness_status="${{ steps.dry_readiness.outputs.readiness_status }}"
+          config_status="${{ steps.bridge_config.outputs.config_status }}"
+          smoke_input_status="${{ steps.smoke_inputs.outputs.smoke_input_status }}"
+          audit_retention_status="${{ steps.audit_retention.outputs.audit_retention_status }}"
+          dispatch_outcome_class="dry_run_only"
+          for status in "$initial_readiness_status" "$config_status" "$smoke_input_status" "$audit_retention_status"; do
+            if [ "$status" -ne 0 ]; then
+              dispatch_outcome_class="blocked_before_dispatch"
+            fi
+          done
+          set +e
+          report_json="$(python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --activation-readiness-report 2>/dev/null)"
+          readiness_status=$?
+          set -e
+          REPORT_JSON="$report_json" DISPATCH_OUTCOME_CLASS="$dispatch_outcome_class" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from scripts.orchestration.experiment_private_pilot_activation import (
+              build_private_pilot_activation_evidence,
+          )
+
+          try:
+              readiness = json.loads(os.environ["REPORT_JSON"])
+          except json.JSONDecodeError:
+              readiness = {
+                  "activation_state": "blocked_by_invalid_config",
+                  "github_dispatch_readiness_state": "blocked_by_invalid_config",
+              }
+          evidence = build_private_pilot_activation_evidence(
+              readiness,
+              dispatch_outcome_class=os.environ["DISPATCH_OUTCOME_CLASS"],
+          )
+          target_dir = Path("private-pilot-activation-evidence")
+          target_dir.mkdir(parents=True, exist_ok=True)
+          (target_dir / "activation-evidence.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          for status in "$config_status" "$smoke_input_status" "$audit_retention_status"; do
+            if [ "$status" -ne 0 ]; then
+              exit "$status"
+            fi
+          done
+          if [ "$initial_readiness_status" -ne 0 ]; then
+            exit "$initial_readiness_status"
+          fi
+          exit "$readiness_status"
 
       - name: Validate live Socket Mode prerequisites
+        id: live_prerequisites
         if: inputs.dry_run == 'false'
         env:
           SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
@@ -204,10 +294,15 @@ jobs:
           printf 'EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST=%s\n' "$channel_allowlist_status"
           printf 'EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s\n' "$user_allowlist_status"
           printf 'EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST=%s\n' "$team_allowlist_status"
+          set +e
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
-            --validate-secret-presence
+            --validate-secret-presence >/dev/null 2>&1
+          prerequisite_status=$?
+          set -e
+          printf 'prerequisite_status=%s\n' "$prerequisite_status" >> "$GITHUB_OUTPUT"
 
       - name: Run bounded live Socket Mode smoke
+        id: live_smoke
         if: inputs.dry_run == 'false'
         env:
           SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
@@ -220,9 +315,103 @@ jobs:
           EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
         run: |
           set -euo pipefail
+          initial_readiness_status="${{ steps.live_readiness.outputs.readiness_status }}"
+          config_status="${{ steps.bridge_config.outputs.config_status }}"
+          smoke_input_status="${{ steps.smoke_inputs.outputs.smoke_input_status }}"
+          audit_retention_status="${{ steps.audit_retention.outputs.audit_retention_status }}"
+          prerequisite_status="${{ steps.live_prerequisites.outputs.prerequisite_status }}"
+          for status in "$initial_readiness_status" "$config_status" "$smoke_input_status" "$audit_retention_status" "$prerequisite_status"; do
+            if [ "$status" -ne 0 ]; then
+              printf 'smoke_status=0\n' >> "$GITHUB_OUTPUT"
+              printf 'dispatch_outcome_class=blocked_before_dispatch\n' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          set +e
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-live-smoke \
-            --dispatch-mode dry-run
+            --dispatch-mode dry-run >/dev/null 2>&1
+          smoke_status=$?
+          set -e
+          printf 'smoke_status=%s\n' "$smoke_status" >> "$GITHUB_OUTPUT"
+          if [ "$smoke_status" -eq 0 ]; then
+            printf 'dispatch_outcome_class=smoke_recorded\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'dispatch_outcome_class=smoke_failed_safely\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write redacted live activation evidence
+        if: inputs.dry_run == 'false'
+        env:
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST: ${{ inputs.channel_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST: ${{ inputs.user_allowlist }}
+          EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST: ${{ inputs.team_allowlist }}
+          EXPERIMENT_SLACK_SOCKET_AUDIT_RETENTION_DAYS: ${{ inputs.audit_retention_days }}
+          EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
+          EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
+        run: |
+          set -euo pipefail
+          initial_readiness_status="${{ steps.live_readiness.outputs.readiness_status }}"
+          config_status="${{ steps.bridge_config.outputs.config_status }}"
+          smoke_input_status="${{ steps.smoke_inputs.outputs.smoke_input_status }}"
+          audit_retention_status="${{ steps.audit_retention.outputs.audit_retention_status }}"
+          prerequisite_status="${{ steps.live_prerequisites.outputs.prerequisite_status }}"
+          smoke_status="${{ steps.live_smoke.outputs.smoke_status }}"
+          dispatch_outcome_class="${{ steps.live_smoke.outputs.dispatch_outcome_class }}"
+          for status in "$initial_readiness_status" "$config_status" "$smoke_input_status" "$audit_retention_status" "$prerequisite_status"; do
+            if [ "$status" -ne 0 ]; then
+              dispatch_outcome_class="blocked_before_dispatch"
+            fi
+          done
+          set +e
+          report_json="$(python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --activation-readiness-report 2>/dev/null)"
+          readiness_status=$?
+          set -e
+          if [ "$readiness_status" -ne 0 ]; then
+            dispatch_outcome_class="blocked_before_dispatch"
+          fi
+          REPORT_JSON="$report_json" DISPATCH_OUTCOME_CLASS="$dispatch_outcome_class" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from scripts.orchestration.experiment_private_pilot_activation import (
+              build_private_pilot_activation_evidence,
+          )
+
+          try:
+              readiness = json.loads(os.environ["REPORT_JSON"])
+          except json.JSONDecodeError:
+              readiness = {
+                  "activation_state": "blocked_by_invalid_config",
+                  "github_dispatch_readiness_state": "blocked_by_invalid_config",
+              }
+          evidence = build_private_pilot_activation_evidence(
+              readiness,
+              dispatch_outcome_class=os.environ["DISPATCH_OUTCOME_CLASS"],
+          )
+          target_dir = Path("private-pilot-activation-evidence")
+          target_dir.mkdir(parents=True, exist_ok=True)
+          (target_dir / "activation-evidence.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          if [ "$smoke_status" -ne 0 ]; then
+            exit "$smoke_status"
+          fi
+          for status in "$config_status" "$smoke_input_status" "$audit_retention_status" "$prerequisite_status"; do
+            if [ "$status" -ne 0 ]; then
+              exit "$status"
+            fi
+          done
+          if [ "$initial_readiness_status" -ne 0 ]; then
+            exit "$initial_readiness_status"
+          fi
+          exit "$readiness_status"
 
       - name: Record sanitized live-smoke evidence summary
         if: inputs.dry_run == 'false'
@@ -238,3 +427,12 @@ jobs:
             printf -- '- audit_retention: report-first\n'
             printf -- '- redaction: raw tokens, token prefixes, Slack IDs, hypotheses, payloads, and local paths are not emitted by workflow steps\n'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload redacted private-pilot activation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: private-pilot-activation-evidence
+          path: private-pilot-activation-evidence/activation-evidence.json
+          if-no-files-found: error
+          retention-days: 14

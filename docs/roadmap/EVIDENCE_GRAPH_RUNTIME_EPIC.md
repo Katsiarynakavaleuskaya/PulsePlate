@@ -154,6 +154,16 @@ passthrough, and fail-closed missing-bundle behavior. Evidence:
 `docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.schema.json`,
 and `scripts/ci/check_verification_provenance_admission_report.py`.
 
+The next bounded follow-up extends the same internal-only provenance metadata
+with SHA alias labels and prompt trim counts. The aliases mirror the existing
+redacted digest labels and do not introduce a second hashing source. Prompt
+trim metadata remains counts-only (`prompt_original_char_count`,
+`prompt_final_char_count`, `prompt_trim_limit`, and
+`prompt_trimmed_char_count`) and does not change admission authority. Evidence:
+`core/verification/contracts.py`, `core/verification/registry.py`,
+`core/rag/orchestration.py`, `core/insight/philosophical_runtime.py`, and
+`tests/test_insight_application_service.py`.
+
 These follow-ups do not change public response DTOs, OpenAPI, DB persistence,
 provider selection, frontend, iOS, semantic cache, GraphRAG, Slack/operator
 authority, or runtime-serving behavior. Evidence:

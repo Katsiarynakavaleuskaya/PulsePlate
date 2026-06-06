@@ -15,6 +15,7 @@ import yaml
 
 import scripts.orchestration.context_pack as context_pack
 from scripts.orchestration import experiment_operator_ledger
+from scripts.orchestration import experiment_private_pilot_activation
 from scripts.orchestration import experiment_slack_socket_bridge as bridge
 from scripts.orchestration.experiment_slack_socket_bridge import LIVE_APPROVAL_SHA256_ENV
 from scripts.orchestration.experiment_slack_redaction import SLACK_IDENTIFIER_RE
@@ -1110,6 +1111,10 @@ def test_operator_help_status_and_mvp_evidence_renderers_are_slack_safe(
     assert "Guided Planning Preview event contract" in combined
     assert "display_only_commands" in combined
     assert "advisory only" in combined
+    assert "private_pilot_activation_state=manual_only" in combined
+    assert "private_pilot_last_smoke=none" in combined
+    assert "private_pilot_next_operator_action=run_manual_live_smoke" in combined
+    assert "private_pilot_evidence_status=absent" in combined
     assert "C0ALERTS" not in combined
     assert "U0OPERATOR" not in combined
     assert "xox" not in combined
@@ -1151,6 +1156,10 @@ def test_operator_status_includes_private_pilot_readiness_without_target_values(
     assert "github_dispatch_live_approval_status=dry_run_default" in output
     assert "github_dispatch_authority=display_only" in output
     assert "evidence_graph_admission_status=contract_only_not_runtime" in output
+    assert "private_pilot_activation_state=manual_only" in output
+    assert "private_pilot_last_smoke=none" in output
+    assert "private_pilot_next_operator_action=run_manual_live_smoke" in output
+    assert "private_pilot_evidence_status=absent" in output
     assert "workflow_authority_changed=false" in output
     assert "semantic_cache_enabled=false" in output
     assert "PilotOrg" not in output
@@ -1160,6 +1169,69 @@ def test_operator_status_includes_private_pilot_readiness_without_target_values(
     assert "ghs_" not in output
     assert "C0ALERTS" not in output
     assert "U0OPERATOR" not in output
+    assert str(tmp_path) not in output
+
+
+def test_operator_status_projects_latest_private_pilot_activation_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    repo_root = _repo_root_from_audit_dir(audit_dir)
+    config = _config_without_rate_limit(monkeypatch=monkeypatch, audit_dir=audit_dir)
+    evidence = experiment_private_pilot_activation.build_private_pilot_activation_evidence(
+        {
+            "activation_state": "ready_for_manual_live_smoke",
+            "audit_retention_status": "valid",
+            "branch_ref_status": "valid",
+            "channel_allowlist_status": "present",
+            "github_dispatch_auth_class": "installation",
+            "github_dispatch_auth_status": "present",
+            "github_dispatch_authority": "display_only",
+            "github_dispatch_execute_gate_status": "enabled",
+            "github_dispatch_live_approval_status": "dry_run_default",
+            "github_dispatch_readiness_state": "eligible_for_private_pilot_dispatch",
+            "github_dispatch_repo_allowlist_status": "matched",
+            "github_dispatch_target_status": "cross_repo",
+            "github_dispatch_workflow_status": "fixed",
+            "hypothesis_sha256_status": "valid",
+            "manual_live_smoke": "operator_evidence_only",
+            "raw_branch": "refs/heads/feature/private-pilot",
+            "raw_digest": "a" * 64,
+            "raw_patch": "diff --git a/secret b/secret",
+            "raw_path": "/Users/alice/PulsePlate",
+            "raw_repo": "PilotOrg/PrivatePilot",
+            "raw_slack": "C0SECRETID",
+            "raw_token": "ghs_header.payload.signaturesecretsecretsecret",
+            "slack_app_token_status": "valid",
+            "slack_bot_token_status": "valid",
+            "smoke_input_requirement": "required",
+            "team_allowlist_status": "present",
+            "user_allowlist_status": "present",
+        },
+        dispatch_outcome_class="smoke_recorded",
+        generated_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+    )
+    experiment_operator_ledger.write_private_pilot_activation_evidence(
+        evidence,
+        repo_root=repo_root,
+    )
+
+    output = bridge._format_command_reply(bridge.OperatorCommand(kind="status"), config)
+
+    assert "private_pilot_activation_state=smoke_recorded" in output
+    assert "private_pilot_last_smoke=smoke_recorded" in output
+    assert "private_pilot_next_operator_action=review_activation_report" in output
+    assert "private_pilot_dispatch_outcome_class=smoke_recorded" in output
+    assert "private_pilot_evidence_status=valid" in output
+    assert "private_pilot_authority=display_only" in output
+    assert "PilotOrg" not in output
+    assert "PrivatePilot" not in output
+    assert "refs/heads" not in output
+    assert "C0SECRETID" not in output
+    assert "ghs_" not in output
+    assert "diff --git" not in output
     assert str(tmp_path) not in output
 
 
@@ -3739,6 +3811,16 @@ def test_slack_operator_runbook_documents_status_evidence_authority_boundary() -
     assert "advisory` only limits authority" in runbook
     assert "--activation-readiness-report" in runbook
     assert "Private-Pilot Readiness Evidence" in runbook
+    assert "Private-Pilot Activation Evidence" in runbook
+    assert "experiment_private_pilot_activation.py" in runbook
+    assert "private-pilot-activation-evidence" in runbook
+    assert "activation-evidence.json" in runbook
+    assert "--activation-evidence-json" in runbook
+    assert "--record-activation-evidence" in runbook
+    assert "private_pilot_activation_state" in runbook
+    assert "private_pilot_last_smoke" in runbook
+    assert "private_pilot_next_operator_action" in runbook
+    assert "private_pilot_evidence_status" in runbook
     assert "--repo <owner/repo>" in runbook
     assert "GitHub auth" in runbook
     assert "presence/class" in runbook
@@ -3821,6 +3903,9 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     retention_step = next(
         step for step in steps if step["name"] == "Report local Slack audit retention policy"
     )
+    dry_evidence_step = next(
+        step for step in steps if step["name"] == "Write redacted dry-run activation evidence"
+    )
     dry_readiness_step = next(
         step
         for step in steps
@@ -3834,8 +3919,16 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     runtime_step = next(
         step for step in steps if step["name"] == "Run bounded live Socket Mode smoke"
     )
+    live_evidence_step = next(
+        step for step in steps if step["name"] == "Write redacted live activation evidence"
+    )
     summary_step = next(
         step for step in steps if step["name"] == "Record sanitized live-smoke evidence summary"
+    )
+    upload_step = next(
+        step
+        for step in steps
+        if step["name"] == "Upload redacted private-pilot activation evidence"
     )
     assert presence_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
     assert presence_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
@@ -3863,7 +3956,16 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         == "${{ inputs.hypothesis_sha256 }}"
     )
     assert dry_readiness_step["if"] == "inputs.dry_run != 'false'"
+    assert dry_readiness_step["id"] == "dry_readiness"
     assert live_readiness_step["if"] == "inputs.dry_run == 'false'"
+    assert live_readiness_step["id"] == "live_readiness"
+    assert dry_config_step["id"] == "bridge_config"
+    assert input_step["id"] == "smoke_inputs"
+    assert retention_step["id"] == "audit_retention"
+    assert dry_evidence_step["if"] == "inputs.dry_run != 'false'"
+    assert presence_step["id"] == "live_prerequisites"
+    assert runtime_step["id"] == "live_smoke"
+    assert live_evidence_step["if"] == "inputs.dry_run == 'false'"
     assert "SLACK_APP_TOKEN" not in dry_readiness_step["env"]
     assert "SLACK_BOT_TOKEN" not in dry_readiness_step["env"]
     assert "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST" not in dry_readiness_step["env"]
@@ -3899,6 +4001,29 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         live_readiness_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
         == "${{ inputs.hypothesis_sha256 }}"
     )
+    assert "SLACK_APP_TOKEN" not in dry_evidence_step["env"]
+    assert "SLACK_BOT_TOKEN" not in dry_evidence_step["env"]
+    assert (
+        dry_evidence_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
+    )
+    assert (
+        dry_evidence_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
+        == "${{ inputs.hypothesis_sha256 }}"
+    )
+    assert live_evidence_step["env"]["SLACK_APP_TOKEN"] == "${{ secrets.SLACK_APP_TOKEN }}"
+    assert live_evidence_step["env"]["SLACK_BOT_TOKEN"] == "${{ secrets.SLACK_BOT_TOKEN }}"
+    assert (
+        live_evidence_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"]
+        == "${{ inputs.channel_allowlist }}"
+    )
+    assert (
+        live_evidence_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST"]
+        == "${{ inputs.user_allowlist }}"
+    )
+    assert (
+        live_evidence_step["env"]["EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST"]
+        == "${{ inputs.team_allowlist }}"
+    )
     assert runtime_step["env"]["EXPERIMENT_SLACK_SOCKET_BRANCH_REF"] == "${{ inputs.branch_ref }}"
     assert (
         runtime_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
@@ -3910,6 +4035,14 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "--validate-smoke-inputs" in workflow_text
     assert "--activation-readiness-report" in workflow_text
     assert "--validate-live-smoke" in workflow_text
+    assert "build_private_pilot_activation_evidence" in workflow_text
+    assert 'dispatch_outcome_class="dry_run_only"' in workflow_text
+    assert "dispatch_outcome_class=smoke_recorded" in workflow_text
+    assert "dispatch_outcome_class=smoke_failed_safely" in workflow_text
+    assert "dispatch_outcome_class=blocked_before_dispatch" in workflow_text
+    assert 'dispatch_outcome_class=os.environ["DISPATCH_OUTCOME_CLASS"]' in workflow_text
+    assert "json.JSONDecodeError" in workflow_text
+    assert "private-pilot-activation-evidence/activation-evidence.json" in workflow_text
     assert "--run-socket" not in workflow_text
     assert "--audit-retention report" in workflow_text
     assert "--slack-app-config-present" not in workflow_text
@@ -3931,16 +4064,77 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert steps.index(live_readiness_step) < steps.index(input_step)
     assert steps.index(dry_readiness_step) < steps.index(retention_step)
     assert steps.index(live_readiness_step) < steps.index(retention_step)
+    assert steps.index(retention_step) < steps.index(dry_evidence_step)
+    assert steps.index(runtime_step) < steps.index(live_evidence_step)
+    assert steps.index(dry_evidence_step) < steps.index(upload_step)
+    assert steps.index(live_evidence_step) < steps.index(upload_step)
     assert steps.index(live_readiness_step) < steps.index(presence_step)
     assert steps.index(mask_step) < steps.index(runtime_step)
     assert steps.index(dry_readiness_step) < steps.index(runtime_step)
     assert steps.index(live_readiness_step) < steps.index(runtime_step)
+    for status_step, output_name in (
+        (dry_config_step, "config_status"),
+        (input_step, "smoke_input_status"),
+        (retention_step, "audit_retention_status"),
+        (presence_step, "prerequisite_status"),
+    ):
+        assert "set +e" in status_step["run"]
+        assert ">/dev/null 2>&1" in status_step["run"]
+        assert f"{output_name}=$?" in status_step["run"]
+        assert f"{output_name}=%s" in status_step["run"]
+        assert "GITHUB_OUTPUT" in status_step["run"]
+    assert ">/dev/null 2>&1" in runtime_step["run"]
+    assert "smoke_status=$?" in runtime_step["run"]
+    assert "GITHUB_OUTPUT" in runtime_step["run"]
+    assert "prerequisite_status" in runtime_step["run"]
+    assert "blocked_before_dispatch" in runtime_step["run"]
+    assert "dispatch_outcome_class=smoke_failed_safely" in runtime_step["run"]
+    assert (
+        'initial_readiness_status="${{ steps.live_readiness.outputs.readiness_status }}"'
+        in live_evidence_step["run"]
+    )
+    assert (
+        'config_status="${{ steps.bridge_config.outputs.config_status }}"'
+        in live_evidence_step["run"]
+    )
+    assert 'smoke_input_status="${{ steps.smoke_inputs.outputs.smoke_input_status }}"' in (
+        live_evidence_step["run"]
+    )
+    assert (
+        'audit_retention_status="${{ steps.audit_retention.outputs.audit_retention_status }}"'
+        in live_evidence_step["run"]
+    )
+    assert (
+        'prerequisite_status="${{ steps.live_prerequisites.outputs.prerequisite_status }}"'
+        in live_evidence_step["run"]
+    )
+    assert (
+        'smoke_status="${{ steps.live_smoke.outputs.smoke_status }}"' in live_evidence_step["run"]
+    )
+    assert (
+        'dispatch_outcome_class="${{ steps.live_smoke.outputs.dispatch_outcome_class }}"'
+        in live_evidence_step["run"]
+    )
+    assert "DISPATCH_OUTCOME_CLASS" in live_evidence_step["run"]
+    assert 'exit "$smoke_status"' in live_evidence_step["run"]
+    assert 'exit "$initial_readiness_status"' in live_evidence_step["run"]
+    assert "blocked_by_invalid_config" in live_evidence_step["run"]
+    assert "blocked_before_dispatch" in live_evidence_step["run"]
+    assert (
+        'initial_readiness_status="${{ steps.dry_readiness.outputs.readiness_status }}"'
+        in dry_evidence_step["run"]
+    )
+    assert "blocked_before_dispatch" in dry_evidence_step["run"]
+    assert 'exit "$initial_readiness_status"' in dry_evidence_step["run"]
+    assert "json.JSONDecodeError" in dry_evidence_step["run"]
     for readiness_step in (dry_readiness_step, live_readiness_step):
         assert "render_activation_readiness_summary" in readiness_step["run"]
         assert "GITHUB_STEP_SUMMARY" in readiness_step["run"]
         assert "set +e" in readiness_step["run"]
         assert "readiness_status=$?" in readiness_step["run"]
-        assert 'exit "$readiness_status"' in readiness_step["run"]
+        assert "readiness_status=%s" in readiness_step["run"]
+        assert "GITHUB_OUTPUT" in readiness_step["run"]
+        assert 'exit "$readiness_status"' not in readiness_step["run"]
     assert "deterministic_ci_requires_live_slack" in workflow_text
     assert "opened_http_ingress" in workflow_text
     assert "semantic_cache_enabled" in workflow_text
@@ -3967,6 +4161,14 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "${{ inputs.hypothesis_sha256 }}" not in mask_step["run"]
     assert "$GITHUB_STEP_SUMMARY" in summary_step["run"]
     assert "raw tokens, token prefixes, Slack IDs" in summary_step["run"]
+    assert upload_step["if"] == "always()"
+    assert upload_step["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    assert upload_step["with"] == {
+        "if-no-files-found": "error",
+        "name": "private-pilot-activation-evidence",
+        "path": "private-pilot-activation-evidence/activation-evidence.json",
+        "retention-days": 14,
+    }
     assert "SLACK_SIGNING_SECRET" not in workflow_text
     assert "continue-on-error" not in workflow_text
     assert "|| true" not in workflow_text
