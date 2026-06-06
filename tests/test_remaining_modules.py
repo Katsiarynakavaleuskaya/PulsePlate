@@ -2151,15 +2151,20 @@ class TestVerificationRegistryCoverageTail:
 
     def test_runtime_bundle_passthrough_when_runtime_verification_is_disabled(self) -> None:
         from core.verification.registry import (
+            build_bundle,
             build_rag_verification_bundle,
             build_runtime_verification_bundle,
             build_verification_provenance,
         )
+        from core.verification.contracts import VerificationArtifact
+        from core.verification.policy import VerificationPolicy
 
         provenance = build_verification_provenance(
             input_text="input",
             context_items=("rag context",),
             answer_text="answer",
+            verification_hops=2,
+            verification_calls=2,
         )
         rag_bundle = build_rag_verification_bundle(
             knowledge_policy=self._knowledge_policy(),
@@ -2207,6 +2212,36 @@ class TestVerificationRegistryCoverageTail:
         assert merged.provenance.prompt_final_char_count == 4000
         assert merged.provenance.prompt_trim_limit == 4000
         assert merged.provenance.prompt_trimmed_char_count == 100
+        assert merged.provenance.verification_hops == 2
+        assert merged.provenance.verification_calls == 2
+
+        warn_policy = VerificationPolicy(scope="knowledge_write", allow_warn=True)
+        warn_bundle = build_bundle(
+            artifacts=(
+                VerificationArtifact(
+                    artifact_id="warn",
+                    verifier_id="warn_verifier",
+                    status="warn",
+                    reason_codes=("warn_allowed",),
+                ),
+            ),
+            policy=warn_policy,
+            provenance=provenance,
+        )
+        merged_warn = build_runtime_verification_bundle(
+            rag_bundle=warn_bundle,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=True,
+            runtime_verification_enabled=False,
+            provenance=build_verification_provenance(answer_text="new answer"),
+        )
+
+        assert merged_warn is not None
+        assert merged_warn.overall_status == warn_bundle.overall_status
+        assert merged_warn.admission_allowed is True
+        assert merged_warn.reason_codes == warn_bundle.reason_codes
 
     def test_runtime_bundle_preserves_rag_provenance_without_overlay(self) -> None:
         from core.insight.analytical import FalsificationReport, VerificationReport
@@ -2309,6 +2344,7 @@ class TestVerificationRegistryCoverageTail:
         assert merged.provenance.prompt_final_char_count == 40
         assert merged.provenance.prompt_trim_limit == 40
         assert merged.provenance.prompt_trimmed_char_count == 40
+        assert merged.provenance.verification_hops == rag_provenance.verification_hops
         assert merged.provenance.verification_calls == runtime_provenance.verification_calls
 
     def test_verification_provenance_aliases_cannot_drift_when_constructed_directly(

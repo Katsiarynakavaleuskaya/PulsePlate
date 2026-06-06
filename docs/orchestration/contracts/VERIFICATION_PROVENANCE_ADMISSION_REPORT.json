@@ -448,13 +448,16 @@
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "answer_digest",
         "input_sha",
         "prompt_sha",
         "context_item_shas",
+        "answer_sha",
         "prompt_char_count",
         "prompt_trimmed",
         "prompt_original_char_count",
         "prompt_final_char_count",
+        "prompt_trim_limit",
         "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls"
@@ -463,13 +466,16 @@
         "input_digest",
         "prompt_digest",
         "context_item_digests",
+        "answer_digest",
         "input_sha",
         "prompt_sha",
         "context_item_shas",
+        "answer_sha",
         "prompt_char_count",
         "prompt_trimmed",
         "prompt_original_char_count",
         "prompt_final_char_count",
+        "prompt_trim_limit",
         "prompt_trimmed_char_count",
         "verification_hops",
         "verification_calls"
@@ -482,21 +488,24 @@
           "sha256:fc83a91b2f1b994f70347a3c3d9432a57e94fc4f2fe9655978d08fd8c5391f5a",
           "sha256:d729207a70ab0a424f866fe91526364723160dd1e9d5998cfc4d320920554717"
         ],
+        "answer_digest": "sha256:2fe9486d5fa73aa2bccf21fb7141812e3057355cf8a251ec95b5b3d125595b13",
         "input_sha": "sha256:d5012c87fe2568a7f88441b0695b46e69f230b1615927eb2bb17a83739216a82",
         "prompt_sha": "sha256:67fc446d4a01a3f15dd7e57213ed6c94ade9c3d7abf6180af448febe0974997b",
         "context_item_shas": [
           "sha256:fc83a91b2f1b994f70347a3c3d9432a57e94fc4f2fe9655978d08fd8c5391f5a",
           "sha256:d729207a70ab0a424f866fe91526364723160dd1e9d5998cfc4d320920554717"
-        ]
+        ],
+        "answer_sha": "sha256:2fe9486d5fa73aa2bccf21fb7141812e3057355cf8a251ec95b5b3d125595b13"
       },
       "count_labels": {
         "artifact_count": 4,
         "reason_code_count": 4,
         "context_item_digest_count": 2,
-        "prompt_char_count": 184,
-        "prompt_original_char_count": 184,
-        "prompt_final_char_count": 184,
-        "prompt_trimmed_char_count": 0,
+        "prompt_char_count": 4000,
+        "prompt_original_char_count": 5200,
+        "prompt_final_char_count": 4000,
+        "prompt_trim_limit": 4000,
+        "prompt_trimmed_char_count": 1200,
         "verification_hops": 2,
         "verification_calls": 2
       },
@@ -523,6 +532,10 @@
         "serving_allowed": false
       },
       "source_refs": [
+        {
+          "path": "core/insight/philosophical_runtime.py",
+          "symbol": "generate_insight"
+        },
         {
           "path": "core/verification/registry.py",
           "symbol": "build_runtime_verification_bundle"

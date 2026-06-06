@@ -417,6 +417,12 @@ def test_direct_and_disabled_paths_do_not_overclaim_admission() -> None:
     assert disabled["admission_allowed"] is False
     assert "runtime_verification_disabled_inherits_existing_bundle" in disabled["reason_labels"]
     assert "knowledge_policy_missing" in disabled["reason_labels"]
+    assert "answer_digest" in disabled["present_provenance_fields"]
+    assert "answer_sha" in disabled["present_provenance_fields"]
+    assert disabled["count_labels"]["prompt_trim_limit"] == 4000
+    assert disabled["count_labels"]["prompt_trimmed_char_count"] == 1200
+    assert disabled["count_labels"]["verification_hops"] == 2
+    assert disabled["count_labels"]["verification_calls"] == 2
 
 
 def test_admitted_paths_use_non_recursive_count_labels() -> None:

@@ -7,6 +7,7 @@ EN: First-class verification artifact assembly on top of existing runtime checks
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from dataclasses import replace
 from hashlib import sha256
 import math
 import re
@@ -113,9 +114,8 @@ def build_runtime_verification_bundle(
             return None
         if provenance is None:
             return rag_bundle
-        return build_bundle(
-            artifacts=rag_bundle.artifacts,
-            policy=policy,
+        return replace(
+            rag_bundle,
             provenance=_merge_provenance(rag_bundle.provenance, provenance),
         )
 
@@ -332,8 +332,8 @@ def _merge_provenance(
             if overlay.prompt_trimmed_char_count is not None
             else base.prompt_trimmed_char_count
         ),
-        verification_hops=overlay.verification_hops,
-        verification_calls=overlay.verification_calls,
+        verification_hops=_merge_count(base.verification_hops, overlay.verification_hops),
+        verification_calls=_merge_count(base.verification_calls, overlay.verification_calls),
     )
 
 
@@ -356,6 +356,10 @@ def _redact_provenance_text(value: str) -> str:
 
 def _non_negative_count(value: object | None) -> int:
     return value if type(value) is int and value >= 0 else 0
+
+
+def _merge_count(base: int, overlay: int) -> int:
+    return overlay if overlay > 0 else base
 
 
 def _optional_non_negative_count(value: object | None) -> int | None:

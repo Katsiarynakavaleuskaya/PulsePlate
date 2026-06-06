@@ -671,9 +671,11 @@
                     "input_digest",
                     "prompt_digest",
                     "context_item_digests",
+                    "answer_digest",
                     "input_sha",
                     "prompt_sha",
-                    "context_item_shas"
+                    "context_item_shas",
+                    "answer_sha"
                   ]
                 }
               }
