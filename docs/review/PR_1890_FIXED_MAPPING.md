@@ -374,6 +374,14 @@ Disposition: FIXED
 Commit: 8535b3f7c
 Evidence: The actionable false-greens are fixed by stronger release-readiness scanning and deterministic regressions for localized/labeled/reversed pricing and trial claims, plural/RU medical-professional wording, exact wellness and line-fit status drift, nested protected JSON statuses, exact screenshot-name drift, Linux local paths, separator-form protected claims, and reviewer-action drift. Local evidence after the fix: focused pytest PASS, direct App Store validator PASS, `make validate-changed` PASS, `make ios-appstore-verify` PASS, and `pre-commit run --all-files` PASS. The remaining unresolved-thread count and current-head CI checks are tracked as merge-readiness work after the fix is pushed.
 
+Finding: post-open `qa-engineer-agent` agent `019e9de1-6eeb-72d1-adca-95dde72c65d2` reported stale PR-body current-head/readiness text after the `b62af15c9` push.
+Disposition: FIXED
+Evidence: The PR body mirror now names current head `b62af15c9`, includes the latest mapping commit in the mapping rollup, and keeps merge-readiness unclaimed until current-head CI, thread resolution, post-open passes, strict wrapper evidence, and wait-window are satisfied.
+
+Finding: post-open `qa-engineer-agent` agent `019e9de1-6eeb-72d1-adca-95dde72c65d2` reported live GitHub review threads remained unresolved after the mapping update.
+Disposition: FIXED
+Evidence: GraphQL review-thread audit found 75 unresolved threads and `missing_in_mapping: 0`; every unresolved thread had a canonical disposition in this artifact before any resolve operation. Live thread resolution is performed only after this mapped-disposition audit.
+
 ## Main Coverage Carryover
 
 Finding: `main` CI for `889e9a0ad` failed `test-main (3.11, 60)` because global coverage was `96.99%`, below the `97.00%` threshold; `app/services/coaching_state_builder.py` carried 14 missed statements.
