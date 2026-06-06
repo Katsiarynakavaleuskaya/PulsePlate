@@ -333,7 +333,7 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` and `tests/ios/test_ios
 
 Finding: post-open `bug-hunter` agent `019e9c5c-5bf4-7970-81ff-a27550fd5600` reported machine-local absolute paths in this mapping artifact's new `ios-appstore-verify` evidence.
 Disposition: FIXED
-Commit: 1f2fb6900
+Commit: ff499b651
 Evidence: This mapping update replaces the machine-local `DEV_PYTHON` evidence with repo-relative `DEV_PYTHON=../../.venv/bin/python`, keeping the canonical artifact free of absolute local paths. Local evidence after the fix: local-path pattern scan returned no matches; PR body phase2 gates passed; local disposition guard passed.
 
 ## Main Coverage Carryover
