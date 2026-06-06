@@ -133,6 +133,8 @@ Post-open review threads must be recorded below with `FIXED`, `NOT-A-BUG`, or
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#pullrequestreview-4442302334 -> e04544951
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367074456 -> e04544951
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367074458 -> e04544951
 Disposition: FIXED
 Commit: e04544951
 Evidence: Cubic identified two mapping/body format issues in `docs/review/PR_1896_FIXED_MAPPING.md`; the artifact now includes the exact canonical Phase2 checkboxes and a valid GitHub review-thread mapping entry instead of non-canonical no-actionable prose.
