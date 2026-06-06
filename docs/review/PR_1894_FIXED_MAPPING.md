@@ -172,6 +172,14 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
     and `.html`; 2/2 diff-scoped source rows completed in
     `artifacts/02_discovery/work_ledger.jsonl`, raw candidates empty, final
     report validated and rendered, no reportable findings.
+- Skill: `pulseplate-pr-review`
+  - Disposition: NOT-A-BUG
+  - Evidence: Dry-run report emitted one advisory large-diff-risk note
+    (`1644` changed lines) only. PR scope governance passed as a 5-file micro
+    PR, the operator requested a larger cohesive epic-line PR instead of
+    micro/docs-only slices, and local `make validate-changed`,
+    `pre-commit run --all-files`, focused pytest/mypy/diff-cover, role passes,
+    and Codex Security scan passed.
 - `app/services/coaching_transition_planner.py` contains no router/runtime,
   provider, RAG/cache, DB/session, or persistence imports.
 - `tests/test_coaching_transition_planner.py` covers default-prior handling,
@@ -234,12 +242,14 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
 - `VENV_PYTHON=.venv/bin/python git push -u origin codex/fitchef-markov-transition-planner-v1` — pre-push hooks PASS
 - Codex Security diff scan — PASS, no findings; report:
   `/tmp/codex-security-scans/BMI-App_2025_clean/d94b67c55_mergebase_86e40c9f9_20260606T105235Z/report.md`
+- `pulseplate-pr-review` — completed; advisory large-diff note dispositioned
+  as NOT-A-BUG because this is an operator-requested cohesive 5-file epic-line
+  PR with passing scope governance and targeted gates.
 
 ## Merge Readiness
 
 Not claimed. Pending:
 
-- `pulseplate-pr-review`
 - External bot review disposition
 - Current-head CI evidence
 - Strict merge-readiness check with required auth
