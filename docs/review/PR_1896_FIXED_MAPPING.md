@@ -175,6 +175,7 @@ Disposition: FIXED
 Commit: bbc2f897a
 Evidence: `core/ai/semantic_cache_shadow_admission_harness.py`, `scripts/ci/check_semantic_cache_shadow_admission_harness.py`, and the generated report/schema now include evidence-asset lineage fields for asset type, upstream assets, artifact fingerprint, idempotency key, replay behavior, and admission behavior with focused tests.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#pullrequestreview-4442395180
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367141396
 Disposition: NOT-A-BUG
 Evidence: `git show HEAD:docs/review/PR_1896_FIXED_MAPPING.md` shows the `bug-hunter` evidence line already uses `guarded`; local `docs/review/PR_1896_FIXED_MAPPING.md` lines 53-55 also contain `guarded`, not `guarde`.
@@ -185,10 +186,10 @@ Disposition: FIXED
 Commit: ea2d5e498
 Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now passes the requested `produced_at` into the offline runner projection and includes `produced_at` in the stable report payload; the generated report/schema include the top-level ISO UTC field, and `tests/core/ai/test_semantic_cache_shadow_admission_harness.py` proves a non-default timestamp changes the stable evidence fingerprint.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367141893 -> ea2d5e498
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367141893 -> 481dba3ee
 Disposition: FIXED
-Commit: ea2d5e498
-Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now computes real `sha256:<64 lowercase hex>` upstream fingerprints from the offline runner report, verification contracts, and semantic-cache gate document; the checker and schema enforce that digest shape, with focused test coverage for upstream fingerprint drift.
+Commit: 481dba3ee
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now computes the upstream `semantic_cache_offline_admission_runner_report` fingerprint from the actual offline mapping plus `produced_at`, keeps verification/gate lineage as metadata-only source-label digests, and focused tests assert upstream fingerprint drift without core file I/O.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367141894 -> ea2d5e498
 Disposition: FIXED
@@ -210,6 +211,32 @@ Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now derives `arti
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor` passes for `e04544951`, `22542bbf3`, `bbc2f897a`, `ea2d5e498`, and `ab9398a33` against current head `9b769aa44`; `origin/main` was merged instead of rebased, so prior proof commits remain reachable.
 Reason: The comments evaluated stale/non-current proof reachability; the current PR history preserves the referenced proof commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367980895 -> 481dba3ee
+Disposition: FIXED
+Commit: 481dba3ee
+Evidence: `blocked_bundle_fail_closed_shadow` now uses the local `not_evaluated_failed_bundle` scenario; the generated report and `tests/core/ai/test_semantic_cache_shadow_admission_harness.py` assert `lookup_decision=not_evaluated`, `score_bps=null`, `false_hit_is_false_hit=false`, `stop_serving=false`, and `fail_closed_before_cache_evaluation` for failed verification bundles.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367980896 -> 481dba3ee
+Disposition: FIXED
+Commit: 481dba3ee
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` no longer fingerprints the checked-in default offline report file; the upstream `semantic_cache_offline_admission_runner_report` fingerprint is the stable digest of the actual offline mapping plus the requested `produced_at`, and the focused test asserts that non-default `produced_at` changes that upstream digest and the artifact fingerprint.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367980898 -> 481dba3ee
+Disposition: FIXED
+Commit: 481dba3ee
+Evidence: Core shadow composition no longer imports `Path`, no longer calls `Path.read_bytes`, and computes upstream lineage from metadata-only mappings; `tests/helpers/semantic_cache_import_guard.py` now treats `Path.read_bytes` as forbidden and `test_shadow_harness_core_module_uses_no_runtime_or_io_capabilities` asserts the core module contains no `read_bytes` call.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#pullrequestreview-4443506855 -> 481dba3ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367985254 -> 481dba3ee
+Disposition: FIXED
+Commit: 481dba3ee
+Evidence: The platform-dependent `str(path).startswith(...)` confinement check was removed with the core file-fingerprinting path; upstream evidence now uses metadata-only digests and the checker remains responsible for contract file writes under `docs/orchestration/contracts`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367985257 -> 481dba3ee
+Disposition: FIXED
+Commit: 481dba3ee
+Evidence: `test_shadow_harness_produced_at_changes_stable_artifact_fingerprint` now compares `evidence_asset.artifact_fingerprint` directly and also asserts the upstream assets differ for a non-default `produced_at`.
 
 ## Post-Open Role And Security Evidence
 
