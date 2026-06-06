@@ -128,6 +128,7 @@ EXPECTED_FITCHEF_SHOTS = {
 LOCAL_TMP_PATH_FRAGMENT = "/" + "tmp/"
 FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS = (
     "/users/",
+    "/home/",
     LOCAL_TMP_PATH_FRAGMENT,
     "file://",
     "worktrees/",
@@ -141,7 +142,9 @@ FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS = (
     "ready for upload",
     "upload proof",
     "release-ready",
+    "release ready",
     "submission-ready",
+    "submission ready",
     "app store connect draft",
     "free trial",
     "subscription",
@@ -153,6 +156,7 @@ FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS = (
 FITCHEF_RELEASE_LOCAL_PATH_PATTERNS = (
     re.compile(r"[a-z]:[\\/]+users[\\/]+", re.IGNORECASE),
     re.compile(r"[\\/]+appdata[\\/]+local[\\/]+temp[\\/]+", re.IGNORECASE),
+    re.compile(r"/home/(?:runner/work|[^/\s]+)", re.IGNORECASE),
     re.compile(r"%temp%", re.IGNORECASE),
 )
 FITCHEF_RELEASE_CREDENTIAL_PATTERNS = (
@@ -175,29 +179,36 @@ FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS = (
         r"(?:true|yes|completed|succeeded|done|passed|1)\b",
         re.IGNORECASE,
     ),
-    re.compile(r"fastlane\s+upload\s+(?:true|yes|completed|succeeded|done|passed)", re.IGNORECASE),
     re.compile(
-        r"app\s+store\s+connect\s+mutation\s+(?:true|yes|completed|succeeded|done|passed)",
+        r"fastlane\s+upload\s*(?::|=)?\s*(?:true|yes|completed|succeeded|done|passed)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"screenshot\s+binary\s+export\s+(?:true|yes|completed|succeeded|done|passed)",
+        r"app\s+store\s+connect\s+mutation\s*(?::|=)?\s*"
+        r"(?:true|yes|completed|succeeded|done|passed)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"screenshot\s+binary\s+commit\s+(?:true|yes|completed|succeeded|done|passed)",
+        r"screenshot\s+binary\s+export\s*(?::|=)?\s*"
+        r"(?:true|yes|completed|succeeded|done|passed)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"preview\s+video\s+export\s+(?:true|yes|completed|succeeded|done|passed)",
+        r"screenshot\s+binary\s+commit\s*(?::|=)?\s*"
+        r"(?:true|yes|completed|succeeded|done|passed)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"preview\s+video\s+binary\s+commit\s+(?:true|yes|completed|succeeded|done|passed)",
+        r"preview\s+video\s+export\s*(?::|=)?\s*" r"(?:true|yes|completed|succeeded|done|passed)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"environment\s+activation\s+(?:true|yes|completed|succeeded|done|passed)",
+        r"preview\s+video\s+binary\s+commit\s*(?::|=)?\s*"
+        r"(?:true|yes|completed|succeeded|done|passed)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"environment\s+activation\s*(?::|=)?\s*" r"(?:true|yes|completed|succeeded|done|passed)",
         re.IGNORECASE,
     ),
 )
@@ -284,6 +295,15 @@ FITCHEF_RELEASE_WELLNESS_STATUS_VALUES = {
     "support_framing_only",
     "user_control_only",
 }
+EXPECTED_FITCHEF_WELLNESS_STATUS_BY_SHOT = {
+    "shot-01": "support_framing_only",
+    "shot-02": "educational_support_only",
+    "shot-03": "habit_support_only",
+    "shot-04": "convenience_only",
+    "shot-05": "habit_tracking_only",
+    "shot-06": "user_control_only",
+    "shot-07": "ai_wellness_disclosure_required",
+}
 FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS = (
     re.compile(r"\bdiagnos(?:e|es|ed|ing|is|tic)\b", re.IGNORECASE),
     re.compile(r"\btreat(?:s|ed|ing|ments?)?\b", re.IGNORECASE),
@@ -295,7 +315,7 @@ FITCHEF_RELEASE_WELLNESS_CLAIM_PATTERNS = (
     ),
     re.compile(r"\bhealthcare\s+(?:professional|provider)\b", re.IGNORECASE),
     re.compile(r"\b(?:dietitians?|nutritionists?)\b", re.IGNORECASE),
-    re.compile(r"\b(?:doctor|physician|clinician)\b", re.IGNORECASE),
+    re.compile(r"\b(?:doctors?|physicians?|clinicians?)\b", re.IGNORECASE),
     re.compile(r"\b(?:medication|prescription)s?\b", re.IGNORECASE),
     re.compile(r"\bclinical\s+nutrition\b", re.IGNORECASE),
     re.compile(r"\bcrisis\s+support\b", re.IGNORECASE),
@@ -348,6 +368,8 @@ FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
     "диетолог",
     "нутрициолог",
     "эксперт по питанию",
+    "врач",
+    "врачеб",
     "медикамент",
     "терап",
     "медицинск",
@@ -501,10 +523,13 @@ PRICING_PATTERNS = [
     re.compile(r"\bRUB\s*\d", re.IGNORECASE),
     re.compile(r"\bprice\s+(?:eur|rub|usd)\s+\d", re.IGNORECASE),
     re.compile(r"\bprice\s+\d+(?:[.,]\d+)?\b", re.IGNORECASE),
+    re.compile(r"\bprice\s*[:=]\s*\d+(?:[.,]\d+)?\b", re.IGNORECASE),
     re.compile(r"\btrial\s+(?:days?|months?)\s+\d", re.IGNORECASE),
     re.compile(r"\btrial\s+\d+\b", re.IGNORECASE),
+    re.compile(r"\btrial\s*[:=]\s*\d+\b", re.IGNORECASE),
     re.compile(r"\d+[\s-]*day\s+(?:free\s+)?trial", re.IGNORECASE),
     re.compile(r"\d+[\s-]*month\s+(?:free\s+)?trial", re.IGNORECASE),
+    re.compile(r"\d+\s+(?:days?|months?)\s+free\b", re.IGNORECASE),
     re.compile(r"(?:free|бесплатн)\s+(?:for|на)\s+\d+", re.IGNORECASE),
     re.compile(r"(?:7|14|30)[\s-]*day\s+trial", re.IGNORECASE),
 ]
@@ -555,20 +580,44 @@ def _load_json_file(path: pathlib.Path) -> tuple[Any | None, str | None]:
 
 
 def _flatten_strings(value: Any) -> list[str]:
+    return _flatten_strings_with_path(value, ())
+
+
+def _flatten_strings_with_path(value: Any, key_path: tuple[str, ...]) -> list[str]:
     strings: list[str] = []
     if isinstance(value, str):
         strings.extend(_scan_text_variants(value))
     elif isinstance(value, dict):
         for key, item in value.items():
-            strings.extend(_scan_text_variants(str(key)))
+            key_text = str(key)
+            nested_path = (*key_path, key_text)
+            path_labels = {
+                key_text,
+                " ".join(nested_path),
+                ".".join(nested_path),
+                "_".join(nested_path),
+            }
+            strings.extend(
+                variant for label in sorted(path_labels) for variant in _scan_text_variants(label)
+            )
             if isinstance(item, (str, int, float, bool)) or item is None:
-                strings.extend(_scan_text_variants(f"{key} {item}"))
-                strings.extend(_scan_text_variants(f"{key}: {item}"))
-                strings.extend(_scan_text_variants(f"{key}={item}"))
-            strings.extend(_flatten_strings(item))
+                parent_labels = set(path_labels)
+                if key_path:
+                    parent_labels.update(
+                        {
+                            " ".join(key_path),
+                            ".".join(key_path),
+                            "_".join(key_path),
+                        }
+                    )
+                for label in sorted(parent_labels):
+                    strings.extend(_scan_text_variants(f"{label} {item}"))
+                    strings.extend(_scan_text_variants(f"{label}: {item}"))
+                    strings.extend(_scan_text_variants(f"{label}={item}"))
+            strings.extend(_flatten_strings_with_path(item, nested_path))
     elif isinstance(value, list):
         for item in value:
-            strings.extend(_flatten_strings(item))
+            strings.extend(_flatten_strings_with_path(item, key_path))
     elif isinstance(value, (int, float, bool)) or value is None:
         strings.append(str(value))
     return strings
@@ -588,12 +637,29 @@ def _repo_relative_path(path: pathlib.Path) -> str:
     return path.relative_to(REPO_ROOT).as_posix()
 
 
+def _display_repo_local_path(path: pathlib.Path) -> str:
+    try:
+        return path.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return path.name
+
+
 def _expected_fitchef_manifest_path(locale: str) -> str:
     return f"appstore/fitchef/{locale}/iphone-6.9/screenshots/shot_manifest.json"
 
 
 def _expected_fitchef_storyboard_path(locale: str) -> str:
     return f"appstore/fitchef/{locale}/iphone-6.9/preview/storyboard.json"
+
+
+def _expected_fitchef_line_fit_status(locale: str, shot_id: str) -> str:
+    if shot_id == "shot-05" and locale in {"ru-RU", "es-ES"}:
+        return "render-risk"
+    if shot_id == "shot-06" and locale == "en-US":
+        return "pass-length"
+    if shot_id == "shot-07" and locale == "ru-RU":
+        return "pass-length"
+    return "review"
 
 
 def _read_text_file(path: pathlib.Path) -> tuple[str, str | None]:
@@ -935,11 +1001,12 @@ def _validate_ios_screenshot_sources() -> str | None:
     required_capture_bindings = {
         "scenario launch argument": '"-appstore-screenshot-scenario", scenario.rawValue',
         "scenario accessibility id": "matching(identifier: scenario.accessibilityIdentifier)",
-        "scenario snapshot name": "snapshot(scenario.screenshotName",
     }
     for label, expected_fragment in required_capture_bindings.items():
         if expected_fragment not in capture_helper_body:
             return f"iOS screenshot capture helper drift: missing {label}"
+    if not re.search(r"\bsnapshot\(\s*scenario\.screenshotName\s*,", capture_helper_body):
+        return "iOS screenshot capture helper drift: missing exact scenario snapshot name"
 
     expected_cases = {
         scenario_id: _swift_enum_case_name(scenario_id)
@@ -1703,6 +1770,19 @@ def check_fitchef_release_readiness_bundle() -> Results:
             if text_error:
                 results.append((False, tag, text_error))
                 return results
+        scenario_reviewer_action = str(item.get("reviewer_action", "")).lower()
+        if (
+            "render all locales" not in scenario_reviewer_action
+            or "protected upload follow-up" not in scenario_reviewer_action
+        ):
+            results.append(
+                (
+                    False,
+                    tag,
+                    f"{scenario_id} reviewer_action missing rendered-review/upload boundary",
+                )
+            )
+            return results
 
     locale_rows = payload.get("locale_review_matrix")
     if not isinstance(locale_rows, list):
@@ -1885,9 +1965,31 @@ def check_fitchef_release_readiness_bundle() -> Results:
         if row.get("line_fit_status") not in {"review", "pass-length", "render-risk"}:
             results.append((False, tag, f"Unknown line-fit status: {row.get('line_fit_status')}"))
             return results
+        expected_line_fit_status = _expected_fitchef_line_fit_status(locale, shot_id)
+        if row.get("line_fit_status") != expected_line_fit_status:
+            results.append(
+                (
+                    False,
+                    tag,
+                    f"Line-fit status drift for {(locale, shot_id)}: "
+                    f"{row.get('line_fit_status')!r} != {expected_line_fit_status!r}",
+                )
+            )
+            return results
         wellness_status = row.get("wellness_claim_status")
         if wellness_status not in FITCHEF_RELEASE_WELLNESS_STATUS_VALUES:
             results.append((False, tag, f"Unknown wellness-claim status: {wellness_status!r}"))
+            return results
+        expected_wellness_status = EXPECTED_FITCHEF_WELLNESS_STATUS_BY_SHOT[shot_id]
+        if wellness_status != expected_wellness_status:
+            results.append(
+                (
+                    False,
+                    tag,
+                    f"Wellness-claim status drift for {(locale, shot_id)}: "
+                    f"{wellness_status!r} != {expected_wellness_status!r}",
+                )
+            )
             return results
         if "fitchef" not in str(row.get("fitchef_overlap_status", "")).lower():
             results.append((False, tag, f"Missing FitChef overlap cue for {(locale, shot_id)}"))
@@ -1961,15 +2063,29 @@ def check_storekit_pricing_truth() -> Results:
 
     for path in files_to_scan:
         content = path.read_text(encoding="utf-8")
+        content_variants = _scan_text_variants(content)
         for pat in PRICING_PATTERNS:
-            match = pat.search(content)
-            if match:
-                rel = path.relative_to(REPO_ROOT)
+            for variant in content_variants:
+                match = pat.search(variant)
+                if match:
+                    rel = _display_repo_local_path(path)
+                    results.append(
+                        (
+                            False,
+                            tag,
+                            f"Hardcoded pricing found in {rel}: '{match.group()}'",
+                        )
+                    )
+                    return results
+        normalized_content_variants = [_claim_scan_text(variant) for variant in content_variants]
+        for fragment in FITCHEF_RELEASE_LOCALIZED_PRICING_FRAGMENTS:
+            if any(fragment in normalized for normalized in normalized_content_variants):
+                rel = _display_repo_local_path(path)
                 results.append(
                     (
                         False,
                         tag,
-                        f"Hardcoded pricing found in {rel}: '{match.group()}'",
+                        f"Localized hardcoded pricing found in {rel}: {fragment}",
                     )
                 )
                 return results

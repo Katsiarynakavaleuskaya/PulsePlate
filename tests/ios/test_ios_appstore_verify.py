@@ -471,6 +471,7 @@ def test_fitchef_release_readiness_validator_rejects_localized_medical_claims(
         "Ayuda a tratar tus habitos.",
         "Consejos de medico para tu menu.",
         "Prescripcion medica y medicamento para tu menu.",
+        "Советы врача для питания.",
         "Лекарство и медикамент для плана питания.",
     ],
 )
@@ -551,6 +552,11 @@ def test_fitchef_release_readiness_validator_rejects_repeated_localized_claims(
         "EUR9.99",
         "USD9.99",
         "RUB999",
+        "14 days free",
+        "Price: 9.99",
+        "price=9.99",
+        "Trial: 14",
+        "trial=14",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_localized_pricing_claims(
@@ -605,6 +611,8 @@ def test_fitchef_release_readiness_validator_rejects_localized_upload_claims(
         "submit_ready: true",
         "ready_for_upload",
         "fastlane_upload_completed",
+        "Release ready after review",
+        "Submission ready after review",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_snake_case_release_status(
@@ -660,7 +668,9 @@ def test_fitchef_release_readiness_validator_rejects_guaranteed_outcome_claims(
         "The app is diagnosing eating patterns.",
         "The app provides treatments for nutrition issues.",
         "Ask a doctor about your menu inside FitChef.",
+        "Approved by doctors.",
         "Guidance from a healthcare professional.",
+        "Guidance from physicians.",
         "Prescription and medication guidance.",
         "Lower cholesterol and blood pressure.",
         "Avoid diabetes with weekly menus.",
@@ -793,7 +803,38 @@ def test_fitchef_release_readiness_validator_rejects_json_submission_status_clai
     assert "Protected release action claim" in _failed_messages(results)
 
 
-def test_fitchef_release_readiness_validator_rejects_windows_local_path(
+def test_fitchef_release_readiness_validator_rejects_nested_json_action_status_claims(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "operator_status.json").write_text(
+        json.dumps(
+            {
+                "submit_ready": {"status": "passed"},
+                "app_store_connect_mutation": {"status": "completed"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Protected release action claim" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    "path_text",
+    [
+        "C:\\\\Users\\\\alice\\\\AppData\\\\Local\\\\Temp\\\\shot.png",
+        "/home/alice/Desktop/shot.png",
+        "/home/runner/work/PulsePlate/shot.png",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_local_path(
+    path_text: str,
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -802,13 +843,13 @@ def test_fitchef_release_readiness_validator_rejects_windows_local_path(
         module, tmp_path, monkeypatch
     )
     (release_dir / "rendered_review_testflight_readiness.md").write_text(
-        f"{checklist}\nLocal render output: C:\\\\Users\\\\alice\\\\AppData\\\\Local\\\\Temp\\\\shot.png\n",
+        f"{checklist}\nLocal render output: {path_text}\n",
         encoding="utf-8",
     )
 
     results = module.check_fitchef_release_readiness_bundle()
     messages = _failed_messages(results)
-    assert "local path" in messages
+    assert "local path" in messages or "/home/" in messages
     assert "alice" not in messages
 
 
@@ -1147,7 +1188,12 @@ def test_fitchef_release_readiness_validator_ignores_commented_xctest_capture_ca
         (
             "snapshot(scenario.screenshotName, timeWaitingForIdle: 0.3)",
             'snapshot("wrong", timeWaitingForIdle: 0.3)',
-            "missing scenario snapshot name",
+            "missing exact scenario snapshot name",
+        ),
+        (
+            "snapshot(scenario.screenshotName, timeWaitingForIdle: 0.3)",
+            'snapshot(scenario.screenshotName + "-wrong", timeWaitingForIdle: 0.3)',
+            "missing exact scenario snapshot name",
         ),
     ],
 )
@@ -1283,6 +1329,57 @@ def test_fitchef_release_readiness_validator_rejects_unsafe_wellness_status(
     assert "Unknown wellness-claim status" in _failed_messages(results)
 
 
+def test_fitchef_release_readiness_validator_rejects_wrong_allowed_wellness_status(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    for row in payload["locale_review_matrix"]:
+        if row["shot_id"] == "shot-07":
+            row["wellness_claim_status"] = "convenience_only"
+            break
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Wellness-claim status drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_line_fit_status_drift(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    for row in payload["locale_review_matrix"]:
+        if row["locale"] == "ru-RU" and row["shot_id"] == "shot-05":
+            row["line_fit_status"] = "pass-length"
+            break
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Line-fit status drift" in _failed_messages(results)
+
+
+def test_fitchef_release_readiness_validator_rejects_scenario_reviewer_action_drift(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, payload, _checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    payload["scenarios"][0]["reviewer_action"] = "Do something else."
+    _write_matrix_payload(release_dir, payload)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "reviewer_action missing rendered-review/upload boundary" in _failed_messages(results)
+
+
 def test_fitchef_release_readiness_validator_rejects_time_range_drift(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1366,6 +1463,9 @@ def test_fitchef_release_readiness_validator_rejects_protected_action_claims(
     [
         "Environment activation completed.",
         "Preview video export completed.",
+        "Preview video export: passed.",
+        "Fastlane upload: completed.",
+        "App Store Connect mutation: completed.",
         "Screenshot binary commit completed.",
         "Preview video binary commit completed.",
     ],
@@ -1403,6 +1503,32 @@ def test_fitchef_release_readiness_validator_rejects_pricing_text(
 
     results = module.check_fitchef_release_readiness_bundle()
     assert "free trial" in _failed_messages(results).lower()
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Prueba gratis para empezar.",
+        "Пробный период доступен.",
+        "14 days free.",
+        "Price: 9.99.",
+    ],
+)
+def test_storekit_pricing_truth_rejects_localized_or_labeled_metadata_pricing(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    metadata_dir = tmp_path / "metadata"
+    locale_dir = metadata_dir / "es-ES"
+    locale_dir.mkdir(parents=True)
+    (locale_dir / "description.txt").write_text(claim, encoding="utf-8")
+    monkeypatch.setattr(module, "METADATA_DIR", metadata_dir)
+    monkeypatch.setattr(module, "LOCALES", ("es-ES",))
+
+    results = module.check_storekit_pricing_truth()
+    assert "pricing" in _failed_messages(results).lower()
 
 
 def test_fitchef_release_readiness_validator_rejects_stale_wellness_promise(
