@@ -143,6 +143,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Post-open `security-auditor` rerun on head `056117b45`: FAIL with JSON protected-submission status false-greens for extra release-readiness files containing `submit_ready` or `public_submission_allowed` boolean claims. Disposition: FIXED in `d54a118dc`. Evidence: validator now preserves scalar JSON key/value separators during flattening and blocks both submission-status claim families; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 - Post-open `security-auditor` rerun on head `10a2958b3`: FAIL with branch-staleness governance policy drift against current `origin/main`. Disposition: FIXED in merge commit `34cef2921`. Evidence: the branch was merged forward from `origin/main` without rebase so existing mapped FIXED SHAs remain stable; head now contains the direct Python subprocess interpreter policy in `AGENTS.md` and `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; post-merge focused tests, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally.
 - Post-open `qa-engineer-agent` rerun on head `944d7cc2d`: FAIL with release-validator false-greens and unmapped newer review threads. Disposition: FIXED in `8535b3f7c` for the actionable validator gaps; unresolved-thread count and current-head CI remain separate merge-readiness work after push. Evidence: validator now rejects localized/labeled/reversed pricing and trial claims, plural and RU medical-professional copy, exact per-shot wellness and line-fit status drift, nested protected JSON statuses, exact screenshot-name drift, Linux local paths, separator-form protected-action claims, and reviewer-action drift; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
+- Latest Codex connector validator batch after head `ba3d182c0`: FIXED in `e71c5a138`. Evidence: condition-targeting terms are never treated as safe boundary-disclaimer terms, localized ES condition fragments are blocked, and Fastlane metadata text now rejects protected submission-status wording. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the reported seeds and narrows the validator test helper module type with a local `Protocol`. Local evidence after the fix: targeted pytest PASS; focused App Store pack pytest PASS; direct validator PASS, 11 passed / 0 failed; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS.
 
 ## Fixed in Commit Mapping
 
@@ -326,6 +327,23 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now rejects submission-
 Disposition: FIXED
 Commit: 0a32a12f6
 Evidence: `scripts/release/check_ios_appstore_verify.py` no longer reuses medical-boundary negation for outcome/ranking claims; outcome claims are allowed only when directly listed as an outcome boundary, so `No therapy and clinically proven meal plan.` and `No diagnosis and #1 nutrition app.` fail closed while safe `no guaranteed outcome` boundary text remains allowed. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the reported seeds. Local evidence after the fix: targeted pytest PASS; direct App Store validator PASS, 11 passed / 0 failed; focused pytest PASS; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3367993595 -> e71c5a138
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3367993597 -> e71c5a138
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3367993598 -> e71c5a138
+Disposition: FIXED
+Commit: e71c5a138
+Evidence: `scripts/release/check_ios_appstore_verify.py` now keeps condition-targeting terms such as `diabetes`, `cholesterol`, `hypertension`, and `blood pressure` fail-closed even when preceded by a safe boundary disclaimer; blocks ES localized condition-targeting fragments; and scans Fastlane metadata text for protected submission-status/action wording in addition to pricing/trial claims. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the reported false-green seeds. Local evidence after the fix: targeted pytest PASS; focused App Store pack pytest PASS; direct validator PASS, 11 passed / 0 failed; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#pullrequestreview-4438168339 -> aa49d1492
+Disposition: FIXED
+Commit: aa49d1492
+Evidence: This CodeRabbit review-level container reported the dynamic `importlib.util` test-loading pattern. `tests/ios/test_ios_appstore_verify.py` now uses the normal static import `from scripts.release import check_ios_appstore_verify as validator_module`; the dynamic `spec_from_file_location` / `module_from_spec` / `exec_module` sequence is absent. Local evidence after the fix: focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#pullrequestreview-4439852414 -> e71c5a138
+Disposition: FIXED
+Commit: e71c5a138
+Evidence: This CodeRabbit review-level container aggregated three actionable items. The ambiguous combined disposition text was normalized in `09ee45c21`; credential-like fixture literals were split into runtime-composed safe parts in `ebf9eeafc`; and the remaining broad validator-module helper type was narrowed to a local `Protocol` in `e71c5a138`. Local evidence after the latest fix: targeted pytest PASS; focused App Store pack pytest PASS; direct validator PASS, 11 passed / 0 failed; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS.
 
 ## Post-Open Role-Agent Finding Closure
 
