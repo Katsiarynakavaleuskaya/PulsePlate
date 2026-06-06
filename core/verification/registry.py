@@ -109,7 +109,15 @@ def build_runtime_verification_bundle(
     """Merge pre-generation and runtime verification into one admission bundle."""
 
     if not runtime_verification_enabled:
-        return rag_bundle
+        if rag_bundle is None:
+            return None
+        if provenance is None:
+            return rag_bundle
+        return build_bundle(
+            artifacts=rag_bundle.artifacts,
+            policy=policy,
+            provenance=_merge_provenance(rag_bundle.provenance, provenance),
+        )
 
     if rag_bundle is None and not verification_first_path:
         if provenance is None:

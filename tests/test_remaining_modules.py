@@ -2156,7 +2156,11 @@ class TestVerificationRegistryCoverageTail:
             build_verification_provenance,
         )
 
-        provenance = build_verification_provenance(input_text="input", answer_text="answer")
+        provenance = build_verification_provenance(
+            input_text="input",
+            context_items=("rag context",),
+            answer_text="answer",
+        )
         rag_bundle = build_rag_verification_bundle(
             knowledge_policy=self._knowledge_policy(),
             confidence=0.92,
@@ -2178,13 +2182,31 @@ class TestVerificationRegistryCoverageTail:
             runtime_verification_enabled=False,
             provenance=build_verification_provenance(
                 input_text="new input",
+                prompt_text="trimmed prompt",
                 answer_text="new answer",
+                prompt_char_count=4000,
+                prompt_trimmed=True,
+                prompt_original_char_count=4100,
+                prompt_final_char_count=4000,
+                prompt_trim_limit=4000,
+                prompt_trimmed_char_count=100,
             ),
         )
 
-        assert merged is rag_bundle
-        assert merged == rag_bundle
-        assert merged.provenance is provenance
+        assert merged is not None
+        assert merged.artifacts == rag_bundle.artifacts
+        assert merged.overall_status == rag_bundle.overall_status
+        assert merged.admission_allowed == rag_bundle.admission_allowed
+        assert merged.reason_codes == rag_bundle.reason_codes
+        assert merged.provenance is not None
+        assert merged.provenance.input_digest != provenance.input_digest
+        assert merged.provenance.context_item_digests == provenance.context_item_digests
+        assert merged.provenance.prompt_trimmed is True
+        assert merged.provenance.prompt_char_count == 4000
+        assert merged.provenance.prompt_original_char_count == 4100
+        assert merged.provenance.prompt_final_char_count == 4000
+        assert merged.provenance.prompt_trim_limit == 4000
+        assert merged.provenance.prompt_trimmed_char_count == 100
 
     def test_runtime_bundle_preserves_rag_provenance_without_overlay(self) -> None:
         from core.insight.analytical import FalsificationReport, VerificationReport
