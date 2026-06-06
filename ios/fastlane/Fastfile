@@ -36,7 +36,7 @@ def resolved_snapshot_devices
 end
 
 def snapshot_bundle_identifier
-  ENV.fetch("SNAPSHOT_BUNDLE_IDENTIFIER", "com.katsiaryna.pulseplate.dev")
+  ENV.fetch("SNAPSHOT_BUNDLE_IDENTIFIER", "com.kavaleuskaya.pulseplate")
 end
 
 def snapshot_languages
