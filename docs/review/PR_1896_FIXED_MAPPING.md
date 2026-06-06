@@ -124,6 +124,15 @@ Slack, GraphRAG, and semantic-cache gate opening remain out of scope.
   `pytest -q tests/core/ai/test_semantic_cache_shadow_admission_harness.py`
 - PASS after lineage identity fix in `ab9398a33`: `make validate-changed`
 - PASS after lineage identity fix in `ab9398a33`: `pre-commit run --all-files`
+- PASS after CodeRabbit scenario-validation fix in `7f2b3931c`:
+  `python3 scripts/ci/check_semantic_cache_shadow_admission_harness.py --check`
+- PASS after CodeRabbit scenario-validation fix in `7f2b3931c`: focused
+  semantic-cache shadow/offline, SC-G2/SC-G3/SC-G4/SC-G5, Docs Phase1, and
+  semantic-cache gate pytest bundle.
+- PASS after CodeRabbit scenario-validation fix in `7f2b3931c`: `make
+  validate-changed`
+- PASS after CodeRabbit scenario-validation fix in `7f2b3931c`: `pre-commit run
+  --all-files`
 - PASS: pre-push hooks, including changed-files mypy, pip-audit, backend
   pre-push tests, full-repo Bandit, and Docker build test.
 
@@ -243,6 +252,11 @@ Evidence: `test_shadow_harness_produced_at_changes_stable_artifact_fingerprint` 
 Disposition: FIXED
 Commit: 3452ed712
 Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now fingerprints the verification upstream from `VERIFICATION_PROVENANCE_CONTRACT_VERSION` plus the explicit verification field map, and fingerprints the semantic-cache gate upstream from `SEMANTIC_CACHE_GATE_CONTRACT_VERSION` plus the closed marker payload; `tests/core/ai/test_semantic_cache_shadow_admission_harness.py` asserts the versioned payloads drive the upstream fingerprints without reintroducing core file I/O or heavy runtime imports.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#pullrequestreview-4443627151 -> 7f2b3931c
+Disposition: FIXED
+Commit: 7f2b3931c
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now rejects duplicate offline `scenario_id` entries before assignment and rejects boolean `score_bps` values in `_scenario_optional_int`; `tests/core/ai/test_semantic_cache_shadow_admission_harness.py` covers both malformed cases, and the shadow report checker plus focused semantic-cache bundle passed after the fix.
 
 ## Post-Open Role And Security Evidence
 
