@@ -234,11 +234,35 @@ def test_day_close_ranks_weekly_reflection_without_slip_evidence() -> None:
     assert "day_close_observed" in plan.reasons
 
 
+def test_steady_state_default_is_covered_without_slip_or_day_close() -> None:
+    state = _state(
+        adherence=AdherenceSnapshot(
+            alpha=2.0,
+            beta=8.0,
+            n=10,
+            risk_slip=0.2,
+            confidence=0.85,
+            needs_more_data=False,
+        ),
+        recent_behavior=RecentBehaviorSnapshot(
+            meal_logged_count_7d=2,
+            scanned_event_count=2,
+        ),
+    )
+
+    plan = build_markov_coaching_transition_plan(state)
+
+    assert plan.transition_state == "steady_state_default"
+    assert plan.recommended_scenario == "mascot_insight"
+    assert plan.confidence == pytest.approx(0.5)
+
+
 def test_scenario_filtering_and_empty_available_scenarios_degrade() -> None:
     state = _state(
         recent_behavior=RecentBehaviorSnapshot(slip_count_7d=1, slip_like_count_7d=1),
     )
 
+    full = build_markov_coaching_transition_plan(state)
     filtered = build_markov_coaching_transition_plan(
         state,
         allowed_scenarios=("weekly_reflection", "mascot_insight"),
@@ -246,6 +270,7 @@ def test_scenario_filtering_and_empty_available_scenarios_degrade() -> None:
     assert filtered.recommended_scenario == "weekly_reflection"
     assert "slip_support" not in {ranked.scenario for ranked in filtered.ranked_scenarios}
     assert "scenario_unavailable" in filtered.reasons
+    assert filtered.confidence < full.confidence
 
     empty = build_markov_coaching_transition_plan(state, allowed_scenarios=())
     assert empty.transition_state == "no_recommendation_available"
@@ -303,6 +328,39 @@ def test_caller_injected_derived_state_cannot_steer_transition_plan() -> None:
 
     assert plan.recommended_scenario == "slip_support"
     assert "caller_injected" not in json.dumps(plan.model_dump(mode="json"))
+
+
+def test_transition_plan_schema_rejects_impossible_rank_or_probability_shapes() -> None:
+    valid_probability = MarkovScenarioProbability(
+        rank=1,
+        scenario="mascot_insight",
+        probability=1.0,
+    )
+    with pytest.raises(ValidationError, match="probabilities must sum"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="steady_state_default",
+            available_scenarios=("mascot_insight", "weekly_reflection"),
+            ranked_scenarios=(
+                MarkovScenarioProbability(
+                    rank=1,
+                    scenario="mascot_insight",
+                    probability=0.6,
+                ),
+                MarkovScenarioProbability(
+                    rank=2,
+                    scenario="weekly_reflection",
+                    probability=0.3,
+                ),
+            ),
+            confidence=0.5,
+        )
+    with pytest.raises(ValidationError, match="consecutive"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="steady_state_default",
+            available_scenarios=("mascot_insight",),
+            ranked_scenarios=(valid_probability.model_copy(update={"rank": 2}),),
+            confidence=0.5,
+        )
 
 
 def test_capped_or_degraded_behavior_lowers_confidence_and_adds_reason() -> None:
@@ -371,6 +429,30 @@ def test_prompt_safe_markov_context_excludes_sensitive_and_unsafe_fields() -> No
         assert forbidden not in context_json
     assert "non_diagnostic" in context_json
     assert context.recommended_scenario == "slip_support"
+
+
+def test_prompt_safe_markov_context_recovers_tampered_plan_derived_fields() -> None:
+    state = _state(
+        recent_behavior=RecentBehaviorSnapshot(
+            slip_count_7d=1,
+            slip_like_count_7d=1,
+            scanned_event_count=1,
+        ),
+    )
+    plan = build_markov_coaching_transition_plan(state)
+    tampered_plan = plan.model_copy(
+        update={
+            "recommended_scenario": "mascot_insight",
+            "confidence": 0.99,
+            "safety_labels": (),
+        }
+    )
+
+    context = to_prompt_safe_markov_context(tampered_plan)
+
+    assert context.recommended_scenario == "slip_support"
+    assert context.safety_labels == plan.safety_labels
+    assert context.confidence == plan.confidence
 
 
 def test_planner_integrates_with_build_user_coaching_state(

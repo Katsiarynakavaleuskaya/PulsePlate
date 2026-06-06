@@ -11,6 +11,7 @@ from app.schemas.user_coaching_state import (
     FitChefCoachingScenario,
     FitChefTransitionReason,
     FitChefTransitionState,
+    MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE,
     MarkovCoachingTransitionPlanV1,
     MarkovScenarioProbability,
     PromptSafeMarkovTransitionContext,
@@ -60,14 +61,6 @@ _PRIMARY_SCENARIO_BY_STATE: dict[FitChefTransitionState, FitChefCoachingScenario
     "slip_support_needed": "slip_support",
     "weekly_reflection_due": "weekly_reflection",
     "no_recommendation_available": None,
-}
-
-_BASE_CONFIDENCE_BY_STATE: dict[FitChefTransitionState, float] = {
-    "cold_start_default": 0.35,
-    "steady_state_default": 0.5,
-    "slip_support_needed": 0.78,
-    "weekly_reflection_due": 0.66,
-    "no_recommendation_available": 0.0,
 }
 
 
@@ -195,11 +188,14 @@ def _confidence(
     transition_state: FitChefTransitionState,
     state: UserCoachingStateV1,
     has_recommendation: bool,
+    primary_scenario_unavailable: bool,
 ) -> float:
     if not has_recommendation:
         return 0.0
 
-    value = _BASE_CONFIDENCE_BY_STATE[transition_state]
+    value = MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE[transition_state]
+    if primary_scenario_unavailable:
+        value -= 0.25
     if state.recent_behavior.events_capped:
         value -= 0.15
     if state.adherence.source_status == "invalid_degraded":
@@ -246,6 +242,7 @@ def build_markov_coaching_transition_plan(
             transition_state=transition_state,
             state=safe_state,
             has_recommendation=recommended_scenario is not None,
+            primary_scenario_unavailable="scenario_unavailable" in reasons,
         ),
         reasons=reasons,
     )

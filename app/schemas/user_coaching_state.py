@@ -49,6 +49,39 @@ FitChefTransitionSafetyLabel = Literal[
 ]
 RiskBucket = Literal["low", "moderate", "high"]
 ConfidenceBucket = Literal["low", "high"]
+MARKOV_TRANSITION_SAFETY_LABELS: tuple[FitChefTransitionSafetyLabel, ...] = (
+    "wellness_only",
+    "non_diagnostic",
+    "service_only",
+    "no_raw_user_text",
+    "deterministic_policy",
+)
+MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE: dict[FitChefTransitionState, float] = {
+    "cold_start_default": 0.35,
+    "steady_state_default": 0.5,
+    "slip_support_needed": 0.78,
+    "weekly_reflection_due": 0.66,
+    "no_recommendation_available": 0.0,
+}
+
+
+def _markov_transition_confidence_ceiling(
+    *,
+    transition_state: FitChefTransitionState,
+    reasons: tuple[FitChefTransitionReason, ...],
+    has_recommendation: bool,
+) -> float:
+    if not has_recommendation:
+        return 0.0
+
+    value = MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE[transition_state]
+    if "scenario_unavailable" in reasons:
+        value -= 0.25
+    if "recent_behavior_capped" in reasons:
+        value -= 0.15
+    if "adherence_state_invalid_degraded" in reasons:
+        value -= 0.2
+    return round(max(0.0, min(value, 1.0)), 4)
 
 
 class AdherenceSnapshot(BaseModel):
@@ -259,13 +292,32 @@ class MarkovCoachingTransitionPlanV1(BaseModel):
     recommended_scenario: FitChefCoachingScenario | None = None
     confidence: float = Field(..., ge=0.0, le=1.0)
     reasons: tuple[FitChefTransitionReason, ...] = ()
-    safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = (
-        "wellness_only",
-        "non_diagnostic",
-        "service_only",
-        "no_raw_user_text",
-        "deterministic_policy",
-    )
+    safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = MARKOV_TRANSITION_SAFETY_LABELS
+
+    @model_validator(mode="after")
+    def _recompute_prompt_safe_invariants(self) -> "MarkovCoachingTransitionPlanV1":
+        """Keep caller-supplied plan mutations from changing derived invariants."""
+
+        ranked_scenarios = self.ranked_scenarios
+        expected_ranks = tuple(range(1, len(ranked_scenarios) + 1))
+        actual_ranks = tuple(ranked.rank for ranked in ranked_scenarios)
+        if actual_ranks != expected_ranks:
+            raise ValueError("ranked_scenarios ranks must be consecutive from 1")
+        if ranked_scenarios:
+            total_probability = round(sum(ranked.probability for ranked in ranked_scenarios), 4)
+            if total_probability != 1.0:
+                raise ValueError("ranked_scenarios probabilities must sum to 1.0")
+
+        recommended = ranked_scenarios[0].scenario if ranked_scenarios else None
+        confidence = _markov_transition_confidence_ceiling(
+            transition_state=self.transition_state,
+            reasons=self.reasons,
+            has_recommendation=recommended is not None,
+        )
+        object.__setattr__(self, "recommended_scenario", recommended)
+        object.__setattr__(self, "confidence", confidence)
+        object.__setattr__(self, "safety_labels", MARKOV_TRANSITION_SAFETY_LABELS)
+        return self
 
 
 class PromptSafeMarkovTransitionContext(BaseModel):
@@ -280,13 +332,21 @@ class PromptSafeMarkovTransitionContext(BaseModel):
     ranked_scenarios: tuple[MarkovScenarioProbability, ...] = ()
     confidence: float = Field(..., ge=0.0, le=1.0)
     reasons: tuple[FitChefTransitionReason, ...] = ()
-    safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = (
-        "wellness_only",
-        "non_diagnostic",
-        "service_only",
-        "no_raw_user_text",
-        "deterministic_policy",
-    )
+    safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = MARKOV_TRANSITION_SAFETY_LABELS
+
+    @model_validator(mode="after")
+    def _recompute_prompt_safe_invariants(self) -> "PromptSafeMarkovTransitionContext":
+        ranked_scenarios = self.ranked_scenarios
+        recommended = ranked_scenarios[0].scenario if ranked_scenarios else None
+        confidence = _markov_transition_confidence_ceiling(
+            transition_state=self.transition_state,
+            reasons=self.reasons,
+            has_recommendation=recommended is not None,
+        )
+        object.__setattr__(self, "recommended_scenario", recommended)
+        object.__setattr__(self, "confidence", confidence)
+        object.__setattr__(self, "safety_labels", MARKOV_TRANSITION_SAFETY_LABELS)
+        return self
 
 
 __all__ = [
@@ -295,6 +355,8 @@ __all__ = [
     "FitChefTransitionReason",
     "FitChefTransitionSafetyLabel",
     "FitChefTransitionState",
+    "MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE",
+    "MARKOV_TRANSITION_SAFETY_LABELS",
     "MarkovCoachingTransitionPlanV1",
     "MarkovScenarioProbability",
     "ProfileSignalSnapshot",
