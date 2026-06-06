@@ -51,7 +51,24 @@ ledger/report layer, and projects label-only state through the existing
 
 ### Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: Bot review FIXED findings are addressed by the mapped commits below; detailed thread-level proof appears in Bot Review Comment Dispositions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367068319 -> c1f8a31ad6a17e3f7fde0d8c4da21990f8eaa155
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367068321 -> 68882a4b3ffaf65e279b7c173c1df874eb9e0502
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367087920 -> 68882a4b3ffaf65e279b7c173c1df874eb9e0502
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367089420 -> 68882a4b3ffaf65e279b7c173c1df874eb9e0502
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367089421 -> cb5e486a0f8901a13c56c355ff78ca5da8d08424
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442297842 -> cb5e486a0f8901a13c56c355ff78ca5da8d08424
+
+Disposition: NOT-A-BUG
+Evidence: Advisory bot comments are dispositioned in Bot Review Comment Dispositions, with local gates and authority-boundary proof.
+Reason: The listed comments do not require code changes under the repo's operator-plane security boundary and machine-heavy local gate policy.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367087917
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442276716
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#issuecomment-4638093331
 
 ## Premortem Findings
 
@@ -99,7 +116,7 @@ ledger/report layer, and projects label-only state through the existing
 - PASS: `python3 -m scripts.orchestration.experiment_slack_socket_bridge --activation-readiness-report --dispatch-mode dry-run`
 - PASS: `python3 scripts/orchestration/experiment_operator_ledger.py --write-report-set`
 - PASS: Codex Security diff scan report validator and HTML renderer for
-  `/tmp/codex-security-scans/BMI-App_2025_clean/47acacda10e_20260606T100729Z/report.md`
+  `/tmp/codex-security-scans/BMI-App_2025_clean/cb5e486a0f8_20260606T101648Z/report.md`
 - PASS: `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
@@ -177,11 +194,11 @@ merge-readiness claim.
     `origin/main...HEAD` immediately before this mapping mirror update. All 14
     changed surfaces in
     `deep_review_input.csv` have completed receipts in
-    `/tmp/codex-security-scans/BMI-App_2025_clean/47acacda10e_20260606T100729Z/artifacts/02_discovery/work_ledger.jsonl`;
+    `/tmp/codex-security-scans/BMI-App_2025_clean/cb5e486a0f8_20260606T101648Z/artifacts/02_discovery/work_ledger.jsonl`;
     `raw_candidates.jsonl` is empty; final report validator passed for
-    `/tmp/codex-security-scans/BMI-App_2025_clean/47acacda10e_20260606T100729Z/report.md`;
+    `/tmp/codex-security-scans/BMI-App_2025_clean/cb5e486a0f8_20260606T101648Z/report.md`;
     HTML report rendered to
-    `/tmp/codex-security-scans/BMI-App_2025_clean/47acacda10e_20260606T100729Z/report.html`.
+    `/tmp/codex-security-scans/BMI-App_2025_clean/cb5e486a0f8_20260606T101648Z/report.html`.
     The scan found no reportable findings and no evidence of secret/log
     leakage, token minting, `repository_dispatch`, arbitrary workflow/ref
     selection, PR/review/merge mutation, contents/workflows write, public Slack
@@ -191,7 +208,7 @@ merge-readiness claim.
   - Evidence: `pulseplate-pr-review` dry-run report was generated from PR #1895
     metadata plus local `origin/main..HEAD` diff using packet
     `66dfccd2211f`. The only advisory note was large-diff review risk
-    (`2160` changed lines), which is expected for this operator-approved broad
+    (`2285` changed lines), which is expected for this operator-approved broad
     coherent slice. The scope remains bounded to orchestration workflow,
     local-only evidence contract/reporting, existing Slack status projection,
     docs, policy, backlog, and tests. The requested split was intentionally not
@@ -201,6 +218,74 @@ merge-readiness claim.
     `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`,
     prior passing focused tests, `make validate-changed`, and
     `pre-commit run --all-files`.
+
+## Bot Review Comment Dispositions
+
+- ChatGPT Connector: preserve blocked activation evidence before failing
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367068319>
+  - Disposition: FIXED
+  - Commit: `c1f8a31ad6a17e3f7fde0d8c4da21990f8eaa155`
+  - Evidence: redacted activation evidence is written before nonzero exit and
+    the upload step runs with `if: always()`. Workflow tests assert
+    upload-on-failure and no `continue-on-error` / `|| true`.
+- ChatGPT Connector: reject inconsistent activation evidence labels
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367068321>
+  - Disposition: FIXED
+  - Commit: `68882a4b3ffaf65e279b7c173c1df874eb9e0502`
+  - Evidence: `validate_private_pilot_activation_evidence` enforces
+    cross-field consistency for activation state, dispatch outcome, last smoke,
+    and next operator action; the tampered-and-rehashed regression test rejects
+    contradictory evidence.
+- Cubic: readiness-report parse fallback during activation evidence generation
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367087920>
+  - Disposition: FIXED
+  - Commit: `68882a4b3ffaf65e279b7c173c1df874eb9e0502`
+  - Evidence: workflow evidence generation catches JSON decode failure and
+    falls back to a redacted `blocked_by_invalid_config` readiness shape before
+    writing the artifact.
+- ChatGPT Connector: preserve live blocked evidence after prerequisite failures
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367089420>
+  - Disposition: FIXED
+  - Commit: `68882a4b3ffaf65e279b7c173c1df874eb9e0502`
+  - Evidence: live readiness/config/input/retention/prerequisite checks now
+    record status outputs and defer failure until after
+    `blocked_before_dispatch` evidence is written and uploaded.
+- ChatGPT Connector: block activation when GitHub dispatch is blocked
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367089421>
+  - Disposition: FIXED
+  - Commit: `cb5e486a0f8901a13c56c355ff78ca5da8d08424`
+  - Evidence: `blocked_by_*` GitHub dispatch readiness states now force
+    `blocked_by_invalid_config` unless the missing-auth or allowlist
+    subclasses map to their more specific fail-closed states. Regression:
+    `tests/test_experiment_operator_ledger.py::test_private_pilot_activation_evidence_blocks_github_dispatch_config`.
+- CodeRabbit: redundant `ready_for_manual_live_smoke` return branch
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442297842>
+  - Disposition: FIXED
+  - Commit: `cb5e486a0f8901a13c56c355ff78ca5da8d08424`
+  - Evidence: `_next_operator_action` now returns the shared
+    `run_manual_live_smoke` default without the redundant branch.
+- Cubic: suppressed readiness stderr in live evidence step
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367087917>
+  - Disposition: NOT-A-BUG
+  - Evidence: suppression is intentional for this workflow boundary. The PR
+    requires no raw command output, workflow logs, token prefixes, Slack IDs,
+    branch refs, hypotheses, local paths, oracle output, or patch text in
+    workflow logs. The workflow records class labels and exit status only, with
+    a redacted fallback evidence shape for parse failures.
+- Sourcery review quota comment
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442276716>
+  - Disposition: NOT-A-BUG
+  - Evidence: Sourcery reported its weekly diff-character quota, not a code
+    defect. Repo-required local gates and current-head GitHub CI remain the
+    authoritative signals.
+- CodeRabbit docstring coverage warning
+  - Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#issuecomment-4638093331>
+  - Disposition: NOT-A-BUG
+  - Evidence: CodeRabbit status is pass and the docstring coverage item is an
+    advisory bot warning, not a repo-required gate. Adding broad docstrings is
+    out of scope for this operator-approved activation evidence lane; local
+    pre-commit, focused tests, and `make validate-changed` are the relevant
+    deterministic gates.
 
 ## Merge Readiness
 
