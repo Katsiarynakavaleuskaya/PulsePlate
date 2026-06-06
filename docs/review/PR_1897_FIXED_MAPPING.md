@@ -22,10 +22,14 @@ project recovered-reference noise.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed for initial PR open.
-- [x] Fixed in commit mapping completed for the initial implementation commit.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- Initial implementation review mapping completed for the app target bundle
+  identifier change.
 - [x] Post-open Codex review finding on Fastlane snapshot bundle identifier
   fallback was fixed and mapped.
+- [x] Stale squash-preview Codex review findings were dispositioned with
+  current-branch ancestry and trailer evidence.
 - Post-open review remains active; this artifact will be updated for any new
   actionable review findings.
 
@@ -41,6 +45,16 @@ Disposition: FIXED
 Commit: 264e2d2863b0b3b56f98f143c2bd106875d92eea
 Evidence: `ios/fastlane/Fastfile` and `ios/fastlane/Appfile` now use `com.kavaleuskaya.pulseplate` as their local bundle identifier fallback while preserving CI fail-closed `APP_STORE_BUNDLE_IDENTIFIER` behavior for protected App Store lanes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897#discussion_r3367169317 -> 264e2d2863b0b3b56f98f143c2bd106875d92eea
+
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 264e2d2863b0b3b56f98f143c2bd106875d92eea HEAD` passed locally on `codex/ios-bundle-id-registration-v1`; the Fastlane fix commit is reachable from the current branch head.
+Reason: The review comment was based on stale squash-preview commit `a7e0117e`. The current PR branch is linear and retains the mapped Fastlane fix commit in ancestry.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897#discussion_r3367857456
+
+Disposition: NOT-A-BUG
+Evidence: `git log -1 --format=%B b48a16a0ec920700aa38a431c260060940ff4926` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The Experiment Runner materially shaped the initial implementation commit, and that commit carries the governed trailer. Later mapping/checklist commits were review-governance maintenance and not material Experiment Runner outputs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897#discussion_r3367857457
 
 ## Implementation Evidence
 
