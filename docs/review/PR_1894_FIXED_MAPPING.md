@@ -166,6 +166,12 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
     validation, internal schema-only service boundary, no route/OpenAPI/client/
     runtime/provider/DB/RAG/cache/RL/learning changes, and no Markov references
     in `coaching_state_builder.py`.
+- Codex Security diff scan
+  - Disposition: PASS
+  - Evidence: `/tmp/codex-security-scans/BMI-App_2025_clean/d94b67c55_mergebase_86e40c9f9_20260606T105235Z/report.md`
+    and `.html`; 2/2 diff-scoped source rows completed in
+    `artifacts/02_discovery/work_ledger.jsonl`, raw candidates empty, final
+    report validated and rendered, no reportable findings.
 - `app/services/coaching_transition_planner.py` contains no router/runtime,
   provider, RAG/cache, DB/session, or persistence imports.
 - `tests/test_coaching_transition_planner.py` covers default-prior handling,
@@ -226,13 +232,13 @@ Evidence: `MarkovCoachingTransitionPlanV1` validates consecutive ranks and norma
 - `make validate-changed VENV_PYTHON=.venv/bin/python` — PASS
 - `VENV_PYTHON=.venv/bin/python pre-commit run --all-files` — PASS
 - `VENV_PYTHON=.venv/bin/python git push -u origin codex/fitchef-markov-transition-planner-v1` — pre-push hooks PASS
+- Codex Security diff scan — PASS, no findings; report:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/d94b67c55_mergebase_86e40c9f9_20260606T105235Z/report.md`
 
 ## Merge Readiness
 
 Not claimed. Pending:
 
-- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
-- Codex Security diff scan / finding discovery
 - `pulseplate-pr-review`
 - External bot review disposition
 - Current-head CI evidence
