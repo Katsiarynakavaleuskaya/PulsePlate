@@ -40,7 +40,6 @@ Evidence: `ios/PulsePlate.xcodeproj/project.pbxproj` changes exactly the Debug a
 Disposition: FIXED
 Commit: 264e2d2863b0b3b56f98f143c2bd106875d92eea
 Evidence: `ios/fastlane/Fastfile` and `ios/fastlane/Appfile` now use `com.kavaleuskaya.pulseplate` as their local bundle identifier fallback while preserving CI fail-closed `APP_STORE_BUNDLE_IDENTIFIER` behavior for protected App Store lanes.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1897#discussion_r3367169317 -> 264e2d2863b0b3b56f98f143c2bd106875d92eea
 
 ## Implementation Evidence
