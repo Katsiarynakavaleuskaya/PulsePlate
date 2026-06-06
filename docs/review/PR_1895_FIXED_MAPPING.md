@@ -65,7 +65,6 @@ Evidence: Bot review FIXED findings are addressed by the mapped commits below; d
 Disposition: NOT-A-BUG
 Evidence: Advisory bot comments are dispositioned in Bot Review Comment Dispositions, with local gates and authority-boundary proof.
 Reason: The listed comments do not require code changes under the repo's operator-plane security boundary and machine-heavy local gate policy.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#discussion_r3367087917
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442328144
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1895#pullrequestreview-4442276716
