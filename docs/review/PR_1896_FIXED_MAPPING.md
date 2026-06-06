@@ -205,6 +205,12 @@ Disposition: FIXED
 Commit: ab9398a33
 Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now derives `artifact_fingerprint` and the idempotency key from the stable payload plus the lineage/admission evidence block, with self-referential fingerprint and idempotency fields set to `null`; focused tests assert the fingerprint includes upstream assets, replay behavior, and admission behavior rather than only the pre-evidence payload.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367177555
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367180327
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor` passes for `e04544951`, `22542bbf3`, `bbc2f897a`, `ea2d5e498`, and `ab9398a33` against current head `9b769aa44`; `origin/main` was merged instead of rebased, so prior proof commits remain reachable.
+Reason: The comments evaluated stale/non-current proof reachability; the current PR history preserves the referenced proof commits.
+
 ## Post-Open Role And Security Evidence
 
 - `qa-engineer-agent`: PASS at `4ede03652`; Phase2 body/artifact validation,
