@@ -322,6 +322,11 @@ Disposition: FIXED
 Commit: 06b6a018f
 Evidence: `scripts/release/check_ios_appstore_verify.py` now rejects submission-completion and ready-to-submit wording, scans protected Fastlane screenshot output for committed media binaries, and aligns localized ES/RU send/publish readiness fragments with the no-upload claim set. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the three reported false-green classes. Local evidence after the fix: focused pytest PASS; direct App Store validator PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3367964268 -> 0a32a12f6
+Disposition: FIXED
+Commit: 0a32a12f6
+Evidence: `scripts/release/check_ios_appstore_verify.py` no longer reuses medical-boundary negation for outcome/ranking claims; outcome claims are allowed only when directly listed as an outcome boundary, so `No therapy and clinically proven meal plan.` and `No diagnosis and #1 nutrition app.` fail closed while safe `no guaranteed outcome` boundary text remains allowed. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the reported seeds. Local evidence after the fix: targeted pytest PASS; direct App Store validator PASS, 11 passed / 0 failed; focused pytest PASS; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
 ## Post-Open Role-Agent Finding Closure
 
 Finding: post-open `bug-hunter` agent `019e98b2-aa05-7c81-b31a-e3ea0daba98c` reported a comma-clause wellness overclaim bypass.
