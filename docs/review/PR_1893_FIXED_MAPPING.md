@@ -53,7 +53,6 @@ Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-ex
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor b7ab1886ecb0dd57a1ae249edf3f6e59408c695d HEAD` returned 0; current `git log --oneline` contains mapped fix commits from `b7ab1886e` through `db2c29390`.
 Reason: The review referenced a transient/stale history state; the previously mapped fix commits are reachable from current branch head.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3367048912
 
 ## Implementation Evidence
