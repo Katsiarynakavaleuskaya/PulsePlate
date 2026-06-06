@@ -63,6 +63,43 @@ MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE: dict[FitChefTransitionState, float] 
     "weekly_reflection_due": 0.66,
     "no_recommendation_available": 0.0,
 }
+MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE: dict[
+    FitChefTransitionState,
+    dict[FitChefCoachingScenario, float],
+] = {
+    "cold_start_default": {
+        "mascot_insight": 1.0,
+    },
+    "steady_state_default": {
+        "mascot_insight": 0.55,
+        "weekly_reflection": 0.2,
+        "distortion_simulator": 0.1,
+        "identity_loop_mapper": 0.1,
+        "slip_support": 0.05,
+    },
+    "slip_support_needed": {
+        "slip_support": 0.72,
+        "weekly_reflection": 0.12,
+        "mascot_insight": 0.1,
+        "distortion_simulator": 0.03,
+        "identity_loop_mapper": 0.03,
+    },
+    "weekly_reflection_due": {
+        "weekly_reflection": 0.65,
+        "mascot_insight": 0.2,
+        "distortion_simulator": 0.05,
+        "identity_loop_mapper": 0.05,
+        "slip_support": 0.05,
+    },
+    "no_recommendation_available": {},
+}
+MARKOV_TRANSITION_SCENARIOS_BY_STATE: dict[
+    FitChefTransitionState,
+    tuple[FitChefCoachingScenario, ...],
+] = {
+    transition_state: tuple(weights)
+    for transition_state, weights in MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE.items()
+}
 
 
 def _markov_transition_confidence_ceiling(
@@ -311,6 +348,14 @@ class MarkovCoachingTransitionPlanV1(BaseModel):
             )
             if unavailable_scenarios:
                 raise ValueError("ranked_scenarios must be limited to available_scenarios")
+            impossible_scenarios = tuple(
+                ranked.scenario
+                for ranked in ranked_scenarios
+                if ranked.scenario
+                not in MARKOV_TRANSITION_SCENARIOS_BY_STATE[self.transition_state]
+            )
+            if impossible_scenarios:
+                raise ValueError("ranked_scenarios must be valid for transition_state")
             total_probability = round(sum(ranked.probability for ranked in ranked_scenarios), 4)
             if total_probability != 1.0:
                 raise ValueError("ranked_scenarios probabilities must sum to 1.0")

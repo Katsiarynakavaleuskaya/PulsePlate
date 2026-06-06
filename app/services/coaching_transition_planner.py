@@ -12,6 +12,7 @@ from app.schemas.user_coaching_state import (
     FitChefTransitionReason,
     FitChefTransitionState,
     MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE,
+    MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE,
     MarkovCoachingTransitionPlanV1,
     MarkovScenarioProbability,
     PromptSafeMarkovTransitionContext,
@@ -26,34 +27,6 @@ _SCENARIO_TIEBREAK: tuple[FitChefCoachingScenario, ...] = (
     "identity_loop_mapper",
 )
 _SCENARIO_ORDER = {scenario: index for index, scenario in enumerate(_SCENARIO_TIEBREAK)}
-
-_TRANSITION_WEIGHTS: dict[FitChefTransitionState, dict[FitChefCoachingScenario, float]] = {
-    "cold_start_default": {
-        "mascot_insight": 1.0,
-    },
-    "steady_state_default": {
-        "mascot_insight": 0.55,
-        "weekly_reflection": 0.2,
-        "distortion_simulator": 0.1,
-        "identity_loop_mapper": 0.1,
-        "slip_support": 0.05,
-    },
-    "slip_support_needed": {
-        "slip_support": 0.72,
-        "weekly_reflection": 0.12,
-        "mascot_insight": 0.1,
-        "distortion_simulator": 0.03,
-        "identity_loop_mapper": 0.03,
-    },
-    "weekly_reflection_due": {
-        "weekly_reflection": 0.65,
-        "mascot_insight": 0.2,
-        "distortion_simulator": 0.05,
-        "identity_loop_mapper": 0.05,
-        "slip_support": 0.05,
-    },
-    "no_recommendation_available": {},
-}
 
 _PRIMARY_SCENARIO_BY_STATE: dict[FitChefTransitionState, FitChefCoachingScenario | None] = {
     "cold_start_default": "mascot_insight",
@@ -155,7 +128,7 @@ def _rank_scenarios(
     available_scenarios: tuple[FitChefCoachingScenario, ...],
     reasons: tuple[FitChefTransitionReason, ...],
 ) -> tuple[MarkovScenarioProbability, ...]:
-    weights = _TRANSITION_WEIGHTS[transition_state]
+    weights = MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE[transition_state]
     weighted = [
         (scenario, weights.get(scenario, 0.0))
         for scenario in _SCENARIO_TIEBREAK

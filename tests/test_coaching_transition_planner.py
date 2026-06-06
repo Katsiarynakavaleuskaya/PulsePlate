@@ -387,6 +387,29 @@ def test_transition_plan_schema_rejects_unavailable_ranked_scenarios() -> None:
         )
 
 
+def test_prompt_safe_markov_context_rejects_transition_state_steering() -> None:
+    state = _state(available_scenarios=("mascot_insight", "slip_support"))
+    plan = build_markov_coaching_transition_plan(state)
+    tampered_plan = plan.model_copy(
+        update={
+            "ranked_scenarios": (
+                MarkovScenarioProbability(
+                    rank=1,
+                    scenario="slip_support",
+                    probability=1.0,
+                ),
+            ),
+            "recommended_scenario": "slip_support",
+            "confidence": 0.99,
+        }
+    )
+
+    assert plan.transition_state == "cold_start_default"
+    assert plan.recommended_scenario == "mascot_insight"
+    with pytest.raises(ValidationError, match="transition_state"):
+        to_prompt_safe_markov_context(tampered_plan)
+
+
 def test_capped_or_degraded_behavior_lowers_confidence_and_adds_reason() -> None:
     base_state = _state(
         recent_behavior=RecentBehaviorSnapshot(
