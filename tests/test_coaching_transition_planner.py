@@ -381,6 +381,49 @@ def test_transition_plan_schema_rejects_non_policy_ranked_distribution() -> None
             reasons=("observed_slip_like_behavior",),
         )
 
+    with pytest.raises(ValidationError, match="fixed transition policy"):
+        PromptSafeMarkovTransitionContext(
+            transition_state="steady_state_default",
+            recommended_scenario="mascot_insight",
+            ranked_scenarios=(
+                MarkovScenarioProbability(
+                    rank=1,
+                    scenario="mascot_insight",
+                    probability=0.9,
+                    reasons=(),
+                ),
+                MarkovScenarioProbability(
+                    rank=2,
+                    scenario="weekly_reflection",
+                    probability=0.1,
+                    reasons=(),
+                ),
+            ),
+            confidence=0.5,
+        )
+
+    with pytest.raises(ValidationError, match="fixed transition policy"):
+        PromptSafeMarkovTransitionContext(
+            transition_state="slip_support_needed",
+            recommended_scenario="slip_support",
+            ranked_scenarios=(
+                MarkovScenarioProbability(
+                    rank=1,
+                    scenario="slip_support",
+                    probability=0.5,
+                    reasons=("observed_slip_like_behavior",),
+                ),
+                MarkovScenarioProbability(
+                    rank=2,
+                    scenario="mascot_insight",
+                    probability=0.5,
+                    reasons=("observed_slip_like_behavior",),
+                ),
+            ),
+            confidence=0.78,
+            reasons=("observed_slip_like_behavior",),
+        )
+
 
 def test_transition_plan_schema_allows_empty_policy_when_primary_is_unavailable() -> None:
     plan = MarkovCoachingTransitionPlanV1(

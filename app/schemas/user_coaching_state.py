@@ -360,6 +360,18 @@ def _expected_markov_ranked_policy(
     return tuple((scenario, probabilities[index]) for index, (scenario, _) in enumerate(ranked))
 
 
+def _expected_markov_ranked_subset_policy(
+    *,
+    transition_state: FitChefTransitionState,
+    ranked_scenarios: tuple[MarkovScenarioProbability, ...],
+) -> tuple[tuple[FitChefCoachingScenario, float], ...]:
+    scenarios = tuple(ranked.scenario for ranked in ranked_scenarios)
+    return _expected_markov_ranked_policy(
+        transition_state=transition_state,
+        available_scenarios=scenarios,
+    )
+
+
 def _validate_markov_transition_reasons(
     *,
     transition_state: FitChefTransitionState,
@@ -444,6 +456,14 @@ def _validate_markov_ranked_scenarios(
         expected_policy = _expected_markov_ranked_policy(
             transition_state=transition_state,
             available_scenarios=available_scenarios,
+        )
+        actual_policy = tuple((ranked.scenario, ranked.probability) for ranked in ranked_scenarios)
+        if actual_policy != expected_policy:
+            raise ValueError("ranked_scenarios must match fixed transition policy")
+    else:
+        expected_policy = _expected_markov_ranked_subset_policy(
+            transition_state=transition_state,
+            ranked_scenarios=ranked_scenarios,
         )
         actual_policy = tuple((ranked.scenario, ranked.probability) for ranked in ranked_scenarios)
         if actual_policy != expected_policy:
