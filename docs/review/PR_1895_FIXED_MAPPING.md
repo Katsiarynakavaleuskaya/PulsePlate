@@ -134,7 +134,29 @@ merge-readiness claim.
     upload-on-failure, and continued absence of `continue-on-error`, `|| true`,
     raw Slack/GitHub identifiers, PR/review/merge mutation, and
     `repository_dispatch`.
-- [ ] `bug-hunter`
+- [x] `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `68882a4b3ffaf65e279b7c173c1df874eb9e0502`
+  - Evidence: bug-hunter found early live-readiness, input, runtime, and
+    prerequisite failures could still stop the workflow before any redacted
+    activation evidence artifact existed. The workflow now records status
+    outputs for readiness/config/input/retention/prerequisite checks, skips the
+    live network check when a prerequisite already failed, writes
+    `blocked_before_dispatch` evidence for pre-smoke failures, writes
+    `smoke_failed_safely` evidence for bounded live-smoke failures, uses a
+    redacted fallback JSON shape when report parsing fails, uploads the artifact
+    with `if: always()`, and then exits nonzero. The workflow contract test
+    asserts deferred failure, suppressed raw command output, fallback evidence,
+    upload-on-failure, and no `continue-on-error` / `|| true`.
+  - Disposition: FIXED
+  - Commit: `68882a4b3ffaf65e279b7c173c1df874eb9e0502`
+  - Evidence: bug-hunter found tampered activation evidence could recompute
+    `evidence_id` while keeping contradictory `activation_state`,
+    `dispatch_outcome_class`, `last_smoke`, and `next_operator_action` labels.
+    `validate_private_pilot_activation_evidence` now enforces cross-field
+    consistency against the builder state machine, and
+    `tests/test_experiment_operator_ledger.py::test_private_pilot_activation_evidence_contract_is_exact_and_value_free`
+    rejects tampered-but-rehashed contradictory evidence.
 - [ ] `security-auditor`
 - [ ] Codex Security diff scan / finding discovery
 - [ ] `pulseplate-pr-review`
