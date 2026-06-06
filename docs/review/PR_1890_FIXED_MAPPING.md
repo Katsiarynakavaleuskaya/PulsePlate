@@ -98,6 +98,7 @@ Decision: proceed with changes.
 - Late CodeRabbit release-validator hardening validation after commit `0c414621f`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 - Late CodeRabbit pricing/export false-green validation after commit `cef1c738e`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 - Compact ISO-prefix pricing validation after commit `941042ad3`: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+- Late validator false-green validation after commit `8160d9779`: direct probes reject `No diagnosis and treat patients.`, `Resultados rapidos para tu cuerpo.`, `Guaranteed adherence with meal plan.`, and `api key: [dummy value]`; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 Full local `make verify` was not run by default for this docs/release-validator PR under the operator-approved changed-scope gate policy. Merge readiness is not claimed without current-head CI, post-open role passes, Codex Security scan, `pulseplate-pr-review`, unresolved-thread checks, PR body/mapping parity, strict wrapper evidence, and wait-window.
 
@@ -129,6 +130,7 @@ No GitHub review threads existed when this artifact was created. Any post-open h
 - Post-open `qa-engineer-agent` rerun on head `9327943ab`: FAIL with live unresolved review threads. Status: blocking until the mapped fixes are pushed, thread evidence is rechecked, and the live threads are resolved. Evidence: mapped FIXED/DEFERRED evidence exists for known threads, two new CodeRabbit findings were fixed in `cef1c738e`, and merge readiness is not claimed.
 - Late CodeRabbit pricing/export batch after head `9327943ab`: FIXED in `cef1c738e`. Evidence: validator now blocks prefix currency price formats and the release-readiness matrix includes protected binary export actions in `blocked_release_actions`; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally.
 - Post-open `qa-engineer-agent` rerun on head `8d4084816`: FAIL with compact ISO-prefix pricing false-greens (`EUR9.99`, `USD9.99`, `RUB999`). Disposition: FIXED in `941042ad3`. Evidence: validator now blocks compact `USD`/`EUR`/`RUB` prefixes before digits; focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
+- Post-open `qa-engineer-agent` rerun on head `c50193797`: FAIL with four current validator false-greens: boundary-negated treatment copy, localized rapid-results copy, generic guaranteed-adherence copy, and spaced credential labels. Disposition: FIXED in `8160d9779`. Evidence: validator now rejects those four classes, tests cover each reported seed, and focused pytest, direct validator, `make validate-changed`, `make ios-appstore-verify`, and `pre-commit run --all-files` passed locally after the fix.
 
 ## Fixed in Commit Mapping
 
@@ -250,6 +252,14 @@ Disposition: FIXED
 Commit: cef1c738e
 Evidence: `scripts/release/check_ios_appstore_verify.py` now rejects prefix currency price formats such as `€9,99`, `₽ 999`, and `EUR 9.99`. `appstore/fitchef/release_readiness/shot_scenario_matrix.json` and the validator's expected contract now include `screenshot_binary_export` and `preview_video_export` in `blocked_release_actions`; protected export completion text is also rejected. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for prefix currency pricing, missing protected export actions, and preview-video export completion claims. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365791433 -> 8160d9779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365791437 -> 8160d9779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365791439 -> 8160d9779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3365791444 -> 8160d9779
+Disposition: FIXED
+Commit: 8160d9779
+Evidence: `scripts/release/check_ios_appstore_verify.py` now treats `treat` after a boundary marker as an actionable medical overclaim instead of a safe boundary word, rejects compact localized rapid-results copy, expands guaranteed-outcome blocking to adherence guarantees, and accepts spaced `api key`, `gh token`, and `secret key` labels as credential-like values with redacted diagnostics. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for `No diagnosis and treat patients.`, `Resultados rapidos para tu cuerpo.`, `Guaranteed adherence with meal plan.`, and spaced credential labels. Local evidence after the fix: direct probes reject all four reported seeds; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
 ## Post-Open Role-Agent Finding Closure
 
 Finding: post-open `bug-hunter` agent `019e98b2-aa05-7c81-b31a-e3ea0daba98c` reported a comma-clause wellness overclaim bypass.
@@ -265,6 +275,11 @@ Finding: post-open `qa-engineer-agent` agent `019e99f6-0eda-7a80-aaed-8ebfc90cf7
 Disposition: FIXED
 Commit: 941042ad3
 Evidence: `scripts/release/check_ios_appstore_verify.py` now blocks compact `USD`/`EUR`/`RUB` prefixes before digits, and `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the three reported compact forms. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
+Finding: post-open `qa-engineer-agent` agent `019e9bff-724a-7110-8fda-c76e0163088b` reported four current validator false-greens: `No diagnosis and treat patients.`, `Resultados rapidos para tu cuerpo.`, `Guaranteed adherence with meal plan.`, and spaced credential labels such as `api key: [dummy value]`.
+Disposition: FIXED
+Commit: 8160d9779
+Evidence: `scripts/release/check_ios_appstore_verify.py` now rejects all four classes and `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions. Local evidence after the fix: direct probes reject all four reported seeds; `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 ## Main Coverage Carryover
 
