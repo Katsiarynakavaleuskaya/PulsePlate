@@ -187,6 +187,31 @@ def test_fitchef_release_readiness_validator_rejects_secret_or_local_path(
     assert "gh_token" in messages or "/users/" in messages
 
 
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Available on Google Play too.",
+        "Android companion app support.",
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_cross_platform_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    release_dir, _payload, checklist = _prepare_fitchef_bundle_fixture(
+        module, tmp_path, monkeypatch
+    )
+    (release_dir / "rendered_review_testflight_readiness.md").write_text(
+        f"{checklist}\n{claim}\n",
+        encoding="utf-8",
+    )
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert "Forbidden release-readiness fragment" in _failed_messages(results)
+
+
 def test_fitchef_release_readiness_validator_rejects_generic_secret_assignment(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -627,6 +652,7 @@ def test_fitchef_release_readiness_validator_rejects_expanded_medical_claims(
         "Instant results for every meal.",
         "Rapid outcomes for busy weeks.",
         "Resultados rapidos para tu cuerpo.",
+        "Most accurate nutrition app.",
         "#1 nutrition assistant for families.",
         "Number one wellness planner.",
         "Top-ranked diet app.",
@@ -1020,6 +1046,41 @@ def test_fitchef_release_readiness_validator_ignores_commented_xctest_capture_ca
 
     results = module.check_fitchef_release_readiness_bundle()
     assert "XCTest method drift for meal_planner" in _failed_messages(results)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected_message"),
+    [
+        (
+            '"-appstore-screenshot-scenario", scenario.rawValue',
+            '"-appstore-screenshot-scenario", "core_value"',
+            "missing scenario launch argument",
+        ),
+        (
+            "snapshot(scenario.screenshotName, timeWaitingForIdle: 0.3)",
+            'snapshot("wrong", timeWaitingForIdle: 0.3)',
+            "missing scenario snapshot name",
+        ),
+    ],
+)
+def test_fitchef_release_readiness_validator_rejects_capture_helper_drift(
+    old: str,
+    new: str,
+    expected_message: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_fitchef_bundle_fixture(module, tmp_path, monkeypatch)
+    ios_tests = tmp_path / "AppStoreScreenshotTests.swift"
+    ios_tests.write_text(
+        module.APPSTORE_SCREENSHOT_TESTS.read_text(encoding="utf-8").replace(old, new, 1),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "APPSTORE_SCREENSHOT_TESTS", ios_tests)
+
+    results = module.check_fitchef_release_readiness_bundle()
+    assert expected_message in _failed_messages(results)
 
 
 def test_fitchef_release_readiness_validator_ignores_commented_swift_return_literal(

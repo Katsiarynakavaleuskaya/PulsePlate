@@ -146,6 +146,9 @@ FORBIDDEN_FITCHEF_RELEASE_FRAGMENTS = (
     "free trial",
     "subscription",
     "improve health",
+    "google play",
+    "play store",
+    "android",
 )
 FITCHEF_RELEASE_LOCAL_PATH_PATTERNS = (
     re.compile(r"[a-z]:[\\/]+users[\\/]+", re.IGNORECASE),
@@ -299,6 +302,7 @@ FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS = (
     re.compile(r"\bclinically[-\s]+proven\b", re.IGNORECASE),
     re.compile(r"\b(?:instant|rapid|immediate)[-\s]+(?:outcomes?|results?)\b", re.IGNORECASE),
     re.compile(r"\bresultados?\s+rapidos?\b", re.IGNORECASE),
+    re.compile(r"\bmost[-\s]+accurate\b", re.IGNORECASE),
     re.compile(r"(?<!\w)#\s*1(?!\w)", re.IGNORECASE),
     re.compile(r"\bnumber[-\s]+one\b", re.IGNORECASE),
     re.compile(
@@ -879,6 +883,21 @@ def _validate_ios_screenshot_sources() -> str | None:
         return f"Cannot read iOS screenshot tests: {test_error}"
     context_text = _strip_swift_comments(context_text)
     test_text = _strip_swift_comments(test_text)
+    capture_helper_body = _swift_balanced_block_after(
+        test_text,
+        "private func captureScreenshot(for scenario: Scenario)",
+    )
+    if capture_helper_body is None:
+        return "iOS screenshot capture helper missing"
+    required_capture_bindings = {
+        "scenario launch argument": '"-appstore-screenshot-scenario", scenario.rawValue',
+        "scenario accessibility id": "matching(identifier: scenario.accessibilityIdentifier)",
+        "scenario snapshot name": "snapshot(scenario.screenshotName",
+    }
+    for label, expected_fragment in required_capture_bindings.items():
+        if expected_fragment not in capture_helper_body:
+            return f"iOS screenshot capture helper drift: missing {label}"
+
     scenario_view_block = _swift_balanced_block_after(context_text, "static func scenarioView()")
     if scenario_view_block is None:
         return "iOS screenshot context rendered scenarioView missing"
