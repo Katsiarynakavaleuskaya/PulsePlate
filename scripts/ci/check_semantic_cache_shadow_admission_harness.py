@@ -47,6 +47,7 @@ TOP_LEVEL_KEYS: tuple[str, ...] = (
     "report_id",
     "report_version",
     "generated_at",
+    "produced_at",
     "scope",
     "generation_mode",
     "evidence_asset",
@@ -255,6 +256,9 @@ FORBIDDEN_VALUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
 )
+PRODUCED_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+SHA256_DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+IDEMPOTENCY_KEY_RE = re.compile(r"^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$")
 
 
 def render_semantic_cache_shadow_admission_harness_report() -> tuple[str, list[str]]:
@@ -386,6 +390,10 @@ def _expected_schema() -> Mapping[str, object]:
             "report_id": {"type": "string", "const": REPORT_ID},
             "report_version": {"type": "string", "const": REPORT_VERSION},
             "generated_at": {"type": "string", "const": GENERATED_AT},
+            "produced_at": {
+                "type": "string",
+                "pattern": r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",
+            },
             "scope": {"type": "string", "const": SCOPE},
             "generation_mode": {"type": "string", "const": GENERATION_MODE},
             "evidence_asset": {
@@ -398,7 +406,10 @@ def _expected_schema() -> Mapping[str, object]:
                         "const": "semantic_cache_shadow_admission_harness_report",
                     },
                     "artifact_fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
-                    "idempotency_key": {"type": "string", "pattern": "^idem:[A-Za-z0-9_.:-]+$"},
+                    "idempotency_key": {
+                        "type": "string",
+                        "pattern": "^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$",
+                    },
                     "upstream_assets": {
                         "type": "array",
                         "minItems": 1,
@@ -411,7 +422,7 @@ def _expected_schema() -> Mapping[str, object]:
                                 "asset_type": string,
                                 "fingerprint": {
                                     "type": "string",
-                                    "pattern": "^sha256:[A-Za-z0-9_.:-]+$",
+                                    "pattern": "^sha256:[a-f0-9]{64}$",
                                 },
                             },
                         },
@@ -589,6 +600,9 @@ def _validate_report_shape(report: Mapping[str, object]) -> list[str]:
     ):
         if report.get(key) != expected:
             errors.append(f"report {key} must be {expected}")
+    produced_at = report.get("produced_at")
+    if not isinstance(produced_at, str) or not PRODUCED_AT_RE.match(produced_at):
+        errors.append("report produced_at must be an ISO UTC timestamp")
     errors.extend(_validate_evidence_asset(report.get("evidence_asset")))
     source_ids = _as_mapping(report.get("source_ids"), "source_ids", errors)
     if source_ids:
@@ -635,13 +649,10 @@ def _validate_evidence_asset(value: object) -> list[str]:
     if asset.get("asset_type") != "semantic_cache_shadow_admission_harness_report":
         errors.append("evidence_asset.asset_type mismatch")
     fingerprint = asset.get("artifact_fingerprint")
-    if not isinstance(fingerprint, str) or not re.match(r"^sha256:[a-f0-9]{64}$", fingerprint):
-        errors.append("evidence_asset.artifact_fingerprint must be sha256 label")
+    if not isinstance(fingerprint, str) or not SHA256_DIGEST_RE.match(fingerprint):
+        errors.append("evidence_asset.artifact_fingerprint must be sha256 digest")
     idempotency_key = asset.get("idempotency_key")
-    if not isinstance(idempotency_key, str) or not re.match(
-        r"^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$",
-        idempotency_key,
-    ):
+    if not isinstance(idempotency_key, str) or not IDEMPOTENCY_KEY_RE.match(idempotency_key):
         errors.append("evidence_asset.idempotency_key mismatch")
     if asset.get("replay_behavior") != "deterministic_static_replay_safe":
         errors.append("evidence_asset.replay_behavior mismatch")
@@ -671,11 +682,11 @@ def _validate_evidence_asset(value: object) -> list[str]:
         if isinstance(asset_id, str):
             observed_ids.append(asset_id)
         upstream_fingerprint = upstream_asset.get("fingerprint")
-        if not isinstance(upstream_fingerprint, str) or not upstream_fingerprint.startswith(
-            "sha256:"
+        if not isinstance(upstream_fingerprint, str) or not SHA256_DIGEST_RE.match(
+            upstream_fingerprint
         ):
             errors.append(
-                f"evidence_asset.upstream_assets[{index}].fingerprint must be sha256 label"
+                f"evidence_asset.upstream_assets[{index}].fingerprint must be sha256 digest"
             )
     if observed_ids != [
         "semantic_cache_offline_admission_runner_report",

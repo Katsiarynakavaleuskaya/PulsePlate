@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import cast
@@ -126,7 +127,10 @@ def test_shadow_harness_evidence_asset_lineage_is_metadata_only() -> None:
     assert isinstance(fingerprint, str)
     assert fingerprint.startswith("sha256:")
     assert len(fingerprint.removeprefix("sha256:")) == 64
-    assert asset["idempotency_key"].startswith("idem:semantic-cache-shadow-admission-harness:")
+    assert re.fullmatch(
+        r"idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}",
+        str(asset["idempotency_key"]),
+    )
     assert asset["replay_behavior"] == "deterministic_static_replay_safe"
     assert asset["admission_behavior"] == "metadata_only_shadow_report_no_runtime_admission"
     upstream_assets = asset["upstream_assets"]
@@ -136,7 +140,23 @@ def test_shadow_harness_evidence_asset_lineage_is_metadata_only() -> None:
         "verification_provenance_contracts",
         "semantic_cache_gate_status",
     ]
-    assert all(str(item["fingerprint"]).startswith("sha256:") for item in upstream_assets)
+    assert all(
+        re.fullmatch(r"sha256:[a-f0-9]{64}", str(item["fingerprint"])) for item in upstream_assets
+    )
+
+
+def test_shadow_harness_produced_at_changes_stable_artifact_fingerprint() -> None:
+    default_mapping = _compose_mapping()
+    rerendered_mapping = _compose_mapping(
+        SemanticCacheShadowAdmissionInput(
+            produced_at="2026-06-07T00:00:00Z",
+            path_ids=PATH_IDS,
+        )
+    )
+
+    assert default_mapping["produced_at"] == "2026-06-06T00:00:00Z"
+    assert rerendered_mapping["produced_at"] == "2026-06-07T00:00:00Z"
+    assert default_mapping["evidence_asset"] != rerendered_mapping["evidence_asset"]
 
 
 def test_shadow_harness_path_specs_and_results_order_are_canonical() -> None:
@@ -258,6 +278,15 @@ def test_shadow_harness_provenance_labels_cover_missing_and_malformed_cases() ->
     assert missing["verification_bundle_present"] is False
     assert missing["provenance_complete"] is False
     assert missing["missing_required_provenance_fields"] == list(PROVENANCE_FIELD_IDS)
+    assert missing["lookup_decision"] == "not_evaluated"
+    assert missing["match_mode"] is None
+    assert missing["score_bps"] is None
+    assert missing["false_hit_outcome"] == "not_evaluated"
+    assert missing["false_hit_is_false_hit"] is False
+    assert missing["false_hit_blocking_reasons"] == []
+    assert missing["stop_serving"] is False
+    assert missing["bounded_decision"] == "not_evaluated"
+    assert "fail_closed_before_cache_evaluation" in missing["bounded_reason_codes"]
 
     blocked = _path_result(report, "blocked_bundle_fail_closed_shadow")
     assert blocked["verification_bundle_present"] is True
@@ -450,13 +479,17 @@ def test_checker_rejects_evidence_asset_drift() -> None:
     asset["replay_behavior"] = "runtime_replay"
     upstream = asset["upstream_assets"]
     assert isinstance(upstream, list)
+    first_upstream = upstream[0]
+    assert isinstance(first_upstream, dict)
+    first_upstream["fingerprint"] = "sha256:not-a-digest"
     upstream.reverse()
 
     errors = _validate(report_text=json.dumps(report, indent=2) + "\n")
 
-    assert "evidence_asset.artifact_fingerprint must be sha256 label" in errors
+    assert "evidence_asset.artifact_fingerprint must be sha256 digest" in errors
     assert "evidence_asset.idempotency_key mismatch" in errors
     assert "evidence_asset.replay_behavior mismatch" in errors
+    assert "evidence_asset.upstream_assets[2].fingerprint must be sha256 digest" in errors
     assert "evidence_asset.upstream_assets order mismatch" in errors
 
 

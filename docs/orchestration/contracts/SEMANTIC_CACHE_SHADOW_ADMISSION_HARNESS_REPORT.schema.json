@@ -7,6 +7,7 @@
     "report_id",
     "report_version",
     "generated_at",
+    "produced_at",
     "scope",
     "generation_mode",
     "evidence_asset",
@@ -36,6 +37,10 @@
     "generated_at": {
       "type": "string",
       "const": "static-2026-06-06"
+    },
+    "produced_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
     },
     "scope": {
       "type": "string",
@@ -67,7 +72,7 @@
         },
         "idempotency_key": {
           "type": "string",
-          "pattern": "^idem:[A-Za-z0-9_.:-]+$"
+          "pattern": "^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$"
         },
         "upstream_assets": {
           "type": "array",
@@ -89,7 +94,7 @@
               },
               "fingerprint": {
                 "type": "string",
-                "pattern": "^sha256:[A-Za-z0-9_.:-]+$"
+                "pattern": "^sha256:[a-f0-9]{64}$"
               }
             }
           }

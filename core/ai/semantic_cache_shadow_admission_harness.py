@@ -12,6 +12,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 import hashlib
 import json
+from pathlib import Path
 import re
 from types import MappingProxyType
 from typing import TypeAlias, cast
@@ -35,6 +36,8 @@ GENERATION_MODE = "deterministic_static_shadow_synthetic_redacted_inputs"
 SEMANTIC_CACHE_GATE_STATUS = "closed"
 DEFAULT_PRODUCED_AT = "2026-06-06T00:00:00Z"
 DEFAULT_POLICY_VERSION = "semantic-cache-shadow-admission-v1"
+LOCAL_SHADOW_SCENARIO_IDS: tuple[str, ...] = ("not_evaluated_missing_bundle",)
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 PROVENANCE_FIELD_IDS: tuple[str, ...] = (
     "input_digest",
@@ -147,6 +150,7 @@ class SemanticCacheShadowAdmissionReport:
     report_id: str
     report_version: str
     generated_at: str
+    produced_at: str
     scope: str
     generation_mode: str
     source_ids: Mapping[str, JsonValue]
@@ -168,6 +172,7 @@ class SemanticCacheShadowAdmissionReport:
             self, "report_version", _validate_token("report_version", self.report_version)
         )
         object.__setattr__(self, "generated_at", _validate_token("generated_at", self.generated_at))
+        object.__setattr__(self, "produced_at", _validate_produced_at(self.produced_at))
         object.__setattr__(self, "scope", _validate_token("scope", self.scope))
         object.__setattr__(
             self,
@@ -240,7 +245,7 @@ class _ShadowPathSpec:
             raise ValueError(f"unsupported path_family: {self.path_family!r}")
         object.__setattr__(self, "path_family", _validate_token("path_family", self.path_family))
         object.__setattr__(self, "route_label", _validate_token("route_label", self.route_label))
-        if self.runner_scenario_id not in OFFLINE_SCENARIO_IDS:
+        if self.runner_scenario_id not in OFFLINE_SCENARIO_IDS + LOCAL_SHADOW_SCENARIO_IDS:
             raise ValueError(f"unsupported runner_scenario_id: {self.runner_scenario_id!r}")
         object.__setattr__(
             self,
@@ -337,14 +342,14 @@ def compose_semantic_cache_shadow_admission_report(
     if not isinstance(input, SemanticCacheShadowAdmissionInput):
         raise ValueError("input must be SemanticCacheShadowAdmissionInput")
 
-    offline_mapping = _offline_decision_mapping()
+    offline_mapping = _offline_decision_mapping(produced_at=input.produced_at)
     offline_scenarios = _offline_scenarios(offline_mapping)
     specs = _ordered_specs(input.path_ids)
     path_specs: list[Mapping[str, JsonValue]] = []
     path_results: list[Mapping[str, JsonValue]] = []
 
     for spec in specs:
-        scenario = offline_scenarios[spec.runner_scenario_id]
+        scenario = _scenario_for_spec(spec, offline_scenarios)
         path_specs.append(_path_spec_mapping(spec))
         path_results.append(_path_result(spec=spec, scenario=scenario))
 
@@ -354,6 +359,7 @@ def compose_semantic_cache_shadow_admission_report(
         report_id=REPORT_ID,
         report_version=REPORT_VERSION,
         generated_at=GENERATED_AT,
+        produced_at=input.produced_at,
         scope=SCOPE,
         generation_mode=GENERATION_MODE,
         source_ids=dict(SOURCE_IDS),
@@ -393,6 +399,7 @@ def to_stable_mapping(report: SemanticCacheShadowAdmissionReport) -> Mapping[str
         "report_id": report.report_id,
         "report_version": report.report_version,
         "generated_at": report.generated_at,
+        "produced_at": report.produced_at,
         "scope": report.scope,
         "generation_mode": report.generation_mode,
         "source_ids": _json_safe_copy(report.source_ids),
@@ -410,6 +417,7 @@ def to_stable_mapping(report: SemanticCacheShadowAdmissionReport) -> Mapping[str
         "report_id": payload["report_id"],
         "report_version": payload["report_version"],
         "generated_at": payload["generated_at"],
+        "produced_at": payload["produced_at"],
         "scope": payload["scope"],
         "generation_mode": payload["generation_mode"],
         "evidence_asset": _evidence_asset(payload),
@@ -425,9 +433,9 @@ def to_stable_mapping(report: SemanticCacheShadowAdmissionReport) -> Mapping[str
     }
 
 
-def _offline_decision_mapping() -> Mapping[str, JsonValue]:
+def _offline_decision_mapping(*, produced_at: str) -> Mapping[str, JsonValue]:
     report = compose_semantic_cache_offline_admission_report(
-        build_default_semantic_cache_offline_admission_input()
+        build_default_semantic_cache_offline_admission_input(produced_at=produced_at)
     )
     return cast(Mapping[str, JsonValue], offline_to_stable_mapping(report))
 
@@ -445,6 +453,30 @@ def _offline_scenarios(mapping: Mapping[str, JsonValue]) -> Mapping[str, Mapping
             raise ValueError("offline runner scenario_id must be a string")
         scenarios[scenario_id] = _freeze_mapping(value)
     return MappingProxyType(scenarios)
+
+
+def _scenario_for_spec(
+    spec: _ShadowPathSpec,
+    offline_scenarios: Mapping[str, Mapping[str, JsonValue]],
+) -> Mapping[str, JsonValue]:
+    if spec.runner_scenario_id == "not_evaluated_missing_bundle":
+        return MappingProxyType(
+            {
+                "lookup_decision": "not_evaluated",
+                "match_mode": None,
+                "score_bps": None,
+                "false_hit_outcome": "not_evaluated",
+                "false_hit_is_false_hit": False,
+                "false_hit_blocking_reasons": [],
+                "stop_serving": False,
+                "bounded_decision": "not_evaluated",
+                "bounded_reason_codes": [
+                    "verification_bundle_missing",
+                    "fail_closed_before_cache_evaluation",
+                ],
+            }
+        )
+    return offline_scenarios[spec.runner_scenario_id]
 
 
 def _path_spec_mapping(spec: _ShadowPathSpec) -> Mapping[str, JsonValue]:
@@ -731,7 +763,7 @@ def _path_specs() -> Mapping[str, _ShadowPathSpec]:
             path_id="missing_bundle_fail_closed_shadow",
             path_family="insight_route",
             route_label="missing_verification_bundle",
-            runner_scenario_id="admission_blocked_candidate",
+            runner_scenario_id="not_evaluated_missing_bundle",
             verification_bundle_state="missing",
             verification_overall_status="missing",
             verification_admission_allowed=False,
@@ -931,22 +963,34 @@ def _evidence_asset(payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
             {
                 "asset_id": "semantic_cache_offline_admission_runner_report",
                 "asset_type": "offline_admission_report",
-                "fingerprint": "sha256:semantic-cache-offline-admission-runner-v1",
+                "fingerprint": _file_fingerprint(
+                    "docs/orchestration/contracts/"
+                    "SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT.json"
+                ),
             },
             {
                 "asset_id": "verification_provenance_contracts",
                 "asset_type": "verification_bundle_contract",
-                "fingerprint": "sha256:verification-provenance-contracts-v1",
+                "fingerprint": _file_fingerprint("core/verification/contracts.py"),
             },
             {
                 "asset_id": "semantic_cache_gate_status",
                 "asset_type": "roadmap_gate_contract",
-                "fingerprint": "sha256:semantic-cache-gate-closed-v1",
+                "fingerprint": _file_fingerprint(
+                    "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+                ),
             },
         ],
         "replay_behavior": "deterministic_static_replay_safe",
         "admission_behavior": "metadata_only_shadow_report_no_runtime_admission",
     }
+
+
+def _file_fingerprint(repo_relative_path: str) -> str:
+    path = (_REPO_ROOT / repo_relative_path).resolve()
+    if not str(path).startswith(str(_REPO_ROOT.resolve()) + "/"):
+        raise ValueError("upstream evidence path must stay under the repo root")
+    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
 
 
 def _stable_fingerprint(payload: Mapping[str, JsonValue]) -> str:

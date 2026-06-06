@@ -3,27 +3,28 @@
   "report_id": "semantic_cache_shadow_admission_harness_report",
   "report_version": "2026-06-06",
   "generated_at": "static-2026-06-06",
+  "produced_at": "2026-06-06T00:00:00Z",
   "scope": "internal_only_semantic_cache_shadow_admission_harness",
   "generation_mode": "deterministic_static_shadow_synthetic_redacted_inputs",
   "evidence_asset": {
     "asset_type": "semantic_cache_shadow_admission_harness_report",
-    "artifact_fingerprint": "sha256:f0968f538c1e391d13d06697610884d9396b97650ba72c23aaea50c831c57cc8",
-    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:f0968f538c1e391d",
+    "artifact_fingerprint": "sha256:8a6fc312c78ca240395231715496a1abb50ec263b2245ba409d3997494731f44",
+    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:8a6fc312c78ca240",
     "upstream_assets": [
       {
         "asset_id": "semantic_cache_offline_admission_runner_report",
         "asset_type": "offline_admission_report",
-        "fingerprint": "sha256:semantic-cache-offline-admission-runner-v1"
+        "fingerprint": "sha256:22013e29978c4495e1bdc38b76e22fb4687bd52406483f179e0809671b4555c4"
       },
       {
         "asset_id": "verification_provenance_contracts",
         "asset_type": "verification_bundle_contract",
-        "fingerprint": "sha256:verification-provenance-contracts-v1"
+        "fingerprint": "sha256:bca561e099afa7c5ff997bc678e36e80b7fe342b53f23f96078ce3202d8f9c00"
       },
       {
         "asset_id": "semantic_cache_gate_status",
         "asset_type": "roadmap_gate_contract",
-        "fingerprint": "sha256:semantic-cache-gate-closed-v1"
+        "fingerprint": "sha256:3a8f7aa835618aa04c4fc9749b1b9822719a38d037c80449c0fc9631e1b6bff6"
       }
     ],
     "replay_behavior": "deterministic_static_replay_safe",
@@ -385,7 +386,7 @@
       "request_fingerprint": "sha256:shadow-missing-bundle-request",
       "response_fingerprint": null,
       "route_label": "missing_verification_bundle",
-      "runner_scenario_id": "admission_blocked_candidate",
+      "runner_scenario_id": "not_evaluated_missing_bundle",
       "runtime_validation_state": "not_run",
       "serving_allowed": false,
       "source_freshness_label": "not_checked",
@@ -1046,24 +1047,20 @@
       "verification_overall_status": "not_applicable"
     },
     {
-      "bounded_decision": "fallback",
+      "bounded_decision": "not_evaluated",
       "bounded_reason_codes": [
-        "admission_blocked",
-        "false_hit_blocked",
-        "stop_rule_blocked"
+        "verification_bundle_missing",
+        "fail_closed_before_cache_evaluation"
       ],
       "cache_read_allowed": false,
       "cache_write_allowed": false,
       "context_fingerprint": "sha256:shadow-missing-bundle-context",
-      "false_hit_blocking_reasons": [
-        "admission_blocked",
-        "fallback_required"
-      ],
-      "false_hit_is_false_hit": true,
-      "false_hit_outcome": "false_hit",
+      "false_hit_blocking_reasons": [],
+      "false_hit_is_false_hit": false,
+      "false_hit_outcome": "not_evaluated",
       "implementation_allowed": false,
-      "lookup_decision": "hit",
-      "match_mode": "exact",
+      "lookup_decision": "not_evaluated",
+      "match_mode": null,
       "missing_required_provenance_fields": [
         "input_digest",
         "prompt_digest",
@@ -1082,22 +1079,20 @@
       "reason_codes": [
         "verification_bundle_missing",
         "fail_closed",
-        "admission_blocked",
-        "false_hit_blocked",
-        "stop_rule_blocked"
+        "fail_closed_before_cache_evaluation"
       ],
       "request_fingerprint": "sha256:shadow-missing-bundle-request",
       "response_fingerprint": null,
       "route_label": "missing_verification_bundle",
-      "runner_scenario_id": "admission_blocked_candidate",
+      "runner_scenario_id": "not_evaluated_missing_bundle",
       "runtime_allowed": false,
       "runtime_validation_state": "not_run",
-      "score_bps": 10000,
+      "score_bps": null,
       "semantic_cache_gate_status": "closed",
       "serving_allowed": false,
       "shadow_label": "blocked_verification_bundle_shadow",
       "source_freshness_label": "not_checked",
-      "stop_serving": true,
+      "stop_serving": false,
       "verification_admission_allowed": false,
       "verification_bundle_fingerprint": null,
       "verification_bundle_present": false,
