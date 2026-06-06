@@ -184,8 +184,11 @@ def build_verification_provenance(
 
     input_digest = redacted_sha256_label(input_text)
     prompt_digest = redacted_sha256_label(prompt_text)
-    context_item_digests = tuple(
-        digest for item in context_items if (digest := redacted_sha256_label(item)) is not None
+    context_item_labels = tuple(redacted_sha256_label(item) for item in context_items)
+    context_item_digests = (
+        ()
+        if any(label is None for label in context_item_labels)
+        else tuple(label for label in context_item_labels if label is not None)
     )
     answer_digest = redacted_sha256_label(answer_text)
 

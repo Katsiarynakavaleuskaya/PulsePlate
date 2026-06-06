@@ -916,6 +916,11 @@ class TestPhilosophicalRuntime:
         assert provenance.prompt_final_char_count == len("short rewrite prompt")
         assert provenance.prompt_trimmed_char_count is not None
         assert provenance.prompt_trimmed_char_count > 0
+        assert provenance.prompt_original_char_count is not None
+        assert (
+            provenance.prompt_original_char_count - provenance.prompt_final_char_count
+            == provenance.prompt_trimmed_char_count
+        )
 
     async def test_build_direct_result_requires_public_metadata_access(self) -> None:
         runtime = PhilosophicalRuntime()

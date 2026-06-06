@@ -2120,6 +2120,11 @@ class TestVerificationRegistryCoverageTail:
         assert provenance.prompt_final_char_count == 0
         assert provenance.prompt_trim_limit is None
         assert provenance.prompt_trimmed_char_count is None
+        context_fail_closed_provenance = build_verification_provenance(
+            context_items=("valid context", "")
+        )
+        assert context_fail_closed_provenance.context_item_digests == ()
+        assert context_fail_closed_provenance.context_item_shas == ()
         assert provenance.input_digest != f"sha256:{sha256(raw_text.encode('utf-8')).hexdigest()}"
         assert provenance.input_digest is not None
         assert provenance.input_digest.startswith("sha256:")

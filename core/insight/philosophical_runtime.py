@@ -523,8 +523,10 @@ class PhilosophicalRuntime:
                 )
                 final_prompt_text = rewritten_prompt
                 prompt_trimmed = prompt_trimmed or rewrite_prompt_trimmed
-                final_prompt_original_char_count = len(rewrite_prompt)
                 final_prompt_trimmed_char_count += len(rewrite_prompt) - len(rewritten_prompt)
+                final_prompt_original_char_count = (
+                    len(rewritten_prompt) + final_prompt_trimmed_char_count
+                )
                 answer = await provider.generate(rewritten_prompt)
                 verification_report = self._verification.validate(answer, citations=citations)
                 falsification_report = self._falsification.validate(answer)
