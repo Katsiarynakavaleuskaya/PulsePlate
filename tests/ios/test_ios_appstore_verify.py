@@ -13,7 +13,7 @@ import json
 import pathlib
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Protocol
 
 import pytest
 from scripts.release import check_ios_appstore_verify as validator_module
@@ -35,6 +35,18 @@ REQUIRED_CHECKS = [
     "check_fitchef_release_readiness_bundle",
     "check_storekit_pricing_truth",
 ]
+
+
+class _ValidatorModule(Protocol):
+    APPSTORE_SCREENSHOT_CONTEXT: pathlib.Path
+    APPSTORE_SCREENSHOT_TESTS: pathlib.Path
+    FITCHEF_RENDERED_REVIEW_CHECKLIST: pathlib.Path
+    FITCHEF_SHOT_SCENARIO_MATRIX: pathlib.Path
+    REVIEWER_SUBMISSION_MATRIX: pathlib.Path
+
+    def check_fitchef_release_readiness_bundle(self) -> list[tuple[bool, str, str]]: ...
+
+    def check_storekit_pricing_truth(self) -> list[tuple[bool, str, str]]: ...
 
 
 def test_validator_script_exists() -> None:
@@ -95,12 +107,12 @@ def test_validator_registers_all_checks() -> None:
         assert name in content.split("ALL_CHECKS")[1], f"Check {name} not registered in ALL_CHECKS"
 
 
-def _load_validator_module() -> Any:
+def _load_validator_module() -> _ValidatorModule:
     return validator_module
 
 
 def _prepare_fitchef_bundle_fixture(
-    module: Any,
+    module: _ValidatorModule,
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[pathlib.Path, dict[str, Any], str]:
@@ -460,6 +472,9 @@ def test_fitchef_release_readiness_validator_scans_pack_paths_for_claims(
     "claim",
     [
         "Wellness copy: diagnóstico y tratamiento médico para pacientes.",
+        "Controla tu colesterol.",
+        "Soporte para hipertension.",
+        "Ansiedad y depresion.",
         "Recomendado por nutricionistas.",
         "Consejo terapeutico para tu menu.",
         "Текст обещает медицинское лечение для пациентов.",
@@ -697,6 +712,7 @@ def test_fitchef_release_readiness_validator_rejects_guaranteed_outcome_claims(
         "Lower cholesterol and blood pressure.",
         "Avoid diabetes with weekly menus.",
         "No diagnosis and treat patients.",
+        "No diagnosis and diabetes insights.",
         "Nutritionist-recommended menu.",
         "Dietitian approved plan.",
         "Therapeutic meal plan.",
@@ -1558,6 +1574,30 @@ def test_storekit_pricing_truth_rejects_localized_or_labeled_metadata_pricing(
 
     results = module.check_storekit_pricing_truth()
     assert "pricing" in _failed_messages(results).lower()
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "ready to submit",
+        "App Store submission complete.",
+    ],
+)
+def test_storekit_pricing_truth_rejects_metadata_release_status_claims(
+    claim: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    metadata_dir = tmp_path / "metadata"
+    locale_dir = metadata_dir / "en-US"
+    locale_dir.mkdir(parents=True)
+    (locale_dir / "description.txt").write_text(claim, encoding="utf-8")
+    monkeypatch.setattr(module, "METADATA_DIR", metadata_dir)
+    monkeypatch.setattr(module, "LOCALES", ("en-US",))
+
+    results = module.check_storekit_pricing_truth()
+    assert "Protected release status claim" in _failed_messages(results)
 
 
 def test_fitchef_release_readiness_validator_rejects_stale_wellness_promise(

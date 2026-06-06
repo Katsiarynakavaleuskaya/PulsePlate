@@ -344,8 +344,14 @@ FITCHEF_RELEASE_OUTCOME_CLAIM_PATTERNS = (
     ),
 )
 FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
+    "ansiedad",
+    "colesterol",
+    "controla tu colesterol",
+    "depresion",
     "diagnostico",
     "diagnosticos",
+    "hipertension",
+    "soporte para hipertension",
     "tratar",
     "trata",
     "medico",
@@ -381,6 +387,20 @@ FITCHEF_RELEASE_LOCALIZED_WELLNESS_FRAGMENTS = (
     "клиническое питание",
     "пациент",
 )
+FITCHEF_RELEASE_NEVER_BOUNDARY_NEGATED_MEDICAL_TERMS = {
+    "blood pressure",
+    "cholesterol",
+    "diabetes",
+    "hypertension",
+}
+FITCHEF_RELEASE_NEVER_BOUNDARY_NEGATED_LOCALIZED_FRAGMENTS = {
+    "ansiedad",
+    "colesterol",
+    "controla tu colesterol",
+    "depresion",
+    "hipertension",
+    "soporte para hipertension",
+}
 FITCHEF_RELEASE_LOCALIZED_UPLOAD_FRAGMENTS = (
     "listo para subir",
     "lista para subir",
@@ -517,6 +537,16 @@ FITCHEF_RELEASE_WELLNESS_BOUNDARY_CONTEXT_WORDS = {
     "treatment",
     "trial",
 }
+FITCHEF_METADATA_PROTECTED_STATUS_FRAGMENTS = (
+    "app store submission complete",
+    "ready to submit",
+    "release ready",
+    "release-ready",
+    "submission complete",
+    "submission ready",
+    "submission-ready",
+    "submit complete",
+)
 
 # Pricing patterns that should NOT appear in metadata (hardcoded prices/trials).
 PRICING_PATTERNS = [
@@ -798,6 +828,9 @@ def _validate_release_readiness_scan_text(text: str) -> str | None:
 def _medical_term_is_boundary_negated(line: str, match_start: int, match_text: str) -> bool:
     """Return whether a medical term is only named as a nearby forbidden boundary."""
 
+    if _claim_scan_text(match_text) in FITCHEF_RELEASE_NEVER_BOUNDARY_NEGATED_MEDICAL_TERMS:
+        return False
+
     prefix = line[:match_start].lower()
     same_clause_prefix = re.split(r"[.:;!?]", prefix)[-1]
     marker_matches: list[re.Match[str]] = []
@@ -854,6 +887,9 @@ def _localized_wellness_fragment_is_boundary_negated(
     normalized_line: str, match_start: int, fragment: str
 ) -> bool:
     """Return whether a localized medical fragment is listed as a forbidden boundary."""
+
+    if fragment in FITCHEF_RELEASE_NEVER_BOUNDARY_NEGATED_LOCALIZED_FRAGMENTS:
+        return False
 
     prefix = normalized_line[:match_start]
     same_clause_prefix = re.split(r"[.:;!?]", prefix)[-1]
@@ -2141,6 +2177,31 @@ def check_storekit_pricing_truth() -> Results:
                     )
                 )
                 return results
+        lowered_content_variants = [variant.lower() for variant in content_variants]
+        for fragment in FITCHEF_METADATA_PROTECTED_STATUS_FRAGMENTS:
+            if any(fragment in lowered for lowered in lowered_content_variants):
+                rel = _display_repo_local_path(path)
+                results.append(
+                    (
+                        False,
+                        tag,
+                        f"Protected release status claim found in {rel}: {fragment}",
+                    )
+                )
+                return results
+        for pattern in FITCHEF_PROTECTED_ACTION_CLAIM_PATTERNS:
+            for variant in content_variants:
+                match = pattern.search(variant)
+                if match:
+                    rel = _display_repo_local_path(path)
+                    results.append(
+                        (
+                            False,
+                            tag,
+                            f"Protected release action claim found in {rel}: {match.group()}",
+                        )
+                    )
+                    return results
 
     results.append((True, tag, f"No hardcoded pricing in {len(files_to_scan)} metadata files"))
     return results
