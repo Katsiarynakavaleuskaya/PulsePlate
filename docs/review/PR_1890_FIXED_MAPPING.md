@@ -281,6 +281,7 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now rejects `most accur
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3366980308
 Disposition: NOT-A-BUG
+Reason: The review referenced a stale squashed head rather than the live PR head after subsequent pushes.
 Evidence: The mapped FIXED proof commits are reachable from current PR head. Local proof: `git merge-base --is-ancestor 9840d503d HEAD`, `git merge-base --is-ancestor aa49d1492 HEAD`, `git merge-base --is-ancestor 8160d9779 HEAD`, and `git merge-base --is-ancestor 47e7dec8d HEAD` all returned success; `git log origin/main..HEAD` includes the mapped fix commits. The review's referenced squashed head `1fc6837619b3c443dbf1af093615cbcc0a920b80` is not the live PR head after subsequent pushes.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3367001516 -> 54539875d
@@ -313,6 +314,13 @@ Evidence: `scripts/release/check_ios_appstore_verify.py` now scans raw plus unde
 Disposition: FIXED
 Commit: 8535b3f7c
 Evidence: `scripts/release/check_ios_appstore_verify.py` now scans metadata and release-readiness text variants for localized, labeled, and reversed pricing/trial claims; blocks plural English and Russian medical-professional wording; enforces exact per-shot `wellness_claim_status` and locale/shot `line_fit_status`; carries parent JSON key context into nested scalar scans for protected release-status claims; requires exact `snapshot(scenario.screenshotName, ...)` usage; rejects Linux local paths; catches separator-form protected upload/export/mutation claims; and requires scenario `reviewer_action` to preserve rendered-review plus protected-upload boundaries. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for each reported false-green class. Local evidence after the fix: `../../.venv/bin/python -m pytest -q tests/ios/test_ios_appstore_verify.py tests/test_fitchef_app_store_pack.py` PASS; `../../.venv/bin/python scripts/release/check_ios_appstore_verify.py` PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3367913430 -> 06b6a018f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3367913435 -> 06b6a018f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1890#discussion_r3367913437 -> 06b6a018f
+Disposition: FIXED
+Commit: 06b6a018f
+Evidence: `scripts/release/check_ios_appstore_verify.py` now rejects submission-completion and ready-to-submit wording, scans protected Fastlane screenshot output for committed media binaries, and aligns localized ES/RU send/publish readiness fragments with the no-upload claim set. `tests/ios/test_ios_appstore_verify.py` adds deterministic regressions for the three reported false-green classes. Local evidence after the fix: focused pytest PASS; direct App Store validator PASS, 11 passed / 0 failed; `make validate-changed` PASS; `DEV_PYTHON=../../.venv/bin/python make ios-appstore-verify` PASS; `pre-commit run --all-files` PASS.
 
 ## Post-Open Role-Agent Finding Closure
 
