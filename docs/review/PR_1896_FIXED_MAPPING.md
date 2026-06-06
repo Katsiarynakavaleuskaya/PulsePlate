@@ -177,58 +177,33 @@ Evidence: `core/ai/semantic_cache_shadow_admission_harness.py`, `scripts/ci/chec
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367141396
 Disposition: NOT-A-BUG
-Evidence: `git show HEAD:docs/review/PR_1896_FIXED_MAPPING.md` shows the
-`bug-hunter` evidence line already uses `guarded`; local
-`docs/review/PR_1896_FIXED_MAPPING.md` lines 53-55 also contain `guarded`, not
-`guarde`.
+Evidence: `git show HEAD:docs/review/PR_1896_FIXED_MAPPING.md` shows the `bug-hunter` evidence line already uses `guarded`; local `docs/review/PR_1896_FIXED_MAPPING.md` lines 53-55 also contain `guarded`, not `guarde`.
 Reason: The CodeRabbit typo finding is stale against the current PR head.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367141892 -> ea2d5e498
 Disposition: FIXED
 Commit: ea2d5e498
-Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now passes the
-requested `produced_at` into the offline runner projection and includes
-`produced_at` in the stable report payload; the generated report/schema include
-the top-level ISO UTC field, and
-`tests/core/ai/test_semantic_cache_shadow_admission_harness.py` proves a
-non-default timestamp changes the stable evidence fingerprint.
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now passes the requested `produced_at` into the offline runner projection and includes `produced_at` in the stable report payload; the generated report/schema include the top-level ISO UTC field, and `tests/core/ai/test_semantic_cache_shadow_admission_harness.py` proves a non-default timestamp changes the stable evidence fingerprint.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367141893 -> ea2d5e498
 Disposition: FIXED
 Commit: ea2d5e498
-Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now computes
-real `sha256:<64 lowercase hex>` upstream fingerprints from the offline runner
-report, verification contracts, and semantic-cache gate document; the checker
-and schema enforce that digest shape, with focused test coverage for upstream
-fingerprint drift.
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now computes real `sha256:<64 lowercase hex>` upstream fingerprints from the offline runner report, verification contracts, and semantic-cache gate document; the checker and schema enforce that digest shape, with focused test coverage for upstream fingerprint drift.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367141894 -> ea2d5e498
 Disposition: FIXED
 Commit: ea2d5e498
-Evidence: `missing_bundle_fail_closed_shadow` now uses
-`not_evaluated_missing_bundle` instead of `admission_blocked_candidate`; the
-generated report shows `lookup_decision=not_evaluated`,
-`false_hit_is_false_hit=false`, `stop_serving=false`, and focused tests assert
-the fail-closed-before-cache-evaluation behavior.
+Evidence: `missing_bundle_fail_closed_shadow` now uses `not_evaluated_missing_bundle` instead of `admission_blocked_candidate`; the generated report shows `lookup_decision=not_evaluated`, `false_hit_is_false_hit=false`, `stop_serving=false`, and focused tests assert the fail-closed-before-cache-evaluation behavior.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367143853 -> ea2d5e498
 Disposition: FIXED
 Commit: ea2d5e498
-Evidence:
-`scripts/ci/check_semantic_cache_shadow_admission_harness.py` and
-`docs/orchestration/contracts/SEMANTIC_CACHE_SHADOW_ADMISSION_HARNESS_REPORT.schema.json`
-now use the same strict idempotency-key pattern
-`^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$`.
+Evidence: `scripts/ci/check_semantic_cache_shadow_admission_harness.py` and `docs/orchestration/contracts/SEMANTIC_CACHE_SHADOW_ADMISSION_HARNESS_REPORT.schema.json` now use the same strict idempotency-key pattern `^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367153663 -> ab9398a33
 Disposition: FIXED
 Commit: ab9398a33
-Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now derives
-`artifact_fingerprint` and the idempotency key from the stable payload plus the
-lineage/admission evidence block, with self-referential fingerprint and
-idempotency fields set to `null`; focused tests assert the fingerprint includes
-upstream assets, replay behavior, and admission behavior rather than only the
-pre-evidence payload.
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now derives `artifact_fingerprint` and the idempotency key from the stable payload plus the lineage/admission evidence block, with self-referential fingerprint and idempotency fields set to `null`; focused tests assert the fingerprint includes upstream assets, replay behavior, and admission behavior rather than only the pre-evidence payload.
 
 ## Post-Open Role And Security Evidence
 

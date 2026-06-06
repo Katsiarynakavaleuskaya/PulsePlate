@@ -8,8 +8,8 @@
   "generation_mode": "deterministic_static_shadow_synthetic_redacted_inputs",
   "evidence_asset": {
     "asset_type": "semantic_cache_shadow_admission_harness_report",
-    "artifact_fingerprint": "sha256:5caf234b4d058ab7bd0ed0f6693c4f1fe72b01ae6bca3752876ab8db704e1d40",
-    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:5caf234b4d058ab7",
+    "artifact_fingerprint": "sha256:fb0ab5ce2450e8febc75c437ae45cfadcc042bb2588cff49dd928757413fe1ea",
+    "idempotency_key": "idem:semantic-cache-shadow-admission-harness:fb0ab5ce2450e8fe",
     "upstream_assets": [
       {
         "asset_id": "semantic_cache_offline_admission_runner_report",
@@ -19,7 +19,7 @@
       {
         "asset_id": "verification_provenance_contracts",
         "asset_type": "verification_bundle_contract",
-        "fingerprint": "sha256:bca561e099afa7c5ff997bc678e36e80b7fe342b53f23f96078ce3202d8f9c00"
+        "fingerprint": "sha256:db6dbba0246520053005f10eab714715659aaf950fdbaa474d3335c893fda58b"
       },
       {
         "asset_id": "semantic_cache_gate_status",
