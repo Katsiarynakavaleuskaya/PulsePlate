@@ -118,6 +118,12 @@ Slack, GraphRAG, and semantic-cache gate opening remain out of scope.
   philosophical runtime, and insight application service suites.
 - PASS after review-driven fixes in `ea2d5e498`: `make validate-changed`
 - PASS after review-driven fixes in `ea2d5e498`: `pre-commit run --all-files`
+- PASS after lineage identity fix in `ab9398a33`:
+  `python3 scripts/ci/check_semantic_cache_shadow_admission_harness.py --check`
+- PASS after lineage identity fix in `ab9398a33`:
+  `pytest -q tests/core/ai/test_semantic_cache_shadow_admission_harness.py`
+- PASS after lineage identity fix in `ab9398a33`: `make validate-changed`
+- PASS after lineage identity fix in `ab9398a33`: `pre-commit run --all-files`
 - PASS: pre-push hooks, including changed-files mypy, pip-audit, backend
   pre-push tests, full-repo Bandit, and Docker build test.
 
@@ -213,6 +219,16 @@ Evidence:
 `docs/orchestration/contracts/SEMANTIC_CACHE_SHADOW_ADMISSION_HARNESS_REPORT.schema.json`
 now use the same strict idempotency-key pattern
 `^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3367153663 -> ab9398a33
+Disposition: FIXED
+Commit: ab9398a33
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now derives
+`artifact_fingerprint` and the idempotency key from the stable payload plus the
+lineage/admission evidence block, with self-referential fingerprint and
+idempotency fields set to `null`; focused tests assert the fingerprint includes
+upstream assets, replay behavior, and admission behavior rather than only the
+pre-evidence payload.
 
 ## Post-Open Role And Security Evidence
 
