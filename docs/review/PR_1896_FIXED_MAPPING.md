@@ -238,6 +238,12 @@ Disposition: FIXED
 Commit: 481dba3ee
 Evidence: `test_shadow_harness_produced_at_changes_stable_artifact_fingerprint` now compares `evidence_asset.artifact_fingerprint` directly and also asserts the upstream assets differ for a non-default `produced_at`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#pullrequestreview-4443534546 -> 3452ed712
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#discussion_r3368014930 -> 3452ed712
+Disposition: FIXED
+Commit: 3452ed712
+Evidence: `core/ai/semantic_cache_shadow_admission_harness.py` now fingerprints the verification upstream from `VERIFICATION_PROVENANCE_CONTRACT_VERSION` plus the explicit verification field map, and fingerprints the semantic-cache gate upstream from `SEMANTIC_CACHE_GATE_CONTRACT_VERSION` plus the closed marker payload; `tests/core/ai/test_semantic_cache_shadow_admission_harness.py` asserts the versioned payloads drive the upstream fingerprints without reintroducing core file I/O or heavy runtime imports.
+
 ## Post-Open Role And Security Evidence
 
 - `qa-engineer-agent`: PASS at `4ede03652`; Phase2 body/artifact validation,
