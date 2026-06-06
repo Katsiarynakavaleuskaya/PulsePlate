@@ -1,0 +1,1054 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "report_version",
+    "generated_at",
+    "produced_at",
+    "scope",
+    "generation_mode",
+    "evidence_asset",
+    "source_ids",
+    "authority_flags",
+    "path_specs",
+    "path_results",
+    "projection_summary",
+    "backend_label_context",
+    "final_admission_decision",
+    "redaction_assertions",
+    "source_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "report_id": {
+      "type": "string",
+      "const": "semantic_cache_shadow_admission_harness_report"
+    },
+    "report_version": {
+      "type": "string",
+      "const": "2026-06-06"
+    },
+    "generated_at": {
+      "type": "string",
+      "const": "static-2026-06-06"
+    },
+    "produced_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "scope": {
+      "type": "string",
+      "const": "internal_only_semantic_cache_shadow_admission_harness"
+    },
+    "generation_mode": {
+      "type": "string",
+      "const": "deterministic_static_shadow_synthetic_redacted_inputs"
+    },
+    "evidence_asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_type",
+        "artifact_fingerprint",
+        "idempotency_key",
+        "upstream_assets",
+        "replay_behavior",
+        "admission_behavior"
+      ],
+      "properties": {
+        "asset_type": {
+          "type": "string",
+          "const": "semantic_cache_shadow_admission_harness_report"
+        },
+        "artifact_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^idem:semantic-cache-shadow-admission-harness:[a-f0-9]{16}$"
+        },
+        "upstream_assets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "asset_id",
+              "asset_type",
+              "fingerprint"
+            ],
+            "properties": {
+              "asset_id": {
+                "type": "string"
+              },
+              "asset_type": {
+                "type": "string"
+              },
+              "fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "replay_behavior": {
+          "type": "string",
+          "const": "deterministic_static_replay_safe"
+        },
+        "admission_behavior": {
+          "type": "string",
+          "const": "metadata_only_shadow_report_no_runtime_admission"
+        }
+      }
+    },
+    "source_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semantic_cache_offline_runner",
+        "sc_g2",
+        "sc_g3",
+        "sc_g4",
+        "sc_g5",
+        "verification_contracts",
+        "insight_runtime",
+        "rag_orchestration",
+        "philosophical_runtime",
+        "semantic_cache_gate"
+      ],
+      "properties": {
+        "semantic_cache_offline_runner": {
+          "type": "string",
+          "const": "core/ai/semantic_cache_offline_admission_runner.py"
+        },
+        "sc_g2": {
+          "type": "string",
+          "const": "core/ai/exact_fuzzy_cache.py"
+        },
+        "sc_g3": {
+          "type": "string",
+          "const": "core/ai/cache_observability.py"
+        },
+        "sc_g4": {
+          "type": "string",
+          "const": "core/ai/bounded_insight_semantic_cache.py"
+        },
+        "sc_g5": {
+          "type": "string",
+          "const": "core/ai/semantic_cache_backend_selection.py"
+        },
+        "verification_contracts": {
+          "type": "string",
+          "const": "core/verification/contracts.py"
+        },
+        "insight_runtime": {
+          "type": "string",
+          "const": "core/ai/insight_runtime.py"
+        },
+        "rag_orchestration": {
+          "type": "string",
+          "const": "core/rag/orchestration.py"
+        },
+        "philosophical_runtime": {
+          "type": "string",
+          "const": "core/insight/philosophical_runtime.py"
+        },
+        "semantic_cache_gate": {
+          "type": "string",
+          "const": "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+        }
+      }
+    },
+    "authority_flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_api_changed",
+        "openapi_changed",
+        "db_persistence_changed",
+        "provider_changed",
+        "frontend_or_ios_changed",
+        "runtime_authority_changed",
+        "runtime_serving_behavior_changed",
+        "admission_authority_changed",
+        "runtime_allowed",
+        "implementation_allowed",
+        "semantic_cache_allowed",
+        "semantic_cache_runtime_allowed",
+        "semantic_cache_implementation_allowed",
+        "cache_read_allowed",
+        "cache_write_allowed",
+        "serving_allowed",
+        "slack_or_operator_authority_allowed",
+        "graphrag_allowed",
+        "embedding_or_vector_changed",
+        "redis_or_gptcache_changed",
+        "semantic_cache_gate_status"
+      ],
+      "properties": {
+        "public_api_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "openapi_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "db_persistence_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "provider_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "frontend_or_ios_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "runtime_authority_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "runtime_serving_behavior_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "admission_authority_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_cache_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_cache_runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_cache_implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_read_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_write_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "serving_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "slack_or_operator_authority_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "graphrag_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "embedding_or_vector_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "redis_or_gptcache_changed": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_cache_gate_status": {
+          "type": "string",
+          "const": "closed"
+        }
+      }
+    },
+    "path_specs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path_id",
+          "path_family",
+          "route_label",
+          "runner_scenario_id",
+          "verification_bundle_state",
+          "verification_overall_status",
+          "verification_admission_allowed",
+          "rag_state",
+          "runtime_validation_state",
+          "source_freshness_label",
+          "expected_provenance_fields",
+          "present_provenance_fields",
+          "missing_required_provenance_fields",
+          "provenance_complete",
+          "expected_shadow_label",
+          "expected_action",
+          "request_fingerprint",
+          "context_fingerprint",
+          "response_fingerprint",
+          "verification_bundle_fingerprint",
+          "reason_codes",
+          "cache_read_allowed",
+          "cache_write_allowed",
+          "serving_allowed"
+        ],
+        "properties": {
+          "path_id": {
+            "type": "string"
+          },
+          "path_family": {
+            "type": "string"
+          },
+          "route_label": {
+            "type": "string"
+          },
+          "runner_scenario_id": {
+            "type": "string"
+          },
+          "verification_bundle_state": {
+            "type": "string"
+          },
+          "verification_overall_status": {
+            "type": "string"
+          },
+          "verification_admission_allowed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "rag_state": {
+            "type": "string"
+          },
+          "runtime_validation_state": {
+            "type": "string"
+          },
+          "source_freshness_label": {
+            "type": "string"
+          },
+          "present_provenance_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_required_provenance_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "request_fingerprint": {
+            "type": "string"
+          },
+          "context_fingerprint": {
+            "type": "string"
+          },
+          "response_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verification_bundle_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expected_provenance_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 8,
+            "maxItems": 8
+          },
+          "provenance_complete": {
+            "type": "boolean"
+          },
+          "expected_shadow_label": {
+            "type": "string"
+          },
+          "expected_action": {
+            "type": "string"
+          },
+          "cache_read_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "cache_write_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "serving_allowed": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      }
+    },
+    "path_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path_id",
+          "path_family",
+          "route_label",
+          "runner_scenario_id",
+          "verification_bundle_present",
+          "verification_bundle_state",
+          "verification_overall_status",
+          "verification_admission_allowed",
+          "provenance_complete",
+          "present_provenance_fields",
+          "missing_required_provenance_fields",
+          "source_freshness_label",
+          "rag_state",
+          "runtime_validation_state",
+          "lookup_decision",
+          "match_mode",
+          "score_bps",
+          "false_hit_outcome",
+          "false_hit_is_false_hit",
+          "false_hit_blocking_reasons",
+          "stop_serving",
+          "bounded_decision",
+          "bounded_reason_codes",
+          "shadow_label",
+          "reason_codes",
+          "request_fingerprint",
+          "context_fingerprint",
+          "response_fingerprint",
+          "verification_bundle_fingerprint",
+          "semantic_cache_gate_status",
+          "runtime_allowed",
+          "implementation_allowed",
+          "cache_read_allowed",
+          "cache_write_allowed",
+          "serving_allowed"
+        ],
+        "properties": {
+          "path_id": {
+            "type": "string"
+          },
+          "path_family": {
+            "type": "string"
+          },
+          "route_label": {
+            "type": "string"
+          },
+          "runner_scenario_id": {
+            "type": "string"
+          },
+          "verification_bundle_state": {
+            "type": "string"
+          },
+          "verification_overall_status": {
+            "type": "string"
+          },
+          "verification_admission_allowed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "rag_state": {
+            "type": "string"
+          },
+          "runtime_validation_state": {
+            "type": "string"
+          },
+          "source_freshness_label": {
+            "type": "string"
+          },
+          "present_provenance_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_required_provenance_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "request_fingerprint": {
+            "type": "string"
+          },
+          "context_fingerprint": {
+            "type": "string"
+          },
+          "response_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verification_bundle_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verification_bundle_present": {
+            "type": "boolean"
+          },
+          "provenance_complete": {
+            "type": "boolean"
+          },
+          "lookup_decision": {
+            "type": "string"
+          },
+          "match_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score_bps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "false_hit_outcome": {
+            "type": "string"
+          },
+          "false_hit_is_false_hit": {
+            "type": "boolean"
+          },
+          "false_hit_blocking_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stop_serving": {
+            "type": "boolean"
+          },
+          "bounded_decision": {
+            "type": "string"
+          },
+          "bounded_reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "shadow_label": {
+            "type": "string"
+          },
+          "semantic_cache_gate_status": {
+            "type": "string",
+            "const": "closed"
+          },
+          "runtime_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "implementation_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "cache_read_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "cache_write_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "serving_allowed": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      }
+    },
+    "projection_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path_count",
+        "path_ids",
+        "shadow_label_counts",
+        "semantic_cache_gate_status",
+        "runtime_allowed",
+        "implementation_allowed",
+        "cache_read_allowed",
+        "cache_write_allowed",
+        "serving_allowed"
+      ],
+      "properties": {
+        "path_count": {
+          "type": "integer",
+          "const": 14
+        },
+        "path_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "shadow_label_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "semantic_cache_gate_status": {
+          "type": "string",
+          "const": "closed"
+        },
+        "runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_read_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_write_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "serving_allowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "backend_label_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matrix_id",
+        "policy_version",
+        "backend_labels",
+        "final_decision",
+        "candidate_decisions",
+        "runtime_allowed",
+        "implementation_allowed",
+        "cache_read_allowed",
+        "cache_write_allowed",
+        "serving_allowed"
+      ],
+      "properties": {
+        "matrix_id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "backend_labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "final_decision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "backend_label",
+            "candidate_id",
+            "decision",
+            "decision_id",
+            "implementation_allowed",
+            "metadata",
+            "policy_version",
+            "reason_codes",
+            "rejected_candidate_ids",
+            "runtime_allowed",
+            "selected_backend_label",
+            "selected_candidate_id"
+          ],
+          "properties": {
+            "backend_label": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "candidate_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "decision": {
+              "type": "string"
+            },
+            "decision_id": {
+              "type": "string"
+            },
+            "implementation_allowed": {
+              "type": "boolean",
+              "const": false
+            },
+            "metadata": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision_scope",
+                "serves_cached_payload"
+              ],
+              "properties": {
+                "decision_scope": {
+                  "type": "string",
+                  "const": "label_only"
+                },
+                "serves_cached_payload": {
+                  "type": "boolean",
+                  "const": false
+                }
+              }
+            },
+            "policy_version": {
+              "type": "string"
+            },
+            "reason_codes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rejected_candidate_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "runtime_allowed": {
+              "type": "boolean",
+              "const": false
+            },
+            "selected_backend_label": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "selected_candidate_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "candidate_decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "backend_label",
+              "candidate_id",
+              "decision",
+              "decision_id",
+              "implementation_allowed",
+              "metadata",
+              "policy_version",
+              "reason_codes",
+              "rejected_candidate_ids",
+              "runtime_allowed",
+              "selected_backend_label",
+              "selected_candidate_id"
+            ],
+            "properties": {
+              "backend_label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "candidate_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": "string"
+              },
+              "decision_id": {
+                "type": "string"
+              },
+              "implementation_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "metadata": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "decision_scope",
+                  "serves_cached_payload"
+                ],
+                "properties": {
+                  "decision_scope": {
+                    "type": "string",
+                    "const": "label_only"
+                  },
+                  "serves_cached_payload": {
+                    "type": "boolean",
+                    "const": false
+                  }
+                }
+              },
+              "policy_version": {
+                "type": "string"
+              },
+              "reason_codes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rejected_candidate_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "runtime_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "selected_backend_label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "selected_candidate_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_read_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_write_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "serving_allowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "final_admission_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "reason_codes",
+        "semantic_cache_gate_status",
+        "runtime_allowed",
+        "implementation_allowed",
+        "cache_read_allowed",
+        "cache_write_allowed",
+        "serving_allowed"
+      ],
+      "properties": {
+        "decision": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "semantic_cache_gate_status": {
+          "type": "string",
+          "const": "closed"
+        },
+        "runtime_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "implementation_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_read_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_write_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "serving_allowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "redaction_assertions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_prompt_absent",
+        "raw_query_absent",
+        "normalized_query_absent",
+        "raw_input_absent",
+        "raw_context_absent",
+        "raw_answer_absent",
+        "raw_response_absent",
+        "provider_payloads_absent",
+        "local_paths_absent",
+        "secrets_absent",
+        "slack_ids_absent",
+        "workflow_logs_absent",
+        "provider_logs_absent",
+        "operator_artifacts_absent",
+        "health_data_absent",
+        "user_data_absent"
+      ],
+      "properties": {
+        "raw_prompt_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_query_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "normalized_query_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_input_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_context_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_answer_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "raw_response_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "provider_payloads_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "local_paths_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "secrets_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "slack_ids_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "workflow_logs_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "provider_logs_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "operator_artifacts_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "health_data_absent": {
+          "type": "boolean",
+          "const": true
+        },
+        "user_data_absent": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "symbol"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -84,6 +84,7 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "io.open",
     "Path.write_text",
     "Path.write_bytes",
+    "Path.read_bytes",
     "Path.open",
     "Path.chmod",
     "Path.hardlink_to",
@@ -92,6 +93,7 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "Path.symlink_to",
     "pathlib.Path.write_text",
     "pathlib.Path.write_bytes",
+    "pathlib.Path.read_bytes",
     "pathlib.Path.open",
     "pathlib.Path.chmod",
     "pathlib.Path.hardlink_to",
@@ -214,10 +216,15 @@ PATH_RETURNING_METHODS = frozenset(
 )
 
 
-def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
+def assert_no_forbidden_semantic_cache_imports(
+    path: Path,
+    *,
+    additional_allowed_imports: tuple[str, ...] = (),
+) -> None:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     imports: list[str] = []
     import_aliases: dict[str, str] = {}
+    allowed_imports = (*ALLOWED_SEMANTIC_CACHE_IMPORTS, *additional_allowed_imports)
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -279,10 +286,7 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
     offenders = [
         name
         for name in imports
-        if not any(
-            name == allowed or name.startswith(f"{allowed}.")
-            for allowed in ALLOWED_SEMANTIC_CACHE_IMPORTS
-        )
+        if not any(name == allowed or name.startswith(f"{allowed}.") for allowed in allowed_imports)
         if any(
             name == prefix or name.startswith(f"{prefix}.")
             for prefix in FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES

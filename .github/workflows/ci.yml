@@ -329,6 +329,7 @@ jobs:
             'docs/orchestration/contracts/PHILOSOPHY_SOURCE_CORPUS_INDEX.json' \
             'docs/orchestration/contracts/VERIFICATION_PROVENANCE_ADMISSION_REPORT.json' \
             'docs/orchestration/contracts/SEMANTIC_CACHE_OFFLINE_ADMISSION_RUNNER_REPORT.json' \
+            'docs/orchestration/contracts/SEMANTIC_CACHE_SHADOW_ADMISSION_HARNESS_REPORT.json' \
             ':(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json' \
             'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json')
 
@@ -757,6 +758,7 @@ jobs:
                   tests/core/ai/test_exact_fuzzy_cache.py \
                   tests/core/ai/test_semantic_cache_backend_selection.py \
                   tests/core/ai/test_semantic_cache_offline_admission_runner.py \
+                  tests/core/ai/test_semantic_cache_shadow_admission_harness.py \
                   tests/test_app_endpoints_combined.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
@@ -1031,6 +1033,7 @@ jobs:
                   tests/core/ai/test_exact_fuzzy_cache.py \
                   tests/core/ai/test_semantic_cache_backend_selection.py \
                   tests/core/ai/test_semantic_cache_offline_admission_runner.py \
+                  tests/core/ai/test_semantic_cache_shadow_admission_harness.py \
                   tests/test_app_endpoints_combined.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
