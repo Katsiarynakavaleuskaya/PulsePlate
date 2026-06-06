@@ -113,7 +113,27 @@ merge-readiness claim.
 
 ## Post-Open Review Gates
 
-- [ ] `qa-engineer-agent`
+- [x] `qa-engineer-agent`
+  - Disposition: FIXED
+  - Commit: `1171d9314830102c4e20a73ffb6c5de9d38d1016`
+  - Evidence: QA found the pushed head was missing the canonical
+    `docs/review/PR_1895_FIXED_MAPPING.md` artifact and PR-body Phase2 mirror.
+    The mapping artifact was committed, local
+    `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1895`
+    passed, `make validate-changed` passed, `pre-commit run --all-files`
+    passed, and pre-push hooks passed. The PR-body mirror is refreshed from
+    this artifact after push.
+  - Disposition: FIXED
+  - Commit: `c1f8a31ad6a17e3f7fde0d8c4da21990f8eaa155`
+  - Evidence: QA found live-smoke validation could fail before redacted
+    activation evidence was written or uploaded. The workflow now captures the
+    live-smoke exit status without printing live command output, writes
+    `smoke_failed_safely` evidence on nonzero smoke/readiness status, uploads
+    the redacted artifact with `if: always()`, and then fails the job. The
+    workflow contract test asserts the failure-safe status, output suppression,
+    upload-on-failure, and continued absence of `continue-on-error`, `|| true`,
+    raw Slack/GitHub identifiers, PR/review/merge mutation, and
+    `repository_dispatch`.
 - [ ] `bug-hunter`
 - [ ] `security-auditor`
 - [ ] Codex Security diff scan / finding discovery
