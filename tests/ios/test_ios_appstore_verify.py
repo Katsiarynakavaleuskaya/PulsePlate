@@ -486,6 +486,9 @@ def test_fitchef_release_readiness_validator_rejects_repeated_localized_claims(
         "€9,99",
         "₽ 999",
         "EUR 9.99",
+        "EUR9.99",
+        "USD9.99",
+        "RUB999",
     ],
 )
 def test_fitchef_release_readiness_validator_rejects_localized_pricing_claims(
