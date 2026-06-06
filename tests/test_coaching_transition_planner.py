@@ -94,7 +94,7 @@ def test_markov_transition_schemas_are_frozen_strict_and_default_safe() -> None:
         rank=1,
         scenario="mascot_insight",
         probability=1.0,
-        reasons=("cold_start_default",),
+        reasons=("cold_start_default", "default_prior_not_observed_slip"),
     )
     plan = MarkovCoachingTransitionPlanV1(
         transition_state="cold_start_default",
@@ -102,7 +102,7 @@ def test_markov_transition_schemas_are_frozen_strict_and_default_safe() -> None:
         ranked_scenarios=(probability,),
         recommended_scenario="mascot_insight",
         confidence=0.35,
-        reasons=("cold_start_default",),
+        reasons=("cold_start_default", "default_prior_not_observed_slip"),
     )
 
     assert plan.plan_version == "markov_transition_v1"
@@ -364,6 +364,24 @@ def test_transition_plan_schema_rejects_impossible_rank_or_probability_shapes() 
         )
 
 
+def test_transition_plan_schema_rejects_non_policy_ranked_distribution() -> None:
+    with pytest.raises(ValidationError, match="fixed transition policy"):
+        MarkovCoachingTransitionPlanV1(
+            transition_state="slip_support_needed",
+            available_scenarios=("mascot_insight", "slip_support"),
+            ranked_scenarios=(
+                MarkovScenarioProbability(
+                    rank=1,
+                    scenario="slip_support",
+                    probability=1.0,
+                    reasons=("observed_slip_like_behavior",),
+                ),
+            ),
+            confidence=0.78,
+            reasons=("observed_slip_like_behavior",),
+        )
+
+
 def test_transition_plan_schema_rejects_unavailable_ranked_scenarios() -> None:
     unavailable_probability = MarkovScenarioProbability(
         rank=1,
@@ -409,6 +427,24 @@ def test_prompt_safe_markov_context_rejects_transition_state_steering() -> None:
     assert plan.recommended_scenario == "mascot_insight"
     with pytest.raises(ValidationError, match="transition_state"):
         to_prompt_safe_markov_context(tampered_plan)
+
+    self_consistent_tampered_plan = plan.model_copy(
+        update={
+            "transition_state": "slip_support_needed",
+            "ranked_scenarios": (
+                MarkovScenarioProbability(
+                    rank=1,
+                    scenario="slip_support",
+                    probability=1.0,
+                    reasons=plan.reasons,
+                ),
+            ),
+            "recommended_scenario": "slip_support",
+            "confidence": 0.99,
+        }
+    )
+    with pytest.raises(ValidationError, match="fixed transition policy|plan reasons"):
+        to_prompt_safe_markov_context(self_consistent_tampered_plan)
 
     with pytest.raises(ValidationError, match="transition_state"):
         PromptSafeMarkovTransitionContext(

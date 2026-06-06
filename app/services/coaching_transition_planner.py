@@ -12,6 +12,7 @@ from app.schemas.user_coaching_state import (
     FitChefTransitionReason,
     FitChefTransitionState,
     MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE,
+    MARKOV_TRANSITION_SCENARIO_TIEBREAK,
     MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE,
     MarkovCoachingTransitionPlanV1,
     MarkovScenarioProbability,
@@ -19,14 +20,9 @@ from app.schemas.user_coaching_state import (
     UserCoachingStateV1,
 )
 
-_SCENARIO_TIEBREAK: tuple[FitChefCoachingScenario, ...] = (
-    "mascot_insight",
-    "weekly_reflection",
-    "slip_support",
-    "distortion_simulator",
-    "identity_loop_mapper",
-)
-_SCENARIO_ORDER = {scenario: index for index, scenario in enumerate(_SCENARIO_TIEBREAK)}
+_SCENARIO_ORDER = {
+    scenario: index for index, scenario in enumerate(MARKOV_TRANSITION_SCENARIO_TIEBREAK)
+}
 
 _PRIMARY_SCENARIO_BY_STATE: dict[FitChefTransitionState, FitChefCoachingScenario | None] = {
     "cold_start_default": "mascot_insight",
@@ -131,7 +127,7 @@ def _rank_scenarios(
     weights = MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE[transition_state]
     weighted = [
         (scenario, weights.get(scenario, 0.0))
-        for scenario in _SCENARIO_TIEBREAK
+        for scenario in MARKOV_TRANSITION_SCENARIO_TIEBREAK
         if scenario in available_scenarios and weights.get(scenario, 0.0) > 0.0
     ]
     total = sum(weight for _, weight in weighted)

@@ -63,6 +63,16 @@ MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE: dict[FitChefTransitionState, float] 
     "weekly_reflection_due": 0.66,
     "no_recommendation_available": 0.0,
 }
+MARKOV_TRANSITION_SCENARIO_TIEBREAK: tuple[FitChefCoachingScenario, ...] = (
+    "mascot_insight",
+    "weekly_reflection",
+    "slip_support",
+    "distortion_simulator",
+    "identity_loop_mapper",
+)
+_MARKOV_TRANSITION_SCENARIO_ORDER = {
+    scenario: index for index, scenario in enumerate(MARKOV_TRANSITION_SCENARIO_TIEBREAK)
+}
 MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE: dict[
     FitChefTransitionState,
     dict[FitChefCoachingScenario, float],
@@ -316,11 +326,73 @@ class MarkovScenarioProbability(BaseModel):
     reasons: tuple[FitChefTransitionReason, ...] = ()
 
 
+def _expected_markov_ranked_policy(
+    *,
+    transition_state: FitChefTransitionState,
+    available_scenarios: tuple[FitChefCoachingScenario, ...],
+) -> tuple[tuple[FitChefCoachingScenario, float], ...]:
+    weights = MARKOV_TRANSITION_SCENARIO_WEIGHTS_BY_STATE[transition_state]
+    weighted = [
+        (scenario, weights.get(scenario, 0.0))
+        for scenario in MARKOV_TRANSITION_SCENARIO_TIEBREAK
+        if scenario in available_scenarios and weights.get(scenario, 0.0) > 0.0
+    ]
+    total = sum(weight for _, weight in weighted)
+    if total <= 0.0:
+        return ()
+
+    ranked = sorted(
+        ((scenario, weight / total) for scenario, weight in weighted),
+        key=lambda item: (-item[1], _MARKOV_TRANSITION_SCENARIO_ORDER[item[0]]),
+    )
+    probabilities = [round(probability, 4) for _, probability in ranked]
+    probabilities[0] = round(max(0.0, min(probabilities[0] + (1.0 - sum(probabilities)), 1.0)), 4)
+    return tuple((scenario, probabilities[index]) for index, (scenario, _) in enumerate(ranked))
+
+
+def _validate_markov_transition_reasons(
+    *,
+    transition_state: FitChefTransitionState,
+    reasons: tuple[FitChefTransitionReason, ...],
+) -> None:
+    reason_set = set(reasons)
+    slip_reasons = {
+        "observed_slip_like_behavior",
+        "explicit_slip_event",
+        "observed_high_risk_adherence",
+    }
+    cold_reasons = {"cold_start_default", "default_prior_not_observed_slip"}
+
+    if transition_state == "cold_start_default":
+        if not cold_reasons.issubset(reason_set):
+            raise ValueError("reasons must match transition_state")
+        if reason_set & (slip_reasons | {"day_close_observed", "no_available_scenarios"}):
+            raise ValueError("reasons must match transition_state")
+    elif transition_state == "slip_support_needed":
+        if not (reason_set & slip_reasons):
+            raise ValueError("reasons must match transition_state")
+        if reason_set & (cold_reasons | {"day_close_observed", "no_available_scenarios"}):
+            raise ValueError("reasons must match transition_state")
+    elif transition_state == "weekly_reflection_due":
+        if "day_close_observed" not in reason_set:
+            raise ValueError("reasons must match transition_state")
+        if reason_set & (slip_reasons | cold_reasons | {"no_available_scenarios"}):
+            raise ValueError("reasons must match transition_state")
+    elif transition_state == "steady_state_default":
+        if reason_set & (
+            slip_reasons | cold_reasons | {"day_close_observed", "no_available_scenarios"}
+        ):
+            raise ValueError("reasons must match transition_state")
+    elif "no_available_scenarios" not in reason_set:
+        raise ValueError("reasons must match transition_state")
+
+
 def _validate_markov_ranked_scenarios(
     *,
     transition_state: FitChefTransitionState,
     ranked_scenarios: tuple[MarkovScenarioProbability, ...],
     available_scenarios: tuple[FitChefCoachingScenario, ...] | None = None,
+    reasons: tuple[FitChefTransitionReason, ...],
 ) -> None:
     expected_ranks = tuple(range(1, len(ranked_scenarios) + 1))
     actual_ranks = tuple(ranked.rank for ranked in ranked_scenarios)
@@ -348,6 +420,17 @@ def _validate_markov_ranked_scenarios(
     total_probability = round(sum(ranked.probability for ranked in ranked_scenarios), 4)
     if total_probability != 1.0:
         raise ValueError("ranked_scenarios probabilities must sum to 1.0")
+    if available_scenarios is not None:
+        expected_policy = _expected_markov_ranked_policy(
+            transition_state=transition_state,
+            available_scenarios=available_scenarios,
+        )
+        actual_policy = tuple((ranked.scenario, ranked.probability) for ranked in ranked_scenarios)
+        if actual_policy != expected_policy:
+            raise ValueError("ranked_scenarios must match fixed transition policy")
+    if any(ranked.reasons != reasons for ranked in ranked_scenarios):
+        raise ValueError("ranked_scenarios reasons must match plan reasons")
+    _validate_markov_transition_reasons(transition_state=transition_state, reasons=reasons)
 
 
 class MarkovCoachingTransitionPlanV1(BaseModel):
@@ -374,6 +457,7 @@ class MarkovCoachingTransitionPlanV1(BaseModel):
             transition_state=self.transition_state,
             ranked_scenarios=ranked_scenarios,
             available_scenarios=self.available_scenarios,
+            reasons=self.reasons,
         )
         recommended = ranked_scenarios[0].scenario if ranked_scenarios else None
         confidence = _markov_transition_confidence_ceiling(
@@ -407,6 +491,7 @@ class PromptSafeMarkovTransitionContext(BaseModel):
         _validate_markov_ranked_scenarios(
             transition_state=self.transition_state,
             ranked_scenarios=ranked_scenarios,
+            reasons=self.reasons,
         )
         recommended = ranked_scenarios[0].scenario if ranked_scenarios else None
         confidence = _markov_transition_confidence_ceiling(
