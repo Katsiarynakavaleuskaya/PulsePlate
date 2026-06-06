@@ -243,6 +243,7 @@ jobs:
             --validate-secret-presence
 
       - name: Run bounded live Socket Mode smoke
+        id: live_smoke
         if: inputs.dry_run == 'false'
         env:
           SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
@@ -255,9 +256,18 @@ jobs:
           EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
         run: |
           set -euo pipefail
+          set +e
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-live-smoke \
-            --dispatch-mode dry-run
+            --dispatch-mode dry-run >/dev/null 2>&1
+          smoke_status=$?
+          set -e
+          printf 'smoke_status=%s\n' "$smoke_status" >> "$GITHUB_OUTPUT"
+          if [ "$smoke_status" -eq 0 ]; then
+            printf 'dispatch_outcome_class=smoke_recorded\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'dispatch_outcome_class=smoke_failed_safely\n' >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Write redacted live activation evidence
         if: inputs.dry_run == 'false'
@@ -272,12 +282,17 @@ jobs:
           EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
         run: |
           set -euo pipefail
+          smoke_status="${{ steps.live_smoke.outputs.smoke_status }}"
+          dispatch_outcome_class="${{ steps.live_smoke.outputs.dispatch_outcome_class }}"
           set +e
           report_json="$(python3 -m scripts.orchestration.experiment_slack_socket_bridge \
-            --activation-readiness-report)"
+            --activation-readiness-report 2>/dev/null)"
           readiness_status=$?
           set -e
-          REPORT_JSON="$report_json" python3 - <<'PY'
+          if [ "$readiness_status" -ne 0 ]; then
+            dispatch_outcome_class="smoke_failed_safely"
+          fi
+          REPORT_JSON="$report_json" DISPATCH_OUTCOME_CLASS="$dispatch_outcome_class" python3 - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -288,7 +303,7 @@ jobs:
 
           evidence = build_private_pilot_activation_evidence(
               json.loads(os.environ["REPORT_JSON"]),
-              dispatch_outcome_class="smoke_recorded",
+              dispatch_outcome_class=os.environ["DISPATCH_OUTCOME_CLASS"],
           )
           target_dir = Path("private-pilot-activation-evidence")
           target_dir.mkdir(parents=True, exist_ok=True)
@@ -297,6 +312,9 @@ jobs:
               encoding="utf-8",
           )
           PY
+          if [ "$smoke_status" -ne 0 ]; then
+            exit "$smoke_status"
+          fi
           exit "$readiness_status"
 
       - name: Record sanitized live-smoke evidence summary
@@ -315,6 +333,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload redacted private-pilot activation evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: private-pilot-activation-evidence

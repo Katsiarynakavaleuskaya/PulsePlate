@@ -226,7 +226,9 @@ private-pilot activation evidence contract and uploads it as the
 `private-pilot-activation-evidence` artifact. The artifact contains labels only;
 it is not workflow log evidence and it does not grant Slack, GitHub, PR,
 review-thread, merge, token-minting, workflow-selection, or semantic-cache
-authority.
+authority. If bounded live-smoke validation fails after prerequisites are
+checked, the workflow writes `smoke_failed_safely` evidence, uploads the same
+redacted artifact, and then fails the job.
 
 The live-smoke network check is bounded and exits. It validates the app-level
 Socket Mode credential by opening a temporary Socket Mode connection URL with

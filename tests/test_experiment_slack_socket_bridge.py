@@ -3958,6 +3958,7 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert dry_readiness_step["if"] == "inputs.dry_run != 'false'"
     assert live_readiness_step["if"] == "inputs.dry_run == 'false'"
     assert dry_evidence_step["if"] == "inputs.dry_run != 'false'"
+    assert runtime_step["id"] == "live_smoke"
     assert live_evidence_step["if"] == "inputs.dry_run == 'false'"
     assert "SLACK_APP_TOKEN" not in dry_readiness_step["env"]
     assert "SLACK_BOT_TOKEN" not in dry_readiness_step["env"]
@@ -4030,7 +4031,9 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "--validate-live-smoke" in workflow_text
     assert "build_private_pilot_activation_evidence" in workflow_text
     assert 'dispatch_outcome_class="dry_run_only"' in workflow_text
-    assert 'dispatch_outcome_class="smoke_recorded"' in workflow_text
+    assert "dispatch_outcome_class=smoke_recorded" in workflow_text
+    assert "dispatch_outcome_class=smoke_failed_safely" in workflow_text
+    assert 'dispatch_outcome_class=os.environ["DISPATCH_OUTCOME_CLASS"]' in workflow_text
     assert "private-pilot-activation-evidence/activation-evidence.json" in workflow_text
     assert "--run-socket" not in workflow_text
     assert "--audit-retention report" in workflow_text
@@ -4061,6 +4064,19 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert steps.index(mask_step) < steps.index(runtime_step)
     assert steps.index(dry_readiness_step) < steps.index(runtime_step)
     assert steps.index(live_readiness_step) < steps.index(runtime_step)
+    assert ">/dev/null 2>&1" in runtime_step["run"]
+    assert "smoke_status=$?" in runtime_step["run"]
+    assert "GITHUB_OUTPUT" in runtime_step["run"]
+    assert "dispatch_outcome_class=smoke_failed_safely" in runtime_step["run"]
+    assert (
+        'smoke_status="${{ steps.live_smoke.outputs.smoke_status }}"' in live_evidence_step["run"]
+    )
+    assert (
+        'dispatch_outcome_class="${{ steps.live_smoke.outputs.dispatch_outcome_class }}"'
+        in live_evidence_step["run"]
+    )
+    assert "DISPATCH_OUTCOME_CLASS" in live_evidence_step["run"]
+    assert 'exit "$smoke_status"' in live_evidence_step["run"]
     for readiness_step in (dry_readiness_step, live_readiness_step):
         assert "render_activation_readiness_summary" in readiness_step["run"]
         assert "GITHUB_STEP_SUMMARY" in readiness_step["run"]
@@ -4093,6 +4109,7 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "${{ inputs.hypothesis_sha256 }}" not in mask_step["run"]
     assert "$GITHUB_STEP_SUMMARY" in summary_step["run"]
     assert "raw tokens, token prefixes, Slack IDs" in summary_step["run"]
+    assert upload_step["if"] == "always()"
     assert upload_step["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
     assert upload_step["with"] == {
         "if-no-files-found": "error",
