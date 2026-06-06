@@ -266,5 +266,9 @@ Evidence: `test_shadow_harness_produced_at_changes_stable_artifact_fingerprint` 
 ## Merge Readiness
 
 - Not claimed.
+- PR body mirror refreshed after review-fix mapping: body uses the required
+  `### Fixed in Commit Mapping` mirror heading while this canonical artifact
+  keeps `## Fixed in Commit Mapping`.
+- PASS: local Phase2 PR-body validation against the refreshed body mirror.
 - Current-head CI, bot review state, strict disposition checks, strict
   merge-readiness checks, and wait-window remain pending.
