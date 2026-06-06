@@ -118,20 +118,23 @@ path. Current-head CI parity remains required before merge readiness.
 
 ## Discussion Thread Pass
 
-- [x] Pre-open role order completed.
-- [x] Premortem completed and findings fixed/dispositioned above.
-- [x] Experiment Runner oracle-only evidence completed.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass pending.
-- [ ] Codex Security diff scan / finding discovery pending.
-- [ ] `pulseplate-pr-review` pending.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- Pre-open role order completed.
+- Premortem completed and findings fixed/dispositioned above.
+- Experiment Runner oracle-only evidence completed.
+- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass is in progress.
+- Codex Security diff scan / finding discovery pending.
+- `pulseplate-pr-review` pending.
 
 Post-open review threads must be recorded below with `FIXED`, `NOT-A-BUG`, or
-`DEFERRED` disposition before resolution. No post-open review threads have been
-resolved yet.
+`DEFERRED` disposition before resolution.
 
 ## Fixed in Commit Mapping
 
-No post-open actionable review threads have been resolved yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1896#pullrequestreview-4442302334
+Disposition: FIXED
+Evidence: Cubic identified two mapping/body format issues in `docs/review/PR_1896_FIXED_MAPPING.md`; this artifact now includes the exact canonical Phase2 checkboxes and a valid GitHub review-thread mapping entry instead of non-canonical no-actionable prose.
 
 ## Merge Readiness
 
