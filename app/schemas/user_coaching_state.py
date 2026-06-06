@@ -42,6 +42,7 @@ FitChefTransitionReason = Literal[
 ]
 FitChefTransitionSafetyLabel = Literal[
     "wellness_only",
+    "non_diagnostic",
     "service_only",
     "no_raw_user_text",
     "deterministic_policy",
@@ -260,6 +261,7 @@ class MarkovCoachingTransitionPlanV1(BaseModel):
     reasons: tuple[FitChefTransitionReason, ...] = ()
     safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = (
         "wellness_only",
+        "non_diagnostic",
         "service_only",
         "no_raw_user_text",
         "deterministic_policy",
@@ -280,6 +282,7 @@ class PromptSafeMarkovTransitionContext(BaseModel):
     reasons: tuple[FitChefTransitionReason, ...] = ()
     safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = (
         "wellness_only",
+        "non_diagnostic",
         "service_only",
         "no_raw_user_text",
         "deterministic_policy",

@@ -108,6 +108,7 @@ def test_markov_transition_schemas_are_frozen_strict_and_default_safe() -> None:
     assert plan.source_state_version == "v1"
     assert plan.safety_labels == (
         "wellness_only",
+        "non_diagnostic",
         "service_only",
         "no_raw_user_text",
         "deterministic_policy",
@@ -365,10 +366,10 @@ def test_prompt_safe_markov_context_excludes_sensitive_and_unsafe_fields() -> No
         "medical",
         "therapy",
         "diagnosis",
-        "diagnostic",
         "treatment",
     ):
         assert forbidden not in context_json
+    assert "non_diagnostic" in context_json
     assert context.recommended_scenario == "slip_support"
 
 
