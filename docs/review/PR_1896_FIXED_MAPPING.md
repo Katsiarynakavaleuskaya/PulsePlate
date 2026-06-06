@@ -163,19 +163,23 @@ Evidence: `core/ai/semantic_cache_shadow_admission_harness.py`, `scripts/ci/chec
 
 ## Post-Open Role And Security Evidence
 
-- `qa-engineer-agent`: PASS at `9940929ac`; Phase2 body/artifact validation,
-  strict review-thread disposition guard, shadow checker, focused QA tests, and
-  diff whitespace checks passed with no runtime/cache/public surface widening.
-- `bug-hunter`: PASS at `9940929ac`; found no unstable ordering,
-  schema/report mismatch, unsafe source refs, raw prompt/query/context/answer
-  leakage, accidental runtime cache authority, provider/network/cache calls, or
-  out-of-scope public API/OpenAPI/DB/frontend/iOS/Slack/vector/GraphRAG changes.
-- `security-auditor`: PASS at `9940929ac`; confirmed closed semantic-cache
-  gate, false authority flags, `no_selection` backend context, no
-  provider/network/cache/storage calls, raw-leak guarded output, and confined
-  checker write paths/source refs.
-- Codex Security diff scan: PASS/no findings. Final report:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/pr1896-shadow-admission-20260606T095535Z/report.md`.
+- `qa-engineer-agent`: PASS at `4ede03652`; Phase2 body/artifact validation,
+  strict review-thread disposition guard, shadow checker, semantic-cache
+  closed-gate check, focused harness/offline/docs/workflow tests, and diff
+  whitespace checks passed with no raw leakage or runtime/cache/public surface
+  widening.
+- `bug-hunter`: PASS at `4ede03652`; found no blocker in deterministic
+  fingerprinting/report stability, evidence-asset lineage, scoped
+  offline-runner import guard, checker/schema consistency, raw-leak protection,
+  or semantic-cache authority boundaries.
+- `security-auditor`: PASS at `4ede03652`; confirmed closed semantic-cache
+  gate, false runtime/cache authority flags, label-only/no-selection backend
+  context, deterministic safe evidence-asset metadata, repo-relative source
+  refs, no provider/network/cache/storage calls, and no public
+  API/OpenAPI/DB/frontend/iOS/Slack/vector/GraphRAG widening.
+- Codex Security diff scan: PASS/no findings at final head `4ede03652`. Final
+  report:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/pr1896-shadow-admission-final-20260606T101959Z/report.md`.
 - `pulseplate-pr-review`: PASS with one advisory large-diff note.
   Disposition: NOT-A-BUG. Evidence: generated report/schema account for most
   of the line count; this PR is intentionally medium-scope and `make
