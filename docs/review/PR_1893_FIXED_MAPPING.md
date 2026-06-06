@@ -26,7 +26,7 @@ authority, semantic-cache authority, or public response shapes.
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-explicit-trim-limit metadata, digest schema diagnostics, field-inventory schema bounds, rewrite trim-state preservation, accumulated rewrite trim counts, strict digest-array validation, fail-closed context digest labels, and rewrite trim count consistency. Focused provenance tests and the admission-report checker pass.
+Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-explicit-trim-limit metadata, digest schema diagnostics, field-inventory schema bounds, rewrite trim-state preservation, accumulated rewrite trim counts, strict digest-array validation, fail-closed context digest labels, rewrite trim count consistency, and disabled-verification RAG trim provenance preservation. Focused provenance tests and the admission-report checker pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#pullrequestreview-4439872260 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365509361 -> b7ab1886ecb0dd57a1ae249edf3f6e59408c695d
@@ -44,6 +44,7 @@ Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-ex
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365878578 -> 49c9ebe1602fb9e7c7df7124d95dd4a22a4cf924
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#pullrequestreview-4440399721 -> 49c9ebe1602fb9e7c7df7124d95dd4a22a4cf924
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3365880796 -> 49c9ebe1602fb9e7c7df7124d95dd4a22a4cf924
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1893#discussion_r3367002797 -> b4f1de849f9d1c2fedbe472c30163b5b74a129b0
 
 ## Implementation Evidence
 
@@ -111,6 +112,8 @@ Evidence: Bot review findings were addressed with parser-safe mapping, RAG no-ex
 - PASS: targeted regressions for fail-closed context digest labels and rewrite
   trim count consistency:
   `python3 -m pytest -q tests/test_remaining_modules.py::TestVerificationRegistryCoverageTail::test_verification_provenance_redacts_before_hash_and_preserves_admission tests/test_philosophical_runtime.py::TestPhilosophicalRuntime::test_rewrite_provenance_preserves_initial_prompt_trim_state`
+- PASS: targeted disabled-runtime provenance regression:
+  `python3 -m pytest -q tests/test_remaining_modules.py::TestVerificationRegistryCoverageTail::test_runtime_bundle_passthrough_when_runtime_verification_is_disabled tests/test_remaining_modules.py::TestVerificationRegistryCoverageTail::test_verification_provenance_redacts_before_hash_and_preserves_admission`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks during `git push`, including changed-files mypy,
   backend pre-push tests, full-repo Bandit, and Docker build test.
