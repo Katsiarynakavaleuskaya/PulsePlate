@@ -316,6 +316,40 @@ class MarkovScenarioProbability(BaseModel):
     reasons: tuple[FitChefTransitionReason, ...] = ()
 
 
+def _validate_markov_ranked_scenarios(
+    *,
+    transition_state: FitChefTransitionState,
+    ranked_scenarios: tuple[MarkovScenarioProbability, ...],
+    available_scenarios: tuple[FitChefCoachingScenario, ...] | None = None,
+) -> None:
+    expected_ranks = tuple(range(1, len(ranked_scenarios) + 1))
+    actual_ranks = tuple(ranked.rank for ranked in ranked_scenarios)
+    if actual_ranks != expected_ranks:
+        raise ValueError("ranked_scenarios ranks must be consecutive from 1")
+    if not ranked_scenarios:
+        return
+
+    if available_scenarios is not None:
+        unavailable_scenarios = tuple(
+            ranked.scenario
+            for ranked in ranked_scenarios
+            if ranked.scenario not in available_scenarios
+        )
+        if unavailable_scenarios:
+            raise ValueError("ranked_scenarios must be limited to available_scenarios")
+
+    impossible_scenarios = tuple(
+        ranked.scenario
+        for ranked in ranked_scenarios
+        if ranked.scenario not in MARKOV_TRANSITION_SCENARIOS_BY_STATE[transition_state]
+    )
+    if impossible_scenarios:
+        raise ValueError("ranked_scenarios must be valid for transition_state")
+    total_probability = round(sum(ranked.probability for ranked in ranked_scenarios), 4)
+    if total_probability != 1.0:
+        raise ValueError("ranked_scenarios probabilities must sum to 1.0")
+
+
 class MarkovCoachingTransitionPlanV1(BaseModel):
     """Internal transition plan derived from UserCoachingStateV1 only."""
 
@@ -336,30 +370,11 @@ class MarkovCoachingTransitionPlanV1(BaseModel):
         """Keep caller-supplied plan mutations from changing derived invariants."""
 
         ranked_scenarios = self.ranked_scenarios
-        expected_ranks = tuple(range(1, len(ranked_scenarios) + 1))
-        actual_ranks = tuple(ranked.rank for ranked in ranked_scenarios)
-        if actual_ranks != expected_ranks:
-            raise ValueError("ranked_scenarios ranks must be consecutive from 1")
-        if ranked_scenarios:
-            unavailable_scenarios = tuple(
-                ranked.scenario
-                for ranked in ranked_scenarios
-                if ranked.scenario not in self.available_scenarios
-            )
-            if unavailable_scenarios:
-                raise ValueError("ranked_scenarios must be limited to available_scenarios")
-            impossible_scenarios = tuple(
-                ranked.scenario
-                for ranked in ranked_scenarios
-                if ranked.scenario
-                not in MARKOV_TRANSITION_SCENARIOS_BY_STATE[self.transition_state]
-            )
-            if impossible_scenarios:
-                raise ValueError("ranked_scenarios must be valid for transition_state")
-            total_probability = round(sum(ranked.probability for ranked in ranked_scenarios), 4)
-            if total_probability != 1.0:
-                raise ValueError("ranked_scenarios probabilities must sum to 1.0")
-
+        _validate_markov_ranked_scenarios(
+            transition_state=self.transition_state,
+            ranked_scenarios=ranked_scenarios,
+            available_scenarios=self.available_scenarios,
+        )
         recommended = ranked_scenarios[0].scenario if ranked_scenarios else None
         confidence = _markov_transition_confidence_ceiling(
             transition_state=self.transition_state,
@@ -389,6 +404,10 @@ class PromptSafeMarkovTransitionContext(BaseModel):
     @model_validator(mode="after")
     def _recompute_prompt_safe_invariants(self) -> "PromptSafeMarkovTransitionContext":
         ranked_scenarios = self.ranked_scenarios
+        _validate_markov_ranked_scenarios(
+            transition_state=self.transition_state,
+            ranked_scenarios=ranked_scenarios,
+        )
         recommended = ranked_scenarios[0].scenario if ranked_scenarios else None
         confidence = _markov_transition_confidence_ceiling(
             transition_state=self.transition_state,

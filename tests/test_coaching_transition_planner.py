@@ -17,6 +17,7 @@ from app.schemas.user_coaching_state import (
     AdherenceSnapshot,
     MarkovCoachingTransitionPlanV1,
     MarkovScenarioProbability,
+    PromptSafeMarkovTransitionContext,
     RecentBehaviorSnapshot,
     UserCoachingStateV1,
 )
@@ -408,6 +409,20 @@ def test_prompt_safe_markov_context_rejects_transition_state_steering() -> None:
     assert plan.recommended_scenario == "mascot_insight"
     with pytest.raises(ValidationError, match="transition_state"):
         to_prompt_safe_markov_context(tampered_plan)
+
+    with pytest.raises(ValidationError, match="transition_state"):
+        PromptSafeMarkovTransitionContext(
+            transition_state="cold_start_default",
+            recommended_scenario="slip_support",
+            ranked_scenarios=(
+                MarkovScenarioProbability(
+                    rank=1,
+                    scenario="slip_support",
+                    probability=1.0,
+                ),
+            ),
+            confidence=0.99,
+        )
 
 
 def test_capped_or_degraded_behavior_lowers_confidence_and_adds_reason() -> None:
