@@ -390,6 +390,10 @@ Finding: post-open `qa-engineer-agent` agent `019e9de1-6eeb-72d1-adca-95dde72c65
 Disposition: FIXED
 Evidence: GraphQL review-thread audit found 75 unresolved threads and `missing_in_mapping: 0`; every unresolved thread had a canonical disposition in this artifact before any resolve operation. Live thread resolution is performed only after this mapped-disposition audit.
 
+Finding: post-open `qa-engineer-agent` agent `019e9e03-dfe7-7811-82f2-90974b2ac80f` reported stale PR-body current-head/readiness text after the latest mapping commit and pending current-head CI.
+Disposition: FIXED
+Evidence: The PR body mirror is updated after the mapping push to reference the latest pushed PR head instead of the previous fix commit; merge readiness remains explicitly unclaimed until current-head CI, post-open role passes, unresolved-thread checks, actionable-bot-comment checks, strict wrapper evidence, and wait-window are satisfied.
+
 ## Main Coverage Carryover
 
 Finding: `main` CI for `889e9a0ad` failed `test-main (3.11, 60)` because global coverage was `96.99%`, below the `97.00%` threshold; `app/services/coaching_state_builder.py` carried 14 missed statements.
