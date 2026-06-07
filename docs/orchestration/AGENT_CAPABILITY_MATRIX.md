@@ -50,7 +50,7 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **rag-systems-agent** | RAG Systems Agent | `core/`, `providers/` | Retrieval architecture, recursive verification, budgets/stop conditions | — | Coordinator, Security |
 | **web-research-agent** | Web Research Agent | `docs/` (cross-cutting) | Web/OSS intake, evidence logs, ECR + scorecards | — | Coordinator |
 | **data-scientist-agent** | Data Scientist | `docs/`, experiments (future) | Metrics, eval design, offline benchmarks | — | Coordinator, ML Engineer |
-| **prompt-engineering-eval-agent** | Prompt Engineering / Eval Agent | `docs/`, `tests/fixtures/` (future) | Prompt contracts, SC-G3 false-hit observability, eval harness design, red-team matrices | — | Coordinator, Data Scientist, Philosophy Agent |
+| **prompt-engineering-eval-agent** | Prompt Engineering / Eval Agent (non-routable advisory) | `docs/`, `tests/fixtures/` (future) | Prompt contracts, SC-G3 false-hit observability, eval harness design, red-team matrices | — | Coordinator, Data Scientist, Philosophy Agent |
 | **ml-engineer-agent** | ML Engineer | `providers/`, infra seams (future) | Productionization, latency/cost budgets, caching | Architecture | Coordinator |
 | **bayesian-uq-agent** | Bayesian / UQ Agent | `core/`, `providers/` | Uncertainty quantification, calibration, reliability metrics | — | Coordinator, AI Innovation |
 | **cv-agent** | CV Agent | `core/`, `providers/` | CV routing domain, food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
@@ -69,7 +69,7 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **business-strategist-agent** | Business Strategist / Director | `docs/`, roadmap, executive materials | Portfolio framing, B2B packaging, monetization sequencing, investor/partner narrative governance, KPI ownership | Marketing, Wellness Analyst | Marketing, Coordinator |
 | **ai-trend-reporter** | AI Trend Reporter | `docs/` | AI market reports (daily/weekly/monthly/quarterly), wellness GTM | — | Coordinator |
 | **cursor-specialist-agent** | Cursor Specialist | `.cursor/agents/`, `scripts/`, `docs/orchestration/` | Task bootstrap, context-pack hygiene, workflow ergonomics | Orchestration, QA Engineer | Dev Operator, Coordinator |
-| **project-planning-agent** | Project Planning Agent | `docs/roadmap/`, `docs/orchestration/` | Gate sequencing, milestone planning, risk registers, OKR-to-backlog mapping | — | Coordinator, QA Engineer |
+| **project-planning-agent** | Project Planning Agent (non-routable advisory) | `docs/roadmap/`, `docs/orchestration/` | Gate sequencing, milestone planning, risk registers, OKR-to-backlog mapping | — | Coordinator, QA Engineer |
 | **tutor-mentor-agent** | Tutor / Mentor | `docs/`, onboarding artifacts | Explainability, onboarding, training guidance, role review | — | Coordinator |
 | **generalpurpose** | General Purpose (mcp_task) | — | Research, code search, multi-step tasks | — | — |
 | **explore** | Explore (mcp_task) | — | Fast codebase exploration, file/pattern search | — | — |
