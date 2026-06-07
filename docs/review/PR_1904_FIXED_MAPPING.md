@@ -64,6 +64,19 @@
   Commit: f2e01b1b1
   Evidence: `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md:65` and `docs/review/PR_1904_FIXED_MAPPING.md`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369911775 -> f2e01b1b1
+  Disposition: FIXED
+  Commit: f2e01b1b1
+  Evidence: `docs/review/PR_1904_FIXED_MAPPING.md` — Merge Readiness checkboxes unchecked
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#pullrequestreview-4445646039
+  Disposition: NOT-A-BUG
+  Evidence: `AGENTS.md:455` and `AGENTS.md:517` — already specifies `qa-engineer-agent -> bug-hunter -> security-auditor`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369919287
+  Disposition: NOT-A-BUG
+  Evidence: `AGENTS.md:455` and `AGENTS.md:517` — already specifies `qa-engineer-agent -> bug-hunter -> security-auditor`
+
 ## Experiment Runner Evidence
 - Artifact: `artifacts/orchestration/experiments/results/pr1904_kimi_cli_mcp_setup_oracle.json`
 
