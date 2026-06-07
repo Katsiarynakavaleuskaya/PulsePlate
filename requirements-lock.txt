@@ -422,7 +422,7 @@ rich==15.0.0
     # via
     #   bandit
     #   pip-audit
-ruff==0.15.15
+ruff==0.15.16
     # via -r requirements-dev.in
 six==1.17.0
     # via
@@ -512,6 +512,7 @@ zipp==3.23.0
     #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
+pip==26.1.2
     # via
     #   pip-api
     #   pip-tools
