@@ -46,17 +46,16 @@
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
-
-### Fixed in Commit Mapping
 - [x] Fixed in commit mapping completed
 
+## Fixed in Commit Mapping
 - No actionable review comments
 
 ## Experiment Runner Evidence
 - Artifact: `artifacts/orchestration/experiments/results/pr1904_kimi_cli_mcp_setup_oracle.json`
 
 ## Lane Start Provenance
-- Exception: Task packet generated at runtime; artifacts path is gitignored.
+- Exception: trivial docs cleanup
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 
 ## Merge Readiness
