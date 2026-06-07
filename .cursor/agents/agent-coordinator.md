@@ -313,6 +313,14 @@ Task bootstrap ergonomics, context-pack hygiene, and Cursor/Codex workflow quali
 
 ---
 
+### project-planning-agent
+
+Gate-sequenced roadmaps, milestone dependencies, risk registers, and OKR-to-backlog plans.
+
+**Canonical doc:** `.cursor/agents/project-planning-agent.md`
+
+---
+
 ### tutor-mentor-agent
 
 Explainability, onboarding guidance, and training-style artifacts without redefining SoT.
@@ -404,6 +412,14 @@ AI subsystem architecture: integration seams, feature flags, determinism constra
 Evaluation design, metrics, offline experiments planning, and measurement plans.
 
 **Canonical doc:** `.cursor/agents/data-scientist-agent.md`
+
+---
+
+### prompt-engineering-eval-agent
+
+Prompt contracts, offline eval harnesses, SC-G3 false-hit observability, and LLM red-team matrices.
+
+**Canonical doc:** `.cursor/agents/prompt-engineering-eval-agent.md`
 
 ---
 

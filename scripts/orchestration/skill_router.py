@@ -114,6 +114,8 @@ REQUESTED_AGENT_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
     ),
     "ml-engineer-agent": ("pulseplate-gates", "docs-sync", "openai-docs"),
     "data-scientist-agent": ("docs-sync", "pulseplate-gates", "pulseplate-ai-reports"),
+    "prompt-engineering-eval-agent": ("docs-sync", "pulseplate-gates", "pulseplate-guards"),
+    "project-planning-agent": ("docs-sync", "pulseplate-gates", "pulseplate-ledger"),
     "web-research-agent": (
         "docs-sync",
         "pulseplate-ai-reports",

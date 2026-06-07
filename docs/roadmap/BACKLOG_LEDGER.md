@@ -24,6 +24,50 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-scientific-writing-agent"></a>
+- [ ] P1: Scientific Writing Agent registration
+  - Owner: @katsiaryna_kavaleuskaya (Agent governance)
+  - Priority: P1
+  - Target PR: TBD (Phase 2 scientific workforce PR train)
+  - Status: Open
+  - Area: agents / scientific workforce / publications
+  - Reason (EN): Deferred from Phase 1 to keep the initial workforce PR focused on SC-G3 prompt/eval and gate planning blockers. PulsePlate still needs a readonly scientific writing specialist for Abstract, Related Work, Methods, Results, Discussion, citation-format guidance, reproducibility checks, and claim-quality review without creating medical authority.
+  - Links: `.cursor/agents/prompt-engineering-eval-agent.md`, `.cursor/agents/project-planning-agent.md`, `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`, `docs/orchestration/AGENT_CONTEXT_MAP.md`
+  - DoD: Register `scientific-writing-agent` across canonical agent specs, index, inventory, capability matrix, context map, non-routable allowlist, coordinator summary, native bridge profile, and skill routing policy if needed; define wellness-only scientific-writing boundaries; run `python3 scripts/orchestration/check_agent_consistency.py` and focused registry/bridge gates.
+
+<a id="ledger-p1-experiment-design-stats-agent"></a>
+- [ ] P1: Experiment Design & Statistics Agent registration
+  - Owner: @katsiaryna_kavaleuskaya (Agent governance)
+  - Priority: P1
+  - Target PR: TBD (Phase 2 scientific workforce PR train)
+  - Status: Open
+  - Area: agents / scientific workforce / statistics
+  - Reason (EN): Deferred from Phase 1 because `prompt-engineering-eval-agent` and `project-planning-agent` unblock SC-G3 and release sequencing first. PulsePlate still needs a readonly specialist for RCT/A-B/observational design, power and sample-size planning, effect-size interpretation, confidence intervals, p-values, and Bayesian/frequentist validation boundaries for wellness-app studies.
+  - Links: `.cursor/agents/data-scientist-agent.md`, `.cursor/agents/bayesian-uq-agent.md`, `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`, `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+  - DoD: Register `experiment-design-stats-agent` across canonical agent surfaces; explicitly distinguish it from `data-scientist-agent` and `bayesian-uq-agent`; document wellness-only interpretation boundaries; run agent consistency plus focused registry/bridge gates.
+
+<a id="ledger-p2-evidence-synthesis-agent"></a>
+- [ ] P2: Evidence Synthesis Agent registration
+  - Owner: @katsiaryna_kavaleuskaya (Agent governance)
+  - Priority: P2
+  - Target PR: TBD (Phase 2 or Phase 3 scientific workforce PR train)
+  - Status: Open
+  - Area: agents / scientific workforce / evidence synthesis
+  - Reason (EN): Deferred from Phase 1 to avoid mixing SC-G3 prompt/eval ownership with literature-review methodology. PulsePlate still needs a readonly evidence synthesis specialist for systematic/scoping reviews, GRADE/Oxford LoE-style evidence grading, contradiction mapping, and product-safe narrative synthesis.
+  - Links: `.cursor/agents/web-research-agent.md`, `.cursor/agents/epistemology-discovery-agent.md`, `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`, `docs/orchestration/AGENT_CONTEXT_MAP.md`
+  - DoD: Register `evidence-synthesis-agent` across canonical agent surfaces; require External Claims Register and evidence logs for external claims; document no-medical-authority boundaries; run agent consistency plus focused registry/bridge gates.
+
+<a id="ledger-p2-health-regulatory-agent"></a>
+- [ ] P2: Health Regulatory Agent registration
+  - Owner: @katsiaryna_kavaleuskaya (Agent governance)
+  - Priority: P2
+  - Target PR: TBD (Phase 2 or Phase 3 scientific workforce PR train)
+  - Status: Open
+  - Area: agents / scientific workforce / health data governance
+  - Reason (EN): Deferred from Phase 1 because the current PR is scoped to internal agent registration for prompt/eval and planning blockers. PulsePlate still needs a readonly specialist for HIPAA/GDPR health-data analysis, Apple HealthKit / Google Fit governance, FDA wellness vs SaMD classification boundaries, and IRB/ethics-review planning.
+  - Links: `AGENTS.md`, `ios/AGENTS.md`, `.cursor/agents/app-store-release-agent.md`, `.cursor/agents/security-auditor.md`, `docs/orchestration/AGENT_CONTEXT_MAP.md`
+  - DoD: Register `health-regulatory-agent` across canonical agent surfaces; define advisory-only regulatory boundaries and escalation criteria; preserve wellness-only product positioning; run agent consistency plus focused registry/bridge gates.
+
 <a id="ledger-p1-experiment-runner-operator-plane-slack-closeout"></a>
 - [ ] P1: Experiment Runner Operator Plane & Slack Closeout
   - Owner: @katsiaryna_kavaleuskaya

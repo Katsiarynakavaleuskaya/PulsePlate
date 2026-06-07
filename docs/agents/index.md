@@ -41,12 +41,14 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | cv-agent | auto | Computer vision pipeline contracts (photo→items→confidence→nutrition mapping) | `.cursor/agents/cv-agent.md` | CV feature design, confidence scoring, privacy boundaries |
 | ai-app-architect | auto | AI subsystem architecture: seams, feature flags, determinism, integration contracts | `.cursor/agents/ai-app-architect.md` | AI system design, integration planning, invariant alignment |
 | data-scientist-agent | auto | Evaluation design, metrics, offline experiments planning, telemetry questions | `.cursor/agents/data-scientist-agent.md` | Evals, KPIs, A/B ideas, measurement plans |
+| prompt-engineering-eval-agent | auto | Prompt contracts, offline eval harnesses, SC-G3 false-hit observability, and LLM red-team matrices | `.cursor/agents/prompt-engineering-eval-agent.md` | SC-G3 harness planning, prompt evals, semantic-cache quality metrics |
 | ml-engineer-agent | auto | Productionization: latency/cost budgets, caching, infra seams (policy-level) | `.cursor/agents/ml-engineer-agent.md` | Bringing AI to prod, performance budgets, reliability |
 | nutritionist-agent | auto | Nutrition domain constraints, safe wording, non-medical boundaries | `.cursor/agents/nutritionist-agent.md` | Nutrition constraints, safe guidance, disclaimers |
 | cbt-psychologist-agent | auto | CBT-inspired coaching language, safety boundaries (non-therapy) | `.cursor/agents/cbt-psychologist-agent.md` | Habit coaching, psychological safety, disclaimer enforcement |
 | epistemology-discovery-agent | auto | Scientific discovery: falsifiable hypotheses, protocols, negative controls, promotion rules | `.cursor/agents/epistemology-discovery-agent.md` | Research-to-PR conversion, hypothesis/protocol design |
 | physics-sensor-agent | auto | Sensor/physics priors for multimodal robustness and calibration (no “quantum magic”) | `.cursor/agents/physics-sensor-agent.md` | CV/voice robustness, calibration, sensor-grounded UQ |
 | cursor-specialist-agent | auto | Cursor/Codex orchestration ergonomics, task bootstrap, and context-pack hygiene | `.cursor/agents/cursor-specialist-agent.md` | Orchestration tooling and workflow enablement |
+| project-planning-agent | auto | Gate-sequenced roadmaps, milestone dependencies, risk registers, and OKR-to-backlog plans | `.cursor/agents/project-planning-agent.md` | PR trains, release sequencing, SC gates, roadmap governance |
 | tutor-mentor-agent | auto | Explainability, onboarding, and training-style guidance without redefining SoT | `.cursor/agents/tutor-mentor-agent.md` | Internal onboarding, explainability, mentoring artifacts |
 
 ---

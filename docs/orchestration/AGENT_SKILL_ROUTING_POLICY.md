@@ -183,6 +183,8 @@ domain routing first and then apply these **default helper bundles**:
 | `frontend-engineer` | `pulseplate-frontend-ui`, `pulseplate-gates`, `vercel-react-best-practices` |
 | `ml-engineer-agent` | `pulseplate-gates`, `docs-sync`, `openai-docs` |
 | `data-scientist-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-ai-reports` |
+| `prompt-engineering-eval-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-guards` |
+| `project-planning-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-ledger` |
 | `web-research-agent` | `docs-sync`, `pulseplate-ai-reports`, `notion-research-documentation` |
 
 These bundles are bootstrapping helpers, not authority overrides. They do not bypass

@@ -81,6 +81,7 @@ REPO_AGENT_EXECUTOR_PROFILES: dict[str, NativeExecutorProfile] = {
     "rag-systems-agent": ANALYSIS_PROFILE,
     "web-research-agent": ANALYSIS_PROFILE,
     "data-scientist-agent": ANALYSIS_PROFILE,
+    "prompt-engineering-eval-agent": ANALYSIS_PROFILE,
     "ml-engineer-agent": IMPLEMENTATION_PROFILE,
     "bayesian-uq-agent": ANALYSIS_PROFILE,
     "cv-agent": ANALYSIS_PROFILE,
@@ -99,6 +100,7 @@ REPO_AGENT_EXECUTOR_PROFILES: dict[str, NativeExecutorProfile] = {
     "business-strategist-agent": ANALYSIS_PROFILE,
     "ai-trend-reporter": ANALYSIS_PROFILE,
     "cursor-specialist-agent": CODEBASE_EXPLORER_PROFILE,
+    "project-planning-agent": ANALYSIS_PROFILE,
     "tutor-mentor-agent": ANALYSIS_PROFILE,
 }
 

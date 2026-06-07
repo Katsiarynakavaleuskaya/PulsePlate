@@ -43,6 +43,7 @@
 | **rag-systems-agent** | RAG architecture, recursive verification, grounding contracts |
 | **web-research-agent** | Web/OSS intake, evidence logs, ECR + scorecards |
 | **data-scientist-agent** | Evals, metrics, offline experiments, measurement plans |
+| **prompt-engineering-eval-agent** | Prompt contracts, offline eval harnesses, SC-G3 false-hit observability, LLM red-team matrices |
 | **ml-engineer-agent** | Productionization, latency/cost budgets, caching, infra seams |
 | **bayesian-uq-agent** | Uncertainty quantification, calibration, confidence contracts |
 | **cv-agent** | CV pipeline contracts (photo→items→confidence→nutrition); graph-primary for routing domain `cv` |
@@ -82,6 +83,7 @@
 | Agent | Function |
 |-------|----------|
 | **cursor-specialist-agent** | Coordinator bootstrap ergonomics, context-pack hygiene, prompt packet conventions |
+| **project-planning-agent** | Gate-sequenced roadmaps, dependency maps, risk registers, OKR-to-backlog plans |
 | **tutor-mentor-agent** | Onboarding explanations, role review, internal enablement guidance |
 
 ---
