@@ -1,6 +1,19 @@
 {
   "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@latest"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--allow-unrestricted-file-access"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
     "figma": {
+      "comment": "Cursor/Cloud: use hosted endpoint https://mcp.figma.com/mcp. Kimi CLI local: use http://127.0.0.1:3845/mcp with Figma Desktop plugin.",
       "url": "https://mcp.figma.com/mcp"
     }
   }

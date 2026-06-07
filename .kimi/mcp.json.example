@@ -1,0 +1,31 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github@latest"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--allow-unrestricted-file-access"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ]
+    },
+    "figma": {
+      "comment": "Requires Figma Desktop with local MCP plugin running on port 3845.",
+      "transport": "http",
+      "url": "http://127.0.0.1:3845/mcp"
+    }
+  }
+}

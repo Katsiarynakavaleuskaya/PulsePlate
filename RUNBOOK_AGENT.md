@@ -70,6 +70,19 @@ automatically delegate to specialized agents and synthesize their work.
 If that enforcement layer is absent, manual coordinator-first invocation is the
 required fallback.
 
+### Native Runtime Transport Note
+
+PulsePlate agent definitions in `.cursor/agents/` are the single canonical source
+for all runtimes. The native subagent bridge supports multiple transports:
+
+- **Kimi Code CLI** — `kimi-native-subagents` bridge; Kimi discovers `.agents/skills/`
+  as Project scope automatically. Use `task_bootstrap.py --native-bridge-transport kimi-native-subagents`.
+- **Codex** — `codex-native-subagents` bridge; uses `.cursor/agents/` directly.
+- **Qoder** — legacy compatibility via `qoder_dispatch_bridge.py`.
+
+Canonical dispatch entrypoint for all transports:
+`scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty`
+
 ### Skill-Router Sync Note
 
 When a PR changes `scripts/orchestration/skill_router.py` or
