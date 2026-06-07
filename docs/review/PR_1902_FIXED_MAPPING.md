@@ -57,6 +57,18 @@
   Evidence: docs/agents/index.md; docs/orchestration/AGENT_CAPABILITY_MATRIX.md
   Reason: Sourcery's non-routable visibility suggestion is addressed by labeling both new agents as non-routable advisory specialists in discovery and capability surfaces.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1902#pullrequestreview-4445443807 -> 18cbfe216
+  Disposition: FIXED
+  Commit: 18cbfe216
+  Evidence: docs/review/PR_1902_FIXED_MAPPING.md
+  Reason: Cubic identified a stale 13-vs-14 file-count inconsistency in the premortem closure; the mapping now uses 14 files consistently.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1902#discussion_r3369707658 -> 18cbfe216
+  Disposition: FIXED
+  Commit: 18cbfe216
+  Evidence: docs/review/PR_1902_FIXED_MAPPING.md
+  Reason: Cubic line comment on the file-count inconsistency is fixed in the canonical mapping artifact.
+
 ## Premortem Finding Closure
 - F1 registration drift: FIXED by synced registration surfaces and `check_agent_consistency.py` PASS.
 - F2 bridge write authority: FIXED by `ANALYSIS_PROFILE` bridge entries and bridge tests PASS.
