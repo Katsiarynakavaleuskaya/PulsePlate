@@ -20,4 +20,5 @@ no frontend/iOS changes, no DB migrations, no feature flags.
 - No actionable review comments
 
 ## Lane Start Provenance
-- Exception: Dependabot automated dependency-update PR; no manual lane start.
+- Packet: `artifacts/orchestration/task_packets/85bde57ffcf4.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
