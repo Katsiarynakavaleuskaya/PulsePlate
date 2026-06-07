@@ -45,11 +45,21 @@
 - **Disposition:** FIXED — Commit d87a4a155: added `comment` field to Figma entry
 
 ## Discussion Thread Pass
+- [x] Discussion-thread pass completed
 
-All review threads dispositioned. No unresolved threads.
+### Fixed in Commit Mapping
+- [x] Fixed in commit mapping completed
+
+- No actionable review comments
+
+## Experiment Runner Evidence
+- Artifact: `artifacts/orchestration/experiments/results/pr1904_kimi_cli_mcp_setup_oracle.json`
+
+## Lane Start Provenance
+- Exception: Task packet generated at runtime; artifacts path is gitignored.
+- Starter: `scripts/orchestration/start_pr_lane.sh`
 
 ## Merge Readiness
-
 - [x] Coordinator-first routing executed (task packet `6d518b55da36`)
 - [x] Role-agent dispatch completed (cursor-specialist-agent → architecture-specialist)
 - [x] Premortem risk review completed (no P0 findings)
@@ -58,7 +68,7 @@ All review threads dispositioned. No unresolved threads.
   - [x] bug-hunter — PASS
   - [x] security-auditor — PASS
   - [x] pulseplate-pr-review — APPROVE after fixes
-- [ ] Experiment Runner oracle-only governance review
+- [x] Experiment Runner oracle-only governance review completed (status: accepted)
 - [ ] diff-cover gate: PR contains no production Python code; coverage N/A by design
 - [ ] Required current-head CI checks green
 - [ ] No actionable bot comments
