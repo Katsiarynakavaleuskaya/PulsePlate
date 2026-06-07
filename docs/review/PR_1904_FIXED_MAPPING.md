@@ -49,48 +49,34 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: tests/guards/test_symlink_integrity.py:35-50
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#pullrequestreview-4445555267 -> b0314d740
-  Disposition: FIXED
-  Commit: b0314d740
-  Evidence: tests/guards/test_symlink_integrity.py:35-50
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#pullrequestreview-4445567143 -> b0314d740
-  Disposition: FIXED
-  Commit: b0314d740
-  Evidence: tests/guards/test_symlink_integrity.py:35-50
-
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369826155 -> b0314d740
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369836703 -> b0314d740
-  Disposition: FIXED
-  Commit: b0314d740
-  Evidence: tests/guards/test_symlink_integrity.py:35-50
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md:65` and `docs/review/PR_1904_FIXED_MAPPING.md`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#pullrequestreview-4445640080 -> f2e01b1b1
-  Disposition: FIXED
-  Commit: f2e01b1b1
-  Evidence: `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md:65` and `docs/review/PR_1904_FIXED_MAPPING.md`
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369911771 -> f2e01b1b1
-  Disposition: FIXED
-  Commit: f2e01b1b1
-  Evidence: `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md:65`
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369911773 -> f2e01b1b1
-  Disposition: FIXED
-  Commit: f2e01b1b1
-  Evidence: `docs/review/PR_1904_FIXED_MAPPING.md`
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369911775 -> f2e01b1b1
-  Disposition: FIXED
-  Commit: f2e01b1b1
-  Evidence: `docs/review/PR_1904_FIXED_MAPPING.md` — Merge Readiness checkboxes unchecked
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#pullrequestreview-4445646039
-  Disposition: NOT-A-BUG
-  Evidence: `AGENTS.md:455` and `AGENTS.md:517` — already specifies `qa-engineer-agent -> bug-hunter -> security-auditor`
+Disposition: NOT-A-BUG
+Reason: `AGENTS.md:455` and `AGENTS.md:517` already specifies `qa-engineer-agent -> bug-hunter -> security-auditor`
+Evidence: `AGENTS.md:455` and `AGENTS.md:517`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369919287
-  Disposition: NOT-A-BUG
-  Evidence: `AGENTS.md:455` and `AGENTS.md:517` — already specifies `qa-engineer-agent -> bug-hunter -> security-auditor`
+Disposition: NOT-A-BUG
+Reason: `AGENTS.md:455` and `AGENTS.md:517` already specifies `qa-engineer-agent -> bug-hunter -> security-auditor`
+Evidence: `AGENTS.md:455` and `AGENTS.md:517`
 
 ## Experiment Runner Evidence
 - Artifact: `artifacts/orchestration/experiments/results/pr1904_kimi_cli_mcp_setup_oracle.json`
