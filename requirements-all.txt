@@ -12,5 +12,5 @@ pre-commit>=4.6.0
 mypy>=2.1.0
 bandit>=1.7
 # safety>=3.8.1  # Temporarily disabled due to typer compatibility issue
-ruff>=0.15.15
+ruff>=0.15.16
 sourcery>=2.0
