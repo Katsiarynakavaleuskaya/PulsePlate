@@ -66,7 +66,7 @@
 - F6 Phase 2 ledger: FIXED by four `BACKLOG_LEDGER.md` entries.
 - F7 Sora prompt confusion: FIXED by explicit scope boundary in `prompt-engineering-eval-agent`.
 - F8 graph promotion: FIXED by no `AGENT_ROUTING_GRAPH.md` edits and no-match check.
-- F9 PR scope: NOT-A-BUG; 13 files, standard governance plus narrow orchestration.
+- F9 PR scope: NOT-A-BUG; 14 files, standard governance plus narrow orchestration.
 - F10 skill over-empowerment: FIXED by docs/governance helper bundles only.
 
 ## Evidence
