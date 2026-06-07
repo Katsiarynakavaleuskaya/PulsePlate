@@ -36,5 +36,7 @@ Interpretation:
 - `ml-engineer-agent`
 - `nutritionist-agent`
 - `physics-sensor-agent`
+- `project-planning-agent`
+- `prompt-engineering-eval-agent`
 - `sora-prompt-engineer`
 - `tutor-mentor-agent`

@@ -40,6 +40,8 @@ EXPECTED_REQUESTED_AGENT_POLICY_ROWS: tuple[str, ...] = (
     "| `frontend-engineer` | `pulseplate-frontend-ui`, `pulseplate-gates`, `vercel-react-best-practices` |",
     "| `ml-engineer-agent` | `pulseplate-gates`, `docs-sync`, `openai-docs` |",
     "| `data-scientist-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-ai-reports` |",
+    "| `prompt-engineering-eval-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-guards` |",
+    "| `project-planning-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-ledger` |",
     "| `web-research-agent` | `docs-sync`, `pulseplate-ai-reports`, `notion-research-documentation` |",
 )
 EXPECTED_REQUESTED_AGENT_NAMES: frozenset[str] = frozenset(

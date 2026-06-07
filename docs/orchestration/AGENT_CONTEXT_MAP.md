@@ -331,6 +331,25 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### Project Planning Agent (`project-planning-agent`)
+
+**Primary (task-dependent):**
+
+- `AGENTS.md` (root) — coordinator-first, PR scope, merge-readiness, and backlog policies
+- `RUNBOOK_AGENT.md` — operational quality-gate and PR procedures
+- `docs/policy/PR_SCOPE_RULES.md` — PR sizing and scope split policy
+- `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md` — PR governance contracts
+- `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md` — merge-readiness sequencing
+- `docs/roadmap/BACKLOG_LEDGER.md` — deferred work and DoD tracking
+
+**Must know:**
+
+- This role drafts gate-sequenced plans and risk registers only; `agent-coordinator` retains routing and final synthesis authority.
+- Planning output cannot claim green, ready, or mergeable without the repository gates and merge-readiness scripts.
+- Any deferral must be recorded in `docs/roadmap/BACKLOG_LEDGER.md` with Owner, Priority, Target PR, Reason, Links, and DoD.
+
+---
+
 ### Tutor / Mentor (`tutor-mentor-agent`)
 
 **Primary:**
@@ -505,6 +524,24 @@ This map reduces “missing context” failures by making required inputs explic
   - `frontend/AGENTS.md`
   - `ios/AGENTS.md`
   - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+
+---
+
+### Prompt Engineering & Eval Agent (`prompt-engineering-eval-agent`)
+
+**Primary (task-dependent):**
+
+- `AGENTS.md` (root) — AI/runtime, semantic-cache, and wellness safety invariants
+- `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md` — SC-G3 false-hit harness contract
+- `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` — semantic-cache gate state and rollout order
+- `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md` — deterministic eval validity constraints
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — bounded eval/optimization loops
+
+**Must know:**
+
+- This role is advisory and non-routable by default; it does not open semantic-cache runtime gates.
+- No embeddings, Redis, GPTCache, provider calls, cache read/write, or serving permissions may be introduced by this role.
+- Visual prompt assets remain `sora-prompt-engineer` scope; broader experiment metrics remain `data-scientist-agent` scope.
 
 ---
 
