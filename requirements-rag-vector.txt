@@ -21,6 +21,12 @@ click==8.3.1
     # via
     #   -c requirements.txt
     #   typer
+cuda-bindings==13.3.1
+    # via torch
+cuda-pathfinder==1.5.5
+    # via cuda-bindings
+cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2
+    # via torch
 filelock==3.28.0
     # via
     #   huggingface-hub
@@ -77,6 +83,45 @@ numpy==2.4.6
     #   scipy
     #   sentence-transformers
     #   transformers
+nvidia-cublas==13.1.0.3
+    # via
+    #   cuda-toolkit
+    #   nvidia-cudnn-cu13
+    #   nvidia-cusolver
+nvidia-cuda-cupti==13.0.85
+    # via cuda-toolkit
+nvidia-cuda-nvrtc==13.0.88
+    # via cuda-toolkit
+nvidia-cuda-runtime==13.0.96
+    # via cuda-toolkit
+nvidia-cudnn-cu13==9.19.0.56
+    # via torch
+nvidia-cufft==12.0.0.61
+    # via cuda-toolkit
+nvidia-cufile==1.15.1.6
+    # via cuda-toolkit
+nvidia-curand==10.4.0.35
+    # via cuda-toolkit
+nvidia-cusolver==12.0.4.66
+    # via cuda-toolkit
+nvidia-cusparse==12.6.3.3
+    # via
+    #   cuda-toolkit
+    #   nvidia-cusolver
+nvidia-cusparselt-cu13==0.8.0
+    # via torch
+nvidia-nccl-cu13==2.28.9
+    # via torch
+nvidia-nvjitlink==13.0.88
+    # via
+    #   cuda-toolkit
+    #   nvidia-cufft
+    #   nvidia-cusolver
+    #   nvidia-cusparse
+nvidia-nvshmem-cu13==3.4.5
+    # via torch
+nvidia-nvtx==13.0.85
+    # via cuda-toolkit
 packaging==25.0
     # via
     #   -c requirements.txt
@@ -124,10 +169,12 @@ tqdm==4.67.1
     #   huggingface-hub
     #   sentence-transformers
     #   transformers
-transformers==5.9.0
+transformers==5.10.2
     # via
     #   -r requirements-rag-vector.in
     #   sentence-transformers
+triton==3.6.0
+    # via torch
 typer==0.24.1
     # via
     #   huggingface-hub
