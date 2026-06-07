@@ -1,17 +1,23 @@
-# PulsePlate Codex Skills
+# PulsePlate Skills
 
 <!-- markdownlint-disable MD013 -->
 
-Repo-tracked source for project-specific Codex skills and cybersecurity skills.
+Repo-tracked source for project-specific skills and cybersecurity skills.
+**Runtime-agnostic:** used by Codex, Kimi Code CLI, Qoder, and other agentskills.io-compatible runtimes.
 
 - Source of truth: `tools/codex_skills/*`, `tools/cybersecurity_skills/skills/*`
-- Repo discovery mirror: `.agents/skills/*`
+- Repo discovery mirror: `.agents/skills/*` (Kimi, Codex, Qoder all resolve this as Project scope)
 - Primary user install target: `$HOME/.agents/skills/*`
-- Compatibility-only legacy target: `$CODEX_HOME/skills/*` (typically `~/.codex/skills/*`)
+- Kimi CLI user target: `$HOME/.kimi/skills/*` (when using `--skills-dir` or `extra_skill_dirs`)
+- Compatibility legacy target: `$CODEX_HOME/skills/*` (typically `~/.codex/skills/*`)
 - Installer: `scripts/install_codex_skills.sh`
 
 Default install mode uses symlinks so updates in this repo immediately apply to installed skills.
 Skills remain passive/discovery-only helpers and do not replace coordinator bootstrap.
+
+> **Kimi CLI note:** Kimi discovers project skills from `.agents/skills/` natively as Project scope.
+> No separate `.kimi/skills/` copy is required. User-level skills can also be read from
+> `~/.codex/skills/` when `merge_all_available_skills = true` (default).
 
 ## PulsePlate skills
 

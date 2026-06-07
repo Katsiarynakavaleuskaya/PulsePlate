@@ -3,7 +3,8 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Install PulsePlate and cybersecurity Codex skills from this repo into a Codex skills directory.
+Install PulsePlate and cybersecurity skills from this repo into an agent skills directory.
+Compatible with Codex, Kimi Code CLI, Qoder, and other agentskills.io-compatible runtimes.
 
 Usage:
   scripts/install_codex_skills.sh [--copy] [--copy-cybersec] [--unlink] [--list] [--target <official|compat>] [--dest <skills_dir>] [--no-cybersec|--only-cybersec]
@@ -18,6 +19,7 @@ Options:
   --target <name>   Install target: official -> $AGENTS_HOME/skills (or $HOME/.agents/skills
                     when AGENTS_HOME is unset, default),
                     compat -> $CODEX_HOME/skills (or $HOME/.codex/skills when CODEX_HOME is unset).
+                    For Kimi CLI project-level overrides, use --dest $HOME/.kimi/skills.
   --dest <path>     Destination skills directory override. Use for temp validation
                     or explicit custom install roots.
   --no-cybersec     Install only PulsePlate skills (skip cybersecurity skills).
