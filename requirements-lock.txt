@@ -110,7 +110,7 @@ email-validator==2.3.0
     #   -r requirements.in
 execnet==2.1.2
     # via pytest-xdist
-faker==40.19.1
+faker==40.21.0
     # via -r requirements-dev.in
 fastapi==0.136.1
     # via
