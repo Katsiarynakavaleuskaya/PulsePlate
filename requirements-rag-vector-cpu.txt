@@ -4,6 +4,8 @@
 #
 #    pip-compile --allow-unsafe --output-file=requirements-rag-vector-cpu.txt requirements-rag-vector-cpu.in
 #
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 annotated-doc==0.0.4
     # via
     #   -c requirements.txt
@@ -69,7 +71,7 @@ mpmath==1.3.0
     # via sympy
 networkx==3.6.1
     # via torch
-numpy==2.4.0
+numpy==2.4.6
     # via
     #   -c requirements.txt
     #   pgvector
@@ -114,7 +116,7 @@ threadpoolctl==3.6.0
     # via scikit-learn
 tokenizers==0.22.2
     # via transformers
-torch==2.11.0+cpu
+torch==2.11.0
     # via
     #   -r requirements-rag-vector-cpu.in
     #   sentence-transformers
