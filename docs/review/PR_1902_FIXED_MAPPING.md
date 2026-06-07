@@ -46,7 +46,7 @@
 - F2 bridge write authority: FIXED by `ANALYSIS_PROFILE` bridge entries and bridge tests PASS.
 - F3 planning authority bleed: FIXED by `project-planning-agent` hard boundaries.
 - F4 SC-G3/runtime widening: FIXED by `prompt-engineering-eval-agent` hard boundaries and no runtime files in diff.
-- F5 empty/uncommitted diff: FIXED by pushed 13-file PR diff.
+- F5 empty/uncommitted diff: FIXED by pushed 14-file PR diff.
 - F6 Phase 2 ledger: FIXED by four `BACKLOG_LEDGER.md` entries.
 - F7 Sora prompt confusion: FIXED by explicit scope boundary in `prompt-engineering-eval-agent`.
 - F8 graph promotion: FIXED by no `AGENT_ROUTING_GRAPH.md` edits and no-match check.
