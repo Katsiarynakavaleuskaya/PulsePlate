@@ -49,10 +49,30 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369836703 -> da1e477ab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369836703 -> b0314d740
   Disposition: FIXED
-  Commit: da1e477ab
+  Commit: b0314d740
   Evidence: tests/guards/test_symlink_integrity.py:35-50
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369826155 -> b0314d740
+  Disposition: FIXED
+  Commit: b0314d740
+  Evidence: tests/guards/test_symlink_integrity.py:35-50
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369911771 -> b0314d740
+  Disposition: FIXED
+  Commit: b0314d740
+  Evidence: `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md:65`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369911773 -> b0314d740
+  Disposition: FIXED
+  Commit: b0314d740
+  Evidence: `docs/review/PR_1904_FIXED_MAPPING.md`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369911775 -> b0314d740
+  Disposition: FIXED
+  Commit: b0314d740
+  Evidence: `docs/review/PR_1904_FIXED_MAPPING.md` — Merge Readiness checkboxes unchecked
 
 ## Experiment Runner Evidence
 - Artifact: `artifacts/orchestration/experiments/results/pr1904_kimi_cli_mcp_setup_oracle.json`
@@ -62,15 +82,15 @@
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 
 ## Merge Readiness
-- [x] Coordinator-first routing executed (task packet `6d518b55da36`)
-- [x] Role-agent dispatch completed (cursor-specialist-agent → architecture-specialist)
-- [x] Premortem risk review completed (no P0 findings)
-- [x] Post-open mandatory pass completed:
-  - [x] qa-engineer-agent — PASS
-  - [x] bug-hunter — PASS
-  - [x] security-auditor — PASS
-  - [x] pulseplate-pr-review — APPROVE after fixes
-- [x] Experiment Runner oracle-only governance review completed (status: accepted)
+- [ ] Coordinator-first routing executed (task packet `6d518b55da36`)
+- [ ] Role-agent dispatch completed (cursor-specialist-agent → architecture-specialist)
+- [ ] Premortem risk review completed (no P0 findings)
+- [ ] Post-open mandatory pass completed:
+  - [ ] qa-engineer-agent — PASS
+  - [ ] bug-hunter — PASS
+  - [ ] security-auditor — PASS
+  - [ ] pulseplate-pr-review — APPROVE after fixes
+- [ ] Experiment Runner oracle-only governance review completed (status: accepted)
 - [ ] diff-cover gate: PR contains no production Python code; coverage N/A by design
 - [ ] Required current-head CI checks green
 - [ ] No actionable bot comments

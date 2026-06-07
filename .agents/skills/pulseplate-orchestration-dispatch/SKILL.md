@@ -62,7 +62,7 @@ Canonical entrypoint for all transports: `scripts/orchestration/role_dispatch_br
    (or equivalent scope/synthesis role)
 3. Skills are helpers, not authority — root `AGENTS.md` always wins
 4. Read-only roles MUST use `explorer` / `Research` subagent type (never `coder` / `Coding`)
-5. Post-open mandatory pass (`qa-engineer-agent -> bug-hunter`) must always be last
+5. Post-open mandatory pass (`qa-engineer-agent -> bug-hunter -> security-auditor`) must always be last
 6. Do NOT skip roles in the declared order unless coordinator explicitly removes them
 7. Bridge output is deterministic — same packet always produces same manifest
 
