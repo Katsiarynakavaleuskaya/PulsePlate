@@ -41,6 +41,22 @@
   Evidence: docs/roadmap/BACKLOG_LEDGER.md
   Reason: Phase 2 agents are deferred with Owner, Priority, Target PR, Reason, Links, and DoD.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1902#issuecomment-4643244083
+  Disposition: NOT-A-BUG
+  Evidence: docs/review/PR_1902_FIXED_MAPPING.md
+  Reason: CodeRabbit issue comment is a generated walkthrough and pre-merge summary. It reports checks passed and includes optional finishing-touch UI checkboxes, but no actionable required code/doc change.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1902#pullrequestreview-4445427931
+  Disposition: NOT-A-BUG
+  Evidence: docs/agents/UPDATE_INSTRUCTIONS.md
+  Reason: Sourcery's boilerplate-extraction suggestion is advisory. Current canonical agent update instructions require each agent spec to include the same minimum sections (frontmatter, Mission, Hard boundaries, When invoked, Context to load, Deliverable, Evidence contract), so extracting a shared snippet would be a separate policy change.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1902#pullrequestreview-4445427931 -> 64a06ae5a
+  Disposition: FIXED
+  Commit: 64a06ae5a
+  Evidence: docs/agents/index.md; docs/orchestration/AGENT_CAPABILITY_MATRIX.md
+  Reason: Sourcery's non-routable visibility suggestion is addressed by labeling both new agents as non-routable advisory specialists in discovery and capability surfaces.
+
 ## Premortem Finding Closure
 - F1 registration drift: FIXED by synced registration surfaces and `check_agent_consistency.py` PASS.
 - F2 bridge write authority: FIXED by `ANALYSIS_PROFILE` bridge entries and bridge tests PASS.
