@@ -11403,23 +11403,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - the temporary `--no-verify` exception is no longer needed for this branch class
 
 <a id="ledger-p1-unyank-numpy-runtime-pin"></a>
-- [ ] P1: Replace yanked numpy runtime pin with a non-yanked release
+- [x] P1: Replace yanked numpy runtime pin with a non-yanked release
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency hygiene / install reliability)
-  - Target PR: separate narrow dependency follow-up after `#1236`
-  - Status: Opened on 25 March 2026
-  - Reason: `requirements.txt` still pins `numpy==2.4.0`, which is yanked and
-    causes installation warnings. This was flagged during PR `#1236` review but
-    stays out of scope for the security-unblock lane because that PR is limited
-    to `requests` remediation plus the documented temporary `Pygments`
-    exception.
+  - Target PR: `deps/bump-python-deps-safety-sweep`
+  - Status: Addressed in branch `deps/bump-python-deps-safety-sweep` on 2026-06-07
+  - Reason: `requirements.txt` and all lock surfaces pinned `numpy==2.4.0`, which is yanked on
+    public PyPI and causes installation warnings. Unpinned to `>=2.4.1,<3.0.0` in
+    `requirements.in` and regenerated all `requirements*.txt` lockfiles via `pip-compile`.
+    `pyarrow` cap lifted from `<24.0.0` to `<25.0.0` in `requirements.in` and
+    `requirements-ci-lite.in` as part of the same compatibility sweep.
   - Links:
-    - `requirements.txt`
-    - `docs/review/PR_1236_FIXED_MAPPING.md`
+    - `requirements.in`, `requirements.txt`
+    - `requirements-ci-lite.in`, `requirements-ci-lite.txt`
+    - `docs/review/PR_<N>_FIXED_MAPPING.md` (to be added after PR open)
   - DoD:
-    - `numpy` is pinned to a non-yanked compatible release across affected lock surfaces
-    - dependency/install warnings for the yanked runtime pin are eliminated
-    - `pre-commit run --all-files` and `make verify` pass after the bump
+    - [x] `numpy` resolved to non-yanked release (`2.4.6`) across all lock surfaces
+    - [x] `pip-compile` produces no yanked-package warnings
+    - [x] `pre-commit run --all-files` and `make verify` pass after the bump
 
 <a id="ledger-p1-python-supply-chain-mirror-quarantine"></a>
 - [ ] P1: Python package mirror and quarantine lane for hermetic CI/Docker installs
