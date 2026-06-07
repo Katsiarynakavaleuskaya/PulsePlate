@@ -38,6 +38,18 @@ def test_all_skill_symlinks_resolve() -> None:
             except OSError as exc:
                 broken.append(f"{entry.name} -> unreadable symlink ({exc})")
                 continue
+            if not resolved.is_dir():
+                broken.append(
+                    f"{entry.name} -> {entry.readlink()} (resolved: {resolved}; "
+                    f"not a directory)"
+                )
+                continue
+            if REPO_ROOT not in resolved.parents:
+                broken.append(
+                    f"{entry.name} -> {entry.readlink()} (resolved: {resolved}; "
+                    f"escapes repository root)"
+                )
+                continue
             skill_md = resolved / "SKILL.md"
             if not skill_md.exists():
                 broken.append(

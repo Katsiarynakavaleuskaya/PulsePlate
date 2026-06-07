@@ -49,7 +49,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1904#discussion_r3369836703 -> da1e477ab
+  Disposition: FIXED
+  Commit: da1e477ab
+  Evidence: tests/guards/test_symlink_integrity.py:35-50
 
 ## Experiment Runner Evidence
 - Artifact: `artifacts/orchestration/experiments/results/pr1904_kimi_cli_mcp_setup_oracle.json`
