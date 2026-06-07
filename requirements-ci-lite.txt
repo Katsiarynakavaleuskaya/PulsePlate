@@ -103,7 +103,6 @@ greenlet==3.3.2
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
-    #   sqlalchemy
 h11==0.16.0
     # via
     #   -c requirements.txt
@@ -171,7 +170,7 @@ nh3==0.3.2
     #   -r requirements-ci-lite.in
 nodeenv==1.10.0
     # via pre-commit
-numpy==2.4.0
+numpy==2.4.6
     # via
     #   -c requirements.txt
     #   contourpy

@@ -1919,6 +1919,18 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
   they share the same minimum fixed version.
 - Reduces drift risk from updating only one manifest.
 
+**Security: Yanked packages on PyPI:**
+
+- If a package is yanked on public PyPI, any `==` pin on it must be replaced with a `>=` floor
+  pointing to the next non-yanked patch/minor version in **all** `requirements*.in` surfaces.
+- After updating `.in` files, regenerate **every** affected `requirements*.txt` lockfile via
+  `pip-compile` so that no yanked version remains in any lock surface.
+- Each yanked-package override must carry an explicit inline comment in the `.in` file with:
+  the yanked version, the reason (if known), and a link to the PR or issue that introduced the
+  change. Example: `# numpy: 2.4.0 was yanked on public PyPI; using >=2.4.1`.
+- `pip-compile` output must be checked for yanked warnings; a clean run with no yanked warnings
+  is required before the PR can be marked ready.
+
 ---
 
 ## CI: GitHub Container Registry (GHCR) Policy
