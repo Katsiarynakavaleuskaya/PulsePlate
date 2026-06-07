@@ -560,14 +560,15 @@ ios-appstore-upload-privacy: ## Upload App Privacy answers (requires Apple ID se
 	@echo "$(YELLOW)🔐 Uploading iOS App Privacy answers...$(NC)"
 	@$(IOS_FASTLANE) upload_app_privacy
 
-ios-appstore-verify: ## Verify App Store submission readiness (repo-local, no upload)
-	@echo "$(YELLOW)Verifying iOS App Store submission readiness...$(NC)"
+ios-appstore-verify: ## Verify repo-local App Store release gates (no upload)
+	@echo "$(YELLOW)Verifying iOS App Store repo-local release gates...$(NC)"
 	$(DEV_PYTHON) scripts/validate_icon_core_v1.py --strict
 	$(DEV_PYTHON) scripts/release/check_ios_appstore_verify.py
+	$(DEV_PYTHON) -m pytest -q tests/test_fitchef_app_store_pack.py
 	$(DEV_PYTHON) -m pytest -q tests/ios/
 	$(DEV_PYTHON) -m pytest -q tests/guards/test_wellness_language_blockers_guard.py
 	$(DEV_PYTHON) -m pytest -q tests/test_release_reviewer_packet_hashes.py
-	@echo "$(GREEN)App Store submission readiness verified$(NC)"
+	@echo "$(GREEN)App Store repo-local release gates verified$(NC)"
 
 # --- Dev Container targets ---------------------------------------------------
 

@@ -108,6 +108,33 @@ def _analyzer_count(session: Session, user_id: int) -> int:
     )
 
 
+def test_builder_metric_helpers_fail_closed_on_malformed_values() -> None:
+    with pytest.raises(ValueError, match="finite number"):
+        builder_module._finite_float_metric(True, field_name="alpha")
+    with pytest.raises(TypeError, match="numeric"):
+        builder_module._finite_float_metric(object(), field_name="alpha")
+    with pytest.raises(ValueError, match="finite"):
+        builder_module._finite_float_metric("nan", field_name="alpha")
+    with pytest.raises(ValueError, match=">= 0.0"):
+        builder_module._finite_float_metric("-0.01", field_name="alpha", min_value=0.0)
+    with pytest.raises(ValueError, match="<= 1.0"):
+        builder_module._finite_float_metric("1.01", field_name="confidence", max_value=1.0)
+
+    with pytest.raises(ValueError, match="non-negative integer"):
+        builder_module._non_negative_int_metric(True, field_name="n")
+    with pytest.raises(TypeError, match="integer"):
+        builder_module._non_negative_int_metric(object(), field_name="n")
+    with pytest.raises(ValueError, match="non-negative"):
+        builder_module._non_negative_int_metric("-1", field_name="n")
+    with pytest.raises(ValueError, match="non-negative"):
+        builder_module._strict_raw_non_negative_int(-1, field_name="n")
+    with pytest.raises(TypeError, match="object"):
+        builder_module._validate_raw_adherence_payload(["not", "a", "mapping"])
+
+    assert builder_module._payload_score(("not", "a", "dict")) is None
+    assert builder_module._event_created_at("2026-06-05T12:00:00Z") is None
+
+
 def test_builder_returns_default_state_without_creating_analyzer_row(
     configure_sqlite_database: Any,
 ) -> None:
