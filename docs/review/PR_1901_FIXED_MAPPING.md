@@ -5,42 +5,42 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369389069 -> 998f079e9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369389069 -> 15b5ea565
   Disposition: FIXED
-  Commit: 998f079e9
+  Commit: 15b5ea565
   Evidence: requirements-rag-vector-cpu.txt:119
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369393569 -> 998f079e9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369393569 -> 15b5ea565
   Disposition: FIXED
-  Commit: 998f079e9
+  Commit: 15b5ea565
   Evidence: requirements-dev.txt:261
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369393573 -> 998f079e9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369393573 -> 15b5ea565
   Disposition: FIXED
-  Commit: 998f079e9
+  Commit: 15b5ea565
   Evidence: requirements-lock.txt:515
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369394538 -> 998f079e9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369394538 -> 15b5ea565
   Disposition: FIXED
-  Commit: 998f079e9
+  Commit: 15b5ea565
   Evidence: docs/review/PR_1901_FIXED_MAPPING.md:5
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369394537 -> 998f079e9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#discussion_r3369394537 -> 15b5ea565
   Disposition: FIXED
-  Commit: 998f079e9
+  Commit: 15b5ea565
   Evidence: docs/review/PR_1901_FIXED_MAPPING.md
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#pullrequestreview-4445133245 -> 998f079e9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#pullrequestreview-4445133245 -> 15b5ea565
   Disposition: FIXED
-  Commit: 998f079e9
+  Commit: 15b5ea565
   Evidence: requirements-rag-vector-cpu.txt:119
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#pullrequestreview-4445137183 -> 998f079e9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#pullrequestreview-4445137183 -> 15b5ea565
   Disposition: FIXED
-  Commit: 998f079e9
+  Commit: 15b5ea565
   Evidence: requirements-dev.txt:261
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#pullrequestreview-4445137892 -> 998f079e9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1901#pullrequestreview-4445137892 -> 15b5ea565
   Disposition: FIXED
-  Commit: 998f079e9
+  Commit: 15b5ea565
   Evidence: docs/review/PR_1901_FIXED_MAPPING.md
