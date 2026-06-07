@@ -86,15 +86,15 @@ Evidence: `AGENTS.md:455` and `AGENTS.md:517`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 
 ## Merge Readiness
-- [ ] Coordinator-first routing executed (task packet `6d518b55da36`)
-- [ ] Role-agent dispatch completed (cursor-specialist-agent → architecture-specialist)
-- [ ] Premortem risk review completed (no P0 findings)
-- [ ] Post-open mandatory pass completed:
-  - [ ] qa-engineer-agent — PASS
-  - [ ] bug-hunter — PASS
-  - [ ] security-auditor — PASS
-  - [ ] pulseplate-pr-review — APPROVE after fixes
-- [ ] Experiment Runner oracle-only governance review completed (status: accepted)
-- [ ] diff-cover gate: PR contains no production Python code; coverage N/A by design
-- [ ] Required current-head CI checks green
-- [ ] No actionable bot comments
+- [x] Coordinator-first routing executed (task packet `6d518b55da36`)
+- [x] Role-agent dispatch completed (cursor-specialist-agent → architecture-specialist)
+- [x] Premortem risk review completed (no P0 findings)
+- [x] Post-open mandatory pass completed:
+  - [x] qa-engineer-agent — PASS
+  - [x] bug-hunter — PASS
+  - [x] security-auditor — PASS
+  - [x] pulseplate-pr-review — APPROVE after fixes
+- [x] Experiment Runner oracle-only governance review completed (status: accepted)
+- [x] diff-cover gate: PR contains no production Python code; coverage N/A by design
+- [x] Required current-head CI checks green
+- [x] No actionable bot comments
