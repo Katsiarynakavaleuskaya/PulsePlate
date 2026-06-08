@@ -3,6 +3,8 @@
 ## Discussion Thread Pass
 
 - [x] PR opened non-draft.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] No GitHub review threads were present at PR creation.
 - [x] Pre-open role-agent findings were dispositioned before PR open.
 - [x] Pre-open premortem findings were dispositioned before PR open.
