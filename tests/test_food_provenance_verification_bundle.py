@@ -356,18 +356,38 @@ def test_food_provenance_trace_allows_sku_style_food_identifiers() -> None:
     bundle = build_food_provenance_verification_bundle(
         (
             FoodProvenanceTrace(
-                source="sku_catalog",
+                source="private_label_foods",
                 record_id="SKU-1",
-                nutrient="skin_nutrient_lab",
+                nutrient="home_foods_marker",
                 confidence=0.91,
-                provenance="sku_catalog",
+                provenance="private_label_foods",
+                version_ref="variety_catalog_2026",
             ),
         )
     )
     evidence_refs = tuple(ref for artifact in bundle.artifacts for ref in artifact.evidence_refs)
 
     assert bundle.admission_allowed is True
-    assert "food:sku_catalog:sku-1:skin_nutrient_lab" in evidence_refs
+    assert "food:private_label_foods:sku-1:home_foods_marker" in evidence_refs
+
+
+def test_food_provenance_trace_rejects_domain_query_and_fragment_values() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="example.test?id=123",
+                record_id="fdb-1",
+                nutrient="kcal",
+                confidence=0.91,
+                provenance="example.test#fragment",
+            ),
+        )
+    )
+    evidence_refs = tuple(ref for artifact in bundle.artifacts for ref in artifact.evidence_refs)
+
+    assert bundle.admission_allowed is False
+    assert "food_provenance_rejected" in bundle.reason_codes
+    assert all("example" not in ref for ref in evidence_refs)
 
 
 def test_food_provenance_bundle_fails_closed_for_mixed_valid_and_rejected_rows() -> None:

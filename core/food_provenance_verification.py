@@ -21,7 +21,7 @@ _FAIL: VerificationStatus = "fail"
 _MIN_CONFIDENCE = 0.7
 _LOCAL_PATH_PREFIXES = ("users", "home", "private", "var", "tmp", "volumes")
 _WINDOWS_DRIVE_RE = re.compile(r"^[a-zA-Z]:[\\/]")
-_DOMAIN_LIKE_RE = re.compile(r"(?:^|[.])[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:[/\\:]|$)")
+_DOMAIN_LIKE_RE = re.compile(r"(?:^|[.])[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:[/\\:?#&]|$)")
 _EMAIL_LIKE_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _SECRET_LIKE_RE = re.compile(
     r"(?i)(?:^|[_\s-])(?:api[_\s-]?key|bearer|gh[pousr]_[a-z0-9_]*|ghs_[a-z0-9_]*|"
@@ -364,7 +364,7 @@ def _normalize_token(value: object | None) -> str | None:
     ):
         return None
     normalized = _TOKEN_RE.sub("_", raw_value).strip("_")
-    if normalized.startswith(_LOCAL_PATH_PREFIXES):
+    if normalized in _LOCAL_PATH_PREFIXES:
         return None
     return normalized or None
 
