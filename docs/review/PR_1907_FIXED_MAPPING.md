@@ -21,6 +21,7 @@ IN:
 
 - `core/food_provenance_verification.py`
 - `tests/test_food_provenance_verification_bundle.py`
+- `.github/workflows/ci.yml` (adds the focused test to the existing `food_catalog` coverage-producing suite)
 
 OUT:
 
@@ -83,13 +84,15 @@ decision. Commit `06097a817` includes the canonical co-author trailer.
 | `BOT-SOURCERY-001` | Sourcery requested lineage-present validation use `traces` instead of derived `evidence_refs`. | `_lineage_present_artifact` now checks `traces` directly. | `test_food_provenance_bundle_fails_closed_for_missing_traces` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py` | `25c93d85019895e1928fba32c8caf83e972b1839` | `core/food_provenance_verification.py:268`; `tests/test_food_provenance_verification_bundle.py:61` | FIXED |
 | `BOT-CODERABBIT-001` | CodeRabbit requested boolean `min_confidence` fail-closed coverage and code validation. | `min_confidence` now resolves through `_numeric_float`, rejecting bool; regression test added. | `test_food_provenance_bundle_falls_back_for_bool_min_confidence` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py` | `25c93d85019895e1928fba32c8caf83e972b1839` | `core/food_provenance_verification.py:225`; `tests/test_food_provenance_verification_bundle.py:160` | FIXED |
 | `BOT-CUBIC-001` | Cubic identified over-broad local-path prefix filtering. | Local-path prefix check is exact-match only; safe private-label/SKU identifiers are covered. | `test_food_provenance_trace_allows_sku_style_food_identifiers` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py` | `7f80ac2cf887c51e09410186bb9460d63267ebc9` | `core/food_provenance_verification.py:373`; `tests/test_food_provenance_verification_bundle.py:356` | FIXED |
+| `CI-COV-001` | CI diff-coverage reported 0% because `test-pr` coverage artifact did not include the new focused test file. | Added `tests/test_food_provenance_verification_bundle.py` to the existing `food_catalog` contract/risk suite in `.github/workflows/ci.yml`. | `test_food_provenance_verification_bundle.py` via CI `test-pr` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py`; `pre-commit run --all-files` | TBD | `.github/workflows/ci.yml`; `tests/test_food_provenance_verification_bundle.py` | FIXED |
 | `SCOPE-001` | Helper has no production call site in this foundation slice. | Intentional foundation-only scope; no runtime exposure or public DTO changes. | N/A | `git grep -n "build_meal_plan_food_provenance_bundle" -- app core tests` | N/A | Helper/test-only usage in current diff; PR body `Out of scope` | NOT-A-BUG |
 
 ## Tests / Bounded Checks
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS.
+- `python3 scripts/orchestration/check_preflight.py --path .github/workflows/ci.yml --path core/food_provenance_verification.py --path tests/test_food_provenance_verification_bundle.py` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py` - PASS, 33 passed.
+- `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py` - PASS, 34 passed.
 - `make validate-changed` - PASS, 16 passed.
 - `pre-commit run --all-files` - PASS.
 - Push hooks - PASS: changed-file mypy, pip-audit, pre-push pytest, full-repo bandit, docker build test.
