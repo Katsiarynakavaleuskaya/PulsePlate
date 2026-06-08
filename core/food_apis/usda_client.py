@@ -322,12 +322,12 @@ class USDAClient:
         except (TypeError, ValueError):
             raise ValueError(f"invalid USDA nutrient amount: {amount_raw!r}")
 
-    def _parse_food_item(self, food_data: Mapping[str, Any] | None) -> Optional[USDAFoodItem]:
+    def _parse_food_item(self, food_data: object | None) -> Optional[USDAFoodItem]:
         """
         RU: Парсит данные продукта из API ответа.
         EN: Parse food item from API response.
         """
-        if food_data is None:
+        if not isinstance(food_data, Mapping):
             return None
 
         try:

@@ -30,7 +30,7 @@ Evidence:
 ### PM-USDA-002: Malformed Nutrient Values Become Silent Partial Truth
 
 Failure story: Parser hardening accepts malformed mapped nutrient amounts as a
-partial successful parse. A branded payload with bad iron/protein/fat values
+partially successful parse. A branded payload with bad iron/protein/fat values
 looks valid enough to flow downstream, hiding source quality problems.
 
 Disposition: FIXED

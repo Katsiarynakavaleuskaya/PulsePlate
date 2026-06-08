@@ -123,6 +123,85 @@ def test_build_usda_fdc_manifest_rejects_schema_missing_required_fields(tmp_path
         )
 
 
+def test_build_usda_fdc_manifest_rejects_missing_artifact(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="artifact_path must point to a local file"):
+        build_usda_fdc_manifest(
+            source="usda_foundation",
+            artifact_path=tmp_path / "missing.csv",
+            source_version="fdc-foundation-2026-04",
+            retrieved_on="2026-06-08",
+        )
+
+
+def test_build_usda_fdc_manifest_rejects_directory_artifact(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="artifact_path must point to a local file"):
+        build_usda_fdc_manifest(
+            source="usda_foundation",
+            artifact_path=tmp_path,
+            source_version="fdc-foundation-2026-04",
+            retrieved_on="2026-06-08",
+        )
+
+
+def test_build_usda_fdc_manifest_rejects_missing_schema_csv(tmp_path: Path) -> None:
+    artifact = _write_csv(
+        tmp_path,
+        "foundation.csv",
+        ["fdc_id", "description", "food_category_id", "publication_date", "data_type"],
+        [["1101", "Apple, raw", "900", "2026-04-01", "Foundation"]],
+    )
+
+    with pytest.raises(ValueError, match="schema_csv_path must point to a local file"):
+        build_usda_fdc_manifest(
+            source="usda_foundation",
+            artifact_path=artifact,
+            schema_csv_path=tmp_path / "missing_schema.csv",
+            source_version="fdc-foundation-2026-04",
+            retrieved_on="2026-06-08",
+        )
+
+
+def test_build_usda_fdc_manifest_rejects_empty_schema_csv(tmp_path: Path) -> None:
+    artifact = tmp_path / "foundation.csv"
+    artifact.write_text("", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="schema CSV is empty"):
+        build_usda_fdc_manifest(
+            source="usda_foundation",
+            artifact_path=artifact,
+            source_version="fdc-foundation-2026-04",
+            retrieved_on="2026-06-08",
+        )
+
+
+def test_build_usda_fdc_manifest_rejects_whitespace_only_schema_header(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "foundation.csv"
+    artifact.write_text(" , \n1101,Apple\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="schema CSV has no non-empty header fields"):
+        build_usda_fdc_manifest(
+            source="usda_foundation",
+            artifact_path=artifact,
+            source_version="fdc-foundation-2026-04",
+            retrieved_on="2026-06-08",
+        )
+
+
+def test_build_usda_fdc_manifest_rejects_non_utf8_schema_csv(tmp_path: Path) -> None:
+    artifact = tmp_path / "foundation.csv"
+    artifact.write_bytes(b"\xff\xfe\xfd")
+
+    with pytest.raises(ValueError, match="schema CSV must be UTF-8 compatible"):
+        build_usda_fdc_manifest(
+            source="usda_foundation",
+            artifact_path=artifact,
+            source_version="fdc-foundation-2026-04",
+            retrieved_on="2026-06-08",
+        )
+
+
 def test_usda_fdc_manifest_cli_is_file_only_and_independent_of_demo_key(
     tmp_path: Path,
 ) -> None:
