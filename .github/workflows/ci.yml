@@ -17,7 +17,7 @@ on:
   push:
     branches: [ main, feat/**, fix/**, feature/** ]
   pull_request:
-    types: [ opened, synchronize, reopened, edited, ready_for_review ]
+    types: [ opened, synchronize, reopened, edited, ready_for_review, labeled, unlabeled ]
     branches: [ main, feat/**, fix/** ]
 
 concurrency:
