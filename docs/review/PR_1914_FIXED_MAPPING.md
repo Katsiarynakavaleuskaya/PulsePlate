@@ -10,29 +10,23 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914 -> cd65b397a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#pullrequestreview-4453378325 -> f2552620e
 Disposition: FIXED
-Commit: cd65b397a
-Evidence: `core/food_sources/usda_fdc_manifest.py`; `scripts/food_source_usda_fdc_manifest.py`; `tests/test_usda_fdc_manifest_emitter.py`
-Reason: Added a file-only USDA/FDC manifest emitter that serializes and validates through the existing `source_preflight` contract.
+Commit: f2552620e
+Evidence: `tests/test_usda_fdc_manifest_emitter.py`; `tests/test_food_source_preflight.py`; `core/food_apis/usda_client.py`; `docs/review/PR_USDA_FDC_2026_COMPAT_PREMORTEM.md`
+Reason: Sourcery's review was valid. The follow-up commit adds manifest error-path tests, branded schema field assertions, an explicit `_parse_food_item(object | None)` defensive contract, and fixes the premortem wording.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914 -> cd65b397a
-Disposition: FIXED
-Commit: cd65b397a
-Evidence: `tests/fixtures/food_source_preflight/incoming_usda_foundation_manifest.json`; `tests/fixtures/food_source_preflight/incoming_usda_branded_manifest.json`; `tests/fixtures/food_source_preflight/incoming_usda_fndds_manifest.json`; `tests/test_food_source_preflight.py`
-Reason: Updated USDA/FDC release-contract fixture assumptions for Foundation `04/2026`, Branded `04/2026`, and FNDDS `10/2024` / `2021-2023`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#issuecomment-4653453889
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1914_FIXED_MAPPING.md`
+Reason: CodeRabbit did not run a review because the organization hit its review-rate/credit limit. The comment contains no actionable code, test, documentation, or governance finding for this PR.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914 -> cd65b397a
-Disposition: FIXED
-Commit: cd65b397a
-Evidence: `core/food_apis/usda_client.py`; `tests/test_food_apis.py`
-Reason: Hardened FDC payload parsing for branded metadata, string/nested nutrient IDs, valid zero values, and fail-closed malformed mapped nutrient values.
+## Pre-Open Implementation Evidence
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914 -> cd65b397a
-Disposition: FIXED
-Commit: cd65b397a
-Evidence: `docs/orchestration/FOOD_DATA_USDA_FDC_2026_COMPAT_PREFLIGHT_PACKET_2026-06-08.md`; `docs/roadmap/BACKLOG_LEDGER.md`
-Reason: Kept the lane compatibility-first and deferred FoodRecord metadata propagation, staging/Postgres, governed cutover, and Open Food Facts refresh.
+- `cd65b397a`: Added a file-only USDA/FDC manifest emitter that serializes and validates through the existing `source_preflight` contract. Evidence: `core/food_sources/usda_fdc_manifest.py`; `scripts/food_source_usda_fdc_manifest.py`; `tests/test_usda_fdc_manifest_emitter.py`.
+- `cd65b397a`: Updated USDA/FDC release-contract fixture assumptions for Foundation `04/2026`, Branded `04/2026`, and FNDDS `10/2024` / `2021-2023`. Evidence: `tests/fixtures/food_source_preflight/incoming_usda_foundation_manifest.json`; `tests/fixtures/food_source_preflight/incoming_usda_branded_manifest.json`; `tests/fixtures/food_source_preflight/incoming_usda_fndds_manifest.json`; `tests/test_food_source_preflight.py`.
+- `cd65b397a`: Hardened FDC payload parsing for branded metadata, string/nested nutrient IDs, valid zero values, and fail-closed malformed mapped nutrient values. Evidence: `core/food_apis/usda_client.py`; `tests/test_food_apis.py`.
+- `cd65b397a`: Kept the lane compatibility-first and deferred FoodRecord metadata propagation, staging/Postgres, governed cutover, and Open Food Facts refresh. Evidence: `docs/orchestration/FOOD_DATA_USDA_FDC_2026_COMPAT_PREFLIGHT_PACKET_2026-06-08.md`; `docs/roadmap/BACKLOG_LEDGER.md`.
 
 ## Premortem Finding Closure
 
