@@ -25,7 +25,7 @@ _DOMAIN_LIKE_RE = re.compile(r"(?:^|[.])[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:[/\\:]|$)"
 _EMAIL_LIKE_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _SECRET_LIKE_RE = re.compile(
     r"(?i)(?:^|[_\s-])(?:api[_\s-]?key|bearer|gh[pousr]_[a-z0-9_]*|ghs_[a-z0-9_]*|"
-    r"github[_\s-]?pat[_\s-]?[a-z0-9_]*|sk[_\s-]?(?:live|test|proj)?[a-z0-9_-]*|"
+    r"github[_\s-]?pat[_\s-]?[a-z0-9_]*|sk-(?:live|test|proj)?[a-z0-9_-]*|"
     r"secret|token|password|private[_\s-]?key)(?:$|[_\s-])"
 )
 _TOKEN_RE = re.compile(r"[^a-zA-Z0-9_.-]+")

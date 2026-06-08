@@ -352,6 +352,24 @@ def test_food_provenance_trace_rejects_secret_and_email_like_tokens() -> None:
     assert "private" not in joined_refs
 
 
+def test_food_provenance_trace_allows_sku_style_food_identifiers() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="sku_catalog",
+                record_id="SKU-1",
+                nutrient="skin_nutrient_lab",
+                confidence=0.91,
+                provenance="sku_catalog",
+            ),
+        )
+    )
+    evidence_refs = tuple(ref for artifact in bundle.artifacts for ref in artifact.evidence_refs)
+
+    assert bundle.admission_allowed is True
+    assert "food:sku_catalog:sku-1:skin_nutrient_lab" in evidence_refs
+
+
 def test_food_provenance_bundle_fails_closed_for_mixed_valid_and_rejected_rows() -> None:
     bundle = build_food_provenance_verification_bundle(
         (
