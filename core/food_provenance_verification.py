@@ -20,6 +20,8 @@ _PASS: VerificationStatus = "pass"
 _FAIL: VerificationStatus = "fail"
 _MIN_CONFIDENCE = 0.7
 _LOCAL_PATH_PREFIXES = ("users", "home", "private", "var", "tmp", "volumes")
+_WINDOWS_DRIVE_RE = re.compile(r"^[a-zA-Z]:[\\/]")
+_DOMAIN_LIKE_RE = re.compile(r"(?:^|[.])[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:[/\\:]|$)")
 _TOKEN_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
 
 
@@ -200,6 +202,10 @@ def _confidence_artifact(
         not math.isfinite(trace.confidence) for trace in traces if trace.confidence is not None
     ):
         reason = "food_confidence_non_finite"
+    elif any(
+        not 0.0 <= trace.confidence <= 1.0 for trace in traces if trace.confidence is not None
+    ):
+        reason = "food_confidence_out_of_range"
     elif any(trace.confidence < threshold for trace in traces if trace.confidence is not None):
         reason = "food_confidence_below_threshold"
     else:
@@ -310,8 +316,17 @@ def _context_item(trace: FoodProvenanceTrace) -> str:
 def _normalize_token(value: object | None) -> str | None:
     if not isinstance(value, str):
         return None
-    raw_value = value.strip().lower()
-    if "://" in raw_value:
+    stripped_value = value.strip()
+    raw_value = stripped_value.lower()
+    path_parts = {part for part in re.split(r"[/\\]+", raw_value) if part}
+    if (
+        "://" in raw_value
+        or "/" in raw_value
+        or "\\" in raw_value
+        or ".." in path_parts
+        or _WINDOWS_DRIVE_RE.match(stripped_value) is not None
+        or _DOMAIN_LIKE_RE.search(stripped_value) is not None
+    ):
         return None
     normalized = _TOKEN_RE.sub("_", raw_value).strip("_")
     if normalized.startswith(_LOCAL_PATH_PREFIXES):

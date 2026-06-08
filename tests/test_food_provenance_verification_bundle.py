@@ -157,6 +157,40 @@ def test_food_provenance_bundle_falls_back_for_invalid_min_confidence() -> None:
     assert "food_confidence_below_threshold" in bundle.reason_codes
 
 
+def test_food_provenance_bundle_rejects_out_of_range_confidence() -> None:
+    direct_bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="usda",
+                record_id="fdb-1",
+                nutrient="kcal",
+                confidence=1.01,
+                provenance="usda",
+            ),
+        )
+    )
+    record_bundle = build_meal_plan_food_provenance_bundle(
+        (
+            {
+                "nutrition_inputs": [
+                    {
+                        "source": "usda",
+                        "record_id": "fdb-1",
+                        "nutrients": {"kcal": 120.0},
+                    }
+                ],
+                "nutrition_provenance": {"kcal": "usda"},
+                "nutrition_nutrient_confidence": {"kcal": 999.0},
+            },
+        )
+    )
+
+    assert direct_bundle.admission_allowed is False
+    assert "food_confidence_out_of_range" in direct_bundle.reason_codes
+    assert record_bundle.admission_allowed is False
+    assert "food_confidence_out_of_range" in record_bundle.reason_codes
+
+
 def test_food_provenance_traces_from_merged_record_include_source_lineage() -> None:
     record = {
         "nutrition_inputs": [
@@ -237,6 +271,38 @@ def test_food_provenance_trace_tokens_do_not_leak_raw_url_or_path_values() -> No
     assert "/" not in joined_refs
     assert "\\" not in joined_refs
     assert "users" not in joined_refs
+
+
+def test_food_provenance_trace_rejects_path_like_record_and_version_values() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="usda",
+                record_id="/etc/passwd",
+                nutrient="kcal",
+                confidence=0.91,
+                provenance="usda",
+                version_ref="C:\\tmp\\snapshot",
+            ),
+            FoodProvenanceTrace(
+                source="off",
+                record_id="www.example.com/path",
+                nutrient="protein_g",
+                confidence=0.91,
+                provenance="off",
+                version_ref="../snapshot",
+            ),
+        )
+    )
+    evidence_refs = tuple(ref for artifact in bundle.artifacts for ref in artifact.evidence_refs)
+    joined_refs = " ".join(evidence_refs)
+
+    assert bundle.admission_allowed is False
+    assert "food_trace_lineage_incomplete" in bundle.reason_codes
+    assert "etc" not in joined_refs
+    assert "passwd" not in joined_refs
+    assert "example" not in joined_refs
+    assert "snapshot" not in joined_refs
 
 
 def test_food_provenance_traces_fail_closed_on_ambiguous_duplicate_source() -> None:
