@@ -79,6 +79,7 @@
     "requires_actions_write": true,
     "private_pilot_readiness_projection": "label_only_operator_evidence",
     "private_pilot_activation_evidence_loop": "redacted_manual_smoke_contract_only",
+    "private_pilot_manual_smoke_operations": "local_validate_import_report_only",
     "activation_evidence_artifact_scope": "local_redacted_contract_only",
     "operator_ledger_evidence_loop": "local_report_projection_only",
     "evidence_graph_admission_status": "contract_only_not_runtime",

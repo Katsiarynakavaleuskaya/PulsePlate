@@ -470,6 +470,14 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
             "redacted_manual_smoke_contract_only."
         )
     if (
+        github_app_dispatch.get("private_pilot_manual_smoke_operations")
+        != "local_validate_import_report_only"
+    ):
+        raise IdentityPolicyError(
+            "github_app_dispatch.private_pilot_manual_smoke_operations must be "
+            "local_validate_import_report_only."
+        )
+    if (
         github_app_dispatch.get("activation_evidence_artifact_scope")
         != "local_redacted_contract_only"
     ):

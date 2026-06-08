@@ -158,6 +158,9 @@ def render_operator_status_message(
         "private_pilot_next_operator_action=run_manual_live_smoke",
         "private_pilot_dispatch_outcome_class=not_run",
         "private_pilot_evidence_status=absent",
+        "private_pilot_evidence_age_class=absent",
+        "private_pilot_blocker_trend=none",
+        "private_pilot_import_status=absent",
         "private_pilot_evidence_graph_admission_status=contract_only_not_runtime",
         "private_pilot_authority=display_only",
     )

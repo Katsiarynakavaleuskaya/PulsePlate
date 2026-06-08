@@ -1534,6 +1534,17 @@ def test_operator_ledger_imports_private_pilot_activation_evidence_and_reports(
     assert report["source_counts"]["private_pilot_activation_evidence"] == 1
     assert report["by_private_pilot_activation_state"] == {"smoke_recorded": 1}
     assert report["malformed_artifact_counts"]["invalid_private_pilot_activation_evidence"] == 0
+    manual_smoke = {
+        "activation_evidence_count": 1,
+        "blocker_trend": "recorded_smoke",
+        "evidence_age_class": "fresh",
+        "import_status": "valid",
+        "latest_activation_state": "smoke_recorded",
+        "latest_smoke_class": "smoke_recorded",
+        "next_operator_action": "review_activation_report",
+        "stale_after_days": ledger.DEFAULT_ACTIVATION_EVIDENCE_STALE_AFTER_DAYS,
+    }
+    assert report["private_pilot_manual_smoke_operations"] == manual_smoke
     assert report["private_pilot_activation_evidence"] == {
         "activation_state": "smoke_recorded",
         "artifact_ref": (
@@ -1545,11 +1556,16 @@ def test_operator_ledger_imports_private_pilot_activation_evidence_and_reports(
         "evidence_graph_admission_status": "contract_only_not_runtime",
         "evidence_id": evidence["evidence_id"],
         "last_smoke": "smoke_recorded",
+        "manual_smoke_operations": manual_smoke,
         "next_operator_action": "review_activation_report",
         "summary": tuple(report["private_pilot_activation_summary"]),
     }
     assert "Private Pilot Activation Evidence" in rendered
+    assert "Private Pilot Manual Smoke Operations" in rendered
     assert "private_pilot_activation_state" in rendered
+    assert "private_pilot_evidence_age_class" in rendered
+    assert "private_pilot_blocker_trend" in rendered
+    assert "private_pilot_import_status" in rendered
     assert "private_pilot_last_smoke" in rendered
     assert "private_pilot_next_operator_action" in rendered
     assert "smoke_recorded" in rendered
@@ -1572,8 +1588,23 @@ def test_operator_ledger_private_pilot_activation_fails_closed_for_malformed_art
         + ledger.render_operator_observability_html(report)
     )
 
-    assert summary == activation.invalid_private_pilot_activation_summary()
+    assert summary == (
+        *activation.invalid_private_pilot_activation_summary(),
+        "private_pilot_evidence_age_class=invalid_local_artifact",
+        "private_pilot_blocker_trend=invalid_local_artifact",
+        "private_pilot_import_status=invalid_local_artifact",
+    )
     assert report["private_pilot_activation_evidence"]["artifact_status"] == "invalid"
+    assert report["private_pilot_manual_smoke_operations"] == {
+        "activation_evidence_count": 0,
+        "blocker_trend": "invalid_local_artifact",
+        "evidence_age_class": "invalid_local_artifact",
+        "import_status": "invalid_local_artifact",
+        "latest_activation_state": "invalid_local_artifact",
+        "latest_smoke_class": "invalid_local_artifact",
+        "next_operator_action": "inspect_sanitized_failure",
+        "stale_after_days": ledger.DEFAULT_ACTIVATION_EVIDENCE_STALE_AFTER_DAYS,
+    }
     assert report["by_private_pilot_activation_state"] == {"invalid_local_artifact": 1}
     assert report["malformed_artifact_counts"]["invalid_private_pilot_activation_evidence"] == 1
     assert "{not-json" not in rendered
@@ -1603,13 +1634,170 @@ def test_operator_ledger_cli_imports_private_pilot_activation_evidence(
     stdout = capsys.readouterr().out
     output = json.loads(stdout)
 
-    assert output["status"] == "recorded"
+    assert output["status"] == "validated"
+    assert output["import_status"] == "imported"
+    assert output["store_path_class"] == "local_private_pilot_activation_store"
     assert output["artifact_ref"].startswith(
         "artifacts/orchestration/experiments/private_pilot_activation/"
     )
+    assert (
+        ledger.main(
+            [
+                "--activation-evidence-json",
+                str(incoming),
+                "--record-activation-evidence",
+            ]
+        )
+        == 0
+    )
+    duplicate_stdout = capsys.readouterr().out
+    duplicate_output = json.loads(duplicate_stdout)
+    assert duplicate_output["import_status"] == "duplicate"
     assert "incoming-activation" not in stdout
+    assert "incoming-activation" not in duplicate_stdout
+    assert str(tmp_path) not in stdout
+    assert str(tmp_path) not in duplicate_stdout
+    _assert_no_raw_leak(stdout)
+    _assert_no_raw_leak(duplicate_stdout)
+
+
+def test_operator_ledger_cli_validates_activation_evidence_without_importing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    incoming = tmp_path / "downloaded-activation-evidence.json"
+    incoming.write_text(json.dumps(_activation_evidence(), sort_keys=True), encoding="utf-8")
+
+    assert (
+        ledger.main(
+            [
+                "--activation-evidence-json",
+                str(incoming),
+                "--validate-activation-evidence",
+            ]
+        )
+        == 0
+    )
+    stdout = capsys.readouterr().out
+    output = json.loads(stdout)
+
+    assert output == {
+        "activation_state": "smoke_recorded",
+        "authority": "display_only",
+        "dispatch_outcome_class": "smoke_recorded",
+        "evidence_graph_admission_status": "contract_only_not_runtime",
+        "import_status": "validation_only_not_imported",
+        "last_smoke": "smoke_recorded",
+        "next_operator_action": "review_activation_report",
+        "status": "validated",
+    }
+    assert not ledger.default_activation_evidence_dir(tmp_path).exists()
+    assert "downloaded-activation-evidence" not in stdout
     assert str(tmp_path) not in stdout
     _assert_no_raw_leak(stdout)
+
+
+def test_operator_ledger_cli_validation_rejects_unsafe_or_combined_modes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ledger, "REPO_ROOT", tmp_path)
+    incoming = tmp_path / "downloaded-activation-evidence.json"
+    incoming.write_text(json.dumps(_activation_evidence(), sort_keys=True), encoding="utf-8")
+
+    assert (
+        ledger.main(
+            [
+                "--activation-evidence-json",
+                str(incoming),
+                "--validate-activation-evidence",
+                "--record-activation-evidence",
+            ]
+        )
+        == 1
+    )
+    combined_stdout = capsys.readouterr().out
+    assert "cannot combine" in combined_stdout
+    assert "downloaded-activation-evidence" not in combined_stdout
+    assert str(tmp_path) not in combined_stdout
+
+    unsafe = _activation_evidence()
+    unsafe["raw_repo"] = "PilotOrg/PrivatePilot"
+    incoming.write_text(json.dumps(unsafe, sort_keys=True), encoding="utf-8")
+    assert (
+        ledger.main(
+            [
+                "--activation-evidence-json",
+                str(incoming),
+                "--validate-activation-evidence",
+            ]
+        )
+        == 1
+    )
+    unsafe_stdout = capsys.readouterr().out
+    assert "Private-pilot activation evidence input is invalid." in unsafe_stdout
+    assert "PilotOrg" not in unsafe_stdout
+    assert "PrivatePilot" not in unsafe_stdout
+    assert str(tmp_path) not in unsafe_stdout
+    _assert_no_raw_leak(unsafe_stdout)
+
+
+def test_operator_ledger_private_pilot_manual_smoke_history_and_stale_projection(
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 6, 8, tzinfo=timezone.utc)
+    old = (now - timedelta(days=8)).isoformat()
+    recent = (now - timedelta(days=1)).isoformat()
+    missing_secret = activation.build_private_pilot_activation_evidence(
+        _activation_readiness(
+            activation_state="ready_for_manual_live_smoke",
+            github_dispatch_auth_status="missing",
+            github_dispatch_readiness_state="blocked_by_missing_auth",
+        ),
+        generated_at=old,
+    )
+    failed_smoke = activation.build_private_pilot_activation_evidence(
+        _activation_readiness(),
+        dispatch_outcome_class="smoke_failed_safely",
+        generated_at=recent,
+    )
+
+    ledger.write_private_pilot_activation_evidence(missing_secret, repo_root=tmp_path)
+    ledger.write_private_pilot_activation_evidence(failed_smoke, repo_root=tmp_path)
+    report = ledger.build_operator_observability_report(
+        repo_root=tmp_path,
+        now=now,
+        activation_evidence_stale_after_days=7,
+    )
+    summary = ledger.latest_private_pilot_activation_summary(
+        repo_root=tmp_path,
+        now=now,
+        stale_after_days=7,
+    )
+
+    assert report["private_pilot_manual_smoke_operations"] == {
+        "activation_evidence_count": 2,
+        "blocker_trend": "failed_smoke",
+        "evidence_age_class": "fresh",
+        "import_status": "valid",
+        "latest_activation_state": "smoke_failed_safely",
+        "latest_smoke_class": "smoke_failed_safely",
+        "next_operator_action": "inspect_sanitized_failure",
+        "stale_after_days": 7,
+    }
+    assert "private_pilot_evidence_age_class=fresh" in summary
+    assert "private_pilot_blocker_trend=failed_smoke" in summary
+    assert "private_pilot_import_status=valid" in summary
+
+    stale_report = ledger.build_operator_observability_report(
+        repo_root=tmp_path,
+        now=now + timedelta(days=9),
+        activation_evidence_stale_after_days=7,
+    )
+    assert stale_report["private_pilot_manual_smoke_operations"]["evidence_age_class"] == "stale"
 
 
 def test_operator_ledger_report_set_is_idempotent_and_preserves_result_artifacts(

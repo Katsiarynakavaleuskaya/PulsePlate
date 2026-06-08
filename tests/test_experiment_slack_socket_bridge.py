@@ -1115,6 +1115,9 @@ def test_operator_help_status_and_mvp_evidence_renderers_are_slack_safe(
     assert "private_pilot_last_smoke=none" in combined
     assert "private_pilot_next_operator_action=run_manual_live_smoke" in combined
     assert "private_pilot_evidence_status=absent" in combined
+    assert "private_pilot_evidence_age_class=absent" in combined
+    assert "private_pilot_blocker_trend=none" in combined
+    assert "private_pilot_import_status=absent" in combined
     assert "C0ALERTS" not in combined
     assert "U0OPERATOR" not in combined
     assert "xox" not in combined
@@ -1160,6 +1163,9 @@ def test_operator_status_includes_private_pilot_readiness_without_target_values(
     assert "private_pilot_last_smoke=none" in output
     assert "private_pilot_next_operator_action=run_manual_live_smoke" in output
     assert "private_pilot_evidence_status=absent" in output
+    assert "private_pilot_evidence_age_class=absent" in output
+    assert "private_pilot_blocker_trend=none" in output
+    assert "private_pilot_import_status=absent" in output
     assert "workflow_authority_changed=false" in output
     assert "semantic_cache_enabled=false" in output
     assert "PilotOrg" not in output
@@ -1225,6 +1231,9 @@ def test_operator_status_projects_latest_private_pilot_activation_evidence(
     assert "private_pilot_next_operator_action=review_activation_report" in output
     assert "private_pilot_dispatch_outcome_class=smoke_recorded" in output
     assert "private_pilot_evidence_status=valid" in output
+    assert "private_pilot_evidence_age_class=fresh" in output
+    assert "private_pilot_blocker_trend=recorded_smoke" in output
+    assert "private_pilot_import_status=valid" in output
     assert "private_pilot_authority=display_only" in output
     assert "PilotOrg" not in output
     assert "PrivatePilot" not in output

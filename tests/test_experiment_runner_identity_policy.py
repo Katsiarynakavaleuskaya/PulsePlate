@@ -58,6 +58,7 @@ def test_default_policy_validates() -> None:
         "requires_actions_write": True,
         "private_pilot_readiness_projection": "label_only_operator_evidence",
         "private_pilot_activation_evidence_loop": "redacted_manual_smoke_contract_only",
+        "private_pilot_manual_smoke_operations": "local_validate_import_report_only",
         "activation_evidence_artifact_scope": "local_redacted_contract_only",
         "operator_ledger_evidence_loop": "local_report_projection_only",
         "evidence_graph_admission_status": "contract_only_not_runtime",
@@ -643,6 +644,7 @@ def test_rejects_github_app_dispatch_missing_required_boundary(field: str) -> No
     ("field", "value"),
     [
         ("private_pilot_activation_evidence_loop", "runtime_smoke_authority"),
+        ("private_pilot_manual_smoke_operations", "runtime_smoke_authority"),
         ("activation_evidence_artifact_scope", "public_runtime_artifact"),
     ],
 )

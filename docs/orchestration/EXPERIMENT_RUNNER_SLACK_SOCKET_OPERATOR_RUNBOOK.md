@@ -107,8 +107,24 @@ raw hypotheses, approval digests, workflow logs, local paths, oracle output, or
 patch text.
 
 After a manual smoke workflow run uploads the
-`private-pilot-activation-evidence` artifact, download the JSON locally and
-import it into the gitignored local evidence store:
+`private-pilot-activation-evidence` artifact, download the JSON locally. First
+validate the downloaded artifact without importing it:
+
+```bash
+python3 scripts/orchestration/experiment_operator_ledger.py \
+  --activation-evidence-json artifacts/orchestration/experiments/private_pilot_activation_inbox/incoming.json \
+  --validate-activation-evidence
+```
+
+Validation prints only safe labels such as activation state, dispatch outcome
+class, last smoke class, next operator action, and
+`import_status=validation_only_not_imported`. It does not create local evidence
+files and must not print the downloaded filename, absolute path, private
+repository name, Slack IDs, token prefixes or values, branch refs, hypotheses,
+approval digests, workflow logs, oracle output, or patch text.
+
+If validation passes, import the same artifact into the gitignored local
+evidence store:
 
 ```bash
 python3 scripts/orchestration/experiment_operator_ledger.py \
@@ -116,10 +132,23 @@ python3 scripts/orchestration/experiment_operator_ledger.py \
   --record-activation-evidence
 ```
 
-Then generate the operator report set:
+Import output is label-only. It reports `import_status=imported` for first
+import, `import_status=duplicate` for an already imported identical evidence
+bundle, or fails closed with `invalid_local_artifact` wording for malformed
+local inputs. It never fetches artifacts from GitHub, mutates Slack, dispatches
+workflows, resolves review threads, creates PRs, merges branches, or writes
+product runtime state.
+
+Then generate the operator report set. The report includes local-only manual
+smoke operations history: evidence count, latest activation state, latest smoke
+class, stale evidence class, blocker trend, and next operator action. Stale
+evidence defaults to seven days and can be adjusted per report run without
+adding a startup-required environment variable:
 
 ```bash
-python3 scripts/orchestration/experiment_operator_ledger.py --write-report-set
+python3 scripts/orchestration/experiment_operator_ledger.py \
+  --activation-evidence-stale-after-days 7 \
+  --write-report-set
 ```
 
 The import target defaults to
@@ -128,6 +157,21 @@ set defaults to `artifacts/orchestration/experiments/operator_observability/`.
 Both locations are local-only and gitignored. Do not commit downloaded evidence
 artifacts or generated report files; copy only redacted pass/fail labels or
 safe artifact references into PR discussion when governance asks for evidence.
+
+Verify `/pulseplate-runner status` only after local import/report validation if
+you need operator-visible evidence labels. The status output may add
+`private_pilot_evidence_age_class`, `private_pilot_blocker_trend`, and
+`private_pilot_import_status`; these labels are display-only and do not change
+the Slack command surface.
+
+Disable or roll back the manual-smoke evidence loop by removing the runtime
+GitHub App installation token, clearing the private-pilot repo allowlist,
+returning Slack bridge dispatch mode to dry-run, and deleting only gitignored
+local evidence/report artifacts under `artifacts/orchestration/experiments/`.
+Rotate `SLACK_APP_TOKEN`, `SLACK_BOT_TOKEN`, and externally minted GitHub App
+installation credentials in the operator secret store after any suspected
+leakage or failed live-smoke access review. Do not commit rotation logs or
+secret-management screenshots.
 
 ## Slack App Manifest
 
