@@ -122,6 +122,23 @@ def test_food_provenance_bundle_fails_closed_for_blank_source_provenance() -> No
     )
 
 
+def test_food_provenance_bundle_fails_closed_for_missing_source_provenance() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="usda",
+                record_id="fdb-1",
+                nutrient="kcal",
+                confidence=0.91,
+                provenance=None,
+            ),
+        )
+    )
+
+    assert bundle.admission_allowed is False
+    assert "food_source_provenance_missing" in bundle.reason_codes
+
+
 def test_food_provenance_bundle_rejects_bool_confidence() -> None:
     bundle = build_food_provenance_verification_bundle(
         (
@@ -408,6 +425,23 @@ def test_food_provenance_trace_rejects_domain_query_and_fragment_values() -> Non
     assert all("example" not in ref for ref in evidence_refs)
 
 
+def test_food_provenance_trace_rejects_exact_local_path_prefix_tokens() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="home",
+                record_id="fdb-1",
+                nutrient="kcal",
+                confidence=0.91,
+                provenance="home",
+            ),
+        )
+    )
+
+    assert bundle.admission_allowed is False
+    assert "food_provenance_rejected" in bundle.reason_codes
+
+
 def test_food_provenance_bundle_fails_closed_for_mixed_valid_and_rejected_rows() -> None:
     bundle = build_food_provenance_verification_bundle(
         (
@@ -463,3 +497,39 @@ def test_food_provenance_traces_fail_closed_on_ambiguous_duplicate_source() -> N
     assert "food:usda_foundation:unknown:kcal" in evidence_refs
     assert "fdb-123" not in " ".join(evidence_refs)
     assert "fdb-456" not in " ".join(evidence_refs)
+
+
+def test_food_provenance_trace_extraction_handles_malformed_record_shapes() -> None:
+    no_provenance_traces = build_food_provenance_traces_from_record(
+        {
+            "nutrition_provenance": ["not", "a", "mapping"],
+            "nutrition_inputs": "not-a-sequence",
+        }
+    )
+    no_confidence_map_traces = build_food_provenance_traces_from_record(
+        {
+            "nutrition_inputs": [
+                {
+                    "source": "usda",
+                    "record_id": "fdb-1",
+                    "nutrients": {"kcal": 120.0},
+                },
+                {
+                    "record_id": "fdb-2",
+                    "nutrients": {"protein_g": 8.0},
+                },
+                {
+                    "source": "off",
+                    "record_id": "off-1",
+                    "nutrients": ["not", "a", "mapping"],
+                },
+            ],
+            "nutrition_provenance": {"kcal": "usda"},
+            "nutrition_nutrient_confidence": ["not", "a", "mapping"],
+            "nutrition_confidence": 0.88,
+        }
+    )
+
+    assert no_provenance_traces == ()
+    assert no_confidence_map_traces[0].confidence == 0.88
+    assert no_confidence_map_traces[0].record_id == "fdb-1"
