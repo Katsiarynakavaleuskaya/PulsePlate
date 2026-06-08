@@ -21,6 +21,12 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1914_FIXED_MAPPING.md`
 Reason: CodeRabbit did not run a review because the organization hit its review-rate/credit limit. The comment contains no actionable code, test, documentation, or governance finding for this PR.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#pullrequestreview-4453399918 -> 71817b8b4
+Disposition: FIXED
+Commit: 71817b8b4
+Evidence: `docs/review/PR_1914_FIXED_MAPPING.md`
+Reason: Cubic identified ambiguous base-PR URL mappings. The mapping artifact now keeps internal pre-open evidence separate and maps actual bot review items to exact review/comment URLs.
+
 ## Pre-Open Implementation Evidence
 
 - `cd65b397a`: Added a file-only USDA/FDC manifest emitter that serializes and validates through the existing `source_preflight` contract. Evidence: `core/food_sources/usda_fdc_manifest.py`; `scripts/food_source_usda_fdc_manifest.py`; `tests/test_usda_fdc_manifest_emitter.py`.
