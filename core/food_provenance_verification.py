@@ -24,8 +24,9 @@ _WINDOWS_DRIVE_RE = re.compile(r"^[a-zA-Z]:[\\/]")
 _DOMAIN_LIKE_RE = re.compile(r"(?:^|[.])[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:[/\\:]|$)")
 _EMAIL_LIKE_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _SECRET_LIKE_RE = re.compile(
-    r"(?i)(?:^|[_\s-])(?:api[_\s-]?key|bearer|gh[pousr]_|ghs_|github[_\s-]?pat|"
-    r"sk[_\s-]?(?:live|test|proj)?|secret|token|password|private[_\s-]?key)(?:$|[_\s-])"
+    r"(?i)(?:^|[_\s-])(?:api[_\s-]?key|bearer|gh[pousr]_[a-z0-9_]*|ghs_[a-z0-9_]*|"
+    r"github[_\s-]?pat[_\s-]?[a-z0-9_]*|sk[_\s-]?(?:live|test|proj)?[a-z0-9_-]*|"
+    r"secret|token|password|private[_\s-]?key)(?:$|[_\s-])"
 )
 _TOKEN_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
 
@@ -50,13 +51,19 @@ def build_food_provenance_verification_bundle(
 ) -> VerificationBundle:
     """Build an internal verification bundle from food provenance trace rows."""
 
-    normalized_traces = _normalize_traces(traces)
+    normalized = _normalize_traces(traces)
+    normalized_traces = normalized.accepted
     evidence_refs = tuple(_evidence_ref(trace) for trace in normalized_traces)
     provenance = build_verification_provenance(
         context_items=tuple(_context_item(trace) for trace in normalized_traces),
     )
     artifacts = (
-        _provenance_present_artifact(normalized_traces, evidence_refs=evidence_refs, policy=policy),
+        _provenance_present_artifact(
+            normalized_traces,
+            rejected_count=normalized.rejected_count,
+            evidence_refs=evidence_refs,
+            policy=policy,
+        ),
         _confidence_artifact(
             normalized_traces,
             min_confidence=min_confidence,
@@ -70,6 +77,12 @@ def build_food_provenance_verification_bundle(
         ),
     )
     return build_bundle(artifacts=artifacts, provenance=provenance, policy=policy)
+
+
+@dataclass(frozen=True)
+class _NormalizedTraces:
+    accepted: tuple[FoodProvenanceTrace, ...]
+    rejected_count: int = 0
 
 
 def build_food_provenance_traces_from_record(
@@ -123,12 +136,14 @@ def build_meal_plan_food_provenance_bundle(
     )
 
 
-def _normalize_traces(traces: Sequence[FoodProvenanceTrace]) -> tuple[FoodProvenanceTrace, ...]:
+def _normalize_traces(traces: Sequence[FoodProvenanceTrace]) -> _NormalizedTraces:
     normalized: list[FoodProvenanceTrace] = []
+    rejected_count = 0
     for trace in traces:
         source = _normalize_token(trace.source)
         nutrient = _normalize_token(trace.nutrient)
         if source is None or nutrient is None:
+            rejected_count += 1
             continue
         normalized.append(
             FoodProvenanceTrace(
@@ -140,25 +155,38 @@ def _normalize_traces(traces: Sequence[FoodProvenanceTrace]) -> tuple[FoodProven
                 version_ref=_normalize_token(trace.version_ref),
             )
         )
-    return tuple(
-        sorted(
-            normalized,
-            key=lambda trace: (
-                trace.source,
-                trace.record_id or "",
-                trace.version_ref or "",
-                trace.nutrient,
-            ),
-        )
+    return _NormalizedTraces(
+        accepted=tuple(
+            sorted(
+                normalized,
+                key=lambda trace: (
+                    trace.source,
+                    trace.record_id or "",
+                    trace.version_ref or "",
+                    trace.nutrient,
+                ),
+            )
+        ),
+        rejected_count=rejected_count,
     )
 
 
 def _provenance_present_artifact(
     traces: Sequence[FoodProvenanceTrace],
     *,
+    rejected_count: int,
     evidence_refs: Sequence[str],
     policy: VerificationPolicy,
 ) -> VerificationArtifact:
+    if rejected_count > 0:
+        return _artifact(
+            verifier_id="food_provenance_verifier",
+            status=_FAIL,
+            reason_codes=("food_provenance_rejected",),
+            failure_reason="food_provenance_rejected",
+            evidence_refs=evidence_refs,
+            policy=policy,
+        )
     if not traces:
         return _artifact(
             verifier_id="food_provenance_verifier",

@@ -116,7 +116,7 @@ def test_food_provenance_bundle_fails_closed_for_blank_source_provenance() -> No
 
     assert bundle.admission_allowed is False
     assert bundle.reason_codes == (
-        "food_provenance_missing",
+        "food_provenance_rejected",
         "food_confidence_missing",
         "food_trace_lineage_missing",
     )
@@ -266,7 +266,7 @@ def test_food_provenance_trace_tokens_do_not_leak_raw_url_or_path_values() -> No
     joined_refs = " ".join(evidence_refs)
 
     assert bundle.admission_allowed is False
-    assert "food_provenance_missing" in bundle.reason_codes
+    assert "food_provenance_rejected" in bundle.reason_codes
     assert "http" not in joined_refs
     assert "/" not in joined_refs
     assert "\\" not in joined_refs
@@ -306,22 +306,34 @@ def test_food_provenance_trace_rejects_path_like_record_and_version_values() -> 
 
 
 def test_food_provenance_trace_rejects_secret_and_email_like_tokens() -> None:
+    openai_token_like = "sk" + "-" + "proj" + "-" + ("a" * 8)
+    github_token_like = "gh" + "p" + "_" + ("b" * 8)
+    github_pat_like = "github" + "_" + "pat" + "_" + ("c" * 8)
+    github_installation_like = "gh" + "s" + "_" + ("d" * 8)
     bundle = build_food_provenance_verification_bundle(
         (
             FoodProvenanceTrace(
-                source="sk-live-provider",
+                source=openai_token_like,
                 record_id="fdb-1",
                 nutrient="kcal",
                 confidence=0.91,
-                provenance="sk-live-provider",
+                provenance=openai_token_like,
                 version_ref="2026-04",
             ),
             FoodProvenanceTrace(
                 source="usda",
-                record_id="alice@example.com",
-                nutrient="ghp_token_marker",
+                record_id=github_token_like,
+                nutrient="protein_g",
                 confidence=0.91,
                 provenance="bearer token marker",
+                version_ref=github_pat_like,
+            ),
+            FoodProvenanceTrace(
+                source="off",
+                record_id="alice@example.com",
+                nutrient=github_installation_like,
+                confidence=0.91,
+                provenance="off",
                 version_ref="private-key-2026",
             ),
         )
@@ -330,13 +342,41 @@ def test_food_provenance_trace_rejects_secret_and_email_like_tokens() -> None:
     joined_refs = " ".join(evidence_refs)
 
     assert bundle.admission_allowed is False
-    assert "food_provenance_missing" in bundle.reason_codes
-    assert "food_trace_lineage_missing" in bundle.reason_codes
+    assert "food_provenance_rejected" in bundle.reason_codes
     assert "sk" not in joined_refs
     assert "ghp" not in joined_refs
+    assert "ghs" not in joined_refs
+    assert "github" not in joined_refs
     assert "alice" not in joined_refs
     assert "bearer" not in joined_refs
     assert "private" not in joined_refs
+
+
+def test_food_provenance_bundle_fails_closed_for_mixed_valid_and_rejected_rows() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="usda",
+                record_id="fdb-1",
+                nutrient="kcal",
+                confidence=0.91,
+                provenance="usda",
+            ),
+            FoodProvenanceTrace(
+                source="https://example.test/provider",
+                record_id="fdb-2",
+                nutrient="protein_g",
+                confidence=0.91,
+                provenance="https://example.test/provider",
+            ),
+        )
+    )
+    evidence_refs = tuple(ref for artifact in bundle.artifacts for ref in artifact.evidence_refs)
+
+    assert bundle.admission_allowed is False
+    assert "food_provenance_rejected" in bundle.reason_codes
+    assert "food:usda:fdb-1:kcal" in evidence_refs
+    assert all("example" not in ref for ref in evidence_refs)
 
 
 def test_food_provenance_traces_fail_closed_on_ambiguous_duplicate_source() -> None:
