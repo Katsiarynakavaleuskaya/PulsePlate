@@ -2347,6 +2347,135 @@ class TestVerificationRegistryCoverageTail:
         assert merged.provenance.verification_hops == rag_provenance.verification_hops
         assert merged.provenance.verification_calls == runtime_provenance.verification_calls
 
+    def test_merge_provenance_falsy_bool_preserved(self) -> None:
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+            build_verification_provenance,
+        )
+
+        base = build_verification_provenance(prompt_trimmed=True)
+        overlay = build_verification_provenance(prompt_trimmed=False)
+
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=(),
+            provenance=base,
+        )
+
+        merged = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=False,
+            runtime_verification_enabled=False,
+            provenance=overlay,
+        )
+
+        assert merged is not None
+        assert merged.provenance is not None
+        assert merged.provenance.prompt_trimmed is False
+
+    def test_merge_provenance_is_idempotent(self) -> None:
+        from core.verification.registry import (
+            build_rag_verification_bundle,
+            build_runtime_verification_bundle,
+            build_verification_provenance,
+        )
+
+        rag_provenance = build_verification_provenance(
+            input_text="input",
+            context_items=("ctx",),
+            verification_hops=2,
+            verification_calls=2,
+        )
+        rag_bundle = build_rag_verification_bundle(
+            knowledge_policy=self._knowledge_policy(),
+            confidence=0.92,
+            degraded_reason=None,
+            rag_actually_used=True,
+            philo_validation_enabled=True,
+            recursive_executed=False,
+            verification_calls=0,
+            evidence_refs=(),
+            provenance=rag_provenance,
+        )
+
+        runtime_provenance = build_verification_provenance(
+            input_text="input",
+            prompt_text="prompt",
+            context_items=("ctx",),
+            answer_text="answer",
+            verification_hops=0,
+            verification_calls=3,
+        )
+
+        m1 = build_runtime_verification_bundle(
+            rag_bundle=rag_bundle,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=False,
+            runtime_verification_enabled=False,
+            provenance=runtime_provenance,
+        )
+        assert m1 is not None
+
+        m2 = build_runtime_verification_bundle(
+            rag_bundle=m1,
+            verification_report=None,
+            falsification_report=None,
+            contradiction_count=0,
+            verification_first_path=False,
+            runtime_verification_enabled=False,
+            provenance=runtime_provenance,
+        )
+        assert m2 is not None
+
+        assert m1.provenance == m2.provenance
+
+    @pytest.mark.parametrize("exc_class", [RuntimeError, TypeError, ValueError])
+    def test_redacted_sha256_label_survives_redactor_exception(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        exc_class: type[BaseException],
+    ) -> None:
+        from core.verification.registry import redacted_sha256_label
+
+        monkeypatch.setattr(
+            "core.verification.registry._redact_provenance_text",
+            lambda _value: (_ for _ in ()).throw(exc_class("boom")),
+        )
+        assert redacted_sha256_label("any text") is None
+
+    def test_redacted_sha256_label_empty_string_returns_none(self) -> None:
+        from core.verification.registry import redacted_sha256_label
+
+        assert redacted_sha256_label("") is None
+
+    def test_redacted_sha256_label_whitespace_returns_none(self) -> None:
+        from core.verification.registry import redacted_sha256_label
+
+        assert redacted_sha256_label("   ") is None
+
+    def test_rag_bundle_provenance_answer_digest_is_none(self) -> None:
+        from core.verification.registry import build_verification_provenance
+
+        provenance = build_verification_provenance(
+            input_text="question",
+            prompt_text="prompt",
+            context_items=("chunk",),
+        )
+        assert provenance.answer_digest is None
+        assert provenance.answer_sha is None
+
     def test_verification_provenance_aliases_cannot_drift_when_constructed_directly(
         self,
     ) -> None:
