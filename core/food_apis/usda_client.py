@@ -45,6 +45,9 @@ class USDAFoodItem:
     nutrients_per_100g: Dict[str, float]  # Nutrient name -> amount per 100g
     data_type: str  # "Foundation", "SR Legacy", "Survey (FNDDS)", "Branded"
     publication_date: Optional[str]
+    brand_owner: Optional[str] = None
+    brand_name: Optional[str] = None
+    gtin_upc: Optional[str] = None
 
     def to_menu_engine_format(self) -> Dict[str, Any]:
         """
@@ -99,10 +102,15 @@ class USDAClient:
     EN: Client for USDA FoodData Central API.
 
     Provides methods to search foods and get detailed nutrition information.
-    Rate limits: No explicit limits mentioned, but we'll implement reasonable delays.
+    Official API guide limit is 1,000 requests/hour per IP. DEMO_KEY is much
+    lower at 30 requests/hour and 50 requests/day, so CI must stay offline.
     """
 
     BASE_URL = "https://api.nal.usda.gov/fdc/v1"
+    DEFAULT_RATE_LIMIT_PER_HOUR = 1000
+    DEMO_KEY_RATE_LIMIT_PER_HOUR = 30
+    DEMO_KEY_RATE_LIMIT_PER_DAY = 50
+    DEFAULT_SEARCH_DATA_TYPES = ("Foundation", "SR Legacy")
 
     # Type alias for httpx param values
     ParamValue = Union[
@@ -176,7 +184,7 @@ class USDAClient:
                 "query": query,
                 "pageSize": min(page_size, 200),
                 "api_key": self.api_key,
-                "dataType": ["Foundation", "SR Legacy"],  # Focus on most reliable data
+                "dataType": list(self.DEFAULT_SEARCH_DATA_TYPES),
                 "sortBy": "dataType.keyword",
                 "sortOrder": "asc",
             }
@@ -275,11 +283,44 @@ class USDAClient:
             except ValueError:
                 logger.error(f"Invalid fdcId string: {fdc_id_raw}")
                 return None
-        elif isinstance(fdc_id_raw, int):
+        elif isinstance(fdc_id_raw, int) and not isinstance(fdc_id_raw, bool):
             return fdc_id_raw
         else:
             logger.error(f"Invalid or missing fdcId: {fdc_id_raw}")
             return None
+
+    def _normalize_nutrient_id(self, nutrient_id_raw: object) -> Optional[int]:
+        """Normalize USDA nutrient IDs from search and detail payload variants."""
+        if isinstance(nutrient_id_raw, int) and not isinstance(nutrient_id_raw, bool):
+            return nutrient_id_raw
+        if isinstance(nutrient_id_raw, str):
+            try:
+                return int(nutrient_id_raw)
+            except ValueError:
+                return None
+        return None
+
+    def _extract_nutrient_id(self, nutrient_data: Mapping[str, Any]) -> Optional[int]:
+        """Extract nutrient ID from flat search payloads or nested detail payloads."""
+        nutrient_id = self._normalize_nutrient_id(nutrient_data.get("nutrientId"))
+        if nutrient_id is not None:
+            return nutrient_id
+        nested_nutrient = nutrient_data.get("nutrient")
+        if isinstance(nested_nutrient, Mapping):
+            return self._normalize_nutrient_id(nested_nutrient.get("id"))
+        return None
+
+    def _extract_nutrient_amount(self, nutrient_data: Mapping[str, Any]) -> Optional[float]:
+        """Extract a numeric nutrient amount while preserving valid zero values."""
+        amount_raw = (
+            nutrient_data.get("value") if "value" in nutrient_data else nutrient_data.get("amount")
+        )
+        if amount_raw is None:
+            return None
+        try:
+            return float(amount_raw)
+        except (TypeError, ValueError):
+            raise ValueError(f"invalid USDA nutrient amount: {amount_raw!r}")
 
     def _parse_food_item(self, food_data: Mapping[str, Any] | None) -> Optional[USDAFoodItem]:
         """
@@ -295,9 +336,16 @@ class USDAClient:
             fdc_id = self._validate_fdc_id(fdc_id_raw)
             if fdc_id is None:
                 return None
-            description = food_data.get("description", "Unknown Food")
-            data_type = food_data.get("dataType", "Unknown")
-            publication_date = food_data.get("publicationDate") or food_data.get("publishedDate")
+            description_raw = food_data.get("description")
+            description = description_raw if isinstance(description_raw, str) else "Unknown Food"
+            data_type_raw = food_data.get("dataType")
+            data_type = data_type_raw if isinstance(data_type_raw, str) else "Unknown"
+            publication_date_raw = food_data.get("publicationDate") or food_data.get(
+                "publishedDate"
+            )
+            publication_date = (
+                publication_date_raw if isinstance(publication_date_raw, str) else None
+            )
 
             # Extract food category
             food_category = None
@@ -307,21 +355,31 @@ class USDAClient:
                     food_category = food_category_data.get("description")
                 elif isinstance(food_category_data, str):
                     food_category = food_category_data
+            if food_category is None:
+                branded_category = food_data.get("brandedFoodCategory")
+                if isinstance(branded_category, str):
+                    food_category = branded_category
+
+            brand_owner_raw = food_data.get("brandOwner")
+            brand_name_raw = food_data.get("brandName")
+            gtin_upc_raw = food_data.get("gtinUpc") or food_data.get("gtinUPC")
+            brand_owner = brand_owner_raw if isinstance(brand_owner_raw, str) else None
+            brand_name = brand_name_raw if isinstance(brand_name_raw, str) else None
+            gtin_upc = gtin_upc_raw if isinstance(gtin_upc_raw, str) else None
 
             # Extract nutrients
             nutrients_per_100g = {}
             for nutrient_data in food_data.get("foodNutrients", []):
                 # Handle different API response formats
                 if isinstance(nutrient_data, dict):
-                    # Search API uses 'nutrientId', details API might use 'nutrient.id'
-                    nutrient_id = nutrient_data.get("nutrientId") or nutrient_data.get(
-                        "nutrient", {}
-                    ).get("id")
-                    amount = nutrient_data.get("value") or nutrient_data.get("amount")
-
-                    if nutrient_id in self.nutrient_mapping and amount is not None:
-                        nutrient_name = self.nutrient_mapping[nutrient_id]
-                        nutrients_per_100g[nutrient_name] = float(amount)
+                    nutrient_id = self._extract_nutrient_id(nutrient_data)
+                    if nutrient_id not in self.nutrient_mapping:
+                        continue
+                    amount = self._extract_nutrient_amount(nutrient_data)
+                    if amount is None:
+                        continue
+                    nutrient_name = self.nutrient_mapping[nutrient_id]
+                    nutrients_per_100g[nutrient_name] = amount
 
             # Only return foods with substantial nutrition data
             if len(nutrients_per_100g) < 3:
@@ -338,6 +396,9 @@ class USDAClient:
                 nutrients_per_100g=nutrients_per_100g,
                 data_type=data_type,
                 publication_date=publication_date,
+                brand_owner=brand_owner,
+                brand_name=brand_name,
+                gtin_upc=gtin_upc,
             )
 
         except Exception as e:

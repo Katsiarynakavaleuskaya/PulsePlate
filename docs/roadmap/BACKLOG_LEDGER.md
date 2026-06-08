@@ -2269,7 +2269,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR `#1613` (PR13: `docs(food-data): add per-chain legal review gate`) -> PR #1743 (PR14: `feat(food-data): add recipe dish corpus governance gate`) -> PR #1747 (PR15: `feat(food-data): add preference recipe mapping contract`) -> PR #1768 (PR16: `feat(food-data): close preference recipe mapping review`) -> PR #1771 (PR17: `feat(food-data): add regional catalog identity license gate`) -> PR #1783 (PR18: `feat(food-data): add regional provider terms matrix gate`) -> PR #1793 (PR19: `feat(food-data): add regional source-specific terms gate`) -> PR #1815 (PR20: regional catalog source-specific terms closeout) -> PR #1829 (PR21: regional catalog dedicated legal contract review) -> PR22 (regional catalog dedicated legal contract review closeout)
-  - Status: 🚧 Active PR22 regional catalog dedicated legal contract review closeout lane
+  - Status: 🚧 USDA/FDC 2026 compatibility preflight lane after PR22 regional catalog dedicated legal contract review closeout
     - Merged: PR1 planning baseline (`#1513`), PR2 tooling baseline (`#1517`), PR3 lineage hardening (`#1532`), PR4 collision policy (`#1531`), PR5 source-onboarding gate (`#1559`), PR6 USDA manifest preflight (`#1563`), PR7 Open Food Facts manifest preflight (`#1572`), PR8 JPTN identity/license gate (`#1577`), PR9 MenuStat replacement gate (`#1590`), PR10 MenuStat source decision (`#1597`), PR11 coverage/source-gap audit (`#1601`), PR12 chain public nutrition governance (`#1609`), PR13 per-chain legal / anti-scraping review (`#1613`), PR14 recipe/dish corpus governance (`#1743`), PR15 preference recipe mapping contract (`#1747`), PR16 preference mapping closeout (`#1768`), PR17 regional catalog identity/license review (`#1771`), PR18 regional provider terms matrix (`#1783`), PR19 regional source-specific terms gate (`#1793`), PR20 regional catalog source-specific terms closeout (`#1815`), and PR21 regional catalog dedicated legal contract review (`#1829`)
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
@@ -2280,6 +2280,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_ONBOARDING_GATE_PR5_PACKET_2026-04-28.md`
     - `docs/orchestration/FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md`
+    - `docs/orchestration/FOOD_DATA_USDA_FDC_2026_COMPAT_PREFLIGHT_PACKET_2026-06-08.md`
     - `docs/orchestration/FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md`
     - `docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md`
     - `docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md`
@@ -2331,6 +2332,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Dedupe/mapping collision checks are defined before snapshot promotion or PostgreSQL staging
     - Source-onboarding gate defines cache, display, attribution, redistribution, and contract-review decisions before any source-specific ingest
     - USDA Foundation, Branded, and FNDDS have deterministic manifest fixtures that pass source-specific dry-run preflight against PR2, PR3, and PR5 contracts before any USDA ingest lane opens
+    - USDA/FDC 2026 compatibility locks Foundation `04/2026`, Branded `04/2026`, Full Download `04/2026`, FNDDS `10/2024` / `2021-2023`, and SR Legacy `04/2018` assumptions into file-only manifests and parser regressions without live API calls, downloads, `DEMO_KEY`, DB writes, DigitalOcean Postgres, SQLite/runtime authority changes, or OpenAPI/client scope
     - Open Food Facts has deterministic full-dump and delta/export-style manifest fixtures that pass source-specific dry-run preflight against PR2, PR3, and PR5 contracts while preserving ODbL attribution and redistribution policy before any OFF ingest lane opens
     - JPTN Food Facts has a deterministic identity/license gate that records missing provider identity, source URL, license, retrieval contract, schema/unit-normalization, attribution, and redistribution evidence while keeping JPTN blocked until verified
     - MenuStat is not treated as an actively updating source; PR9 defines a deterministic replacement-source decision gate that keeps Nutritionix, FatSecret Platform, Spoonacular, and chain public nutrition pages blocked until source-specific legal, contract, cache, attribution, redistribution, freshness, schema, and rollback terms are approved
@@ -2351,6 +2353,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR22 closes out PR21 dedicated legal/contract review while preserving PR21/#1829 merge evidence, exact regional catalog candidate set/order, review-only/no-source-or-provider-use posture, low/unverified evidence confidence, and false unsafe flags; no legal approval, source use, provider use, API calls, scraping, downloads, account access, paid use, DB writes, cache authority, redistribution, runtime/source authority, product display, nutrition authority, connector writes, or source authority are approved, with the next lane set by the PR22 artifact
     - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
+    - Deferred follow-ups remain separate: minimal `FoodRecord` metadata propagation for `fdc_id` / `brand` / `gtin`, staging/Postgres dry-run loader, governed cutover packet, and Open Food Facts refresh
 
 <a id="ledger-p1-llm-reliability-security-gates"></a>
 - [x] P1: LLM reliability and security CI gates for retrieval, faithfulness, prompt-injection, and privacy
