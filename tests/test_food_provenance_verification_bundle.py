@@ -189,6 +189,56 @@ def test_food_provenance_traces_from_merged_record_include_source_lineage() -> N
     assert "private_marker" not in " ".join(evidence_refs)
 
 
+def test_food_provenance_traces_use_record_confidence_fallback() -> None:
+    record = {
+        "nutrition_inputs": [
+            {
+                "source": "USDA Foundation",
+                "record_id": "FDB-123",
+                "version_ref": "2026-04",
+                "nutrients": {"kcal": 120.0, "protein_g": 8.5},
+            }
+        ],
+        "nutrition_provenance": {
+            "kcal": "USDA Foundation",
+            "protein_g": "USDA Foundation",
+        },
+        "nutrition_nutrient_confidence": {"kcal": 0.91},
+        "nutrition_confidence": 0.88,
+    }
+
+    traces = build_food_provenance_traces_from_record(record)
+
+    assert {trace.nutrient: trace.confidence for trace in traces} == {
+        "kcal": 0.91,
+        "protein_g": 0.88,
+    }
+
+
+def test_food_provenance_trace_tokens_do_not_leak_raw_url_or_path_values() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="https://example.test/provider path",
+                record_id="/Users/alice/private/FDB 123",
+                nutrient="protein g",
+                confidence=0.91,
+                provenance="https://example.test/provider path",
+                version_ref="C:\\tmp\\snapshot 2026",
+            ),
+        )
+    )
+    evidence_refs = tuple(ref for artifact in bundle.artifacts for ref in artifact.evidence_refs)
+    joined_refs = " ".join(evidence_refs)
+
+    assert bundle.admission_allowed is False
+    assert "food_provenance_missing" in bundle.reason_codes
+    assert "http" not in joined_refs
+    assert "/" not in joined_refs
+    assert "\\" not in joined_refs
+    assert "users" not in joined_refs
+
+
 def test_food_provenance_traces_fail_closed_on_ambiguous_duplicate_source() -> None:
     record = {
         "nutrition_inputs": [

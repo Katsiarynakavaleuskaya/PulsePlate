@@ -19,6 +19,7 @@ from core.verification.registry import build_bundle, build_verification_provenan
 _PASS: VerificationStatus = "pass"
 _FAIL: VerificationStatus = "fail"
 _MIN_CONFIDENCE = 0.7
+_LOCAL_PATH_PREFIXES = ("users", "home", "private", "var", "tmp", "volumes")
 _TOKEN_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
 
 
@@ -309,7 +310,12 @@ def _context_item(trace: FoodProvenanceTrace) -> str:
 def _normalize_token(value: object | None) -> str | None:
     if not isinstance(value, str):
         return None
-    normalized = _TOKEN_RE.sub("_", value.strip()).strip("_").lower()
+    raw_value = value.strip().lower()
+    if "://" in raw_value:
+        return None
+    normalized = _TOKEN_RE.sub("_", raw_value).strip("_")
+    if normalized.startswith(_LOCAL_PATH_PREFIXES):
+        return None
     return normalized or None
 
 
