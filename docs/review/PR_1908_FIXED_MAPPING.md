@@ -45,21 +45,21 @@ merge, workflow-selection, token-minting, or semantic-cache authority.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed for currently visible comments.
+- [x] Discussion-thread pass completed.
 - [x] Fixed in commit mapping completed.
-- Notes: no actionable review threads were present when this artifact was
-  created. Final thread resolution and bot-actionable pass remain pending until
-  CodeRabbit, Cubic, Sourcery, and current-head CI settle.
+- Notes: Sourcery and Cubic actionables were fixed after review and are mapped
+  below. CodeRabbit had no actionable generated review comments at the last
+  checked pass. Final strict merge-readiness remains pending current-head CI,
+  bot state, and unresolved-thread verification.
 
 ### Fixed in Commit Mapping
 
-Disposition: NOT-A-BUG
-Evidence: no actionable GitHub review-thread comments were present when this
-artifact was created; mandatory post-open role reviews and local review tools
-found no code/security blockers.
-Reason: this mapping records pre-open premortem dispositions, post-open role
-evidence, Codex Security, and `pulseplate-pr-review` advisory notes; it does
-not resolve any review thread or claim merge readiness.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1908#pullrequestreview-4450854355 -> 580d959b2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1908#pullrequestreview-4450939865 -> 580d959b2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1908#discussion_r3374412935 -> 580d959b2
+Disposition: FIXED
+Commit: 580d959b2
+Evidence: `scripts/orchestration/experiment_operator_ledger.py` centralizes the invalid activation-evidence input message and computes activation blocker labels once per history scan; `docs/roadmap/BACKLOG_LEDGER.md` now explicitly says the slice adds no HTTPS ingress, semantic cache, GraphRAG, product runtime, token minting, PR/review/merge authority, arbitrary workflow dispatch, or new Slack command authority.
 
 ## Premortem Findings
 
@@ -124,11 +124,11 @@ not resolve any review thread or claim merge readiness.
 
 ## Local Validation
 
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_runner_identity_policy.py`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_preflight.py --mode analyze --path scripts/orchestration/experiment_operator_ledger.py --path scripts/orchestration/experiment_slack_socket_bridge.py --path scripts/orchestration/experiment_slack_bridge_rendering.py --path scripts/orchestration/check_experiment_runner_identity.py --path tests/test_experiment_operator_ledger.py`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_agent_consistency.py`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_experiment_runner_identity.py`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+- PASS: `python3 -m pytest -q tests/test_experiment_operator_ledger.py tests/test_experiment_slack_socket_bridge.py tests/test_experiment_runner_identity_policy.py`
+- PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path scripts/orchestration/experiment_operator_ledger.py --path scripts/orchestration/experiment_slack_socket_bridge.py --path scripts/orchestration/experiment_slack_bridge_rendering.py --path scripts/orchestration/check_experiment_runner_identity.py --path tests/test_experiment_operator_ledger.py`
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS: `python3 scripts/orchestration/check_experiment_runner_identity.py`
+- PASS: `python3 scripts/ci/check_semantic_cache_gate.py --doc docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks, including changed-file mypy, pip-audit, backend
