@@ -53,7 +53,7 @@ OUT:
 
 Packet: `artifacts/orchestration/experiments/food_provenance_oracle_packet.json`
 
-Result: `artifacts/orchestration/experiments/results/exp-88ab466995e9.json`
+Artifact: artifacts/orchestration/experiments/results/exp-88ab466995e9.json
 
 Status: accepted.
 
@@ -101,7 +101,7 @@ changed-scope local gates plus current-head CI for heavy validation.
 
 ### Fixed in Commit Mapping
 
-- No human review threads were open at artifact creation.
+- No actionable review comments
 
 ## Bot Review Summary
 
