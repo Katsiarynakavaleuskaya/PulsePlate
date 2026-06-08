@@ -2985,6 +2985,43 @@ def test_parser_rejects_extra_args_for_read_only_commands(text: str) -> None:
         bridge.parse_operator_command(text)
 
 
+def test_parser_rejects_dispatch_through_pulseplate_runner_hint() -> None:
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.parse_operator_command(
+            "run-experiment feature/test Validate runner bypass from display command",
+            command_hint="/pulseplate-runner",
+        )
+
+
+def test_pulseplate_runner_cannot_dispatch_in_execute_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "m" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", "a" * 64)
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+    )
+    calls: list[dict[str, Any]] = []
+
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.process_payload(
+            _event(
+                command="/pulseplate-runner",
+                text="run-experiment feature/test Validate runner bypass from display command",
+            ),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
+
+
 def test_channel_and_user_allowlists_fail_closed_without_leaking_ids(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4106,8 +4143,9 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         'config_status="${{ steps.bridge_config.outputs.config_status }}"'
         in live_evidence_step["run"]
     )
-    assert 'smoke_input_status="${{ steps.smoke_inputs.outputs.smoke_input_status }}"' in (
-        live_evidence_step["run"]
+    assert (
+        'smoke_input_status="${{ steps.smoke_inputs.outputs.smoke_input_status }}"'
+        in (live_evidence_step["run"])
     )
     assert (
         'audit_retention_status="${{ steps.audit_retention.outputs.audit_retention_status }}"'

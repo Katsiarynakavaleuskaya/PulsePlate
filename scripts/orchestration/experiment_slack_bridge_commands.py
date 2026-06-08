@@ -28,6 +28,13 @@ from scripts.orchestration.experiment_slack_bridge_models import (
 )
 from scripts.orchestration.experiment_slack_redaction import LOCAL_PATH_RE
 
+DISPLAY_ONLY_COMMANDS = {"help", "kpp-status", "mvp-evidence", "status"}
+DISPATCH_COMMAND = "run-experiment"
+SLASH_COMMAND_SCOPES = {
+    "/pulseplate-runner": DISPLAY_ONLY_COMMANDS,
+    "/run-experiment": {DISPATCH_COMMAND},
+}
+
 
 def _read_json_object(path: Path) -> dict[str, Any]:
     try:
@@ -70,7 +77,10 @@ def parse_operator_command(text: str, *, command_hint: str | None = None) -> Ope
     verb, _separator, remainder = normalized.partition(" ")
     if verb not in ALLOWED_COMMANDS:
         raise SlackSocketCommandError("Slack operator command is invalid.")
-    if verb in {"help", "kpp-status", "mvp-evidence", "status"}:
+    scoped_commands = SLASH_COMMAND_SCOPES.get(command_hint or "")
+    if scoped_commands is not None and verb not in scoped_commands:
+        raise SlackSocketCommandError("Slack operator command is invalid.")
+    if verb in DISPLAY_ONLY_COMMANDS:
         if remainder.strip():
             raise SlackSocketCommandError("Slack operator command is invalid.")
         return OperatorCommand(kind=verb)
