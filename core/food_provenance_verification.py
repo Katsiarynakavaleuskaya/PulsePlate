@@ -222,9 +222,12 @@ def _confidence_artifact(
     evidence_refs: Sequence[str],
     policy: VerificationPolicy,
 ) -> VerificationArtifact:
+    resolved_min_confidence = _numeric_float(min_confidence)
     threshold = (
-        min_confidence
-        if math.isfinite(min_confidence) and 0.0 <= min_confidence <= 1.0
+        resolved_min_confidence
+        if resolved_min_confidence is not None
+        and math.isfinite(resolved_min_confidence)
+        and 0.0 <= resolved_min_confidence <= 1.0
         else _MIN_CONFIDENCE
     )
     if not traces:
@@ -265,7 +268,7 @@ def _lineage_present_artifact(
     evidence_refs: Sequence[str],
     policy: VerificationPolicy,
 ) -> VerificationArtifact:
-    if not evidence_refs:
+    if not traces:
         return _artifact(
             verifier_id="food_trace_lineage_verifier",
             status=_FAIL,

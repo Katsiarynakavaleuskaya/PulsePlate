@@ -157,6 +157,24 @@ def test_food_provenance_bundle_falls_back_for_invalid_min_confidence() -> None:
     assert "food_confidence_below_threshold" in bundle.reason_codes
 
 
+def test_food_provenance_bundle_falls_back_for_bool_min_confidence() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="usda",
+                record_id="fdb-1",
+                nutrient="kcal",
+                confidence=0.0,
+                provenance="usda",
+            ),
+        ),
+        min_confidence=False,
+    )
+
+    assert bundle.admission_allowed is False
+    assert "food_confidence_below_threshold" in bundle.reason_codes
+
+
 def test_food_provenance_bundle_rejects_out_of_range_confidence() -> None:
     direct_bundle = build_food_provenance_verification_bundle(
         (
