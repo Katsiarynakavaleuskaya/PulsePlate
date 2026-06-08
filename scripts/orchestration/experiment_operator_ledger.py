@@ -58,6 +58,7 @@ DEFAULT_OBSERVABILITY_REPORT_DIR = (
 DEFAULT_ACTIVATION_EVIDENCE_DIR = (
     REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "private_pilot_activation"
 )
+DEFAULT_ACTIVATION_EVIDENCE_STALE_AFTER_DAYS = 7
 EXPERIMENT_RESULTS_REPO_PREFIX = "artifacts/orchestration/experiments/results/"
 PRIVATE_PILOT_ACTIVATION_REPO_PREFIX = (
     "artifacts/orchestration/experiments/private_pilot_activation/"
@@ -386,6 +387,14 @@ def _validate_retention_days(value: Any) -> int:
         raise OperatorLedgerError("Experiment operator ledger retention is invalid.")
     if value <= 0 or value > 366:
         raise OperatorLedgerError("Experiment operator ledger retention is invalid.")
+    return value
+
+
+def _validate_stale_after_days(value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise OperatorLedgerError("Private-pilot activation stale window is invalid.")
+    if value <= 0 or value > 90:
+        raise OperatorLedgerError("Private-pilot activation stale window is invalid.")
     return value
 
 
@@ -1012,21 +1021,168 @@ def latest_private_pilot_activation_evidence(
     return records[-1] if records else None
 
 
+def validate_private_pilot_activation_evidence_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate downloaded redacted activation evidence without importing it."""
+
+    try:
+        return cast(dict[str, Any], validate_private_pilot_activation_evidence(payload))
+    except PrivatePilotActivationEvidenceError as exc:
+        raise OperatorLedgerError("Private-pilot activation evidence input is invalid.") from exc
+
+
+def _activation_generated_at(record: dict[str, Any]) -> datetime:
+    return datetime.fromisoformat(str(record["generated_at"])).astimezone(timezone.utc)
+
+
+def _activation_evidence_age_class(
+    latest: dict[str, Any] | None,
+    *,
+    invalid: bool,
+    now: datetime,
+    stale_after_days: int,
+) -> str:
+    if invalid:
+        return "invalid_local_artifact"
+    if latest is None:
+        return "absent"
+    generated_at = _activation_generated_at(latest)
+    return "stale" if generated_at + timedelta(days=stale_after_days) < now else "fresh"
+
+
+def _activation_blocker_label(record: dict[str, Any]) -> str:
+    state = str(record["activation_state"])
+    if state == "blocked_by_missing_secret":
+        return "missing_secret"
+    if state == "blocked_by_allowlist":
+        return "allowlist"
+    if state in {"blocked_by_invalid_config", "invalid_local_artifact"}:
+        return "invalid_config"
+    if state == "smoke_failed_safely":
+        return "failed_smoke"
+    if state == "smoke_recorded":
+        return "recorded_smoke"
+    return "none"
+
+
+def _activation_blocker_trend(records: list[dict[str, Any]], *, invalid: bool) -> str:
+    if invalid:
+        return "invalid_local_artifact"
+    if not records:
+        return "none"
+    latest_label = _activation_blocker_label(records[-1])
+    if latest_label in {"recorded_smoke", "failed_smoke", "none"}:
+        return latest_label
+    historical_blockers = {
+        _activation_blocker_label(record)
+        for record in records
+        if _activation_blocker_label(record)
+        in {"missing_secret", "allowlist", "invalid_config", "failed_smoke"}
+    }
+    return "mixed_blockers" if len(historical_blockers) > 1 else latest_label
+
+
+def _private_pilot_manual_smoke_operations_projection(
+    records: list[dict[str, Any]],
+    *,
+    invalid: bool,
+    now: datetime,
+    stale_after_days: int,
+) -> dict[str, Any]:
+    latest = records[-1] if records else None
+    evidence_age_class = _activation_evidence_age_class(
+        latest,
+        invalid=invalid,
+        now=now,
+        stale_after_days=stale_after_days,
+    )
+    blocker_trend = _activation_blocker_trend(records, invalid=invalid)
+    if invalid:
+        return {
+            "activation_evidence_count": 0,
+            "blocker_trend": blocker_trend,
+            "evidence_age_class": evidence_age_class,
+            "import_status": "invalid_local_artifact",
+            "latest_activation_state": "invalid_local_artifact",
+            "latest_smoke_class": "invalid_local_artifact",
+            "next_operator_action": "inspect_sanitized_failure",
+            "stale_after_days": stale_after_days,
+        }
+    if latest is None:
+        return {
+            "activation_evidence_count": 0,
+            "blocker_trend": "none",
+            "evidence_age_class": "absent",
+            "import_status": "absent",
+            "latest_activation_state": "manual_only",
+            "latest_smoke_class": "none",
+            "next_operator_action": "run_manual_live_smoke",
+            "stale_after_days": stale_after_days,
+        }
+    return {
+        "activation_evidence_count": len(records),
+        "blocker_trend": blocker_trend,
+        "evidence_age_class": evidence_age_class,
+        "import_status": "valid",
+        "latest_activation_state": latest["activation_state"],
+        "latest_smoke_class": latest["last_smoke"],
+        "next_operator_action": latest["next_operator_action"],
+        "stale_after_days": stale_after_days,
+    }
+
+
+def _private_pilot_manual_smoke_summary(
+    projection: dict[str, Any],
+) -> tuple[str, ...]:
+    return (
+        f"private_pilot_evidence_age_class={projection['evidence_age_class']}",
+        f"private_pilot_blocker_trend={projection['blocker_trend']}",
+        f"private_pilot_import_status={projection['import_status']}",
+    )
+
+
 def latest_private_pilot_activation_summary(
     *,
     evidence_dir: Path | None = None,
     repo_root: Path | None = None,
+    now: datetime | None = None,
+    stale_after_days: int = DEFAULT_ACTIVATION_EVIDENCE_STALE_AFTER_DAYS,
 ) -> tuple[str, ...]:
     """Return latest private-pilot activation summary, sanitized on local failures."""
 
+    effective_now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    normalized_stale_days = _validate_stale_after_days(stale_after_days)
     try:
-        latest = latest_private_pilot_activation_evidence(
+        records = load_private_pilot_activation_evidence(
             evidence_dir=evidence_dir,
             repo_root=repo_root,
         )
     except OperatorLedgerError:
-        return cast(tuple[str, ...], invalid_private_pilot_activation_summary())
-    return cast(tuple[str, ...], render_private_pilot_activation_summary(latest))
+        projection = _private_pilot_manual_smoke_operations_projection(
+            [],
+            invalid=True,
+            now=effective_now,
+            stale_after_days=normalized_stale_days,
+        )
+        return cast(
+            tuple[str, ...],
+            (
+                *invalid_private_pilot_activation_summary(),
+                *_private_pilot_manual_smoke_summary(projection),
+            ),
+        )
+    projection = _private_pilot_manual_smoke_operations_projection(
+        records,
+        invalid=False,
+        now=effective_now,
+        stale_after_days=normalized_stale_days,
+    )
+    return cast(
+        tuple[str, ...],
+        (
+            *render_private_pilot_activation_summary(records[-1] if records else None),
+            *_private_pilot_manual_smoke_summary(projection),
+        ),
+    )
 
 
 def _private_pilot_activation_projection(
@@ -1035,6 +1191,7 @@ def _private_pilot_activation_projection(
     evidence_dir: Path | None,
     invalid: bool,
     repo_root: Path,
+    manual_smoke_operations: dict[str, Any],
 ) -> dict[str, Any]:
     if invalid:
         return {
@@ -1045,8 +1202,12 @@ def _private_pilot_activation_projection(
             "evidence_graph_admission_status": "contract_only_not_runtime",
             "evidence_id": "none",
             "last_smoke": "invalid_local_artifact",
+            "manual_smoke_operations": manual_smoke_operations,
             "next_operator_action": "inspect_sanitized_failure",
-            "summary": invalid_private_pilot_activation_summary(),
+            "summary": (
+                *invalid_private_pilot_activation_summary(),
+                *_private_pilot_manual_smoke_summary(manual_smoke_operations),
+            ),
         }
     if latest is None:
         return {
@@ -1057,8 +1218,12 @@ def _private_pilot_activation_projection(
             "evidence_graph_admission_status": "contract_only_not_runtime",
             "evidence_id": "none",
             "last_smoke": "none",
+            "manual_smoke_operations": manual_smoke_operations,
             "next_operator_action": "run_manual_live_smoke",
-            "summary": absent_private_pilot_activation_summary(),
+            "summary": (
+                *absent_private_pilot_activation_summary(),
+                *_private_pilot_manual_smoke_summary(manual_smoke_operations),
+            ),
         }
     target_dir = _validate_activation_evidence_dir(
         evidence_dir or default_activation_evidence_dir(repo_root),
@@ -1073,8 +1238,12 @@ def _private_pilot_activation_projection(
         "evidence_graph_admission_status": latest["evidence_graph_admission_status"],
         "evidence_id": latest["evidence_id"],
         "last_smoke": latest["last_smoke"],
+        "manual_smoke_operations": manual_smoke_operations,
         "next_operator_action": latest["next_operator_action"],
-        "summary": render_private_pilot_activation_summary(latest),
+        "summary": (
+            *render_private_pilot_activation_summary(latest),
+            *_private_pilot_manual_smoke_summary(manual_smoke_operations),
+        ),
     }
 
 
@@ -1330,10 +1499,14 @@ def build_operator_observability_report(
     repo_root: Path | None = None,
     activation_readiness: dict[str, Any] | None = None,
     activation_evidence_dir: Path | None = None,
+    now: datetime | None = None,
+    activation_evidence_stale_after_days: int = DEFAULT_ACTIVATION_EVIDENCE_STALE_AFTER_DAYS,
 ) -> dict[str, Any]:
     """Build a redacted local observability report from operator ledger events."""
 
     effective_root = repo_root or REPO_ROOT
+    effective_now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    normalized_stale_days = _validate_stale_after_days(activation_evidence_stale_after_days)
     records = load_operator_ledger_events(ledger_dir=ledger_dir, repo_root=effective_root)
     activation_evidence_records: list[dict[str, Any]] = []
     activation_evidence_invalid = False
@@ -1379,11 +1552,18 @@ def build_operator_observability_report(
     latest = records[-1].payload if records else None
     latest_result_metadata = result_artifacts[-1] if result_artifacts else None
     latest_activation = activation_evidence_records[-1] if activation_evidence_records else None
+    manual_smoke_operations = _private_pilot_manual_smoke_operations_projection(
+        activation_evidence_records,
+        invalid=activation_evidence_invalid,
+        now=effective_now,
+        stale_after_days=normalized_stale_days,
+    )
     latest_activation_projection = _private_pilot_activation_projection(
         latest_activation,
         evidence_dir=activation_evidence_dir,
         invalid=activation_evidence_invalid,
         repo_root=effective_root,
+        manual_smoke_operations=manual_smoke_operations,
     )
     return {
         "authority_boundary": {
@@ -1424,6 +1604,7 @@ def build_operator_observability_report(
         "policy_version": POLICY_VERSION,
         "private_pilot_activation_evidence": latest_activation_projection,
         "private_pilot_activation_summary": list(latest_activation_projection["summary"]),
+        "private_pilot_manual_smoke_operations": manual_smoke_operations,
         "redaction_version": REDACTION_VERSION,
         "redaction_summary": {
             "approval_digests_stored": False,
@@ -1499,6 +1680,13 @@ def render_operator_observability_markdown(report: dict[str, Any]) -> str:
     for summary_item in private_pilot_summary:
         key, value = summary_item.split("=", 1)
         lines.append(f"- {key}: `{value}`")
+    lines.extend(["", "## Private Pilot Manual Smoke Operations"])
+    manual_smoke_operations = report.get("private_pilot_manual_smoke_operations", {})
+    if isinstance(manual_smoke_operations, dict) and manual_smoke_operations:
+        for key, value in sorted(manual_smoke_operations.items()):
+            lines.append(f"- {key}: `{value}`")
+    else:
+        lines.append("- none")
     for section, key in (
         ("Status Counts", "by_status"),
         ("Failure Class Counts", "by_failure_class"),
@@ -1642,6 +1830,10 @@ def render_operator_observability_html(report: dict[str, Any]) -> str:
                     )
                 ]
             ),
+            "<h2>Private Pilot Manual Smoke Operations</h2>",
+            _render_html_table(
+                sorted((report.get("private_pilot_manual_smoke_operations") or {}).items())
+            ),
         ]
     )
     for title, key in (
@@ -1720,6 +1912,8 @@ def write_operator_observability_report_set(
         "markdown": render_operator_observability_markdown(report),
         "html": render_operator_observability_html(report),
     }
+    for content in rendered.values():
+        _safe_cli_stdout_payload(content)
     for path in paths.values():
         try:
             _preflight_output_write(path)
@@ -1741,6 +1935,19 @@ def _read_json_object(path: Path) -> dict[str, Any]:
         raise OperatorLedgerError("Experiment operator ledger input is invalid.") from exc
     if not isinstance(payload, dict):
         raise OperatorLedgerError("Experiment operator ledger input is invalid.")
+    return payload
+
+
+def _read_activation_evidence_json_object(path: Path) -> dict[str, Any]:
+    candidate = path.expanduser()
+    if candidate.is_symlink() or not candidate.is_file():
+        raise OperatorLedgerError("Private-pilot activation evidence input is invalid.")
+    try:
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise OperatorLedgerError("Private-pilot activation evidence input is invalid.") from exc
+    if not isinstance(payload, dict):
+        raise OperatorLedgerError("Private-pilot activation evidence input is invalid.")
     return payload
 
 
@@ -1779,6 +1986,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--validate-activation-evidence",
+        action="store_true",
+        help=(
+            "Validate --activation-evidence-json as downloaded redacted "
+            "private-pilot activation evidence without importing it."
+        ),
+    )
+    parser.add_argument(
         "--summary",
         action="store_true",
         help="Render a local observability report from the operator ledger.",
@@ -1806,6 +2021,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Summary output format.",
     )
     parser.add_argument(
+        "--activation-evidence-stale-after-days",
+        type=int,
+        default=DEFAULT_ACTIVATION_EVIDENCE_STALE_AFTER_DAYS,
+        help=(
+            "Local report/status stale classification window for private-pilot "
+            "activation evidence."
+        ),
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help="Optional output path under artifacts/orchestration/experiments.",
@@ -1821,9 +2045,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     report_dir = Path(args.report_dir) if args.report_dir else None
     try:
+        stale_after_days = _validate_stale_after_days(args.activation_evidence_stale_after_days)
         if args.record and args.record_activation_evidence:
             raise OperatorLedgerError(
                 "Experiment operator ledger cannot record multiple evidence types."
+            )
+        if args.validate_activation_evidence and (
+            args.record
+            or args.record_activation_evidence
+            or args.summary
+            or args.write_report_set
+            or args.output
+        ):
+            raise OperatorLedgerError(
+                "Private-pilot activation evidence validation cannot combine with other modes."
             )
         if args.write_report_set and (args.record or args.record_activation_evidence):
             raise OperatorLedgerError(
@@ -1871,23 +2106,56 @@ def main(argv: list[str] | None = None) -> int:
                 "status": "recorded",
             }
             stdout_payload = json.dumps(payload, sort_keys=True) + "\n"
+        elif args.validate_activation_evidence:
+            if args.activation_evidence_json is None:
+                raise OperatorLedgerError("Private-pilot activation evidence input is invalid.")
+            evidence = validate_private_pilot_activation_evidence_payload(
+                _read_activation_evidence_json_object(
+                    Path(args.activation_evidence_json).expanduser()
+                )
+            )
+            payload = {
+                "activation_state": evidence["activation_state"],
+                "authority": "display_only",
+                "dispatch_outcome_class": evidence["dispatch_outcome_class"],
+                "evidence_graph_admission_status": evidence["evidence_graph_admission_status"],
+                "import_status": "validation_only_not_imported",
+                "last_smoke": evidence["last_smoke"],
+                "next_operator_action": evidence["next_operator_action"],
+                "status": "validated",
+            }
+            stdout_payload = json.dumps(payload, sort_keys=True) + "\n"
         elif args.record_activation_evidence:
             if args.activation_evidence_json is None:
                 raise OperatorLedgerError("Private-pilot activation evidence input is invalid.")
+            evidence = validate_private_pilot_activation_evidence_payload(
+                _read_activation_evidence_json_object(
+                    Path(args.activation_evidence_json).expanduser()
+                )
+            )
+            target_dir = _validate_activation_evidence_dir(
+                activation_evidence_dir or default_activation_evidence_dir(REPO_ROOT),
+                repo_root=REPO_ROOT,
+            )
+            target_path = target_dir / f"{evidence['evidence_id']}.json"
+            existed_before = target_path.exists()
             path = write_private_pilot_activation_evidence(
-                _read_json_object(Path(args.activation_evidence_json).expanduser()),
+                evidence,
                 evidence_dir=activation_evidence_dir,
             )
             payload = {
                 "artifact_ref": _safe_artifact_ref_from_path(path, repo_root=REPO_ROOT),
                 "evidence_id": path.stem,
-                "status": "recorded",
+                "import_status": "duplicate" if existed_before else "imported",
+                "status": "validated",
+                "store_path_class": "local_private_pilot_activation_store",
             }
             stdout_payload = json.dumps(payload, sort_keys=True) + "\n"
         elif args.write_report_set:
             report = build_operator_observability_report(
                 ledger_dir=ledger_dir,
                 activation_evidence_dir=activation_evidence_dir,
+                activation_evidence_stale_after_days=stale_after_days,
             )
             stdout_payload = (
                 json.dumps(
@@ -1907,6 +2175,7 @@ def main(argv: list[str] | None = None) -> int:
             report = build_operator_observability_report(
                 ledger_dir=ledger_dir,
                 activation_evidence_dir=activation_evidence_dir,
+                activation_evidence_stale_after_days=stale_after_days,
             )
             if args.format == "json":
                 rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
@@ -1928,6 +2197,7 @@ def main(argv: list[str] | None = None) -> int:
             if rendered is None:
                 raise OperatorLedgerError("Experiment operator ledger output is invalid.")
             try:
+                _safe_cli_stdout_payload(rendered)
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_text(rendered, encoding="utf-8")
             except OSError as exc:

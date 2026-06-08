@@ -151,16 +151,21 @@ Private-pilot activation evidence is also contract-only. Manual smoke workflows
 may upload a redacted `private-pilot-activation-evidence` artifact and operators
 may import it into
 `artifacts/orchestration/experiments/private_pilot_activation/` for local
-reporting. That artifact may contain only typed labels for activation state,
-dispatch outcome class, Slack token/allowlist status, GitHub dispatch
-auth/target/allowlist/workflow/ref/execute/approval status, false authority
-boundary flags, and the redaction summary. It must not contain workflow logs,
-selected repository names, Slack IDs, token values or prefixes, raw branch refs,
-raw hypotheses, approval digests, local paths, oracle output, or patch text. It
-must not mint installation tokens, read GitHub App private keys, parse JWT
-credentials, mutate PRs or review threads, merge branches, dispatch repository
-events, choose arbitrary workflows, write contents/workflows, expand public
-Slack authority, or enable semantic-cache runtime behavior.
+reporting. Operators may validate a downloaded redacted artifact before import,
+import or dedupe it locally, generate local report sets, and project stale
+evidence class, blocker trend, latest smoke class, and next operator action back
+through the existing status surface. That artifact may contain only typed labels
+for activation state, dispatch outcome class, Slack token/allowlist status,
+GitHub dispatch auth/target/allowlist/workflow/ref/execute/approval status,
+false authority boundary flags, and the redaction summary. It must not contain
+workflow logs, selected repository names, Slack IDs, token values or prefixes,
+raw branch refs, raw hypotheses, approval digests, local paths, oracle output,
+or patch text. Manual smoke operations must remain
+`local_validate_import_report_only`: they must not fetch artifacts from GitHub,
+mint installation tokens, read GitHub App private keys, parse JWT credentials,
+mutate PRs or review threads, merge branches, dispatch repository events, choose
+arbitrary workflows, write contents/workflows, expand public Slack authority, or
+enable semantic-cache runtime behavior.
 
 Socket Mode uses runtime credentials outside the repository. Operators configure
 the app-level Socket Mode credential as `SLACK_APP_TOKEN` and the bot credential
