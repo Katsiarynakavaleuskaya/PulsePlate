@@ -3708,9 +3708,7 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     input_step = next(
         step for step in steps if step["name"] == "Validate typed dispatch inputs without raw echo"
     )
-    approval_step = next(
-        step for step in steps if step["name"] == "Validate live-dispatch approval reference shape"
-    )
+    approval_step = next(step for step in steps if step["name"] == "Reject manual live dispatch")
     summary_step = next(
         step for step in steps if step["name"] == "Record sanitized dispatch contract summary"
     )
@@ -3738,7 +3736,11 @@ def test_dispatch_workflow_is_manual_only_fixed_contract() -> None:
     assert "--validate-dispatch-inputs" in input_step["run"]
     assert "--validate-smoke-inputs" not in workflow_text
     assert approval_step["if"] == "inputs.dry_run == 'false'"
-    assert "--validate-live-approval" in approval_step["run"]
+    assert "Manual workflow_dispatch live dispatch is disabled" in approval_step["run"]
+    assert "reviewed Slack bridge approval path" in approval_step["run"]
+    assert "exit 1" in approval_step["run"]
+    assert "--validate-live-approval" not in workflow_text
+    assert "EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256" not in workflow_text
     assert "if" not in summary_step
     assert "GITHUB_STEP_SUMMARY" in summary_step["run"]
     assert 'os.environ["GITHUB_EVENT_PATH"]' in summary_step["run"]

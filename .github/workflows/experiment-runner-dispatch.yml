@@ -78,14 +78,12 @@ jobs:
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-dispatch-inputs
 
-      - name: Validate live-dispatch approval reference shape
+      - name: Reject manual live dispatch
         if: inputs.dry_run == 'false'
-        env:
-          EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256: ${{ inputs.approval_ref }}
         run: |
           set -euo pipefail
-          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
-            --validate-live-approval
+          echo "Manual workflow_dispatch live dispatch is disabled; use the reviewed Slack bridge approval path."
+          exit 1
 
       - name: Record sanitized dispatch contract summary
         run: |
