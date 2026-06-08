@@ -86,8 +86,8 @@ decision. Commit `06097a817` includes the canonical co-author trailer.
 | `BOT-SOURCERY-001` | Sourcery requested lineage-present validation use `traces` instead of derived `evidence_refs`. | `_lineage_present_artifact` now checks `traces` directly. | `test_food_provenance_bundle_fails_closed_for_missing_traces` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py` | `25c93d85019895e1928fba32c8caf83e972b1839` | `core/food_provenance_verification.py:268`; `tests/test_food_provenance_verification_bundle.py:61` | FIXED |
 | `BOT-CODERABBIT-001` | CodeRabbit requested boolean `min_confidence` fail-closed coverage and code validation. | `min_confidence` now resolves through `_numeric_float`, rejecting bool; regression test added. | `test_food_provenance_bundle_falls_back_for_bool_min_confidence` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py` | `25c93d85019895e1928fba32c8caf83e972b1839` | `core/food_provenance_verification.py:225`; `tests/test_food_provenance_verification_bundle.py:160` | FIXED |
 | `BOT-CUBIC-001` | Cubic identified over-broad local-path prefix filtering. | Local-path prefix check is exact-match only; safe private-label/SKU identifiers are covered. | `test_food_provenance_trace_allows_sku_style_food_identifiers` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py` | `7f80ac2cf887c51e09410186bb9460d63267ebc9` | `core/food_provenance_verification.py:373`; `tests/test_food_provenance_verification_bundle.py:356` | FIXED |
-| `CI-COV-001` | CI diff-coverage reported 0% because `test-pr` coverage artifact did not include the new focused test file. | Added `tests/test_food_provenance_verification_bundle.py` to the existing `food_catalog` contract/risk suite in `.github/workflows/ci.yml`. | `test_food_provenance_verification_bundle.py` via CI `test-pr` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py`; `pre-commit run --all-files` | TBD | `.github/workflows/ci.yml`; `tests/test_food_provenance_verification_bundle.py` | FIXED |
-| `CI-COV-002` | CI still did not select `food_catalog` for `core/food_provenance_verification.py`, so the coverage-producing suite was not routed. | Added `core/food_provenance_verification.py` to the `food_catalog` risk profile and covered it with a routing regression test. | `test_food_provenance_core_change_hits_food_catalog_and_route_groups` | `.venv/bin/python -m pytest -q tests/test_ci_risk_profile.py tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py`; `pre-commit run --all-files` | TBD | `scripts/ci/ci_risk_profile.py`; `tests/test_ci_risk_profile.py` | FIXED |
+| `CI-COV-001` | CI diff-coverage reported 0% because `test-pr` coverage artifact did not include the new focused test file. | Added `tests/test_food_provenance_verification_bundle.py` to the existing `food_catalog` contract/risk suite in `.github/workflows/ci.yml`. | `test_food_provenance_verification_bundle.py` via CI `test-pr` | `.venv/bin/python -m pytest -q tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py`; `pre-commit run --all-files` | `b42921f903b089887ce2e0ad985cb7d976a82d61` | `.github/workflows/ci.yml`; `tests/test_food_provenance_verification_bundle.py` | FIXED |
+| `CI-COV-002` | CI still did not select `food_catalog` for `core/food_provenance_verification.py`, so the coverage-producing suite was not routed. | Added `core/food_provenance_verification.py` to the `food_catalog` risk profile and covered it with a routing regression test. | `test_food_provenance_core_change_hits_food_catalog_and_route_groups` | `.venv/bin/python -m pytest -q tests/test_ci_risk_profile.py tests/test_food_provenance_verification_bundle.py tests/test_repo_policy_guards.py`; `pre-commit run --all-files` | `099ca9beb6db8a23941cc8c1d076d74f537f8197` | `scripts/ci/ci_risk_profile.py`; `tests/test_ci_risk_profile.py` | FIXED |
 | `SCOPE-001` | Helper has no production call site in this foundation slice. | Intentional foundation-only scope; no runtime exposure or public DTO changes. | N/A | `git grep -n "build_meal_plan_food_provenance_bundle" -- app core tests` | N/A | Helper/test-only usage in current diff; PR body `Out of scope` | NOT-A-BUG |
 
 ## Tests / Bounded Checks
@@ -146,6 +146,30 @@ Disposition: FIXED
 Commit: 7f80ac2cf887c51e09410186bb9460d63267ebc9
 Evidence: `core/food_provenance_verification.py:373`; `tests/test_food_provenance_verification_bundle.py:356`
 Reason: Cubic line comment is fixed by the same exact-match local prefix check.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1907#pullrequestreview-4449728555 -> 099ca9beb6db8a23941cc8c1d076d74f537f8197
+Disposition: FIXED
+Commit: 099ca9beb6db8a23941cc8c1d076d74f537f8197
+Evidence: `docs/review/PR_1907_FIXED_MAPPING.md:89`; `docs/review/PR_1907_FIXED_MAPPING.md:90`
+Reason: CodeRabbit requested replacing `TBD` placeholders in CI-COV rows; the mapping now records exact fix SHAs for both CI coverage routing fixes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1907#discussion_r3373413965 -> 099ca9beb6db8a23941cc8c1d076d74f537f8197
+Disposition: FIXED
+Commit: 099ca9beb6db8a23941cc8c1d076d74f537f8197
+Evidence: `docs/review/PR_1907_FIXED_MAPPING.md:89`; `docs/review/PR_1907_FIXED_MAPPING.md:90`
+Reason: CodeRabbit line comment is fixed by the same exact SHA replacement.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1907#pullrequestreview-4449770185 -> 099ca9beb6db8a23941cc8c1d076d74f537f8197
+Disposition: FIXED
+Commit: 099ca9beb6db8a23941cc8c1d076d74f537f8197
+Evidence: `docs/review/PR_1907_FIXED_MAPPING.md:89`; `docs/review/PR_1907_FIXED_MAPPING.md:90`
+Reason: Cubic requested replacing `TBD` placeholders in CI-COV rows; the mapping now records exact fix SHAs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1907#discussion_r3373445922 -> 099ca9beb6db8a23941cc8c1d076d74f537f8197
+Disposition: FIXED
+Commit: 099ca9beb6db8a23941cc8c1d076d74f537f8197
+Evidence: `docs/review/PR_1907_FIXED_MAPPING.md:89`; `docs/review/PR_1907_FIXED_MAPPING.md:90`
+Reason: Cubic line comment is fixed by the same exact SHA replacement.
 
 ## Bot Review Summary
 
