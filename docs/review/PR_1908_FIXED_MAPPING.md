@@ -61,6 +61,13 @@ Disposition: FIXED
 Commit: 580d959b2
 Evidence: `scripts/orchestration/experiment_operator_ledger.py` centralizes the invalid activation-evidence input message and computes activation blocker labels once per history scan; `docs/roadmap/BACKLOG_LEDGER.md` now explicitly says the slice adds no HTTPS ingress, semantic cache, GraphRAG, product runtime, token minting, PR/review/merge authority, arbitrary workflow dispatch, or new Slack command authority.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1908#pullrequestreview-4451016961 -> aeea82c8fb8916becc9690b92c134ca973642c9a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1908#discussion_r3374475359 -> aeea82c8fb8916becc9690b92c134ca973642c9a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1908#discussion_r3374475387 -> aeea82c8fb8916becc9690b92c134ca973642c9a
+Disposition: FIXED
+Commit: aeea82c8fb8916becc9690b92c134ca973642c9a
+Evidence: `docs/review/PR_1908_FIXED_MAPPING.md` now uses canonical review URL mapping lines in the fixed-mapping block and records local validation with repo-relative `python3` commands instead of absolute local paths.
+
 ## Premortem Findings
 
 - PM-001: Pre-open role/oracle evidence visibility.
