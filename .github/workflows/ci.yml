@@ -742,6 +742,7 @@ jobs:
                   tests/test_food_store_additional_coverage.py \
                   tests/test_food_store_coverage.py \
                   tests/test_food_store_service.py \
+                  tests/test_food_provenance_verification_bundle.py \
                   tests/test_openfoodfacts_client.py \
                   tests/test_unified_db_basics.py \
                   tests/test_unified_db_off_coverage.py \
@@ -1017,6 +1018,7 @@ jobs:
                   tests/test_food_store_additional_coverage.py \
                   tests/test_food_store_coverage.py \
                   tests/test_food_store_service.py \
+                  tests/test_food_provenance_verification_bundle.py \
                   tests/test_openfoodfacts_client.py \
                   tests/test_unified_db_basics.py \
                   tests/test_unified_db_off_coverage.py \

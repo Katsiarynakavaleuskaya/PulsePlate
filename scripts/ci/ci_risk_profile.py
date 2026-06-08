@@ -151,6 +151,7 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "app/services/food_store.py",
         "core/food_apis/*.py",
         "core/food_merge.py",
+        "core/food_provenance_verification.py",
         "core/off_nutrition/*.py",
         "scripts/build_food_db.py",
     ),
