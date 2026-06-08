@@ -82,6 +82,7 @@ LOCAL_PATH_SEGMENT_RE = re.compile(
 )
 WINDOWS_DRIVE_SEGMENT_RE = re.compile(r"(^|/)[A-Za-z]:/")
 GITHUB_APP_TOKEN_ARTIFACT_RE = re.compile(r"ghs_[A-Za-z0-9._-]{4,}", re.IGNORECASE)
+PRIVATE_PILOT_ACTIVATION_INPUT_INVALID = "Private-pilot activation evidence input is invalid."
 
 ALLOWED_COMMAND_KINDS = frozenset(
     {
@@ -1069,14 +1070,14 @@ def _activation_blocker_trend(records: list[dict[str, Any]], *, invalid: bool) -
         return "invalid_local_artifact"
     if not records:
         return "none"
-    latest_label = _activation_blocker_label(records[-1])
+    labels = [_activation_blocker_label(record) for record in records]
+    latest_label = labels[-1]
     if latest_label in {"recorded_smoke", "failed_smoke", "none"}:
         return latest_label
     historical_blockers = {
-        _activation_blocker_label(record)
-        for record in records
-        if _activation_blocker_label(record)
-        in {"missing_secret", "allowlist", "invalid_config", "failed_smoke"}
+        label
+        for label in labels
+        if label in {"missing_secret", "allowlist", "invalid_config", "failed_smoke"}
     }
     return "mixed_blockers" if len(historical_blockers) > 1 else latest_label
 
@@ -1945,9 +1946,9 @@ def _read_activation_evidence_json_object(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(candidate.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise OperatorLedgerError("Private-pilot activation evidence input is invalid.") from exc
+        raise OperatorLedgerError(PRIVATE_PILOT_ACTIVATION_INPUT_INVALID) from exc
     if not isinstance(payload, dict):
-        raise OperatorLedgerError("Private-pilot activation evidence input is invalid.")
+        raise OperatorLedgerError(PRIVATE_PILOT_ACTIVATION_INPUT_INVALID)
     return payload
 
 
@@ -2108,7 +2109,7 @@ def main(argv: list[str] | None = None) -> int:
             stdout_payload = json.dumps(payload, sort_keys=True) + "\n"
         elif args.validate_activation_evidence:
             if args.activation_evidence_json is None:
-                raise OperatorLedgerError("Private-pilot activation evidence input is invalid.")
+                raise OperatorLedgerError(PRIVATE_PILOT_ACTIVATION_INPUT_INVALID)
             evidence = validate_private_pilot_activation_evidence_payload(
                 _read_activation_evidence_json_object(
                     Path(args.activation_evidence_json).expanduser()
@@ -2127,7 +2128,7 @@ def main(argv: list[str] | None = None) -> int:
             stdout_payload = json.dumps(payload, sort_keys=True) + "\n"
         elif args.record_activation_evidence:
             if args.activation_evidence_json is None:
-                raise OperatorLedgerError("Private-pilot activation evidence input is invalid.")
+                raise OperatorLedgerError(PRIVATE_PILOT_ACTIVATION_INPUT_INVALID)
             evidence = validate_private_pilot_activation_evidence_payload(
                 _read_activation_evidence_json_object(
                     Path(args.activation_evidence_json).expanduser()
