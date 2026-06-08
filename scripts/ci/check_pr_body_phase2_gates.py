@@ -79,7 +79,6 @@ FORBIDDEN_PREFLIGHT_AUTHORITY_RE = re.compile(
     r"[^\n]*\b(?:host/codex|host|codex|cursor|raw|local)\s+preflight\b"
 )
 LANE_START_PACKET_PREFIX = "artifacts/orchestration/task_packets/"
-LANE_START_REPO_PACKET_PREFIX = "docs/orchestration/"
 LANE_STARTER_PATH = "scripts/orchestration/start_pr_lane.sh"
 COMMIT_MESSAGE_SEPARATOR = "\x1e"
 MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING = (
@@ -266,16 +265,6 @@ def _valid_lane_start_packet_path(path: str) -> bool:
             return False
         return len(path_parts[-1].removesuffix(".json")) > 0
 
-    if cleaned.startswith(LANE_START_REPO_PACKET_PREFIX):
-        if not cleaned.endswith(".md"):
-            return False
-        if "packet" not in Path(cleaned).name.lower():
-            return False
-        path_parts = cleaned.split("/")
-        if any(part in ("", ".", "..") for part in path_parts):
-            return False
-        return True
-
     return False
 
 
@@ -308,11 +297,6 @@ def _lane_start_packet_available(path: str, *, repo_root: Path) -> bool:
     except (OSError, RuntimeError, ValueError):
         return False
     return candidate.is_file()
-
-
-def _is_repo_tracked_lane_start_packet(path: str) -> bool:
-    cleaned = path.strip().strip("`")
-    return cleaned.startswith(LANE_START_REPO_PACKET_PREFIX)
 
 
 def check_lane_start_provenance(
@@ -350,21 +334,14 @@ def check_lane_start_provenance(
     if invalid_packets:
         errors.append(
             "Lane Start Provenance packet must be "
-            f"`{LANE_START_PACKET_PREFIX}<id>.json` or a repo-tracked "
-            "`docs/orchestration/*.md` packet: " + ", ".join(invalid_packets)
+            f"`{LANE_START_PACKET_PREFIX}<id>.json`: " + ", ".join(invalid_packets)
         )
     for match in packet_matches:
         path = match.group("path")
         if path not in invalid_packets and not _lane_start_packet_available(
             path, repo_root=repo_root
         ):
-            if _is_repo_tracked_lane_start_packet(path):
-                errors.append(
-                    "Lane Start Provenance repo packet is referenced but not available "
-                    f"locally: {path}"
-                )
-            else:
-                warnings.append(UNVERIFIED_LANE_START_PACKET_WARNING.format(path=path))
+            warnings.append(UNVERIFIED_LANE_START_PACKET_WARNING.format(path=path))
 
     if starter_matches and not packet_matches and not exception_matches:
         errors.append("Lane Start Provenance starter is supplemental and cannot be used alone.")

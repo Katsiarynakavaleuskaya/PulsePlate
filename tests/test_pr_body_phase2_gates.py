@@ -27,7 +27,7 @@ Phase2 PR body gate implementation.
 Artifact: artifacts/orchestration/experiments/results/exp-719.json
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """
 
@@ -45,7 +45,7 @@ Phase2 PR body gate implementation.
 Artifact: artifacts/orchestration/experiments/results/exp-998.json
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """
 
@@ -465,21 +465,47 @@ Starter: scripts/orchestration/start_pr_lane.sh
     assert warnings == []
 
 
-def test_lane_start_provenance_accepts_repo_tracked_packet_reference() -> None:
+def test_lane_start_provenance_rejects_repo_markdown_packet_reference() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: docs/orchestration/EXPERIMENT_RUNNER_LANE_START_PROVENANCE_PACKET_2026-05-21.md
 """)
 
-    assert errors == []
     assert warnings == []
+    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
 
 
-def test_lane_start_provenance_accepts_mixed_case_repo_packet_reference(
+def test_lane_start_provenance_rejects_fake_repo_packet_even_when_file_exists(
+    tmp_path: Path,
+) -> None:
+    packet = tmp_path / "docs" / "orchestration" / "FAKE_PACKET.md"
+    packet.parent.mkdir(parents=True)
+    packet.write_text("# Fake Packet\n", encoding="utf-8")
+
+    errors, warnings = gates.check_lane_start_provenance(
+        """## Lane Start Provenance
+Packet: docs/orchestration/FAKE_PACKET.md
+""",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_mixed_case_repo_packet_reference(
     tmp_path: Path,
 ) -> None:
     packet = tmp_path / "docs" / "orchestration" / "Philosophy_Epic_V2_Packet_2026-05-20.md"
     packet.parent.mkdir(parents=True)
-    packet.write_text("# Packet\n", encoding="utf-8")
+    packet.write_text(
+        """# Packet
+
+Bootstrap packet: `artifacts/orchestration/task_packets/abc123.json`
+
+Coordinator start: check_preflight.py -> task_bootstrap.py -> agent-coordinator
+""",
+        encoding="utf-8",
+    )
 
     errors, warnings = gates.check_lane_start_provenance(
         """## Lane Start Provenance
@@ -488,8 +514,8 @@ Packet: docs/orchestration/Philosophy_Epic_V2_Packet_2026-05-20.md
         repo_root=tmp_path,
     )
 
-    assert errors == []
     assert warnings == []
+    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
 
 
 def test_lane_start_provenance_accepts_narrow_exception() -> None:
@@ -525,7 +551,7 @@ Packet: docs/orchestration/AGENTS.md
 """)
 
     assert warnings == []
-    assert any("docs/orchestration/*.md` packet" in error for error in errors)
+    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
 
 
 def test_lane_start_provenance_rejects_negated_exception_reason() -> None:
@@ -566,7 +592,9 @@ Starter: scripts/orchestration/start_pr_lane.sh
     assert any("not available locally" in warning for warning in warnings)
 
 
-def test_lane_start_provenance_rejects_unavailable_repo_packet(tmp_path: Path) -> None:
+def test_lane_start_provenance_rejects_unavailable_repo_packet_path(
+    tmp_path: Path,
+) -> None:
     errors, warnings = gates.check_lane_start_provenance(
         """## Lane Start Provenance
 Packet: docs/orchestration/MISSING_PACKET_2099-01-01.md
@@ -576,7 +604,7 @@ Starter: scripts/orchestration/start_pr_lane.sh
     )
 
     assert warnings == []
-    assert any("repo packet is referenced but not available" in error for error in errors)
+    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
 
 
 def test_lane_start_provenance_warns_on_symlink_loop_packet(
@@ -609,7 +637,7 @@ Host preflight: Codex preflight already ran.
 
 def test_lane_start_provenance_rejects_host_preflight_sentence_authority() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Exception: trivial docs cleanup
 Host preflight already ran.
 """)
 
@@ -619,7 +647,7 @@ Host preflight already ran.
 
 def test_lane_start_provenance_rejects_labeled_host_preflight_authority() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Exception: trivial docs cleanup
 Authority note: host preflight already ran.
 """)
 
@@ -629,7 +657,7 @@ Authority note: host preflight already ran.
 
 def test_lane_start_provenance_rejects_weak_negation_preflight_authority() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Exception: trivial docs cleanup
 Host preflight cannot be ignored; it already ran.
 """)
 
@@ -639,7 +667,7 @@ Host preflight cannot be ignored; it already ran.
 
 def test_lane_start_provenance_rejects_contradictory_negated_preflight() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Exception: trivial docs cleanup
 Host preflight is not authoritative, but it already ran.
 """)
 
@@ -659,7 +687,7 @@ Cursor preflight: already ran.
 
 def test_lane_start_provenance_allows_negated_host_preflight_context() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Exception: trivial docs cleanup
 Starter: scripts/orchestration/start_pr_lane.sh
 Host/Codex preflight is not authoritative lane provenance.
 """)
@@ -670,7 +698,7 @@ Host/Codex preflight is not authoritative lane provenance.
 
 def test_lane_start_provenance_allows_negated_host_preflight_explanation() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Exception: trivial docs cleanup
 Starter: scripts/orchestration/start_pr_lane.sh
 Host/Codex preflight is not authoritative lane provenance; use repo bootstrap evidence.
 """)
@@ -1295,7 +1323,7 @@ Commit: abc1234
 Not applicable: canonical artifact evidence controls artifact-first mode.
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
@@ -1378,7 +1406,7 @@ def test_phase2_body_can_satisfy_lane_provenance_when_mapping_lacks_it(
 Body-owned lane provenance.
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """,
         }
@@ -1432,7 +1460,7 @@ Body-owned valid lane provenance.
 Not applicable: split-source negative fixture with no runner output.
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """,
         }
@@ -1491,7 +1519,7 @@ Commit: abc1234
 Not applicable: empty body fixture uses artifact-first validation only.
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
@@ -1532,7 +1560,7 @@ Commit: abc1234
 Not applicable: fixture artifact only checks body mirror failure behavior.
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
@@ -1579,7 +1607,7 @@ Commit: abc1234
 Not applicable: fixture artifact only checks body mirror failure behavior.
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
@@ -1620,7 +1648,7 @@ Commit: abc1234
 Artifact: artifacts/orchestration/experiments/results/exp-998.json
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
@@ -1668,7 +1696,7 @@ Commit: abc1234
 Not applicable: fixture artifact only checks body mirror failure behavior.
 
 ## Lane Start Provenance
-Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
