@@ -22,6 +22,11 @@ _MIN_CONFIDENCE = 0.7
 _LOCAL_PATH_PREFIXES = ("users", "home", "private", "var", "tmp", "volumes")
 _WINDOWS_DRIVE_RE = re.compile(r"^[a-zA-Z]:[\\/]")
 _DOMAIN_LIKE_RE = re.compile(r"(?:^|[.])[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:[/\\:]|$)")
+_EMAIL_LIKE_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_SECRET_LIKE_RE = re.compile(
+    r"(?i)(?:^|[_\s-])(?:api[_\s-]?key|bearer|gh[pousr]_|ghs_|github[_\s-]?pat|"
+    r"sk[_\s-]?(?:live|test|proj)?|secret|token|password|private[_\s-]?key)(?:$|[_\s-])"
+)
 _TOKEN_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
 
 
@@ -326,6 +331,8 @@ def _normalize_token(value: object | None) -> str | None:
         or ".." in path_parts
         or _WINDOWS_DRIVE_RE.match(stripped_value) is not None
         or _DOMAIN_LIKE_RE.search(stripped_value) is not None
+        or _EMAIL_LIKE_RE.match(stripped_value) is not None
+        or _SECRET_LIKE_RE.search(stripped_value) is not None
     ):
         return None
     normalized = _TOKEN_RE.sub("_", raw_value).strip("_")

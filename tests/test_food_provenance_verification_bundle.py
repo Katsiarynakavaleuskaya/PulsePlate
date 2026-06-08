@@ -305,6 +305,40 @@ def test_food_provenance_trace_rejects_path_like_record_and_version_values() -> 
     assert "snapshot" not in joined_refs
 
 
+def test_food_provenance_trace_rejects_secret_and_email_like_tokens() -> None:
+    bundle = build_food_provenance_verification_bundle(
+        (
+            FoodProvenanceTrace(
+                source="sk-live-provider",
+                record_id="fdb-1",
+                nutrient="kcal",
+                confidence=0.91,
+                provenance="sk-live-provider",
+                version_ref="2026-04",
+            ),
+            FoodProvenanceTrace(
+                source="usda",
+                record_id="alice@example.com",
+                nutrient="ghp_token_marker",
+                confidence=0.91,
+                provenance="bearer token marker",
+                version_ref="private-key-2026",
+            ),
+        )
+    )
+    evidence_refs = tuple(ref for artifact in bundle.artifacts for ref in artifact.evidence_refs)
+    joined_refs = " ".join(evidence_refs)
+
+    assert bundle.admission_allowed is False
+    assert "food_provenance_missing" in bundle.reason_codes
+    assert "food_trace_lineage_missing" in bundle.reason_codes
+    assert "sk" not in joined_refs
+    assert "ghp" not in joined_refs
+    assert "alice" not in joined_refs
+    assert "bearer" not in joined_refs
+    assert "private" not in joined_refs
+
+
 def test_food_provenance_traces_fail_closed_on_ambiguous_duplicate_source() -> None:
     record = {
         "nutrition_inputs": [
