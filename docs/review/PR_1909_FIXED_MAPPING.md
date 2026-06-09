@@ -17,6 +17,18 @@ Commit: 0c05dbe1c
 Evidence: docs/policy/PR_SCOPE_RULES.md
 Reason: CodeRabbit requested label-backing language in the quick-reference table. The frontend MVP, privileged, and oversized rows now explicitly require trusted label backing for exception approval lines.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#pullrequestreview-4457736698 -> aed92410e
+Disposition: FIXED
+Commit: aed92410e
+Evidence: scripts/ci/check_pr_size_governance.py; tests/test_check_pr_size_governance.py
+Reason: Cubic identified that a blank `PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT` env override could silently resolve to the process current working directory. The override now strips whitespace and falls back to the script-derived repo root when blank, with regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#discussion_r3379897959 -> aed92410e
+Disposition: FIXED
+Commit: aed92410e
+Evidence: scripts/ci/check_pr_size_governance.py; tests/test_check_pr_size_governance.py
+Reason: Line-level Cubic finding fixed by the same blank override fallback and regression test.
+
 ## Role Dispatch Evidence
 - Task packet: `artifacts/orchestration/task_packets/cb85ecba0b97.json`.
 - Dispatch manifest: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/cb85ecba0b97.json --pretty`.
@@ -35,3 +47,4 @@ Reason: CodeRabbit requested label-backing language in the quick-reference table
 - `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/test_check_pr_size_governance.py tests/test_ci_workflow_pr_size_governance_contract.py` PASS: 75 tests.
 - `pre-commit run --all-files` PASS.
 - Pre-push hooks PASS: mypy changed files, pip-audit, backend pytest pre-push, full-repo Bandit, Docker build path when applicable.
+- Cubic follow-up fix validation PASS: focused pytest, py_compile, and `pre-commit run --all-files` before commit `aed92410e`.
