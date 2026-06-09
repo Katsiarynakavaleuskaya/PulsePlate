@@ -18,7 +18,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(
+    os.environ.get("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", Path(__file__).resolve().parents[2])
+).resolve()
 MICRO_MAX_FILES = 5
 STANDARD_MAX_FILES = 20
 STANDARD_SPLIT_JUSTIFICATION_FILES = 15
@@ -75,26 +77,37 @@ BACKEND_API_AI_EXACT_PATHS = {
     "mcp_pulseplate_server.py",
 }
 
-TRUSTED_APPROVAL_LABELS = {
-    "operator": frozenset({"scope/operator-approved", "operator-approved"}),
-    "emergency": frozenset({"scope/emergency-approved"}),
-    "privileged": frozenset({"scope/privileged-approved"}),
-    "frontend_mvp": frozenset({"scope/frontend-mvp-approved"}),
-    "frontend_backend_mix": frozenset({"scope/frontend-backend-mix-approved"}),
+TRUSTED_APPROVAL_LABELS_RAW = {
+    "operator": ("scope/operator-approved", "operator-approved"),
+    "emergency": ("scope/emergency-approved",),
+    "privileged": ("scope/privileged-approved",),
+    "frontend_mvp": ("scope/frontend-mvp-approved",),
+    "frontend_backend_mix": ("scope/frontend-backend-mix-approved",),
 }
 
 
-def _fetch_pr_body_from_api(pr_number: int, repo_full_name: str) -> str:
-    """Fetch PR body from GitHub API with optional token fallback.
+def _normalize_approval_label(label: str) -> str:
+    """Return canonical lowercase label text for trusted approval matching."""
+    return re.sub(r"\s+", " ", label.strip().casefold())
+
+
+TRUSTED_APPROVAL_LABELS = {
+    approval_key: frozenset(_normalize_approval_label(label) for label in labels)
+    for approval_key, labels in TRUSTED_APPROVAL_LABELS_RAW.items()
+}
+
+
+def _fetch_pr_metadata_from_api(pr_number: int, repo_full_name: str) -> dict[str, object]:
+    """Fetch PR metadata from GitHub API with optional token fallback.
 
     Local CI execution should prefer payload body, but event payloads can omit this field
-    after certain synchronization/edit events. API fallback preserves deterministic size
-    governance checks without changing gate semantics.
+    or labels after certain synchronization/edit events. API fallback preserves deterministic
+    size governance checks without changing gate semantics.
     """
 
     token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
     if not token:
-        return ""
+        return {}
 
     owner, repo = repo_full_name.split("/", maxsplit=1)
     request = urllib.request.Request(
@@ -114,9 +127,8 @@ def _fetch_pr_body_from_api(pr_number: int, repo_full_name: str) -> str:
         payload = response.read().decode("utf-8")
     pull_request = json.loads(payload)
     if not isinstance(pull_request, dict):
-        return ""
-    body = pull_request.get("body")
-    return body if isinstance(body, str) else ""
+        return {}
+    return pull_request
 
 
 def parse_numstat_output(numstat_output: str) -> tuple[int, int]:
@@ -206,17 +218,9 @@ def missing_standard_sections(pr_body: str) -> list[str]:
     return missing
 
 
-def _normalize_approval_label(label: str) -> str:
-    """Return canonical lowercase label text for trusted approval matching."""
-    return re.sub(r"\s+", " ", label.strip().casefold())
-
-
 def _has_trusted_approval(trusted_approvals: set[str] | None, approval_key: str) -> bool:
     """Return True when a trusted GitHub-controlled approval label is present."""
-    normalized_approvals = {
-        _normalize_approval_label(approval) for approval in (trusted_approvals or set())
-    }
-    return bool(normalized_approvals & TRUSTED_APPROVAL_LABELS[approval_key])
+    return bool((trusted_approvals or set()) & TRUSTED_APPROVAL_LABELS[approval_key])
 
 
 def _body_has_approval_line(pr_body: str, approval_label: str) -> bool:
@@ -618,9 +622,11 @@ def extract_pr_body(event_path: Path) -> str:
         return ""
 
     try:
-        return _fetch_pr_body_from_api(number, repo_full_name)
+        pull_request = _fetch_pr_metadata_from_api(number, repo_full_name)
     except (ValueError, KeyError, urllib.error.URLError):
         return ""
+    body = pull_request.get("body")
+    return body if isinstance(body, str) else ""
 
 
 def extract_trusted_approvals(event_path: Path) -> set[str]:
@@ -636,7 +642,20 @@ def extract_trusted_approvals(event_path: Path) -> set[str]:
         return set()
     labels = pull_request.get("labels")
     if not isinstance(labels, list):
-        return set()
+        repository = payload.get("repository")
+        repo_full_name = repository.get("full_name") if isinstance(repository, dict) else None
+        number = pull_request.get("number")
+        if not isinstance(repo_full_name, str) or "/" not in repo_full_name:
+            return set()
+        if not isinstance(number, int):
+            return set()
+        try:
+            live_pull_request = _fetch_pr_metadata_from_api(number, repo_full_name)
+        except (ValueError, KeyError, urllib.error.URLError):
+            return set()
+        labels = live_pull_request.get("labels")
+        if not isinstance(labels, list):
+            return set()
 
     trusted_approvals: set[str] = set()
     for label in labels:

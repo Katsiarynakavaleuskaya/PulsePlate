@@ -270,8 +270,8 @@ This policy exists because:
 |---------|-----------|----------------|-------------|
 | Micro | ≤5 | No split justification; governance/security docs still need `Scope`, `Out of scope`, `Tests` | `check_pr_size_governance.py` |
 | Standard governance/design | ≤20 | `Scope`, `Out of scope`, `Tests`; `Split Justification` if >15 files | `check_pr_size_governance.py` |
-| Frontend vertical MVP | ≤30 | `Operator approval: approved`, `Frontend vertical MVP approval: approved`, `Split Justification`; add `Frontend/backend mix approval: approved` when frontend mixes with backend/API/AI runtime | `check_pr_size_governance.py` |
-| Privileged CI/security/workflow | target ≤10, hard cap ≤15 | `Operator approval: approved` plus `Privileged scope exception: approved` if >15 files; role review proof via PR lifecycle | `check_pr_size_governance.py` + review governance |
-| Oversized | >30 | Split, unless `Emergency exception: approved` with operator approval | `check_pr_size_governance.py` |
+| Frontend vertical MVP | ≤30 | `Operator approval: approved`, `Frontend vertical MVP approval: approved`, `Split Justification`, with trusted label backing; add `Frontend/backend mix approval: approved` with trusted label backing when frontend mixes with backend/API/AI runtime | `check_pr_size_governance.py` |
+| Privileged CI/security/workflow | target ≤10, hard cap ≤15 | `Operator approval: approved` plus `Privileged scope exception: approved` with trusted label backing if >15 files; role review proof via PR lifecycle | `check_pr_size_governance.py` + review governance |
+| Oversized | >30 | Split, unless `Emergency exception: approved` with operator approval and trusted label backing | `check_pr_size_governance.py` |
 
 **If your PR doesn't fit these categories, split it or get an explicit operator-approved exception before opening review.**

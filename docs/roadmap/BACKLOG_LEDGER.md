@@ -24,6 +24,17 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-pr-size-governance-trusted-base-execution"></a>
+- [ ] P1: PR size governance trusted-base execution switch
+  - Owner: @katsiaryna_kavaleuskaya (CI governance)
+  - Priority: P1
+  - Target PR: Follow-up after PR #1909 merge
+  - Status: Open
+  - Area: CI / merge governance / PR scope guard
+  - Reason (EN): PR #1909 hardens trusted label-backed scope approvals, but premortem found that switching the workflow to execute `check_pr_size_governance.py` from the protected base checkout inside the same PR would ask base code to support behavior introduced only by PR #1909. That sequencing can make current-head CI fail or provide misleading assurance. The switch must land only after base contains the repo-root override and trusted-label contract.
+  - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_size_governance.py`, `tests/test_ci_workflow_pr_size_governance_contract.py`, `docs/review/PR_1909_FIXED_MAPPING.md`
+  - DoD: Update `pr_scope_guard` to checkout PR code and trusted base guard code separately; execute PR size governance from the trusted base copy while setting `PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT` to the PR checkout; preserve `--base-sha`, `--head-sha`, and `--event-path`; add workflow contract coverage; verify current-head CI and merge-readiness gates.
+
 <a id="ledger-p1-scientific-writing-agent"></a>
 - [ ] P1: Scientific Writing Agent registration
   - Owner: @katsiaryna_kavaleuskaya (Agent governance)

@@ -575,6 +575,7 @@ def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     assert "python3 scripts/ci/check_pr_size_governance.py \\" in pr_scope_guard_section
     assert '--base-sha "${{ github.event.pull_request.base.sha }}" \\' in pr_scope_guard_section
     assert '--head-sha "${{ github.event.pull_request.head.sha }}" \\' in pr_scope_guard_section
+    assert '--event-path "$GITHUB_EVENT_PATH"' in pr_scope_guard_section
     assert '--head-sha "${{ github.sha }}" \\' not in pr_scope_guard_section
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
