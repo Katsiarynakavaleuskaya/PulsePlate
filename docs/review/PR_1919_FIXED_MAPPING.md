@@ -119,6 +119,9 @@ Reason: Generated non-diff rows for semantic-cache admission harness files were 
 - `pulseplate-pr-review` large-diff-risk advisory: NOT-A-BUG for PR #1919 scope.
 Evidence: `/tmp/pulseplate_pr_review_context_1919.json`; `python scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_review_context_1919.json --format markdown`; `make validate-changed` PASS.
 Reason: The diff is intentionally one PR-O1 scaffold covering the deterministic provenance envelope, prompt-module fingerprint registry, token/cost telemetry contract, docs schema, ledger anchor, and focused tests; runtime serving and PR-O2 compression remain explicitly out of scope.
+- Current-head CI `diff-coverage` failure on commit `739b4f912`: FIXED in commit `0e1e3de92`.
+Evidence: `tests/core/ai/test_cache_observability.py`; `tests/core/ai/test_prompt_modules.py`; `tests/core/evidence/test_fingerprints.py`; local `diff-cover coverage.xml --compare-branch=origin/main --fail-under=97 ...` PASS with `core/ai/cache_observability.py (100%)`, `core/ai/prompt_modules.py (100%)`, `core/evidence/fingerprints.py (100%)`, total `100%`.
+Reason: CI `test-pr` builds the coverage artifact from selected route-contract suites; the prompt-module contract tests were not visible to that selected suite, so a test-layer bridge now executes the existing prompt-module contract coverage from `tests/core/ai/test_cache_observability.py` without widening production or workflow scope.
 
 ## Premortem Finding Closure
 - P1 token economy estimate IDs could collide for materially different estimates: FIXED in commit `81c2e5966d7a`.
@@ -150,6 +153,10 @@ Evidence: `core/evidence/fingerprints.py`; `tests/core/evidence/test_fingerprint
 - `python scripts/ci/check_docs_phase1_gates.py --files $(git diff --name-only origin/main...HEAD)` PASS after commit `074f4ce99`.
 - Local diff coverage PASS after commit `074f4ce99`: `core/ai/cache_observability.py (100%)`, `core/ai/prompt_modules.py (99.2%)`, `core/evidence/fingerprints.py (100%)`, total `99%`.
 - `make validate-changed` PASS after `pulseplate-pr-review` large-diff advisory.
+- `python -m pytest -q tests/core/ai/test_cache_observability.py tests/core/ai/test_prompt_modules.py tests/core/evidence/test_fingerprints.py tests/test_semantic_cache_cost_provenance_telemetry_contract.py` PASS after commit `0e1e3de92`.
+- `python -m coverage run -m pytest -q tests/core/ai/test_cache_observability.py tests/core/evidence && python -m coverage xml && diff-cover coverage.xml --compare-branch=origin/main --fail-under=97 ...` PASS after commit `0e1e3de92`: all PR-touched source files at `100%` diff coverage.
+- `make validate-changed` PASS after commit `0e1e3de92`.
+- `pre-commit run --all-files` PASS after commit `0e1e3de92`.
 
 ## Known Non-Ready Gate
 - `make verify` FAILS at repo-wide `make typecheck` on files outside this PR diff.
