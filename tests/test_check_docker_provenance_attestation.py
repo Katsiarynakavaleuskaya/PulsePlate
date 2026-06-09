@@ -157,6 +157,41 @@ def test_parser_accepts_wrapped_verification_payload(
     assert bundle.sbom.attestation_count == 1
 
 
+def test_parser_redacts_raw_attestation_build_arguments() -> None:
+    secret_index_url = "https://ci-user:TOP_SECRET_TOKEN@private.example.invalid/simple"
+    payload = [
+        {
+            "verificationResult": {
+                "statement": {
+                    "predicateType": verifier.PROVENANCE_PREDICATE_TYPE,
+                    "predicate": {
+                        "buildDefinition": {
+                            "externalParameters": {
+                                "build-arg:PULSEPLATE_PYTHON_INDEX_URL": secret_index_url
+                            }
+                        }
+                    },
+                }
+            }
+        }
+    ]
+
+    parsed = verifier._parse_verification_output(
+        stdout=json.dumps(payload),
+        predicate_type=verifier.PROVENANCE_PREDICATE_TYPE,
+        label="provenance",
+    )
+
+    serialized = json.dumps(parsed, sort_keys=True)
+    assert secret_index_url not in serialized
+    assert "TOP_SECRET_TOKEN" not in serialized
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in serialized
+    assert "statement_sha256" in serialized
+    assert parsed[0]["verificationResult"]["statement"]["predicateType"] == (
+        verifier.PROVENANCE_PREDICATE_TYPE
+    )
+
+
 def test_parser_reports_unexpected_shape_with_trimmed_stdout() -> None:
     oversized_stdout = json.dumps({"unexpected": "x" * 600})
 

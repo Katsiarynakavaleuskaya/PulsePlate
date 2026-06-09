@@ -8,7 +8,9 @@ digest from OCI-backed attestations and emits JSON/Markdown evidence for CI.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -148,8 +150,45 @@ def _parse_verification_output(
                 f"{label} verification item #{index} has predicate "
                 f"{actual_predicate_type!r}, expected {predicate_type!r}."
             )
-        normalized.append(item)
+        normalized.append(_redacted_verification_summary(item, index=index))
     return tuple(normalized)
+
+
+def _redacted_verification_summary(
+    item: Mapping[str, object],
+    *,
+    index: int,
+) -> dict[str, object]:
+    """Return non-secret metadata for one verified attestation item.
+
+    GitHub's raw verification JSON can contain SLSA build invocation details.
+    CI artifacts only need deterministic proof that the expected predicate was
+    verified, so retain the predicate type plus a digest of the raw statement
+    instead of publishing raw provenance/SBOM predicates or build arguments.
+    """
+
+    verification_result = item["verificationResult"]
+    if not isinstance(verification_result, dict):
+        raise RuntimeError(f"verification item #{index} is missing verificationResult.")
+    statement = verification_result["statement"]
+    if not isinstance(statement, dict):
+        raise RuntimeError(f"verification item #{index} is missing statement.")
+    predicate_type = statement["predicateType"]
+    return {
+        "verificationResult": {
+            "statement": {
+                "predicateType": predicate_type,
+                "statement_sha256": _canonical_json_sha256(statement),
+            }
+        }
+    }
+
+
+def _canonical_json_sha256(payload: Mapping[str, object]) -> str:
+    """Return a stable hash for JSON-compatible attestation metadata."""
+
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _trim_for_error(value: str) -> str:

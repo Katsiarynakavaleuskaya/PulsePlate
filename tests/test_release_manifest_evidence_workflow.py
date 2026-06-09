@@ -334,6 +334,8 @@ def test_docker_build_workflow_emits_governed_release_control_plane_sources() ->
     assert "Verify Docker image attestations" in workflow_text
     assert "scripts/ci/check_docker_provenance_attestation.py" in workflow_text
     assert "docker-provenance-attestation-check.json" in workflow_text
+    assert "docker-provenance-attestation-check.json" not in upload_step["with"]["path"]
+    assert "docker-provenance-attestation-check.md" not in upload_step["with"]["path"]
     assert "Prepare release-control-plane build digest sources" in workflow_text
     for path in (
         "sbom_digest.txt",
