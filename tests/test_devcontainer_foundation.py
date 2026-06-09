@@ -130,6 +130,36 @@ def test_devcontainer_json_container_env_marker() -> None:
     ), "devcontainer.json must set PULSEPLATE_IN_CONTAINER=1 in containerEnv"
 
 
+def test_devcontainer_json_container_env_forwards_only_safe_bootstrap_env() -> None:
+    """Only safe bootstrap proxy env vars may use localEnv passthrough."""
+    data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
+
+    env = data.get("containerEnv", {})
+    forbidden = {
+        "SERVER_SALT",
+        "APPLE_SHARED_SECRET",
+        "EXPORT_TOKEN_SECRET",
+        "PERPLEXITY_API_KEY",
+        "DATABASE_URL",
+        "POSTGRES_PASSWORD",
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+    }
+    assert forbidden.isdisjoint(env), "devcontainer.json must not forward app or CI secrets"
+    assert env["PULSEPLATE_PYTHON_INDEX_URL"] == "${localEnv:PULSEPLATE_PYTHON_INDEX_URL}"
+    assert env["PULSEPLATE_PYTHON_TRUSTED_HOST"] == ("${localEnv:PULSEPLATE_PYTHON_TRUSTED_HOST}")
+
+    local_env_keys = {
+        key
+        for key, value in env.items()
+        if isinstance(value, str) and value.startswith("${localEnv:")
+    }
+    assert local_env_keys == {
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Compose configuration
 # ---------------------------------------------------------------------------
