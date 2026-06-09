@@ -51,6 +51,12 @@ Blocked:
 - billing, entitlement, or account-truth decisions;
 - production cost or ROI claims.
 
+The JSON schema separates blocked artifact classes from policy-level
+interpretation restrictions: `blocked_payloads` covers unsafe payload types,
+`blocked_backends` covers forbidden serving/backend mechanisms, and
+`blocked_policy_decisions` covers billing, entitlement, account-truth, and
+production cost/ROI claims. None of these lists authorize runtime behavior.
+
 ## Required Fields
 
 Every token economy estimate must carry:

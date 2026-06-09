@@ -108,6 +108,13 @@ def test_cost_provenance_schema_pins_closed_authority_flags_and_fields() -> None
     assert (
         "text_fingerprint" in schema["properties"]["prompt_module_record_fields"]["items"]["enum"]
     )
+    assert "blocked_policy_decisions" in schema["required"]
+    policy_decisions = schema["properties"]["blocked_policy_decisions"]["items"]["enum"]
+    assert "billing_decisions" in policy_decisions
+    assert "entitlement_decisions" in policy_decisions
+    assert "account_truth_decisions" in policy_decisions
+    assert "production_cost_claims" in policy_decisions
+    assert "production_roi_claims" in policy_decisions
 
 
 def test_prompt_module_contract_is_metadata_only_and_stable() -> None:

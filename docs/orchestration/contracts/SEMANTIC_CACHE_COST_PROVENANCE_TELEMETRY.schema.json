@@ -16,6 +16,7 @@
     "prompt_module_record_fields",
     "blocked_payloads",
     "blocked_backends",
+    "blocked_policy_decisions",
     "required_followups"
   ],
   "properties": {
@@ -128,6 +129,20 @@
         ]
       },
       "minItems": 10,
+      "uniqueItems": true
+    },
+    "blocked_policy_decisions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "billing_decisions",
+          "entitlement_decisions",
+          "account_truth_decisions",
+          "production_cost_claims",
+          "production_roi_claims"
+        ]
+      },
+      "minItems": 5,
       "uniqueItems": true
     },
     "required_followups": {

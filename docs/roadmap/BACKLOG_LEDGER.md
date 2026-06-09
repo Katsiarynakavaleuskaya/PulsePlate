@@ -37,6 +37,10 @@ If it is not recorded here — it does not exist.
     - PR-O1: deterministic provenance envelope, prompt-module fingerprint registry, and token/cost telemetry scaffold; metadata-only and non-serving.
     - PR-O2: graph/context-pack compression for repeated orchestration and merge-readiness context; no runtime serving unless a separate gate opens.
     - PR-O3..PR-O7: provider routing, cache admission, replay, observability, and serving candidates remain TBD and require dedicated reviewed gates.
+  - Deferred review follow-up: after PR-O1 stabilizes, evaluate whether safe-label,
+    metadata-safety, and fingerprint validation helpers should be centralized as
+    part of PR-O2 context-compression cleanup; do not widen PR-O1 into shared
+    helper extraction.
   - Out of scope: semantic-cache reads/writes, Redis, GPTCache, GraphRAG runtime, embeddings/vector search, Ollama or Perplexity/Sonar API wiring, OpenAPI, DB, frontend, iOS, entitlement/billing truth, raw prompts, raw responses, raw queries, raw context snippets, provider payloads, and live cost-savings claims.
   - DoD: PR-O1 keeps markers `closed / false / false / true`; stores only safe fingerprints, IDs, counts, estimates, and labels; separates token estimates from cost estimates; rejects raw payloads/secrets/local paths; passes focused contract tests plus semantic-cache gate checks; documents that first visible savings work begins no earlier than PR-O2.
 
