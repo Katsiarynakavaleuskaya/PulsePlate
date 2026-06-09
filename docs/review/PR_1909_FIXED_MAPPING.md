@@ -30,6 +30,8 @@ Reason: CodeRabbit requested label-backing language in the quick-reference table
 - F4 Root policy can drift from `docs/policy/PR_SCOPE_RULES.md`: FIXED by adding trusted-label backing language to root `AGENTS.md` PR scope bullets.
 
 ## Evidence
-- `python3 scripts/orchestration/check_preflight.py` PASS before edits.
-- `python3 scripts/orchestration/check_agent_consistency.py` PASS before edits.
-- Pending after final commit: focused pytest, changed validation, pre-commit, PR body Phase2, review disposition, merge-readiness.
+- `python3 scripts/orchestration/check_preflight.py` PASS at final local HEAD.
+- `python3 scripts/orchestration/check_agent_consistency.py` PASS at final local HEAD.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/test_check_pr_size_governance.py tests/test_ci_workflow_pr_size_governance_contract.py` PASS: 75 tests.
+- `pre-commit run --all-files` PASS.
+- Pre-push hooks PASS: mypy changed files, pip-audit, backend pytest pre-push, full-repo Bandit, Docker build path when applicable.
