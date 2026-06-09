@@ -6,6 +6,7 @@
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1913#pullrequestreview-4452631808 -> daaaf4de0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1913#pullrequestreview-4453297292 -> daaaf4de0
 Disposition: FIXED
 Commit: daaaf4de0
 Evidence: tests/test_pr_body_phase2_gates.py:16; tests/test_pr_body_phase2_gates.py:483
