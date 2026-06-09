@@ -90,6 +90,11 @@ Reason: Prompt-module metadata now recursively freezes nested mappings and lists
 - Required pre-open role order executed: `agent-coordinator -> rag-systems-agent -> prompt-engineering-eval-agent -> architecture-specialist -> security-auditor -> qa-engineer-agent -> ai-innovation-specialist`.
 - Mandatory post-open order pending: `qa-engineer-agent -> bug-hunter -> security-auditor`, then Codex Security diff/finding discovery and `pulseplate-pr-review`.
 
+## Post-Open Role Finding Closure
+- Bug-hunter P1 `TokenEconomyEstimate.metadata` shallow-freeze issue: FIXED in commit `5b279d9ad`.
+Evidence: `core/ai/cache_observability.py`; `tests/core/ai/test_cache_observability.py::test_token_economy_estimate_metadata_is_deep_frozen_after_validation`.
+Reason: Cache observability metadata now deep-freezes nested mappings and lists after validation, while `to_stable_mapping(...)` remains JSON-ready through safe copy conversion.
+
 ## Premortem Finding Closure
 - P1 token economy estimate IDs could collide for materially different estimates: FIXED in commit `81c2e5966d7a`.
 Evidence: `core/ai/cache_observability.py`; `tests/core/ai/test_cache_observability.py::test_token_economy_estimate_identity_includes_material_estimate_fields`.
