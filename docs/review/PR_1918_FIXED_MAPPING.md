@@ -139,6 +139,7 @@ Evidence: Sourcery and Cubic actionable review findings were fixed in the mapped
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380702499 -> 824683f0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#pullrequestreview-4458852520 -> 7d8f5c458
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380842346 -> 7d8f5c458
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#pullrequestreview-4459305958 -> e05ed7d42
 
 ## Bot Review Summary
 
@@ -161,6 +162,9 @@ Evidence: Sourcery and Cubic actionable review findings were fixed in the mapped
   before every push.
 - Cubic follow-up review: FIXED. Evidence: Cubic P2 finding about clobbering an
   existing local `.env` is fixed by creating `.env` only when missing.
+- CodeRabbit review: FIXED. Evidence: CodeRabbit nitpick about the
+  devcontainer Compose security comment is fixed by distinguishing package-proxy
+  forwarding from the safe `WATCHFILES_FORCE_POLLING` dev-tool override.
 - CodeQL/security CI: NOT-A-BUG. Evidence: current-head security checks passed
   before this artifact commit; final current-head CI remains required.
 
