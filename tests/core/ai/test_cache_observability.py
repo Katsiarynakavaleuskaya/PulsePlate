@@ -28,7 +28,9 @@ from core.ai.cache_observability import (
     FalseHitHarnessCase,
     JsonValue,
     KillSwitchSnapshot,
+    TokenEconomyEstimate,
     build_cache_lookup_audit_event,
+    build_token_economy_estimate,
     compute_cache_observability_metrics,
     evaluate_cache_stop_rules,
     evaluate_false_hit_case,
@@ -547,6 +549,183 @@ def test_zero_denominator_rates_are_deterministic_zero() -> None:
     assert metrics.cache_precision_proxy_bps == 0
 
 
+def test_token_economy_estimate_is_deterministic_and_metadata_only() -> None:
+    first = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("metadata_recorded", "gate_closed"),
+        produced_at=PRODUCED_AT,
+        metadata={"estimate": "heuristic"},
+    )
+    second = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("gate_closed", "metadata_recorded"),
+        produced_at=PRODUCED_AT,
+        metadata={"estimate": "heuristic"},
+    )
+
+    assert first.estimate_id == second.estimate_id
+    serialized = json.dumps(dict(to_stable_mapping(first)), sort_keys=True)
+    assert "private prompt text" not in serialized
+    assert "tokens_saved_estimate" in serialized
+    assert "cost_saved_microunits" in serialized
+    assert first.cost_saved_microunits == 0
+    assert first.tokens_saved_estimate == 300
+
+
+def test_token_economy_estimate_identity_includes_material_estimate_fields() -> None:
+    baseline = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("metadata_recorded", "gate_closed"),
+        produced_at=PRODUCED_AT,
+        metadata={},
+    )
+    materially_different = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1201,
+        prompt_output_chars=301,
+        prompt_input_tokens_estimate=301,
+        prompt_output_tokens_estimate=76,
+        baseline_context_tokens_estimate=901,
+        candidate_context_tokens_estimate=601,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=5,
+        provider_calls_avoided_count=1,
+        cost_saved_microunits=1,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("gate_closed", "metadata_recorded"),
+        produced_at=PRODUCED_AT,
+        metadata={},
+    )
+
+    assert baseline.estimate_id != materially_different.estimate_id
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"provider_label": "provider_payload"},
+        {"model_label": "/Users/model"},
+        {"tokens_saved_estimate": -1},
+        {"prompt_input_tokens_estimate": cast(int, 1.2)},
+        {"cost_saved_microunits": -1},
+        {"currency_code": "US D"},
+        {"reason_codes": ()},
+        {"metadata": {"nested": {"raw_response": "unsafe"}}},
+        {"metadata": {"provider_payload": "unsafe"}},
+        {"metadata": {"path": "file:///tmp/raw.txt"}},
+    ],
+)
+def test_token_economy_estimate_fails_closed_for_unsafe_inputs(
+    kwargs: dict[str, object],
+) -> None:
+    payload: dict[str, object] = {
+        "surface": "orchestration",
+        "route_type": "review",
+        "provider_label": "gpt-family",
+        "model_label": "frontier",
+        "token_estimate_version": "heuristic-tokens-v1",
+        "prompt_input_chars": 1200,
+        "prompt_output_chars": 300,
+        "prompt_input_tokens_estimate": 300,
+        "prompt_output_tokens_estimate": 75,
+        "baseline_context_tokens_estimate": 900,
+        "candidate_context_tokens_estimate": 600,
+        "tokens_saved_estimate": 300,
+        "orchestration_fanout_multiplier": 4,
+        "provider_calls_avoided_count": 0,
+        "cost_saved_microunits": 0,
+        "cost_estimate_policy_version": "not-billing-truth-v1",
+        "currency_code": "XXX",
+        "reason_codes": ("metadata_recorded", "gate_closed"),
+        "produced_at": PRODUCED_AT,
+        "metadata": {},
+    }
+    payload.update(kwargs)
+
+    with pytest.raises(ValueError):
+        build_token_economy_estimate(**payload)
+
+
+def test_token_economy_estimate_constructor_rejects_bool_fields() -> None:
+    with pytest.raises(ValueError, match="must be an integer"):
+        TokenEconomyEstimate(
+            estimate_id="token-economy:bad",
+            surface="orchestration",
+            route_type="review",
+            provider_label="gpt-family",
+            model_label="frontier",
+            token_estimate_version="heuristic-tokens-v1",
+            prompt_input_chars=cast(int, True),
+            prompt_output_chars=0,
+            prompt_input_tokens_estimate=0,
+            prompt_output_tokens_estimate=0,
+            baseline_context_tokens_estimate=0,
+            candidate_context_tokens_estimate=0,
+            tokens_saved_estimate=0,
+            orchestration_fanout_multiplier=0,
+            provider_calls_avoided_count=0,
+            cost_saved_microunits=0,
+            cost_estimate_policy_version="not-billing-truth-v1",
+            currency_code="XXX",
+            reason_codes=("metadata_recorded",),
+            produced_at=PRODUCED_AT,
+            metadata={},
+        )
+
+
 def test_stop_rule_triggers_rollback_on_threshold_breach() -> None:
     evaluation = evaluate_false_hit_case(
         case=_case(
@@ -983,6 +1162,34 @@ def test_stable_mapping_covers_all_contract_shapes_and_rejects_unknowns() -> Non
 
     assert dict(to_stable_mapping(evaluation))["evaluation_id"] == evaluation.evaluation_id
     assert dict(to_stable_mapping(metrics))["metrics_id"] == metrics.metrics_id
+    assert (
+        dict(
+            to_stable_mapping(
+                build_token_economy_estimate(
+                    surface="orchestration",
+                    route_type="review",
+                    provider_label="gpt-family",
+                    model_label="frontier",
+                    token_estimate_version="heuristic-tokens-v1",
+                    prompt_input_chars=0,
+                    prompt_output_chars=0,
+                    prompt_input_tokens_estimate=0,
+                    prompt_output_tokens_estimate=0,
+                    baseline_context_tokens_estimate=0,
+                    candidate_context_tokens_estimate=0,
+                    tokens_saved_estimate=0,
+                    orchestration_fanout_multiplier=0,
+                    provider_calls_avoided_count=0,
+                    cost_saved_microunits=0,
+                    cost_estimate_policy_version="not-billing-truth-v1",
+                    currency_code="XXX",
+                    reason_codes=("metadata_recorded",),
+                    produced_at=PRODUCED_AT,
+                )
+            )
+        )["tokens_saved_estimate"]
+        == 0
+    )
     assert dict(to_stable_mapping(decision))["decision_id"] == decision.decision_id
     assert dict(to_stable_mapping(KillSwitchSnapshot(True, True, False, False))) == {
         "bypass_forced": False,

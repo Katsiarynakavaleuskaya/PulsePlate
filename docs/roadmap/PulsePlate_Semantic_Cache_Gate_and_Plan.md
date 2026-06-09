@@ -50,6 +50,16 @@ That contract is offline, label-only, recommendation-only, and non-serving; it
 does not open the global semantic-cache gate, approve Redis/GPTCache rollout, or
 activate any backend by default.
 
+The PR-O1 cost provenance telemetry contract is defined in
+[`SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md`](../orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md).
+That contract is metadata-only, gate-closed, and non-serving. It records safe
+provenance fingerprints, prompt-module fingerprints, token estimates, cost
+estimate labels, and provider/model labels for later orchestration cost
+analysis, but it does not allow cache reads, cache writes, provider calls,
+runtime serving, OpenAPI/DB/client wiring, or live savings claims. PR-O2 graph
+context compression and any later runtime-serving proposal remain deferred
+behind separate reviewed gates.
+
 The Philosophy Epic V2 PR-1 admission contract is defined in
 [`PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md`](../orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md).
 That contract is policy-only, gate-closed, and non-serving; it defines which
