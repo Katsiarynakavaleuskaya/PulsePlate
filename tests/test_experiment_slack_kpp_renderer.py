@@ -25,6 +25,7 @@ from scripts.orchestration.experiment_slack_kpp_renderer import (
     NO_SENSITIVE_DATA_COPY,
     REDACTION_NOTICE,
     SECURITY_SENSITIVE_OUTCOMES,
+    SLACK_SECTION_TEXT_LIMIT,
     _slack_text,
     _validate_experiment_id,
     _validate_kpp_outcome,
@@ -239,6 +240,30 @@ def test_render_with_artifacts() -> None:
     )
     assert "artifacts/exp/test-001.json" in artifact_block_text
     assert "docs/review/PR_1848.md" in artifact_block_text
+
+
+def test_render_bounds_large_evidence_summary_to_slack_section_limit() -> None:
+    message = render_kpp_block_message(
+        kpp_outcome=KPP_ORACLE_VIOLATION,
+        experiment_id="test-001",
+        evidence_summary=tuple(
+            f"oracle-{index:03d} rc=0 timed_out=false truncated=false"
+            for index in range(160)
+        ),
+    )
+
+    parsed = json.loads(message.as_blocks_json())
+    evidence_sections = [
+        block["text"]["text"]
+        for block in parsed["blocks"]
+        if block.get("type") == "section"
+        and "Evidence summary" in block.get("text", {}).get("text", "")
+    ]
+
+    assert len(evidence_sections) == 1
+    evidence_text = evidence_sections[0]
+    assert len(evidence_text) <= SLACK_SECTION_TEXT_LIMIT
+    assert evidence_text.endswith("[truncated=true]")
 
 
 def test_render_custom_action_required() -> None:

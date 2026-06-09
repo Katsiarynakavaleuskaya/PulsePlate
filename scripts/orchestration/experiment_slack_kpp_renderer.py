@@ -49,10 +49,23 @@ ACTION_REQUIRED_COPY = "Human review required"
 NO_MERGE_ACTION_COPY = "No merge/deploy/payment action was performed"
 NO_SENSITIVE_DATA_COPY = "No sensitive user data included"
 ARTIFACT_REFERENCE_COPY = "Artifact reference only; raw logs are not posted to Slack"
+SLACK_SECTION_TEXT_LIMIT = 3000
+_SLACK_TRUNCATION_MARKER = " [truncated=true]"
 
 
 class KPPRenderError(RuntimeError):
     """KPP block rendering contract violation."""
+
+
+def _slack_section_text(text: str, *, limit: int = SLACK_SECTION_TEXT_LIMIT) -> str:
+    """Bound Slack section text while preserving already-redacted formatting."""
+
+    if len(text) <= limit:
+        return text
+    return (
+        text[: limit - len(_SLACK_TRUNCATION_MARKER)].rstrip()
+        + _SLACK_TRUNCATION_MARKER
+    )
 
 
 @dataclass(frozen=True)
@@ -121,7 +134,7 @@ class KPPSlackBlockMessage:
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": (
+                    "text": _slack_section_text(
                         f"*Scope:*\n{_slack_text(self.scope)}\n\n"
                         f"*Evidence summary:*\n{evidence_text}"
                     ),
@@ -136,7 +149,7 @@ class KPPSlackBlockMessage:
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": (
+                    "text": _slack_section_text(
                         f"*Artifact/reference:*\n{artifact_text}\n\n"
                         f"*Action required:*\n{_slack_text(self.action_required)}"
                     ),
