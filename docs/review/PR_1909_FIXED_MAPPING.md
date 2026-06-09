@@ -5,13 +5,13 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#pullrequestreview-4449081600 -> 0c05dbe1c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#pullrequestreview-4453291366 -> 0c05dbe1c
 Disposition: FIXED
 Commit: 0c05dbe1c
 Evidence: scripts/ci/check_pr_size_governance.py; tests/test_check_pr_size_governance.py
 Reason: Sourcery requested one-time trusted label normalization. The trusted approval constants are now normalized at definition time, and `_has_trusted_approval` assumes normalized event/API labels.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#pullrequestreview-4449087371 -> 0c05dbe1c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#pullrequestreview-4453316687 -> 0c05dbe1c
 Disposition: FIXED
 Commit: 0c05dbe1c
 Evidence: docs/policy/PR_SCOPE_RULES.md
