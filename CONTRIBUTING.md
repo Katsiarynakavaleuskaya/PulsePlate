@@ -54,6 +54,8 @@ export PULSEPLATE_PYTHON_TRUSTED_HOST=
 # CLI: make dc-up && make dc-shell
 # After reviewing/trusting the workspace, run bootstrap manually inside the container:
 make devcontainer-bootstrap
+cp .env.example .env
+# Fill required local-only values such as SERVER_SALT before starting the app.
 make dev
 ```
 
