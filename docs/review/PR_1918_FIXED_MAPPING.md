@@ -130,10 +130,10 @@ parity before any merge-readiness claim.
   actionable review thread found during current pass.
 - Sourcery: FIXED. Evidence: actionable security suggestion to extend
   devcontainer lifecycle-hook guard coverage is addressed in
-  `tests/test_devcontainer_foundation.py`, which now blocks `postAttachCommand`
-  and `overrideCommand`, while explicitly allowing only the safe-directory
-  `postStartCommand`. General feedback to tighten Compose env forwarding is also
-  fixed by exact allowed-key assertions.
+  commit `f53d23f56`; `tests/test_devcontainer_foundation.py` now blocks
+  `postAttachCommand` and `overrideCommand`, while explicitly allowing only the
+  safe-directory `postStartCommand`. General feedback to tighten Compose env
+  forwarding is also fixed by exact allowed-key assertions.
 - Cubic: NOT-A-BUG. Evidence: status check passes and no actionable blocking
   finding was visible during current pass.
 - CodeQL/security CI: NOT-A-BUG. Evidence: current-head security checks passed
