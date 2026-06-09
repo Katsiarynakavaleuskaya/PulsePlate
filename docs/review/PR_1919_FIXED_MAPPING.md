@@ -54,6 +54,18 @@ Commit: 160b10d52
 Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_metadata_rejects_unsafe_nested_values
 Reason: Prompt-module metadata path detection now catches punctuation-wrapped local paths such as `see(/Users/alice/raw.txt)`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380730890 -> 074f4ce99
+Disposition: FIXED
+Commit: 074f4ce99
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_metadata_allows_non_path_url_like_labels
+Reason: `file://` is now kept under the same boundary-prefix path check as other local path forms, avoiding false positives such as `profile://safe-label`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380750594 -> 074f4ce99
+Disposition: FIXED
+Commit: 074f4ce99
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_metadata_is_deep_frozen_after_validation
+Reason: Prompt-module metadata now recursively freezes nested mappings and lists after validation.
+
 ## Role Dispatch Evidence
 - Task packet: `artifacts/orchestration/task_packets/14f1a384b89b.json`.
 - Dispatch manifest: `python scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/14f1a384b89b.json --mode runtime --implementation-owner security-auditor --pretty`.
@@ -86,6 +98,9 @@ Evidence: `core/evidence/fingerprints.py`; `tests/core/evidence/test_fingerprint
 - `python -m pytest -q tests/core/evidence/test_fingerprints.py tests/core/ai/test_prompt_modules.py tests/core/ai/test_cache_observability.py tests/test_semantic_cache_cost_provenance_telemetry_contract.py` PASS after bot-fix commits.
 - `python -m mypy core/evidence/fingerprints.py core/ai/cache_observability.py core/ai/prompt_modules.py` PASS after bot-fix commits.
 - `python scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md` PASS after bot-fix commits.
+- `python -m pytest -q tests/core/evidence/test_fingerprints.py tests/core/ai/test_cache_observability.py tests/core/ai/test_prompt_modules.py tests/test_semantic_cache_cost_provenance_telemetry_contract.py tests/test_semantic_cache_observability_contract.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py tests/test_ai_runtime_semantic_cache_handoff.py` PASS after commit `074f4ce99`.
+- `python scripts/ci/check_docs_phase1_gates.py --files $(git diff --name-only origin/main...HEAD)` PASS after commit `074f4ce99`.
+- Local diff coverage PASS after commit `074f4ce99`: `core/ai/cache_observability.py (100%)`, `core/ai/prompt_modules.py (99.2%)`, `core/evidence/fingerprints.py (100%)`, total `99%`.
 
 ## Known Non-Ready Gate
 - `make verify` FAILS at repo-wide `make typecheck` on files outside this PR diff.
