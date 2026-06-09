@@ -106,6 +106,9 @@ Reason: Prompt-module metadata now recursively freezes nested mappings and lists
 - Bug-hunter P1 `TokenEconomyEstimate.metadata` shallow-freeze issue: FIXED in commit `5b279d9ad`.
 Evidence: `core/ai/cache_observability.py`; `tests/core/ai/test_cache_observability.py::test_token_economy_estimate_metadata_is_deep_frozen_after_validation`.
 Reason: Cache observability metadata now deep-freezes nested mappings and lists after validation, while `to_stable_mapping(...)` remains JSON-ready through safe copy conversion.
+- Security-auditor P1 cache-observability path-boundary issue: FIXED in commit `79d891365`.
+Evidence: `core/ai/cache_observability.py`; `core/ai/prompt_modules.py`; `tests/core/ai/test_cache_observability.py::test_token_economy_estimate_fails_closed_for_unsafe_inputs`; `tests/core/ai/test_prompt_modules.py::test_prompt_module_metadata_rejects_unsafe_nested_values`.
+Reason: Cache observability and prompt-module metadata guards now share the same local-path boundary behavior, rejecting `see(/Users/...)`, `see:/Users/...`, and `see:file://...` while preserving safe URI-like labels such as `profile://safe-label`.
 
 ## Premortem Finding Closure
 - P1 token economy estimate IDs could collide for materially different estimates: FIXED in commit `81c2e5966d7a`.
