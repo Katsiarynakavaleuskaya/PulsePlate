@@ -752,6 +752,9 @@ def test_token_economy_estimate_metadata_is_deep_frozen_after_validation() -> No
         {"metadata": {"nested": {"raw_response": "unsafe"}}},
         {"metadata": {"provider_payload": "unsafe"}},
         {"metadata": {"path": "file:///tmp/raw.txt"}},
+        {"metadata": {"path": "see(/Users/alice/raw.txt)"}},
+        {"metadata": {"path": "see:/Users/alice/raw.txt"}},
+        {"metadata": {"path": "see:file:///tmp/raw.txt"}},
     ],
 )
 def test_token_economy_estimate_fails_closed_for_unsafe_inputs(

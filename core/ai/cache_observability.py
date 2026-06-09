@@ -72,7 +72,9 @@ _ALLOWED_RISK_CLASSES = {
 }
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _ISO_PRODUCED_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
-_PATH_RE = re.compile(r"(?:^|[\s=])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\|file://)")
+_PATH_RE = re.compile(
+    r"(?:(?:^|[\s=(;,]|:(?!//))(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)|(?:^|[\s=(:;,])file://)"
+)
 _UNSAFE_METADATA_RE = re.compile(
     r"raw[_ -]?(?:query|prompt|response|answer)"
     r"|normalized[_ -]?query"

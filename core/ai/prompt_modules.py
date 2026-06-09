@@ -22,7 +22,9 @@ JsonValue: TypeAlias = (
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
-_PATH_RE = re.compile(r"(?:(?:^|[\s=(;,])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)|(?:^|[\s=(:;,])file://)")
+_PATH_RE = re.compile(
+    r"(?:(?:^|[\s=(;,]|:(?!//))(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)|(?:^|[\s=(:;,])file://)"
+)
 _UNSAFE_METADATA_RE = re.compile(
     r"raw[_ -]?(?:query|prompt|response|answer|context)"
     r"|normalized[_ -]?query"
