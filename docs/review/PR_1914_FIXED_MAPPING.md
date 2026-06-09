@@ -26,6 +26,13 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1914_FIXED_MAPPING.md`
 Reason: CodeRabbit did not run a review because the organization hit its review-rate/credit limit. The comment contains no actionable code, test, documentation, or governance finding for this PR.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#discussion_r3378461035 -> 225a7654b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#pullrequestreview-4455939095 -> 225a7654b
+Disposition: FIXED
+Commit: 225a7654b
+Evidence: `docs/review/PR_1914_FIXED_MAPPING.md`
+Reason: CodeRabbit correctly identified merge-readiness style checklist boxes that were checked too early. The artifact now keeps only the two artifact-level discussion/mapping boxes checked and leaves final merge-readiness boxes unchecked.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#discussion_r3376332016 -> 71817b8b4
 Disposition: FIXED
 Commit: 71817b8b4
