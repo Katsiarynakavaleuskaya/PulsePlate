@@ -162,6 +162,7 @@ def test_prompt_module_registry_derives_id_for_public_constructor() -> None:
         {"phone": "+1 555 123 4567"},
         {"health": "HealthKit diagnosis"},
         {"note": "see(/Users/alice/raw.txt)"},
+        {"note": "see:file:///tmp/raw.txt"},
     ],
 )
 def test_prompt_module_metadata_rejects_unsafe_nested_values(
