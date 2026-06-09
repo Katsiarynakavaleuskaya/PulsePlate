@@ -214,7 +214,9 @@ REQUIRED_EVENT_FIELDS = frozenset(
     }
 )
 DERIVED_EVENT_FIELDS = frozenset({"content_hash", "idempotency_key", "idempotency_key_check"})
+LEGACY_DERIVED_EVENT_FIELDS = frozenset({"idempotency_key"})
 EVENT_FIELDS = REQUIRED_EVENT_FIELDS | DERIVED_EVENT_FIELDS
+LEGACY_EVENT_FIELDS = REQUIRED_EVENT_FIELDS | LEGACY_DERIVED_EVENT_FIELDS
 IDEMPOTENCY_MATERIAL_FIELDS = (
     "branch_hash",
     "command_kind",
@@ -416,6 +418,10 @@ def _safe_cli_stdout_payload(rendered: str) -> str:
 
 def _idempotency_material(payload: dict[str, Any]) -> dict[str, Any]:
     return {key: payload[key] for key in IDEMPOTENCY_MATERIAL_FIELDS}
+
+
+def _legacy_sha256_idempotency_key(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(_canonical_json_bytes(_idempotency_material(payload))).hexdigest()[:24]
 
 
 def _idempotency_key(payload: dict[str, Any]) -> str:
@@ -1255,11 +1261,15 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.") from exc
     if not isinstance(raw, dict):
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
-    _require_exact_keys(raw, allowed=EVENT_FIELDS)
-    if DERIVED_EVENT_FIELDS - set(raw):
-        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     derived = raw.get("idempotency_key")
     if not isinstance(derived, str) or not IDEMPOTENCY_KEY_RE.fullmatch(derived):
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    if path.stem != derived:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    if set(raw) == LEGACY_EVENT_FIELDS:
+        return _read_legacy_sha256_record(raw, derived)
+    _require_exact_keys(raw, allowed=EVENT_FIELDS)
+    if DERIVED_EVENT_FIELDS - set(raw):
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     content_hash = raw.get("content_hash")
     if not isinstance(content_hash, str) or SHA256_HEX_RE.fullmatch(content_hash) is None:
@@ -1269,8 +1279,6 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
         not isinstance(idempotency_key_check, str)
         or SHA256_HEX_RE.fullmatch(idempotency_key_check) is None
     ):
-        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
-    if path.stem != derived:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     payload = dict(raw)
     for field in DERIVED_EVENT_FIELDS:
@@ -1283,6 +1291,18 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
     record.payload["content_hash"] = content_hash
     record.payload["idempotency_key"] = derived
     record.payload["idempotency_key_check"] = idempotency_key_check
+    return record
+
+
+def _read_legacy_sha256_record(raw: dict[str, Any], derived: str) -> OperatorLedgerRecord:
+    payload = dict(raw)
+    payload.pop("idempotency_key")
+    record = normalize_operator_ledger_event(payload, derive_idempotency_key=False)
+    if _legacy_sha256_idempotency_key(record.payload) != derived:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    record.payload["content_hash"] = _content_hash(record.payload)
+    record.payload["idempotency_key"] = derived
+    record.payload["idempotency_key_check"] = _idempotency_key_check(record.payload, derived)
     return record
 
 
