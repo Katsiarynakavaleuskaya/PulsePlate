@@ -2,8 +2,10 @@
 # PulsePlate Dev Container — Compose service
 # ---------------------------------------------------------------------------
 # SECURITY: No secrets in this file. Do not import ../.env or add build args.
-#           Devcontainer bootstrap is manual, and only package-proxy env vars
-#           may be forwarded from the developer's shell.
+#           Devcontainer bootstrap is manual. Package-proxy env vars
+#           (PULSEPLATE_PYTHON_*) are forwarded for dependency install;
+#           WATCHFILES_FORCE_POLLING is a safe optional dev-tool override.
+#           Tests enforce the explicit environment allowlist.
 # ---------------------------------------------------------------------------
 
 services:
