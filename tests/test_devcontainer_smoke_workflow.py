@@ -70,6 +70,20 @@ def test_devcontainer_smoke_workflow_does_not_use_secrets_or_bootstrap() -> None
         assert token not in text, f"Workflow must not contain '{token}'"
 
 
+def test_devcontainer_smoke_workflow_does_not_persist_checkout_credentials() -> None:
+    """PR-controlled smoke inputs must not receive persisted checkout credentials."""
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    steps = data["jobs"]["devcontainer-smoke"]["steps"]
+    checkout_steps = [
+        step
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    ]
+
+    assert len(checkout_steps) == 1, "Workflow must use exactly one checkout step"
+    assert checkout_steps[0].get("with", {}).get("persist-credentials") is False
+
+
 # ---------------------------------------------------------------------------
 # Docker: builds devcontainer Dockerfile, not production
 # ---------------------------------------------------------------------------
