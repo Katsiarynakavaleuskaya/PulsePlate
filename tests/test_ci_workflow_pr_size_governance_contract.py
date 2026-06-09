@@ -542,6 +542,23 @@ def _extract_shell_conditional_block(
     return branch_tail.split(end_anchor, maxsplit=1)[0]
 
 
+def test_pr_size_governance_reruns_when_trusted_approval_labels_change() -> None:
+    """Trusted scope labels must trigger fresh PR-size governance event payloads."""
+
+    workflow = _load_ci_workflow()
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+    pull_request_section = on_section["pull_request"]
+    assert isinstance(pull_request_section, dict)
+    event_types = pull_request_section["types"]
+    assert isinstance(event_types, list)
+
+    assert "labeled" in event_types
+    assert "unlabeled" in event_types
+
+
 def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     """Guard against merge-SHA inflation in PR-size governance diff calculation."""
 
@@ -558,6 +575,7 @@ def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     assert "python3 scripts/ci/check_pr_size_governance.py \\" in pr_scope_guard_section
     assert '--base-sha "${{ github.event.pull_request.base.sha }}" \\' in pr_scope_guard_section
     assert '--head-sha "${{ github.event.pull_request.head.sha }}" \\' in pr_scope_guard_section
+    assert '--event-path "$GITHUB_EVENT_PATH"' in pr_scope_guard_section
     assert '--head-sha "${{ github.sha }}" \\' not in pr_scope_guard_section
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
