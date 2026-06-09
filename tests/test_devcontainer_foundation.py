@@ -99,6 +99,11 @@ def test_devcontainer_json_does_not_auto_execute_workspace_bootstrap() -> None:
     assert "postCreateCommand" not in data
     assert "onCreateCommand" not in data
     assert "updateContentCommand" not in data
+    assert "postAttachCommand" not in data
+    assert "overrideCommand" not in data
+    assert data.get("postStartCommand") == (
+        "git config --global --add safe.directory /workspaces/PulsePlate"
+    )
 
 
 def test_devcontainer_json_does_not_enable_host_docker_socket() -> None:
@@ -196,6 +201,15 @@ def test_devcontainer_compose_forwards_only_bootstrap_proxy_env() -> None:
         "POSTGRES_PASSWORD",
     }
     assert forbidden.isdisjoint(env), "Devcontainer must not forward app secrets from .env"
+    assert set(env) == {
+        "PYTHONPATH",
+        "PULSEPLATE_IN_CONTAINER",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "APP_ENV",
+        "VIP_MODULE_ENABLED",
+        "WATCHFILES_FORCE_POLLING",
+    }
     assert env["PULSEPLATE_PYTHON_INDEX_URL"] == "${PULSEPLATE_PYTHON_INDEX_URL:-}"
     assert env["PULSEPLATE_PYTHON_TRUSTED_HOST"] == "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
 

@@ -42,7 +42,8 @@ OUT:
   Evidence: identified missing mapping artifact, missing PR-body mirror, and
   stale local gate text in `CONTRIBUTING.md`.
 - `qa-engineer-agent`: FAIL until mapping/body and missing `containerEnv`
-  negative coverage are fixed.
+  negative coverage are fixed; post-fix QA also found stale PR-body wording and
+  an actionable Sourcery lifecycle-hook guard suggestion.
 - `bug-hunter`: FAIL until mapping/body, stale `CONTRIBUTING.md`, and
   `containerEnv` guard coverage are fixed.
 - `security-auditor`: FAIL until `devcontainer.json` secret-forwarding guard
@@ -127,8 +128,12 @@ parity before any merge-readiness claim.
 
 - CodeRabbit: NOT-A-BUG. Evidence: status reports `Review skipped`; no
   actionable review thread found during current pass.
-- Sourcery: NOT-A-BUG. Evidence: summary/review comments are advisory and no
-  actionable code change was visible during current pass.
+- Sourcery: FIXED. Evidence: actionable security suggestion to extend
+  devcontainer lifecycle-hook guard coverage is addressed in
+  `tests/test_devcontainer_foundation.py`, which now blocks `postAttachCommand`
+  and `overrideCommand`, while explicitly allowing only the safe-directory
+  `postStartCommand`. General feedback to tighten Compose env forwarding is also
+  fixed by exact allowed-key assertions.
 - Cubic: NOT-A-BUG. Evidence: status check passes and no actionable blocking
   finding was visible during current pass.
 - CodeQL/security CI: NOT-A-BUG. Evidence: current-head security checks passed
