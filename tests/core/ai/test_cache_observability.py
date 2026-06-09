@@ -653,6 +653,56 @@ def test_token_economy_estimate_identity_includes_material_estimate_fields() -> 
     assert baseline.estimate_id != materially_different.estimate_id
 
 
+def test_token_economy_estimate_hashes_normalized_reason_codes() -> None:
+    baseline = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("metadata_recorded", "gate_closed"),
+        produced_at=PRODUCED_AT,
+        metadata={},
+    )
+    normalized = build_token_economy_estimate(
+        surface=" orchestration ",
+        route_type=" review ",
+        provider_label=" gpt-family ",
+        model_label=" frontier ",
+        token_estimate_version=" heuristic-tokens-v1 ",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version=" not-billing-truth-v1 ",
+        currency_code=" XXX ",
+        reason_codes=(" gate_closed ", " metadata_recorded "),
+        produced_at=PRODUCED_AT,
+        metadata={},
+    )
+
+    assert baseline.reason_codes == normalized.reason_codes
+    assert baseline.estimate_id == normalized.estimate_id
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

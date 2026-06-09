@@ -20,7 +20,7 @@ JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
-_PATH_RE = re.compile(r"(?:^|[\s=])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\|file://)")
+_PATH_RE = re.compile(r"(?:^|[\s=(:;,])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)|file://")
 _UNSAFE_METADATA_RE = re.compile(
     r"raw[_ -]?(?:query|prompt|response|answer|context)"
     r"|normalized[_ -]?query"
@@ -28,6 +28,37 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|prompt"
     r"|response"
     r"|answer"
+    r"|secret"
+    r"|credential"
+    r"|authorization"
+    r"|api[_ -]?key"
+    r"|bearer"
+    r"|cookie"
+    r"|set-cookie"
+    r"|session[_ -]?id"
+    r"|x-api-key"
+    r"|private[_ -]?key"
+    r"|sk-[a-z0-9]"
+    r"|gh[pousr]_[a-z0-9._-]+"
+    r"|github_pat_[a-z0-9._-]+"
+    r"|xox[baprs]-[a-z0-9._-]+"
+    r"|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
+    r"|\+?\d[\d ()-]{7,}\d"
+    r"|healthkit"
+    r"|diagnosis"
+    r"|symptom"
+    r"|medical"
+    r"|account[_ -]?(?:id|truth)"
+    r"|billing[_ -]?truth"
+    r"|entitlement[_ -]?truth"
+    r"|coaching[_ -]?state"
+    r"|user[_ -]?health",
+    re.IGNORECASE,
+)
+_UNSAFE_TOKEN_RE = re.compile(
+    r"raw[_ -]?(?:query|prompt|response|answer|context)"
+    r"|normalized[_ -]?query"
+    r"|provider[_ -]?payload"
     r"|secret"
     r"|credential"
     r"|authorization"
@@ -170,14 +201,15 @@ def build_prompt_module_registry(
 ) -> PromptModuleRegistry:
     """Build a stable registry identity from prompt-module metadata."""
 
+    normalized_policy_version = _validate_token("policy_version", policy_version)
     ordered = tuple(sorted(tuple(records), key=lambda item: (item.surface, item.module_id)))
     payload: JsonValue = {
-        "policy_version": policy_version,
+        "policy_version": normalized_policy_version,
         "records": [dict(to_stable_mapping(record)) for record in ordered],
     }
     return PromptModuleRegistry(
         registry_id=f"pm-registry:{fingerprint_payload(payload)[7:31]}",
-        policy_version=policy_version,
+        policy_version=normalized_policy_version,
         records=ordered,
     )
 
@@ -267,7 +299,7 @@ def _validate_token(name: str, value: str) -> str:
         raise ValueError(f"{name} must not contain whitespace")
     if not _TOKEN_RE.match(normalized):
         raise ValueError(f"{name} contains unsupported characters")
-    if _UNSAFE_METADATA_RE.search(normalized) or _PATH_RE.search(normalized):
+    if _UNSAFE_TOKEN_RE.search(normalized) or _PATH_RE.search(normalized):
         raise ValueError(f"{name} contains unsafe metadata")
     return normalized
 

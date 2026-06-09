@@ -63,10 +63,10 @@ Every token economy estimate must carry:
 - token estimate version;
 - prompt input chars;
 - prompt output chars;
-- prompt input token estimate;
-- prompt output token estimate;
-- baseline context token estimate;
-- candidate context token estimate;
+- prompt input tokens estimate;
+- prompt output tokens estimate;
+- baseline context tokens estimate;
+- candidate context tokens estimate;
 - tokens saved estimate;
 - orchestration fanout multiplier;
 - provider calls avoided count;

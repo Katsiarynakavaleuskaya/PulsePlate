@@ -838,47 +838,100 @@ def build_token_economy_estimate(
 ) -> TokenEconomyEstimate:
     """Build a deterministic metadata-only token/cost estimate."""
 
-    normalized_reasons = tuple(reason_codes)
+    normalized_surface = _validate_safe_token("surface", surface)
+    normalized_route_type = _validate_safe_token("route_type", route_type)
+    normalized_provider_label = _validate_safe_token("provider_label", provider_label)
+    normalized_model_label = _validate_safe_token("model_label", model_label)
+    normalized_token_estimate_version = _validate_safe_token(
+        "token_estimate_version",
+        token_estimate_version,
+    )
+    normalized_cost_estimate_policy_version = _validate_safe_token(
+        "cost_estimate_policy_version",
+        cost_estimate_policy_version,
+    )
+    normalized_currency_code = _validate_safe_token("currency_code", currency_code)
+    normalized_reasons = _normalize_required_unique_tokens("reason_codes", reason_codes)
+    normalized_prompt_input_chars = _validate_non_negative_int(
+        "prompt_input_chars",
+        prompt_input_chars,
+    )
+    normalized_prompt_output_chars = _validate_non_negative_int(
+        "prompt_output_chars",
+        prompt_output_chars,
+    )
+    normalized_prompt_input_tokens_estimate = _validate_non_negative_int(
+        "prompt_input_tokens_estimate",
+        prompt_input_tokens_estimate,
+    )
+    normalized_prompt_output_tokens_estimate = _validate_non_negative_int(
+        "prompt_output_tokens_estimate",
+        prompt_output_tokens_estimate,
+    )
+    normalized_baseline_context_tokens_estimate = _validate_non_negative_int(
+        "baseline_context_tokens_estimate",
+        baseline_context_tokens_estimate,
+    )
+    normalized_candidate_context_tokens_estimate = _validate_non_negative_int(
+        "candidate_context_tokens_estimate",
+        candidate_context_tokens_estimate,
+    )
+    normalized_tokens_saved_estimate = _validate_non_negative_int(
+        "tokens_saved_estimate",
+        tokens_saved_estimate,
+    )
+    normalized_orchestration_fanout_multiplier = _validate_non_negative_int(
+        "orchestration_fanout_multiplier",
+        orchestration_fanout_multiplier,
+    )
+    normalized_provider_calls_avoided_count = _validate_non_negative_int(
+        "provider_calls_avoided_count",
+        provider_calls_avoided_count,
+    )
+    normalized_cost_saved_microunits = _validate_non_negative_int(
+        "cost_saved_microunits",
+        cost_saved_microunits,
+    )
     sorted_reason_codes: list[JsonValue] = [reason for reason in sorted(normalized_reasons)]
     payload: JsonValue = {
-        "baseline_context_tokens_estimate": baseline_context_tokens_estimate,
-        "candidate_context_tokens_estimate": candidate_context_tokens_estimate,
-        "cost_estimate_policy_version": cost_estimate_policy_version,
-        "cost_saved_microunits": cost_saved_microunits,
-        "currency_code": currency_code,
-        "model_label": model_label,
-        "orchestration_fanout_multiplier": orchestration_fanout_multiplier,
-        "prompt_input_chars": prompt_input_chars,
-        "prompt_input_tokens_estimate": prompt_input_tokens_estimate,
-        "prompt_output_chars": prompt_output_chars,
-        "prompt_output_tokens_estimate": prompt_output_tokens_estimate,
-        "provider_label": provider_label,
-        "provider_calls_avoided_count": provider_calls_avoided_count,
+        "baseline_context_tokens_estimate": normalized_baseline_context_tokens_estimate,
+        "candidate_context_tokens_estimate": normalized_candidate_context_tokens_estimate,
+        "cost_estimate_policy_version": normalized_cost_estimate_policy_version,
+        "cost_saved_microunits": normalized_cost_saved_microunits,
+        "currency_code": normalized_currency_code,
+        "model_label": normalized_model_label,
+        "orchestration_fanout_multiplier": normalized_orchestration_fanout_multiplier,
+        "prompt_input_chars": normalized_prompt_input_chars,
+        "prompt_input_tokens_estimate": normalized_prompt_input_tokens_estimate,
+        "prompt_output_chars": normalized_prompt_output_chars,
+        "prompt_output_tokens_estimate": normalized_prompt_output_tokens_estimate,
+        "provider_label": normalized_provider_label,
+        "provider_calls_avoided_count": normalized_provider_calls_avoided_count,
         "reason_codes": sorted_reason_codes,
-        "route_type": route_type,
-        "surface": surface,
-        "token_estimate_version": token_estimate_version,
-        "tokens_saved_estimate": tokens_saved_estimate,
+        "route_type": normalized_route_type,
+        "surface": normalized_surface,
+        "token_estimate_version": normalized_token_estimate_version,
+        "tokens_saved_estimate": normalized_tokens_saved_estimate,
     }
     return TokenEconomyEstimate(
         estimate_id=f"token-economy:{_fingerprint_payload(payload)[:24]}",
-        surface=surface,
-        route_type=route_type,
-        provider_label=provider_label,
-        model_label=model_label,
-        token_estimate_version=token_estimate_version,
-        prompt_input_chars=prompt_input_chars,
-        prompt_output_chars=prompt_output_chars,
-        prompt_input_tokens_estimate=prompt_input_tokens_estimate,
-        prompt_output_tokens_estimate=prompt_output_tokens_estimate,
-        baseline_context_tokens_estimate=baseline_context_tokens_estimate,
-        candidate_context_tokens_estimate=candidate_context_tokens_estimate,
-        tokens_saved_estimate=tokens_saved_estimate,
-        orchestration_fanout_multiplier=orchestration_fanout_multiplier,
-        provider_calls_avoided_count=provider_calls_avoided_count,
-        cost_saved_microunits=cost_saved_microunits,
-        cost_estimate_policy_version=cost_estimate_policy_version,
-        currency_code=currency_code,
+        surface=normalized_surface,
+        route_type=normalized_route_type,
+        provider_label=normalized_provider_label,
+        model_label=normalized_model_label,
+        token_estimate_version=normalized_token_estimate_version,
+        prompt_input_chars=normalized_prompt_input_chars,
+        prompt_output_chars=normalized_prompt_output_chars,
+        prompt_input_tokens_estimate=normalized_prompt_input_tokens_estimate,
+        prompt_output_tokens_estimate=normalized_prompt_output_tokens_estimate,
+        baseline_context_tokens_estimate=normalized_baseline_context_tokens_estimate,
+        candidate_context_tokens_estimate=normalized_candidate_context_tokens_estimate,
+        tokens_saved_estimate=normalized_tokens_saved_estimate,
+        orchestration_fanout_multiplier=normalized_orchestration_fanout_multiplier,
+        provider_calls_avoided_count=normalized_provider_calls_avoided_count,
+        cost_saved_microunits=normalized_cost_saved_microunits,
+        cost_estimate_policy_version=normalized_cost_estimate_policy_version,
+        currency_code=normalized_currency_code,
         reason_codes=normalized_reasons,
         produced_at=produced_at,
         metadata=metadata or {},

@@ -49,6 +49,23 @@ def test_prompt_module_record_serializes_metadata_only() -> None:
     assert "token_estimate" in serialized
 
 
+def test_prompt_module_record_allows_safe_prompt_label_ids() -> None:
+    record = build_prompt_module_record(
+        module_id="system-prompt",
+        module_version="prompt-module-v1",
+        surface="orchestration",
+        text_fingerprint=TEXT_FINGERPRINT,
+        char_count=120,
+        token_estimate=30,
+        token_estimate_version="heuristic-tokens-v1",
+        policy_version="semantic-cache-cost-o1-v1",
+        metadata={"role": "coordinator"},
+    )
+
+    assert record.module_id == "system-prompt"
+    assert record.module_version == "prompt-module-v1"
+
+
 def test_prompt_module_registry_identity_is_deterministic() -> None:
     first = build_prompt_module_registry(
         policy_version="semantic-cache-cost-o1-v1",
@@ -64,6 +81,20 @@ def test_prompt_module_registry_identity_is_deterministic() -> None:
     assert prompt_module_fingerprints(first.records) == (TEXT_FINGERPRINT,)
 
 
+def test_prompt_module_registry_hashes_normalized_policy_version() -> None:
+    first = build_prompt_module_registry(
+        policy_version="semantic-cache-cost-o1-v1",
+        records=(_record("a-module"),),
+    )
+    second = build_prompt_module_registry(
+        policy_version=" semantic-cache-cost-o1-v1 ",
+        records=(_record("a-module"),),
+    )
+
+    assert first.policy_version == second.policy_version
+    assert first.registry_id == second.registry_id
+
+
 @pytest.mark.parametrize(
     "metadata",
     [
@@ -76,6 +107,7 @@ def test_prompt_module_registry_identity_is_deterministic() -> None:
         {"contact": "user@example.com"},
         {"phone": "+1 555 123 4567"},
         {"health": "HealthKit diagnosis"},
+        {"note": "see(/Users/alice/raw.txt)"},
     ],
 )
 def test_prompt_module_metadata_rejects_unsafe_nested_values(
