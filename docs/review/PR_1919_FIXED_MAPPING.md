@@ -24,6 +24,18 @@ Commit: 3f34a7f5f
 Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_registry_derives_id_for_public_constructor
 Reason: Public `PromptModuleRegistry(...)` construction now derives `registry_id` from the normalized policy version and sorted prompt-module records instead of trusting caller-supplied identity.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#pullrequestreview-4460998465 -> bca7e9d1f
+Disposition: FIXED
+Commit: bca7e9d1f
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_metadata_rejects_unsafe_nested_values
+Reason: Cubic found that colon-delimited `file://` path markers were missed; `_PATH_RE` now allows colon as a boundary only for `file://`, preserving `profile://safe-label` while rejecting `see:file:///tmp/raw.txt`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3382637044 -> bca7e9d1f
+Disposition: FIXED
+Commit: bca7e9d1f
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_metadata_rejects_unsafe_nested_values
+Reason: Cubic found that colon-delimited `file://` path markers were missed; `_PATH_RE` now allows colon as a boundary only for `file://`, preserving `profile://safe-label` while rejecting `see:file:///tmp/raw.txt`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380610588 -> 5cb59be3d
 Disposition: FIXED
 Commit: 5cb59be3d
