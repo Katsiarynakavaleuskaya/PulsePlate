@@ -22,6 +22,11 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1913#issuecomment-4653373092
 Reason: CodeRabbit comment is a generated walkthrough/pre-merge summary with optional finishing-touch UI checkboxes and no required code or documentation change.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1913#discussion_r3376260436
+Disposition: NOT-A-BUG
+Evidence: scripts/ci/check_pr_body_phase2_gates.py:101; scripts/ci/check_pr_body_phase2_gates.py:108; scripts/ci/check_pr_body_phase2_gates.py:309
+Reason: Codex's P2 asks to promote unavailable task-packet references to hard failures, but this lane intentionally keeps Lane Start Provenance in dry-run advisory mode: missing provenance and unavailable local gitignored task-packet artifacts warn, while malformed present packet paths remain hard errors. This PR preserves that current phased contract and fixes advisory visibility without changing enforcement mode.
+
 ## Experiment Runner Evidence
 Not applicable: local oracle-only Experiment Runner has not materially shaped the implementation yet; if later used to make commit decisions, add its accepted artifact and governed co-author trailer before merge readiness.
 
