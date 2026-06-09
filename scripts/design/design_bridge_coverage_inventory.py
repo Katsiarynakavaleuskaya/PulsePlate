@@ -90,6 +90,7 @@ STATUS_FIELDS = {
     "accessibility_regression_decision",
 }
 REFERENCE_TOOLS = {"kimi", "figma", "canva", "penpot", "storybook", "code connect"}
+ALLOWED_EVIDENCE_ROOTS = {"docs", "scripts", "tests", "frontend", "ios", "tokens"}
 
 
 class InventoryError(ValueError):
@@ -225,14 +226,31 @@ def _expected_web_coverage(component: dict[str, Any], *, prefix: str, errors: li
     return "partial" if web_anchor != "unspecified" else "missing"
 
 
+def _repo_evidence_relative_path(anchor: str, repo_root: Path) -> Path | None:
+    path_text = anchor.split(":", 1)[0]
+    raw_path = Path(path_text)
+    if raw_path.is_absolute() or ".." in raw_path.parts:
+        return None
+    path = repo_root / raw_path
+    try:
+        return path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
+    except (OSError, ValueError):
+        return None
+
+
+def _repo_evidence_anchor_has_allowed_root(anchor: str, repo_root: Path) -> bool:
+    relative_path = _repo_evidence_relative_path(anchor, repo_root)
+    return (
+        relative_path is not None
+        and bool(relative_path.parts)
+        and relative_path.parts[0] in ALLOWED_EVIDENCE_ROOTS
+    )
+
+
 def _repo_evidence_file_exists(anchor: str, repo_root: Path) -> bool:
     path_text = anchor.split(":", 1)[0]
     path = repo_root / path_text
-    try:
-        path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
-    except (OSError, ValueError):
-        return False
-    return path.is_file()
+    return _repo_evidence_relative_path(anchor, repo_root) is not None and path.is_file()
 
 
 def _validate_record(
@@ -323,7 +341,7 @@ def _validate_record(
             errors.append(
                 f"{prefix}.evidence_anchors: reference-tool evidence is not canonical: {anchor!r}"
             )
-        if not re.match(r"^(docs|scripts|tests|frontend|ios|tokens)/", anchor):
+        if not _repo_evidence_anchor_has_allowed_root(anchor, repo_root):
             errors.append(f"{prefix}.evidence_anchors: expected repo evidence anchor: {anchor!r}")
         elif not _repo_evidence_file_exists(anchor, repo_root):
             errors.append(

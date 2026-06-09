@@ -269,6 +269,19 @@ def test_inventory_rejects_reference_tool_evidence_as_canonical_proof(tmp_path: 
     assert any("repo evidence anchor" in error for error in errors)
 
 
+def test_inventory_rejects_traversal_out_of_allowed_evidence_roots(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inv_path = _write_repo_inputs(tmp_path, inventory)
+    escaped_path = tmp_path / "app/main.py"
+    escaped_path.parent.mkdir(parents=True, exist_ok=True)
+    escaped_path.touch()
+    inventory["records"][0]["evidence_anchors"] = ["docs/../app/main.py"]
+    inv_path.write_text(json.dumps(inventory), encoding="utf-8")
+
+    errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
+
+    assert any("repo evidence anchor" in error for error in errors)
+
 def test_inventory_rejects_nonexistent_repo_evidence_anchor(tmp_path: Path) -> None:
     inventory = _load_inventory()
     inventory["records"][0]["evidence_anchors"] = ["docs/not_real.md:123"]
