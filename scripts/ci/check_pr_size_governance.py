@@ -18,9 +18,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-REPO_ROOT = Path(
-    os.environ.get("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", Path(__file__).resolve().parents[2])
-).resolve()
+_REPO_ROOT_OVERRIDE = os.environ.get("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", "").strip()
+REPO_ROOT = Path(_REPO_ROOT_OVERRIDE or Path(__file__).resolve().parents[2]).resolve()
 MICRO_MAX_FILES = 5
 STANDARD_MAX_FILES = 20
 STANDARD_SPLIT_JUSTIFICATION_FILES = 15

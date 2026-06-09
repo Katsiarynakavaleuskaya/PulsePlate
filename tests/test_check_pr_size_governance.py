@@ -24,10 +24,17 @@ def test_repo_root_can_be_overridden_for_trusted_base_script_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    default_root = size_gate.REPO_ROOT
+
     monkeypatch.setenv("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", str(tmp_path))
     reloaded_gate = importlib.reload(size_gate)
 
     assert reloaded_gate.REPO_ROOT == tmp_path.resolve()
+
+    monkeypatch.setenv("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", "   ")
+    reloaded_gate = importlib.reload(reloaded_gate)
+
+    assert reloaded_gate.REPO_ROOT == default_root
 
     monkeypatch.delenv("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", raising=False)
     importlib.reload(reloaded_gate)
