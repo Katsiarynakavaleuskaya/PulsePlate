@@ -112,6 +112,18 @@ UNVERIFIED_LANE_START_PACKET_WARNING = (
 )
 
 
+def _lane_start_missing_warnings(warnings: list[str]) -> list[str]:
+    return [warning for warning in warnings if warning == MISSING_LANE_START_PROVENANCE_WARNING]
+
+
+def _lane_start_non_missing_warnings(warnings: list[str]) -> list[str]:
+    return [warning for warning in warnings if warning != MISSING_LANE_START_PROVENANCE_WARNING]
+
+
+def _lane_start_source_seen(errors: list[str], warnings: list[str]) -> bool:
+    return not errors and MISSING_LANE_START_PROVENANCE_WARNING not in warnings
+
+
 class BodyValidationMode(str, Enum):
     """Explicit Phase2 body validation modes for artifact-first vs fallback checks."""
 
@@ -846,7 +858,7 @@ def main() -> int:
         lane_errors, lane_warnings = check_lane_start_provenance(artifact_text)
         artifact_errors.extend(lane_errors)
         lane_start_warning_candidates.extend(lane_warnings)
-        if not lane_errors and not lane_warnings:
+        if _lane_start_source_seen(lane_errors, lane_warnings):
             lane_start_seen = True
 
     if body.strip():
@@ -887,7 +899,7 @@ def main() -> int:
                 body_checked = True
             body_errors.extend(lane_errors)
             lane_start_warning_candidates.extend(lane_warnings)
-            if not lane_errors and not lane_warnings:
+            if _lane_start_source_seen(lane_errors, lane_warnings):
                 lane_start_seen = True
     elif not artifact_checked:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
@@ -928,8 +940,13 @@ def main() -> int:
                     for warning in advisory_warnings
                     if _required_experiment_runner_artifact_warning_to_error(warning) is None
                 ]
+    advisory_warnings.extend(
+        dict.fromkeys(_lane_start_non_missing_warnings(lane_start_warning_candidates))
+    )
     if not lane_start_seen:
-        advisory_warnings.extend(dict.fromkeys(lane_start_warning_candidates))
+        advisory_warnings.extend(
+            dict.fromkeys(_lane_start_missing_warnings(lane_start_warning_candidates))
+        )
     advisory_warnings = list(dict.fromkeys(advisory_warnings))
 
     errors = [*artifact_errors, *body_errors]

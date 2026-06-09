@@ -13,6 +13,9 @@ import pytest
 
 import scripts.ci.check_pr_body_phase2_gates as gates
 
+LANE_START_PACKET_ID = "a733b2e09986"
+LANE_START_PACKET_PATH = f"{gates.LANE_START_PACKET_PREFIX}{LANE_START_PACKET_ID}.json"
+
 VALID_BODY_WITH_MAPPING = """## Summary
 Phase2 PR body gate implementation.
 
@@ -27,9 +30,9 @@ Phase2 PR body gate implementation.
 Artifact: artifacts/orchestration/experiments/results/exp-719.json
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {packet_path}
 Starter: scripts/orchestration/start_pr_lane.sh
-"""
+""".format(packet_path=LANE_START_PACKET_PATH)
 
 VALID_BODY_MIRROR_ONLY = """## Summary
 Phase2 PR body gate implementation.
@@ -45,9 +48,9 @@ Phase2 PR body gate implementation.
 Artifact: artifacts/orchestration/experiments/results/exp-998.json
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {packet_path}
 Starter: scripts/orchestration/start_pr_lane.sh
-"""
+""".format(packet_path=LANE_START_PACKET_PATH)
 
 
 def _valid_experiment_result_payload(*, status: str = "accepted") -> dict[str, object]:
@@ -90,6 +93,17 @@ def _write_experiment_result(
         json.dumps(payload or _valid_experiment_result_payload()),
         encoding="utf-8",
     )
+
+
+def _write_lane_start_packet(repo_root: Path) -> None:
+    packet = repo_root / LANE_START_PACKET_PATH
+    packet.parent.mkdir(parents=True, exist_ok=True)
+    packet.write_text("{}", encoding="utf-8")
+
+
+def _cleanup_lane_start_packet(repo_root: Path) -> None:
+    packet = repo_root / LANE_START_PACKET_PATH
+    packet.unlink(missing_ok=True)
 
 
 def test_phase2_guard_accepts_valid_mapping() -> None:
@@ -449,13 +463,11 @@ Artifact: artifacts/orchestration/experiments/results/exp-719.json
 
 
 def test_lane_start_provenance_accepts_local_task_packet_and_starter(tmp_path: Path) -> None:
-    packet = tmp_path / "artifacts" / "orchestration" / "task_packets" / "a733b2e09986.json"
-    packet.parent.mkdir(parents=True)
-    packet.write_text("{}", encoding="utf-8")
+    _write_lane_start_packet(tmp_path)
 
     errors, warnings = gates.check_lane_start_provenance(
-        """## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+        f"""## Lane Start Provenance
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """,
         repo_root=tmp_path,
@@ -471,7 +483,8 @@ Packet: docs/orchestration/EXPERIMENT_RUNNER_LANE_START_PROVENANCE_PACKET_2026-0
 """)
 
     assert warnings == []
-    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
+    assert errors
+    assert any(gates.LANE_START_PACKET_PREFIX in error for error in errors)
 
 
 def test_lane_start_provenance_rejects_fake_repo_packet_even_when_file_exists(
@@ -489,7 +502,8 @@ Packet: docs/orchestration/FAKE_PACKET.md
     )
 
     assert warnings == []
-    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
+    assert errors
+    assert any(gates.LANE_START_PACKET_PREFIX in error for error in errors)
 
 
 def test_lane_start_provenance_rejects_mixed_case_repo_packet_reference(
@@ -515,7 +529,8 @@ Packet: docs/orchestration/Philosophy_Epic_V2_Packet_2026-05-20.md
     )
 
     assert warnings == []
-    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
+    assert errors
+    assert any(gates.LANE_START_PACKET_PREFIX in error for error in errors)
 
 
 def test_lane_start_provenance_accepts_narrow_exception() -> None:
@@ -542,7 +557,8 @@ Packet: artifacts/orchestration/experiments/results/not-a-packet.json
 """)
 
     assert warnings == []
-    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
+    assert errors
+    assert any(gates.LANE_START_PACKET_PREFIX in error for error in errors)
 
 
 def test_lane_start_provenance_rejects_non_packet_orchestration_doc() -> None:
@@ -551,7 +567,8 @@ Packet: docs/orchestration/AGENTS.md
 """)
 
     assert warnings == []
-    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
+    assert errors
+    assert any(gates.LANE_START_PACKET_PREFIX in error for error in errors)
 
 
 def test_lane_start_provenance_rejects_negated_exception_reason() -> None:
@@ -604,7 +621,8 @@ Starter: scripts/orchestration/start_pr_lane.sh
     )
 
     assert warnings == []
-    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
+    assert errors
+    assert any(gates.LANE_START_PACKET_PREFIX in error for error in errors)
 
 
 def test_lane_start_provenance_warns_on_symlink_loop_packet(
@@ -1308,7 +1326,7 @@ Artifact-first validation fixture.
 """
     event = {"pull_request": {"number": 998, "body": mirror_body}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
-    artifact_content = """# PR 998 — Fixed in Commit Mapping
+    artifact_content = f"""# PR 998 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -1323,26 +1341,30 @@ Commit: abc1234
 Not applicable: canonical artifact evidence controls artifact-first mode.
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
     env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/ci/check_pr_body_phase2_gates.py",
-            "--event-path",
-            str(tmp_path / "event.json"),
-            "--experiment-runner-evidence-mode",
-            "required",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(repo_root),
-        env=env,
-    )
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--event-path",
+                str(tmp_path / "event.json"),
+                "--experiment-runner-evidence-mode",
+                "required",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
     assert result.returncode == 0
     assert "canonical mapping artifact and PR body mirror passed" in result.stdout
     assert "WARNING:" not in result.stdout
@@ -1402,11 +1424,11 @@ def test_phase2_body_can_satisfy_lane_provenance_when_mapping_lacks_it(
     event = {
         "pull_request": {
             "number": 998,
-            "body": """## Summary
+            "body": f"""## Summary
 Body-owned lane provenance.
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """,
         }
@@ -1428,6 +1450,64 @@ Not applicable: fixture keeps runner evidence out of this split-source check.
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--event-path",
+                str(tmp_path / "event.json"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
+
+    assert result.returncode == 0
+    assert "missing `## Lane Start Provenance`" not in result.stdout
+
+
+def test_phase2_body_does_not_hide_unverified_mapping_packet_warning(
+    tmp_path: Path,
+) -> None:
+    """Body provenance should only satisfy missing sections, not hide artifact warnings."""
+    event = {
+        "pull_request": {
+            "number": 998,
+            "body": """## Summary
+Body-owned valid lane provenance.
+
+## Lane Start Provenance
+Exception: trivial docs cleanup: body mirror fixture.
+""",
+        }
+    }
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = f"""# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: fixture only checks lane-start warning visibility.
+
+## Lane Start Provenance
+Packet: {LANE_START_PACKET_PATH}
+Starter: scripts/orchestration/start_pr_lane.sh
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
     env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
     result = subprocess.run(
         [
@@ -1443,6 +1523,59 @@ Not applicable: fixture keeps runner evidence out of this split-source check.
     )
 
     assert result.returncode == 0
+    assert "not available locally" in result.stdout
+    assert "missing `## Lane Start Provenance`" not in result.stdout
+
+
+def test_phase2_unverified_body_packet_satisfies_missing_mapping_lane_section(
+    tmp_path: Path,
+) -> None:
+    """A valid packet reference still counts as present when only availability is advisory."""
+    event = {
+        "pull_request": {
+            "number": 998,
+            "body": f"""## Summary
+Body-owned lane provenance.
+
+## Lane Start Provenance
+Packet: {LANE_START_PACKET_PATH}
+Starter: scripts/orchestration/start_pr_lane.sh
+""",
+        }
+    }
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: fixture only checks missing-section suppression.
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+
+    assert result.returncode == 0
+    assert "not available locally" in result.stdout
     assert "missing `## Lane Start Provenance`" not in result.stdout
 
 
@@ -1453,14 +1586,14 @@ def test_phase2_rejects_malformed_mapping_lane_even_when_body_is_valid(
     event = {
         "pull_request": {
             "number": 998,
-            "body": """## Summary
+            "body": f"""## Summary
 Body-owned valid lane provenance.
 
 ## Experiment Runner Evidence
 Not applicable: split-source negative fixture with no runner output.
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """,
         }
@@ -1504,7 +1637,7 @@ def test_phase2_accepts_empty_pr_body_when_artifact_is_valid(tmp_path: Path) -> 
     """Artifact-first mode does not fail solely because the body mirror is omitted."""
     event = {"pull_request": {"number": 998, "body": ""}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
-    artifact_content = """# PR 998 — Fixed in Commit Mapping
+    artifact_content = f"""# PR 998 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -1519,24 +1652,28 @@ Commit: abc1234
 Not applicable: empty body fixture uses artifact-first validation only.
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
     env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/ci/check_pr_body_phase2_gates.py",
-            "--event-path",
-            str(tmp_path / "event.json"),
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(repo_root),
-        env=env,
-    )
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--event-path",
+                str(tmp_path / "event.json"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
     assert result.returncode == 0
     assert "canonical mapping artifact passed" in result.stdout
 
@@ -1545,7 +1682,7 @@ def test_phase2_accepts_non_mirror_body_when_artifact_is_valid(tmp_path: Path) -
     """Artifact-first mode should not force optional PR body mirrors."""
     event = {"pull_request": {"number": 998, "body": "minimal"}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
-    artifact_content = """# PR 998 — Fixed in Commit Mapping
+    artifact_content = f"""# PR 998 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -1560,24 +1697,28 @@ Commit: abc1234
 Not applicable: fixture artifact only checks body mirror failure behavior.
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
     env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/ci/check_pr_body_phase2_gates.py",
-            "--event-path",
-            str(tmp_path / "event.json"),
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(repo_root),
-        env=env,
-    )
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--event-path",
+                str(tmp_path / "event.json"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
     assert result.returncode == 0
     assert "canonical mapping artifact passed" in result.stdout
 
@@ -1592,7 +1733,7 @@ def test_phase2_rejects_invalid_present_body_mirror_when_artifact_is_valid(
         }
     }
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
-    artifact_content = """# PR 998 — Fixed in Commit Mapping
+    artifact_content = f"""# PR 998 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -1607,33 +1748,38 @@ Commit: abc1234
 Not applicable: fixture artifact only checks body mirror failure behavior.
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
     env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/ci/check_pr_body_phase2_gates.py",
-            "--event-path",
-            str(tmp_path / "event.json"),
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(repo_root),
-        env=env,
-    )
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--event-path",
+                str(tmp_path / "event.json"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
     assert result.returncode == 1
     assert "PR body validation failed" in result.stdout
+    assert "canonical mapping artifact validation failed" not in result.stdout
     assert "Checklist item must be checked" in result.stdout
 
 
 def test_phase2_accepts_pr_number_without_explicit_body_when_artifact_is_valid(
     tmp_path: Path,
 ) -> None:
-    artifact_content = """# PR 998 — Fixed in Commit Mapping
+    artifact_content = f"""# PR 998 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -1648,26 +1794,30 @@ Commit: abc1234
 Artifact: artifacts/orchestration/experiments/results/exp-998.json
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
     env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/ci/check_pr_body_phase2_gates.py",
-            "--pr-number",
-            "998",
-            "--commit-range",
-            "HEAD",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(repo_root),
-        env=env,
-    )
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--pr-number",
+                "998",
+                "--commit-range",
+                "HEAD",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
     assert result.returncode == 0
     assert "canonical mapping artifact passed" in result.stdout
 
@@ -1681,7 +1831,7 @@ def test_phase2_failure_output_only_reports_failing_scope(tmp_path: Path) -> Non
         }
     }
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
-    artifact_content = """# PR 998 — Fixed in Commit Mapping
+    artifact_content = f"""# PR 998 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -1696,24 +1846,28 @@ Commit: abc1234
 Not applicable: fixture artifact only checks body mirror failure behavior.
 
 ## Lane Start Provenance
-Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Packet: {LANE_START_PACKET_PATH}
 Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
     env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/ci/check_pr_body_phase2_gates.py",
-            "--event-path",
-            str(tmp_path / "event.json"),
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(repo_root),
-        env=env,
-    )
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--event-path",
+                str(tmp_path / "event.json"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
     assert result.returncode == 1
     assert "PR body validation failed" in result.stdout
     assert "canonical mapping artifact validation failed" not in result.stdout
