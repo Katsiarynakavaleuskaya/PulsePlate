@@ -137,6 +137,8 @@ def test_provenance_envelope_fingerprint_omits_raw_payloads() -> None:
         ({"context_fingerprint": "file:///tmp/context.txt"}, "fingerprint"),
         ({"source_fingerprints": ("not-a-sha",)}, "fingerprint"),
         ({"prompt_module_fingerprints": ("sha256:abc",)}, "fingerprint"),
+        ({"surface": ""}, "must be non-empty"),
+        ({"policy_version": "semantic cache"}, "must not contain whitespace"),
         ({"model_key": "raw_prompt"}, "unsafe metadata"),
         ({"transparency_notice_id": "file:///tmp/notice"}, "unsupported characters"),
         ({"user_tier": "billing-account"}, "unsafe metadata"),

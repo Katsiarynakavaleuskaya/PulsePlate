@@ -57,6 +57,42 @@ PRODUCED_AT = "2026-05-07T12:00:00Z"
 SafeMetadata = Mapping[str, JsonValue]
 
 
+def test_prompt_module_contracts_are_covered_by_route_contract_suite() -> None:
+    """Bridge PR-O1 prompt-module coverage into the selected CI route suite."""
+
+    from tests.core.ai import test_prompt_modules as prompt_module_tests
+
+    prompt_module_tests.test_prompt_module_record_serializes_metadata_only()
+    prompt_module_tests.test_prompt_module_record_allows_safe_prompt_label_ids()
+    prompt_module_tests.test_prompt_module_metadata_allows_non_path_url_like_labels()
+    prompt_module_tests.test_prompt_module_metadata_is_deep_frozen_after_validation()
+    prompt_module_tests.test_prompt_module_metadata_copies_tuple_and_int_values()
+    prompt_module_tests.test_prompt_module_registry_identity_is_deterministic()
+    prompt_module_tests.test_prompt_module_registry_hashes_normalized_policy_version()
+    prompt_module_tests.test_prompt_module_registry_derives_id_for_public_constructor()
+    prompt_module_tests.test_prompt_module_registry_stable_mapping_serializes_registry()
+    for metadata in prompt_module_tests.UNSAFE_METADATA_CASES:
+        prompt_module_tests.test_prompt_module_metadata_rejects_unsafe_nested_values(metadata)
+    prompt_module_tests.test_prompt_module_validation_fails_closed_for_bad_shapes()
+    for module_id, match in (
+        ("", "non-empty"),
+        ("safe module", "must not contain whitespace"),
+        ("*safe-module", "unsupported characters"),
+        ("raw_prompt", "unsafe metadata"),
+    ):
+        prompt_module_tests.test_prompt_module_token_validation_fails_closed(module_id, match)
+    prompt_module_tests.test_prompt_module_validation_rejects_bool_numeric_fields()
+    prompt_module_tests.test_prompt_module_registry_rejects_duplicate_modules()
+    prompt_module_tests.test_prompt_module_registry_rejects_empty_or_malformed_records()
+    prompt_module_tests.test_prompt_module_stable_mapping_rejects_unsupported_values()
+    prompt_module_tests.test_prompt_module_metadata_validation_rejects_non_mapping_input()
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        prompt_module_tests.test_prompt_module_metadata_validation_rejects_non_mapping_freeze(
+            monkeypatch,
+        )
+    prompt_module_tests.test_prompt_modules_have_no_runtime_imports_or_calls()
+
+
 def _record() -> ExactFuzzyCacheRecord:
     lineage = build_exact_fuzzy_lineage(
         eval_event_ids=("eval:2", "eval:1"),

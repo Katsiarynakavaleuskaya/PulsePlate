@@ -7,6 +7,7 @@ from typing import cast
 
 import pytest
 
+import core.ai.prompt_modules as prompt_modules
 from core.ai.prompt_modules import (
     JsonValue,
     PromptModuleRecord,
@@ -24,6 +25,20 @@ from tests.helpers.semantic_cache_import_guard import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODULE = REPO_ROOT / "core" / "ai" / "prompt_modules.py"
 TEXT_FINGERPRINT = "sha256:" + "1" * 64
+UNSAFE_METADATA_CASES: tuple[dict[str, JsonValue], ...] = (
+    {"raw_prompt": "unsafe"},
+    {"nested": {"answer": "unsafe"}},
+    {"items": ["Bearer secret"]},
+    {"path": "/Users/name/private.txt"},
+    {"github": "ghs_header.payload.signature"},
+    {"slack": "xoxb-secret"},
+    {"contact": "user@example.com"},
+    {"phone": "+1 555 123 4567"},
+    {"health": "HealthKit diagnosis"},
+    {"note": "see(/Users/alice/raw.txt)"},
+    {"note": "see:/Users/alice/raw.txt"},
+    {"note": "see:file:///tmp/raw.txt"},
+)
 
 
 def _record(module_id: str = "coach-module") -> PromptModuleRecord:
@@ -105,6 +120,23 @@ def test_prompt_module_metadata_is_deep_frozen_after_validation() -> None:
         safe_values.append("unsafe")
 
 
+def test_prompt_module_metadata_copies_tuple_and_int_values() -> None:
+    record = build_prompt_module_record(
+        module_id="system-prompt",
+        module_version="prompt-module-v1",
+        surface="orchestration",
+        text_fingerprint=TEXT_FINGERPRINT,
+        char_count=120,
+        token_estimate=30,
+        token_estimate_version="heuristic-tokens-v1",
+        policy_version="semantic-cache-cost-o1-v1",
+        metadata={"nested": ("safe",), "count": 1},
+    )
+
+    assert record.metadata["nested"] == ("safe",)
+    assert record.metadata["count"] == 1
+
+
 def test_prompt_module_registry_identity_is_deterministic() -> None:
     first = build_prompt_module_registry(
         policy_version="semantic-cache-cost-o1-v1",
@@ -149,22 +181,24 @@ def test_prompt_module_registry_derives_id_for_public_constructor() -> None:
     assert tuple(record.module_id for record in direct.records) == ("a-module", "b-module")
 
 
+def test_prompt_module_registry_stable_mapping_serializes_registry() -> None:
+    registry = build_prompt_module_registry(
+        policy_version="semantic-cache-cost-o1-v1",
+        records=(_record("b-module"), _record("a-module")),
+    )
+
+    stable = to_stable_mapping(registry)
+
+    assert stable["registry_id"] == registry.registry_id
+    assert [record["module_id"] for record in stable["records"]] == [
+        "a-module",
+        "b-module",
+    ]
+
+
 @pytest.mark.parametrize(
     "metadata",
-    [
-        {"raw_prompt": "unsafe"},
-        {"nested": {"answer": "unsafe"}},
-        {"items": ["Bearer secret"]},
-        {"path": "/Users/name/private.txt"},
-        {"github": "ghs_header.payload.signature"},
-        {"slack": "xoxb-secret"},
-        {"contact": "user@example.com"},
-        {"phone": "+1 555 123 4567"},
-        {"health": "HealthKit diagnosis"},
-        {"note": "see(/Users/alice/raw.txt)"},
-        {"note": "see:/Users/alice/raw.txt"},
-        {"note": "see:file:///tmp/raw.txt"},
-    ],
+    UNSAFE_METADATA_CASES,
 )
 def test_prompt_module_metadata_rejects_unsafe_nested_values(
     metadata: dict[str, JsonValue],
@@ -220,12 +254,90 @@ def test_prompt_module_validation_fails_closed_for_bad_shapes() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("module_id", "match"),
+    [
+        ("", "non-empty"),
+        ("safe module", "must not contain whitespace"),
+        ("*safe-module", "unsupported characters"),
+        ("raw_prompt", "unsafe metadata"),
+    ],
+)
+def test_prompt_module_token_validation_fails_closed(
+    module_id: str,
+    match: str,
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        build_prompt_module_record(
+            module_id=module_id,
+            module_version="v1",
+            surface="orchestration",
+            text_fingerprint=TEXT_FINGERPRINT,
+            char_count=1,
+            token_estimate=1,
+            token_estimate_version="heuristic-tokens-v1",
+            policy_version="semantic-cache-cost-o1-v1",
+        )
+
+
+def test_prompt_module_validation_rejects_bool_numeric_fields() -> None:
+    with pytest.raises(ValueError, match="char_count must be an integer"):
+        build_prompt_module_record(
+            module_id="safe-module",
+            module_version="v1",
+            surface="orchestration",
+            text_fingerprint=TEXT_FINGERPRINT,
+            char_count=True,
+            token_estimate=1,
+            token_estimate_version="heuristic-tokens-v1",
+            policy_version="semantic-cache-cost-o1-v1",
+        )
+
+
 def test_prompt_module_registry_rejects_duplicate_modules() -> None:
     with pytest.raises(ValueError, match="duplicate prompt module"):
         build_prompt_module_registry(
             policy_version="semantic-cache-cost-o1-v1",
             records=(_record("same-module"), _record("same-module")),
         )
+
+
+def test_prompt_module_registry_rejects_empty_or_malformed_records() -> None:
+    with pytest.raises(ValueError, match="records must be non-empty"):
+        build_prompt_module_registry(
+            policy_version="semantic-cache-cost-o1-v1",
+            records=(),
+        )
+    with pytest.raises(ValueError, match="records must contain PromptModuleRecord"):
+        build_prompt_module_registry(
+            policy_version="semantic-cache-cost-o1-v1",
+            records=(cast(PromptModuleRecord, "not-record"),),
+        )
+    with pytest.raises(ValueError, match="records must contain PromptModuleRecord"):
+        PromptModuleRegistry(
+            registry_id="pm-registry:stale",
+            policy_version="semantic-cache-cost-o1-v1",
+            records=(cast(PromptModuleRecord, "not-record"),),
+        )
+
+
+def test_prompt_module_stable_mapping_rejects_unsupported_values() -> None:
+    with pytest.raises(ValueError, match="unsupported stable mapping"):
+        to_stable_mapping(object())
+
+
+def test_prompt_module_metadata_validation_rejects_non_mapping_input() -> None:
+    with pytest.raises(ValueError, match="metadata must be a mapping"):
+        prompt_modules._freeze_metadata(cast(dict[str, JsonValue], "not-mapping"))
+
+
+def test_prompt_module_metadata_validation_rejects_non_mapping_freeze(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(prompt_modules, "_deep_freeze_json", lambda value: "not-mapping")
+
+    with pytest.raises(ValueError, match="metadata must be a mapping"):
+        prompt_modules._freeze_metadata({"safe": "label"})
 
 
 def test_prompt_modules_have_no_runtime_imports_or_calls() -> None:
