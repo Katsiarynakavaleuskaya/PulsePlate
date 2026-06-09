@@ -122,7 +122,13 @@ parity before any merge-readiness claim.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: Sourcery and Cubic actionable review findings were fixed in the mapped commits and summarized in Bot Review Summary.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#pullrequestreview-4458019788 -> f53d23f56
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380651249 -> 824683f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380702499 -> 824683f0
 
 ## Bot Review Summary
 
