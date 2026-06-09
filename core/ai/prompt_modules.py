@@ -16,11 +16,13 @@ from typing import TypeAlias
 from core.evidence.fingerprints import fingerprint_payload
 
 JsonScalar: TypeAlias = str | int | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonValue: TypeAlias = (
+    JsonScalar | list["JsonValue"] | tuple["JsonValue", ...] | Mapping[str, "JsonValue"]
+)
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
-_PATH_RE = re.compile(r"(?:^|[\s=(:;,])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)|file://")
+_PATH_RE = re.compile(r"(?:^|[\s=(;,])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\|file://)")
 _UNSAFE_METADATA_RE = re.compile(
     r"raw[_ -]?(?:query|prompt|response|answer|context)"
     r"|normalized[_ -]?query"
@@ -153,17 +155,18 @@ class PromptModuleRegistry:
             "policy_version",
             _validate_token("policy_version", self.policy_version),
         )
-        records = tuple(sorted(self.records, key=lambda item: (item.surface, item.module_id)))
-        if not records:
+        raw_records = tuple(self.records)
+        if not raw_records:
             raise ValueError("records must be non-empty")
         seen: set[tuple[str, str]] = set()
-        for record in records:
+        for record in raw_records:
             if not isinstance(record, PromptModuleRecord):
                 raise ValueError("records must contain PromptModuleRecord")
             key = (record.surface, record.module_id)
             if key in seen:
                 raise ValueError("records contains duplicate prompt module")
             seen.add(key)
+        records = tuple(sorted(raw_records, key=lambda item: (item.surface, item.module_id)))
         object.__setattr__(self, "records", records)
 
 
@@ -202,7 +205,11 @@ def build_prompt_module_registry(
     """Build a stable registry identity from prompt-module metadata."""
 
     normalized_policy_version = _validate_token("policy_version", policy_version)
-    ordered = tuple(sorted(tuple(records), key=lambda item: (item.surface, item.module_id)))
+    raw_records = tuple(records)
+    for record in raw_records:
+        if not isinstance(record, PromptModuleRecord):
+            raise ValueError("records must contain PromptModuleRecord")
+    ordered = tuple(sorted(raw_records, key=lambda item: (item.surface, item.module_id)))
     payload: JsonValue = {
         "policy_version": normalized_policy_version,
         "records": [dict(to_stable_mapping(record)) for record in ordered],
@@ -253,11 +260,24 @@ def _freeze_metadata(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
     if not isinstance(copied, dict):
         raise ValueError("metadata must be a mapping")
     _validate_metadata_is_safe(copied)
-    return _freeze_mapping(copied)
+    frozen = _deep_freeze_json(copied)
+    if not isinstance(frozen, Mapping):
+        raise ValueError("metadata must be a mapping")
+    return frozen
 
 
 def _freeze_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
     return MappingProxyType(dict(sorted(value.items())))
+
+
+def _deep_freeze_json(value: JsonValue) -> JsonValue:
+    if isinstance(value, Mapping):
+        return MappingProxyType(
+            {str(key): _deep_freeze_json(item) for key, item in sorted(value.items())}
+        )
+    if isinstance(value, list | tuple):
+        return tuple(_deep_freeze_json(item) for item in value)
+    return value
 
 
 def _json_safe_copy(value: JsonValue | Mapping[str, JsonValue]) -> JsonValue:

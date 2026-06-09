@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from collections.abc import MutableMapping
 from typing import cast
 
 import pytest
@@ -64,6 +65,43 @@ def test_prompt_module_record_allows_safe_prompt_label_ids() -> None:
 
     assert record.module_id == "system-prompt"
     assert record.module_version == "prompt-module-v1"
+
+
+def test_prompt_module_metadata_allows_non_path_url_like_labels() -> None:
+    record = build_prompt_module_record(
+        module_id="system-prompt",
+        module_version="prompt-module-v1",
+        surface="orchestration",
+        text_fingerprint=TEXT_FINGERPRINT,
+        char_count=120,
+        token_estimate=30,
+        token_estimate_version="heuristic-tokens-v1",
+        policy_version="semantic-cache-cost-o1-v1",
+        metadata={"profile_ref": "profile://safe-label"},
+    )
+
+    assert record.metadata["profile_ref"] == "profile://safe-label"
+
+
+def test_prompt_module_metadata_is_deep_frozen_after_validation() -> None:
+    record = build_prompt_module_record(
+        module_id="system-prompt",
+        module_version="prompt-module-v1",
+        surface="orchestration",
+        text_fingerprint=TEXT_FINGERPRINT,
+        char_count=120,
+        token_estimate=30,
+        token_estimate_version="heuristic-tokens-v1",
+        policy_version="semantic-cache-cost-o1-v1",
+        metadata={"nested": {"safe": ["label"]}},
+    )
+    nested = cast(MutableMapping[str, JsonValue], record.metadata["nested"])
+    safe_values = cast(list[JsonValue], nested["safe"])
+
+    with pytest.raises(TypeError):
+        nested["raw_prompt"] = "unsafe"
+    with pytest.raises(AttributeError):
+        safe_values.append("unsafe")
 
 
 def test_prompt_module_registry_identity_is_deterministic() -> None:
