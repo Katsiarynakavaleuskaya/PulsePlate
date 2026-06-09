@@ -18,6 +18,12 @@ Commit: 668ad1eda
 Evidence: docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md; docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.schema.json; tests/test_semantic_cache_cost_provenance_telemetry_contract.py
 Reason: CodeRabbit review-level doc/schema feedback is addressed by adding explicit `blocked_policy_decisions` schema coverage and clarifying the payload/backend/policy-decision split in the contract.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#pullrequestreview-4460878053 -> 3f34a7f5f
+Disposition: FIXED
+Commit: 3f34a7f5f
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_registry_derives_id_for_public_constructor
+Reason: Public `PromptModuleRegistry(...)` construction now derives `registry_id` from the normalized policy version and sorted prompt-module records instead of trusting caller-supplied identity.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380610588 -> 5cb59be3d
 Disposition: FIXED
 Commit: 5cb59be3d
