@@ -137,6 +137,8 @@ Evidence: Sourcery and Cubic actionable review findings were fixed in the mapped
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380154785 -> f53d23f56
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380651249 -> 824683f0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380702499 -> 824683f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#pullrequestreview-4458852520 -> 7d8f5c458
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380842346 -> 7d8f5c458
 
 ## Bot Review Summary
 
@@ -157,6 +159,8 @@ Evidence: Sourcery and Cubic actionable review findings were fixed in the mapped
   `CONTRIBUTING.md` implying `pre-commit run --all-files` was only for the
   machine-heavy exception path is fixed; the command is now listed as required
   before every push.
+- Cubic follow-up review: FIXED. Evidence: Cubic P2 finding about clobbering an
+  existing local `.env` is fixed by creating `.env` only when missing.
 - CodeQL/security CI: NOT-A-BUG. Evidence: current-head security checks passed
   before this artifact commit; final current-head CI remains required.
 
