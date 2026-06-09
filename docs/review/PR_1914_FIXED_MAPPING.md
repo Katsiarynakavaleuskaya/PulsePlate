@@ -15,6 +15,7 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#discussion_r3376317240 -> f2552620e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#discussion_r3376317247 -> f2552620e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#discussion_r3376317252 -> f2552620e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1914#pullrequestreview-4453378325 -> f2552620e
 Disposition: FIXED
 Commit: f2552620e
 Evidence: `tests/test_usda_fdc_manifest_emitter.py`; `tests/test_food_source_preflight.py`; `core/food_apis/usda_client.py`; `docs/review/PR_USDA_FDC_2026_COMPAT_PREMORTEM.md`
