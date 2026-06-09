@@ -1,8 +1,8 @@
 # PR 1913 Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass completed for currently visible bot comments and reviews.
-- [x] Fixed in commit mapping completed for current PR findings.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1913#pullrequestreview-4452631808 -> daaaf4de0
