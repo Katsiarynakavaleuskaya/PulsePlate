@@ -10,6 +10,7 @@ import pytest
 from core.ai.prompt_modules import (
     JsonValue,
     PromptModuleRecord,
+    PromptModuleRegistry,
     build_prompt_module_record,
     build_prompt_module_registry,
     prompt_module_fingerprints,
@@ -131,6 +132,21 @@ def test_prompt_module_registry_hashes_normalized_policy_version() -> None:
 
     assert first.policy_version == second.policy_version
     assert first.registry_id == second.registry_id
+
+
+def test_prompt_module_registry_derives_id_for_public_constructor() -> None:
+    canonical = build_prompt_module_registry(
+        policy_version="semantic-cache-cost-o1-v1",
+        records=(_record("b-module"), _record("a-module")),
+    )
+    direct = PromptModuleRegistry(
+        registry_id="pm-registry:stale",
+        policy_version=" semantic-cache-cost-o1-v1 ",
+        records=(_record("a-module"), _record("b-module")),
+    )
+
+    assert direct.registry_id == canonical.registry_id
+    assert tuple(record.module_id for record in direct.records) == ("a-module", "b-module")
 
 
 @pytest.mark.parametrize(

@@ -149,7 +149,6 @@ class PromptModuleRegistry:
     records: tuple[PromptModuleRecord, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "registry_id", _validate_token("registry_id", self.registry_id))
         object.__setattr__(
             self,
             "policy_version",
@@ -167,6 +166,12 @@ class PromptModuleRegistry:
                 raise ValueError("records contains duplicate prompt module")
             seen.add(key)
         records = tuple(sorted(raw_records, key=lambda item: (item.surface, item.module_id)))
+        payload: JsonValue = {
+            "policy_version": self.policy_version,
+            "records": [dict(to_stable_mapping(record)) for record in records],
+        }
+        registry_id = f"pm-registry:{fingerprint_payload(payload)[7:31]}"
+        object.__setattr__(self, "registry_id", _validate_token("registry_id", registry_id))
         object.__setattr__(self, "records", records)
 
 
