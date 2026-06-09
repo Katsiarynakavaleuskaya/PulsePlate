@@ -87,6 +87,33 @@ def test_provenance_envelope_fingerprint_is_order_stable() -> None:
     assert re.fullmatch(r"sha256:[0-9a-f]{64}", first)
 
 
+def test_provenance_envelope_fingerprint_dedupes_repeated_fingerprints() -> None:
+    baseline = fingerprint_provenance_envelope(
+        surface="orchestration",
+        request_fingerprint=REQ_FINGERPRINT,
+        context_fingerprint=CTX_FINGERPRINT,
+        source_fingerprints=(SOURCE_A_FINGERPRINT,),
+        policy_version="semantic-cache-cost-o1-v1",
+        model_key="model:gpt-family",
+        user_tier="internal",
+        transparency_notice_id="notice:internal",
+        prompt_module_fingerprints=(MODULE_A_FINGERPRINT,),
+    )
+    repeated = fingerprint_provenance_envelope(
+        surface="orchestration",
+        request_fingerprint=REQ_FINGERPRINT,
+        context_fingerprint=CTX_FINGERPRINT,
+        source_fingerprints=(SOURCE_A_FINGERPRINT, SOURCE_A_FINGERPRINT),
+        policy_version="semantic-cache-cost-o1-v1",
+        model_key="model:gpt-family",
+        user_tier="internal",
+        transparency_notice_id="notice:internal",
+        prompt_module_fingerprints=(MODULE_A_FINGERPRINT, MODULE_A_FINGERPRINT),
+    )
+
+    assert baseline == repeated
+
+
 def test_provenance_envelope_fingerprint_omits_raw_payloads() -> None:
     raw_marker = "private prompt text"
     fingerprint = fingerprint_provenance_envelope(

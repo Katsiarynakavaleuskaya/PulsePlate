@@ -52,10 +52,10 @@ def fingerprint_provenance_envelope(
     """Fingerprint a non-serving provenance envelope without raw payloads."""
 
     normalized_source_fingerprints = tuple(
-        sorted(validate_fingerprint(fingerprint) for fingerprint in source_fingerprints)
+        sorted({validate_fingerprint(fingerprint) for fingerprint in source_fingerprints})
     )
     normalized_prompt_module_fingerprints = tuple(
-        sorted(validate_fingerprint(fingerprint) for fingerprint in prompt_module_fingerprints)
+        sorted({validate_fingerprint(fingerprint) for fingerprint in prompt_module_fingerprints})
     )
     payload: JsonValue = {
         "context_fingerprint": (

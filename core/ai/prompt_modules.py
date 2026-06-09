@@ -15,7 +15,7 @@ from typing import TypeAlias
 
 from core.evidence.fingerprints import fingerprint_payload
 
-JsonScalar: TypeAlias = str | int | float | bool | None
+JsonScalar: TypeAlias = str | int | bool | None
 JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
