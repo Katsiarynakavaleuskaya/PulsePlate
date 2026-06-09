@@ -24,7 +24,9 @@ from core.ai.exact_fuzzy_cache import (
 )
 
 JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonValue: TypeAlias = (
+    JsonScalar | list["JsonValue"] | tuple["JsonValue", ...] | Mapping[str, "JsonValue"]
+)
 
 EXPECTED_ACTION_FALLBACK = "fallback"
 EXPECTED_ACTION_SAFE_HIT = "safe_hit"
@@ -1118,11 +1120,23 @@ def _freeze_metadata(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
     if not isinstance(copied, dict):
         raise ValueError("metadata must be a mapping")
     _validate_metadata_is_safe(copied)
-    return _freeze_mapping(copied)
+    return _deep_freeze_mapping(copied)
 
 
 def _freeze_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
     return MappingProxyType(dict(sorted(value.items())))
+
+
+def _deep_freeze_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
+    return MappingProxyType({key: _deep_freeze_json(item) for key, item in sorted(value.items())})
+
+
+def _deep_freeze_json(value: JsonValue) -> JsonValue:
+    if isinstance(value, Mapping):
+        return _deep_freeze_mapping(value)
+    if isinstance(value, list | tuple):
+        return tuple(_deep_freeze_json(item) for item in value)
+    return value
 
 
 def _json_safe_copy(value: JsonValue | Mapping[str, JsonValue]) -> JsonValue:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -703,6 +703,42 @@ def test_token_economy_estimate_hashes_normalized_reason_codes() -> None:
     assert baseline.estimate_id == normalized.estimate_id
 
 
+def test_token_economy_estimate_metadata_is_deep_frozen_after_validation() -> None:
+    estimate = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("metadata_recorded", "gate_closed"),
+        produced_at=PRODUCED_AT,
+        metadata={"nested": {"safe": ["label"]}},
+    )
+    nested = cast(MutableMapping[str, JsonValue], estimate.metadata["nested"])
+    safe_values = cast(list[JsonValue], nested["safe"])
+
+    with pytest.raises(TypeError):
+        nested["raw_prompt"] = "unsafe"
+    with pytest.raises(AttributeError):
+        safe_values.append("/Users/private/path")
+
+    assert dict(to_stable_mapping(estimate))["metadata"] == {
+        "nested": {"safe": ["label"]},
+    }
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -1188,7 +1224,9 @@ def test_caller_owned_containers_are_defensively_copied() -> None:
     assert dict(to_stable_mapping(audit))["metadata"] == {"tags": ["safe"]}
     case = _case(case_id="case:copy", metadata=metadata)
     tags.append("changed-again")
-    assert dict(case.metadata) == {"tags": ["safe", "changed"]}
+    assert dict(case.metadata) == {"tags": ("safe", "changed")}
+    with pytest.raises(AttributeError):
+        cast(list[JsonValue], case.metadata["tags"]).append("unsafe")
 
 
 def test_stable_mapping_covers_all_contract_shapes_and_rejects_unknowns() -> None:
