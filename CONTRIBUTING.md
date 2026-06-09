@@ -20,12 +20,14 @@ This repo uses a simple branch model designed to keep `main` always green.
 - Run locally before pushing:
 
 ```bash
+# Required before every push
+pre-commit run --all-files
+
 # Standard verification bundle
 make verify
 
 # Operator-approved machine-heavy exception only: run and document narrow gates
 make validate-changed
-pre-commit run --all-files
 
 # Docker tests (if Docker files changed)
 make docker-build

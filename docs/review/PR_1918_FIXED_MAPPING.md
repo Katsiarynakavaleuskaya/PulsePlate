@@ -135,7 +135,11 @@ parity before any merge-readiness claim.
   safe-directory `postStartCommand`. General feedback to tighten Compose env
   forwarding is also fixed by exact allowed-key assertions.
 - Cubic: NOT-A-BUG. Evidence: status check passes and no actionable blocking
-  finding was visible during current pass.
+  finding was visible during initial pass.
+- Cubic post-fix review: FIXED. Evidence: Cubic P2 finding about
+  `CONTRIBUTING.md` implying `pre-commit run --all-files` was only for the
+  machine-heavy exception path is fixed; the command is now listed as required
+  before every push.
 - CodeQL/security CI: NOT-A-BUG. Evidence: current-head security checks passed
   before this artifact commit; final current-head CI remains required.
 
