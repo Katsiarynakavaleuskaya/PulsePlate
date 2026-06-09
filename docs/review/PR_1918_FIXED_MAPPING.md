@@ -127,6 +127,11 @@ Commit: see mapping entries below
 Evidence: Sourcery and Cubic actionable review findings were fixed in the mapped commits and summarized in Bot Review Summary.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#pullrequestreview-4458019788 -> f53d23f56
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380141621 -> f53d23f56
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380154773 -> f53d23f56
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380154776 -> eb357de61
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380154780 -> f53d23f56
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380154785 -> f53d23f56
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380651249 -> 824683f0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1918#discussion_r3380702499 -> 824683f0
 
@@ -140,6 +145,9 @@ Evidence: Sourcery and Cubic actionable review findings were fixed in the mapped
   `postAttachCommand` and `overrideCommand`, while explicitly allowing only the
   safe-directory `postStartCommand`. General feedback to tighten Compose env
   forwarding is also fixed by exact allowed-key assertions.
+- Codex review: FIXED. Evidence: lifecycle-hook, Docker feature, and env
+  allowlist findings are addressed by `f53d23f56`; the devcontainer quickstart
+  `.env` setup finding is addressed by this follow-up docs commit.
 - Cubic: NOT-A-BUG. Evidence: status check passes and no actionable blocking
   finding was visible during initial pass.
 - Cubic post-fix review: FIXED. Evidence: Cubic P2 finding about
