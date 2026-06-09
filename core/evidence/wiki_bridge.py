@@ -575,8 +575,12 @@ def _validate_metadata(value: JsonValue, *, key_path: tuple[str, ...] = ()) -> N
     raise ValueError("metadata must be JSON-compatible")
 
 
+def _normalize_metadata_key(key: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
+
+
 def _validate_metadata_key(key: str, value: JsonValue) -> None:
-    normalized_key = key.strip().lower().replace("-", "_")
+    normalized_key = _normalize_metadata_key(key)
     if not normalized_key:
         raise ValueError("metadata keys must not be blank")
     if any(fragment in normalized_key for fragment in _FORBIDDEN_METADATA_KEY_FRAGMENTS):
@@ -603,9 +607,11 @@ def _validate_metadata_string(value: str, key_path: tuple[str, ...]) -> None:
         raise ValueError("metadata contains unsafe path-like value")
     if lower.startswith(_PATH_VALUE_PREFIXES) or lower.endswith(_PATH_VALUE_SUFFIXES):
         raise ValueError("metadata contains unsafe path-like value")
-    if key_path and any(fragment in key_path[-1].lower() for fragment in _AUTHORITY_KEY_FRAGMENTS):
-        if any(fragment in lower for fragment in _AUTHORITY_VALUE_FRAGMENTS):
-            raise ValueError("metadata contains forbidden authority claim")
+    if key_path:
+        normalized_key = _normalize_metadata_key(key_path[-1])
+        if any(fragment in normalized_key for fragment in _AUTHORITY_KEY_FRAGMENTS):
+            if any(fragment in lower for fragment in _AUTHORITY_VALUE_FRAGMENTS):
+                raise ValueError("metadata contains forbidden authority claim")
 
 
 def _metadata_value_claims_authority(value: JsonValue) -> bool:
