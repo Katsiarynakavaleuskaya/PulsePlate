@@ -35,15 +35,27 @@ curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify hea
 
 ### Dev Container (recommended)
 
-The recommended path for backend/web/docs/orchestration work:
+The recommended path for backend/web/docs/orchestration work keeps repository
+bootstrap manual and forwards only the private package proxy settings needed for
+dependency installation. Do not load the full project `.env` into the
+devcontainer.
 
 ```bash
-cp .env.example .env
+export PULSEPLATE_PYTHON_INDEX_URL=https://packages.example.internal/simple
+# Optional, only if the approved proxy requires pip trusted-host behavior:
+export PULSEPLATE_PYTHON_TRUSTED_HOST=
+
 # VS Code: Cmd/Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
 # CLI: make dc-up && make dc-shell
+# After reviewing/trusting the workspace, run bootstrap manually inside the container:
 make devcontainer-bootstrap
 make dev
 ```
+
+Host Docker daemon access is intentionally not enabled by default. If a task
+requires Docker from inside the devcontainer, use a separate reviewed local
+override after the workspace is trusted rather than committing socket access to
+the default configuration.
 
 ### Legacy .venv fallback
 
