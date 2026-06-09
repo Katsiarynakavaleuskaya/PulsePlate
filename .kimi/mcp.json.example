@@ -4,22 +4,22 @@
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-github@latest"
+        "@modelcontextprotocol/server-github@2025.4.8"
       ]
     },
     "playwright": {
       "command": "npx",
       "args": [
         "-y",
-        "@playwright/mcp@latest",
-        "--allow-unrestricted-file-access"
-      ]
+        "@playwright/mcp@0.0.75"
+      ],
+      "comment": "Default denies local filesystem access. Do not add --allow-unrestricted-file-access unless a scoped, reviewed local-only task explicitly requires it."
     },
     "context7": {
       "command": "npx",
       "args": [
         "-y",
-        "@upstash/context7-mcp@latest"
+        "@upstash/context7-mcp@3.1.0"
       ]
     },
     "figma": {
