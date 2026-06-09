@@ -92,11 +92,11 @@ OUT:
 
 | Risk ID | Failure mode | Fix | Regression test | Evidence command | Fix commit SHA | Evidence | Disposition |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `DEVCONTAINER-001` | Opening a devcontainer auto-runs repository-controlled bootstrap before workspace trust. | Removed automatic `postCreateCommand` and added a guard against auto-execution hooks. | `test_devcontainer_json_does_not_auto_execute_workspace_bootstrap` | `python3 -m pytest -q tests/test_devcontainer_foundation.py` | Pending final commit | `.devcontainer/devcontainer.json`; `tests/test_devcontainer_foundation.py` | FIXED |
-| `DEVCONTAINER-002` | Default devcontainer exposes host Docker daemon access. | Removed Docker-outside-of-Docker feature and guards against Docker socket features. | `test_devcontainer_json_does_not_enable_host_docker_socket` | `python3 -m pytest -q tests/test_devcontainer_foundation.py` | Pending final commit | `.devcontainer/devcontainer.json`; `tests/test_devcontainer_foundation.py` | FIXED |
-| `DEVCONTAINER-003` | Devcontainer imports full app `.env` or forwards app/CI secrets. | Removed Compose `env_file`, forwards only package-proxy vars, and added Compose plus `devcontainer.json` secret-exclusion tests. | `test_devcontainer_compose_does_not_import_full_env_file`; `test_devcontainer_compose_forwards_only_bootstrap_proxy_env`; `test_devcontainer_json_container_env_forwards_only_safe_bootstrap_env` | `python3 -m pytest -q tests/test_devcontainer_foundation.py` | Pending final commit | `.devcontainer/docker-compose.devcontainer.yml`; `.devcontainer/devcontainer.json`; `tests/test_devcontainer_foundation.py` | FIXED |
-| `GOVERNANCE-001` | Phase2 and merge-readiness gates fail because the canonical mapping artifact and PR-body mirror are missing. | Added this canonical artifact and will refresh the PR-body mirror after commit/push. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | Pending final commit | `docs/review/PR_1918_FIXED_MAPPING.md` | FIXED |
-| `GOVERNANCE-002` | Stale contribution instructions duplicate wrong Python/coverage thresholds. | Replaced threshold duplication with canonical `AGENTS.md` / `RUNBOOK_AGENT.md` gate references. | Docs review and Phase2 gate. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | Pending final commit | `CONTRIBUTING.md` | FIXED |
+| `DEVCONTAINER-001` | Opening a devcontainer auto-runs repository-controlled bootstrap before workspace trust. | Removed automatic `postCreateCommand` and added a guard against auto-execution hooks. | `test_devcontainer_json_does_not_auto_execute_workspace_bootstrap` | `.venv/bin/python -m pytest -q tests/test_devcontainer_foundation.py` | `5d854a074` | `.devcontainer/devcontainer.json`; `tests/test_devcontainer_foundation.py` | FIXED |
+| `DEVCONTAINER-002` | Default devcontainer exposes host Docker daemon access. | Removed Docker-outside-of-Docker feature and guards against Docker socket features. | `test_devcontainer_json_does_not_enable_host_docker_socket` | `.venv/bin/python -m pytest -q tests/test_devcontainer_foundation.py` | `5d854a074` | `.devcontainer/devcontainer.json`; `tests/test_devcontainer_foundation.py` | FIXED |
+| `DEVCONTAINER-003` | Devcontainer imports full app `.env` or forwards app/CI secrets. | Removed Compose `env_file`, forwards only package-proxy vars, and added Compose plus `devcontainer.json` secret-exclusion tests. | `test_devcontainer_compose_does_not_import_full_env_file`; `test_devcontainer_compose_forwards_only_bootstrap_proxy_env`; `test_devcontainer_json_container_env_forwards_only_safe_bootstrap_env` | `.venv/bin/python -m pytest -q tests/test_devcontainer_foundation.py` | `5d854a074` | `.devcontainer/docker-compose.devcontainer.yml`; `.devcontainer/devcontainer.json`; `tests/test_devcontainer_foundation.py` | FIXED |
+| `GOVERNANCE-001` | Phase2 and merge-readiness gates fail because the canonical mapping artifact and PR-body mirror are missing. | Added this canonical artifact and will refresh the PR-body mirror after commit/push. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | `5d854a074` | `docs/review/PR_1918_FIXED_MAPPING.md` | FIXED |
+| `GOVERNANCE-002` | Stale contribution instructions duplicate wrong Python/coverage thresholds. | Replaced threshold duplication with canonical `AGENTS.md` / `RUNBOOK_AGENT.md` gate references. | Docs review and Phase2 gate. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | `5d854a074` | `CONTRIBUTING.md` | FIXED |
 
 ## Tests / Bounded Checks
 
@@ -104,9 +104,9 @@ OUT:
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: `python3 scripts/orchestration/task_bootstrap.py --goal "Harden devcontainer bootstrap defaults and complete PR 1918 governance" --task-class security --pr-phase post_open_review`
 - PASS: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/3031655b8145.json --pretty`
-- PENDING: `python3 -m pytest -q tests/test_devcontainer_foundation.py`
-- PENDING: `make validate-changed`
-- PENDING: `pre-commit run --all-files`
+- PASS: `.venv/bin/python -m pytest -q tests/test_devcontainer_foundation.py`
+- PASS: `make validate-changed`
+- PASS: `pre-commit run --all-files`
 
 ## Machine-Heavy Verify Exception
 
@@ -142,9 +142,6 @@ None.
 
 Not merge-ready yet. Pending after this artifact/fix commit:
 
-- Focused local test: `python3 -m pytest -q tests/test_devcontainer_foundation.py`.
-- Narrow local gate: `make validate-changed`.
-- Mandatory local hook gate: `pre-commit run --all-files`.
 - PR-body mirror refresh from this canonical artifact.
 - Current-head CI rerun with `PR Body Phase2 gates` PASS.
 - Current-head CI rerun with `Merge readiness gate` PASS.
