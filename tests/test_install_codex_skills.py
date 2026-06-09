@@ -428,6 +428,61 @@ def test_verify_codex_skills_install_rejects_modified_same_name_copy(
     assert "pulseplate-workflow" in result.stdout
 
 
+def test_verify_codex_skills_install_rejects_marker_symlink_without_leaking_target(
+    tmp_path: Path,
+) -> None:
+    """Verifier JSON must not disclose marker symlink target contents."""
+
+    import json as json_mod
+
+    _run_installer(tmp_path, "--copy", "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+    copied_skill = agents_skills / "pulseplate-workflow"
+    secret_path = tmp_path / "secret.txt"
+    secret_value = "PULSEPLATE_VALIDATION_SECRET_DO_NOT_LOG"
+    secret_path.write_text(secret_value, encoding="utf-8")
+    marker = copied_skill / ".pulseplate_codex_skill_source"
+    marker.unlink()
+    marker.symlink_to(secret_path)
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--json", "--strict")
+    assert result.returncode == 1
+    assert secret_value not in result.stdout
+
+    report = json_mod.loads(result.stdout)
+    detail = next(
+        item for item in report["details"] if item["name"] == "pulseplate-workflow"
+    )
+    assert detail["status"] == "copied_invalid"
+    assert detail["marker"] == ""
+    assert detail["marker_error"] in {"marker_not_regular", "marker_symlink"}
+
+
+def test_verify_codex_skills_install_rejects_invalid_utf8_marker_without_crashing(
+    tmp_path: Path,
+) -> None:
+    """Malformed copy markers should be reported as invalid instead of crashing."""
+
+    import json as json_mod
+
+    _run_installer(tmp_path, "--copy", "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+    copied_skill = agents_skills / "pulseplate-workflow"
+    marker = copied_skill / ".pulseplate_codex_skill_source"
+    marker.write_bytes(b"\xff\xfe\xfd")
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--json", "--strict")
+    assert result.returncode == 1
+
+    report = json_mod.loads(result.stdout)
+    detail = next(
+        item for item in report["details"] if item["name"] == "pulseplate-workflow"
+    )
+    assert detail["status"] == "copied_invalid"
+    assert detail["marker"] == ""
+    assert detail["marker_error"] == "marker_invalid_utf8"
+
+
 def test_verify_codex_skills_install_fails_when_skill_missing(tmp_path: Path) -> None:
     """Verifier with --strict should fail when a skill is missing from destination."""
 
