@@ -24,6 +24,8 @@ IN:
 - `.devcontainer/devcontainer.json`
 - `.devcontainer/docker-compose.devcontainer.yml`
 - `tests/test_devcontainer_foundation.py`
+- `core/ai/semantic_cache_offline_admission_runner.py`
+- `core/ai/semantic_cache_shadow_admission_harness.py`
 - `CONTRIBUTING.md`
 - `README.md`
 - `docs/review/PR_1918_FIXED_MAPPING.md`
@@ -34,7 +36,7 @@ OUT:
 - OpenAPI artifacts
 - Docker production image behavior
 - Host Docker access enablement
-- Full `make verify` local execution
+- Runtime behavior changes to semantic-cache admission logic
 
 ## Agent Execution Log
 
@@ -78,10 +80,11 @@ OUT:
   - Disposition: FIXED
   - Evidence: `tests/test_devcontainer_foundation.py` adds a focused
     `containerEnv` secret-exclusion and localEnv allowlist guard.
-- Full local `make verify` is deferred by operator request.
-  - Disposition: NOT-A-BUG
-  - Evidence: user explicitly instructed not to run full `make verify`; this PR
-    uses narrow local gates plus current-head CI parity before readiness claims.
+- Typecheck debt in semantic-cache admission support files blocks repo-wide
+  verification.
+  - Disposition: FIXED
+  - Evidence: `make typecheck` now passes with `Success: no issues found in
+    368 source files` after unifying JSON typing and removing a redundant cast.
 
 ## Experiment Runner Evidence
 
@@ -98,6 +101,7 @@ OUT:
 | `DEVCONTAINER-003` | Devcontainer imports full app `.env` or forwards app/CI secrets. | Removed Compose `env_file`, forwards only package-proxy vars, and added Compose plus `devcontainer.json` secret-exclusion tests. | `test_devcontainer_compose_does_not_import_full_env_file`; `test_devcontainer_compose_forwards_only_bootstrap_proxy_env`; `test_devcontainer_json_container_env_forwards_only_safe_bootstrap_env` | `.venv/bin/python -m pytest -q tests/test_devcontainer_foundation.py` | `5d854a074` | `.devcontainer/docker-compose.devcontainer.yml`; `.devcontainer/devcontainer.json`; `tests/test_devcontainer_foundation.py` | FIXED |
 | `GOVERNANCE-001` | Phase2 and merge-readiness gates fail because the canonical mapping artifact and PR-body mirror are missing. | Added this canonical artifact and will refresh the PR-body mirror after commit/push. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | `5d854a074` | `docs/review/PR_1918_FIXED_MAPPING.md` | FIXED |
 | `GOVERNANCE-002` | Stale contribution instructions duplicate wrong Python/coverage thresholds. | Replaced threshold duplication with canonical `AGENTS.md` / `RUNBOOK_AGENT.md` gate references. | Docs review and Phase2 gate. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1918 --body "$PR_BODY"` | `5d854a074` | `CONTRIBUTING.md` | FIXED |
+| `TYPECHECK-001` | Repo-wide `make typecheck` failed on semantic-cache JSON typing and redundant cast debt. | Unified offline runner JSON typing with sibling semantic-cache contracts, annotated the SC-G5 phase result mapping, and removed the redundant shadow harness cast. | `make typecheck`; focused semantic-cache tests | `make typecheck`; `.venv/bin/python -m pytest -q tests/core/ai/test_semantic_cache_offline_admission_runner.py tests/core/ai/test_semantic_cache_shadow_admission_harness.py` | `ed2b12c2c` | `core/ai/semantic_cache_offline_admission_runner.py`; `core/ai/semantic_cache_shadow_admission_harness.py` | FIXED |
 
 ## Tests / Bounded Checks
 
@@ -106,14 +110,13 @@ OUT:
 - PASS: `python3 scripts/orchestration/task_bootstrap.py --goal "Harden devcontainer bootstrap defaults and complete PR 1918 governance" --task-class security --pr-phase post_open_review`
 - PASS: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/3031655b8145.json --pretty`
 - PASS: `.venv/bin/python -m pytest -q tests/test_devcontainer_foundation.py`
+- PASS: `make typecheck`
+- PASS: `.venv/bin/python -m pytest -q tests/core/ai/test_semantic_cache_offline_admission_runner.py tests/core/ai/test_semantic_cache_shadow_admission_harness.py`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
-
-## Machine-Heavy Verify Exception
-
-Full local `make verify` is operator-deferred for this PR by explicit user
-instruction. This PR must rely on narrow local gates plus current-head GitHub CI
-parity before any merge-readiness claim.
+- ATTEMPTED: `make verify` passed `verify-env`, `lint`, `typecheck`, and
+  `test-fast`, then timed out during the full coverage run inside `diff-cov`
+  after 20 minutes (`Terminated: 15`).
 
 ## Discussion Thread Pass
 
