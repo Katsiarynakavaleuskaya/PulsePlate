@@ -460,6 +460,22 @@ def test_invalid_utf8_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert read_latest_snapshot_line() is None
 
 
+def test_non_object_snapshot_returns_none_and_render_falls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _configure_repo(monkeypatch, tmp_path)
+    snap_dir = repo / "artifacts" / "orchestration" / "mvp_evidence_snapshots"
+    snap_dir.mkdir(parents=True)
+    bad = (
+        snap_dir
+        / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_000000000000000000000000.json"
+    )
+    bad.write_text("[]", encoding="utf-8")
+
+    assert read_latest_snapshot_line() is None
+    assert bridge.render_mvp_evidence_summary().status_line == "static_contract"
+
+
 def test_non_string_payload_values_ignored() -> None:
     events = [
         {
