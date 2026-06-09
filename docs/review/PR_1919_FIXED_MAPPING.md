@@ -1,12 +1,58 @@
 # PR 1919 Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Initial discussion-thread pass completed before post-open review loop.
-- [x] Fixed in commit mapping artifact created after PR number assignment.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Post-open review-thread pass pending.
 
 ## Fixed in Commit Mapping
-- No GitHub review threads existed when this artifact was created.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380610588 -> 5cb59be3d
+Disposition: FIXED
+Commit: 5cb59be3d
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py
+Reason: Removed unsupported `float` from the prompt-module `JsonScalar` alias so the type contract matches runtime metadata validation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380610597 -> 5cb59be3d
+Disposition: FIXED
+Commit: 5cb59be3d
+Evidence: core/evidence/fingerprints.py; tests/core/evidence/test_fingerprints.py::test_provenance_envelope_fingerprint_dedupes_repeated_fingerprints
+Reason: Provenance envelope source and prompt-module fingerprint sequences are canonicalized as sets before hashing.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380623541 -> 5cb59be3d
+Disposition: FIXED
+Commit: 5cb59be3d
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py
+Reason: Prompt-module metadata intentionally excludes float values; the public `JsonScalar` alias now matches that runtime contract.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380623548 -> 160b10d52
+Disposition: FIXED
+Commit: 160b10d52
+Evidence: docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md
+Reason: Contract prose now uses the same plural token field names as the JSON schema.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380628001 -> 160b10d52
+Disposition: FIXED
+Commit: 160b10d52
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_record_allows_safe_prompt_label_ids
+Reason: Token validation now permits safe prompt-module labels such as `system-prompt` while preserving raw-payload and secret/path guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380628003 -> 160b10d52
+Disposition: FIXED
+Commit: 160b10d52
+Evidence: core/ai/cache_observability.py; tests/core/ai/test_cache_observability.py::test_token_economy_estimate_hashes_normalized_reason_codes
+Reason: Token-economy IDs are now hashed from normalized safe labels, integer estimate fields, and normalized reason codes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380628010 -> 160b10d52
+Disposition: FIXED
+Commit: 160b10d52
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_registry_hashes_normalized_policy_version
+Reason: Prompt-module registry IDs are now hashed from the normalized registry policy version.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1919#discussion_r3380628018 -> 160b10d52
+Disposition: FIXED
+Commit: 160b10d52
+Evidence: core/ai/prompt_modules.py; tests/core/ai/test_prompt_modules.py::test_prompt_module_metadata_rejects_unsafe_nested_values
+Reason: Prompt-module metadata path detection now catches punctuation-wrapped local paths such as `see(/Users/alice/raw.txt)`.
 
 ## Role Dispatch Evidence
 - Task packet: `artifacts/orchestration/task_packets/14f1a384b89b.json`.
@@ -21,7 +67,7 @@ Evidence: `core/ai/cache_observability.py`; `tests/core/ai/test_cache_observabil
 Evidence: `core/evidence/fingerprints.py`; `tests/core/evidence/test_fingerprints.py::test_provenance_envelope_fails_closed_for_raw_or_malformed_inputs`.
 
 ## Experiment Runner Evidence
-- Artifact: `artifacts/orchestration/experiments/results/exp-064ad7a5805e.json`.
+- Artifact: `artifacts/orchestration/experiments/results/exp-064ad7a5805e.json`
 - Mode: `oracle_only_governance_reviewer`.
 - Status: `accepted`.
 - Shared tree untouched: `true`.
@@ -37,6 +83,9 @@ Evidence: `core/evidence/fingerprints.py`; `tests/core/evidence/test_fingerprint
 - `pre-commit run --all-files` PASS.
 - `git diff --cached --check` PASS before commit.
 - Pre-push hooks PASS: changed-file mypy, backend tests, full Bandit, Docker build test.
+- `python -m pytest -q tests/core/evidence/test_fingerprints.py tests/core/ai/test_prompt_modules.py tests/core/ai/test_cache_observability.py tests/test_semantic_cache_cost_provenance_telemetry_contract.py` PASS after bot-fix commits.
+- `python -m mypy core/evidence/fingerprints.py core/ai/cache_observability.py core/ai/prompt_modules.py` PASS after bot-fix commits.
+- `python scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md` PASS after bot-fix commits.
 
 ## Known Non-Ready Gate
 - `make verify` FAILS at repo-wide `make typecheck` on files outside this PR diff.
