@@ -13,7 +13,7 @@ import math
 from pathlib import Path
 import re
 from types import MappingProxyType
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
@@ -675,7 +675,7 @@ def _validate_repo_relative_path(raw_path: str | Path) -> str:
         raise ValueError("path must be non-empty")
     if _PATH_RE.search(raw) or "\\" in raw:
         raise ValueError("path contains unsafe metadata")
-    normalized = normalize_repo_path(raw)
+    normalized = cast(str, normalize_repo_path(raw))
     candidate = Path(normalized)
     if candidate.is_absolute() or normalized.startswith("../") or "/../" in normalized:
         raise ValueError("path must stay inside repo")
