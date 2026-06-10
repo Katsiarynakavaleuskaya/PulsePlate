@@ -18,6 +18,26 @@ Disposition: FIXED
 Commit: 36a20172d
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:46`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#pullrequestreview-4468518145
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1938_FIXED_MAPPING.md`; child threads `discussion_r3388908188` and `discussion_r3388908198` are dispositioned above with proof.
+Reason: The aggregate Sourcery review carries no additional actionable item beyond the two child review threads already mapped as NOT-A-BUG and FIXED.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#discussion_r3389181481 -> d27dbc347
+Disposition: FIXED
+Commit: d27dbc347
+Evidence: `scripts/ci/check_semantic_cache_gate.py`; `tests/test_semantic_cache_provider_model_tier_routing_contract.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#discussion_r3389181507 -> d27dbc347
+Disposition: FIXED
+Commit: d27dbc347
+Evidence: `scripts/orchestration/context_pack_compression.py`; `tests/test_context_pack_compression.py`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#pullrequestreview-4468854106 -> d27dbc347
+Disposition: FIXED
+Commit: d27dbc347
+Evidence: `scripts/ci/check_semantic_cache_gate.py`; `scripts/orchestration/context_pack_compression.py`; `tests/test_context_pack_compression.py`; `tests/test_semantic_cache_provider_model_tier_routing_contract.py`
+
 ## Lane Start Provenance
 - Branch: `codex/provider-model-tier-routing-o3`.
 - Packet: artifacts/orchestration/task_packets/dd636a215a18.json
