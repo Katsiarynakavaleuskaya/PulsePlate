@@ -105,7 +105,7 @@ Evidence: `scripts/ci/check_semantic_cache_gate.py`; `scripts/orchestration/cont
 ## Experiment Runner Evidence
 - Packet:
   `artifacts/orchestration/experiments/artifacts/orchestration/experiments/pr-o3-oracle-packet.json`.
-- Artifact: artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/pr-o3-oracle-result.json
+- Artifact: artifacts/orchestration/experiments/results/pr-o3-oracle-result.json
 - Mode: `oracle_only_governance_reviewer`.
 - Status: result artifact written; `failure_class` is null.
 - Co-author trailer used in commit `62290bb79`:
