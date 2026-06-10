@@ -491,8 +491,8 @@ def build_context_pack_compression(
             "cluster": normalized_cluster,
             "domain": normalized_domain,
             "pr_phase": normalized_pr_phase,
-            "primary_agent": normalized_primary_agent,
-            "reviewer": normalized_reviewer,
+            "primary_agent_fingerprint": _role_fingerprint(normalized_primary_agent),
+            "reviewer_fingerprint": _role_fingerprint(normalized_reviewer),
             "secondary_agent_count": len(normalized_secondaries),
             "requested_agent_count": len(normalized_requested),
             "graph_limit_truncated": graph_truncated,
@@ -897,6 +897,10 @@ def _normalize_unique_tokens(name: str, values: Iterable[str]) -> tuple[str, ...
 
 def _normalize_unique_role_tokens(name: str, values: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted({_validate_role_token(name, value) for value in values}))
+
+
+def _role_fingerprint(value: str) -> str:
+    return f"role-fingerprint:{fingerprint_payload({'role': value})[7:31]}"
 
 
 def _normalize_required_unique_tokens(name: str, values: Iterable[str]) -> tuple[str, ...]:

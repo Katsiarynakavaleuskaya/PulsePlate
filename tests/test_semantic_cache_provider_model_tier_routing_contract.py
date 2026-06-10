@@ -92,6 +92,9 @@ def test_provider_model_tier_validators_pass_current_contract_and_schema() -> No
     "claim,expected",
     (
         ("Provider/model-tier routing enables runtime routing.", "runtime routing"),
+        ("Provider/model-tier routing selects GPT.", "runtime selection"),
+        ("Provider/model-tier routing chooses Perplexity Sonar.", "runtime selection"),
+        ("Provider/model-tier routing routes to Ollama.", "runtime selection"),
         ("Provider/model-tier routing performs provider calls.", "provider calls"),
         ("Provider/model-tier routing wires Ollama.", "Ollama"),
         ("Provider/model-tier routing wires Perplexity.", "Perplexity"),

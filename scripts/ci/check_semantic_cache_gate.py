@@ -770,9 +770,7 @@ PROVIDER_MODEL_TIER_ROUTING_FORBIDDEN_PATTERNS = (
     ),
     (
         "runtime selection",
-        re.compile(
-            r"\bprovider/model-tier routing (?:selects|chooses|routes to) (?:a )?(?:provider|model|tier)\b"
-        ),
+        re.compile(r"\bprovider/model-tier routing (?:selects|chooses|routes to)\b"),
     ),
     (
         "provider calls",
