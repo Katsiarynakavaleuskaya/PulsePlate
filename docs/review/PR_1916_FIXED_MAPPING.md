@@ -201,6 +201,12 @@ Commit: bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Evidence: scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py
 Reason: Cubic found `sha256_parts` was not supported by `verify_emergency_artifact_for_floor`; commit `bbe3e05aa` routes that path through `_emergency_artifact_sha256(...)` and adds coverage.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#pullrequestreview-4471959180 -> e081387a5c9b02c174ab8b617c1891421bb467ec
+Disposition: FIXED
+Commit: e081387a5c9b02c174ab8b617c1891421bb467ec
+Evidence: docs/review/PR_1916_FIXED_MAPPING.md
+Reason: CodeRabbit requested unchecked checkbox format for the merge-readiness list; commit `e081387a` changes the list to `- [ ]` items while keeping readiness unchecked until the final merge cycle.
+
 ## Bot Review Summary
 
 - CodeRabbit nitpick: FIXED. Evidence: `_redacted_verification_summary` now uses `.get()` and explicit validation before returning redacted metadata.
