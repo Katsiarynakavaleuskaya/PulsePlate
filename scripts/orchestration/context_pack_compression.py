@@ -697,7 +697,7 @@ def _validate_repo_relative_path(raw_path: str | Path) -> str:
         raise ValueError("path must be non-empty")
     if _PATH_RE.search(raw) or "\\" in raw:
         raise ValueError("path contains unsafe metadata")
-    normalized = normalize_repo_path(raw)
+    normalized: str = normalize_repo_path(raw)
     candidate = Path(normalized)
     if candidate.is_absolute() or normalized.startswith("../") or "/../" in normalized:
         raise ValueError("path must stay inside repo")
