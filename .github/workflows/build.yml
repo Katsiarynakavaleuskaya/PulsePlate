@@ -280,10 +280,12 @@ jobs:
             echo "::warning::GHCR_READ_TOKEN is set but docker login was denied; continuing without registry auth."
           fi
 
-      # SARIF path must stay relative to GITHUB_WORKSPACE (hashFiles/upload-sarif assume repo root).
-      - name: Prepare Trivy ignore policy
+      - name: Prepare Trivy SARIF output path and ignore policy
         run: |
           set -euo pipefail
+          rm -rf -- trivy-results.sarif
+          rm -rf "${RUNNER_TEMP}/pulseplate-trivy"
+          mkdir -p "${RUNNER_TEMP}/pulseplate-trivy"
           test -f trivy/ignore-policy.rego
           cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
           ls -la .trivy-ignore-policy.rego
@@ -299,23 +301,32 @@ jobs:
           ignore-policy: .trivy-ignore-policy.rego
           scanners: vuln
           format: sarif
-          output: trivy-results.sarif
+          output: ${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif
           severity: CRITICAL,HIGH
           limit-severities-for-sarif: true
           exit-code: '1'
           trivyignores: .trivyignore
           version: v0.69.3
 
-      - name: Warn when Trivy filesystem SARIF is missing
-        if: ${{ always() && hashFiles('trivy-results.sarif') == '' }}
+      - name: Check Trivy filesystem SARIF output
+        id: trivy_fs_sarif
+        if: ${{ always() }}
         run: |
-          echo "::warning::Trivy filesystem SARIF not produced; Security tab upload skipped."
+          set -euo pipefail
+          sarif_path="${RUNNER_TEMP}/pulseplate-trivy/trivy-results.sarif"
+          if [ -s "$sarif_path" ]; then
+            cp -- "$sarif_path" trivy-results.sarif
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "present=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::Trivy filesystem SARIF not produced; Security tab upload skipped."
+          fi
 
       - name: Upload Trivy scan results to GitHub Security tab
-        if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
+        if: ${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: trivy-results.sarif
 
   # Publish tested Docker image
   publish:
