@@ -640,29 +640,30 @@ def extract_trusted_approvals(event_path: Path) -> set[str]:
     if not isinstance(pull_request, dict):
         return set()
     labels = pull_request.get("labels")
-    if not isinstance(labels, list):
-        repository = payload.get("repository")
-        repo_full_name = repository.get("full_name") if isinstance(repository, dict) else None
-        number = pull_request.get("number")
-        if not isinstance(repo_full_name, str) or "/" not in repo_full_name:
-            return set()
-        if not isinstance(number, int):
-            return set()
+    label_sources: list[list[object]] = []
+    if isinstance(labels, list):
+        label_sources.append(labels)
+
+    repository = payload.get("repository")
+    repo_full_name = repository.get("full_name") if isinstance(repository, dict) else None
+    number = pull_request.get("number")
+    if isinstance(repo_full_name, str) and "/" in repo_full_name and isinstance(number, int):
         try:
             live_pull_request = _fetch_pr_metadata_from_api(number, repo_full_name)
         except (ValueError, KeyError, urllib.error.URLError):
-            return set()
-        labels = live_pull_request.get("labels")
-        if not isinstance(labels, list):
-            return set()
+            live_pull_request = {}
+        live_labels = live_pull_request.get("labels")
+        if isinstance(live_labels, list):
+            label_sources.append(live_labels)
 
     trusted_approvals: set[str] = set()
-    for label in labels:
-        if not isinstance(label, dict):
-            continue
-        name = label.get("name")
-        if isinstance(name, str):
-            trusted_approvals.add(_normalize_approval_label(name))
+    for label_source in label_sources:
+        for label in label_source:
+            if not isinstance(label, dict):
+                continue
+            name = label.get("name")
+            if isinstance(name, str):
+                trusted_approvals.add(_normalize_approval_label(name))
     return trusted_approvals
 
 
