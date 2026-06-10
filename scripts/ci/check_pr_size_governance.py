@@ -18,7 +18,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT_OVERRIDE = os.environ.get("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", "").strip()
+REPO_ROOT = Path(_REPO_ROOT_OVERRIDE or Path(__file__).resolve().parents[2]).resolve()
 MICRO_MAX_FILES = 5
 STANDARD_MAX_FILES = 20
 STANDARD_SPLIT_JUSTIFICATION_FILES = 15
@@ -75,18 +76,37 @@ BACKEND_API_AI_EXACT_PATHS = {
     "mcp_pulseplate_server.py",
 }
 
+TRUSTED_APPROVAL_LABELS_RAW = {
+    "operator": ("scope/operator-approved", "operator-approved"),
+    "emergency": ("scope/emergency-approved",),
+    "privileged": ("scope/privileged-approved",),
+    "frontend_mvp": ("scope/frontend-mvp-approved",),
+    "frontend_backend_mix": ("scope/frontend-backend-mix-approved",),
+}
 
-def _fetch_pr_body_from_api(pr_number: int, repo_full_name: str) -> str:
-    """Fetch PR body from GitHub API with optional token fallback.
+
+def _normalize_approval_label(label: str) -> str:
+    """Return canonical lowercase label text for trusted approval matching."""
+    return re.sub(r"\s+", " ", label.strip().casefold())
+
+
+TRUSTED_APPROVAL_LABELS = {
+    approval_key: frozenset(_normalize_approval_label(label) for label in labels)
+    for approval_key, labels in TRUSTED_APPROVAL_LABELS_RAW.items()
+}
+
+
+def _fetch_pr_metadata_from_api(pr_number: int, repo_full_name: str) -> dict[str, object]:
+    """Fetch PR metadata from GitHub API with optional token fallback.
 
     Local CI execution should prefer payload body, but event payloads can omit this field
-    after certain synchronization/edit events. API fallback preserves deterministic size
-    governance checks without changing gate semantics.
+    or labels after certain synchronization/edit events. API fallback preserves deterministic
+    size governance checks without changing gate semantics.
     """
 
     token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
     if not token:
-        return ""
+        return {}
 
     owner, repo = repo_full_name.split("/", maxsplit=1)
     request = urllib.request.Request(
@@ -106,9 +126,8 @@ def _fetch_pr_body_from_api(pr_number: int, repo_full_name: str) -> str:
         payload = response.read().decode("utf-8")
     pull_request = json.loads(payload)
     if not isinstance(pull_request, dict):
-        return ""
-    body = pull_request.get("body")
-    return body if isinstance(body, str) else ""
+        return {}
+    return pull_request
 
 
 def parse_numstat_output(numstat_output: str) -> tuple[int, int]:
@@ -198,62 +217,72 @@ def missing_standard_sections(pr_body: str) -> list[str]:
     return missing
 
 
-def has_operator_approval(pr_body: str) -> bool:
-    """Return True when PR body records explicit operator approval."""
+def _has_trusted_approval(trusted_approvals: set[str] | None, approval_key: str) -> bool:
+    """Return True when a trusted GitHub-controlled approval label is present."""
+    return bool((trusted_approvals or set()) & TRUSTED_APPROVAL_LABELS[approval_key])
+
+
+def _body_has_approval_line(pr_body: str, approval_label: str) -> bool:
+    """Return True when the PR body records the expected approval line."""
     normalized_body = pr_body or ""
     match = re.search(
-        rf"(?im)^operator approval:\s*approved\b{APPROVED_LINE_SUFFIX_RE}",
+        rf"(?im)^{re.escape(approval_label)}:\s*approved\b{APPROVED_LINE_SUFFIX_RE}",
         normalized_body,
     )
     return bool(match and not NEGATED_APPROVAL_PATTERN.search(match.group(0)))
 
 
-def has_emergency_exception(pr_body: str) -> bool:
-    """Return True when PR body records an operator-approved emergency exception."""
-    normalized_body = pr_body or ""
-    if not has_operator_approval(normalized_body):
-        return False
-    match = re.search(
-        rf"(?im)^emergency exception:\s*approved\b{APPROVED_LINE_SUFFIX_RE}",
-        normalized_body,
+def has_operator_approval(pr_body: str, trusted_approvals: set[str] | None = None) -> bool:
+    """Return True when PR body proof is backed by a trusted operator label."""
+    return _body_has_approval_line(pr_body, "operator approval") and _has_trusted_approval(
+        trusted_approvals,
+        "operator",
     )
-    return bool(match and not NEGATED_APPROVAL_PATTERN.search(match.group(0)))
 
 
-def has_privileged_scope_exception(pr_body: str) -> bool:
-    """Return True when PR body records a non-emergency privileged scope exception."""
-    normalized_body = pr_body or ""
-    if not has_operator_approval(normalized_body):
-        return False
-    match = re.search(
-        rf"(?im)^privileged scope exception:\s*approved\b{APPROVED_LINE_SUFFIX_RE}",
-        normalized_body,
+def has_emergency_exception(pr_body: str, trusted_approvals: set[str] | None = None) -> bool:
+    """Return True when PR body proof is backed by trusted emergency approval."""
+    return (
+        has_operator_approval(pr_body, trusted_approvals)
+        and _body_has_approval_line(pr_body, "emergency exception")
+        and _has_trusted_approval(trusted_approvals, "emergency")
     )
-    return bool(match and not NEGATED_APPROVAL_PATTERN.search(match.group(0)))
 
 
-def has_frontend_backend_mix_approval(pr_body: str) -> bool:
-    """Return True when PR body explicitly approves frontend/backend/API/AI mixing."""
-    normalized_body = pr_body or ""
-    if not has_operator_approval(normalized_body):
-        return False
-    match = re.search(
-        rf"(?im)^frontend/backend mix approval:\s*approved\b{APPROVED_LINE_SUFFIX_RE}",
-        normalized_body,
+def has_privileged_scope_exception(
+    pr_body: str,
+    trusted_approvals: set[str] | None = None,
+) -> bool:
+    """Return True when PR body proof is backed by trusted privileged approval."""
+    return (
+        has_operator_approval(pr_body, trusted_approvals)
+        and _body_has_approval_line(pr_body, "privileged scope exception")
+        and _has_trusted_approval(trusted_approvals, "privileged")
     )
-    return bool(match and not NEGATED_APPROVAL_PATTERN.search(match.group(0)))
 
 
-def has_frontend_mvp_approval(pr_body: str) -> bool:
-    """Return True when PR body explicitly approves a frontend vertical MVP PR."""
-    normalized_body = pr_body or ""
-    if not has_operator_approval(normalized_body):
-        return False
-    match = re.search(
-        rf"(?im)^frontend vertical mvp approval:\s*approved\b{APPROVED_LINE_SUFFIX_RE}",
-        normalized_body,
+def has_frontend_backend_mix_approval(
+    pr_body: str,
+    trusted_approvals: set[str] | None = None,
+) -> bool:
+    """Return True when PR body proof is backed by trusted frontend/backend approval."""
+    return (
+        has_operator_approval(pr_body, trusted_approvals)
+        and _body_has_approval_line(pr_body, "frontend/backend mix approval")
+        and _has_trusted_approval(trusted_approvals, "frontend_backend_mix")
     )
-    return bool(match and not NEGATED_APPROVAL_PATTERN.search(match.group(0)))
+
+
+def has_frontend_mvp_approval(
+    pr_body: str,
+    trusted_approvals: set[str] | None = None,
+) -> bool:
+    """Return True when PR body proof is backed by trusted frontend MVP approval."""
+    return (
+        has_operator_approval(pr_body, trusted_approvals)
+        and _body_has_approval_line(pr_body, "frontend vertical mvp approval")
+        and _has_trusted_approval(trusted_approvals, "frontend_mvp")
+    )
 
 
 def has_mixed_frontend_backend_runtime(changed_files: list[str]) -> bool:
@@ -263,14 +292,20 @@ def has_mixed_frontend_backend_runtime(changed_files: list[str]) -> bool:
     return has_frontend and has_backend_api_ai
 
 
-def classify_pr_scope(*, counted_files: int, changed_files: list[str], pr_body: str) -> str:
+def classify_pr_scope(
+    *,
+    counted_files: int,
+    changed_files: list[str],
+    pr_body: str,
+    trusted_approvals: set[str] | None = None,
+) -> str:
     """Classify the PR under the current file-count scope policy."""
     if any(_is_privileged_path(path) for path in changed_files):
         return "privileged_ci_security_workflow"
     has_frontend = any(_normalize_path(path).startswith("frontend/") for path in changed_files)
     if has_frontend and (
         counted_files > STANDARD_MAX_FILES
-        or has_frontend_mvp_approval(pr_body)
+        or has_frontend_mvp_approval(pr_body, trusted_approvals)
         or has_mixed_frontend_backend_runtime(changed_files)
     ):
         return "frontend_vertical_mvp"
@@ -333,6 +368,7 @@ def evaluate_pr_size_policy(
     counted_files: int,
     pr_body: str,
     changed_files: list[str] | None = None,
+    trusted_approvals: set[str] | None = None,
 ) -> tuple[int, list[str]]:
     """Evaluate scope policy and return exit code plus deterministic terminal lines."""
     changed_files = changed_files or []
@@ -340,6 +376,7 @@ def evaluate_pr_size_policy(
         counted_files=counted_files,
         changed_files=changed_files,
         pr_body=pr_body,
+        trusted_approvals=trusted_approvals,
     )
     legacy_loc_bucket = classify_pr_size(total_changed_lines)
     lines = [
@@ -350,7 +387,7 @@ def evaluate_pr_size_policy(
     ]
 
     if counted_files > EMERGENCY_MAX_FILES:
-        if has_emergency_exception(pr_body):
+        if has_emergency_exception(pr_body, trusted_approvals):
             lines.append(
                 "PR scope governance: OK (>30 files) because an operator-approved emergency exception is documented.",
             )
@@ -384,7 +421,8 @@ def evaluate_pr_size_policy(
 
     if category == "privileged_ci_security_workflow":
         if any(_normalize_path(path).startswith("frontend/") for path in changed_files) and not (
-            has_emergency_exception(pr_body) or has_frontend_backend_mix_approval(pr_body)
+            has_emergency_exception(pr_body, trusted_approvals)
+            or has_frontend_backend_mix_approval(pr_body, trusted_approvals)
         ):
             lines.append(
                 "PR scope governance: FAIL (privileged CI/security/workflow PR mixes with frontend product implementation without explicit approved exception).",
@@ -395,7 +433,8 @@ def evaluate_pr_size_policy(
             )
             return 1, lines
         if counted_files > PRIVILEGED_HARD_CAP_FILES and not (
-            has_emergency_exception(pr_body) or has_privileged_scope_exception(pr_body)
+            has_emergency_exception(pr_body, trusted_approvals)
+            or has_privileged_scope_exception(pr_body, trusted_approvals)
         ):
             lines.append(
                 f"PR scope governance: FAIL (privileged CI/security/workflow PR has {counted_files} files; hard cap is {PRIVILEGED_HARD_CAP_FILES} without operator-approved exception).",
@@ -422,7 +461,7 @@ def evaluate_pr_size_policy(
             lines.append("How to fix: split the PR into smaller vertical flow increments.")
             return 1, lines
         missing: list[str] = []
-        if not has_frontend_mvp_approval(pr_body):
+        if not has_frontend_mvp_approval(pr_body, trusted_approvals):
             missing.append("operator approval for frontend vertical MVP")
         if not has_split_justification(pr_body):
             missing.append("split justification")
@@ -435,7 +474,8 @@ def evaluate_pr_size_policy(
             )
             return 1, lines
         if has_mixed_frontend_backend_runtime(changed_files) and not (
-            has_emergency_exception(pr_body) or has_frontend_backend_mix_approval(pr_body)
+            has_emergency_exception(pr_body, trusted_approvals)
+            or has_frontend_backend_mix_approval(pr_body, trusted_approvals)
         ):
             lines.append(
                 "PR scope governance: FAIL (frontend MVP mixes frontend UI with backend/API/AI runtime without explicit approved exception).",
@@ -581,9 +621,49 @@ def extract_pr_body(event_path: Path) -> str:
         return ""
 
     try:
-        return _fetch_pr_body_from_api(number, repo_full_name)
+        pull_request = _fetch_pr_metadata_from_api(number, repo_full_name)
     except (ValueError, KeyError, urllib.error.URLError):
         return ""
+    body = pull_request.get("body")
+    return body if isinstance(body, str) else ""
+
+
+def extract_trusted_approvals(event_path: Path) -> set[str]:
+    """Extract trusted approval labels from a GitHub pull_request event payload."""
+    try:
+        payload = json.loads(event_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+    if not isinstance(payload, dict):
+        return set()
+    pull_request = payload.get("pull_request")
+    if not isinstance(pull_request, dict):
+        return set()
+    labels = pull_request.get("labels")
+    if not isinstance(labels, list):
+        repository = payload.get("repository")
+        repo_full_name = repository.get("full_name") if isinstance(repository, dict) else None
+        number = pull_request.get("number")
+        if not isinstance(repo_full_name, str) or "/" not in repo_full_name:
+            return set()
+        if not isinstance(number, int):
+            return set()
+        try:
+            live_pull_request = _fetch_pr_metadata_from_api(number, repo_full_name)
+        except (ValueError, KeyError, urllib.error.URLError):
+            return set()
+        labels = live_pull_request.get("labels")
+        if not isinstance(labels, list):
+            return set()
+
+    trusted_approvals: set[str] = set()
+    for label in labels:
+        if not isinstance(label, dict):
+            continue
+        name = label.get("name")
+        if isinstance(name, str):
+            trusted_approvals.add(_normalize_approval_label(name))
+    return trusted_approvals
 
 
 def _read_flag_value(argv: list[str], index: int, flag: str) -> str:
@@ -604,6 +684,7 @@ def main(argv: list[str] | None = None) -> int:
     head_sha = ""
     pr_body = ""
     event_path: Path | None = None
+    trusted_approvals: set[str] = set()
 
     index = 0
     while index < len(argv):
@@ -627,8 +708,10 @@ def main(argv: list[str] | None = None) -> int:
     if not base_sha or not head_sha:
         raise SystemExit("Provide both --base-sha and --head-sha.")
 
-    if event_path is not None and not pr_body:
-        pr_body = extract_pr_body(event_path)
+    if event_path is not None:
+        trusted_approvals = extract_trusted_approvals(event_path)
+        if not pr_body:
+            pr_body = extract_pr_body(event_path)
 
     total_changed_lines, _numstat_counted_files, _numstat_changed_files = parse_numstat_details(
         collect_numstat_output(base_sha=base_sha, head_sha=head_sha),
@@ -640,6 +723,7 @@ def main(argv: list[str] | None = None) -> int:
         counted_files=counted_files,
         pr_body=pr_body,
         changed_files=changed_files,
+        trusted_approvals=trusted_approvals,
     )
     for line in lines:
         print(line)

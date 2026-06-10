@@ -46,6 +46,11 @@ _USDA_MANIFEST_PAIRS = (
     ("current_usda_branded_manifest.json", "incoming_usda_branded_manifest.json"),
     ("current_usda_fndds_manifest.json", "incoming_usda_fndds_manifest.json"),
 )
+_USDA_CURRENT_RELEASE_VERSIONS = {
+    "usda_foundation": "fdc-foundation-2026-04",
+    "usda_branded": "fdc-branded-2026-04",
+    "usda_fndds": "fdc-fndds-2021-2023-2024-10",
+}
 _OFF_MANIFEST_PAIRS = (
     ("current_off_manifest.json", "incoming_off_manifest.json"),
     ("current_off_manifest.json", "incoming_off_delta_manifest.json"),
@@ -334,7 +339,11 @@ def test_load_source_manifest_accepts_usda_current_fixtures(
     assert current.source.startswith("usda_")
     assert incoming.source_classification == "current"
     assert incoming.source_url == "https://fdc.nal.usda.gov/download-datasets"
+    assert incoming.source_version == _USDA_CURRENT_RELEASE_VERSIONS[incoming.source]
     assert incoming.schema.primary_keys == ("fdc_id",)
+    assert "data_type" in incoming.schema.fields
+    if incoming.source == "usda_branded":
+        assert {"gtin_upc", "brand_owner"}.issubset(incoming.schema.fields)
 
 
 @pytest.mark.parametrize("current_fixture,incoming_fixture", _USDA_MANIFEST_PAIRS)

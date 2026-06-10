@@ -54,6 +54,9 @@ class TestUSDAClient:
         client = USDAClient()
         assert client.api_key == "DEMO_KEY"  # Default
         assert client.BASE_URL == "https://api.nal.usda.gov/fdc/v1"
+        assert client.DEFAULT_RATE_LIMIT_PER_HOUR == 1000
+        assert client.DEMO_KEY_RATE_LIMIT_PER_HOUR == 30
+        assert client.DEMO_KEY_RATE_LIMIT_PER_DAY == 50
         assert len(client.nutrient_mapping) > 10  # Should have many nutrients mapped
 
         # Test with custom API key
@@ -277,8 +280,7 @@ class TestUSDAClient:
         """Test _parse_food_item with invalid data types."""
         client = USDAClient()
 
-        # Test non-dict input (using type: ignore to bypass static type checking for test)
-        result = client._parse_food_item("not a dict")  # type: ignore
+        result = client._parse_food_item("not a dict")
         assert result is None
 
         # Test dict with missing required data
@@ -324,6 +326,63 @@ class TestUSDAClient:
         result = client._parse_food_item(food_data)
         assert result is not None
         assert result.publication_date == "2024-01-02"
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_parse_current_branded_payload_shape(self):
+        """Test current FDC branded search payload parsing without live API calls."""
+        client = USDAClient()
+        food_data = {
+            "fdcId": "2650000",
+            "description": "Example branded cereal",
+            "dataType": "Branded",
+            "publishedDate": "2026-04-01",
+            "brandedFoodCategory": "Breakfast Cereals",
+            "brandOwner": "Example Foods LLC",
+            "brandName": "EXAMPLE",
+            "gtinUpc": "00011122233344",
+            "foodNutrients": [
+                {"nutrientId": "1003", "value": "8.0"},
+                {"nutrientId": "1004", "value": "2.5"},
+                {"nutrientId": "1005", "value": "0"},
+                {"nutrientId": "1008", "value": "160"},
+                {"nutrientId": "999999", "value": "bad-value"},
+            ],
+        }
+
+        food_item = client._parse_food_item(food_data)
+
+        assert food_item is not None
+        assert food_item.fdc_id == 2650000
+        assert food_item.data_type == "Branded"
+        assert food_item.publication_date == "2026-04-01"
+        assert food_item.food_category == "Breakfast Cereals"
+        assert food_item.brand_owner == "Example Foods LLC"
+        assert food_item.brand_name == "EXAMPLE"
+        assert food_item.gtin_upc == "00011122233344"
+        assert food_item.nutrients_per_100g["carbs_g"] == 0.0
+        assert "iron_mg" not in food_item.nutrients_per_100g
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_parse_current_payload_rejects_malformed_mapped_nutrient_value(self):
+        """Test mapped nutrient values fail closed when numeric parsing is invalid."""
+        client = USDAClient()
+        food_data = {
+            "fdcId": 2650001,
+            "description": "Malformed branded cereal",
+            "dataType": "Branded",
+            "foodNutrients": [
+                {"nutrientId": "1003", "value": "8.0"},
+                {"nutrientId": "1004", "value": "2.5"},
+                {"nutrientId": "1005", "value": "0"},
+                {"nutrientId": "1089", "value": "bad-value"},
+            ],
+        }
+
+        assert client._parse_food_item(food_data) is None
 
         await client.close()
 
@@ -844,7 +903,7 @@ class TestFoodAPIIntegration:
         client = USDAClient()
 
         # Should handle None gracefully
-        result = client._parse_food_item(None)  # type: ignore
+        result = client._parse_food_item(None)
         assert result is None
 
         # Should handle malformed data gracefully
