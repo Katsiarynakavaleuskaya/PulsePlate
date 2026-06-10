@@ -202,6 +202,32 @@ def test_parser_redacts_raw_attestation_build_arguments() -> None:
     )
 
 
+def test_redacted_statement_summary_digest_binds_to_non_secret_subject() -> None:
+    first_statement = {
+        "predicateType": verifier.PROVENANCE_PREDICATE_TYPE,
+        "subject": [{"name": "image", "digest": {"sha256": "a" * 64}}],
+        "predicate": {"buildDefinition": {"externalParameters": {"safe": "one"}}},
+    }
+    second_statement = {
+        "predicateType": verifier.PROVENANCE_PREDICATE_TYPE,
+        "subject": [{"name": "image", "digest": {"sha256": "b" * 64}}],
+        "predicate": {"buildDefinition": {"externalParameters": {"safe": "two"}}},
+    }
+
+    first = verifier._redacted_verification_summary(
+        {"verificationResult": {"statement": first_statement}}, index=0
+    )
+    second = verifier._redacted_verification_summary(
+        {"verificationResult": {"statement": second_statement}}, index=1
+    )
+
+    first_digest = first["verificationResult"]["statement"]["redacted_statement_summary_sha256"]
+    second_digest = second["verificationResult"]["statement"]["redacted_statement_summary_sha256"]
+    assert first_digest != second_digest
+    assert "predicate" not in first["verificationResult"]["statement"]
+    assert "safe" not in json.dumps(first, sort_keys=True)
+
+
 @pytest.mark.parametrize(
     "payload",
     (

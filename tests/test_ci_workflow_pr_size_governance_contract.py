@@ -1274,6 +1274,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 "path": (
                     "release-control-plane-build-sources/artifact_digest.txt\n"
                     "release-control-plane-build-sources/sbom_digest.txt\n"
+                    "release-control-plane-build-sources/attestation_check_digest.txt\n"
                     "release-control-plane-build-sources/provenance_digest.txt\n"
                     "release-control-plane-build-sources/attestation_status.txt\n"
                 ),

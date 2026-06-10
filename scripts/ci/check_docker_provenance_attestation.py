@@ -175,8 +175,8 @@ def _redacted_verification_summary(
 
     GitHub's raw verification JSON can contain SLSA build invocation details.
     CI artifacts only need deterministic proof that the expected predicate was
-    verified, so retain the predicate type plus a digest of the raw statement
-    instead of publishing raw provenance/SBOM predicates or build arguments.
+    verified, so retain the predicate type plus a digest of a redacted statement
+    summary instead of publishing raw provenance/SBOM predicates or build arguments.
     """
 
     verification_result = item.get("verificationResult")
@@ -193,10 +193,21 @@ def _redacted_verification_summary(
             "statement": {
                 "predicateType": predicate_type,
                 "redacted_statement_summary_sha256": _canonical_json_sha256(
-                    {"predicateType": predicate_type, "redaction": "predicate-only-v1"}
+                    _redacted_statement_summary(statement)
                 ),
             }
         }
+    }
+
+
+def _redacted_statement_summary(statement: Mapping[str, object]) -> dict[str, object]:
+    """Return deterministic non-secret statement metadata for digest binding."""
+
+    subject = statement.get("subject")
+    return {
+        "predicateType": statement.get("predicateType"),
+        "redaction": "statement-summary-v1",
+        "subject": subject if isinstance(subject, list) else [],
     }
 
 

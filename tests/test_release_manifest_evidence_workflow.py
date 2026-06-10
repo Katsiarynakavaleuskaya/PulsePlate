@@ -339,11 +339,16 @@ def test_docker_build_workflow_emits_governed_release_control_plane_sources() ->
     assert "Prepare release-control-plane build digest sources" in workflow_text
     for path in (
         "sbom_digest.txt",
+        "attestation_check_digest.txt",
         "provenance_digest.txt",
         "attestation_status.txt",
     ):
         assert path in workflow_text
         assert path in upload_step["with"]["path"]
+    assert "attestation_check_digest =" in workflow_text
+    assert "provenance_statement.get(" in workflow_text
+    assert '"redacted_statement_summary_sha256"' in workflow_text
+    assert 'f"sha256:{provenance_summary_digest}\\n"' in workflow_text
     assert "review_artifact_digest.txt" not in upload_step["with"]["path"]
     assert "production_candidate_artifact_digest.txt" not in upload_step["with"]["path"]
     assert 'write_text("VERIFIED\\n", encoding="utf-8")' in workflow_text

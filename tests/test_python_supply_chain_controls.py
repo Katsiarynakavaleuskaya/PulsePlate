@@ -566,6 +566,24 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     assert expected_arg in trivy_build_args
 
 
+def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args() -> None:
+    workflow_specs = (
+        (".github/workflows/build.yml", "publish", "Build and push Docker image"),
+        (".github/workflows/cd.yml", "build", "Build & Push image (staging)"),
+        (".github/workflows/cd.yml", "build-production", "Build & Push image (production)"),
+    )
+
+    for workflow_path, job_name, step_name in workflow_specs:
+        step = _workflow_step_by_name(workflow_path, job_name, step_name)
+        assert step["with"]["provenance"] == "mode=max"
+        build_args = step["with"]["build-args"]
+        assert "PULSEPLATE_PYTHON_INDEX_URL" not in build_args
+        assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in build_args
+        build_secret_envs = step["with"]["secret-envs"]
+        assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in build_secret_envs
+        assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in build_secret_envs
+
+
 def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:
     workflow_paths = (
         ".github/workflows/build.yml",
