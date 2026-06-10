@@ -215,6 +215,25 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["needs_agents_sync"] is False
 
 
+def test_task_bootstrap_keeps_wide_pr_packets_when_context_graph_truncates() -> None:
+    """Advisory compression limits must never block task-packet creation."""
+
+    packet = build_task_packet(
+        goal="Wide orchestration lane",
+        task_class="Orchestration",
+        candidate_paths=[
+            f"scripts/orchestration/generated_context_{index}.py" for index in range(225)
+        ],
+    )
+
+    compression = packet["context_pack_compression"]
+    assert len(packet["candidate_paths"]) == 225
+    assert len(compression["graph_nodes"]) <= 200
+    assert compression["required_context"] == packet["required_context"]
+    assert "graph_limit_truncated" in compression["reason_codes"]
+    assert "compression_limit_exceeded" in compression["reason_codes"]
+
+
 def test_task_bootstrap_dispatch_command_includes_runtime_owner_flags() -> None:
     """Implementation packets should not emit a readonly-only dispatch command."""
 

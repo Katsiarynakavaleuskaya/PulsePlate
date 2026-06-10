@@ -13,7 +13,7 @@ import math
 from pathlib import Path
 import re
 from types import MappingProxyType
-from typing import TypeAlias, cast
+from typing import TypeAlias
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
@@ -66,6 +66,8 @@ REASON_DUPLICATE_CONTEXT_REFERENCE = "duplicate_context_reference"
 REASON_ESTIMATE_ONLY = "estimate_only"
 REASON_NO_CONTEXT_REDUCTION = "no_context_reduction"
 REASON_MISSING_CONTEXT_FILE = "missing_context_file"
+REASON_GRAPH_LIMIT_TRUNCATED = "graph_limit_truncated"
+REASON_COMPRESSION_LIMIT_EXCEEDED = "compression_limit_exceeded"
 
 MAX_NODES = 200
 MAX_EDGES = 1000
@@ -336,16 +338,27 @@ def build_context_pack_compression(
         ),
     )
 
+    included_required_paths = normalized_required_context[:MAX_NODES]
+    remaining_node_budget = max(0, MAX_NODES - len(included_required_paths))
+    included_candidate_paths = tuple(
+        path for path in normalized_candidate_paths if path not in set(included_required_paths)
+    )[:remaining_node_budget]
+    graph_truncated = len(included_required_paths) < len(normalized_required_context) or len(
+        included_candidate_paths
+    ) < len(
+        [path for path in normalized_candidate_paths if path not in set(included_required_paths)]
+    )
+
     nodes_by_path: dict[str, ContextGraphNode] = {}
-    for path in normalized_candidate_paths:
+    for path in included_candidate_paths:
         nodes_by_path[path] = _build_node(path=path, required=False, repo_root=repo_root)
-    for path in normalized_required_context:
+    for path in included_required_paths:
         nodes_by_path[path] = _build_node(path=path, required=True, repo_root=repo_root)
 
     nodes = tuple(nodes_by_path[path] for path in sorted(nodes_by_path))
-    edges = _build_edges(
-        candidate_nodes=[nodes_by_path[path] for path in normalized_candidate_paths],
-        required_nodes=[nodes_by_path[path] for path in normalized_required_context],
+    edges, edges_truncated = _build_edges(
+        candidate_nodes=[nodes_by_path[path] for path in included_candidate_paths],
+        required_nodes=[nodes_by_path[path] for path in included_required_paths],
     )
     selected_refs = tuple(
         _context_ref_mapping(
@@ -354,7 +367,7 @@ def build_context_pack_compression(
             status="retained",
             reason_code=REASON_REQUIRED_CONTEXT_PRESERVED,
         )
-        for path in normalized_required_context
+        for path in included_required_paths
     )
     omitted_refs = tuple(
         _context_ref_mapping(
@@ -382,6 +395,8 @@ def build_context_pack_compression(
         estimate_reason_codes.add(REASON_NO_CONTEXT_REDUCTION)
     if any(not (repo_root / path).is_file() for path in normalized_required_context):
         estimate_reason_codes.add(REASON_MISSING_CONTEXT_FILE)
+    if graph_truncated or edges_truncated:
+        estimate_reason_codes.add(REASON_COMPRESSION_LIMIT_EXCEEDED)
     estimate_reason_code_values: list[JsonValue] = list(sorted(estimate_reason_codes))
     estimate_payload: JsonValue = {
         "baseline_context_chars_estimate": baseline_chars,
@@ -406,17 +421,18 @@ def build_context_pack_compression(
         token_estimate_version=CONTEXT_COMPRESSION_ESTIMATE_ALGORITHM_VERSION,
         reason_codes=tuple(sorted(estimate_reason_codes)),
     )
-    pack_reason_codes = tuple(
-        sorted(
-            {
-                REASON_GATE_CLOSED,
-                REASON_METADATA_ONLY,
-                REASON_REQUIRED_CONTEXT_PRESERVED,
-                REASON_ESTIMATE_ONLY,
-                *(REASON_DUPLICATE_CONTEXT_REFERENCE for _ in omitted_refs),
-            }
-        )
-    )
+    pack_reason_code_set = {
+        REASON_GATE_CLOSED,
+        REASON_METADATA_ONLY,
+        REASON_REQUIRED_CONTEXT_PRESERVED,
+        REASON_ESTIMATE_ONLY,
+        *(REASON_DUPLICATE_CONTEXT_REFERENCE for _ in omitted_refs),
+    }
+    if graph_truncated:
+        pack_reason_code_set.add(REASON_GRAPH_LIMIT_TRUNCATED)
+    if graph_truncated or edges_truncated:
+        pack_reason_code_set.add(REASON_COMPRESSION_LIMIT_EXCEEDED)
+    pack_reason_codes = tuple(sorted(pack_reason_code_set))
     pack_payload: JsonValue = {
         "authority_boundary": CONTEXT_COMPRESSION_AUTHORITY_BOUNDARY,
         "candidate_paths": normalized_candidate_paths,
@@ -453,6 +469,10 @@ def build_context_pack_compression(
             "reviewer": normalized_reviewer,
             "secondary_agent_count": len(normalized_secondaries),
             "requested_agent_count": len(normalized_requested),
+            "graph_limit_truncated": graph_truncated,
+            "edge_limit_truncated": edges_truncated,
+            "selected_context_ref_count": len(selected_refs),
+            "required_context_count": len(normalized_required_context),
         },
     )
 
@@ -546,10 +566,12 @@ def _build_edges(
     *,
     candidate_nodes: Sequence[ContextGraphNode],
     required_nodes: Sequence[ContextGraphNode],
-) -> tuple[ContextGraphEdge, ...]:
+) -> tuple[tuple[ContextGraphEdge, ...], bool]:
     edges: list[ContextGraphEdge] = []
     for candidate in candidate_nodes:
         for required in required_nodes:
+            if len(edges) >= MAX_EDGES:
+                return tuple(sorted(edges, key=lambda edge: edge.edge_id)), True
             edge_type = _edge_type_for(candidate, required)
             payload: JsonValue = {
                 "edge_type": edge_type,
@@ -565,7 +587,7 @@ def _build_edges(
                     metadata={"reason": "explicit_context_dependency"},
                 )
             )
-    return tuple(sorted(edges, key=lambda edge: edge.edge_id))
+    return tuple(sorted(edges, key=lambda edge: edge.edge_id)), False
 
 
 def _edge_type_for(candidate: ContextGraphNode, required: ContextGraphNode) -> str:
@@ -675,7 +697,7 @@ def _validate_repo_relative_path(raw_path: str | Path) -> str:
         raise ValueError("path must be non-empty")
     if _PATH_RE.search(raw) or "\\" in raw:
         raise ValueError("path contains unsafe metadata")
-    normalized = cast(str, normalize_repo_path(raw))
+    normalized = normalize_repo_path(raw)
     candidate = Path(normalized)
     if candidate.is_absolute() or normalized.startswith("../") or "/../" in normalized:
         raise ValueError("path must stay inside repo")

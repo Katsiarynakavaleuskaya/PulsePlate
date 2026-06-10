@@ -280,19 +280,44 @@ def test_context_pack_compression_has_no_provider_or_runtime_imports() -> None:
     assert not any(item in source for item in forbidden_imports)
 
 
-def test_context_pack_compression_raises_on_unbounded_graph_sizes() -> None:
+def test_context_pack_compression_degrades_on_unbounded_graph_sizes() -> None:
     required = tuple(f"docs/orchestration/context_{index}.md" for index in range(201))
 
-    with pytest.raises(ValueError, match="graph_nodes exceeds maximum"):
-        build_context_pack_compression(
-            candidate_paths=(),
-            required_context=required,
-            pr_phase="pre_open",
-            domain="ml",
-            cluster="ml",
-            primary_agent="architecture-specialist",
-            reviewer="rag-systems-agent",
-        )
+    pack = build_context_pack_compression(
+        candidate_paths=(),
+        required_context=required,
+        pr_phase="pre_open",
+        domain="ml",
+        cluster="ml",
+        primary_agent="architecture-specialist",
+        reviewer="rag-systems-agent",
+    )
+
+    stable = dict(to_stable_mapping(pack))
+    assert len(stable["required_context"]) == 201
+    assert len(stable["graph_nodes"]) == 200
+    assert "graph_limit_truncated" in stable["reason_codes"]
+    assert "compression_limit_exceeded" in stable["reason_codes"]
+
+
+def test_context_pack_compression_degrades_on_unbounded_edge_sizes() -> None:
+    candidates = tuple(f"scripts/orchestration/candidate_{index}.py" for index in range(126))
+    required = tuple(f"docs/orchestration/context_{index}.md" for index in range(9))
+
+    pack = build_context_pack_compression(
+        candidate_paths=candidates,
+        required_context=required,
+        pr_phase="pre_open",
+        domain="ml",
+        cluster="ml",
+        primary_agent="architecture-specialist",
+        reviewer="rag-systems-agent",
+    )
+
+    stable = dict(to_stable_mapping(pack))
+    assert len(stable["required_context"]) == 9
+    assert len(stable["graph_edges"]) == 1000
+    assert "compression_limit_exceeded" in stable["reason_codes"]
 
 
 def test_context_pack_compression_serialization_is_json_ready() -> None:
