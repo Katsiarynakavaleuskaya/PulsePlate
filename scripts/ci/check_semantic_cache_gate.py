@@ -39,6 +39,16 @@ DEFAULT_BACKEND_SELECTION_CONTRACT = (
     / "SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
 )
 DEFAULT_BACKEND_SELECTION_SCHEMA = DEFAULT_BACKEND_SELECTION_CONTRACT.with_suffix(".schema.json")
+DEFAULT_CONTEXT_COMPRESSION_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md"
+)
+DEFAULT_CONTEXT_COMPRESSION_SCHEMA = DEFAULT_CONTEXT_COMPRESSION_CONTRACT.with_suffix(
+    ".schema.json"
+)
 DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT = (
     REPO_ROOT
     / "docs"
@@ -540,6 +550,95 @@ BOUNDED_INSIGHT_REQUIRED_ANCHORS = (
     ("no vector search", re.compile(r"\bsc-g4 blocks:.*vector search\b")),
     ("no provider calls", re.compile(r"\bsc-g4 blocks:.*provider calls\b")),
     ("SC-G5 remains future", re.compile(r"\bsc-g5 backend selection remains future\b")),
+)
+
+CONTEXT_COMPRESSION_REQUIRED_ANCHORS = (
+    ("metadata-only", re.compile(r"\bmetadata-only\b")),
+    ("does not open semantic-cache gate", re.compile(r"\bdoes not open the semantic-cache gate\b")),
+    ("does not implement semantic cache", re.compile(r"\bdoes not implement semantic cache\b")),
+    ("does not serve cached payloads", re.compile(r"\bdoes not serve cached payloads\b")),
+    ("provider calls allowed false", re.compile(r"\bprovider calls allowed: false\b")),
+    ("runtime handoff allowed false", re.compile(r"\bruntime handoff allowed: false\b")),
+    ("authority boundary", re.compile(r"\bauthority boundary\b")),
+    ("required context", re.compile(r"\brequired context\b")),
+    ("token savings are estimates only", re.compile(r"\btoken savings are estimates only\b")),
+    ("downgrade review model", re.compile(r"\bdowngrade the review model\b")),
+)
+
+CONTEXT_COMPRESSION_FORBIDDEN_PATTERNS = (
+    (
+        "runtime serving",
+        re.compile(
+            r"\bcontext compression (?:enables|opens|approves|allows|permits) (?:semantic[- ]cache )?(?:runtime )?serving\b"
+        ),
+    ),
+    ("raw prompt", re.compile(r"\bcontext compression stores raw prompts?\b")),
+    ("raw query", re.compile(r"\bcontext compression stores raw queries\b")),
+    ("raw context", re.compile(r"\bcontext compression stores raw context snippets?\b")),
+    ("raw response", re.compile(r"\bcontext compression stores raw responses?\b")),
+    (
+        "provider calls",
+        re.compile(r"\bcontext compression (?:performs|allows|enables|permits) provider calls\b"),
+    ),
+    ("Redis", re.compile(r"\bcontext compression approves redis rollout\b")),
+    ("GPTCache", re.compile(r"\bcontext compression approves gptcache rollout\b")),
+    ("embeddings", re.compile(r"\bcontext compression enables embeddings\b")),
+    ("semantic similarity", re.compile(r"\bcontext compression enables semantic similarity\b")),
+    ("vector search", re.compile(r"\bcontext compression enables vector search\b")),
+    ("GraphRAG runtime", re.compile(r"\bcontext compression enables graphrag runtime\b")),
+    ("production ROI", re.compile(r"\bcontext compression proves production roi\b")),
+    ("production cost", re.compile(r"\bcontext compression proves production cost savings\b")),
+    ("merge readiness", re.compile(r"\bcontext compression proves merge-readiness\b")),
+    ("model downgrade", re.compile(r"\bcontext compression allows model downgrade\b")),
+)
+
+CONTEXT_COMPRESSION_SCHEMA_CONST_FALSE_FIELDS = (
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_PAYLOADS = (
+    "raw_prompts",
+    "raw_queries",
+    "normalized_queries",
+    "raw_context_snippets",
+    "raw_model_responses",
+    "raw_answers",
+    "provider_payloads",
+    "secrets",
+    "credentials",
+    "local_paths",
+    "account_truth",
+    "health_sensitive_payloads",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_BACKENDS = (
+    "provider_calls",
+    "OpenAPI",
+    "DB",
+    "cache_backend",
+    "Redis",
+    "GPTCache",
+    "embeddings",
+    "semantic_similarity",
+    "vector_search",
+    "GraphRAG_runtime",
+    "runtime_handoff",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_POLICY_DECISIONS = (
+    "billing_decisions",
+    "entitlement_decisions",
+    "account_truth_decisions",
+    "production_cost_claims",
+    "production_roi_claims",
+    "latency_improvement_claims",
+    "quota_improvement_claims",
+    "cache_hit_rate_claims",
+    "merge_readiness_claims",
+    "model_downgrade_decisions",
 )
 
 BOUNDED_INSIGHT_FORBIDDEN_PATTERNS = (
@@ -2651,6 +2750,146 @@ def validate_semantic_cache_bounded_insight_experiment_contract(text: str) -> li
     return errors
 
 
+def validate_semantic_cache_context_compression_contract(text: str) -> list[str]:
+    """Return stable validation errors for PR-O2 context compression contracts."""
+
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in CONTEXT_COMPRESSION_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"context compression contract missing anchor: {label}")
+
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden context compression claim: {label}"
+        for label, pattern in CONTEXT_COMPRESSION_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
+def _schema_const(properties: dict[str, object], field: str) -> object:
+    field_schema = properties.get(field)
+    if not isinstance(field_schema, dict):
+        return None
+    return field_schema.get("const")
+
+
+def _schema_enum_missing_errors(
+    properties: dict[str, object],
+    field: str,
+    expected_values: tuple[str, ...],
+    prefix: str,
+) -> list[str]:
+    field_schema = properties.get(field)
+    if not isinstance(field_schema, dict):
+        return [f"{prefix}: {field}"]
+    items_schema = field_schema.get("items")
+    if not isinstance(items_schema, dict):
+        return [f"{prefix}: {field}"]
+    enum_values = items_schema.get("enum")
+    if not isinstance(enum_values, list):
+        return [f"{prefix}: {field}"]
+    enum_set = {value for value in enum_values if isinstance(value, str)}
+    return [f"{prefix}: {value}" for value in expected_values if value not in enum_set]
+
+
+def validate_semantic_cache_context_compression_schema(schema_text: str) -> list[str]:
+    """Return stable validation errors for PR-O2 context compression schema."""
+
+    errors: list[str] = []
+    try:
+        schema = json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        return [f"context compression schema invalid JSON: {exc.msg}"]
+    if not isinstance(schema, dict):
+        return ["context compression schema must be an object"]
+    if schema.get("additionalProperties") is not False:
+        errors.append("context compression schema must forbid additionalProperties")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return [*errors, "context compression schema missing properties"]
+    if _schema_const(properties, "gate_status") != "closed":
+        errors.append("context compression schema gate_status must be const closed")
+    if _schema_const(properties, "telemetry_phase") != "PR-O2":
+        errors.append("context compression schema telemetry_phase must be const PR-O2")
+    if _schema_const(properties, "authority_boundary") != "metadata_only_non_serving":
+        errors.append(
+            "context compression schema authority_boundary must be const metadata_only_non_serving"
+        )
+    if _schema_const(properties, "asset_type") != "orchestration_context_compression_telemetry":
+        errors.append(
+            "context compression schema asset_type must be const "
+            "orchestration_context_compression_telemetry"
+        )
+    for field in CONTEXT_COMPRESSION_SCHEMA_CONST_FALSE_FIELDS:
+        if _schema_const(properties, field) is not False:
+            errors.append(f"context compression schema {field} must be const false")
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "compressed_context_pack_fields",
+            (
+                "context_pack_id",
+                "policy_version",
+                "authority_boundary",
+                "required_context",
+                "selected_context_refs",
+                "omitted_duplicate_refs",
+                "graph_nodes",
+                "graph_edges",
+                "estimate",
+                "reason_codes",
+                "metadata",
+            ),
+            "context compression schema missing compressed context pack field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "context_compression_estimate_fields",
+            (
+                "estimate_id",
+                "baseline_context_tokens_estimate",
+                "candidate_context_tokens_estimate",
+                "tokens_saved_estimate",
+                "fanout_tokens_saved_estimate",
+                "token_estimate_version",
+                "reason_codes",
+            ),
+            "context compression schema missing estimate field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_payloads",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_PAYLOADS,
+            "context compression schema missing blocked payload",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_backends",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_BACKENDS,
+            "context compression schema missing blocked backend",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_policy_decisions",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_POLICY_DECISIONS,
+            "context compression schema missing blocked policy decision",
+        )
+    )
+    return errors
+
+
 def validate_semantic_cache_backend_selection_contract(text: str) -> list[str]:
     """Return stable validation errors for unsafe SC-G5 backend selection contracts."""
     errors: list[str] = []
@@ -3605,6 +3844,18 @@ def main(argv: list[str] | None = None) -> int:
         help="SC-G5 backend selection JSON schema to validate.",
     )
     parser.add_argument(
+        "--context-compression-contract",
+        type=Path,
+        default=DEFAULT_CONTEXT_COMPRESSION_CONTRACT,
+        help="PR-O2 context compression markdown document to validate.",
+    )
+    parser.add_argument(
+        "--context-compression-schema",
+        type=Path,
+        default=DEFAULT_CONTEXT_COMPRESSION_SCHEMA,
+        help="PR-O2 context compression JSON schema to validate.",
+    )
+    parser.add_argument(
         "--philosophy-admission-contract",
         type=Path,
         default=DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT,
@@ -3694,6 +3945,20 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    context_compression_contract = args.context_compression_contract
+    if not context_compression_contract.exists():
+        print(
+            f"ERROR: context compression contract missing: {context_compression_contract}",
+            file=sys.stderr,
+        )
+        return 1
+    context_compression_schema = args.context_compression_schema
+    if not context_compression_schema.exists():
+        print(
+            f"ERROR: context compression schema missing: {context_compression_schema}",
+            file=sys.stderr,
+        )
+        return 1
 
     philosophy_admission_contract = args.philosophy_admission_contract
     if not philosophy_admission_contract.exists():
@@ -3753,6 +4018,16 @@ def main(argv: list[str] | None = None) -> int:
         validate_semantic_cache_backend_selection_schema(
             schema_text=backend_selection_schema.read_text(encoding="utf-8"),
             contract_text=backend_selection_text,
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_context_compression_contract(
+            context_compression_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_context_compression_schema(
+            context_compression_schema.read_text(encoding="utf-8")
         )
     )
     philosophy_admission_text = philosophy_admission_contract.read_text(encoding="utf-8")
