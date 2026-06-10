@@ -72,8 +72,8 @@ Accepted oracle-only governance reviewer evidence. The runner applied the source
 | `ATT-RED-010` | Bot review found the risk matrix table separator had one more column than the table header. | Reduced the separator row to eight cells to match the header. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1916`. | Phase2 gate command | `d99d8930b33eb1180b181765e8afed777cc9baae` | `docs/review/PR_1916_FIXED_MAPPING.md` | FIXED |
 | `SEC-CI-001` | Current-head `security` job failed in `Install Safety` because the approved private proxy lacked a Linux/Python 3.13 `regex` wheel needed by Safety's `nltk` dependency. | Added a narrow `requirements-security.txt` Safety tooling manifest, routed CI Safety install through the governed locked installer with emergency-wheel fallback, and added the exact `regex==2026.5.9` Linux wheel artifact to the existing emergency manifest. | `test_ci_security_job_installs_safety_through_locked_installer`; `test_security_requirements_pin_safety_and_regex_floor`. | `../../.venv/bin/python -m pytest -q tests/test_ci_risk_profile.py::test_security_tooling_manifest_change_routes_backend_and_security tests/test_python_supply_chain_controls.py::test_ci_security_job_installs_safety_through_locked_installer tests/test_python_supply_chain_controls.py::test_security_requirements_pin_safety_and_regex_floor tests/test_python_supply_chain_controls.py::test_no_canonical_workflow_uses_unscoped_public_pip_install` | `544c827c2b5886d9d760e9b4e64eece056499d59` | `.github/workflows/ci.yml`; `requirements-security.txt`; `scripts/ci/emergency_python_wheels.json`; `tests/test_python_supply_chain_controls.py` | FIXED |
 | `SEC-CI-002` | New `requirements-security.txt` could be changed later without routing through backend/security CI. | Added it to the CI risk-profile backend/shared exact surfaces and added a deterministic route test. | `test_security_tooling_manifest_change_routes_backend_and_security`. | same focused pytest command above | `544c827c2b5886d9d760e9b4e64eece056499d59` | `scripts/ci/ci_risk_profile.py`; `tests/test_ci_risk_profile.py` | FIXED |
-| `SEC-CI-003` | Bot review found the Safety installer workflow forced `--python-executable python`, reintroducing PATH-dependent interpreter selection. | Removed the explicit flag so the installer defaults nested calls to `sys.executable`. | `test_ci_security_job_installs_safety_through_locked_installer`. | focused Safety installer tests | `bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2` | `.github/workflows/ci.yml`; `tests/test_python_supply_chain_controls.py` | FIXED |
-| `SEC-CI-004` | Bot review found split-digest manifest errors still referenced only `sha256`, and floor verification still accessed `artifact["sha256"]` directly. | Updated error text to mention `sha256_parts` and routed floor verification through `_emergency_artifact_sha256(...)`. | `test_verify_emergency_artifact_for_floor_accepts_split_sha256_parts`; `test_load_emergency_wheel_manifest_mentions_split_sha256_contract`. | focused Safety installer tests | `bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2` | `scripts/ci/install_locked_python_requirements.py`; `tests/test_install_locked_python_requirements.py` | FIXED |
+| `SEC-CI-003` | Bot review found the Safety installer workflow forced `--python-executable python`, reintroducing PATH-dependent interpreter selection. | Removed the explicit flag so the installer defaults nested calls to `sys.executable`. | `test_ci_security_job_installs_safety_through_locked_installer`. | focused Safety installer tests | `bbe3e05aa9a3fcc2679503a2743b7818c742322a` | `.github/workflows/ci.yml`; `tests/test_python_supply_chain_controls.py` | FIXED |
+| `SEC-CI-004` | Bot review found split-digest manifest errors still referenced only `sha256`, and floor verification still accessed `artifact["sha256"]` directly. | Updated error text to mention `sha256_parts` and routed floor verification through `_emergency_artifact_sha256(...)`. | `test_verify_emergency_artifact_for_floor_accepts_split_sha256_parts`; `test_load_emergency_wheel_manifest_mentions_split_sha256_contract`. | focused Safety installer tests | `bbe3e05aa9a3fcc2679503a2743b7818c742322a` | `scripts/ci/install_locked_python_requirements.py`; `tests/test_install_locked_python_requirements.py` | FIXED |
 | `SEC-CS-001` | The GitHub Code Scanning page showed three open Trivy alerts, but they were suspected to be the failing PR security scan. | Verified via Code Scanning API that PR head `f78b7c7c92f43b1440c426b1cc145c81fd2d779e` had no open Code Scanning alerts; alerts 608, 609, and 610 are Trivy alerts on `refs/heads/main` for the published image and are not this PR-head blocker. | GitHub Code Scanning API query. | `gh api /repos/Katsiarynakavaleuskaya/PulsePlate/code-scanning/alerts?state=open&ref=f78b7c7c92f43b1440c426b1cc145c81fd2d779e` | N/A | Code Scanning API: alerts 608-610 `ref=refs/heads/main`; PR-head query returned no open alerts | NOT-A-BUG |
 | `ATT-RED-008` | Premortem questioned whether sanitized attestation JSON/Markdown should remain uploaded as build artifacts after removing them from release-control-plane build-source artifact inputs. | Kept the PR's policy scope: release-control-plane build-source uploads exclude raw attestation files; build logs and generated local files remain enough for this lane, while CD attestation-check artifact policy stays out of scope. | `test_docker_build_workflow_emits_governed_release_control_plane_sources`; `test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts`. | same focused pytest command above | N/A | `.github/workflows/build.yml`; `tests/test_release_manifest_evidence_workflow.py`; `tests/test_ci_workflow_pr_size_governance_contract.py` | NOT-A-BUG |
 
@@ -138,33 +138,33 @@ Commit: d99d8930b33eb1180b181765e8afed777cc9baae
 Evidence: docs/review/PR_1916_FIXED_MAPPING.md
 Reason: Cubic found the same table separator mismatch; this commit fixes the separator row.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#pullrequestreview-4467465511 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#pullrequestreview-4467465511 -> bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Disposition: FIXED
-Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Commit: bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Evidence: scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py
 Reason: Cubic found the split `sha256_parts` manifest format was not supported by `verify_emergency_artifact_for_floor`; commit `bbe3e05aa` routes that path through `_emergency_artifact_sha256(...)`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#pullrequestreview-4467476343 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#pullrequestreview-4467476343 -> bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Disposition: FIXED
-Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Commit: bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Evidence: .github/workflows/ci.yml; scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py; tests/test_python_supply_chain_controls.py
 Reason: CodeRabbit requested removing `--python-executable python` and updating split-digest error text; commit `bbe3e05aa` fixes both.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388019454 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388019454 -> bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Disposition: FIXED
-Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Commit: bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Evidence: .github/workflows/ci.yml; tests/test_python_supply_chain_controls.py
 Reason: CodeRabbit requested removing `--python-executable python`; commit `bbe3e05aa` lets the installer default to `sys.executable` and adds workflow contract coverage.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388019482 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388019482 -> bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Disposition: FIXED
-Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Commit: bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Evidence: scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py
 Reason: CodeRabbit requested split-digest error text; commit `bbe3e05aa` updates the failure contract and adds tests.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388008776 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388008776 -> bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Disposition: FIXED
-Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Commit: bbe3e05aa9a3fcc2679503a2743b7818c742322a
 Evidence: scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py
 Reason: Cubic found `sha256_parts` was not supported by `verify_emergency_artifact_for_floor`; commit `bbe3e05aa` routes that path through `_emergency_artifact_sha256(...)` and adds coverage.
 
