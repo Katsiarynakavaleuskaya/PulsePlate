@@ -150,6 +150,18 @@ Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
 Evidence: .github/workflows/ci.yml; scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py; tests/test_python_supply_chain_controls.py
 Reason: CodeRabbit requested removing `--python-executable python` and updating split-digest error text; commit `bbe3e05aa` fixes both.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388019454 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Disposition: FIXED
+Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Evidence: .github/workflows/ci.yml; tests/test_python_supply_chain_controls.py
+Reason: CodeRabbit requested removing `--python-executable python`; commit `bbe3e05aa` lets the installer default to `sys.executable` and adds workflow contract coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388019482 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Disposition: FIXED
+Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Evidence: scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py
+Reason: CodeRabbit requested split-digest error text; commit `bbe3e05aa` updates the failure contract and adds tests.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388008776 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
 Disposition: FIXED
 Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
