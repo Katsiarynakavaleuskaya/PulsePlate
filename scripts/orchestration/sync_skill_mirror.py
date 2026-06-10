@@ -13,8 +13,36 @@ DEFAULT_MIRROR_ROOT = REPO_ROOT / ".agents" / "skills"
 SOURCE_MARKER = ".pulseplate_codex_skill_source"
 
 
+def _validate_skill_name(skill_name: str) -> str:
+    """Return a safe single-directory skill name."""
+
+    skill_path = Path(skill_name)
+    if (
+        not skill_name
+        or skill_path.is_absolute()
+        or "/" in skill_name
+        or "\\" in skill_name
+        or skill_name != skill_path.name
+        or skill_path.name in {".", ".."}
+    ):
+        raise ValueError(
+            "Skill name must be a single directory name without path separators: "
+            f"{skill_name!r}"
+        )
+    return skill_name
+
+
+def _resolve_child_path(root: Path, child_name: str) -> Path:
+    child = (root / child_name).resolve()
+    try:
+        child.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes configured root: {child}") from exc
+    return child
+
+
 def _ensure_skill_available(source_root: Path, skill_name: str) -> Path:
-    skill_path = source_root / skill_name
+    skill_path = _resolve_child_path(source_root, skill_name)
     if not skill_path.is_dir():
         raise FileNotFoundError(f"Skill source folder not found: {skill_path}")
     if not (skill_path / "SKILL.md").is_file():
@@ -59,8 +87,9 @@ def sync_skill_mirror(
     source_root = source_root.resolve()
     mirror_root = mirror_root.resolve()
 
-    source = _ensure_skill_available(source_root, skill_name)
-    destination = mirror_root / skill_name
+    safe_skill_name = _validate_skill_name(skill_name)
+    source = _ensure_skill_available(source_root, safe_skill_name)
+    destination = _resolve_child_path(mirror_root, safe_skill_name)
 
     if destination.exists() or destination.is_symlink():
         if not force:
@@ -108,7 +137,7 @@ def main() -> int:
             mirror_root=Path(args.mirror_root),
             force=args.force,
         )
-    except (FileNotFoundError, RuntimeError, PermissionError) as exc:
+    except (FileNotFoundError, RuntimeError, PermissionError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 1
 
