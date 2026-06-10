@@ -89,7 +89,7 @@ Accepted oracle-only governance reviewer evidence. The runner applied the source
 
 ### Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#issuecomment-4656905794 -> 602bbf4f2f9d70b1dc89d5640cfe7c9e06ea3192
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#pullrequestreview-4456005291 -> 602bbf4f2f9d70b1dc89d5640cfe7c9e06ea3192
 Disposition: FIXED
 Commit: 602bbf4f2f9d70b1dc89d5640cfe7c9e06ea3192
 Evidence: scripts/ci/check_docker_provenance_attestation.py; tests/test_check_docker_provenance_attestation.py
