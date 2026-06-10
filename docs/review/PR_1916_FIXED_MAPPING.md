@@ -109,6 +109,12 @@ Commit: d99d8930b33eb1180b181765e8afed777cc9baae
 Evidence: docs/review/PR_1916_FIXED_MAPPING.md
 Reason: CodeRabbit found an eight-column table with a nine-cell separator; this commit fixes the separator row.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#pullrequestreview-4466047443 -> d99d8930b33eb1180b181765e8afed777cc9baae
+Disposition: FIXED
+Commit: d99d8930b33eb1180b181765e8afed777cc9baae
+Evidence: scripts/ci/check_docker_provenance_attestation.py; docs/review/PR_1916_FIXED_MAPPING.md
+Reason: CodeRabbit's review-level actionable findings covered the table separator mismatch and unbounded redacted `gh` failure detail; commit `d99d8930b` fixed both.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386774309 -> d99d8930b33eb1180b181765e8afed777cc9baae
 Disposition: FIXED
 Commit: d99d8930b33eb1180b181765e8afed777cc9baae
