@@ -28,21 +28,21 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Semantic cache cost provenance and context-economy PR train
   - Owner: @katsiaryna_kavaleuskaya (AI runtime / orchestration governance)
   - Priority: P1
-  - Target PR: PR-O1 `codex/semantic-cache-cost-provenance-o1`; PR-O2..PR-O7 TBD
-  - Status: PR-O1 active; later runtime-serving work deferred behind separate gate-open PRs
+  - Target PR: PR-O1 merged baseline; current slice PR-O2 `codex/semantic-context-compression-o2`; PR-O3..PR-O7 TBD
+  - Status: PR-O1 merged as metadata-only cost provenance baseline; PR-O2 active for deterministic orchestration context compression; later runtime-serving work deferred behind separate gate-open PRs
   - Area: AI runtime governance / orchestration cost / semantic-cache scaffold
-  - Reason (EN): Expensive GPT-5.5/Codex orchestration currently repeats prompt modules, context, and merge-readiness documentation work without a deterministic way to attribute safe reusable context or estimate saved tokens. PR-O1 creates metadata-only provenance, prompt-module fingerprints, and token/cost estimate scaffolding so later compression work can be measured without opening semantic-cache serving or provider integration.
-  - Links: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md`, `core/evidence/fingerprints.py`, `core/ai/prompt_modules.py`, `core/ai/cache_observability.py`
+  - Reason (EN): Expensive GPT-5.5/Codex orchestration currently repeats prompt modules, context, and merge-readiness documentation work without a deterministic way to attribute safe reusable context or estimate saved tokens. PR-O1 created metadata-only provenance, prompt-module fingerprints, and token/cost estimate scaffolding; PR-O2 adds deterministic graph/context-pack compression metadata so repeated orchestration context can be measured and de-duplicated without opening semantic-cache serving or provider integration.
+  - Links: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md`, `core/evidence/fingerprints.py`, `core/ai/prompt_modules.py`, `core/ai/cache_observability.py`, `scripts/orchestration/context_pack_compression.py`
   - PR train:
     - PR-O1: deterministic provenance envelope, prompt-module fingerprint registry, and token/cost telemetry scaffold; metadata-only and non-serving.
-    - PR-O2: graph/context-pack compression for repeated orchestration and merge-readiness context; no runtime serving unless a separate gate opens.
+    - PR-O2: graph/context-pack compression for repeated orchestration and merge-readiness context; metadata-only, advisory, and non-serving.
     - PR-O3..PR-O7: provider routing, cache admission, replay, observability, and serving candidates remain TBD and require dedicated reviewed gates.
-  - Deferred review follow-up: after PR-O1 stabilizes, evaluate whether safe-label,
-    metadata-safety, and fingerprint validation helpers should be centralized as
-    part of PR-O2 context-compression cleanup; do not widen PR-O1 into shared
-    helper extraction.
+  - Deferred review follow-up: after PR-O2 stabilizes, evaluate whether safe-label,
+    metadata-safety, and fingerprint validation helpers should be centralized in a
+    shared orchestration utility; do not widen PR-O2 into unrelated shared helper
+    extraction.
   - Out of scope: semantic-cache reads/writes, Redis, GPTCache, GraphRAG runtime, embeddings/vector search, Ollama or Perplexity/Sonar API wiring, OpenAPI, DB, frontend, iOS, entitlement/billing truth, raw prompts, raw responses, raw queries, raw context snippets, provider payloads, and live cost-savings claims.
-  - DoD: PR-O1 keeps markers `closed / false / false / true`; stores only safe fingerprints, IDs, counts, estimates, and labels; separates token estimates from cost estimates; rejects raw payloads/secrets/local paths; passes focused contract tests plus semantic-cache gate checks; documents that first visible savings work begins no earlier than PR-O2.
+  - DoD: PR-O2 keeps markers `closed / false / false / true`; stores only safe fingerprints, IDs, counts, estimates, labels, graph nodes/edges, selected refs, and omitted duplicate refs; separates token estimates from runtime cost claims; rejects raw payloads/secrets/local paths/provider payloads; passes focused contract tests plus semantic-cache gate checks; documents that runtime serving and provider routing remain no earlier than separately gated PR-O3+ work.
 
 <a id="ledger-p1-pr-size-governance-trusted-base-execution"></a>
 - [ ] P1: PR size governance trusted-base execution switch
