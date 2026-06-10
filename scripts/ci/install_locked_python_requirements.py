@@ -323,7 +323,8 @@ def _normalize_artifact_sha256(artifact: dict[str, object], *, filename: str) ->
     ):
         return _validate_sha256("".join(digest_parts), filename=filename)
     raise RuntimeError(
-        "Emergency wheel artifacts require non-empty package/version/filename/url/sha256."
+        "Emergency wheel artifacts require non-empty package/version/filename/url and "
+        "either sha256 or sha256_parts."
     )
 
 
@@ -368,7 +369,8 @@ def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, 
             isinstance(value, str) and value.strip() for value in (package, version, filename, url)
         ):
             raise RuntimeError(
-                "Emergency wheel artifacts require non-empty package/version/filename/url/sha256."
+                "Emergency wheel artifacts require non-empty package/version/filename/url "
+                "and either sha256 or sha256_parts."
             )
         package_text = cast(str, package).strip()
         version_text = cast(str, version).strip()
@@ -1122,7 +1124,7 @@ def verify_emergency_artifact_for_floor(
             _download_with_sha256(
                 url=artifact["url"],
                 destination=destination,
-                expected_sha256=artifact["sha256"],
+                expected_sha256=_emergency_artifact_sha256(artifact),
             )
     return True
 

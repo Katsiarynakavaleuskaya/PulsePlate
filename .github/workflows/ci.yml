@@ -526,7 +526,6 @@ jobs:
             install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
           fi
           python scripts/ci/install_locked_python_requirements.py \
-            --python-executable python \
             --requirements-file requirements-security.txt \
             --constraints-file constraints.txt \
             --install-mode direct-proxy \

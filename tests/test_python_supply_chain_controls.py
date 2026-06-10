@@ -330,6 +330,7 @@ def test_ci_security_job_installs_safety_through_locked_installer() -> None:
     install_script = install_step["run"]
 
     assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--python-executable python" not in install_script
     assert "--requirements-file requirements-security.txt" in install_script
     assert "--install-mode direct-proxy" in install_script
     assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
