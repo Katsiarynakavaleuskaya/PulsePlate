@@ -436,6 +436,67 @@ def test_phase1_guard_validates_context_compression_schema_only_edits(
     )
 
 
+def test_phase1_guard_validates_provider_model_tier_routing_contract_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_contract = (
+        gates.REPO_ROOT / gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC
+    )
+    source_schema = (
+        gates.REPO_ROOT / gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA
+    )
+    contract = tmp_path / gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC
+    schema_path = tmp_path / gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA
+    contract.parent.mkdir(parents=True)
+    contract.write_text(
+        source_contract.read_text(encoding="utf-8")
+        + "\nProvider/model-tier routing performs provider calls.\n"
+        + "Provider/model-tier routing allows model downgrade.\n",
+        encoding="utf-8",
+    )
+    schema_path.write_text(source_schema.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC]
+    )
+
+    assert any(
+        "forbidden provider/model-tier routing claim: provider calls" in error for error in errors
+    )
+    assert any(
+        "forbidden provider/model-tier routing claim: model downgrade" in error for error in errors
+    )
+
+
+def test_phase1_guard_validates_provider_model_tier_routing_schema_only_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_contract = (
+        gates.REPO_ROOT / gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC
+    )
+    source_schema = (
+        gates.REPO_ROOT / gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA
+    )
+    contract = tmp_path / gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC
+    schema_path = tmp_path / gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA
+    contract.parent.mkdir(parents=True)
+    contract.write_text(source_contract.read_text(encoding="utf-8"), encoding="utf-8")
+    schema = json.loads(source_schema.read_text(encoding="utf-8"))
+    del schema["properties"]["provider_calls_allowed"]["const"]
+    schema_path.write_text(json.dumps(schema, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA]
+    )
+
+    assert any(
+        "provider/model-tier routing schema provider_calls_allowed must be const false" in error
+        for error in errors
+    )
+
+
 def test_phase1_guard_validates_philosophy_admission_dry_run_report_edits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

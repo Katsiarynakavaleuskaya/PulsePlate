@@ -327,10 +327,10 @@ def build_context_pack_compression(
     normalized_pr_phase = _validate_token("pr_phase", pr_phase)
     normalized_domain = _validate_token("domain", domain)
     normalized_cluster = _validate_token("cluster", cluster)
-    normalized_primary_agent = _validate_token("primary_agent", primary_agent)
-    normalized_reviewer = _validate_token("reviewer", reviewer)
-    normalized_secondaries = _normalize_unique_tokens("secondary_agents", secondary_agents)
-    normalized_requested = _normalize_unique_tokens("requested_agents", requested_agents)
+    normalized_primary_agent = _validate_role_token("primary_agent", primary_agent)
+    normalized_reviewer = _validate_role_token("reviewer", reviewer)
+    normalized_secondaries = _normalize_unique_role_tokens("secondary_agents", secondary_agents)
+    normalized_requested = _normalize_unique_role_tokens("requested_agents", requested_agents)
     fanout = max(
         1,
         _validate_non_negative_int(
@@ -491,8 +491,8 @@ def build_context_pack_compression(
             "cluster": normalized_cluster,
             "domain": normalized_domain,
             "pr_phase": normalized_pr_phase,
-            "primary_agent": normalized_primary_agent,
-            "reviewer": normalized_reviewer,
+            "primary_agent_fingerprint": _role_fingerprint(normalized_primary_agent),
+            "reviewer_fingerprint": _role_fingerprint(normalized_reviewer),
             "secondary_agent_count": len(normalized_secondaries),
             "requested_agent_count": len(normalized_requested),
             "graph_limit_truncated": graph_truncated,
@@ -876,8 +876,31 @@ def _validate_token(name: str, value: str) -> str:
     return normalized
 
 
+def _validate_role_token(name: str, value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{name} must be non-empty")
+    if len(normalized) > MAX_STRING_LENGTH:
+        raise ValueError(f"{name} exceeds maximum length")
+    if any(char.isspace() for char in normalized):
+        raise ValueError(f"{name} must not contain whitespace")
+    if not _TOKEN_RE.match(normalized):
+        raise ValueError(f"{name} contains unsupported characters")
+    if _PATH_RE.search(normalized):
+        raise ValueError(f"{name} contains unsafe metadata")
+    return normalized
+
+
 def _normalize_unique_tokens(name: str, values: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted({_validate_token(name, value) for value in values}))
+
+
+def _normalize_unique_role_tokens(name: str, values: Iterable[str]) -> tuple[str, ...]:
+    return tuple(sorted({_validate_role_token(name, value) for value in values}))
+
+
+def _role_fingerprint(value: str) -> str:
+    return f"role-fingerprint:{fingerprint_payload({'role': value})[7:31]}"
 
 
 def _normalize_required_unique_tokens(name: str, values: Iterable[str]) -> tuple[str, ...]:

@@ -113,6 +113,30 @@ def test_context_pack_compression_preserves_required_context_and_tracks_duplicat
     ]
 
 
+def test_context_pack_compression_allows_safe_prompt_engineering_role_slug() -> None:
+    pack = build_context_pack_compression(
+        candidate_paths=("scripts/orchestration/task_bootstrap.py",),
+        required_context=("AGENTS.md",),
+        pr_phase="pre_open",
+        domain="ml",
+        cluster="ml",
+        primary_agent="prompt-engineering-eval-agent",
+        reviewer="prompt-engineering-eval-agent",
+        secondary_agents=("prompt-engineering-eval-agent",),
+        requested_agents=("prompt-engineering-eval-agent",),
+    )
+
+    stable = dict(to_stable_mapping(pack))
+    serialized = json.dumps(stable, sort_keys=True)
+    assert stable["authority_boundary"] == CONTEXT_COMPRESSION_AUTHORITY_BOUNDARY
+    assert stable["metadata"]["secondary_agent_count"] == 1
+    assert stable["metadata"]["requested_agent_count"] == 1
+    assert stable["metadata"]["primary_agent_fingerprint"].startswith("role-fingerprint:")
+    assert stable["metadata"]["reviewer_fingerprint"].startswith("role-fingerprint:")
+    assert stable["context_pack_id"].startswith("ctx-pack:")
+    assert "prompt-engineering-eval-agent" not in serialized
+
+
 def test_context_pack_compression_estimates_without_reading_raw_file_payloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

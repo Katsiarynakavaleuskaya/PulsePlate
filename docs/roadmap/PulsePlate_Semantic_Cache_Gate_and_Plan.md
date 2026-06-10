@@ -66,6 +66,16 @@ context or authorizing cache serving, provider calls, embeddings, semantic
 similarity, GraphRAG runtime, Redis/GPTCache, DB, API schema surfaces, web
 client surfaces, or mobile client surfaces.
 
+The provider/model-tier routing telemetry contract is defined in
+[`SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.md`](../orchestration/contracts/SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.md).
+That contract is metadata-only policy telemetry for future orchestration cost
+decisions. It records inert GPT, Ollama, Perplexity/Sonar, Perplexity-agent,
+and unknown-provider labels plus model-tier labels while fixing selected route
+to `no_runtime_selection`. It does not authorize provider wiring, provider
+calls, runtime routing, semantic-cache serving, provider-specific pricing,
+billing truth, model downgrade, embeddings, GraphRAG runtime, Redis/GPTCache,
+DB, API schema surfaces, web client surfaces, or mobile client surfaces.
+
 The Philosophy Epic V2 PR-1 admission contract is defined in
 [`PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md`](../orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md).
 That contract is policy-only, gate-closed, and non-serving; it defines which
