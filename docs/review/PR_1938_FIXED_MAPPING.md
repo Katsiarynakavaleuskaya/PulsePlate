@@ -1,16 +1,26 @@
 # PR 1938 Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass initialized.
-- [x] Fixed in commit mapping initialized.
-- [ ] Post-open review-thread pass pending bot/human review activity.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Post-open review-thread pass is active; unresolved bot comments are listed with
+disposition evidence below before any resolution.
 
 ## Fixed in Commit Mapping
-- No review threads resolved yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#discussion_r3388908188
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/task_bootstrap.py:41`; `scripts/orchestration/task_bootstrap.py:43`; smoke `build_task_packet(...)` returned `selected_route=no_runtime_selection`.
+Reason: `to_stable_mapping` is imported from `provider_model_tier_policy` with the explicit alias `provider_model_routing_to_stable_mapping`, so the referenced helper is defined at runtime.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#discussion_r3388908198 -> 36a20172d
+Disposition: FIXED
+Commit: 36a20172d
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:46`
 
 ## Lane Start Provenance
 - Branch: `codex/provider-model-tier-routing-o3`.
-- Task packet: `artifacts/orchestration/task_packets/dd636a215a18.json`.
+- Packet: artifacts/orchestration/task_packets/dd636a215a18.json
 - Current regenerated packet with PR-O3 telemetry:
   `artifacts/orchestration/task_packets/pr-o3-current.json`.
 - Starter: `scripts/orchestration/start_pr_lane.sh`; initial packet creation hit
@@ -72,8 +82,7 @@
 ## Experiment Runner Evidence
 - Packet:
   `artifacts/orchestration/experiments/artifacts/orchestration/experiments/pr-o3-oracle-packet.json`.
-- Artifact:
-  `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/pr-o3-oracle-result.json`.
+- Artifact: artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/pr-o3-oracle-result.json
 - Mode: `oracle_only_governance_reviewer`.
 - Status: result artifact written; `failure_class` is null.
 - Co-author trailer used in commit `62290bb79`:
