@@ -136,6 +136,8 @@ def _validate_rag_gate_result(payload: dict[str, Any]) -> list[str]:
         errors.append(f"rag_gate_result.canonicalization must be {CANONICALIZATION}.")
     _check_sha256_hex(payload.get("rag_gate_result_hash"), "rag_gate_result_hash", errors)
     _check_sha256_hex(payload.get("eval_artifact_hash"), "eval_artifact_hash", errors)
+    if not isinstance(payload.get("git_sha"), str) or not payload["git_sha"]:
+        errors.append("rag_gate_result.git_sha must be a non-empty string.")
     if payload.get("release_decision") not in {"PASS", "NO-GO"}:
         errors.append("rag_gate_result.release_decision must be PASS or NO-GO.")
 
@@ -184,11 +186,17 @@ def build_manifest_payload(
     rag_errors = _validate_rag_gate_result(rag_gate_result)
     if rag_errors:
         raise ReleaseManifestError("; ".join(rag_errors))
+    if rag_gate_result["git_sha"] != git_sha:
+        raise ReleaseManifestError(
+            "rag_gate_result.git_sha must match build_identity.git_sha: "
+            f"{rag_gate_result['git_sha']} != {git_sha}"
+        )
 
     ml_identity: dict[str, Any] = {
         "schema_version": rag_gate_result["schema_version"],
         "rag_gate_result_hash": rag_gate_result["rag_gate_result_hash"],
         "eval_artifact_hash": rag_gate_result["eval_artifact_hash"],
+        "git_sha": rag_gate_result["git_sha"],
         "release_decision": rag_gate_result["release_decision"],
         "source_artifacts": [
             {
@@ -211,6 +219,8 @@ def build_manifest_payload(
     decision_reasons = decision_reasons_for(
         ml_release_decision=rag_gate_result["release_decision"],
         supply_chain_identity=supply_chain_identity,
+        build_git_sha=git_sha,
+        ml_git_sha=rag_gate_result["git_sha"],
     )
     release_decision = BLOCK_DECISION if decision_reasons else ALLOW_DECISION
 
@@ -243,12 +253,22 @@ def decision_reasons_for(
     *,
     ml_release_decision: Any,
     supply_chain_identity: dict[str, Any],
+    build_git_sha: Any = None,
+    ml_git_sha: Any = None,
 ) -> list[str]:
     """Return fail-closed release decision reasons."""
 
     reasons: list[str] = []
     if ml_release_decision != "PASS":
         reasons.append("rag_gate_result_not_pass")
+    if (
+        not isinstance(build_git_sha, str)
+        or not build_git_sha
+        or not isinstance(ml_git_sha, str)
+        or not ml_git_sha
+        or ml_git_sha != build_git_sha
+    ):
+        reasons.append("rag_git_sha_mismatch")
     if supply_chain_identity.get("attestation_status") != VERIFIED_ATTESTATION_STATUS:
         reasons.append("attestation_not_verified")
     if not OCI_SHA256_DIGEST_RE.fullmatch(str(supply_chain_identity.get("sbom_digest", ""))):
@@ -279,9 +299,11 @@ def validate_manifest_payload(payload: dict[str, Any]) -> list[str]:
             errors.append("release_manifest_hash does not match canonical payload.")
 
     build_identity = payload.get("build_identity")
+    build_git_sha = None
     if not isinstance(build_identity, dict):
         errors.append("build_identity must be an object.")
     else:
+        build_git_sha = build_identity.get("git_sha")
         for field_name in ("git_sha", "ios_build_number", "marketing_version", "bundle_id"):
             if (
                 not isinstance(build_identity.get(field_name), str)
@@ -323,6 +345,11 @@ def validate_manifest_payload(payload: dict[str, Any]) -> list[str]:
             errors.append("ml_identity.schema_version is invalid.")
         _check_sha256_hex(ml_identity.get("rag_gate_result_hash"), "rag_gate_result_hash", errors)
         _check_sha256_hex(ml_identity.get("eval_artifact_hash"), "eval_artifact_hash", errors)
+        ml_git_sha = ml_identity.get("git_sha")
+        if not isinstance(ml_git_sha, str) or not ml_git_sha:
+            errors.append("ml_identity.git_sha must be a non-empty string.")
+        elif ml_git_sha != build_git_sha:
+            errors.append("ml_identity.git_sha must match build_identity.git_sha.")
         if ml_decision not in {"PASS", "NO-GO"}:
             errors.append("ml_identity.release_decision must be PASS or NO-GO.")
         if "source_artifacts" not in ml_identity:
@@ -352,6 +379,8 @@ def validate_manifest_payload(payload: dict[str, Any]) -> list[str]:
     expected_reasons = decision_reasons_for(
         ml_release_decision=ml_decision,
         supply_chain_identity=supply_chain_identity,
+        build_git_sha=build_git_sha,
+        ml_git_sha=ml_identity.get("git_sha") if isinstance(ml_identity, dict) else None,
     )
     expected_decision = BLOCK_DECISION if expected_reasons else ALLOW_DECISION
     if payload.get("release_decision") != expected_decision:
