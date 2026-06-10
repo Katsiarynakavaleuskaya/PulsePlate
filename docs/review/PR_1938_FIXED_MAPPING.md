@@ -4,8 +4,8 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Post-open review-thread pass is active; unresolved bot comments are listed with
-disposition evidence below before any resolution.
+Post-open review-thread pass completed. Two Sourcery threads were dispositioned
+below before resolution; current unresolved review-thread count is `0`.
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#discussion_r3388908188
@@ -38,9 +38,12 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:46`
   `tests/test_provider_model_tier_policy.py`;
   `tests/test_semantic_cache_provider_model_tier_routing_contract.py`;
   `tests/test_task_bootstrap.py`.
-- Mandatory post-open order still pending:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`, then Codex Security
-  diff scan/finding discovery and `pulseplate-pr-review`.
+- Mandatory post-open order executed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Codex Security diff scan/finding discovery completed locally against every
+  changed file in `origin/main...HEAD`; no reportable P0/P1 security findings.
+- `pulseplate-pr-review` dry-run completed; only advisory `large-diff-risk`
+  note was emitted, with no deterministic blocker.
 
 ## Pre-Open Role Finding Closure
 - Architecture-specialist P1 frontier/advisory role overlap: FIXED in commit
@@ -99,6 +102,20 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:46`
 - `git diff --cached --check` PASS.
 - Pre-push hooks PASS: changed-file mypy, backend tests, full Bandit, Docker
   build test.
+- Post-open `qa-engineer-agent`, `bug-hunter`, and `security-auditor` passes:
+  PASS with no new P0/P1 code/security findings.
+- Codex Security diff scan/finding discovery: PASS, no reportable P0/P1
+  findings.
+- `pulseplate-pr-review` dry-run: PASS with advisory `large-diff-risk` note
+  only.
+- `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1938 --body "$(gh pr view 1938 --json body --jq .body)"` PASS.
+- `python scripts/orchestration/check_review_threads_disposition.py --pr 1938`
+  PASS.
+- `make validate-changed` PASS on current head.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_provider_model_tier_policy.py tests/test_task_bootstrap.py tests/test_semantic_cache_provider_model_tier_routing_contract.py tests/test_docs_phase1_gates.py tests/test_semantic_cache_gate.py tests/core/ai/test_cache_observability.py tests/core/ai/test_prompt_modules.py tests/core/evidence/test_fingerprints.py tests/test_ai_runtime_semantic_cache_handoff.py tests/test_context_pack_compression.py`
+  PASS.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --explicit-package-bases scripts/orchestration/provider_model_tier_policy.py scripts/orchestration/context_pack_compression.py scripts/orchestration/task_bootstrap.py core/ai/cache_observability.py`
+  PASS.
 
 ## Known Non-Ready Gate
 - Full local `make verify` is deferred by operator instruction for this
