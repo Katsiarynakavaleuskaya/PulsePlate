@@ -5,9 +5,9 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1939#pullrequestreview-4471267899 -> de15b9684
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1939#pullrequestreview-4471267899 -> de15b9684ecb6c035c56a35b8c58918be60ec118
 Disposition: FIXED
-Commit: de15b9684
+Commit: de15b9684ecb6c035c56a35b8c58918be60ec118
 Evidence: scripts/orchestration/context_pack_compression.py:859; tests/test_task_bootstrap.py:25
 
 ## Experiment Runner Evidence
