@@ -1,12 +1,12 @@
 # PR 1937 Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass completed at PR open.
-- [x] Fixed in commit mapping artifact created after PR number assignment.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Post-open review-thread pass completed.
 
 ## Fixed in Commit Mapping
-No GitHub review threads existed at PR open time.
+- No actionable review comments
 
 ## Lane Start Provenance
 - Packet: `artifacts/orchestration/task_packets/998e30d3829d.json`
