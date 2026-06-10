@@ -38,6 +38,16 @@ Disposition: FIXED
 Commit: d27dbc347
 Evidence: `scripts/ci/check_semantic_cache_gate.py`; `scripts/orchestration/context_pack_compression.py`; `tests/test_context_pack_compression.py`; `tests/test_semantic_cache_provider_model_tier_routing_contract.py`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#discussion_r3389369900 -> e239f81b4
+Disposition: FIXED
+Commit: e239f81b4
+Evidence: `docs/review/PR_1938_FIXED_MAPPING.md:108`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1938#pullrequestreview-4469075039 -> e239f81b4
+Disposition: FIXED
+Commit: e239f81b4
+Evidence: `docs/review/PR_1938_FIXED_MAPPING.md:108`
+
 ## Lane Start Provenance
 - Branch: `codex/provider-model-tier-routing-o3`.
 - Packet: artifacts/orchestration/task_packets/dd636a215a18.json
