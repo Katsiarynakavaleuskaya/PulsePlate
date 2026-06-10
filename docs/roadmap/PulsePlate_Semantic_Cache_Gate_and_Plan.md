@@ -54,8 +54,8 @@ The orchestration cost provenance contract is defined in
 [`SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md`](../orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md).
 That contract is control-plane telemetry only. It records safe fingerprints,
 prompt-module IDs, labels, counts, and deterministic estimates without storing
-raw prompt text, raw responses, raw queries, provider payloads, or runtime cache
-entries.
+raw prompts, raw responses, raw queries, or provider payloads. Runtime cache
+entries are absent.
 
 The orchestration context-compression telemetry contract is defined in
 [`SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md`](../orchestration/contracts/SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md).
@@ -63,8 +63,8 @@ That contract is advisory metadata for repeated orchestration and
 merge-readiness context only. It records deterministic graph/context-pack
 fingerprints and token-savings estimates without removing mandatory governance
 context or authorizing cache serving, provider calls, embeddings, semantic
-similarity, GraphRAG runtime, Redis/GPTCache, DB, OpenAPI, frontend, or iOS
-changes.
+similarity, GraphRAG runtime, Redis/GPTCache, DB, API schema surfaces, web
+client surfaces, or mobile client surfaces.
 
 The Philosophy Epic V2 PR-1 admission contract is defined in
 [`PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md`](../orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md).
