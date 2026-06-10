@@ -54,4 +54,11 @@ Evidence: initial isolated worktree run failed at `verify-env` because `.venv` w
 Disposition: DEFERRED for local full-run evidence only; this PR does not claim merge readiness until current-head CI, post-open role passes, bot review disposition, and strict merge-readiness checks complete.
 
 ## Post-Open Role Finding Closure
-Pending post-open `qa-engineer-agent -> bug-hunter -> security-auditor`, Codex Security diff/finding discovery, and `pulseplate-pr-review`.
+- QA engineer P1 Phase2 body/mapping parser failure: FIXED in commit `45f328761`.
+Evidence: `docs/review/PR_1937_FIXED_MAPPING.md`; `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(gh pr view 1937 --json body --jq .body)" --pr-number 1937 --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` PASS.
+Reason: Mapping artifact and PR body now use the exact parser-safe checklist labels, `- No actionable review comments`, and standalone Experiment Runner `Artifact:` line.
+- Bug-hunter P1 wide-lane context compression failure: FIXED in commit `1a5c38cdc`.
+Evidence: `scripts/orchestration/context_pack_compression.py`; `tests/test_context_pack_compression.py::test_context_pack_compression_degrades_on_unbounded_graph_sizes`; `tests/test_context_pack_compression.py::test_context_pack_compression_degrades_on_unbounded_edge_sizes`; `tests/test_task_bootstrap.py::test_task_bootstrap_keeps_wide_pr_packets_when_context_graph_truncates`; `make validate-changed` PASS.
+Reason: The public compression builder now degrades advisory graph/edge detail deterministically with `graph_limit_truncated` / `compression_limit_exceeded` reason codes while preserving `required_context` and task packet creation for wide PR lanes.
+
+Pending post-open `security-auditor`, Codex Security diff/finding discovery, and `pulseplate-pr-review`.
