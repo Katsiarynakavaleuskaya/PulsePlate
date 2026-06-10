@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess  # nosec B404: bounded gh CLI verification is required for OCI attestation checks (remove-by: 2026-09-30, ref: PR-docker-signed-provenance)
 import sys
@@ -24,6 +25,17 @@ PROVENANCE_PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
 SBOM_PREDICATE_TYPE = "https://spdx.dev/Document/v2.3"
 BUNDLE_SOURCE = "oci-registry"
 MAX_ERROR_STDOUT_CHARS = 500
+_USERINFO_URL_RE = re.compile(r"https?://[^\s/@:]+:[^\s/@]+@[^\s]+")
+_BEARER_TOKEN_RE = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
+_ASSIGNMENT_SECRET_RE = re.compile(
+    r"(?i)\b([A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API[_-]?KEY|INDEX_URL)[A-Z0-9_]*)=([^\s,;`]+)"
+    r"|\b([A-Z0-9_]*CREDENTIAL[A-Z0-9_]*)=([^\s,;`]+)"
+)
+_SENSITIVE_ATTESTATION_TOKENS = (
+    "PULSEPLATE_PYTHON_INDEX_URL",
+    "GITHUB_TOKEN",
+    "GH_TOKEN",
+)
 
 
 @dataclass(frozen=True)
@@ -105,7 +117,7 @@ def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.strip()
         stdout = exc.stdout.strip()
-        detail = stderr or stdout or str(exc)
+        detail = _redact_sensitive_text(stderr or stdout or str(exc))
         raise RuntimeError(f"gh attestation verify failed: {detail}") from exc
 
 
@@ -167,18 +179,22 @@ def _redacted_verification_summary(
     instead of publishing raw provenance/SBOM predicates or build arguments.
     """
 
-    verification_result = item["verificationResult"]
+    verification_result = item.get("verificationResult")
     if not isinstance(verification_result, dict):
         raise RuntimeError(f"verification item #{index} is missing verificationResult.")
-    statement = verification_result["statement"]
+    statement = verification_result.get("statement")
     if not isinstance(statement, dict):
         raise RuntimeError(f"verification item #{index} is missing statement.")
-    predicate_type = statement["predicateType"]
+    predicate_type = statement.get("predicateType")
+    if not isinstance(predicate_type, str):
+        raise RuntimeError(f"verification item #{index} is missing predicateType.")
     return {
         "verificationResult": {
             "statement": {
                 "predicateType": predicate_type,
-                "statement_sha256": _canonical_json_sha256(statement),
+                "redacted_statement_summary_sha256": _canonical_json_sha256(
+                    {"predicateType": predicate_type, "redaction": "predicate-only-v1"}
+                ),
             }
         }
     }
@@ -191,10 +207,24 @@ def _canonical_json_sha256(payload: Mapping[str, object]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _redact_sensitive_text(value: str) -> str:
+    """Return text safe for CI logs and failure artifacts."""
+
+    redacted = _USERINFO_URL_RE.sub("[redacted-url-with-userinfo]", value)
+    redacted = _BEARER_TOKEN_RE.sub("Bearer [redacted-token]", redacted)
+    redacted = _ASSIGNMENT_SECRET_RE.sub(
+        lambda match: f"{match.group(1) or match.group(3)}=[redacted-secret]",
+        redacted,
+    )
+    for token in _SENSITIVE_ATTESTATION_TOKENS:
+        redacted = redacted.replace(token, "[redacted-build-arg]")
+    return redacted
+
+
 def _trim_for_error(value: str) -> str:
     """Return a one-line bounded string for fail-closed diagnostics."""
 
-    normalized = value.strip().replace("\n", "\\n")
+    normalized = _redact_sensitive_text(value).strip().replace("\n", "\\n")
     if len(normalized) <= MAX_ERROR_STDOUT_CHARS:
         return normalized
     return f"{normalized[:MAX_ERROR_STDOUT_CHARS]}..."
@@ -363,9 +393,10 @@ def main(argv: list[str] | None = None) -> int:
             source_ref=args.source_ref,
         )
     except RuntimeError as exc:
+        error_message = _redact_sensitive_text(str(exc))
         failure_payload = {
             "passed": False,
-            "error": str(exc),
+            "error": error_message,
             "artifact_uri": _safe_artifact_uri(args.image_name, args.digest),
             "repo": args.repo,
             "signer_workflow": args.signer_workflow,
@@ -381,13 +412,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"- Signer workflow: `{args.signer_workflow}`",
                 f"- Source ref: `{args.source_ref}`",
                 f"- Bundle source: `{BUNDLE_SOURCE}`",
-                f"- Error: `{exc}`",
+                f"- Error: `{error_message}`",
                 "",
             ]
         )
         _write_json(json_out, failure_payload)
         _write_text(markdown_out, failure_markdown)
-        print(str(exc), file=sys.stderr)
+        print(error_message, file=sys.stderr)
         return 1
 
     _write_json(json_out, asdict(bundle))

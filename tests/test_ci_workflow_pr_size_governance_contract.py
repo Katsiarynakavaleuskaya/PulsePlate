@@ -1258,8 +1258,6 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                     "release-control-plane-build-sources/sbom_digest.txt\n"
                     "release-control-plane-build-sources/provenance_digest.txt\n"
                     "release-control-plane-build-sources/attestation_status.txt\n"
-                    "docker-provenance-attestation-check.json\n"
-                    "docker-provenance-attestation-check.md\n"
                 ),
                 "if-no-files-found": "error",
                 "retention-days": 14,
