@@ -406,12 +406,10 @@ jobs:
         run: |
           echo "ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      # Image scan: --exit-code 0 makes findings report-only (no fail on vuln count).
-      # continue-on-error: true keeps the publish job moving when Trivy fails before SARIF exists
-      # (DB/network/registry); hashFiles guards upload-sarif. Do not change output path without
-      # updating hashFiles('trivy-image.sarif') and upload/warn steps (paths are workspace-relative).
-      - name: Run Trivy vulnerability scanner (image scan, report-only)
-        continue-on-error: true
+      # Image scan fails closed on HIGH/CRITICAL findings and scanner/SARIF errors.
+      # Do not change output path without updating hashFiles('trivy-image.sarif')
+      # and upload/fail steps (paths are workspace-relative).
+      - name: Run Trivy vulnerability scanner (image scan, fail-closed)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         env:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
@@ -426,17 +424,20 @@ jobs:
           severity: CRITICAL,HIGH
           limit-severities-for-sarif: true
           trivyignores: .trivyignore
-          exit-code: '0'
+          exit-code: '1'
           version: v0.69.3
 
-      - name: Warn when Trivy image SARIF is missing
-        if: ${{ hashFiles('trivy-image.sarif') == '' }}
+      - name: Fail when Trivy image SARIF is missing
+        if: ${{ always() }}
         run: |
-          echo "::warning::Trivy image SARIF not produced; CodeQL upload will be skipped. Check scan logs (registry/auth/DB)."
+          if [ ! -f trivy-image.sarif ]; then
+            echo "::error::Trivy image SARIF not produced; failing closed. Check scan logs (registry/auth/DB)."
+            exit 1
+          fi
+          ls -la trivy-image.sarif
 
-      # upload-sarif fails closed if sarif is missing; Trivy may not write a file on hard errors.
       - name: Upload Trivy image scan results
-        if: ${{ hashFiles('trivy-image.sarif') != '' }}
+        if: ${{ always() && hashFiles('trivy-image.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
         with:
           sarif_file: 'trivy-image.sarif'

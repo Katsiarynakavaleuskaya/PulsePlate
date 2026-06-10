@@ -116,13 +116,53 @@ def test_docker_entrypoint_keeps_bodyfat_hidden_but_routable() -> None:
     assert {"labels", "lang", "median", "methods"} <= response.json().keys()
 
 
-def test_trivy_workflow_is_out_of_band_image_security_lane() -> None:
-    """Trivy remains scheduled/manual instead of duplicating main-push image builds."""
+def test_trivy_workflow_is_main_push_image_security_lane() -> None:
+    """Trivy scans production images on main pushes, schedule, and manual dispatch."""
     workflow = _load_workflow(WORKFLOWS_DIR / "trivy.yml")
     on_section = workflow.get("on", workflow.get(True))
     assert isinstance(on_section, dict)
-    assert "push" not in on_section
+    push = on_section["push"]
+    assert isinstance(push, dict)
+    assert push["branches"] == ["main"]
     assert "pull_request" not in on_section
     assert "pull_request_target" not in on_section
     assert "schedule" in on_section
     assert "workflow_dispatch" in on_section
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    build_job = jobs["build"]
+    assert isinstance(build_job, dict)
+    scan_step = next(
+        step
+        for step in build_job["steps"]
+        if isinstance(step, dict) and step.get("name") == "Run Trivy vulnerability scanner"
+    )
+    scan_step_with = scan_step["with"]
+    assert isinstance(scan_step_with, dict)
+    assert scan_step_with["scan-type"] == "image"
+    assert scan_step_with["exit-code"] == "1"
+    assert "continue-on-error" not in scan_step
+    assert "Fail when Trivy SARIF is missing" in _step_names(build_job)
+
+
+def test_publish_image_scan_fails_closed() -> None:
+    """Publish path image scan blocks HIGH/CRITICAL findings and missing SARIF."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    publish_job = jobs["publish"]
+    assert isinstance(publish_job, dict)
+    publish_steps = publish_job["steps"]
+    scan_step = next(
+        step
+        for step in publish_steps
+        if isinstance(step, dict)
+        and step.get("name") == "Run Trivy vulnerability scanner (image scan, fail-closed)"
+    )
+    scan_step_with = scan_step["with"]
+    assert isinstance(scan_step_with, dict)
+    assert scan_step_with["scan-type"] == "image"
+    assert scan_step_with["exit-code"] == "1"
+    assert "continue-on-error" not in scan_step
+    assert "Fail when Trivy image SARIF is missing" in _step_names(publish_job)
