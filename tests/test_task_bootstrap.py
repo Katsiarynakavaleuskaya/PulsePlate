@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from pathlib import Path
 
@@ -23,6 +22,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     resolve_analysis_envelope_mode,
 )
 from scripts.orchestration.context_pack import repo_relative_paths
+from scripts.orchestration.context_pack_compression import _ROLE_FINGERPRINT_RE
 from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.routing_graph_loader import (
@@ -91,9 +91,8 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
         "architecture-specialist"
     )
     compression = packet["context_pack_compression"]
-    role_fingerprint_re = re.compile(r"^role-fingerprint:[0-9a-f]{24}$")
-    assert role_fingerprint_re.match(compression["metadata"]["primary_agent_fingerprint"])
-    assert role_fingerprint_re.match(compression["metadata"]["reviewer_fingerprint"])
+    assert _ROLE_FINGERPRINT_RE.match(compression["metadata"]["primary_agent_fingerprint"])
+    assert _ROLE_FINGERPRINT_RE.match(compression["metadata"]["reviewer_fingerprint"])
 
 
 def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
