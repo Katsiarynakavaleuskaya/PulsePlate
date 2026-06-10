@@ -150,6 +150,12 @@ Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
 Evidence: .github/workflows/ci.yml; scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py; tests/test_python_supply_chain_controls.py
 Reason: CodeRabbit requested removing `--python-executable python` and updating split-digest error text; commit `bbe3e05aa` fixes both.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3388008776 -> bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Disposition: FIXED
+Commit: bbe3e05aa17ccfb9d76c5647fb9e18ff35090bd2
+Evidence: scripts/ci/install_locked_python_requirements.py; tests/test_install_locked_python_requirements.py
+Reason: Cubic found `sha256_parts` was not supported by `verify_emergency_artifact_for_floor`; commit `bbe3e05aa` routes that path through `_emergency_artifact_sha256(...)` and adds coverage.
+
 ## Bot Review Summary
 
 - CodeRabbit nitpick: FIXED. Evidence: `_redacted_verification_summary` now uses `.get()` and explicit validation before returning redacted metadata.
