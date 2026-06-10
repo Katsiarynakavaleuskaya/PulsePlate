@@ -217,9 +217,9 @@ None.
 
 Not merge-ready yet. Pending before readiness claims:
 
-- `pre-commit run --all-files` PASS.
-- `make validate-changed` PASS.
-- Experiment Runner oracle-only governance review PASS or disposition.
-- `pulseplate-premortem-risk-review` findings fixed or dispositioned.
-- `pulseplate-pr-review` PASS/no actionable findings.
-- Current-head CI parity after push, including `lint`, `test-pr (3.13)`, `PR Body Phase2 gates`, and merge-readiness gate.
+- [ ] `pre-commit run --all-files` PASS.
+- [ ] `make validate-changed` PASS.
+- [ ] Experiment Runner oracle-only governance review PASS or disposition.
+- [ ] `pulseplate-premortem-risk-review` findings fixed or dispositioned.
+- [ ] `pulseplate-pr-review` PASS/no actionable findings.
+- [ ] Current-head CI parity after push, including `lint`, `test-pr (3.13)`, `PR Body Phase2 gates`, and merge-readiness gate.
