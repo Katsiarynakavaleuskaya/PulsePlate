@@ -117,7 +117,7 @@ def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.strip()
         stdout = exc.stdout.strip()
-        detail = _redact_sensitive_text(stderr or stdout or str(exc))
+        detail = _trim_for_error(stderr or stdout or str(exc))
         raise RuntimeError(f"gh attestation verify failed: {detail}") from exc
 
 
