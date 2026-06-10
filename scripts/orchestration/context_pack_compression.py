@@ -856,7 +856,7 @@ def _validate_metadata_budget(value: Mapping[str, JsonValue]) -> None:
 def _validate_safe_metadata_string(name: str, value: str) -> None:
     if len(value) > MAX_STRING_LENGTH:
         raise ValueError(f"{name} exceeds maximum length")
-    if value.startswith("role-fingerprint:") and not _ROLE_FINGERPRINT_RE.match(value):
+    if "role-fingerprint:" in value.lower() and not _ROLE_FINGERPRINT_RE.match(value):
         raise ValueError(f"{name} contains unsafe metadata")
     if (
         _FINGERPRINT_RE.match(value)

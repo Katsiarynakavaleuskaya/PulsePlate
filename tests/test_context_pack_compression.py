@@ -158,6 +158,9 @@ def test_context_pack_compression_allows_safe_derived_role_fingerprint_metadata(
     (
         {"primary_agent_fingerprint": "role-fingerprint:prompt"},
         {"primary_agent_fingerprint": "role-fingerprint:architecture-specialist"},
+        {"primary_agent_fingerprint": " role-fingerprint:architecture-specialist"},
+        {"primary_agent_fingerprint": "Role-fingerprint:architecture-specialist"},
+        {"primary_agent_fingerprint": "safe-role-fingerprint:architecture-specialist"},
         {"nested": {"reviewer_fingerprint": "role-fingerprint:qa-engineer-agent"}},
         {"items": ["role-fingerprint:security-auditor"]},
     ),
