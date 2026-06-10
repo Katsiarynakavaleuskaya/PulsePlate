@@ -137,6 +137,49 @@ def test_context_pack_compression_allows_safe_prompt_engineering_role_slug() -> 
     assert "prompt-engineering-eval-agent" not in serialized
 
 
+def test_context_pack_compression_allows_safe_derived_role_fingerprint_metadata() -> None:
+    node = ContextGraphNode(
+        node_id="ctx-node:" + "1" * 24,
+        node_type="changed_file",
+        path="AGENTS.md",
+        path_fingerprint="sha256:" + "2" * 64,
+        token_estimate=1,
+        required=False,
+        metadata={"primary_agent_fingerprint": "role-fingerprint:" + "a" * 24},
+    )
+
+    assert dict(to_stable_mapping(node))["metadata"] == {
+        "primary_agent_fingerprint": "role-fingerprint:" + "a" * 24,
+    }
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    (
+        {"primary_agent_fingerprint": "role-fingerprint:prompt"},
+        {"primary_agent_fingerprint": "role-fingerprint:architecture-specialist"},
+        {"primary_agent_fingerprint": " role-fingerprint:architecture-specialist"},
+        {"primary_agent_fingerprint": "Role-fingerprint:architecture-specialist"},
+        {"primary_agent_fingerprint": "safe-role-fingerprint:architecture-specialist"},
+        {"nested": {"reviewer_fingerprint": "role-fingerprint:qa-engineer-agent"}},
+        {"items": ["role-fingerprint:security-auditor"]},
+    ),
+)
+def test_context_pack_compression_rejects_malformed_role_fingerprint_metadata(
+    metadata: dict[str, JsonValue],
+) -> None:
+    with pytest.raises(ValueError, match="unsafe metadata"):
+        ContextGraphNode(
+            node_id="ctx-node:" + "1" * 24,
+            node_type="changed_file",
+            path="AGENTS.md",
+            path_fingerprint="sha256:" + "2" * 64,
+            token_estimate=1,
+            required=False,
+            metadata=metadata,
+        )
+
+
 def test_context_pack_compression_estimates_without_reading_raw_file_payloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

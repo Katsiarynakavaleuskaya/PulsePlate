@@ -79,6 +79,7 @@ MAX_METADATA_DEPTH = 8
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _NODE_ID_RE = re.compile(r"^(?:ctx-node|ctx-edge|ctx-pack|ctx-estimate):[0-9a-f]{24}$")
 _FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_ROLE_FINGERPRINT_RE = re.compile(r"^role-fingerprint:[0-9a-f]{24}$")
 _PATH_RE = re.compile(
     r"(?:(?:^|[\s=(;,]|:(?!//))(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)|(?:^|[\s=(:;,])file://)"
 )
@@ -855,8 +856,14 @@ def _validate_metadata_budget(value: Mapping[str, JsonValue]) -> None:
 def _validate_safe_metadata_string(name: str, value: str) -> None:
     if len(value) > MAX_STRING_LENGTH:
         raise ValueError(f"{name} exceeds maximum length")
-    if _FINGERPRINT_RE.match(value) or _NODE_ID_RE.match(value):
+    if (
+        _FINGERPRINT_RE.match(value)
+        or _NODE_ID_RE.match(value)
+        or _ROLE_FINGERPRINT_RE.match(value)
+    ):
         return
+    if "role-fingerprint:" in value.lower():
+        raise ValueError(f"{name} contains unsafe metadata")
     if _UNSAFE_METADATA_RE.search(value) or _PATH_RE.search(value):
         raise ValueError(f"{name} contains unsafe metadata")
 
