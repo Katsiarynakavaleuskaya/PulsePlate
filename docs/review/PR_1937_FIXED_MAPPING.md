@@ -3,10 +3,24 @@
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Post-open review-thread pass completed.
+- [x] Post-open review-thread pass completed.
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 20d383f49089f631a4a4d55f42b1cef773e2cf34
+Evidence: Bot review findings fixed by `20d383f49089f631a4a4d55f42b1cef773e2cf34` and prior wide-lane graph cap fix `1a5c38cdc005d02ec4329a22592166635542a811`; focused tests, semantic-cache/docs gates, `make validate-changed`, and `pre-commit run --all-files` PASS.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387039056 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387039063 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387039067 -> 1a5c38cdc005d02ec4329a22592166635542a811
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387039071 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387055991 -> 1a5c38cdc005d02ec4329a22592166635542a811
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387055999 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387056007 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387155363 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387158571 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#discussion_r3387158577 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#pullrequestreview-4466313812 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1937#pullrequestreview-4466349394 -> 20d383f49089f631a4a4d55f42b1cef773e2cf34
 
 ## Lane Start Provenance
 - Packet: `artifacts/orchestration/task_packets/998e30d3829d.json`
@@ -60,5 +74,28 @@ Reason: Mapping artifact and PR body now use the exact parser-safe checklist lab
 - Bug-hunter P1 wide-lane context compression failure: FIXED in commit `1a5c38cdc`.
 Evidence: `scripts/orchestration/context_pack_compression.py`; `tests/test_context_pack_compression.py::test_context_pack_compression_degrades_on_unbounded_graph_sizes`; `tests/test_context_pack_compression.py::test_context_pack_compression_degrades_on_unbounded_edge_sizes`; `tests/test_task_bootstrap.py::test_task_bootstrap_keeps_wide_pr_packets_when_context_graph_truncates`; `make validate-changed` PASS.
 Reason: The public compression builder now degrades advisory graph/edge detail deterministically with `graph_limit_truncated` / `compression_limit_exceeded` reason codes while preserving `required_context` and task packet creation for wide PR lanes.
+- Security-auditor post-open pass: NOT-A-BUG / no code change required.
+Evidence: no raw prompt/context/response ingestion; `scripts/orchestration/context_pack_compression.py` validates unsafe metadata and uses repo-relative paths plus `stat().st_size`; no provider, network, cache backend, embedding, or runtime GraphRAG imports were added.
+Reason: The post-open security pass found no security/privacy blockers for the PR-O2 metadata-only scope.
+- Codex Security diff scan/finding discovery: NOT-A-BUG / no findings.
+Evidence: `/tmp/codex-security-scans/semantic-context-compression-o2/8e5119dd8_20260610T093839Z/report.md`; 4 worklist receipts in `work_ledger.jsonl`; targeted Bandit over changed Python files PASS; targeted pytest and semantic-cache/docs gates PASS.
+Reason: Diff-scoped scan emitted no technically plausible security candidates.
+- `pulseplate-pr-review` large-diff advisory note: NOT-A-BUG.
+Evidence: `/tmp/pulseplate_pr_1937_review_report.md`; `make validate-changed` PASS; `python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` PASS through repo `.venv`.
+Reason: The advisory note asks for split rationale and targeted gates because the diff exceeds 800 changed lines. The PR remains a single narrow PR-O2 slice because implementation, schema, docs mirrors, CI guards, and tests are coupled; the targeted deterministic gates passed and full local `make verify` is intentionally deferred by operator-approved machine-heavy policy for this train.
 
-Pending post-open `security-auditor`, Codex Security diff/finding discovery, and `pulseplate-pr-review`.
+## Bot Review Finding Closure
+- CodeRabbit missing `required_followups` contract documentation: FIXED in commit `20d383f49089f631a4a4d55f42b1cef773e2cf34`.
+Evidence: `docs/orchestration/contracts/SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md`; `tests/test_semantic_cache_context_compression_contract.py`; `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md` PASS.
+- CodeRabbit/Cubic fail-open context-compression schema validator: FIXED in commit `20d383f49089f631a4a4d55f42b1cef773e2cf34`.
+Evidence: `scripts/ci/check_semantic_cache_gate.py`; `tests/test_semantic_cache_context_compression_contract.py::test_context_compression_schema_validator_rejects_missing_root_type`; `tests/test_semantic_cache_context_compression_contract.py::test_context_compression_schema_validator_rejects_missing_required_field`; `tests/test_semantic_cache_context_compression_contract.py::test_context_compression_schema_validator_rejects_missing_node_type_enum`; `tests/test_semantic_cache_context_compression_contract.py::test_context_compression_schema_validator_rejects_missing_estimate_field_enum`.
+- CodeRabbit/Cubic candidate estimate undercount/truncation bias: FIXED in commit `20d383f49089f631a4a4d55f42b1cef773e2cf34`.
+Evidence: `scripts/orchestration/context_pack_compression.py`; `tests/test_context_pack_compression.py::test_context_pack_compression_estimates_without_reading_raw_file_payloads`; `tests/test_context_pack_compression.py::test_context_pack_compression_degrades_on_unbounded_graph_sizes`.
+- CodeRabbit/Codex/Sourcery edge cap advisory packet abort risk: FIXED in commit `1a5c38cdc005d02ec4329a22592166635542a811` with type follow-up `8e5119dd86289794754042726ab2e431719e27eb`.
+Evidence: `scripts/orchestration/context_pack_compression.py`; `tests/test_context_pack_compression.py::test_context_pack_compression_degrades_on_unbounded_edge_sizes`; `tests/test_task_bootstrap.py::test_task_bootstrap_keeps_wide_pr_packets_when_context_graph_truncates`.
+- Codex changed-file role loss for required context paths and Sourcery redundant classification: FIXED in commit `20d383f49089f631a4a4d55f42b1cef773e2cf34`.
+Evidence: `scripts/orchestration/context_pack_compression.py`; `tests/test_context_pack_compression.py::test_context_pack_compression_preserves_dual_required_and_candidate_role`.
+- Cubic fail-open `supports` forbidden-claim wording: FIXED in commit `20d383f49089f631a4a4d55f42b1cef773e2cf34`.
+Evidence: `scripts/ci/check_semantic_cache_gate.py`; `tests/test_semantic_cache_context_compression_contract.py::test_context_compression_contract_validator_rejects_forbidden_claims`.
+- CodeRabbit AST import guard nitpick and Sourcery deterministic metadata budget: FIXED in commit `20d383f49089f631a4a4d55f42b1cef773e2cf34`.
+Evidence: `tests/test_context_pack_compression.py::test_context_pack_compression_has_no_provider_or_runtime_imports`; `scripts/orchestration/context_pack_compression.py`.
