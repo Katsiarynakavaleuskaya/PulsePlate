@@ -196,6 +196,13 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert compression["estimate"]["tokens_saved_estimate"] >= 0
     assert "gate_closed" in compression["reason_codes"]
     assert "metadata_only" in compression["reason_codes"]
+    provider_routing = packet["provider_model_tier_routing"]
+    assert provider_routing["telemetry_phase"] == "PR-O3"
+    assert provider_routing["selected_route"] == "no_runtime_selection"
+    assert "frontier_required" in provider_routing["model_tier_labels"]
+    assert "agent-coordinator" in provider_routing["required_frontier_roles"]
+    assert "no_provider_call" in provider_routing["reason_codes"]
+    assert "no_cache_serving" in provider_routing["reason_codes"]
     assert packet["skill_routing"]["envelope_mode_hint"] == "docs_only"
     _docs_paths = ["docs/ENGINEERING_LESSONS.md"]
     _norm_docs = repo_relative_paths([p.strip() for p in _docs_paths if p.strip()])
@@ -1379,6 +1386,9 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     assert first_packet["design_lane_contract"] == second_packet["design_lane_contract"]
     assert first_packet["message_envelope"] == second_packet["message_envelope"]
     assert first_packet["context_pack_compression"] == second_packet["context_pack_compression"]
+    assert (
+        first_packet["provider_model_tier_routing"] == second_packet["provider_model_tier_routing"]
+    )
     assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
     assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]

@@ -49,6 +49,16 @@ DEFAULT_CONTEXT_COMPRESSION_CONTRACT = (
 DEFAULT_CONTEXT_COMPRESSION_SCHEMA = DEFAULT_CONTEXT_COMPRESSION_CONTRACT.with_suffix(
     ".schema.json"
 )
+DEFAULT_PROVIDER_MODEL_TIER_ROUTING_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.md"
+)
+DEFAULT_PROVIDER_MODEL_TIER_ROUTING_SCHEMA = (
+    DEFAULT_PROVIDER_MODEL_TIER_ROUTING_CONTRACT.with_suffix(".schema.json")
+)
 DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT = (
     REPO_ROOT
     / "docs"
@@ -731,6 +741,192 @@ CONTEXT_COMPRESSION_SCHEMA_REQUIRED_FIELDS = (
     "context_compression_estimate_fields",
     "allowed_node_types",
     "allowed_edge_types",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
+    "required_followups",
+)
+
+PROVIDER_MODEL_TIER_ROUTING_REQUIRED_ANCHORS = (
+    ("metadata-only", re.compile(r"\bmetadata-only\b")),
+    ("gate status closed", re.compile(r"\bgate status: closed\b")),
+    ("runtime allowed false", re.compile(r"\bruntime allowed: false\b")),
+    ("implementation allowed false", re.compile(r"\bimplementation allowed: false\b")),
+    ("runtime routing allowed false", re.compile(r"\bruntime routing allowed: false\b")),
+    ("provider calls allowed false", re.compile(r"\bprovider calls allowed: false\b")),
+    ("selected route none", re.compile(r"\bselected route: no_runtime_selection\b")),
+    ("telemetry phase", re.compile(r"\btelemetry phase: pr-o3\b")),
+    ("frontier required", re.compile(r"\bfrontier_required\b")),
+    ("provider labels only", re.compile(r"\bprovider labels are labels only\b")),
+    ("no provider-specific pricing", re.compile(r"\bno provider-specific prices\b")),
+    ("no model downgrade", re.compile(r"\bmust not downgrade\b")),
+)
+PROVIDER_MODEL_TIER_ROUTING_FORBIDDEN_PATTERNS = (
+    (
+        "runtime routing",
+        re.compile(
+            r"\bprovider/model-tier routing (?:enables|opens|approves|allows|permits|supports) runtime routing\b"
+        ),
+    ),
+    (
+        "runtime selection",
+        re.compile(
+            r"\bprovider/model-tier routing (?:selects|chooses|routes to) (?:a )?(?:provider|model|tier)\b"
+        ),
+    ),
+    (
+        "provider calls",
+        re.compile(
+            r"\bprovider/model-tier routing (?:performs|allows|enables|permits|supports) provider calls\b"
+        ),
+    ),
+    ("Ollama wiring", re.compile(r"\bprovider/model-tier routing wires ollama\b")),
+    ("Perplexity wiring", re.compile(r"\bprovider/model-tier routing wires perplexity\b")),
+    ("Sonar wiring", re.compile(r"\bprovider/model-tier routing wires sonar\b")),
+    (
+        "model downgrade",
+        re.compile(r"\bprovider/model-tier routing (?:allows|supports) model downgrade\b"),
+    ),
+    ("cheap final review", re.compile(r"\bcheap(?:er)? tiers? (?:handle|run) final review\b")),
+    ("live savings", re.compile(r"\bprovider/model-tier routing proves live savings\b")),
+    ("billing truth", re.compile(r"\bprovider/model-tier routing creates billing truth\b")),
+    (
+        "provider-specific pricing",
+        re.compile(r"\bprovider/model-tier routing encodes provider-specific prices\b"),
+    ),
+    ("cache serving", re.compile(r"\bprovider/model-tier routing enables cache serving\b")),
+    ("embeddings", re.compile(r"\bprovider/model-tier routing enables embeddings\b")),
+    ("GraphRAG runtime", re.compile(r"\bprovider/model-tier routing enables graphrag runtime\b")),
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_CONST_FALSE_FIELDS = (
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_routing_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_PROVIDER_LABELS = (
+    "gpt",
+    "ollama",
+    "perplexity_sonar",
+    "perplexity_agent",
+    "unknown_provider",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_TIER_LABELS = (
+    "frontier_required",
+    "standard_advisory",
+    "local_preprocess_advisory",
+    "search_synthesis_advisory",
+    "unknown_tier",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_TELEMETRY_FIELDS = (
+    "telemetry_id",
+    "telemetry_phase",
+    "policy_snapshot_id",
+    "selected_route",
+    "required_frontier_roles",
+    "candidate_pre_synthesis_roles",
+    "blocked_runtime_roles",
+    "provider_labels",
+    "model_tier_labels",
+    "token_economy_estimate_ids",
+    "reason_codes",
+    "metadata",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_RECORD_FIELDS = (
+    "record_id",
+    "provider_label",
+    "model_tier_label",
+    "allowed_advisory_roles",
+    "blocked_runtime_roles",
+    "quality_floor",
+    "relative_cost_rank",
+    "metadata",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_REASON_CODES = (
+    "gate_closed",
+    "metadata_only",
+    "provider_labels_only",
+    "no_runtime_selection",
+    "frontier_review_preserved",
+    "no_provider_call",
+    "no_cache_serving",
+    "no_embeddings",
+    "no_graphrag_runtime",
+    "estimate_only",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_PAYLOADS = (
+    "raw_prompts",
+    "raw_queries",
+    "normalized_queries",
+    "raw_model_responses",
+    "provider_payloads",
+    "provider_api_payloads",
+    "secrets",
+    "credentials",
+    "local_paths",
+    "account_truth",
+    "billing_truth",
+    "provider_specific_pricing",
+    "health_sensitive_payloads",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_BACKENDS = (
+    "provider_clients",
+    "provider_calls",
+    "Ollama",
+    "Perplexity",
+    "Sonar",
+    "GPT_client",
+    "OpenAPI",
+    "DB",
+    "Redis",
+    "GPTCache",
+    "embeddings",
+    "semantic_similarity",
+    "vector_search",
+    "GraphRAG_runtime",
+    "runtime_router",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_POLICY_DECISIONS = (
+    "runtime_provider_selection",
+    "runtime_model_selection",
+    "final_review_downgrade",
+    "billing_decisions",
+    "entitlement_decisions",
+    "account_truth_decisions",
+    "provider_specific_pricing_truth",
+    "production_cost_claims",
+    "live_savings_claims",
+    "cache_hit_rate_claims",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_FIELDS = (
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_routing_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+    "telemetry_phase",
+    "authority_boundary",
+    "asset_type",
+    "selected_route",
+    "allowed_provider_labels",
+    "allowed_model_tier_labels",
+    "routing_telemetry_fields",
+    "tier_record_fields",
+    "required_reason_codes",
     "blocked_payloads",
     "blocked_backends",
     "blocked_policy_decisions",
@@ -3017,6 +3213,143 @@ def validate_semantic_cache_context_compression_schema(schema_text: str) -> list
     return errors
 
 
+def validate_semantic_cache_provider_model_tier_routing_contract(text: str) -> list[str]:
+    """Return stable validation errors for PR-O3 provider/model-tier telemetry."""
+
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in PROVIDER_MODEL_TIER_ROUTING_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"provider/model-tier routing contract missing anchor: {label}")
+
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden provider/model-tier routing claim: {label}"
+        for label, pattern in PROVIDER_MODEL_TIER_ROUTING_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
+def validate_semantic_cache_provider_model_tier_routing_schema(
+    schema_text: str,
+) -> list[str]:
+    """Return stable validation errors for PR-O3 provider/model-tier schema."""
+
+    errors: list[str] = []
+    try:
+        schema = json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        return [f"provider/model-tier routing schema invalid JSON: {exc.msg}"]
+    if not isinstance(schema, dict):
+        return ["provider/model-tier routing schema must be an object"]
+    if schema.get("type") != "object":
+        errors.append("provider/model-tier routing schema root type must be object")
+    if schema.get("additionalProperties") is not False:
+        errors.append("provider/model-tier routing schema must forbid additionalProperties")
+    required = schema.get("required")
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("provider/model-tier routing schema required must be a string list")
+        required_set: set[str] = set()
+    else:
+        required_set = set(required)
+    for field in PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_FIELDS:
+        if field not in required_set:
+            errors.append(f"provider/model-tier routing schema missing required field: {field}")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return [*errors, "provider/model-tier routing schema missing properties"]
+    if _schema_const(properties, "gate_status") != "closed":
+        errors.append("provider/model-tier routing schema gate_status must be const closed")
+    if _schema_const(properties, "telemetry_phase") != "PR-O3":
+        errors.append("provider/model-tier routing schema telemetry_phase must be const PR-O3")
+    if _schema_const(properties, "authority_boundary") != "metadata_only_non_serving":
+        errors.append(
+            "provider/model-tier routing schema authority_boundary must be const "
+            "metadata_only_non_serving"
+        )
+    if _schema_const(properties, "asset_type") != "provider_model_tier_routing_telemetry":
+        errors.append(
+            "provider/model-tier routing schema asset_type must be const "
+            "provider_model_tier_routing_telemetry"
+        )
+    if _schema_const(properties, "selected_route") != "no_runtime_selection":
+        errors.append(
+            "provider/model-tier routing schema selected_route must be const "
+            "no_runtime_selection"
+        )
+    for field in PROVIDER_MODEL_TIER_ROUTING_SCHEMA_CONST_FALSE_FIELDS:
+        if _schema_const(properties, field) is not False:
+            errors.append(f"provider/model-tier routing schema {field} must be const false")
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_provider_labels",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_PROVIDER_LABELS,
+            "provider/model-tier routing schema missing provider label",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_model_tier_labels",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_TIER_LABELS,
+            "provider/model-tier routing schema missing model tier label",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "routing_telemetry_fields",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_TELEMETRY_FIELDS,
+            "provider/model-tier routing schema missing telemetry field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "tier_record_fields",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_RECORD_FIELDS,
+            "provider/model-tier routing schema missing tier record field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "required_reason_codes",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_REASON_CODES,
+            "provider/model-tier routing schema missing reason code",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_payloads",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_PAYLOADS,
+            "provider/model-tier routing schema missing blocked payload",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_backends",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_BACKENDS,
+            "provider/model-tier routing schema missing blocked backend",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_policy_decisions",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_POLICY_DECISIONS,
+            "provider/model-tier routing schema missing blocked policy decision",
+        )
+    )
+    return errors
+
+
 def validate_semantic_cache_backend_selection_contract(text: str) -> list[str]:
     """Return stable validation errors for unsafe SC-G5 backend selection contracts."""
     errors: list[str] = []
@@ -3983,6 +4316,18 @@ def main(argv: list[str] | None = None) -> int:
         help="PR-O2 context compression JSON schema to validate.",
     )
     parser.add_argument(
+        "--provider-model-tier-routing-contract",
+        type=Path,
+        default=DEFAULT_PROVIDER_MODEL_TIER_ROUTING_CONTRACT,
+        help="PR-O3 provider/model-tier routing markdown document to validate.",
+    )
+    parser.add_argument(
+        "--provider-model-tier-routing-schema",
+        type=Path,
+        default=DEFAULT_PROVIDER_MODEL_TIER_ROUTING_SCHEMA,
+        help="PR-O3 provider/model-tier routing JSON schema to validate.",
+    )
+    parser.add_argument(
         "--philosophy-admission-contract",
         type=Path,
         default=DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT,
@@ -4086,6 +4431,22 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    provider_model_tier_routing_contract = args.provider_model_tier_routing_contract
+    if not provider_model_tier_routing_contract.exists():
+        print(
+            "ERROR: provider/model-tier routing contract missing: "
+            f"{provider_model_tier_routing_contract}",
+            file=sys.stderr,
+        )
+        return 1
+    provider_model_tier_routing_schema = args.provider_model_tier_routing_schema
+    if not provider_model_tier_routing_schema.exists():
+        print(
+            "ERROR: provider/model-tier routing schema missing: "
+            f"{provider_model_tier_routing_schema}",
+            file=sys.stderr,
+        )
+        return 1
 
     philosophy_admission_contract = args.philosophy_admission_contract
     if not philosophy_admission_contract.exists():
@@ -4157,6 +4518,16 @@ def main(argv: list[str] | None = None) -> int:
             context_compression_schema.read_text(encoding="utf-8")
         )
     )
+    errors.extend(
+        validate_semantic_cache_provider_model_tier_routing_contract(
+            provider_model_tier_routing_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_provider_model_tier_routing_schema(
+            provider_model_tier_routing_schema.read_text(encoding="utf-8")
+        )
+    )
     philosophy_admission_text = philosophy_admission_contract.read_text(encoding="utf-8")
     errors.extend(validate_philosophy_semantic_cache_admission_contract(philosophy_admission_text))
     errors.extend(
@@ -4211,6 +4582,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"cache observability contract closed: {observability_contract}")
     print(f"bounded insight experiment contract closed: {bounded_insight_contract}")
     print(f"backend selection contract closed: {backend_selection_contract}")
+    print(f"context compression contract closed: {context_compression_contract}")
+    print(f"provider/model-tier routing contract closed: {provider_model_tier_routing_contract}")
     print(f"philosophy admission contract closed: {philosophy_admission_contract}")
     print(f"philosophy admission policy closed: {philosophy_admission_policy}")
     print(f"philosophy admission oracle fixture current: {philosophy_admission_oracle}")

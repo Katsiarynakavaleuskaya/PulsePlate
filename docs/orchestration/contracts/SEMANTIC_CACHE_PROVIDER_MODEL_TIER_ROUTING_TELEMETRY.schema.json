@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic Cache Provider Model-Tier Routing Telemetry Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_routing_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+    "telemetry_phase",
+    "authority_boundary",
+    "asset_type",
+    "selected_route",
+    "allowed_provider_labels",
+    "allowed_model_tier_labels",
+    "routing_telemetry_fields",
+    "tier_record_fields",
+    "required_reason_codes",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
+    "required_followups"
+  ],
+  "properties": {
+    "gate_status": {
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "runtime_routing_allowed": {
+      "const": false
+    },
+    "runtime_handoff_allowed": {
+      "const": false
+    },
+    "cache_read_allowed": {
+      "const": false
+    },
+    "cache_write_allowed": {
+      "const": false
+    },
+    "serving_allowed": {
+      "const": false
+    },
+    "provider_calls_allowed": {
+      "const": false
+    },
+    "provider_wiring_allowed": {
+      "const": false
+    },
+    "model_downgrade_allowed": {
+      "const": false
+    },
+    "pricing_truth_allowed": {
+      "const": false
+    },
+    "telemetry_phase": {
+      "const": "PR-O3"
+    },
+    "authority_boundary": {
+      "const": "metadata_only_non_serving"
+    },
+    "asset_type": {
+      "const": "provider_model_tier_routing_telemetry"
+    },
+    "selected_route": {
+      "const": "no_runtime_selection"
+    },
+    "allowed_provider_labels": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "gpt",
+          "ollama",
+          "perplexity_sonar",
+          "perplexity_agent",
+          "unknown_provider"
+        ]
+      },
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "allowed_model_tier_labels": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "frontier_required",
+          "standard_advisory",
+          "local_preprocess_advisory",
+          "search_synthesis_advisory",
+          "unknown_tier"
+        ]
+      },
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "routing_telemetry_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "telemetry_id",
+          "telemetry_phase",
+          "policy_snapshot_id",
+          "selected_route",
+          "required_frontier_roles",
+          "candidate_pre_synthesis_roles",
+          "blocked_runtime_roles",
+          "provider_labels",
+          "model_tier_labels",
+          "token_economy_estimate_ids",
+          "reason_codes",
+          "metadata"
+        ]
+      },
+      "minItems": 12,
+      "uniqueItems": true
+    },
+    "tier_record_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "record_id",
+          "provider_label",
+          "model_tier_label",
+          "allowed_advisory_roles",
+          "blocked_runtime_roles",
+          "quality_floor",
+          "relative_cost_rank",
+          "metadata"
+        ]
+      },
+      "minItems": 8,
+      "uniqueItems": true
+    },
+    "required_reason_codes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "gate_closed",
+          "metadata_only",
+          "provider_labels_only",
+          "no_runtime_selection",
+          "frontier_review_preserved",
+          "no_provider_call",
+          "no_cache_serving",
+          "no_embeddings",
+          "no_graphrag_runtime",
+          "estimate_only"
+        ]
+      },
+      "minItems": 10,
+      "uniqueItems": true
+    },
+    "blocked_payloads": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "raw_prompts",
+          "raw_queries",
+          "normalized_queries",
+          "raw_model_responses",
+          "provider_payloads",
+          "provider_api_payloads",
+          "secrets",
+          "credentials",
+          "local_paths",
+          "account_truth",
+          "billing_truth",
+          "provider_specific_pricing",
+          "health_sensitive_payloads"
+        ]
+      },
+      "minItems": 13,
+      "uniqueItems": true
+    },
+    "blocked_backends": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "provider_clients",
+          "provider_calls",
+          "Ollama",
+          "Perplexity",
+          "Sonar",
+          "GPT_client",
+          "OpenAPI",
+          "DB",
+          "Redis",
+          "GPTCache",
+          "embeddings",
+          "semantic_similarity",
+          "vector_search",
+          "GraphRAG_runtime",
+          "runtime_router"
+        ]
+      },
+      "minItems": 15,
+      "uniqueItems": true
+    },
+    "blocked_policy_decisions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "runtime_provider_selection",
+          "runtime_model_selection",
+          "final_review_downgrade",
+          "billing_decisions",
+          "entitlement_decisions",
+          "account_truth_decisions",
+          "provider_specific_pricing_truth",
+          "production_cost_claims",
+          "live_savings_claims",
+          "cache_hit_rate_claims"
+        ]
+      },
+      "minItems": 10,
+      "uniqueItems": true
+    },
+    "required_followups": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}
