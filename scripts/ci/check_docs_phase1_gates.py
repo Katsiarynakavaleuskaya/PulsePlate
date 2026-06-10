@@ -31,6 +31,8 @@ try:
         validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
         validate_semantic_cache_context_compression_contract as _validate_context_compression_contract,
         validate_semantic_cache_context_compression_schema as _validate_context_compression_schema,
+        validate_semantic_cache_provider_model_tier_routing_contract as _validate_provider_model_tier_routing_contract,
+        validate_semantic_cache_provider_model_tier_routing_schema as _validate_provider_model_tier_routing_schema,
         validate_semantic_cache_gate as _validate_semantic_cache_gate,
         validate_semantic_cache_observability_contract as _validate_observability_contract,
         validate_semantic_cache_rollout_contract as _validate_rollout_contract,
@@ -69,6 +71,8 @@ except ModuleNotFoundError:
         validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
         validate_semantic_cache_context_compression_contract as _validate_context_compression_contract,
         validate_semantic_cache_context_compression_schema as _validate_context_compression_schema,
+        validate_semantic_cache_provider_model_tier_routing_contract as _validate_provider_model_tier_routing_contract,
+        validate_semantic_cache_provider_model_tier_routing_schema as _validate_provider_model_tier_routing_schema,
         validate_semantic_cache_gate as _validate_semantic_cache_gate,
         validate_semantic_cache_observability_contract as _validate_observability_contract,
         validate_semantic_cache_rollout_contract as _validate_rollout_contract,
@@ -115,6 +119,12 @@ SEMANTIC_CACHE_CONTEXT_COMPRESSION_CONTRACT_DOC = (
 )
 SEMANTIC_CACHE_CONTEXT_COMPRESSION_CONTRACT_SCHEMA = (
     "docs/orchestration/contracts/SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.schema.json"
+)
+SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.md"
+)
+SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.schema.json"
 )
 PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC = (
     "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md"
@@ -287,6 +297,19 @@ def _load_semantic_cache_context_compression_schema_validator() -> (
     ContextCompressionSchemaValidator
 ):
     return cast(ContextCompressionSchemaValidator, _validate_context_compression_schema)
+
+
+def _load_semantic_cache_provider_model_tier_routing_validator() -> SemanticCacheGateValidator:
+    return _as_semantic_cache_gate_validator(_validate_provider_model_tier_routing_contract)
+
+
+def _load_semantic_cache_provider_model_tier_routing_schema_validator() -> (
+    ContextCompressionSchemaValidator
+):
+    return cast(
+        ContextCompressionSchemaValidator,
+        _validate_provider_model_tier_routing_schema,
+    )
 
 
 def _load_philosophy_admission_contract_validator() -> SemanticCacheGateValidator:
@@ -617,6 +640,53 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                 )
                 errors.extend(
                     f"{relpath}: {error}" for error in validate_context_compression_schema(content)
+                )
+
+        if relpath == SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC:
+            validate_provider_model_tier_routing = (
+                _load_semantic_cache_provider_model_tier_routing_validator()
+            )
+            errors.extend(
+                f"{relpath}: {error}" for error in validate_provider_model_tier_routing(content)
+            )
+            validate_provider_model_tier_routing_schema = (
+                _load_semantic_cache_provider_model_tier_routing_schema_validator()
+            )
+            try:
+                schema_text = _read_text(SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_provider_model_tier_routing_schema(schema_text)
+                )
+
+        if relpath == SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_SCHEMA:
+            validate_provider_model_tier_routing_schema = (
+                _load_semantic_cache_provider_model_tier_routing_schema_validator()
+            )
+            try:
+                contract_text = _read_text(SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_CONTRACT_DOC}"
+                )
+            else:
+                validate_provider_model_tier_routing = (
+                    _load_semantic_cache_provider_model_tier_routing_validator()
+                )
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_provider_model_tier_routing(contract_text)
+                )
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_provider_model_tier_routing_schema(content)
                 )
 
         if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC:
