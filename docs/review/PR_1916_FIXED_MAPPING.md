@@ -12,6 +12,7 @@ artifact policy, and the synthetic redaction test no longer trips secret scannin
 
 ## Lane Start Provenance
 
+- Packet: `artifacts/orchestration/task_packets/d79c1c61cefe.json`
 - Initial packet: `artifacts/orchestration/task_packets/d79c1c61cefe.json`
 - Post-open packet: `artifacts/orchestration/task_packets/pr_1916_post_open_review.json`
 - Post-open packet id: `0389f559da6b`
@@ -58,6 +59,8 @@ OUT:
 - `securing-github-actions-workflows`: applied to workflow artifact and secret-handling risk.
 
 ## Experiment Runner Evidence
+
+Artifact: `artifacts/orchestration/experiments/results/exp-13191b5791a2.json`
 
 Artifacts:
 
