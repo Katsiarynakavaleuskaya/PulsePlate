@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from pathlib import Path
 
@@ -89,6 +90,10 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"] == (
         "architecture-specialist"
     )
+    compression = packet["context_pack_compression"]
+    role_fingerprint_re = re.compile(r"^role-fingerprint:[0-9a-f]{24}$")
+    assert role_fingerprint_re.match(compression["metadata"]["primary_agent_fingerprint"])
+    assert role_fingerprint_re.match(compression["metadata"]["reviewer_fingerprint"])
 
 
 def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
