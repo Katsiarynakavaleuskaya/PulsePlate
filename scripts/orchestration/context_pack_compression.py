@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+import json
 import math
 from pathlib import Path
 import re
@@ -338,6 +339,7 @@ def build_context_pack_compression(
         ),
     )
 
+    candidate_path_set = set(normalized_candidate_paths)
     included_required_paths = normalized_required_context[:MAX_NODES]
     remaining_node_budget = max(0, MAX_NODES - len(included_required_paths))
     included_candidate_paths = tuple(
@@ -351,9 +353,19 @@ def build_context_pack_compression(
 
     nodes_by_path: dict[str, ContextGraphNode] = {}
     for path in included_candidate_paths:
-        nodes_by_path[path] = _build_node(path=path, required=False, repo_root=repo_root)
+        nodes_by_path[path] = _build_node(
+            path=path,
+            required=False,
+            candidate=True,
+            repo_root=repo_root,
+        )
     for path in included_required_paths:
-        nodes_by_path[path] = _build_node(path=path, required=True, repo_root=repo_root)
+        nodes_by_path[path] = _build_node(
+            path=path,
+            required=True,
+            candidate=path in candidate_path_set,
+            repo_root=repo_root,
+        )
 
     nodes = tuple(nodes_by_path[path] for path in sorted(nodes_by_path))
     edges, edges_truncated = _build_edges(
@@ -361,29 +373,43 @@ def build_context_pack_compression(
         required_nodes=[nodes_by_path[path] for path in included_required_paths],
     )
     selected_refs = tuple(
-        _context_ref_mapping(
+        _context_ref_mapping_for_path(
             path=path,
-            node=nodes_by_path[path],
-            status="retained",
-            reason_code=REASON_REQUIRED_CONTEXT_PRESERVED,
+            node=nodes_by_path.get(path),
+            repo_root=repo_root,
+            status="retained" if path in nodes_by_path else "retained_without_graph_node",
+            reason_code=(
+                REASON_REQUIRED_CONTEXT_PRESERVED
+                if path in nodes_by_path
+                else REASON_GRAPH_LIMIT_TRUNCATED
+            ),
         )
-        for path in included_required_paths
+        for path in normalized_required_context
     )
     omitted_refs = tuple(
-        _context_ref_mapping(
+        _context_ref_mapping_for_path(
             path=path,
-            node=nodes_by_path[path],
+            node=nodes_by_path.get(path),
+            repo_root=repo_root,
             status="duplicate_reference",
             reason_code=REASON_DUPLICATE_CONTEXT_REFERENCE,
         )
         for path in duplicate_context
-        if path in nodes_by_path
     )
 
     baseline_chars = sum(
         _safe_context_char_count(path, repo_root=repo_root) for path in normalized_required_context
     )
-    candidate_chars = sum(_reference_char_count(ref) for ref in selected_refs)
+    candidate_metadata_payload: JsonValue = {
+        "authority_boundary": CONTEXT_COMPRESSION_AUTHORITY_BOUNDARY,
+        "graph_edges": [dict(to_stable_mapping(edge)) for edge in edges],
+        "graph_nodes": [dict(to_stable_mapping(node)) for node in nodes],
+        "omitted_duplicate_refs": [_json_safe_copy(ref) for ref in omitted_refs],
+        "policy_version": normalized_policy_version,
+        "required_context": list(normalized_required_context),
+        "selected_context_refs": [_json_safe_copy(ref) for ref in selected_refs],
+    }
+    candidate_chars = len(_canonical_json_text(candidate_metadata_payload))
     baseline_tokens = _estimate_tokens(baseline_chars)
     candidate_tokens = _estimate_tokens(candidate_chars)
     tokens_saved = max(0, baseline_tokens - candidate_tokens)
@@ -540,25 +566,39 @@ def to_stable_mapping(value: object) -> Mapping[str, JsonValue]:
     raise ValueError(f"unsupported stable mapping value: {type(value).__name__}")
 
 
-def _build_node(*, path: str, required: bool, repo_root: Path) -> ContextGraphNode:
+def _build_node(
+    *,
+    path: str,
+    required: bool,
+    candidate: bool = False,
+    repo_root: Path,
+) -> ContextGraphNode:
     normalized_path = _validate_repo_relative_path(path)
     path_fingerprint = fingerprint_payload({"path": normalized_path})
     token_estimate = _estimate_tokens(
         _safe_context_char_count(normalized_path, repo_root=repo_root)
     )
+    node_type = _classify_node_type(normalized_path)
     payload: JsonValue = {
-        "node_type": _classify_node_type(normalized_path),
+        "node_type": node_type,
         "path_fingerprint": path_fingerprint,
+        "candidate": candidate,
         "required": required,
     }
+    if required and candidate:
+        status = "required_and_candidate"
+    elif required:
+        status = "required"
+    else:
+        status = "candidate"
     return ContextGraphNode(
         node_id=f"ctx-node:{fingerprint_payload(payload)[7:31]}",
-        node_type=_classify_node_type(normalized_path),
+        node_type=node_type,
         path=normalized_path,
         path_fingerprint=path_fingerprint,
         token_estimate=token_estimate,
         required=required,
-        metadata={"status": "required" if required else "candidate"},
+        metadata={"candidate": candidate, "status": status},
     )
 
 
@@ -631,6 +671,36 @@ def _context_ref_mapping(
             "reason_code": _validate_token("reason_code", reason_code),
             "status": _validate_token("status", status),
             "token_estimate": node.token_estimate,
+        }
+    )
+
+
+def _context_ref_mapping_for_path(
+    *,
+    path: str,
+    node: ContextGraphNode | None,
+    repo_root: Path,
+    status: str,
+    reason_code: str,
+) -> Mapping[str, JsonValue]:
+    if node is not None:
+        return _context_ref_mapping(
+            path=path,
+            node=node,
+            status=status,
+            reason_code=reason_code,
+        )
+    normalized_path = _validate_repo_relative_path(path)
+    return _freeze_mapping(
+        {
+            "node_id": None,
+            "path": normalized_path,
+            "path_fingerprint": fingerprint_payload({"path": normalized_path}),
+            "reason_code": _validate_token("reason_code", reason_code),
+            "status": _validate_token("status", status),
+            "token_estimate": _estimate_tokens(
+                _safe_context_char_count(normalized_path, repo_root=repo_root)
+            ),
         }
     )
 
@@ -777,7 +847,7 @@ def _validate_metadata_is_safe(value: JsonValue, *, path: str = "metadata", dept
 
 
 def _validate_metadata_budget(value: Mapping[str, JsonValue]) -> None:
-    serialized = repr(value)
+    serialized = _canonical_json_text(value)
     if len(serialized) > MAX_METADATA_BYTES:
         raise ValueError("metadata exceeds maximum size")
 
@@ -842,3 +912,12 @@ def _validate_non_negative_int(name: str, value: int) -> int:
 def _require_unique(name: str, values: Sequence[str]) -> None:
     if len(values) != len(set(values)):
         raise ValueError(f"{name} must be unique")
+
+
+def _canonical_json_text(value: JsonValue | Mapping[str, JsonValue]) -> str:
+    return json.dumps(
+        _json_safe_copy(value),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )

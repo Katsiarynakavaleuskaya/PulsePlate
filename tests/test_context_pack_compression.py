@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 from typing import cast
@@ -136,6 +137,11 @@ def test_context_pack_compression_estimates_without_reading_raw_file_payloads(
 
     assert pack.estimate.baseline_context_chars_estimate > 0
     assert pack.estimate.baseline_context_tokens_estimate > 0
+    assert pack.estimate.candidate_context_chars_estimate > sum(
+        len(str(value))
+        for ref in dict(to_stable_mapping(pack))["selected_context_refs"]
+        for value in cast(dict[str, JsonValue], ref).values()
+    )
 
 
 def test_context_compression_estimate_rejects_inconsistent_fanout_total() -> None:
@@ -262,22 +268,28 @@ def test_context_graph_constructor_rejects_bool_numeric_fields() -> None:
 
 def test_context_pack_compression_has_no_provider_or_runtime_imports() -> None:
     source = MODULE.read_text(encoding="utf-8")
-
-    forbidden_imports = (
-        "import httpx",
-        "import requests",
-        "import openai",
-        "import redis",
-        "gptcache",
-        "from providers",
-        "import providers",
-        "from app",
-        "import app.",
+    tree = ast.parse(source)
+    forbidden_roots = {
+        "app",
         "embedding",
+        "graphrag",
+        "gptcache",
+        "httpx",
+        "openai",
+        "providers",
+        "redis",
+        "requests",
         "vector_rag",
-        "GraphRAG",
-    )
-    assert not any(item in source for item in forbidden_imports)
+    }
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            assert not any(
+                alias.name.split(".", maxsplit=1)[0].lower() in forbidden_roots
+                for alias in node.names
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            assert node.module.split(".", maxsplit=1)[0].lower() not in forbidden_roots
 
 
 def test_context_pack_compression_degrades_on_unbounded_graph_sizes() -> None:
@@ -295,9 +307,33 @@ def test_context_pack_compression_degrades_on_unbounded_graph_sizes() -> None:
 
     stable = dict(to_stable_mapping(pack))
     assert len(stable["required_context"]) == 201
+    assert len(stable["selected_context_refs"]) == 201
     assert len(stable["graph_nodes"]) == 200
+    assert stable["selected_context_refs"][-1]["node_id"] is None
     assert "graph_limit_truncated" in stable["reason_codes"]
     assert "compression_limit_exceeded" in stable["reason_codes"]
+
+
+def test_context_pack_compression_preserves_dual_required_and_candidate_role() -> None:
+    pack = build_context_pack_compression(
+        candidate_paths=("AGENTS.md",),
+        required_context=("AGENTS.md", "RUNBOOK_AGENT.md"),
+        pr_phase="pre_open",
+        domain="ml",
+        cluster="ml",
+        primary_agent="architecture-specialist",
+        reviewer="rag-systems-agent",
+    )
+
+    agents_node = next(
+        node for node in dict(to_stable_mapping(pack))["graph_nodes"] if node["path"] == "AGENTS.md"
+    )
+
+    assert agents_node["required"] is True
+    assert agents_node["metadata"] == {
+        "candidate": True,
+        "status": "required_and_candidate",
+    }
 
 
 def test_context_pack_compression_degrades_on_unbounded_edge_sizes() -> None:

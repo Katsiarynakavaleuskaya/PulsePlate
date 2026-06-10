@@ -107,6 +107,9 @@ def test_context_compression_schema_pins_closed_authority_flags_and_fields() -> 
     assert "tokens_saved_estimate" in estimate_fields
     assert "fanout_tokens_saved_estimate" in estimate_fields
 
+    assert properties["required_followups"]["minItems"] == 1
+    assert properties["required_followups"]["uniqueItems"] is True
+
 
 def test_context_compression_schema_blocks_runtime_and_policy_decisions() -> None:
     properties = _schema()["properties"]
@@ -166,11 +169,17 @@ def test_context_compression_validators_pass_current_contract_and_schema() -> No
         ("Context compression stores raw prompts.", "raw prompt"),
         ("Context compression stores raw responses.", "raw response"),
         ("Context compression performs provider calls.", "provider calls"),
+        ("Context compression supports provider calls.", "provider calls"),
         ("Context compression approves Redis rollout.", "Redis"),
+        ("Context compression supports Redis rollout.", "Redis"),
         ("Context compression approves GPTCache rollout.", "GPTCache"),
         ("Context compression enables embeddings.", "embeddings"),
+        ("Context compression supports semantic similarity.", "semantic similarity"),
+        ("Context compression supports vector search.", "vector search"),
+        ("Context compression supports GraphRAG runtime.", "GraphRAG runtime"),
         ("Context compression proves production ROI.", "production ROI"),
         ("Context compression allows model downgrade.", "model downgrade"),
+        ("Context compression supports model downgrade.", "model downgrade"),
     ),
 )
 def test_context_compression_contract_validator_rejects_forbidden_claims(
@@ -191,6 +200,52 @@ def test_context_compression_schema_validator_rejects_mutated_runtime_flags() ->
     errors = validate_semantic_cache_context_compression_schema(json.dumps(schema, indent=2) + "\n")
 
     assert errors == ["context compression schema provider_calls_allowed must be const false"]
+
+
+def test_context_compression_schema_validator_rejects_missing_root_type() -> None:
+    schema = _schema()
+    schema.pop("type")
+
+    errors = validate_semantic_cache_context_compression_schema(json.dumps(schema, indent=2) + "\n")
+
+    assert errors == ["context compression schema root type must be object"]
+
+
+def test_context_compression_schema_validator_rejects_missing_required_field() -> None:
+    schema = _schema()
+    required = schema["required"]
+    assert isinstance(required, list)
+    required.remove("provider_calls_allowed")
+
+    errors = validate_semantic_cache_context_compression_schema(json.dumps(schema, indent=2) + "\n")
+
+    assert errors == ["context compression schema missing required field: provider_calls_allowed"]
+
+
+def test_context_compression_schema_validator_rejects_missing_node_type_enum() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    allowed_node_types = properties["allowed_node_types"]["items"]["enum"]
+    allowed_node_types.remove("agent_rule")
+
+    errors = validate_semantic_cache_context_compression_schema(json.dumps(schema, indent=2) + "\n")
+
+    assert errors == ["context compression schema missing allowed node type: agent_rule"]
+
+
+def test_context_compression_schema_validator_rejects_missing_estimate_field_enum() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    estimate_fields = properties["context_compression_estimate_fields"]["items"]["enum"]
+    estimate_fields.remove("baseline_context_chars_estimate")
+
+    errors = validate_semantic_cache_context_compression_schema(json.dumps(schema, indent=2) + "\n")
+
+    assert errors == [
+        "context compression schema missing estimate field: baseline_context_chars_estimate"
+    ]
 
 
 def test_context_compression_schema_validator_rejects_missing_blocked_payloads() -> None:

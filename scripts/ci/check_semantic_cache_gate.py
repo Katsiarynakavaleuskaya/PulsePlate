@@ -569,7 +569,7 @@ CONTEXT_COMPRESSION_FORBIDDEN_PATTERNS = (
     (
         "runtime serving",
         re.compile(
-            r"\bcontext compression (?:enables|opens|approves|allows|permits) (?:semantic[- ]cache )?(?:runtime )?serving\b"
+            r"\bcontext compression (?:enables|opens|approves|allows|permits|supports) (?:semantic[- ]cache )?(?:runtime )?serving\b"
         ),
     ),
     ("raw prompt", re.compile(r"\bcontext compression stores raw prompts?\b")),
@@ -578,18 +578,26 @@ CONTEXT_COMPRESSION_FORBIDDEN_PATTERNS = (
     ("raw response", re.compile(r"\bcontext compression stores raw responses?\b")),
     (
         "provider calls",
-        re.compile(r"\bcontext compression (?:performs|allows|enables|permits) provider calls\b"),
+        re.compile(
+            r"\bcontext compression (?:performs|allows|enables|permits|supports) provider calls\b"
+        ),
     ),
-    ("Redis", re.compile(r"\bcontext compression approves redis rollout\b")),
-    ("GPTCache", re.compile(r"\bcontext compression approves gptcache rollout\b")),
-    ("embeddings", re.compile(r"\bcontext compression enables embeddings\b")),
-    ("semantic similarity", re.compile(r"\bcontext compression enables semantic similarity\b")),
-    ("vector search", re.compile(r"\bcontext compression enables vector search\b")),
-    ("GraphRAG runtime", re.compile(r"\bcontext compression enables graphrag runtime\b")),
+    ("Redis", re.compile(r"\bcontext compression (?:approves|supports) redis rollout\b")),
+    ("GPTCache", re.compile(r"\bcontext compression (?:approves|supports) gptcache rollout\b")),
+    ("embeddings", re.compile(r"\bcontext compression (?:enables|supports) embeddings\b")),
+    (
+        "semantic similarity",
+        re.compile(r"\bcontext compression (?:enables|supports) semantic similarity\b"),
+    ),
+    ("vector search", re.compile(r"\bcontext compression (?:enables|supports) vector search\b")),
+    (
+        "GraphRAG runtime",
+        re.compile(r"\bcontext compression (?:enables|supports) graphrag runtime\b"),
+    ),
     ("production ROI", re.compile(r"\bcontext compression proves production roi\b")),
     ("production cost", re.compile(r"\bcontext compression proves production cost savings\b")),
     ("merge readiness", re.compile(r"\bcontext compression proves merge-readiness\b")),
-    ("model downgrade", re.compile(r"\bcontext compression allows model downgrade\b")),
+    ("model downgrade", re.compile(r"\bcontext compression (?:allows|supports) model downgrade\b")),
 )
 
 CONTEXT_COMPRESSION_SCHEMA_CONST_FALSE_FIELDS = (
@@ -639,6 +647,94 @@ CONTEXT_COMPRESSION_SCHEMA_REQUIRED_POLICY_DECISIONS = (
     "cache_hit_rate_claims",
     "merge_readiness_claims",
     "model_downgrade_decisions",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_UPSTREAM_ASSETS = (
+    "task_packet",
+    "required_context",
+    "candidate_paths",
+    "prompt_module_fingerprints",
+    "source_fingerprints",
+    "semantic_cache_gate_markers",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_PACK_FIELDS = (
+    "context_pack_id",
+    "policy_version",
+    "authority_boundary",
+    "required_context",
+    "selected_context_refs",
+    "omitted_duplicate_refs",
+    "graph_nodes",
+    "graph_edges",
+    "estimate",
+    "reason_codes",
+    "metadata",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_NODE_FIELDS = (
+    "node_id",
+    "node_type",
+    "path",
+    "path_fingerprint",
+    "token_estimate",
+    "required",
+    "metadata",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_EDGE_FIELDS = (
+    "edge_id",
+    "source",
+    "target",
+    "edge_type",
+    "metadata",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_ESTIMATE_FIELDS = (
+    "estimate_id",
+    "baseline_context_chars_estimate",
+    "candidate_context_chars_estimate",
+    "baseline_context_tokens_estimate",
+    "candidate_context_tokens_estimate",
+    "tokens_saved_estimate",
+    "orchestration_fanout_multiplier",
+    "fanout_tokens_saved_estimate",
+    "token_estimate_version",
+    "reason_codes",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_NODE_TYPES = (
+    "changed_file",
+    "contract",
+    "test",
+    "agent_rule",
+    "review_artifact",
+    "roadmap",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_EDGE_TYPES = (
+    "requires",
+    "validates",
+    "constrains",
+    "documents",
+    "reviews",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_FIELDS = (
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "telemetry_phase",
+    "authority_boundary",
+    "asset_type",
+    "upstream_assets",
+    "compressed_context_pack_fields",
+    "context_graph_node_fields",
+    "context_graph_edge_fields",
+    "context_compression_estimate_fields",
+    "allowed_node_types",
+    "allowed_edge_types",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
+    "required_followups",
 )
 
 BOUNDED_INSIGHT_FORBIDDEN_PATTERNS = (
@@ -2806,8 +2902,19 @@ def validate_semantic_cache_context_compression_schema(schema_text: str) -> list
         return [f"context compression schema invalid JSON: {exc.msg}"]
     if not isinstance(schema, dict):
         return ["context compression schema must be an object"]
+    if schema.get("type") != "object":
+        errors.append("context compression schema root type must be object")
     if schema.get("additionalProperties") is not False:
         errors.append("context compression schema must forbid additionalProperties")
+    required = schema.get("required")
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("context compression schema required must be a string list")
+        required_set: set[str] = set()
+    else:
+        required_set = set(required)
+    for field in CONTEXT_COMPRESSION_SCHEMA_REQUIRED_FIELDS:
+        if field not in required_set:
+            errors.append(f"context compression schema missing required field: {field}")
     properties = schema.get("properties")
     if not isinstance(properties, dict):
         return [*errors, "context compression schema missing properties"]
@@ -2830,37 +2937,57 @@ def validate_semantic_cache_context_compression_schema(schema_text: str) -> list
     errors.extend(
         _schema_enum_missing_errors(
             properties,
+            "upstream_assets",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_UPSTREAM_ASSETS,
+            "context compression schema missing upstream asset",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
             "compressed_context_pack_fields",
-            (
-                "context_pack_id",
-                "policy_version",
-                "authority_boundary",
-                "required_context",
-                "selected_context_refs",
-                "omitted_duplicate_refs",
-                "graph_nodes",
-                "graph_edges",
-                "estimate",
-                "reason_codes",
-                "metadata",
-            ),
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_PACK_FIELDS,
             "context compression schema missing compressed context pack field",
         )
     )
     errors.extend(
         _schema_enum_missing_errors(
             properties,
+            "context_graph_node_fields",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_NODE_FIELDS,
+            "context compression schema missing graph node field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "context_graph_edge_fields",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_EDGE_FIELDS,
+            "context compression schema missing graph edge field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
             "context_compression_estimate_fields",
-            (
-                "estimate_id",
-                "baseline_context_tokens_estimate",
-                "candidate_context_tokens_estimate",
-                "tokens_saved_estimate",
-                "fanout_tokens_saved_estimate",
-                "token_estimate_version",
-                "reason_codes",
-            ),
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_ESTIMATE_FIELDS,
             "context compression schema missing estimate field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_node_types",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_NODE_TYPES,
+            "context compression schema missing allowed node type",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_edge_types",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_EDGE_TYPES,
+            "context compression schema missing allowed edge type",
         )
     )
     errors.extend(

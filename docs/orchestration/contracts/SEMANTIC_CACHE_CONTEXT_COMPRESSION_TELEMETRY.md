@@ -108,6 +108,20 @@ Every context compression estimate must carry:
 - token estimate version;
 - reason codes.
 
+The schema-level `required_followups` field must carry a non-empty array of
+unique string keys naming the required follow-up gates for any future PR that
+uses this telemetry. Example:
+
+```json
+{
+  "required_followups": [
+    "semantic_cache_gate_open_pr",
+    "runtime_serving_review",
+    "provider_wiring_review"
+  ]
+}
+```
+
 ## Safety Rules
 
 Context compression is advisory orchestration metadata. It must not replace
