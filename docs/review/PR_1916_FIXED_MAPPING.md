@@ -68,8 +68,8 @@ Accepted oracle-only governance reviewer evidence. The runner applied the source
 | `ATT-RED-005` | Workflow governance contract test still expected raw attestation artifacts in the release-control-plane upload path. | Updated the expected upload-artifact contract to match the intentional digest/status-only upload path. | `test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts`. | same focused pytest command above | `602bbf4f2f9d70b1dc89d5640cfe7c9e06ea3192` | `tests/test_ci_workflow_pr_size_governance_contract.py` | FIXED |
 | `ATT-RED-006` | Premortem found `statement_sha256` implied raw statement integrity after the implementation intentionally stopped hashing raw secret-bearing statements. | Renamed the emitted field to `redacted_statement_summary_sha256` and kept the hash bound to a sanitized predicate-only evidence envelope. | `test_parser_redacts_raw_attestation_build_arguments`. | same focused pytest command above | `602bbf4f2f9d70b1dc89d5640cfe7c9e06ea3192` | `scripts/ci/check_docker_provenance_attestation.py`; `tests/test_check_docker_provenance_attestation.py` | FIXED |
 | `ATT-RED-007` | Premortem found redaction coverage was too narrow for common credential/error shapes. | Added bounded redaction for URL userinfo, bearer-style values, and credential-bearing assignment patterns. | Focused diagnostics redaction tests in `tests/test_check_docker_provenance_attestation.py`. | same focused pytest command above | `602bbf4f2f9d70b1dc89d5640cfe7c9e06ea3192` | `scripts/ci/check_docker_provenance_attestation.py`; `tests/test_check_docker_provenance_attestation.py` | FIXED |
-| `ATT-RED-009` | Bot review found redacted `gh` failure output was not length-bounded before serialization into artifacts and stderr. | Reused `_trim_for_error(...)` in `_run_gh(...)` so subprocess failure details are redacted and bounded before the `RuntimeError` reaches `main()`. | `test_run_gh_redacts_subprocess_failure_output`. | focused pytest command above | `PENDING_COMMIT_SHA` | `scripts/ci/check_docker_provenance_attestation.py`; `tests/test_check_docker_provenance_attestation.py` | FIXED |
-| `ATT-RED-010` | Bot review found the risk matrix table separator had one more column than the table header. | Reduced the separator row to eight cells to match the header. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1916`. | Phase2 gate command | `PENDING_COMMIT_SHA` | `docs/review/PR_1916_FIXED_MAPPING.md` | FIXED |
+| `ATT-RED-009` | Bot review found redacted `gh` failure output was not length-bounded before serialization into artifacts and stderr. | Reused `_trim_for_error(...)` in `_run_gh(...)` so subprocess failure details are redacted and bounded before the `RuntimeError` reaches `main()`. | `test_run_gh_redacts_subprocess_failure_output`. | focused pytest command above | `d99d8930be43575e053da7b79f6c21e0c351fb6b` | `scripts/ci/check_docker_provenance_attestation.py`; `tests/test_check_docker_provenance_attestation.py` | FIXED |
+| `ATT-RED-010` | Bot review found the risk matrix table separator had one more column than the table header. | Reduced the separator row to eight cells to match the header. | `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1916`. | Phase2 gate command | `d99d8930be43575e053da7b79f6c21e0c351fb6b` | `docs/review/PR_1916_FIXED_MAPPING.md` | FIXED |
 | `ATT-RED-008` | Premortem questioned whether sanitized attestation JSON/Markdown should remain uploaded as build artifacts after removing them from release-control-plane build-source artifact inputs. | Kept the PR's policy scope: release-control-plane build-source uploads exclude raw attestation files; build logs and generated local files remain enough for this lane, while CD attestation-check artifact policy stays out of scope. | `test_docker_build_workflow_emits_governed_release_control_plane_sources`; `test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts`. | same focused pytest command above | N/A | `.github/workflows/build.yml`; `tests/test_release_manifest_evidence_workflow.py`; `tests/test_ci_workflow_pr_size_governance_contract.py` | NOT-A-BUG |
 
 ## Tests / Bounded Checks
@@ -103,27 +103,27 @@ Commit: 602bbf4f2f9d70b1dc89d5640cfe7c9e06ea3192
 Evidence: tests/test_ci_workflow_pr_size_governance_contract.py
 Reason: Codex review found the workflow contract guard still expected raw attestation files; commit `602bbf4f2` updated the golden contract to the digest/status-only upload path.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386774296 -> PENDING_COMMIT_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386774296 -> d99d8930be43575e053da7b79f6c21e0c351fb6b
 Disposition: FIXED
-Commit: PENDING_COMMIT_SHA
+Commit: d99d8930be43575e053da7b79f6c21e0c351fb6b
 Evidence: docs/review/PR_1916_FIXED_MAPPING.md
 Reason: CodeRabbit found an eight-column table with a nine-cell separator; this commit fixes the separator row.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386774309 -> PENDING_COMMIT_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386774309 -> d99d8930be43575e053da7b79f6c21e0c351fb6b
 Disposition: FIXED
-Commit: PENDING_COMMIT_SHA
+Commit: d99d8930be43575e053da7b79f6c21e0c351fb6b
 Evidence: scripts/ci/check_docker_provenance_attestation.py; tests/test_check_docker_provenance_attestation.py
 Reason: CodeRabbit found the redacted `gh` failure detail was still unbounded; this commit routes subprocess failure details through `_trim_for_error(...)`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386790040 -> PENDING_COMMIT_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386790040 -> d99d8930be43575e053da7b79f6c21e0c351fb6b
 Disposition: FIXED
-Commit: PENDING_COMMIT_SHA
+Commit: d99d8930be43575e053da7b79f6c21e0c351fb6b
 Evidence: scripts/ci/check_docker_provenance_attestation.py; tests/test_check_docker_provenance_attestation.py
 Reason: Cubic found the same unbounded redacted failure detail risk; this commit applies bounded redaction before the RuntimeError is raised.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386790061 -> PENDING_COMMIT_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1916#discussion_r3386790061 -> d99d8930be43575e053da7b79f6c21e0c351fb6b
 Disposition: FIXED
-Commit: PENDING_COMMIT_SHA
+Commit: d99d8930be43575e053da7b79f6c21e0c351fb6b
 Evidence: docs/review/PR_1916_FIXED_MAPPING.md
 Reason: Cubic found the same table separator mismatch; this commit fixes the separator row.
 
