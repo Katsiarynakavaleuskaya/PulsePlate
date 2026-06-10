@@ -1,0 +1,4 @@
+# Security CI tooling pins.
+# Keep Safety install deterministic through the approved private proxy and governed emergency wheel fallback.
+safety==3.8.1
+regex==2026.5.9

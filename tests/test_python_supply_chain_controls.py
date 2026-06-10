@@ -321,6 +321,38 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
     assert "-c constraints.txt" in install_script
 
 
+def test_ci_security_job_installs_safety_through_locked_installer() -> None:
+    install_step = next(
+        step
+        for step in _workflow_steps(".github/workflows/ci.yml", "security")
+        if step.get("name") == "Install Safety"
+    )
+    install_script = install_step["run"]
+
+    assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--requirements-file requirements-security.txt" in install_script
+    assert "--install-mode direct-proxy" in install_script
+    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
+    assert "python -m pip install" not in install_script
+
+
+def test_security_requirements_pin_safety_and_regex_floor() -> None:
+    requirements_text = (REPO_ROOT / "requirements-security.txt").read_text(encoding="utf-8")
+    emergency_manifest = json.loads(
+        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
+    )
+
+    assert "safety==3.8.1" in requirements_text
+    assert "regex==2026.5.9" in requirements_text
+    assert any(
+        artifact.get("package") == "regex"
+        and artifact.get("version") == "2026.5.9"
+        and artifact.get("filename", "").endswith("manylinux_2_28_x86_64.whl")
+        and "sha256_parts" in artifact
+        for artifact in emergency_manifest["artifacts"]
+    )
+
+
 @pytest.mark.parametrize(
     "job_name", ("test", "performance-test", "integration-test", "coverage-merge")
 )
