@@ -56,10 +56,10 @@ iOS, nutrition, or medical-claim behavior changes.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1931#pullrequestreview-4458583036 -> c8bf80737c62261db56d8f348ddbc836195c1eb6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1931#pullrequestreview-4458583036 -> bf82fec0eb7dfbacbab99b16aa74cd002d2356f0
 
 Disposition: FIXED
-Commit: c8bf80737c62261db56d8f348ddbc836195c1eb6
+Commit: bf82fec0eb7dfbacbab99b16aa74cd002d2356f0
 Evidence: `tests/test_no_bmi_math_outside_core.py` factors shared BMI/WHR identifier context, consolidates camelCase waist-to-hip matching through `_WAIST_TO_HIP_CAMEL_CONTEXT`, keeps `waistHipRatioThreshold` and `waistToHipRatioThreshold` positives, and adds an unrelated waist camelCase negative. Focused validation: `.venv/bin/python -m pytest -q tests/test_no_bmi_math_outside_core.py -k "bmi_thresholds_re"` (`5 passed`).
 
 ## Local Validation Evidence
