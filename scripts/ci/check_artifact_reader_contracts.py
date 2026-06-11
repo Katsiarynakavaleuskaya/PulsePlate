@@ -155,7 +155,7 @@ def _literal_path_parts(
             base = _literal_path_parts(func.value, names, path_constructors, path_modules)
             if base is None:
                 return None
-            parts: list[str] = list(base)
+            parts = list(base)
             for arg in node.args:
                 arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
                 if arg_parts is None:
@@ -170,7 +170,7 @@ def _literal_path_parts(
             and isinstance(func.value.value, ast.Name)
             and func.value.value.id == "os"
         ):
-            parts: list[str] = []
+            parts = []
             for arg in node.args:
                 arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
                 if arg_parts is None:
