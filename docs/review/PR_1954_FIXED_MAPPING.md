@@ -77,6 +77,23 @@ Post-open role findings:
     `add_api_route(...)`, auth/API-key/provider/LLM/entitlement/quota sensitive
     call-family growth, keyword artifact paths, `os.path` existence checks, and
     empty-doc repo validation.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `2f3722e89`
+  - Evidence: `scripts/ci/check_legacy_growth_guard.py` now records app
+    registrations from any call context, rejects sensitive terms on app
+    route/router registration calls, and detects normal `import app.routers.*`
+    growth. `tests/test_legacy_growth_guard.py` covers assigned
+    `add_api_route`, assigned `add_middleware`, assigned `include_router`,
+    allowed-route/allowed-router auth dependency growth, current-baseline
+    API-key surface growth, and normal router imports.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `2f3722e89`
+  - Evidence: `scripts/ci/check_artifact_reader_contracts.py` now resolves
+    `pathlib.Path(...)`, `from pathlib import Path as P`, and
+    `Path(...).joinpath(...)` literal paths before read/enumeration checks.
+    `tests/test_artifact_validation_boundary.py` covers all three variants.
 
 ## Implementation Evidence
 
@@ -93,6 +110,10 @@ Post-open role findings:
   guard surface for middleware/API-route growth, auth/API-key sensitive-family
   growth, keyword artifact path arguments, `os.path` existence checks, and
   empty-doc fail-closed validation.
+- `2f3722e89` - closes post-open bug-hunter false-green findings by scanning
+  non-expression app registration calls, sensitive app-surface dependency
+  terms, normal `import app.routers.*` growth, and `pathlib.Path` alias /
+  `joinpath` artifact-read variants.
 
 ## Premortem Evidence
 
@@ -140,6 +161,11 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 - After `e351c7202`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
 - After `e351c7202`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 43 tests selected.
 - After `e351c7202`: `pre-commit run --all-files` - PASS.
+- After `2f3722e89`: `.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py tests/test_artifact_validation_boundary.py` - PASS, 53 tests.
+- After `2f3722e89`: `.venv/bin/python scripts/ci/check_legacy_growth_guard.py` - PASS.
+- After `2f3722e89`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
+- After `2f3722e89`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 53 tests selected.
+- After `2f3722e89`: `pre-commit run --all-files` - PASS.
 
 ## Current Main / Merge Readiness
 
@@ -155,7 +181,7 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 
 - `agent-coordinator`: FIXED in `e351c7202`; see Fixed in Commit Mapping.
 - `qa-engineer-agent`: FIXED in `e351c7202`; see Fixed in Commit Mapping.
-- `bug-hunter`: pending.
+- `bug-hunter`: FIXED in `2f3722e89`; rerun pending.
 - `security-auditor`: pending.
 - Codex Security diff scan / finding discovery: pending.
 - `pulseplate-pr-review`: pending.
