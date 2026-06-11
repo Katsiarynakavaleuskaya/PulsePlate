@@ -94,6 +94,22 @@ Post-open role findings:
     `pathlib.Path(...)`, `from pathlib import Path as P`, and
     `Path(...).joinpath(...)` literal paths before read/enumeration checks.
     `tests/test_artifact_validation_boundary.py` covers all three variants.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `1bf3f5712`
+  - Evidence: `scripts/ci/check_legacy_growth_guard.py` now blocks
+    `app.add_route(...)`, `app.router.add_api_route(...)`, and sensitive
+    dependency aliases assigned to neutral variables before use on allowed
+    route/router calls. `tests/test_legacy_growth_guard.py` covers these
+    bypasses.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `1bf3f5712`
+  - Evidence: `scripts/ci/check_artifact_reader_contracts.py` now joins all
+    literal `Path(...)` constructor arguments and detects imported stdlib
+    artifact readers, including `from os import listdir`, `from os.path import
+    exists`, `from glob import glob`, and `io.open(...)`.
+    `tests/test_artifact_validation_boundary.py` covers these bypasses.
 
 ## Implementation Evidence
 
@@ -114,6 +130,10 @@ Post-open role findings:
   non-expression app registration calls, sensitive app-surface dependency
   terms, normal `import app.routers.*` growth, and `pathlib.Path` alias /
   `joinpath` artifact-read variants.
+- `1bf3f5712` - closes the remaining post-open bug-hunter false-green findings
+  by scanning `app.add_route`, `app.router.add_api_route`, neutral dependency
+  aliases, multi-argument `Path(...)`, imported stdlib artifact readers, and
+  `io.open(...)`.
 
 ## Premortem Evidence
 
@@ -166,6 +186,11 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 - After `2f3722e89`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
 - After `2f3722e89`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 53 tests selected.
 - After `2f3722e89`: `pre-commit run --all-files` - PASS.
+- After `1bf3f5712`: `.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py tests/test_artifact_validation_boundary.py` - PASS, 62 tests.
+- After `1bf3f5712`: `.venv/bin/python scripts/ci/check_legacy_growth_guard.py` - PASS.
+- After `1bf3f5712`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
+- After `1bf3f5712`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 62 tests selected.
+- After `1bf3f5712`: `pre-commit run --all-files` - PASS.
 
 ## Current Main / Merge Readiness
 
