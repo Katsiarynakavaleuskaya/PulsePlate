@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
 from sqlalchemy.exc import NoSuchTableError
 
 from app.services import restaurant_postgres_read
+
+
+@pytest.fixture(autouse=True)
+def _reset_pg_runtime_cache() -> Iterator[None]:
+    restaurant_postgres_read.reset_restaurant_postgres_runtime_cache()
+    yield
+    restaurant_postgres_read.reset_restaurant_postgres_runtime_cache()
 
 
 class _FakeMappingsResult:
@@ -72,16 +80,27 @@ def test_build_pg_engine_sets_bounded_connect_timeout(monkeypatch: pytest.Monkey
 
     assert engine is fake_engine
     assert captured["kwargs"]["connect_args"] == {
-        "connect_timeout": restaurant_postgres_read.POSTGRES_CONNECT_TIMEOUT_SECONDS
+        "connect_timeout": restaurant_postgres_read.POSTGRES_CONNECT_TIMEOUT_SECONDS,
+        "options": (
+            f"-c statement_timeout="
+            f"{restaurant_postgres_read.POSTGRES_STATEMENT_TIMEOUT_MS}"
+        ),
     }
+    assert captured["kwargs"]["pool_size"] == restaurant_postgres_read.POSTGRES_POOL_SIZE
+    assert captured["kwargs"]["max_overflow"] == restaurant_postgres_read.POSTGRES_MAX_OVERFLOW
+    assert captured["kwargs"]["pool_timeout"] == (
+        restaurant_postgres_read.POSTGRES_POOL_TIMEOUT_SECONDS
+    )
 
 
 def test_search_restaurants_pg_rejects_non_postgres_dialect(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    fake_engine = _FakeEngine(object(), dialect_name="sqlite")
-    monkeypatch.setattr(restaurant_postgres_read, "create_engine", lambda *a, **k: fake_engine)
+    def _unexpected_create_engine(*args: Any, **kwargs: Any) -> _FakeEngine:
+        raise AssertionError("non-PostgreSQL URLs must be rejected before engine creation")
+
+    monkeypatch.setattr(restaurant_postgres_read, "create_engine", _unexpected_create_engine)
 
     with caplog.at_level("DEBUG"):
         with pytest.raises(restaurant_postgres_read.RestaurantPostgresReadError) as exc:
@@ -93,7 +112,6 @@ def test_search_restaurants_pg_rejects_non_postgres_dialect(
             )
 
     assert "target database must be PostgreSQL" in str(exc.value)
-    assert fake_engine.disposed is True
     assert "rejected non-PostgreSQL dialect: sqlite" in caplog.text
 
 
@@ -201,7 +219,7 @@ def test_reflect_read_tables_rejects_missing_required_columns(
     assert "missing required columns" in str(exc.value)
 
 
-def test_search_restaurants_pg_builds_reflects_and_disposes(
+def test_search_restaurants_pg_builds_reflects_and_keeps_engine_cached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_connection = _RecordingConnection(
@@ -230,10 +248,10 @@ def test_search_restaurants_pg_builds_reflects_and_disposes(
 
     assert rows[0]["id"] == "c1"
     assert reflected_connections == [fake_connection]
-    assert fake_engine.disposed is True
+    assert fake_engine.disposed is False
 
 
-def test_get_restaurant_menu_pg_builds_reflects_and_disposes(
+def test_get_restaurant_menu_pg_builds_reflects_and_keeps_engine_cached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_connection = _RecordingConnection(
@@ -277,4 +295,57 @@ def test_get_restaurant_menu_pg_builds_reflects_and_disposes(
 
     assert rows[0]["id"] == "m1"
     assert reflected_connections == [fake_connection]
+    assert fake_engine.disposed is False
+
+
+def test_search_restaurants_pg_reuses_cached_engine_and_schema_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_connection = _RecordingConnection(
+        [{"id": "c1", "name": "Alpha", "country": "US", "source": "menustat"}]
+    )
+    fake_engine = _FakeEngine(fake_connection)
+    build_calls: list[str] = []
+    reflected_connections: list[Any] = []
+
+    def _build(pg_url: str) -> _FakeEngine:
+        build_calls.append(pg_url)
+        return fake_engine
+
+    monkeypatch.setattr(restaurant_postgres_read, "_build_pg_engine", _build)
+    monkeypatch.setattr(
+        restaurant_postgres_read,
+        "_reflect_read_tables",
+        lambda connection: reflected_connections.append(connection),
+    )
+
+    first = restaurant_postgres_read.search_restaurants_pg(
+        pg_url="postgresql://shadow", query="alp", limit=10, offset=0
+    )
+    second = restaurant_postgres_read.search_restaurants_pg(
+        pg_url="postgresql://shadow", query="bet", limit=10, offset=0
+    )
+
+    assert first[0]["id"] == "c1"
+    assert second[0]["id"] == "c1"
+    assert build_calls == ["postgresql://shadow"]
+    assert reflected_connections == [fake_connection]
+    assert fake_engine.disposed is False
+
+
+def test_reset_restaurant_postgres_runtime_cache_disposes_cached_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_connection = _RecordingConnection(
+        [{"id": "c1", "name": "Alpha", "country": "US", "source": "menustat"}]
+    )
+    fake_engine = _FakeEngine(fake_connection)
+    monkeypatch.setattr(restaurant_postgres_read, "_build_pg_engine", lambda pg_url: fake_engine)
+    monkeypatch.setattr(restaurant_postgres_read, "_reflect_read_tables", lambda connection: None)
+
+    restaurant_postgres_read.search_restaurants_pg(
+        pg_url="postgresql://shadow", query="alp", limit=10, offset=0
+    )
+    restaurant_postgres_read.reset_restaurant_postgres_runtime_cache()
+
     assert fake_engine.disposed is True
