@@ -118,6 +118,27 @@ Artifact: `artifacts/orchestration/experiments/results/exp-9d45f3c08260.json`
 - The workflow text still contains no `secrets.`, package proxy, dependency
   bootstrap, `continue-on-error: true`, or `|| true`.
 
+## Codex Security Evidence
+
+- Diff scan id: `pr1920_8aa641197_20260611T183710Z`.
+- Scope basis: verified PR triple-dot diff, not the unrelated newer-main
+  two-dot diff after `origin/main` advanced.
+- Coverage: 3/3 PR diff rows reviewed with completion receipts:
+  `.github/workflows/devcontainer-smoke.yml`,
+  `tests/test_devcontainer_smoke_workflow.py`, and
+  `docs/review/PR_1920_FIXED_MAPPING.md`.
+- Result: no reportable security findings.
+- Report validation: Codex Security `validate_report_format.py --report-md`
+  PASS; HTML report rendered locally.
+
+## PulsePlate PR Review Evidence
+
+- `pulseplate-pr-review` dry run completed locally.
+- Scope reviewed: 3 changed files, 179 additions, 0 deletions.
+- Findings: no deterministic findings.
+- Warnings: none.
+- GitHub posting: not eligible by design; dry-run only.
+
 ## Local Validation
 
 - `python3 -m py_compile tests/test_devcontainer_smoke_workflow.py` PASS.
@@ -140,8 +161,6 @@ Not claimed. Required before merge:
 
 - Current-head GitHub CI parity after push because full local `make verify` is
   operator-deferred for this machine-heavy CI/tooling lane.
-- Codex Security diff scan / finding discovery
-- `pulseplate-pr-review` post-open review
 - strict review-thread disposition guard with auth
 - strict merge-readiness guard with auth
 - current-head CI pass after push
