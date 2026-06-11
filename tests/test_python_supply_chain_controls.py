@@ -344,6 +344,7 @@ def test_security_requirements_pin_safety_and_regex_floor() -> None:
     )
 
     assert "safety==3.8.1" in requirements_text
+    assert "pyyaml==6.0.3" in requirements_text
     assert "regex==2026.5.9" in requirements_text
     assert any(
         artifact.get("package") == "regex"
