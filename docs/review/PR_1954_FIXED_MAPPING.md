@@ -38,14 +38,17 @@ entitlement, billing, or broad architecture ownership.
 
 ## Fixed in Commit Mapping
 
-### Cubic Bot Review Mapping
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#pullrequestreview-4480675325 -> bedb6afa40ea27fc9958db020e12321b79d1680f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233363 -> e351c7202f3e680de2a13458255519b2b57c0661
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233367 -> bedb6afa40ea27fc9958db020e12321b79d1680f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233369 -> e351c7202f3e680de2a13458255519b2b57c0661
 
-Post-open role findings:
+Disposition: FIXED
+Commit: `e351c7202f3e680de2a13458255519b2b57c0661`
+Commit: `bedb6afa40ea27fc9958db020e12321b79d1680f`
+Evidence: Cubic's keyword-only path-argument and empty-doc findings were fixed in `e351c7202`; Cubic's prefix-semantics finding was fixed in `bedb6afa40` by requiring forbidden artifact roots at the path prefix and adding `test_artifact_guard_does_not_match_non_root_artifact_path`.
+
+## Post-open Role Findings
 
 - Role: `agent-coordinator`
   - Disposition: FIXED
