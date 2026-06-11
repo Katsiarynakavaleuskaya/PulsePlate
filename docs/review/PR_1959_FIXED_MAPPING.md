@@ -78,6 +78,14 @@ Evidence: Cubic review for head `30bfa813c2ab4cd27a90710e11f3c959791a3c7e`
 reported "No issues found" across one file.
 Reason: External reviewer completed without code-actionable findings.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1959#pullrequestreview-4480905374
+Disposition: FIXED
+Commit: c1cdb00cf3cb247a81033e64a5cdcf706897893d
+Evidence: docs/review/PR_1959_FIXED_MAPPING.md uses repo-portable
+`scripts/hooks/repo_python.sh` validation evidence instead of a machine-local
+absolute `.venv` path.
+Reason: CodeRabbit's portable interpreter nitpick was valid.
+
 ## Premortem Finding Closure
 
 - Finding: the wording fix might still leave the A1b checker red.
