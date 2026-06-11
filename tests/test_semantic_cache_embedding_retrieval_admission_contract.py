@@ -92,6 +92,25 @@ def test_embedding_retrieval_admission_validators_pass_current_contract_and_sche
 
 
 @pytest.mark.parametrize(
+    ("anchor", "expected"),
+    (
+        ("- Provider wiring allowed: false.\n", "provider wiring allowed false"),
+        ("- Model downgrade allowed: false.\n", "model downgrade allowed false"),
+        ("- Pricing truth allowed: false.\n", "pricing truth allowed false"),
+    ),
+)
+def test_embedding_retrieval_contract_validator_requires_closed_authority_flags(
+    anchor: str,
+    expected: str,
+) -> None:
+    errors = validate_semantic_cache_embedding_retrieval_admission_contract(
+        _contract_text().replace(anchor, "")
+    )
+
+    assert f"embedding/retrieval admission contract missing anchor: {expected}" in errors
+
+
+@pytest.mark.parametrize(
     "claim,expected",
     (
         ("Embedding/retrieval admission enables embeddings.", "embeddings"),

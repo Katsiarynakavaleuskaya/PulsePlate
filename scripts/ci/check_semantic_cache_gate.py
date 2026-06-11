@@ -958,9 +958,12 @@ EMBEDDING_RETRIEVAL_ADMISSION_REQUIRED_ANCHORS = (
     ),
     ("vector search allowed false", re.compile(r"\bvector search allowed: false\b")),
     ("provider calls allowed false", re.compile(r"\bprovider calls allowed: false\b")),
+    ("provider wiring allowed false", re.compile(r"\bprovider wiring allowed: false\b")),
     ("cache read allowed false", re.compile(r"\bcache read allowed: false\b")),
     ("cache write allowed false", re.compile(r"\bcache write allowed: false\b")),
     ("serving allowed false", re.compile(r"\bserving allowed: false\b")),
+    ("model downgrade allowed false", re.compile(r"\bmodel downgrade allowed: false\b")),
+    ("pricing truth allowed false", re.compile(r"\bpricing truth allowed: false\b")),
     ("telemetry phase", re.compile(r"\btelemetry phase: pr-o4\b")),
     (
         "selected embedding backend none",
