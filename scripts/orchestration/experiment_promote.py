@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 try:
@@ -52,10 +53,50 @@ DEFAULT_BACKLOG_PRIORITY = "P1"
 DEFAULT_BACKLOG_TARGET_PR_PREFIX = "PR_TBD_"
 DEFAULT_BACKLOG_AREA = "orchestration / experimentation"
 RESULT_PROMOTION_STATUSES: tuple[str, ...] = ("promoted", "deferred")
+CREATIVE_RESEARCH_ORIGIN_KEYS = frozenset({"bundle_id", "candidate_id", "promotion_decision"})
+CREATIVE_RESEARCH_PROMOTION_DECISIONS: tuple[str, ...] = (
+    "promote",
+    "defer",
+    "discard",
+)
+CREATIVE_RESEARCH_ORIGIN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 class ExperimentPromotionError(RuntimeError):
     """Base error for promotion contract violations."""
+
+
+def _validate_creative_research_origin(raw_origin: Any) -> dict[str, str] | None:
+    """Validate optional passive creative-research origin metadata."""
+
+    if raw_origin is None:
+        return None
+    if not isinstance(raw_origin, dict):
+        raise ExperimentPromotionError("creative_research_origin must be a JSON object.")
+    if set(raw_origin) != CREATIVE_RESEARCH_ORIGIN_KEYS:
+        raise ExperimentPromotionError("creative_research_origin has unsupported fields.")
+
+    normalized: dict[str, str] = {}
+    for field in ("bundle_id", "candidate_id", "promotion_decision"):
+        value = raw_origin.get(field)
+        if not isinstance(value, str):
+            raise ExperimentPromotionError(f"creative_research_origin.{field} must be a string.")
+        value = value.strip()
+        if not value:
+            raise ExperimentPromotionError(f"creative_research_origin.{field} must be non-empty.")
+        if field in {"bundle_id", "candidate_id"}:
+            if not CREATIVE_RESEARCH_ORIGIN_ID_RE.fullmatch(value):
+                raise ExperimentPromotionError(
+                    f"creative_research_origin.{field} must be a safe local identifier."
+                )
+        normalized[field] = value
+
+    if normalized["promotion_decision"] not in CREATIVE_RESEARCH_PROMOTION_DECISIONS:
+        raise ExperimentPromotionError(
+            "creative_research_origin.promotion_decision must be one of: "
+            + ", ".join(CREATIVE_RESEARCH_PROMOTION_DECISIONS)
+        )
+    return normalized
 
 
 def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
@@ -157,7 +198,19 @@ def _evidence_lines(result: dict[str, Any]) -> list[str]:
     return oracle_lines
 
 
+def _creative_research_origin_markdown(origin: dict[str, str] | None) -> str:
+    if origin is None:
+        return ""
+    return (
+        "\n## Creative Research Origin\n\n"
+        f"- Bundle ID: `{origin['bundle_id']}`\n"
+        f"- Candidate ID: `{origin['candidate_id']}`\n"
+        f"- Promotion decision: `{origin['promotion_decision']}`\n"
+    )
+
+
 def _base_markdown(packet: dict[str, Any], result: dict[str, Any], disposition: str) -> str:
+    origin = _validate_creative_research_origin(packet.get("creative_research_origin"))
     mutated = (
         "\n".join(f"- `{path}`" for path in result["mutated_paths"])
         if result["mutated_paths"]
@@ -176,6 +229,7 @@ def _base_markdown(packet: dict[str, Any], result: dict[str, Any], disposition: 
         f"- Disposition: `{disposition}`\n"
         f"- Result status: `{result['status']}`\n"
         f"- Failure class: `{failure_class}`\n\n"
+        f"{_creative_research_origin_markdown(origin)}"
         "## Mutable Surface\n\n"
         f"{mutated}\n\n"
         "## Immutable Oracles\n\n"
@@ -241,6 +295,15 @@ def _insert_once(path: Path, marker: str, block: str) -> None:
 def _render_backlog_entry(packet: dict[str, Any], result: dict[str, Any], disposition: str) -> str:
     experiment_slug = packet["experiment_id"].replace("_", "-")
     failure_class = result["failure_class"] if result["failure_class"] is not None else "none"
+    origin = _validate_creative_research_origin(packet.get("creative_research_origin"))
+    origin_lines = ""
+    if origin is not None:
+        origin_lines = (
+            "  - Creative research origin:\n"
+            f"    - Bundle ID: `{origin['bundle_id']}`\n"
+            f"    - Candidate ID: `{origin['candidate_id']}`\n"
+            f"    - Promotion decision: `{origin['promotion_decision']}`\n"
+        )
     return (
         f'<a id="ledger-{experiment_slug}"></a>\n'
         f"- [ ] P1: Experiment follow-up for {packet['experiment_id']}\n"
@@ -251,6 +314,7 @@ def _render_backlog_entry(packet: dict[str, Any], result: dict[str, Any], dispos
         f"  - Status: {'Deferred' if disposition == 'deferred' else 'Planned'}\n"
         f"  - Reason (EN): Experiment `{packet['experiment_id']}` ended with status `{result['status']}` "
         f"and failure class `{failure_class}`; follow-up is tracked via KPP-only promotion.\n"
+        f"{origin_lines}"
         "  - Links:\n"
         f"    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`\n"
         f"    - `docs/memory/kpp_knowledge_promotion_pipeline.md`\n"
@@ -310,11 +374,14 @@ def _write_durable_artifacts(
 
 def build_promotion_decision(packet: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     _require_matching_experiment(packet, result)
+    creative_research_origin = _validate_creative_research_origin(
+        packet.get("creative_research_origin")
+    )
     disposition = _result_policy(packet, result)
     if disposition not in RESULT_PROMOTION_STATUSES:
         raise ExperimentPromotionError(f"Unsupported disposition: {disposition}")
     durable_artifact_path = _write_durable_artifacts(packet, result, disposition)
-    return {
+    decision = {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": packet["experiment_id"],
         "result_status": result["status"],
@@ -330,6 +397,9 @@ def build_promotion_decision(packet: dict[str, Any], result: dict[str, Any]) -> 
             "oracle_count": len(result["oracle_results"]),
         },
     }
+    if creative_research_origin is not None:
+        decision["creative_research_origin"] = creative_research_origin
+    return decision
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
