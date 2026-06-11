@@ -217,9 +217,7 @@ def _validate_metric_names(metric_names: tuple[str, ...]) -> tuple[str, ...]:
 def _assert_no_live_provider_credentials() -> None:
     """RU: Запретить live provider creds. EN: Block live provider credentials."""
 
-    present = [
-        name for name in PROHIBITED_LIVE_PROVIDER_ENV_VARS if os.environ.get(name)
-    ]
+    present = [name for name in PROHIBITED_LIVE_PROVIDER_ENV_VARS if os.environ.get(name)]
     if present:
         joined_names = ", ".join(sorted(present))
         raise RuntimeError(
