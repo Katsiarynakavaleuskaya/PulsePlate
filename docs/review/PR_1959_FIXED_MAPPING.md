@@ -48,7 +48,10 @@ or touching runtime code.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1959#pullrequestreview-4480905374 -> c1cdb00cf3cb247a81033e64a5cdcf706897893d
+Disposition: FIXED
+Commit: c1cdb00cf3cb247a81033e64a5cdcf706897893d
+Evidence: `docs/review/PR_1959_FIXED_MAPPING.md` uses the repo-portable `scripts/hooks/repo_python.sh` validation command instead of a machine-local absolute `.venv` path.
 
 ## Implementation Commit Evidence
 
