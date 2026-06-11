@@ -9,8 +9,8 @@ iOS, nutrition, or medical-claim behavior changes.
 
 ## Lane Start Provenance
 
-- Initial packet: `artifacts/orchestration/task_packets/5091fc31e50b.json`
-- Final path-set packet: `artifacts/orchestration/task_packets/16832e753f0d.json`
+- Packet: `artifacts/orchestration/task_packets/5091fc31e50b.json`
+- Packet: `artifacts/orchestration/task_packets/16832e753f0d.json`
 - Role dispatch: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/16832e753f0d.json --pretty --pr-phase post_open_review`
 - Role order preserved: `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor -> cursor-specialist-agent -> web-research-agent`
 - Post-open remediation note: PR #1931 was already open before this closeout pass; this evidence records the required post-open governance recovery and does not claim pre-open execution.
