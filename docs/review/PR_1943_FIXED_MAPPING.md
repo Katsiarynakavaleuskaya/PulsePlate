@@ -6,8 +6,9 @@
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1943#discussion_r3398013388 -> 6ffd564ff
-  Disposition: FIXED
-  Evidence: `scripts/ci/check_semantic_cache_gate.py` enforces provider-wiring/model-downgrade/pricing-truth false anchors; `tests/test_semantic_cache_embedding_retrieval_admission_contract.py` rejects contracts missing them.
+Disposition: FIXED
+Commit: 6ffd564ff
+Evidence: `scripts/ci/check_semantic_cache_gate.py` enforces provider-wiring/model-downgrade/pricing-truth false anchors; `tests/test_semantic_cache_embedding_retrieval_admission_contract.py` rejects contracts missing them.
 
 ## Lane Start Provenance
 - Packet: `artifacts/orchestration/task_packets/3447feba1558.json`
