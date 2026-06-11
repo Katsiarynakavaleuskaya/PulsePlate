@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess  # nosec B404: Safety CLI execution is the bounded CI audit purpose (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
 import sys
+import tempfile
 from typing import Any, Mapping, Sequence
 
 REQUIRED_MANIFEST = "requirements.txt"
@@ -20,6 +22,8 @@ OPTIONAL_MANIFESTS: tuple[str, ...] = (
 )
 HIGH_RISK_SEVERITIES = {"HIGH", "CRITICAL", "UNKNOWN"}
 SAFETY_BINARY = "safety"
+SAFETY_AUTH_ENV = "SAFETY_" + "API_KEY"
+DEFAULT_SAFETY_STAGE = "cicd"
 PARSE_OK = 0
 PARSE_WARNING = 2
 PARSE_BLOCKING = 10
@@ -65,6 +69,7 @@ class SafetyAuditConfig:
     manifests: tuple[Path, ...]
     policy_file_args: tuple[str, ...]
     safety_binary: str
+    safety_stage: str
 
 
 def artifact_stem(manifest: Path) -> str:
@@ -143,6 +148,189 @@ def base_severity(entry: Mapping[str, Any]) -> str:
     return "UNKNOWN"
 
 
+def _version_from_spec(spec: object) -> str:
+    """Best-effort version extraction from a package specification string."""
+
+    if not isinstance(spec, str):
+        return ""
+    for operator in ("===", "==", ">=", "<=", "~=", "!=", ">", "<"):
+        if operator in spec:
+            return spec.split(operator, maxsplit=1)[1].strip()
+    return ""
+
+
+def _scan_vulnerability_severity(vulnerability: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return a legacy-compatible severity mapping for Safety scan v3 reports."""
+
+    severity = vulnerability.get("severity")
+    if isinstance(severity, Mapping):
+        return severity
+
+    cve = vulnerability.get("CVE") or vulnerability.get("cve")
+    if isinstance(cve, Mapping):
+        cvssv3 = cve.get("cvssv3")
+        if isinstance(cvssv3, Mapping):
+            return {"cvssv3": cvssv3}
+        cvssv2 = cve.get("cvssv2")
+        if isinstance(cvssv2, Mapping):
+            return {"cvssv2": cvssv2}
+
+    ignored = vulnerability.get("ignored")
+    if isinstance(ignored, Mapping):
+        reason = ignored.get("reason")
+        if isinstance(reason, str) and "severity" in reason.lower():
+            return {"severity": reason}
+    return {}
+
+
+def _legacy_entry_from_scan_vulnerability(
+    *,
+    dependency: Mapping[str, Any],
+    specification: Mapping[str, Any],
+    vulnerability: Mapping[str, Any],
+    file_location: str,
+) -> dict[str, Any]:
+    """Convert one Safety scan v3 vulnerability to the legacy parser shape."""
+
+    raw_spec = specification.get("raw") or vulnerability.get("vulnerable_spec") or ""
+    return {
+        "package_name": dependency.get("name") or "<unknown package>",
+        "analyzed_version": _version_from_spec(vulnerability.get("vulnerable_spec") or raw_spec),
+        "vuln_id": vulnerability.get("id") or vulnerability.get("vuln_id") or "",
+        "advisory": vulnerability.get("advisory") or f"Found in {file_location}: {raw_spec}",
+        "severity": _scan_vulnerability_severity(vulnerability),
+    }
+
+
+def _normalize_scan_v3_report(
+    payload: Mapping[str, Any],
+) -> tuple[list[Mapping[str, Any]], list[Mapping[str, Any]]]:
+    """Extract active and ignored vulnerabilities from Safety scan v3 JSON."""
+
+    scan_results = payload.get("scan_results")
+    if not isinstance(scan_results, Mapping):
+        raise SafetyAuditError("Safety scan report missing scan_results object.", PARSE_ERROR)
+
+    projects = scan_results.get("projects")
+    if not isinstance(projects, list):
+        raise SafetyAuditError(
+            "Safety scan report scan_results.projects must be a list.", PARSE_ERROR
+        )
+
+    vulnerabilities: list[Mapping[str, Any]] = []
+    ignored_vulnerabilities: list[Mapping[str, Any]] = []
+    for project in projects:
+        if not isinstance(project, Mapping):
+            raise SafetyAuditError(
+                "Safety scan report project entries must be objects.", PARSE_ERROR
+            )
+        files = project.get("files", [])
+        if files is None:
+            files = []
+        if not isinstance(files, list):
+            raise SafetyAuditError("Safety scan report project files must be a list.", PARSE_ERROR)
+        for scanned_file in files:
+            if not isinstance(scanned_file, Mapping):
+                raise SafetyAuditError(
+                    "Safety scan report file entries must be objects.", PARSE_ERROR
+                )
+            file_location = str(scanned_file.get("location") or "<unknown file>")
+            results = scanned_file.get("results") or {}
+            if not isinstance(results, Mapping):
+                raise SafetyAuditError(
+                    "Safety scan report file results must be objects.", PARSE_ERROR
+                )
+            dependencies = results.get("dependencies", [])
+            if dependencies is None:
+                dependencies = []
+            if not isinstance(dependencies, list):
+                raise SafetyAuditError(
+                    "Safety scan report file dependencies must be a list.",
+                    PARSE_ERROR,
+                )
+            for dependency in dependencies:
+                if not isinstance(dependency, Mapping):
+                    raise SafetyAuditError(
+                        "Safety scan report dependency entries must be objects.",
+                        PARSE_ERROR,
+                    )
+                specifications = dependency.get("specifications", [])
+                if specifications is None:
+                    specifications = []
+                if not isinstance(specifications, list):
+                    raise SafetyAuditError(
+                        "Safety scan report dependency specifications must be a list.",
+                        PARSE_ERROR,
+                    )
+                for specification in specifications:
+                    if not isinstance(specification, Mapping):
+                        raise SafetyAuditError(
+                            "Safety scan report specification entries must be objects.",
+                            PARSE_ERROR,
+                        )
+                    spec_vulnerabilities = specification.get("vulnerabilities") or {}
+                    if not isinstance(spec_vulnerabilities, Mapping):
+                        raise SafetyAuditError(
+                            "Safety scan report specification vulnerabilities must be objects.",
+                            PARSE_ERROR,
+                        )
+                    known = spec_vulnerabilities.get("known_vulnerabilities", [])
+                    if known is None:
+                        known = []
+                    if not isinstance(known, list):
+                        raise SafetyAuditError(
+                            "Safety scan report known_vulnerabilities must be a list.",
+                            PARSE_ERROR,
+                        )
+                    for vulnerability in known:
+                        if not isinstance(vulnerability, Mapping):
+                            raise SafetyAuditError(
+                                "Safety scan vulnerability entries must be objects.",
+                                PARSE_ERROR,
+                            )
+                        entry = _legacy_entry_from_scan_vulnerability(
+                            dependency=dependency,
+                            specification=specification,
+                            vulnerability=vulnerability,
+                            file_location=file_location,
+                        )
+                        if vulnerability.get("ignored"):
+                            ignored_vulnerabilities.append(entry)
+                        else:
+                            vulnerabilities.append(entry)
+
+    return vulnerabilities, ignored_vulnerabilities
+
+
+def normalized_vulnerabilities(
+    payload: Mapping[str, Any],
+) -> tuple[list[Mapping[str, Any]], list[Mapping[str, Any]]]:
+    """Return active and ignored vulnerabilities for supported Safety report schemas."""
+
+    if isinstance(payload.get("scan_results"), Mapping):
+        return _normalize_scan_v3_report(payload)
+
+    vulnerabilities = payload.get("vulnerabilities", [])
+    if vulnerabilities is None:
+        vulnerabilities = []
+    ignored = payload.get("ignored_vulnerabilities", [])
+    if ignored is None:
+        ignored = []
+    if not isinstance(vulnerabilities, list):
+        raise SafetyAuditError("Safety report vulnerabilities field must be a list.", PARSE_ERROR)
+    if not isinstance(ignored, list):
+        raise SafetyAuditError(
+            "Safety report ignored_vulnerabilities field must be a list.", PARSE_ERROR
+        )
+    if not all(isinstance(item, Mapping) for item in vulnerabilities):
+        raise SafetyAuditError("Safety report vulnerability entries must be objects.", PARSE_ERROR)
+    if not all(isinstance(item, Mapping) for item in ignored):
+        raise SafetyAuditError(
+            "Safety report ignored vulnerability entries must be objects.", PARSE_ERROR
+        )
+    return vulnerabilities, ignored
+
+
 def build_summary_lines(
     vulnerabilities: Sequence[Mapping[str, Any]], ignored: Sequence[object]
 ) -> tuple[str, ...]:
@@ -186,24 +374,12 @@ def analyze_report(report_path: Path, summary_path: Path) -> SafetyAnalysis:
         summary_path.write_text(f"{message}\n", encoding="utf-8")
         raise SafetyAuditError(message, PARSE_ERROR)
 
-    vulnerabilities = payload.get("vulnerabilities", [])
-    if vulnerabilities is None:
-        vulnerabilities = []
-    ignored = payload.get("ignored_vulnerabilities", [])
-    if ignored is None:
-        ignored = []
-    if not isinstance(vulnerabilities, list):
-        message = "Safety report vulnerabilities field must be a list."
+    try:
+        vulnerabilities, ignored = normalized_vulnerabilities(payload)
+    except SafetyAuditError as exc:
+        message = str(exc)
         summary_path.write_text(f"{message}\n", encoding="utf-8")
-        raise SafetyAuditError(message, PARSE_ERROR)
-    if not isinstance(ignored, list):
-        message = "Safety report ignored_vulnerabilities field must be a list."
-        summary_path.write_text(f"{message}\n", encoding="utf-8")
-        raise SafetyAuditError(message, PARSE_ERROR)
-    if not all(isinstance(item, Mapping) for item in vulnerabilities):
-        message = "Safety report vulnerability entries must be objects."
-        summary_path.write_text(f"{message}\n", encoding="utf-8")
-        raise SafetyAuditError(message, PARSE_ERROR)
+        raise
 
     lines = build_summary_lines(vulnerabilities, ignored)
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -225,6 +401,52 @@ def analyze_report(report_path: Path, summary_path: Path) -> SafetyAnalysis:
     )
 
 
+def _manifest_reference_paths(manifest: Path) -> tuple[Path, ...]:
+    """Return local requirement/constraint files referenced by a manifest."""
+
+    references: list[Path] = []
+    for raw_line in manifest.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if not parts:
+            continue
+        option = parts[0]
+        if option in {"-r", "--requirement", "-c", "--constraint"} and len(parts) >= 2:
+            references.append((manifest.parent / parts[1]).resolve())
+        elif option.startswith(("-r", "-c")) and len(option) > 2:
+            references.append((manifest.parent / option[2:]).resolve())
+    return tuple(references)
+
+
+def _prepare_scan_target(root: Path, manifest: Path, target_dir: Path) -> Path:
+    """Copy one manifest and its local requirement references into a scan target."""
+
+    root_resolved = root.resolve()
+    paths = [manifest.resolve()]
+    paths.extend(_manifest_reference_paths(manifest))
+    for source in paths:
+        if root_resolved not in (source, *source.parents):
+            raise SafetyAuditError(f"Safety manifest reference escapes repo root: {source}")
+        if not source.is_file():
+            raise SafetyAuditError(f"Safety manifest reference not found: {source}")
+        destination = target_dir / source.relative_to(root_resolved)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    return target_dir
+
+
+def _require_scan_auth(stage: str) -> None:
+    """Fail before invoking Safety scan when CI authentication is missing."""
+
+    if stage in {"cicd", "production"} and not os.environ.get(SAFETY_AUTH_ENV):
+        raise SafetyAuditError(
+            "SAFETY_API_KEY is required for Safety scan in cicd/production stage. "
+            "Add the GitHub Actions secret and expose it to this job as SAFETY_API_KEY.",
+        )
+
+
 def run_safety_for_manifest(
     *,
     config: SafetyAuditConfig,
@@ -239,24 +461,32 @@ def run_safety_for_manifest(
     for artifact_path in (report_json, report_txt, console_log):
         artifact_path.unlink(missing_ok=True)
 
-    print(f"Running Safety audit for {manifest.name}")
-    command = [
-        config.safety_binary,
-        "check",
-        *config.policy_file_args,
-        "--json",
-        "-r",
-        str(manifest),
-        "--save-json",
-        str(report_json),
-    ]
-    completed = subprocess.run(  # nosec B603: argv uses resolved Safety CLI and manifest paths from canonical discovery only (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
-        command,
-        cwd=config.root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    print(f"Running Safety scan for {manifest.name}")
+    _require_scan_auth(config.safety_stage)
+    with tempfile.TemporaryDirectory(prefix=f"pulseplate-safety-{stem}-") as temp_root:
+        scan_target = _prepare_scan_target(config.root, manifest, Path(temp_root))
+        command = [
+            config.safety_binary,
+            "--stage",
+            config.safety_stage,
+            "--disable-optional-telemetry",
+            "scan",
+            "--target",
+            str(scan_target),
+            "--output",
+            "json",
+            "--save-as",
+            "json",
+            str(report_json),
+            *config.policy_file_args,
+        ]
+        completed = subprocess.run(  # nosec B603: argv uses resolved Safety CLI and manifest paths from canonical discovery only (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
+            command,
+            cwd=config.root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     console_log.write_text((completed.stdout or "") + (completed.stderr or ""), encoding="utf-8")
     if console_log.stat().st_size > 0:
         print(f"=== Raw Safety Output ({manifest.name}) ===")
@@ -300,6 +530,7 @@ def build_config(
     manifest_names: Sequence[str] | None = None,
     policy_file: str | None = None,
     safety_binary: str = SAFETY_BINARY,
+    safety_stage: str = DEFAULT_SAFETY_STAGE,
 ) -> SafetyAuditConfig:
     """Build and validate Safety audit runtime configuration."""
 
@@ -310,6 +541,7 @@ def build_config(
         manifests=discover_manifests(root, manifest_names),
         policy_file_args=policy_args(root, policy_file),
         safety_binary=safety_binary_path(safety_binary),
+        safety_stage=safety_stage,
     )
 
 
@@ -377,6 +609,12 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=SAFETY_BINARY,
         help="Safety executable name or path.",
     )
+    parser.add_argument(
+        "--safety-stage",
+        default=DEFAULT_SAFETY_STAGE,
+        choices=("development", "cicd", "production"),
+        help="Safety lifecycle stage for scan execution.",
+    )
     return parser.parse_args(argv)
 
 
@@ -393,6 +631,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             manifest_names=args.manifests,
             policy_file=args.policy_file,
             safety_binary=args.safety_binary,
+            safety_stage=args.safety_stage,
         )
         results = run_audit(config)
     except SafetyAuditError as exc:
@@ -409,7 +648,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"WARNING: Safety reported vulnerabilities below HIGH severity in {manifest_name}"
             )
         else:
-            print(f"OK: Safety check passed for {manifest_name}")
+            print(f"OK: Safety scan passed for {manifest_name}")
     return exit_code
 
 
