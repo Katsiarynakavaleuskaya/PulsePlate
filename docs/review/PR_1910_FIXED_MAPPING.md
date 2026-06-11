@@ -97,11 +97,12 @@ Reason: CodeRabbit's low-value nitpick was valid and stayed inside the already-t
   locally because the full-repo Bandit hook was terminated with exit `-15`
   after warnings and no finding. Do not claim full pre-commit green from local
   evidence; current-head CI/pre-commit parity remains required before merge.
-- CURRENT-HEAD CI: all current-head required/governance checks observed by the
-  strict wrapper passed; `gh pr checks` still exits non-zero because the
-  advisory `security` Safety job reports the pre-existing
-  `torch==2.11.0+cpu` vulnerability in `requirements-rag-vector*.txt`.
-- STRICT WRAPPER: rerun required after this parser-shape mapping cleanup.
+- PASS: `gh pr checks 1910 --repo Katsiarynakavaleuskaya/PulsePlate` on head
+  `fd4ab5590` reported current-head CI complete, including `lint`,
+  `test-pr (3.13)`, `coverage-pr`, `diff-coverage`, `security`, CodeQL,
+  CodeRabbit, Sourcery, Cubic, and governance jobs.
+- PASS: `GITHUB_TOKEN=$(gh auth token) GH_TOKEN=$(gh auth token) python3 scripts/orchestration/check_merge_ready.py --pr-number 1910 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
+  on head `fd4ab5590`.
 
 ## Risks / Rollback
 
