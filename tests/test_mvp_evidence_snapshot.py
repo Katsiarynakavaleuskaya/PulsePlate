@@ -460,8 +460,9 @@ def test_invalid_utf8_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert read_latest_snapshot_line() is None
 
 
+@pytest.mark.parametrize("payload", ["[]", "null", "true", "123", '"bad"'])
 def test_non_object_snapshot_returns_none_and_render_falls_back(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: str
 ) -> None:
     repo = _configure_repo(monkeypatch, tmp_path)
     snap_dir = repo / "artifacts" / "orchestration" / "mvp_evidence_snapshots"
@@ -470,10 +471,14 @@ def test_non_object_snapshot_returns_none_and_render_falls_back(
         snap_dir
         / "mvp_evidence_snapshot_2026-05-30T00-00-00.000000+00-00_000000000000000000000000.json"
     )
-    bad.write_text("[]", encoding="utf-8")
+    bad.write_text(payload, encoding="utf-8")
 
     assert read_latest_snapshot_line() is None
-    assert bridge.render_mvp_evidence_summary().status_line == "static_contract"
+    msg = bridge.render_mvp_evidence_summary()
+    assert msg.message_type == "mvp_evidence_summary"
+    assert msg.status_line == "advisory_operator_summary"
+    assert "safe_event_count=12" in msg.evidence_summary
+    assert "forbidden_user_data=omitted" in msg.evidence_summary
 
 
 def test_non_string_payload_values_ignored() -> None:
