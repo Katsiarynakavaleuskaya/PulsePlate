@@ -582,10 +582,20 @@ def _manifest_reference_paths(manifest: Path) -> tuple[Path, ...]:
     return tuple(references)
 
 
-def _collect_manifest_paths(manifest: Path, seen: set[Path] | None = None) -> tuple[Path, ...]:
+def _validate_manifest_source(root: Path, source: Path) -> None:
+    if root not in (source, *source.parents):
+        raise SafetyAuditError(f"Safety manifest reference escapes repo root: {source}")
+    if not source.is_file():
+        raise SafetyAuditError(f"Safety manifest reference not found: {source}")
+
+
+def _collect_manifest_paths(
+    root: Path, manifest: Path, seen: set[Path] | None = None
+) -> tuple[Path, ...]:
     """Return a manifest and all nested requirement/constraint references."""
 
     resolved_manifest = manifest.resolve()
+    _validate_manifest_source(root, resolved_manifest)
     visited = set() if seen is None else seen
     if resolved_manifest in visited:
         return ()
@@ -593,7 +603,7 @@ def _collect_manifest_paths(manifest: Path, seen: set[Path] | None = None) -> tu
 
     collected = [resolved_manifest]
     for reference in _manifest_reference_paths(resolved_manifest):
-        collected.extend(_collect_manifest_paths(reference, visited))
+        collected.extend(_collect_manifest_paths(root, reference, visited))
     return tuple(collected)
 
 
@@ -601,12 +611,8 @@ def _prepare_scan_target(root: Path, manifest: Path, target_dir: Path) -> Path:
     """Copy one manifest and its local requirement references into a scan target."""
 
     root_resolved = root.resolve()
-    paths = _collect_manifest_paths(manifest)
+    paths = _collect_manifest_paths(root_resolved, manifest)
     for source in paths:
-        if root_resolved not in (source, *source.parents):
-            raise SafetyAuditError(f"Safety manifest reference escapes repo root: {source}")
-        if not source.is_file():
-            raise SafetyAuditError(f"Safety manifest reference not found: {source}")
         destination = target_dir / source.relative_to(root_resolved)
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)

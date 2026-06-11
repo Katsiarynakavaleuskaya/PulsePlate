@@ -151,6 +151,31 @@ def test_discovery_fails_when_required_manifest_is_missing(tmp_path: Path) -> No
         safety_audit.discover_manifests(tmp_path)
 
 
+def test_prepare_scan_target_rejects_nested_manifest_escape(tmp_path: Path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.txt"
+    outside.write_text("outside==1.0.0\n", encoding="utf-8")
+    _write_manifest(
+        tmp_path,
+        "requirements.txt",
+        "-r nested/constraints.txt\n",
+    )
+    _write_manifest(
+        tmp_path,
+        "nested/constraints.txt",
+        f"-r ../../{outside.name}\n",
+    )
+
+    with pytest.raises(
+        safety_audit.SafetyAuditError,
+        match="Safety manifest reference escapes repo root",
+    ):
+        safety_audit._prepare_scan_target(
+            tmp_path,
+            tmp_path / "requirements.txt",
+            tmp_path / "scan-target",
+        )
+
+
 def test_policy_file_precedence_prefers_yaml_over_toml(tmp_path: Path) -> None:
     (tmp_path / "safety-policy.toml").write_text("[policy]\n", encoding="utf-8")
     (tmp_path / "safety-policy.yaml").write_text("policy: {}\n", encoding="utf-8")
