@@ -5,6 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1943#pullrequestreview-4479226845 -> 6ffd564ff
+Disposition: FIXED
+Commit: 6ffd564ff
+Evidence: CodeRabbit review reported the same missing PR-O4 closed-authority anchors fixed in `scripts/ci/check_semantic_cache_gate.py` and regression-tested in `tests/test_semantic_cache_embedding_retrieval_admission_contract.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1943#discussion_r3398013388 -> 6ffd564ff
 Disposition: FIXED
 Commit: 6ffd564ff
