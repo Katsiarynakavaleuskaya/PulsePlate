@@ -497,6 +497,67 @@ def test_phase1_guard_validates_provider_model_tier_routing_schema_only_edits(
     )
 
 
+def test_phase1_guard_validates_embedding_retrieval_admission_contract_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_contract = (
+        gates.REPO_ROOT / gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_DOC
+    )
+    source_schema = (
+        gates.REPO_ROOT / gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_SCHEMA
+    )
+    contract = tmp_path / gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_DOC
+    schema_path = tmp_path / gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_SCHEMA
+    contract.parent.mkdir(parents=True)
+    contract.write_text(
+        source_contract.read_text(encoding="utf-8")
+        + "\nEmbedding/retrieval admission performs provider calls.\n"
+        + "Embedding/retrieval admission uses vector search.\n",
+        encoding="utf-8",
+    )
+    schema_path.write_text(source_schema.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_DOC]
+    )
+
+    assert any(
+        "forbidden embedding/retrieval admission claim: provider calls" in error for error in errors
+    )
+    assert any(
+        "forbidden embedding/retrieval admission claim: vector search" in error for error in errors
+    )
+
+
+def test_phase1_guard_validates_embedding_retrieval_admission_schema_only_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_contract = (
+        gates.REPO_ROOT / gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_DOC
+    )
+    source_schema = (
+        gates.REPO_ROOT / gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_SCHEMA
+    )
+    contract = tmp_path / gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_DOC
+    schema_path = tmp_path / gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_SCHEMA
+    contract.parent.mkdir(parents=True)
+    contract.write_text(source_contract.read_text(encoding="utf-8"), encoding="utf-8")
+    schema = json.loads(source_schema.read_text(encoding="utf-8"))
+    del schema["properties"]["embedding_allowed"]["const"]
+    schema_path.write_text(json.dumps(schema, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT_SCHEMA]
+    )
+
+    assert any(
+        "embedding/retrieval admission schema embedding_allowed must be const false" in error
+        for error in errors
+    )
+
+
 def test_phase1_guard_validates_philosophy_admission_dry_run_report_edits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
