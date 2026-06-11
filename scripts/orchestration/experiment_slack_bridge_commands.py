@@ -66,7 +66,7 @@ def _validate_hypothesis(value: str) -> str:
 def parse_operator_command(text: str, *, command_hint: str | None = None) -> OperatorCommand:
     """Parse one bounded Slack operator command."""
 
-    hint = command_hint.strip() if command_hint else None
+    hint = (command_hint or "").strip() or None
     normalized = CONTROL_CHAR_RE.sub(" ", text).strip()
     normalized = re.sub(r"^(<@[A-Za-z0-9_-]+>\s*)+", "", normalized).strip()
     if hint == "/run-experiment":

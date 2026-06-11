@@ -3008,6 +3008,7 @@ def test_parser_rejects_unknown_non_empty_command_hint(text: str, command_hint: 
 def test_parser_preserves_direct_no_hint_compatibility() -> None:
     assert bridge.parse_operator_command("help", command_hint=None).kind == "help"
     assert bridge.parse_operator_command("status", command_hint="").kind == "status"
+    assert bridge.parse_operator_command("mvp-evidence", command_hint=" \t ").kind == "mvp-evidence"
 
 
 def test_pulseplate_runner_cannot_dispatch_in_execute_mode(

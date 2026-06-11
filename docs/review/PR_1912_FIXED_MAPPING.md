@@ -166,15 +166,18 @@ strict merge wrapper, unresolved-thread proof, and wait-window evidence.
 
 ## Merge Readiness
 
-- [x] Canonical fixed-mapping artifact exists.
-- [x] Sourcery actionable review submission is mapped with FIXED proof.
-- [x] CodeRabbit/Cubic review comments have no actionable code findings at the
+- Only the two Discussion Thread Pass items above may be pre-checked before the
+  final merge cycle; these readiness items stay unchecked until final evidence
+  is complete.
+- [ ] Canonical fixed-mapping artifact exists.
+- [ ] Sourcery actionable review submission is mapped with FIXED proof.
+- [ ] CodeRabbit/Cubic review comments have no actionable code findings at the
   last checked pass.
 - [ ] `pre-commit run --all-files` passed after the final governance commit, or
   current-head CI pre-commit parity covers the final pushed SHA.
-- [x] `make validate-changed` passed after syncing the branch with current
+- [ ] `make validate-changed` passed after syncing the branch with current
   `origin/main`.
-- [x] Full `make verify` is not required for this lane by explicit operator
+- [ ] Full `make verify` is not required for this lane by explicit operator
   direction; changed-surface verification is the local evidence basis.
 - [ ] Current-head CI is green for the final pushed SHA.
 - [ ] `python3 scripts/orchestration/check_merge_ready.py --pr-number 1912 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
