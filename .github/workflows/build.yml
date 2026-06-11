@@ -482,7 +482,7 @@ jobs:
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
           subject-digest: ${{ steps.docker-build-push.outputs.digest }}
-          predicate-type: https://spdx.dev/Document
+          predicate-type: https://spdx.dev/Document/v2.3
           predicate-path: sbom.spdx.json
           push-to-registry: true
 

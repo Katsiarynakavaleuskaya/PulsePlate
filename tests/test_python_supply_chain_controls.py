@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 import scripts.ci.install_locked_python_requirements as locked_installer
+from scripts.ci.check_docker_provenance_attestation import SBOM_PREDICATE_TYPE
 from tests.runtime_toolchain_versions import CANONICAL_PYTHON
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -965,7 +966,7 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
             "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
         )
         assert sbom_step["with"]["push-to-registry"] is True
-        assert sbom_step["with"]["predicate-type"] == "https://spdx.dev/Document"
+        assert sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
         assert sbom_step["with"]["predicate-path"] == "docker-image-sbom.spdx.json"
         assert "sbom-path" not in sbom_step["with"]
         assert sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
@@ -974,7 +975,7 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
     )
     assert publish_sbom_step["with"]["push-to-registry"] is True
-    assert publish_sbom_step["with"]["predicate-type"] == "https://spdx.dev/Document"
+    assert publish_sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
     assert publish_sbom_step["with"]["predicate-path"] == "sbom.spdx.json"
     assert "sbom-path" not in publish_sbom_step["with"]
     assert (
