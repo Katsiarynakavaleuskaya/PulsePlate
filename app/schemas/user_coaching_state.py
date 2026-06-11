@@ -47,6 +47,21 @@ FitChefTransitionSafetyLabel = Literal[
     "no_raw_user_text",
     "deterministic_policy",
 ]
+MarkovOrchestrationDecisionStatus = Literal[
+    "shadow_disabled",
+    "no_recommendation",
+    "degraded",
+    "ready",
+]
+MarkovOrchestrationDegradeReason = Literal[
+    "feature_gate_disabled",
+    "no_recommendation_available",
+    "planner_unavailable",
+    "scenario_unavailable",
+    "no_available_scenarios",
+    "recent_behavior_capped",
+    "adherence_state_invalid_degraded",
+]
 RiskBucket = Literal["low", "moderate", "high"]
 ConfidenceBucket = Literal["low", "high"]
 MARKOV_TRANSITION_SAFETY_LABELS: tuple[FitChefTransitionSafetyLabel, ...] = (
@@ -557,6 +572,122 @@ class PromptSafeMarkovTransitionContext(BaseModel):
         return self
 
 
+class MarkovCoachingOrchestrationTraceV1(BaseModel):
+    """Non-PII shadow decision trace for the internal Markov adapter."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    trace_version: Literal["markov_orchestration_trace_v1"] = "markov_orchestration_trace_v1"
+    adapter_version: Literal["markov_orchestration_adapter_v1"] = "markov_orchestration_adapter_v1"
+    source_state_version: Literal["v1"] = "v1"
+    planner_version: Literal["markov_transition_v1"] | None = None
+    decision_status: MarkovOrchestrationDecisionStatus
+    transition_state: FitChefTransitionState | None = None
+    recommended_scenario: FitChefCoachingScenario | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    ranked_scenario_count: int = Field(default=0, ge=0)
+    available_scenario_count: int = Field(default=0, ge=0)
+    state_degraded: bool = False
+    planner_degraded: bool = False
+    degrade_reasons: tuple[MarkovOrchestrationDegradeReason, ...] = ()
+    safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = MARKOV_TRANSITION_SAFETY_LABELS
+
+    @model_validator(mode="after")
+    def _recompute_trace_safety_labels(self) -> "MarkovCoachingOrchestrationTraceV1":
+        object.__setattr__(self, "safety_labels", MARKOV_TRANSITION_SAFETY_LABELS)
+        object.__setattr__(
+            self,
+            "degrade_reasons",
+            tuple(dict.fromkeys(self.degrade_reasons)),
+        )
+        return self
+
+
+class MarkovCoachingOrchestrationResultV1(BaseModel):
+    """Internal shadow-only adapter result.
+
+    The full state and plan remain internal explainability artifacts. Only
+    prompt_safe_context is eligible for future prompt-facing call sites.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    result_version: Literal["markov_orchestration_result_v1"] = "markov_orchestration_result_v1"
+    coaching_state: UserCoachingStateV1
+    transition_plan: MarkovCoachingTransitionPlanV1 | None = None
+    prompt_safe_context: PromptSafeMarkovTransitionContext | None = None
+    decision_trace: MarkovCoachingOrchestrationTraceV1
+
+    @model_validator(mode="after")
+    def _validate_shadow_boundaries(self) -> "MarkovCoachingOrchestrationResultV1":
+        trace = self.decision_trace
+        if trace.decision_status == "shadow_disabled":
+            if self.transition_plan is not None or self.prompt_safe_context is not None:
+                raise ValueError("shadow_disabled result must not include plan or context")
+            if "feature_gate_disabled" not in trace.degrade_reasons:
+                raise ValueError("shadow_disabled trace must include feature gate reason")
+        if trace.decision_status in {"ready", "degraded"}:
+            if self.transition_plan is None or self.prompt_safe_context is None:
+                raise ValueError("ready or degraded result requires plan and context")
+        if trace.decision_status == "ready":
+            if trace.state_degraded or trace.planner_degraded or trace.degrade_reasons:
+                raise ValueError("ready result must not be degraded")
+        if trace.decision_status == "degraded":
+            if not (trace.state_degraded or trace.planner_degraded or trace.degrade_reasons):
+                raise ValueError("degraded result must include degraded evidence")
+        if trace.decision_status == "no_recommendation":
+            if self.prompt_safe_context is not None:
+                raise ValueError("no_recommendation result must not include prompt_safe_context")
+            if (
+                self.transition_plan is not None
+                and self.transition_plan.recommended_scenario is not None
+            ):
+                raise ValueError("no_recommendation result must not include recommendation")
+        if self.prompt_safe_context is not None and self.transition_plan is None:
+            raise ValueError("prompt_safe_context requires transition_plan")
+        if self.transition_plan is not None:
+            plan = self.transition_plan
+            if trace.planner_version != plan.plan_version:
+                raise ValueError("trace planner_version must match transition_plan")
+            if trace.transition_state != plan.transition_state:
+                raise ValueError("trace transition_state must match transition_plan")
+            if trace.recommended_scenario != plan.recommended_scenario:
+                raise ValueError("trace recommended_scenario must match transition_plan")
+            if trace.confidence != plan.confidence:
+                raise ValueError("trace confidence must match transition_plan")
+            if trace.ranked_scenario_count != len(plan.ranked_scenarios):
+                raise ValueError("trace ranked count must match transition_plan")
+            if trace.available_scenario_count != len(plan.available_scenarios):
+                raise ValueError("trace available count must match transition_plan")
+            if self.prompt_safe_context is not None:
+                context = self.prompt_safe_context
+                if context.plan_version != plan.plan_version:
+                    raise ValueError("prompt_safe_context plan_version must match transition_plan")
+                if context.source_state_version != plan.source_state_version:
+                    raise ValueError(
+                        "prompt_safe_context source_state_version must match transition_plan"
+                    )
+                if context.transition_state != plan.transition_state:
+                    raise ValueError(
+                        "prompt_safe_context transition_state must match transition_plan"
+                    )
+                if context.recommended_scenario != plan.recommended_scenario:
+                    raise ValueError(
+                        "prompt_safe_context recommended_scenario must match transition_plan"
+                    )
+                if context.ranked_scenarios != plan.ranked_scenarios:
+                    raise ValueError(
+                        "prompt_safe_context ranked_scenarios must match transition_plan"
+                    )
+                if context.confidence != plan.confidence:
+                    raise ValueError("prompt_safe_context confidence must match transition_plan")
+                if context.reasons != plan.reasons:
+                    raise ValueError("prompt_safe_context reasons must match transition_plan")
+                if context.safety_labels != plan.safety_labels:
+                    raise ValueError("prompt_safe_context safety_labels must match transition_plan")
+        return self
+
+
 __all__ = [
     "AdherenceSnapshot",
     "FitChefCoachingScenario",
@@ -565,7 +696,11 @@ __all__ = [
     "FitChefTransitionState",
     "MARKOV_TRANSITION_BASE_CONFIDENCE_BY_STATE",
     "MARKOV_TRANSITION_SAFETY_LABELS",
+    "MarkovCoachingOrchestrationResultV1",
+    "MarkovCoachingOrchestrationTraceV1",
     "MarkovCoachingTransitionPlanV1",
+    "MarkovOrchestrationDecisionStatus",
+    "MarkovOrchestrationDegradeReason",
     "MarkovScenarioProbability",
     "ProfileSignalSnapshot",
     "PromptSafeAdherenceContext",
