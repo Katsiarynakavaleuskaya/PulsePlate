@@ -192,7 +192,10 @@ def to_prompt_safe_markov_orchestration_context(
     safe_result: MarkovCoachingOrchestrationResultV1 = (
         MarkovCoachingOrchestrationResultV1.model_validate(result.model_dump(mode="python"))
     )
-    if safe_result.decision_trace.decision_status == "shadow_disabled":
+    if safe_result.decision_trace.decision_status in {
+        "shadow_disabled",
+        "no_recommendation",
+    }:
         return None
     prompt_safe_context: PromptSafeMarkovTransitionContext | None = safe_result.prompt_safe_context
     return prompt_safe_context

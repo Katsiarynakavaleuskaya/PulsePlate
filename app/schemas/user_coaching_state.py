@@ -626,6 +626,11 @@ class MarkovCoachingOrchestrationResultV1(BaseModel):
                 raise ValueError("shadow_disabled result must not include plan or context")
             if "feature_gate_disabled" not in trace.degrade_reasons:
                 raise ValueError("shadow_disabled trace must include feature gate reason")
+        if trace.decision_status in {"ready", "degraded"}:
+            if self.transition_plan is None or self.prompt_safe_context is None:
+                raise ValueError("ready or degraded result requires plan and context")
+        if trace.decision_status == "no_recommendation" and self.prompt_safe_context is not None:
+            raise ValueError("no_recommendation result must not include prompt_safe_context")
         if self.prompt_safe_context is not None and self.transition_plan is None:
             raise ValueError("prompt_safe_context requires transition_plan")
         if self.transition_plan is not None:

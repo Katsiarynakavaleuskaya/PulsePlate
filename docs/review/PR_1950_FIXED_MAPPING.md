@@ -94,12 +94,12 @@ Findings:
 
 ## Discussion Thread Pass
 
-No GitHub review threads existed when this artifact was created. Any later
-human or bot comments must be dispositioned below before readiness.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No review-thread URLs exist yet.
+- No actionable review comments
 
 ## Local Validation
 

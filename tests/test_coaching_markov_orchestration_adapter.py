@@ -416,6 +416,27 @@ def test_ready_status_uses_existing_prompt_safe_markov_projection(
     with pytest.raises(ValidationError, match="prompt_safe_context transition_state"):
         to_prompt_safe_markov_orchestration_context(mismatched_result)
 
+    ready_without_context = result.model_copy(
+        update={
+            "transition_plan": None,
+            "prompt_safe_context": None,
+        }
+    )
+    with pytest.raises(ValidationError, match="ready or degraded"):
+        MarkovCoachingOrchestrationResultV1.model_validate(
+            ready_without_context.model_dump(mode="python")
+        )
+
+    no_recommendation_with_context = result.model_copy(
+        update={
+            "decision_trace": result.decision_trace.model_copy(
+                update={"decision_status": "no_recommendation"}
+            ),
+        }
+    )
+    with pytest.raises(ValidationError, match="no_recommendation"):
+        to_prompt_safe_markov_orchestration_context(no_recommendation_with_context)
+
 
 def test_degraded_state_and_recent_behavior_reasons_are_deterministic(
     configure_sqlite_database: Any,
