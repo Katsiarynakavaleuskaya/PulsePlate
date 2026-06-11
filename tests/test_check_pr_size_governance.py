@@ -696,6 +696,51 @@ def test_extract_trusted_approvals_falls_back_to_api_for_missing_labels(
     }
 
 
+def test_extract_trusted_approvals_unions_live_labels_when_event_labels_are_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "repository": {"full_name": "owner/repo"},
+                "pull_request": {"number": 123, "labels": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    class FakeResponse:
+        def __init__(self, payload: str) -> None:
+            self._payload = payload.encode("utf-8")
+
+        def read(self) -> bytes:
+            return self._payload
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover
+            return None
+
+    def fake_urlopen(request, timeout=10):  # pragma: no cover
+        assert request.full_url == "https://api.github.com/repos/owner/repo/pulls/123"
+        return FakeResponse(
+            '{"labels": [{"name": "scope/operator-approved"}, '
+            '{"name": "scope/privileged-approved"}]}'
+        )
+
+    monkeypatch.setattr(size_gate.urllib.request, "urlopen", fake_urlopen)
+
+    assert size_gate.extract_trusted_approvals(event_path) == {
+        "scope/operator-approved",
+        "scope/privileged-approved",
+    }
+
+
 def test_main_uses_event_labels_for_trusted_scope_approvals(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

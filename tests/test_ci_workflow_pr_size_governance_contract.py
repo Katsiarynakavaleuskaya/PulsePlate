@@ -1152,6 +1152,25 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     ]
 
 
+def test_build_workflow_keeps_trivy_scan_fail_closed_but_sarif_upload_advisory() -> None:
+    workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    scanner_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Run Trivy vulnerability scanner (filesystem scan)",
+    )
+    upload_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Upload Trivy scan results to GitHub Security tab",
+    )
+
+    assert scanner_step["with"]["exit-code"] == "1"
+    assert scanner_step.get("continue-on-error") is None
+    assert upload_step["uses"].startswith("github/codeql-action/upload-sarif@")
+    assert upload_step["continue-on-error"] is True
+
+
 def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
     """Guard every active upload-artifact use, not only historically touched workflows."""
 
@@ -1274,10 +1293,9 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 "path": (
                     "release-control-plane-build-sources/artifact_digest.txt\n"
                     "release-control-plane-build-sources/sbom_digest.txt\n"
+                    "release-control-plane-build-sources/attestation_check_digest.txt\n"
                     "release-control-plane-build-sources/provenance_digest.txt\n"
                     "release-control-plane-build-sources/attestation_status.txt\n"
-                    "docker-provenance-attestation-check.json\n"
-                    "docker-provenance-attestation-check.md\n"
                 ),
                 "if-no-files-found": "error",
                 "retention-days": 14,
