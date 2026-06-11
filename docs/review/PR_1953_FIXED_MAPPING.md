@@ -21,6 +21,34 @@
     decision.
   - Validation: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_promote.py tests/test_creative_research_metrics.py`
     passed with `29 passed`.
+- `bug-hunter`: NOT-A-BUG for the PulsePlate review dry-run large-diff advisory.
+  - Evidence: the diff is intentionally concentrated in one manual
+    orchestration report, passive promotion metadata, focused tests, docs, and
+    this governance artifact; no runtime/API/DB/client/provider surface is
+    touched.
+  - Validation: `make validate-changed` passed for the branch scope, and the
+    focused metrics/promotion pytest suite passed after the QA coverage fix.
+- `security-auditor`: no reportable post-open security finding.
+  - Evidence: the change is local-artifact only; report inputs and outputs are
+    confined to gitignored orchestration artifact roots; promotion origin
+    metadata is strict-schema and passive.
+  - Validation: `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make bandit-full`
+    passed; pre-push `bandit (pre-push, full repo)` also passed.
+- Codex Security diff scan / finding discovery: no diff-scoped candidate finding
+  promoted.
+  - Evidence: reviewed changed source-like files
+    `scripts/orchestration/creative_research_metrics.py` and
+    `scripts/orchestration/experiment_promote.py`; the script rejects path
+    escapes/symlinks and omits raw prompt, claim, mechanism, provider output,
+    local absolute path, and secret payloads from reports.
+  - Validation: no raw-leak/path-containment tests pass in
+    `tests/test_creative_research_metrics.py`; full-repo Bandit passed.
+- `pulseplate-pr-review`: advisory dry-run report generated from
+  `/tmp/pulseplate_pr_1953_review_context.json`.
+  - Evidence: report found one `note` only for large diff review-planning risk,
+    owned by `bug-hunter`, with `make validate-changed` as the proving gate.
+  - Disposition: NOT-A-BUG; the diff size is from deterministic tests and local
+    orchestration/reporting code within the declared narrow scope.
 
 ## Experiment Runner Evidence
 
