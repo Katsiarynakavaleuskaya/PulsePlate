@@ -169,8 +169,8 @@ Reason: Coverage status notice, not a code-actionable review finding.
 ## Merge Readiness
 
 - [ ] PR body mirror updated with this artifact and current pushed head.
-- [x] `make validate-changed` passed after this artifact was added.
-- [x] `pre-commit run --all-files` passed before push.
+- [ ] `make validate-changed` passed after this artifact was added.
+- [ ] `pre-commit run --all-files` passed before push.
 - [ ] Phase2 PR body gate passed against the live PR body.
 - [ ] Strict merge-readiness wrapper passed with auth.
 - [ ] Current-head CI is terminal with required checks passing.
