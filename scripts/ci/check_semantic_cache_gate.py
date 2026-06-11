@@ -59,6 +59,16 @@ DEFAULT_PROVIDER_MODEL_TIER_ROUTING_CONTRACT = (
 DEFAULT_PROVIDER_MODEL_TIER_ROUTING_SCHEMA = (
     DEFAULT_PROVIDER_MODEL_TIER_ROUTING_CONTRACT.with_suffix(".schema.json")
 )
+DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md"
+)
+DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA = (
+    DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT.with_suffix(".schema.json")
+)
 DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT = (
     REPO_ROOT
     / "docs"
@@ -929,6 +939,322 @@ PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_FIELDS = (
     "blocked_backends",
     "blocked_policy_decisions",
     "required_followups",
+)
+
+EMBEDDING_RETRIEVAL_ADMISSION_REQUIRED_ANCHORS = (
+    ("metadata-only", re.compile(r"\bmetadata-only\b")),
+    ("gate status closed", re.compile(r"\bgate status: closed\b")),
+    ("runtime allowed false", re.compile(r"\bruntime allowed: false\b")),
+    ("implementation allowed false", re.compile(r"\bimplementation allowed: false\b")),
+    ("admission allowed false", re.compile(r"\badmission allowed: false\b")),
+    ("embedding allowed false", re.compile(r"\bembedding allowed: false\b")),
+    (
+        "retrieval runtime allowed false",
+        re.compile(r"\bretrieval runtime allowed: false\b"),
+    ),
+    (
+        "semantic similarity allowed false",
+        re.compile(r"\bsemantic similarity allowed: false\b"),
+    ),
+    ("vector search allowed false", re.compile(r"\bvector search allowed: false\b")),
+    ("provider calls allowed false", re.compile(r"\bprovider calls allowed: false\b")),
+    ("cache read allowed false", re.compile(r"\bcache read allowed: false\b")),
+    ("cache write allowed false", re.compile(r"\bcache write allowed: false\b")),
+    ("serving allowed false", re.compile(r"\bserving allowed: false\b")),
+    ("telemetry phase", re.compile(r"\btelemetry phase: pr-o4\b")),
+    (
+        "selected embedding backend none",
+        re.compile(r"\bselected embedding backend: none\b"),
+    ),
+    (
+        "selected retrieval runtime none",
+        re.compile(r"\bselected retrieval runtime: none\b"),
+    ),
+    (
+        "future gate required",
+        re.compile(r"\bdedicated gate-open pr required: true\b"),
+    ),
+)
+EMBEDDING_RETRIEVAL_ADMISSION_FORBIDDEN_PATTERNS = (
+    (
+        "embeddings",
+        re.compile(
+            r"\bembedding/retrieval admission (?:enables|opens|approves|allows|permits|supports|generates|stores) embeddings\b"
+        ),
+    ),
+    (
+        "semantic similarity",
+        re.compile(
+            r"\bembedding/retrieval admission (?:enables|opens|approves|allows|permits|supports|uses|runs) semantic similarity\b"
+        ),
+    ),
+    (
+        "vector search",
+        re.compile(
+            r"\bembedding/retrieval admission (?:enables|opens|approves|allows|permits|supports|uses|runs) vector search\b"
+        ),
+    ),
+    (
+        "retrieval runtime",
+        re.compile(
+            r"\bembedding/retrieval admission (?:enables|opens|approves|allows|permits|supports|executes|runs) retrieval runtime\b"
+        ),
+    ),
+    (
+        "provider calls",
+        re.compile(
+            r"\bembedding/retrieval admission (?:performs|allows|enables|permits|supports) provider calls\b"
+        ),
+    ),
+    (
+        "runtime admission",
+        re.compile(
+            r"\bembedding/retrieval admission (?:admits|approves|allows|permits|selects) runtime\b"
+        ),
+    ),
+    (
+        "backend selection",
+        re.compile(
+            r"\bembedding/retrieval admission selects (?:a )?(?:backend|runtime|retriever)\b"
+        ),
+    ),
+    (
+        "cache serving",
+        re.compile(r"\bembedding/retrieval admission enables cache serving\b"),
+    ),
+    (
+        "cache read",
+        re.compile(r"\bembedding/retrieval admission enables cache reads?\b"),
+    ),
+    (
+        "cache write",
+        re.compile(r"\bembedding/retrieval admission enables cache writes?\b"),
+    ),
+    (
+        "provider wiring",
+        re.compile(r"\bembedding/retrieval admission wires (?:ollama|perplexity|sonar|gpt)\b"),
+    ),
+    (
+        "raw prompt",
+        re.compile(r"\bembedding/retrieval admission stores raw prompts?\b"),
+    ),
+    (
+        "raw query",
+        re.compile(r"\bembedding/retrieval admission stores raw queries\b"),
+    ),
+    (
+        "normalized query",
+        re.compile(r"\bembedding/retrieval admission stores normalized queries\b"),
+    ),
+    (
+        "raw context",
+        re.compile(r"\bembedding/retrieval admission stores raw context snippets?\b"),
+    ),
+    (
+        "raw response",
+        re.compile(r"\bembedding/retrieval admission stores raw responses?\b"),
+    ),
+    (
+        "live savings",
+        re.compile(r"\bembedding/retrieval admission proves live savings\b"),
+    ),
+    (
+        "retrieval quality",
+        re.compile(r"\bembedding/retrieval admission proves retrieval quality\b"),
+    ),
+    (
+        "model downgrade",
+        re.compile(r"\bembedding/retrieval admission (?:allows|supports) model downgrade\b"),
+    ),
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_CONST_FALSE_FIELDS = (
+    "runtime_allowed",
+    "implementation_allowed",
+    "admission_allowed",
+    "embedding_allowed",
+    "retrieval_runtime_allowed",
+    "semantic_similarity_allowed",
+    "vector_search_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_REASON_CODES = (
+    "gate_closed",
+    "metadata_only",
+    "admission_deferred",
+    "no_embeddings",
+    "no_vector_search",
+    "no_runtime_retrieval",
+    "no_provider_call",
+    "no_cache_serving",
+    "future_gate_required",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_TELEMETRY_FIELDS = (
+    "telemetry_id",
+    "telemetry_phase",
+    "policy_snapshot_id",
+    "evidence_refs",
+    "candidates",
+    "admission_allowed",
+    "embedding_allowed",
+    "retrieval_runtime_allowed",
+    "semantic_similarity_allowed",
+    "vector_search_allowed",
+    "provider_calls_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "selected_embedding_backend",
+    "selected_retrieval_runtime",
+    "required_followups",
+    "reason_codes",
+    "metadata",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_EVIDENCE_REF_FIELDS = (
+    "ref_id",
+    "ref_type",
+    "source_path",
+    "source_fingerprint",
+    "metadata",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_CANDIDATE_FIELDS = (
+    "candidate_id",
+    "candidate_type",
+    "surface_label",
+    "evidence_ref_ids",
+    "admission_state",
+    "reason_codes",
+    "metadata",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_POLICY_FIELDS = (
+    "policy_id",
+    "policy_version",
+    "authority_boundary",
+    "gate_status",
+    "evidence_ref_types",
+    "candidate_types",
+    "reason_codes",
+    "metadata",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_PAYLOADS = (
+    "raw_prompts",
+    "raw_queries",
+    "normalized_queries",
+    "raw_context_snippets",
+    "raw_model_responses",
+    "raw_answers",
+    "provider_payloads",
+    "embedding_vectors",
+    "retrieval_queries",
+    "similarity_scores",
+    "secrets",
+    "credentials",
+    "local_paths",
+    "account_truth",
+    "billing_truth",
+    "health_sensitive_payloads",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_BACKENDS = (
+    "embedding_models",
+    "embedding_generation",
+    "semantic_similarity",
+    "vector_index",
+    "vector_search",
+    "retrieval_runtime",
+    "GraphRAG_runtime",
+    "provider_clients",
+    "provider_calls",
+    "Ollama",
+    "Perplexity",
+    "Sonar",
+    "GPT_client",
+    "Redis",
+    "GPTCache",
+    "DB",
+    "OpenAPI",
+    "frontend",
+    "iOS",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_POLICY_DECISIONS = (
+    "runtime_admission",
+    "backend_selection",
+    "retrieval_route_selection",
+    "cache_read_decisions",
+    "cache_write_decisions",
+    "serving_decisions",
+    "provider_selection",
+    "model_selection",
+    "final_review_downgrade",
+    "billing_decisions",
+    "entitlement_decisions",
+    "production_cost_claims",
+    "live_savings_claims",
+    "retrieval_quality_claims",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_REF_TYPES = (
+    "changed_file",
+    "contract",
+    "test",
+    "agent_rule",
+    "review_artifact",
+    "roadmap",
+    "orchestration_packet",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_CANDIDATE_TYPES = (
+    "embedding_candidate",
+    "retrieval_candidate",
+    "hybrid_candidate",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_SURFACES = (
+    "orchestration_context",
+    "merge_readiness_context",
+    "prompt_module_registry",
+    "evidence_graph_reference",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_FOLLOWUPS = (
+    "semantic_cache_gate_open_pr",
+    "embedding_runtime_review",
+    "retrieval_runtime_review",
+    "false_hit_harness_review",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_FIELDS = (
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "admission_allowed",
+    "embedding_allowed",
+    "retrieval_runtime_allowed",
+    "semantic_similarity_allowed",
+    "vector_search_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+    "telemetry_phase",
+    "authority_boundary",
+    "asset_type",
+    "selected_embedding_backend",
+    "selected_retrieval_runtime",
+    "telemetry_fields",
+    "candidate_fields",
+    "evidence_ref_fields",
+    "policy_snapshot_fields",
+    "allowed_evidence_ref_types",
+    "allowed_candidate_types",
+    "allowed_surface_labels",
+    "required_reason_codes",
+    "required_followups",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
 )
 
 BOUNDED_INSIGHT_FORBIDDEN_PATTERNS = (
@@ -3348,6 +3674,178 @@ def validate_semantic_cache_provider_model_tier_routing_schema(
     return errors
 
 
+def validate_semantic_cache_embedding_retrieval_admission_contract(text: str) -> list[str]:
+    """Return stable validation errors for PR-O4 embedding/retrieval admission."""
+
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in EMBEDDING_RETRIEVAL_ADMISSION_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"embedding/retrieval admission contract missing anchor: {label}")
+
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden embedding/retrieval admission claim: {label}"
+        for label, pattern in EMBEDDING_RETRIEVAL_ADMISSION_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
+def validate_semantic_cache_embedding_retrieval_admission_schema(
+    schema_text: str,
+) -> list[str]:
+    """Return stable validation errors for PR-O4 embedding/retrieval schema."""
+
+    errors: list[str] = []
+    try:
+        schema = json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        return [f"embedding/retrieval admission schema invalid JSON: {exc.msg}"]
+    if not isinstance(schema, dict):
+        return ["embedding/retrieval admission schema must be an object"]
+    if schema.get("type") != "object":
+        errors.append("embedding/retrieval admission schema root type must be object")
+    if schema.get("additionalProperties") is not False:
+        errors.append("embedding/retrieval admission schema must forbid additionalProperties")
+    required = schema.get("required")
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("embedding/retrieval admission schema required must be a string list")
+        required_set: set[str] = set()
+    else:
+        required_set = set(required)
+    for field in EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_FIELDS:
+        if field not in required_set:
+            errors.append(f"embedding/retrieval admission schema missing required field: {field}")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return [*errors, "embedding/retrieval admission schema missing properties"]
+    if _schema_const(properties, "gate_status") != "closed":
+        errors.append("embedding/retrieval admission schema gate_status must be const closed")
+    if _schema_const(properties, "telemetry_phase") != "PR-O4":
+        errors.append("embedding/retrieval admission schema telemetry_phase must be const PR-O4")
+    if _schema_const(properties, "authority_boundary") != "metadata_only_non_serving":
+        errors.append(
+            "embedding/retrieval admission schema authority_boundary must be const "
+            "metadata_only_non_serving"
+        )
+    if _schema_const(properties, "asset_type") != "embedding_retrieval_admission_telemetry":
+        errors.append(
+            "embedding/retrieval admission schema asset_type must be const "
+            "embedding_retrieval_admission_telemetry"
+        )
+    if _schema_const(properties, "selected_embedding_backend") != "none":
+        errors.append(
+            "embedding/retrieval admission schema selected_embedding_backend must be const none"
+        )
+    if _schema_const(properties, "selected_retrieval_runtime") != "none":
+        errors.append(
+            "embedding/retrieval admission schema selected_retrieval_runtime must be const none"
+        )
+    for field in EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_CONST_FALSE_FIELDS:
+        if _schema_const(properties, field) is not False:
+            errors.append(f"embedding/retrieval admission schema {field} must be const false")
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "telemetry_fields",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_TELEMETRY_FIELDS,
+            "embedding/retrieval admission schema missing telemetry field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "candidate_fields",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_CANDIDATE_FIELDS,
+            "embedding/retrieval admission schema missing candidate field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "evidence_ref_fields",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_EVIDENCE_REF_FIELDS,
+            "embedding/retrieval admission schema missing evidence ref field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "policy_snapshot_fields",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_POLICY_FIELDS,
+            "embedding/retrieval admission schema missing policy snapshot field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_evidence_ref_types",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_REF_TYPES,
+            "embedding/retrieval admission schema missing evidence ref type",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_candidate_types",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_CANDIDATE_TYPES,
+            "embedding/retrieval admission schema missing candidate type",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_surface_labels",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_SURFACES,
+            "embedding/retrieval admission schema missing surface label",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "required_reason_codes",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_REASON_CODES,
+            "embedding/retrieval admission schema missing reason code",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "required_followups",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_FOLLOWUPS,
+            "embedding/retrieval admission schema missing followup",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_payloads",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_PAYLOADS,
+            "embedding/retrieval admission schema missing blocked payload",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_backends",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_BACKENDS,
+            "embedding/retrieval admission schema missing blocked backend",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_policy_decisions",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_POLICY_DECISIONS,
+            "embedding/retrieval admission schema missing blocked policy decision",
+        )
+    )
+    return errors
+
+
 def validate_semantic_cache_backend_selection_contract(text: str) -> list[str]:
     """Return stable validation errors for unsafe SC-G5 backend selection contracts."""
     errors: list[str] = []
@@ -4326,6 +4824,18 @@ def main(argv: list[str] | None = None) -> int:
         help="PR-O3 provider/model-tier routing JSON schema to validate.",
     )
     parser.add_argument(
+        "--embedding-retrieval-admission-contract",
+        type=Path,
+        default=DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT,
+        help="PR-O4 embedding/retrieval admission markdown document to validate.",
+    )
+    parser.add_argument(
+        "--embedding-retrieval-admission-schema",
+        type=Path,
+        default=DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA,
+        help="PR-O4 embedding/retrieval admission JSON schema to validate.",
+    )
+    parser.add_argument(
         "--philosophy-admission-contract",
         type=Path,
         default=DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT,
@@ -4445,6 +4955,22 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    embedding_retrieval_admission_contract = args.embedding_retrieval_admission_contract
+    if not embedding_retrieval_admission_contract.exists():
+        print(
+            "ERROR: embedding/retrieval admission contract missing: "
+            f"{embedding_retrieval_admission_contract}",
+            file=sys.stderr,
+        )
+        return 1
+    embedding_retrieval_admission_schema = args.embedding_retrieval_admission_schema
+    if not embedding_retrieval_admission_schema.exists():
+        print(
+            "ERROR: embedding/retrieval admission schema missing: "
+            f"{embedding_retrieval_admission_schema}",
+            file=sys.stderr,
+        )
+        return 1
 
     philosophy_admission_contract = args.philosophy_admission_contract
     if not philosophy_admission_contract.exists():
@@ -4526,6 +5052,16 @@ def main(argv: list[str] | None = None) -> int:
             provider_model_tier_routing_schema.read_text(encoding="utf-8")
         )
     )
+    errors.extend(
+        validate_semantic_cache_embedding_retrieval_admission_contract(
+            embedding_retrieval_admission_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_embedding_retrieval_admission_schema(
+            embedding_retrieval_admission_schema.read_text(encoding="utf-8")
+        )
+    )
     philosophy_admission_text = philosophy_admission_contract.read_text(encoding="utf-8")
     errors.extend(validate_philosophy_semantic_cache_admission_contract(philosophy_admission_text))
     errors.extend(
@@ -4582,6 +5118,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"backend selection contract closed: {backend_selection_contract}")
     print(f"context compression contract closed: {context_compression_contract}")
     print(f"provider/model-tier routing contract closed: {provider_model_tier_routing_contract}")
+    print(
+        "embedding/retrieval admission contract closed: "
+        f"{embedding_retrieval_admission_contract}"
+    )
     print(f"philosophy admission contract closed: {philosophy_admission_contract}")
     print(f"philosophy admission policy closed: {philosophy_admission_policy}")
     print(f"philosophy admission oracle fixture current: {philosophy_admission_oracle}")
