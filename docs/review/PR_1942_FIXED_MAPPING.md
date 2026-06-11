@@ -44,6 +44,18 @@ Evidence: focused gates PASS: `pytest -q tests/test_run_safety_audit.py tests/te
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#discussion_r3397707944 -> 066b6b8749b6de1e59b028fd1dbe194e10a0bbee
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#discussion_r3397707946 -> 066b6b8749b6de1e59b028fd1dbe194e10a0bbee
 
+Disposition: FIXED
+Commit: d2e87590c8aca82cc9c1725eeff3e2ae8e2104d9
+Evidence: scripts/ci/run_safety_audit.py:260 skips repo waiver overlay parsing for non-YAML policy files so TOML policies remain Safety-owned instead of failing through PyYAML.
+Evidence: scripts/ci/run_safety_audit.py:539 wraps repo-policy waiver loading and application in the same write-and-reraise diagnostic path used by Safety report normalization.
+Evidence: tests/test_run_safety_audit.py:344 covers TOML policy skip behavior; tests/test_run_safety_audit.py:351 covers malformed YAML policy errors writing the safety summary artifact before failing closed.
+Evidence: focused gates PASS: `pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py`; `ruff check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py`; `ruff format --check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py`; `pre-commit run mypy --hook-stage pre-push --files scripts/ci/run_safety_audit.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#pullrequestreview-4478857702 -> d2e87590c8aca82cc9c1725eeff3e2ae8e2104d9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#discussion_r3397707933 -> d2e87590c8aca82cc9c1725eeff3e2ae8e2104d9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#discussion_r3397707940 -> d2e87590c8aca82cc9c1725eeff3e2ae8e2104d9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#pullrequestreview-4478873734 -> d2e87590c8aca82cc9c1725eeff3e2ae8e2104d9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#discussion_r3397721876 -> d2e87590c8aca82cc9c1725eeff3e2ae8e2104d9
+
 ## External Review Availability Notes
 
 External bot capacity or availability notices are not treated as code-actionable
