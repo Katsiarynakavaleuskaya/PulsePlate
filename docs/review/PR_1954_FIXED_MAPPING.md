@@ -206,7 +206,11 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 
 - `agent-coordinator`: FIXED in `e351c7202`; see Fixed in Commit Mapping.
 - `qa-engineer-agent`: FIXED in `e351c7202`; see Fixed in Commit Mapping.
-- `bug-hunter`: FIXED in `2f3722e89`; rerun pending.
+- `bug-hunter`: FIXED in `2f3722e89` and `1bf3f5712`.
+- `bug-hunter` rerun: PASS at head `e7af479b99cb23df97f404915523d2818662845e`.
+  Evidence: previous false-green classes now return guard errors; focused
+  tests passed with 62 tests; both guard CLIs passed; `git diff --check
+  origin/main...HEAD` passed.
 - `security-auditor`: pending.
 - Codex Security diff scan / finding discovery: pending.
 - `pulseplate-pr-review`: pending.
