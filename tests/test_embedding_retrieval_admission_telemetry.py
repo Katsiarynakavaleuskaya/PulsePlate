@@ -114,6 +114,9 @@ def test_admission_telemetry_serializes_without_raw_or_local_payloads() -> None:
     (
         {"raw_prompt": "unsafe"},
         {"payload": "provider_payload"},
+        {"prompt": "summarize this merge-readiness context"},
+        {"query": "what should be embedded"},
+        {"similarity_score": "92"},
         {"path": "/Users/name/private.txt"},
         {"tmp_path": "/tmp/private.txt"},
         {"auth_marker": "authorization"},

@@ -110,6 +110,11 @@ def test_embedding_retrieval_admission_validators_pass_current_contract_and_sche
         ("Embedding/retrieval admission proves live savings.", "live savings"),
         ("Embedding/retrieval admission proves retrieval quality.", "retrieval quality"),
         ("Embedding/retrieval admission allows model downgrade.", "model downgrade"),
+        ("PR-O4 uses vector search.", "vector search"),
+        ("This contract performs provider calls.", "provider calls"),
+        ("The telemetry stores raw prompts.", "raw prompt"),
+        ("This PR enables retrieval runtime.", "retrieval runtime"),
+        ("This contract proves live savings.", "live savings"),
     ),
 )
 def test_embedding_retrieval_contract_validator_rejects_forbidden_claims(

@@ -979,92 +979,159 @@ EMBEDDING_RETRIEVAL_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "embeddings",
         re.compile(
-            r"\bembedding/retrieval admission (?:enables|opens|approves|allows|permits|supports|generates|stores) embeddings\b"
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|opens|approves|allows|permits|supports|generates|"
+            r"stores|uses|runs|performs) embeddings\b"
         ),
     ),
     (
         "semantic similarity",
         re.compile(
-            r"\bembedding/retrieval admission (?:enables|opens|approves|allows|permits|supports|uses|runs) semantic similarity\b"
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|opens|approves|allows|permits|supports|uses|runs|"
+            r"performs) semantic similarity\b"
         ),
     ),
     (
         "vector search",
         re.compile(
-            r"\bembedding/retrieval admission (?:enables|opens|approves|allows|permits|supports|uses|runs) vector search\b"
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|opens|approves|allows|permits|supports|uses|runs|"
+            r"performs) vector search\b"
         ),
     ),
     (
         "retrieval runtime",
         re.compile(
-            r"\bembedding/retrieval admission (?:enables|opens|approves|allows|permits|supports|executes|runs) retrieval runtime\b"
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|opens|approves|allows|permits|supports|executes|"
+            r"runs|uses|performs) retrieval runtime\b"
         ),
     ),
     (
         "provider calls",
         re.compile(
-            r"\bembedding/retrieval admission (?:performs|allows|enables|permits|supports) provider calls\b"
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:performs|allows|enables|permits|supports|uses|runs) "
+            r"provider calls\b"
         ),
     ),
     (
         "runtime admission",
         re.compile(
-            r"\bembedding/retrieval admission (?:admits|approves|allows|permits|selects) runtime\b"
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:admits|approves|allows|permits|selects|enables) runtime\b"
         ),
     ),
     (
         "backend selection",
         re.compile(
-            r"\bembedding/retrieval admission selects (?:a )?(?:backend|runtime|retriever)\b"
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:selects|enables|allows|performs) (?:a )?(?:backend|runtime|retriever)\b"
         ),
     ),
     (
         "cache serving",
-        re.compile(r"\bembedding/retrieval admission enables cache serving\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|allows|permits|supports|performs) cache serving\b"
+        ),
     ),
     (
         "cache read",
-        re.compile(r"\bembedding/retrieval admission enables cache reads?\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|allows|permits|supports|performs) cache reads?\b"
+        ),
     ),
     (
         "cache write",
-        re.compile(r"\bembedding/retrieval admission enables cache writes?\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|allows|permits|supports|performs) cache writes?\b"
+        ),
     ),
     (
         "provider wiring",
-        re.compile(r"\bembedding/retrieval admission wires (?:ollama|perplexity|sonar|gpt)\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:wires|enables|allows|uses) (?:ollama|perplexity|sonar|gpt)\b"
+        ),
     ),
     (
         "raw prompt",
-        re.compile(r"\bembedding/retrieval admission stores raw prompts?\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) raw prompts?\b"
+        ),
     ),
     (
         "raw query",
-        re.compile(r"\bembedding/retrieval admission stores raw queries\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) raw queries\b"
+        ),
     ),
     (
         "normalized query",
-        re.compile(r"\bembedding/retrieval admission stores normalized queries\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) normalized queries\b"
+        ),
     ),
     (
         "raw context",
-        re.compile(r"\bembedding/retrieval admission stores raw context snippets?\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) raw context snippets?\b"
+        ),
     ),
     (
         "raw response",
-        re.compile(r"\bembedding/retrieval admission stores raw responses?\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) raw responses?\b"
+        ),
     ),
     (
         "live savings",
-        re.compile(r"\bembedding/retrieval admission proves live savings\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:proves|claims|reports|guarantees) live savings\b"
+        ),
     ),
     (
         "retrieval quality",
-        re.compile(r"\bembedding/retrieval admission proves retrieval quality\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:proves|claims|reports|guarantees) retrieval quality\b"
+        ),
     ),
     (
         "model downgrade",
-        re.compile(r"\bembedding/retrieval admission (?:allows|supports) model downgrade\b"),
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:allows|supports|enables|permits) model downgrade\b"
+        ),
     ),
 )
 EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_CONST_FALSE_FIELDS = (

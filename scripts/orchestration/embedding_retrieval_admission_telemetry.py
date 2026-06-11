@@ -127,6 +127,7 @@ _PATH_RE = re.compile(
 )
 _UNSAFE_METADATA_RE = re.compile(
     r"raw[_ -]?(?:query|prompt|response|answer|context)"
+    r"|(?:^|[_ -])(?:prompt|query|similarity[_ -]?scores?)(?:$|[_ -])"
     r"|normalized[_ -]?query"
     r"|provider[_ -]?(?:payload|request|response|client|price|selection|routing)"
     r"|prompt[_ -]?text"
