@@ -66,9 +66,10 @@ def _validate_hypothesis(value: str) -> str:
 def parse_operator_command(text: str, *, command_hint: str | None = None) -> OperatorCommand:
     """Parse one bounded Slack operator command."""
 
+    hint = command_hint.strip() if command_hint else None
     normalized = CONTROL_CHAR_RE.sub(" ", text).strip()
     normalized = re.sub(r"^(<@[A-Za-z0-9_-]+>\s*)+", "", normalized).strip()
-    if command_hint == "/run-experiment":
+    if hint == "/run-experiment":
         normalized = f"run-experiment {normalized}".strip()
     if normalized.startswith("/"):
         normalized = normalized[1:]
@@ -77,9 +78,10 @@ def parse_operator_command(text: str, *, command_hint: str | None = None) -> Ope
     verb, _separator, remainder = normalized.partition(" ")
     if verb not in ALLOWED_COMMANDS:
         raise SlackSocketCommandError("Slack operator command is invalid.")
-    scoped_commands = SLASH_COMMAND_SCOPES.get(command_hint or "")
-    if scoped_commands is not None and verb not in scoped_commands:
-        raise SlackSocketCommandError("Slack operator command is invalid.")
+    if hint is not None:
+        scoped_commands = SLASH_COMMAND_SCOPES.get(hint)
+        if scoped_commands is None or verb not in scoped_commands:
+            raise SlackSocketCommandError("Slack operator command is invalid.")
     if verb in DISPLAY_ONLY_COMMANDS:
         if remainder.strip():
             raise SlackSocketCommandError("Slack operator command is invalid.")
