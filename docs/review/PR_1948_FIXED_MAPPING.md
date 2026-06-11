@@ -54,7 +54,13 @@ backend, client, OpenAPI, database, app runtime, or release behavior.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1948#discussion_r3399097640 -> abdf3794a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1948#pullrequestreview-4480510516 -> abdf3794a
+Disposition: FIXED
+Commit: abdf3794a
+Evidence: docs/review/PR_1948_FIXED_MAPPING.md:172
+Evidence: docs/review/PR_1948_FIXED_MAPPING.md:173
+Reason: The `Merge Readiness` checklist now keeps `make validate-changed` and `pre-commit run --all-files` unchecked until the final merge cycle while completed gate evidence remains recorded under `Validation Evidence`.
 
 ## External Bot And Review Dispositions
 
