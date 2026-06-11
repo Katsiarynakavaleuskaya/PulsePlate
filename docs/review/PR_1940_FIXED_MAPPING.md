@@ -26,8 +26,8 @@ DB/cache backend, OpenAPI/client changes, or raw response storage are added.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - Review threads: none resolved by this artifact at PR open.
-- Bot reviews/actionables: pending final current-head CodeRabbit, Sourcery,
-  Cubic, and CI review pass.
+- Bot reviews/actionables: Sourcery, Cubic, and CodeRabbit findings are fixed
+  or dispositioned in this artifact.
 
 ## Fixed in Commit Mapping
 
@@ -35,14 +35,14 @@ Disposition: FIXED
 Commit: see mapping entries below
 Evidence: Actionable bot review findings are mapped to the fixing commits below.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#pullrequestreview-4476591903 -> 32b84a6e67317c69813f5826e3447604f6e771ac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#pullrequestreview-4476591903 -> 9d0580b16f8d2592f05567230b7d5e782381f6e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395773654 -> 32b84a6e67317c69813f5826e3447604f6e771ac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395773667 -> 32b84a6e67317c69813f5826e3447604f6e771ac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#pullrequestreview-4476635845 -> 32b84a6e67317c69813f5826e3447604f6e771ac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395807618 -> 32b84a6e67317c69813f5826e3447604f6e771ac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395986039 -> 7d74b021a8b4e9e5c567f8ed8a60a3e391b5c2b9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395986055 -> 32b84a6e67317c69813f5826e3447604f6e771ac
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#pullrequestreview-4476851012 -> 32b84a6e67317c69813f5826e3447604f6e771ac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#pullrequestreview-4476851012 -> 9d0580b16f8d2592f05567230b7d5e782381f6e0
 
 ## Implementation Evidence
 
@@ -69,6 +69,10 @@ Evidence: Actionable bot review findings are mapped to the fixing commits below.
   zero-cap/overflow cases, covering detached HEAD and packed-refs Git metadata
   branches, and adding the missing `ExactFuzzyCacheRecord` return type
   annotation.
+- `9d0580b16f8d2592f05567230b7d5e782381f6e0` - closes the remaining bot review
+  body findings by keeping shadow reuse telemetry on the CLI packet-write path
+  only and removing the unused `tmp_path` fixture from the same-head repeat
+  packet regression test.
 
 ## Premortem Evidence
 
@@ -206,6 +210,13 @@ Second identical `task_bootstrap.py` run on code-bearing head
     covers `max_files=0`; detached HEAD and packed-ref resolution are covered by
     `test_resolve_current_head_sha_reads_detached_head` and
     `test_resolve_current_head_sha_reads_packed_ref`.
+- Bot: `sourcery-ai[bot]`
+  - Disposition: FIXED
+  - Commit: `9d0580b16f8d2592f05567230b7d5e782381f6e0`
+  - Evidence: `build_task_packet(...)` no longer constructs a headless
+    shadow telemetry record that the CLI immediately overwrites; the CLI adds
+    `orchestration_shadow_reuse_telemetry` after packet construction and before
+    writing the task packet.
 - Bot: `cubic-dev-ai[bot]`
   - Disposition: FIXED
   - Commit: `32b84a6e67317c69813f5826e3447604f6e771ac`
@@ -222,8 +233,13 @@ Second identical `task_bootstrap.py` run on code-bearing head
   - Commit: `32b84a6e67317c69813f5826e3447604f6e771ac`
   - Evidence: `_record_for_summary` now returns `ExactFuzzyCacheRecord`
     explicitly.
+- Bot: `coderabbitai[bot]`
+  - Disposition: FIXED
+  - Commit: `9d0580b16f8d2592f05567230b7d5e782381f6e0`
+  - Evidence: `test_main_repeated_packet_records_same_head_shadow_exact_hit`
+    no longer declares or deletes an unused `tmp_path` fixture.
 
 ## Merge Readiness
 
-Not claimed. Pending current-head CI, final bot/actionable review pass, strict
-merge-ready wrapper, and wait-window.
+Not claimed for this follow-up mapping commit until current-head CI and the
+strict merge-ready wrapper are rerun after push.
