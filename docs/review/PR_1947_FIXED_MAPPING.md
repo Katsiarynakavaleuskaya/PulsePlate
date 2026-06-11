@@ -39,6 +39,14 @@ Reason: The comment contains no actionable code-review finding.
 
 - `2dc7913f2b22d9d11e4c06b6de5e21f824c10ed0`: Removed the PR-only public PyPI override from `test-main`, kept read-only `contents` and `actions` permissions, blanked inherited proxy env at job scope, added a PR-only repository-vars resolver, added a protected `secrets || vars` resolver, and placed both resolver steps before `Setup Python environment`.
 - `2dc7913f2b22d9d11e4c06b6de5e21f824c10ed0`: Extended `tests/test_ci_workflow_pr_size_governance_contract.py` to assert read-only actions permission, blank proxy env, PR resolver ordering, PR resolver vars-only behavior, no PR secrets references, empty-index failure, CR/LF rejection, protected secrets-or-vars fallback, and absence of `https://pypi.org/simple` / `pypi.org` in the `test-main` job.
+- `3babb198fe65df6ebf75ca29496d1cf494d0e2cc`: After merging current `origin/main`, fixed a current-main A1b closeout guard failure by rewording the embedding/retrieval telemetry sentence with explicit gate-closed negative language. Evidence: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:81`.
+
+## Current-Main CI Unblock Evidence
+
+- Current-head CI failure observed in `test-main (3.11, 60)` after the package-proxy resolver and `Setup Python environment` had already succeeded.
+- Raw failure pointer: `FAILED tests/test_ai_pro_quota_a1b_closeout.py::test_checker_passes_on_current_repository`; the checker rejected the prior backend-selection sentence as a non-fail-closed runtime-expansion claim.
+- Root cause: current `origin/main` introduced `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md` wording that the A1b closeout guard classifies as an enabled semantic-cache/runtime-expansion claim.
+- Fix: `3babb198fe65df6ebf75ca29496d1cf494d0e2cc` changes that sentence to state that no embedding backend or retrieval runtime is enabled. This preserves gate-closed semantics and does not authorize embeddings, vector search, provider wiring, semantic-cache serving, DB, API, web, or mobile runtime work.
 
 ## Startup And Role Evidence
 
@@ -91,6 +99,9 @@ Reason: The comment contains no actionable code-review finding.
 - PASS: `make validate-changed` -> selected `tests/test_ci_workflow_pr_size_governance_contract.py`, `27 passed`.
 - PASS after hook formatting rerun: `pre-commit run --all-files`.
 - PASS during commit hooks for `2dc7913f2b22d9d11e4c06b6de5e21f824c10ed0`: YAML, whitespace, merge-conflict, large-file, yamllint, detect-secrets, workflow check, Black, Ruff, backend changed-file pytest, iOS syntax, and commitizen.
+- PASS: `.venv/bin/python -m pytest -q tests/test_ai_pro_quota_a1b_closeout.py::test_checker_passes_on_current_repository`.
+- PASS: `python3 scripts/ci/check_ai_pro_quota_a1b_closeout.py`.
+- PASS: commit hooks for `3babb198fe65df6ebf75ca29496d1cf494d0e2cc`.
 - Local validation gap: broader `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_python_supply_chain_controls.py tests/test_ci_risk_profile.py` stopped at `tests/test_python_supply_chain_controls.py::test_pip_audit_helper_invokes_cpu_rag_vector_manifest` with return code `-9`, empty stdout/stderr; isolated rerun hung beyond 3 minutes and was killed. This is not claimed as passing evidence.
 - Local machine-heavy exception: full local `make verify` was not run for this CI/tooling PR. Merge readiness must use the documented narrow local gates above plus current-head CI parity and strict wrapper evidence.
 
