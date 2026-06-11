@@ -1179,6 +1179,8 @@ def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
     assert "rm -rf -- trivy-results.sarif" in prepare_run
     assert 'rm -rf "${RUNNER_TEMP}/pulseplate-trivy"' in prepare_run
     assert 'mkdir -p "${RUNNER_TEMP}/pulseplate-trivy"' in prepare_run
+    assert scanner_step["with"]["exit-code"] == "1"
+    assert scanner_step.get("continue-on-error") is None
     assert scanner_step["with"]["output"] == (
         "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif"
     )
@@ -1195,6 +1197,8 @@ def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
     assert upload_step["if"] == (
         "${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}"
     )
+    assert upload_step["uses"].startswith("github/codeql-action/upload-sarif@")
+    assert upload_step["continue-on-error"] is True
     assert upload_step["with"]["sarif_file"] == "trivy-results.sarif"
 
 
@@ -1320,10 +1324,9 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 "path": (
                     "release-control-plane-build-sources/artifact_digest.txt\n"
                     "release-control-plane-build-sources/sbom_digest.txt\n"
+                    "release-control-plane-build-sources/attestation_check_digest.txt\n"
                     "release-control-plane-build-sources/provenance_digest.txt\n"
                     "release-control-plane-build-sources/attestation_status.txt\n"
-                    "docker-provenance-attestation-check.json\n"
-                    "docker-provenance-attestation-check.md\n"
                 ),
                 "if-no-files-found": "error",
                 "retention-days": 14,

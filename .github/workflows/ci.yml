@@ -521,11 +521,16 @@ jobs:
         run: |
           set -euo pipefail
           : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-          pip_index_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+          install_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
           if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-            pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
           fi
-          python -m pip install "${pip_index_args[@]}" "safety>=3.7.0" -c constraints.txt
+          python scripts/ci/install_locked_python_requirements.py \
+            --requirements-file requirements-security.txt \
+            --constraints-file constraints.txt \
+            --install-mode direct-proxy \
+            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
+            "${install_args[@]}"
 
       - name: Dependency audit with Safety
         run: |

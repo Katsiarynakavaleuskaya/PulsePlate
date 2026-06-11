@@ -48,12 +48,16 @@ jobs:
 
       - name: Build Docker image (local, for tests)
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
         with:
           context: .
           build-args: |
-            PULSEPLATE_PYTHON_INDEX_URL=${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
             PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
+          secret-envs: |
+            pp_py_index=PULSEPLATE_PYTHON_INDEX_URL
+            pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST
           platforms: linux/amd64
           push: false
           load: true
@@ -324,6 +328,7 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security tab
         if: ${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
         with:
           sarif_file: trivy-results.sarif
@@ -391,12 +396,16 @@ jobs:
       - name: Build and push Docker image
         id: docker-build-push
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        env:
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
         with:
           context: .
           build-args: |
-            PULSEPLATE_PYTHON_INDEX_URL=${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
             PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
+          secret-envs: |
+            pp_py_index=PULSEPLATE_PYTHON_INDEX_URL
+            pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST
           # Single-arch for cache/push stability (CodeRabbit discussion_r2869743452). Restore linux/arm64 when GHA cache/provenance is stable.
           platforms: linux/amd64
           push: true
@@ -510,6 +519,19 @@ jobs:
           attestation_payload = json.loads(attestation.read_text(encoding="utf-8"))
           if attestation_payload.get("passed") is not True:
               raise SystemExit("ERROR: Docker provenance/SBOM attestations are not verified")
+          provenance_results = attestation_payload.get("provenance", {}).get(
+              "verification_result", []
+          )
+          if not provenance_results:
+              raise SystemExit("ERROR: Docker provenance attestation summary is missing")
+          provenance_statement = provenance_results[0].get("verificationResult", {}).get(
+              "statement", {}
+          )
+          provenance_summary_digest = provenance_statement.get(
+              "redacted_statement_summary_sha256"
+          )
+          if not isinstance(provenance_summary_digest, str) or len(provenance_summary_digest) != 64:
+              raise SystemExit("ERROR: Docker provenance summary digest is invalid")
           (source_dir / "artifact_digest.txt").write_text(
               "${{ steps.docker-build-push.outputs.digest }}\n",
               encoding="utf-8",
@@ -518,8 +540,13 @@ jobs:
               f"sha256:{hashlib.sha256(sbom.read_bytes()).hexdigest()}\n",
               encoding="utf-8",
           )
+          attestation_check_digest = f"sha256:{hashlib.sha256(attestation.read_bytes()).hexdigest()}\n"
+          (source_dir / "attestation_check_digest.txt").write_text(
+              attestation_check_digest,
+              encoding="utf-8",
+          )
           (source_dir / "provenance_digest.txt").write_text(
-              f"sha256:{hashlib.sha256(attestation.read_bytes()).hexdigest()}\n",
+              f"sha256:{provenance_summary_digest}\n",
               encoding="utf-8",
           )
           (source_dir / "attestation_status.txt").write_text("VERIFIED\n", encoding="utf-8")
@@ -532,10 +559,9 @@ jobs:
           path: |
             release-control-plane-build-sources/artifact_digest.txt
             release-control-plane-build-sources/sbom_digest.txt
+            release-control-plane-build-sources/attestation_check_digest.txt
             release-control-plane-build-sources/provenance_digest.txt
             release-control-plane-build-sources/attestation_status.txt
-            docker-provenance-attestation-check.json
-            docker-provenance-attestation-check.md
           if-no-files-found: error
           retention-days: 14
 

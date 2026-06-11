@@ -34,6 +34,14 @@ from scripts.orchestration.context_pack import (
     repo_relative_paths,
     resolve_domain,
 )
+from scripts.orchestration.context_pack_compression import (
+    build_context_pack_compression,
+    to_stable_mapping as context_compression_to_stable_mapping,
+)
+from scripts.orchestration.provider_model_tier_policy import (
+    build_provider_model_routing_telemetry,
+    to_stable_mapping as provider_model_routing_to_stable_mapping,
+)
 from scripts.orchestration.agent_consistency_loader import (
     load_inventory_agents,
     load_non_routable_agents,
@@ -1100,6 +1108,34 @@ def build_task_packet(
             "promotion_labels": [],
         }
 
+    context_pack_compression = build_context_pack_compression(
+        candidate_paths=normalized_paths,
+        required_context=context_pack,
+        pr_phase=normalized_pr_phase,
+        domain=decision.domain,
+        cluster=decision.cluster,
+        primary_agent=requested_agent_resolution["primary_agent"],
+        reviewer=requested_agent_resolution["reviewer"],
+        secondary_agents=requested_agent_resolution["secondary_agents"],
+        requested_agents=normalized_requested_agents,
+        orchestration_fanout_multiplier=max(
+            1,
+            len(
+                {
+                    requested_agent_resolution["primary_agent"],
+                    requested_agent_resolution["reviewer"],
+                    *requested_agent_resolution["secondary_agents"],
+                }
+            ),
+        ),
+    )
+    provider_model_tier_routing = build_provider_model_routing_telemetry(
+        requested_agents=normalized_requested_agents,
+        primary_agent=requested_agent_resolution["primary_agent"],
+        reviewer=requested_agent_resolution["reviewer"],
+        secondary_agents=requested_agent_resolution["secondary_agents"],
+    )
+
     return {
         "schema_version": SCHEMA_VERSION,
         "task_packet_id": packet_id,
@@ -1114,6 +1150,12 @@ def build_task_packet(
         "requested_agents": normalized_requested_agents,
         "requested_agent_disposition": requested_agent_resolution["requested_agent_disposition"],
         "required_context": context_pack,
+        "context_pack_compression": dict(
+            context_compression_to_stable_mapping(context_pack_compression)
+        ),
+        "provider_model_tier_routing": dict(
+            provider_model_routing_to_stable_mapping(provider_model_tier_routing)
+        ),
         "message_envelope": message_envelope,
         "recommended_skills": flatten_recommended_skills(skill_routing),
         "skill_routing": skill_routing,
