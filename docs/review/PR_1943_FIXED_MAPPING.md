@@ -5,7 +5,9 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1943#discussion_r3398013388 -> 6ffd564ff
+  Disposition: FIXED
+  Evidence: `scripts/ci/check_semantic_cache_gate.py` enforces provider-wiring/model-downgrade/pricing-truth false anchors; `tests/test_semantic_cache_embedding_retrieval_admission_contract.py` rejects contracts missing them.
 
 ## Lane Start Provenance
 - Packet: `artifacts/orchestration/task_packets/3447feba1558.json`
@@ -103,6 +105,10 @@
 - INFO: the same PR review calibration command failed under the bare worktree
   interpreter with `ModuleNotFoundError: No module named 'fastapi'`; rerun
   through the root repo `.venv` passed as listed above.
+- PASS after CodeRabbit closed-authority-anchor fix:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_semantic_cache_embedding_retrieval_admission_contract.py tests/test_semantic_cache_gate.py`.
+- PASS after CodeRabbit closed-authority-anchor fix:
+  `python3 scripts/ci/check_semantic_cache_gate.py`.
 
 ## Known Non-Ready Gate
 - Full local `make verify` was operator-deferred for this semantic optimization
