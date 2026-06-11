@@ -1791,6 +1791,21 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(test_main_if, str)
     assert "github.ref == 'refs/heads/main'" in test_main_if
     assert "needs.changes.outputs.run_main_ci_diagnostic == 'true'" in test_main_if
+
+    permissions = test_main["permissions"]
+    assert permissions == {"contents": "read", "actions": "read"}
+
+    test_main_env = test_main["env"]
+    assert isinstance(test_main_env, dict)
+    assert (
+        "github.event_name == 'pull_request' && 'https://pypi.org/simple'"
+        in test_main_env["PULSEPLATE_PYTHON_INDEX_URL"]
+    )
+    assert (
+        "github.event_name == 'pull_request' && 'pypi.org'"
+        in test_main_env["PULSEPLATE_PYTHON_TRUSTED_HOST"]
+    )
+
     matrix = test_main["strategy"]["matrix"]["include"]
     assert isinstance(matrix, list)
 

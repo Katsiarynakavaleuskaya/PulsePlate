@@ -1191,7 +1191,14 @@ jobs:
     timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
       contents: read
-      actions: write
+      actions: read
+    env:
+      # PR diagnostic runs execute code from the pull request checkout. Keep the
+      # dependency index public there so same-repo PRs cannot inherit private
+      # package proxy credentials from workflow-level env. Main-branch runs keep
+      # the approved proxy for parity with protected CI.
+      PULSEPLATE_PYTHON_INDEX_URL: ${{ github.event_name == 'pull_request' && 'https://pypi.org/simple' || secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+      PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ github.event_name == 'pull_request' && 'pypi.org' || secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
     strategy:
       fail-fast: false
       matrix:
