@@ -126,13 +126,18 @@ Artifact: `artifacts/orchestration/experiments/results/exp-9d45f3c08260.json`
 - `python3 scripts/orchestration/check_agent_consistency.py --json` PASS.
 - `make validate-changed` PASS: selected
   `tests/test_devcontainer_smoke_workflow.py`, `10 passed`.
+- `pre-commit run --all-files` PASS after merging `origin/main`.
+- Full local `make verify` is operator-deferred for this narrow CI/tooling PR;
+  an in-progress run was terminated on operator instruction and is not used as
+  readiness evidence. Current-head GitHub CI remains the heavy validation
+  signal for merge readiness.
 
 ## Merge Readiness
 
 Not claimed. Required before merge:
 
-- `pre-commit run --all-files`
-- `make verify`
+- Current-head GitHub CI parity after push because full local `make verify` is
+  operator-deferred for this machine-heavy CI/tooling lane.
 - Codex Security diff scan / finding discovery
 - `pulseplate-pr-review` post-open review
 - strict review-thread disposition guard with auth
