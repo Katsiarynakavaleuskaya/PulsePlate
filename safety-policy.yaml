@@ -6,6 +6,12 @@
 # currently exposes only fonttools 4.61.1 while public PyPI has >=4.62.0.
 # Remove this ignore when requirements pin fonttools>=4.62.0 and the mirror syncs.
 # Advisory: docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md
+#
+# SFTY-20250331-30014 / CVE-2025-3000 (PyTorch torch.jit.script memory
+# corruption): optional RAG/vector manifests pin torch while Safety reports no
+# fixed version. Remove by 2026-07-11 or earlier when a fixed torch build,
+# upstream correction, or vector-profile replacement is available.
+# Advisory: docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md
 
 version: "3.0"
 
@@ -29,6 +35,11 @@ report:
             Private package index still mirrors fonttools 4.61.1 only; remove
             when docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md is closed.
           expires: "2026-07-08"
+        "SFTY-20250331-30014":
+          reason: >-
+            Optional RAG/vector torch.jit.script advisory; remove when
+            docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md is closed.
+          expires: "2026-07-11"
       cvss-severity: []
 
 fail-scan-with-exit-code:
