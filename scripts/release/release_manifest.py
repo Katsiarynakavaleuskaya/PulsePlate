@@ -253,8 +253,8 @@ def decision_reasons_for(
     *,
     ml_release_decision: Any,
     supply_chain_identity: dict[str, Any],
-    build_git_sha: Any = None,
-    ml_git_sha: Any = None,
+    build_git_sha: str | None,
+    ml_git_sha: str | None,
 ) -> list[str]:
     """Return fail-closed release decision reasons."""
 
