@@ -33,6 +33,8 @@ Reason: The Sourcery review-level bot finding duplicates the resolved review-thr
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Dispatch manifest: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/ba8ef9ab93b5.json --mode review --pr-phase post_open_review --pretty`.
 - Required role order executed: `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor -> cursor-specialist-agent -> architecture-specialist`.
+- Safety waiver packet: `artifacts/orchestration/task_packets/54c88592fdc7.json`.
+- Safety waiver dispatch manifest: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/54c88592fdc7.json --mode review --pr-phase post_open_review --pretty`.
 
 ## Post-Open Role Finding Closure
 - `agent-coordinator`: FIXED / planned by commit `9c2f23c8e`.
@@ -69,11 +71,14 @@ Evidence: production snapshot reader contract remains `MvpEvidenceSnapshotLine |
 - `.venv/bin/python -m mypy scripts/orchestration/mvp_evidence_snapshot.py scripts/orchestration/experiment_slack_bridge_rendering.py` PASS.
 - `make validate-changed` PASS.
 - `pre-commit run --all-files` PASS.
+- Safety policy local check PASS for optional vector manifests:
+  - `python -m safety check --policy-file safety-policy.yaml --json -r requirements-rag-vector.txt --save-json /tmp/pr1925-safety/vector.json` exits `0`, `vulns=0`, `ignored=1`, ignored ID `SFTY-20250331-30014`.
+  - `python -m safety check --policy-file safety-policy.yaml --json -r requirements-rag-vector-cpu.txt --save-json /tmp/pr1925-safety/cpu.json` exits `0`, `vulns=0`, `ignored=1`, ignored ID `SFTY-20250331-30014`.
 - `git diff --check` PASS before commit `9c2f23c8e`.
 
 ## Known Non-Ready Gate
 - Operator explicitly deferred full local `make verify` for this closeout pass; use the PR-scoped narrow bundle plus current-head CI/strict governance checks as the local evidence path.
 - Diagnostic full `make verify` attempt was stopped at repo-wide `make typecheck` failures outside this PR diff:
   `core/ai/semantic_cache_offline_admission_runner.py:294`, `:480`, `:545-550`, `:676`, `:681`, `:683-684`, and `core/ai/semantic_cache_shadow_admission_harness.py:495`.
-- CodeRabbit status check reported success but the PR comment says review was skipped because the review limit/credits were unavailable. Treat this as an external-review caveat until CodeRabbit provides a current-head no-actionables signal or an explicit coordinator/operator exception is recorded.
+- CodeRabbit current-head status check reports `pass` / `Review completed`.
 - Merge readiness is not claimed until current-head CI, strict merge wrapper with auth, review-thread disposition, bot no-actionables, and the mandatory wait-window pass.

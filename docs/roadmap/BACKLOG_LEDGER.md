@@ -662,6 +662,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Locked install + Docker production target succeed against the private index; `make verify` green
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
+<a id="ledger-p1-pytorch-jit-cve-2025-3000-vector-profile"></a>
+- [ ] P1: Retire PyTorch TorchScript CVE-2025-3000 Safety waiver for optional vector profile
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / optional RAG-vector profile)
+  - Target PR: TBD (land by 2026-07-11 or earlier if fixed torch builds are available)
+  - Area: security / CI / dependencies / RAG-vector
+  - Reason (EN): PR #1925 current-head CI started failing Safety on
+    `SFTY-20250331-30014` / `CVE-2025-3000` for `torch==2.11.0` and
+    `torch==2.11.0+cpu` in optional RAG/vector manifests. Safety 3.8.1 reports
+    no fixed version for the advisory, while default production and Docker
+    runtime manifests pass Safety without torch. The waiver is scoped to the
+    optional vector profile and must be retired when a fixed build, upstream
+    advisory correction, or vector-profile replacement is available.
+  - Links:
+    - `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md:1`
+    - `safety-policy.yaml:18`
+    - `requirements-rag-vector.txt:162`
+    - `requirements-rag-vector-cpu.txt:119`
+  - DoD:
+    - Re-check Safety, OSV, GitHub Advisory Database, and PyTorch upstream for
+      fixed-version truth before changing pins.
+    - If fixed torch builds exist and the approved index serves them, bump
+      `requirements-rag-vector.txt` and `requirements-rag-vector-cpu.txt`.
+    - If no fixed build exists, replace or disable the TorchScript-dependent
+      optional vector capability, or extend the waiver with fresh evidence and a
+      new remove-by date.
+    - Remove `SFTY-20250331-30014` from `safety-policy.yaml` and close this
+      ledger item in the same PR.
+
 <a id="ledger-p1-cryptography-private-index-sync"></a>
 - [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
