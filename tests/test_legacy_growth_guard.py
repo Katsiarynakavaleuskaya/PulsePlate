@@ -3,6 +3,8 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
+
 import scripts.ci.check_legacy_growth_guard as legacy_guard
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +59,43 @@ def test_legacy_growth_guard_rejects_new_router_registration() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_add_api_route_registration() -> None:
+    source = 'app.add_api_route("/api/v1/new-runtime", new_runtime_route)\n'
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:add_api_route:/api/v1/new-runtime"
+    ]
+
+
+def test_legacy_growth_guard_rejects_add_middleware() -> None:
+    source = "app.add_middleware(NewRuntimeMiddleware)\n"
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:add_middleware:NewRuntimeMiddleware"
+    ]
+
+
+def test_legacy_growth_guard_rejects_middleware_decorator() -> None:
+    source = textwrap.dedent("""
+        @app.middleware("http")
+        async def new_legacy_middleware(request, call_next):
+            return await call_next(request)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:middleware:http -> new_legacy_middleware"
+    ]
+
+
 def test_legacy_growth_guard_rejects_new_router_import() -> None:
     source = "from app.routers.new_surface import router as new_router\n"
 
@@ -77,6 +116,29 @@ def test_legacy_growth_guard_rejects_sensitive_call_growth() -> None:
     )
 
     assert errors == ["legacy_app.py: sensitive call family grew for provider: 1 > 0"]
+
+
+@pytest.mark.parametrize(
+    ("keyword", "source"),
+    [
+        ("api_key", "\n".join("api_key_guard()" for _ in range(4))),
+        ("auth", "auth_guard()\n"),
+        ("entitlement", "entitlement.check()\n"),
+        ("llm", "llm.generate()\nllm.generate()\n"),
+        ("provider", "provider.generate()\nprovider.generate()\n"),
+        ("quota", "quota.consume()\nquota.consume()\n"),
+    ],
+)
+def test_legacy_growth_guard_rejects_current_baseline_sensitive_growth(
+    keyword: str,
+    source: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    limit = legacy_guard.SENSITIVE_CALL_LIMITS[keyword]
+    assert errors == [
+        f"legacy_app.py: sensitive call family grew for {keyword}: {limit + 1} > {limit}"
+    ]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:
@@ -106,6 +168,20 @@ def test_legacy_seam_doc_rejects_missing_marker() -> None:
 
     assert (
         "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md: missing marker LEGACY_SEAM_OPENAPI_CHANGED"
+        in errors
+    )
+
+
+def test_legacy_repo_validation_rejects_empty_doc(tmp_path: Path) -> None:
+    (tmp_path / "legacy_app.py").write_text("", encoding="utf-8")
+    doc_path = tmp_path / "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md"
+    doc_path.parent.mkdir(parents=True)
+    doc_path.write_text("", encoding="utf-8")
+
+    errors = legacy_guard.validate_repo(tmp_path)
+
+    assert (
+        "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md: missing marker LEGACY_SEAM_STATUS"
         in errors
     )
 

@@ -32,10 +32,24 @@ class LegacyFact:
 
 
 APP_ROUTE_METHODS = frozenset(
-    {"api_route", "delete", "get", "head", "options", "patch", "post", "put", "trace", "websocket"}
+    {
+        "api_route",
+        "delete",
+        "get",
+        "head",
+        "middleware",
+        "options",
+        "patch",
+        "post",
+        "put",
+        "trace",
+        "websocket",
+    }
 )
-APP_REGISTRATION_METHODS = frozenset({"add_api_route", "include_router"})
+APP_REGISTRATION_METHODS = frozenset({"add_api_route", "add_middleware", "include_router"})
 SENSITIVE_CALL_KEYWORDS: tuple[str, ...] = (
+    "api_key",
+    "auth",
     "billing",
     "entitlement",
     "llm",
@@ -45,6 +59,8 @@ SENSITIVE_CALL_KEYWORDS: tuple[str, ...] = (
     "subscription",
 )
 SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
+    "api_key": 3,
+    "auth": 0,
     "billing": 0,
     "entitlement": 0,
     "llm": 1,
@@ -64,6 +80,8 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("decorator", "get", "/api/v1/health", "health_v1"),
         LegacyFact("decorator", "get", "/privacy", "privacy"),
         LegacyFact("decorator", "get", "/terms", "terms"),
+        LegacyFact("decorator", "middleware", "http", "csp_nonce_middleware"),
+        LegacyFact("decorator", "middleware", "http", "log_requests"),
         LegacyFact("decorator", "post", "/admin/logs/cleanup", "cleanup_expired_logs"),
         LegacyFact("decorator", "post", "/bmi", "bmi_endpoint"),
         LegacyFact("decorator", "post", "/plan", "plan_endpoint"),
@@ -391,12 +409,12 @@ def _display(path: Path, repo_root: Path) -> str:
         return "<external-path>"
 
 
-def _read(path: Path, repo_root: Path, errors: list[str]) -> str:
+def _read(path: Path, repo_root: Path, errors: list[str]) -> str | None:
     try:
         return path.read_text(encoding="utf-8")
     except OSError as exc:
         errors.append(f"{_display(path, repo_root)}: unable to read: {type(exc).__name__}")
-        return ""
+        return None
 
 
 def validate_repo(repo_root: Path) -> list[str]:
@@ -407,11 +425,11 @@ def validate_repo(repo_root: Path) -> list[str]:
     doc_path = repo_root / LEGACY_SEAM_DOC
     legacy_source = _read(legacy_path, repo_root, errors)
     doc_text = _read(doc_path, repo_root, errors)
-    if legacy_source:
+    if legacy_source is not None:
         errors.extend(
             validate_legacy_growth(legacy_source, filename=_display(legacy_path, repo_root))
         )
-    if doc_text:
+    if doc_text is not None:
         errors.extend(validate_legacy_seam_doc(doc_text, filename=_display(doc_path, repo_root)))
     return errors
 

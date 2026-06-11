@@ -35,6 +35,7 @@ READ_METHODS = frozenset(
 )
 OPEN_METHODS = frozenset({"open"})
 OS_ENUMERATION_METHODS = frozenset({"listdir", "scandir", "walk"})
+OS_PATH_CHECK_METHODS = frozenset({"exists", "isdir", "isfile", "islink", "lexists"})
 GLOB_METHODS = frozenset({"glob", "iglob"})
 
 REQUIRED_DOC_MARKERS: Mapping[str, str] = {
@@ -119,6 +120,15 @@ def _literal_path_parts(
     return None
 
 
+def _call_arg(call: ast.Call, index: int, keyword_names: tuple[str, ...]) -> ast.AST | None:
+    if len(call.args) > index:
+        return call.args[index]
+    for keyword in call.keywords:
+        if keyword.arg in keyword_names:
+            return keyword.value
+    return None
+
+
 def _mode_from_call(call: ast.Call) -> str | None:
     for keyword in call.keywords:
         if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
@@ -192,11 +202,24 @@ class ArtifactReadVisitor(ast.NodeVisitor):
 
     def _check_call(self, node: ast.Call) -> None:
         func = node.func
-        if isinstance(func, ast.Name) and func.id == "open" and node.args:
-            self._check_open_like(node, node.args[0], operation="open")
+        if isinstance(func, ast.Name) and func.id == "open":
+            path_node = _call_arg(node, 0, ("file",))
+            if path_node is not None:
+                self._check_open_like(node, path_node, operation="open")
             return
 
         if isinstance(func, ast.Attribute):
+            if (
+                isinstance(func.value, ast.Attribute)
+                and func.value.attr == "path"
+                and isinstance(func.value.value, ast.Name)
+                and func.value.value.id == "os"
+                and func.attr in OS_PATH_CHECK_METHODS
+            ):
+                path_node = _call_arg(node, 0, ("path",))
+                if path_node is not None:
+                    self._check_path_operation(node, path_node, operation=f"os.path.{func.attr}")
+
             receiver_parts = _literal_path_parts(func.value, self.name_paths)
             if receiver_parts is not None:
                 artifact_root = _forbidden_root(receiver_parts)
@@ -213,16 +236,19 @@ class ArtifactReadVisitor(ast.NodeVisitor):
                 isinstance(func.value, ast.Name)
                 and func.value.id == "os"
                 and func.attr in OS_ENUMERATION_METHODS
-                and node.args
             ):
-                self._check_path_operation(node, node.args[0], operation=f"os.{func.attr}")
+                keyword_names = ("top",) if func.attr == "walk" else ("path",)
+                path_node = _call_arg(node, 0, keyword_names)
+                if path_node is not None:
+                    self._check_path_operation(node, path_node, operation=f"os.{func.attr}")
             if (
                 isinstance(func.value, ast.Name)
                 and func.value.id == "glob"
                 and func.attr in GLOB_METHODS
-                and node.args
             ):
-                self._check_path_operation(node, node.args[0], operation=f"glob.{func.attr}")
+                path_node = _call_arg(node, 0, ("pathname",))
+                if path_node is not None:
+                    self._check_path_operation(node, path_node, operation=f"glob.{func.attr}")
 
     def _check_open_like(self, node: ast.Call, path_node: ast.AST, *, operation: str) -> None:
         parts = _literal_path_parts(path_node, self.name_paths)
@@ -331,12 +357,12 @@ def validate_artifact_boundary_doc(
     return errors
 
 
-def _read(path: Path, repo_root: Path, errors: list[str]) -> str:
+def _read(path: Path, repo_root: Path, errors: list[str]) -> str | None:
     try:
         return path.read_text(encoding="utf-8")
     except OSError as exc:
         errors.append(f"{_display(path, repo_root)}: unable to read: {type(exc).__name__}")
-        return ""
+        return None
 
 
 def validate_repo(repo_root: Path) -> list[str]:
@@ -349,7 +375,7 @@ def validate_repo(repo_root: Path) -> list[str]:
 
     doc_path = repo_root / ARTIFACT_BOUNDARY_DOC
     doc_text = _read(doc_path, repo_root, errors)
-    if doc_text:
+    if doc_text is not None:
         errors.extend(
             validate_artifact_boundary_doc(doc_text, filename=_display(doc_path, repo_root))
         )
