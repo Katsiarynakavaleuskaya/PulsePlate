@@ -271,6 +271,48 @@ def _shell_command_binary_from_tokens(tokens: list[str]) -> str | None:
     return candidates[0] if candidates else None
 
 
+def _expr_resolution_hits_name_cycle(
+    tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
+) -> bool:
+    if isinstance(expr, ast.Name):
+        if expr.id in seen_names:
+            return True
+        assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
+        if not assignments:
+            return False
+        latest = assignments[0]
+        if latest.branch_dependent:
+            return any(
+                _expr_resolution_hits_name_cycle(
+                    tree,
+                    assignment.value,
+                    upto_lineno=getattr(assignment.value, "lineno", upto_lineno),
+                    seen_names=seen_names | {expr.id},
+                )
+                for assignment in assignments
+            )
+        return _expr_resolution_hits_name_cycle(
+            tree,
+            latest.value,
+            upto_lineno=getattr(latest.value, "lineno", upto_lineno),
+            seen_names=seen_names | {expr.id},
+        )
+    if isinstance(expr, (ast.List, ast.Tuple)) and expr.elts:
+        return _expr_resolution_hits_name_cycle(
+            tree, expr.elts[0], upto_lineno=upto_lineno, seen_names=seen_names
+        )
+    if isinstance(expr, ast.Call) and expr.args:
+        function = expr.func
+        is_string_or_path_wrapper = (
+            isinstance(function, ast.Name) and function.id in {"Path", "str"}
+        ) or (isinstance(function, ast.Attribute) and function.attr == "Path")
+        if is_string_or_path_wrapper:
+            return _expr_resolution_hits_name_cycle(
+                tree, expr.args[0], upto_lineno=upto_lineno, seen_names=seen_names
+            )
+    return False
+
+
 def _resolve_binary_expr(
     tree: ast.AST, expr: ast.expr, *, upto_lineno: int, seen_names: set[str]
 ) -> str | None:
@@ -279,17 +321,44 @@ def _resolve_binary_expr(
     if isinstance(expr, ast.Name):
         if expr.id in seen_names:
             return None
-        resolved: str | None = None
         assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
         if not assignments:
             return None
         latest = assignments[0]
+        latest_lineno = getattr(latest.value, "lineno", upto_lineno)
         if not latest.branch_dependent:
-            return _resolve_binary_expr(
+            candidate = _resolve_binary_expr(
                 tree,
                 latest.value,
-                upto_lineno=getattr(latest.value, "lineno", upto_lineno),
+                upto_lineno=latest_lineno,
                 seen_names=seen_names | {expr.id},
+            )
+            if candidate is not None:
+                return candidate
+            if _expr_resolution_hits_name_cycle(
+                tree,
+                latest.value,
+                upto_lineno=latest_lineno,
+                seen_names=seen_names | {expr.id},
+            ):
+                return _resolve_binary_expr(
+                    tree,
+                    expr,
+                    upto_lineno=latest_lineno,
+                    seen_names=seen_names,
+                )
+            return candidate
+        if _expr_resolution_hits_name_cycle(
+            tree,
+            latest.value,
+            upto_lineno=latest_lineno,
+            seen_names=seen_names | {expr.id},
+        ):
+            return _resolve_binary_expr(
+                tree,
+                expr,
+                upto_lineno=latest_lineno,
+                seen_names=seen_names,
             )
         resolved: str | None = None
         for assignment in assignments:
@@ -361,17 +430,44 @@ def _resolve_argv_binary(
     if isinstance(expr, ast.Name):
         if expr.id in seen_names:
             return None
-        resolved: str | None = None
         assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
         if not assignments:
             return None
         latest = assignments[0]
+        latest_lineno = getattr(latest.value, "lineno", upto_lineno)
         if not latest.branch_dependent:
-            return _resolve_argv_binary(
+            candidate = _resolve_argv_binary(
                 tree,
                 latest.value,
-                upto_lineno=getattr(latest.value, "lineno", upto_lineno),
+                upto_lineno=latest_lineno,
                 seen_names=seen_names | {expr.id},
+            )
+            if candidate is not None:
+                return candidate
+            if _expr_resolution_hits_name_cycle(
+                tree,
+                latest.value,
+                upto_lineno=latest_lineno,
+                seen_names=seen_names | {expr.id},
+            ):
+                return _resolve_argv_binary(
+                    tree,
+                    expr,
+                    upto_lineno=latest_lineno,
+                    seen_names=seen_names,
+                )
+            return candidate
+        if _expr_resolution_hits_name_cycle(
+            tree,
+            latest.value,
+            upto_lineno=latest_lineno,
+            seen_names=seen_names | {expr.id},
+        ):
+            return _resolve_argv_binary(
+                tree,
+                expr,
+                upto_lineno=latest_lineno,
+                seen_names=seen_names,
             )
         resolved: str | None = None
         for assignment in assignments:
@@ -747,6 +843,120 @@ subprocess.run([cmd, "-c", "print(42)"])
     assert len(violations) == 1
     assert violations[0].lineno == 7
     assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_self_assigned_binary_variable_bypass() -> None:
+    source = """\
+import subprocess
+
+cmd = "python"
+cmd = cmd
+subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 5
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_self_assigned_argv_variable_bypass() -> None:
+    source = """\
+import subprocess
+
+args = ["git", "status"]
+args = args
+subprocess.run(args)
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 5
+    assert "resolve with shutil.which('git')" in violations[0].reason
+
+
+def test_guard_allows_safe_binary_overwrite_before_self_assignment() -> None:
+    source = """\
+import subprocess
+import sys
+
+cmd = "python"
+cmd = sys.executable
+cmd = cmd
+subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
+
+
+def test_guard_allows_safe_binary_overwrite_before_wrapped_self_assignment() -> None:
+    source = """\
+import subprocess
+import sys
+
+cmd = "python"
+cmd = sys.executable
+cmd = str(cmd)
+subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
+
+
+def test_guard_allows_safe_argv_overwrite_before_self_assignment() -> None:
+    source = """\
+import subprocess
+import sys
+
+args = ["git", "status"]
+args = [sys.executable, "-c", "print(42)"]
+args = args
+subprocess.run(args)
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
+
+
+def test_guard_allows_safe_overwrite_before_branch_dependent_self_assignment() -> None:
+    source = """\
+import subprocess
+import sys
+
+cmd = "python"
+cmd = sys.executable
+if keep_current:
+    cmd = cmd
+subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
+
+
+def test_guard_allows_safe_argv_overwrite_before_branch_dependent_self_assignment() -> None:
+    source = """\
+import subprocess
+import sys
+
+args = ["git", "status"]
+args = [sys.executable, "-c", "print(42)"]
+if keep_current:
+    args = args
+subprocess.run(args)
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert violations == []
 
 
 def test_guard_allows_linear_safe_assignment_overwrite() -> None:
