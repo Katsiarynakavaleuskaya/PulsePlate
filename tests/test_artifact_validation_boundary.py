@@ -238,6 +238,18 @@ def test_artifact_guard_allows_write_only_artifact_paths() -> None:
     assert errors == []
 
 
+def test_artifact_guard_does_not_match_non_root_artifact_path() -> None:
+    source = 'Path("snapshots/artifacts/orchestration/packet.json").read_text()\n'
+
+    findings, errors = artifact_guard.collect_artifact_read_findings_for_source(
+        source,
+        rel_path="app/safe.py",
+    )
+
+    assert findings == []
+    assert errors == []
+
+
 def test_artifact_guard_rejects_existence_and_enumeration() -> None:
     source = textwrap.dedent("""
         from pathlib import Path

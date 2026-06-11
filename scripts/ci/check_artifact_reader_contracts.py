@@ -79,10 +79,11 @@ def _normalize_path_parts(value: str) -> tuple[str, ...]:
 
 def _forbidden_root(parts: tuple[str, ...]) -> str | None:
     lowered = tuple(part.casefold() for part in parts)
+    if len(lowered) < 2:
+        return None
     for first, second in FORBIDDEN_ARTIFACT_PREFIXES:
-        for index in range(len(lowered) - 1):
-            if lowered[index] == first and lowered[index + 1] == second:
-                return f"{first}/{second}"
+        if lowered[0] == first and lowered[1] == second:
+            return f"{first}/{second}"
     return None
 
 
