@@ -3,7 +3,7 @@
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Post-open review-thread pass completed.
+- [x] Post-open review-thread pass completed.
 
 ## Fixed in Commit Mapping
 - No actionable review comments
@@ -20,8 +20,44 @@
 - Required pre-open role order executed:
   `agent-coordinator -> backend-engineer -> qa-engineer-agent -> security-auditor -> architecture-specialist`.
 - Mandatory post-open order pending:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`, then Codex Security
-  diff/finding discovery and `pulseplate-pr-review`.
+  completed as local read-only role passes after the Codex subagent transport
+  returned `403 Forbidden` for `qa-engineer-agent`.
+  Order: `qa-engineer-agent -> bug-hunter -> security-auditor`, then Codex
+  Security diff/finding discovery and `pulseplate-pr-review`.
+
+## Post-Open Role Finding Closure
+- `qa-engineer-agent`: PASS / no blocking findings.
+  Evidence: reviewed diff-scoped code/tests and reran
+  `$VENV_PYTHON -m pytest -q tests/test_food_sources_simple.py tests/test_food_merge.py tests/test_food_store_service.py`;
+  `make validate-changed`.
+  Reason: tests cover USDA/OFF metadata normalization, blank/null handling,
+  GTIN digit cleanup, merge passthrough, and SQLite barcode lookup round-trip.
+- `bug-hunter`: PASS / no blocking findings.
+  Evidence: reviewed first-non-empty merge behavior and barcode fallback tests;
+  `tests/test_food_merge.py::TestMergeRecords::test_merge_records_preserves_first_non_empty_metadata_fields`;
+  `tests/test_food_store_service.py::test_get_food_by_barcode_returns_stored_metadata_from_sqlite`.
+  Reason: no edge-case regression found in the requested bounded path; broad
+  branded-product dedupe remains explicitly out of scope.
+- `security-auditor`: PASS / no blocking findings.
+  Evidence: reviewed changed source files and searched for new auth, SQL,
+  network, subprocess, LLM/provider, and privileged surfaces; no runtime sink
+  added. Added SQL appears only in a parameterized temp-SQLite test fixture.
+  Reason: the diff is offline metadata normalization/merge passthrough only.
+- Codex Security diff scan / finding discovery: NOT-A-BUG / no reportable
+  findings.
+  Evidence: `/tmp/codex-security-scans/food-data-fdc-record-metadata-passthrough/9cbcf933610b_20260611T125527Z/report.md`;
+  all four source worklist rows have completion receipts in
+  `/tmp/codex-security-scans/food-data-fdc-record-metadata-passthrough/9cbcf933610b_20260611T125527Z/artifacts/02_discovery/work_ledger.jsonl`.
+  Reason: scan found no new network, auth, SQL construction, subprocess,
+  deserialization, secrets, LLM/provider, or privileged workflow behavior.
+- `pulseplate-pr-review` large-diff-risk advisory: NOT-A-BUG for PR #1941 scope.
+  Evidence: `/tmp/pulseplate_pr_review_1941.md`;
+  `python3 -m pytest tests/test_pr_review_report.py -q` PASS;
+  `python3 -m pytest tests/test_pr_review_context.py -q` PASS;
+  `make validate-changed` PASS.
+  Reason: the diff is 9 files and 407 changed lines because focused tests plus
+  review artifacts are included; the implementation remains a single bounded
+  compatibility slice with Postgres/runtime/provider expansion out of scope.
 
 ## Premortem Finding Closure
 - Artifact: `docs/review/PR_FOOD_DATA_FDC_METADATA_PASSTHROUGH_PREMORTEM.md`
@@ -65,6 +101,12 @@
 - PASS after rebase onto current `origin/main`: `pre-commit run --all-files`.
 - PASS during push hooks: changed-file mypy, pip-audit, backend tests,
   full-repo Bandit, docker build test.
+- PASS after governance mapping updates: `python3 -m pytest tests/test_pr_review_report.py -q`.
+- PASS after governance mapping updates: `python3 -m pytest tests/test_pr_review_context.py -q`.
+- PASS after PR body/mapping repair:
+  `scripts/ci/check_pr_size_governance.py --base-sha <merge-base> --head-sha HEAD --body <PR body>`.
+- PASS after PR body/mapping repair:
+  `scripts/ci/check_pr_body_phase2_gates.py --body <PR body> --pr-number 1941`.
 
 ## Known Non-Ready Gate
 - Full `make verify` was operator-deferred for this narrow lane because it runs
