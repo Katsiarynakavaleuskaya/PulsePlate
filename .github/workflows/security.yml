@@ -92,6 +92,8 @@ jobs:
           fi
 
       - name: Run Safety (dependency audit with policy)
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           set -euo pipefail
           python3 scripts/ci/run_safety_audit.py

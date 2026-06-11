@@ -147,9 +147,23 @@ def _prompt_list(items: list[str], fallback: str) -> str:
     return ", ".join(_prompt_text(item) for item in items) if items else fallback
 
 
+def _packet_role_bindings(bridge: dict[str, Any], key: str) -> list[object]:
+    value = bridge.get(key)
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise PromptError(f"native_subagent_bridge.{key} must be a list when present")
+    return value
+
+
 def _packet_role_order(packet: dict[str, Any]) -> list[str]:
     bridge = packet.get("native_subagent_bridge")
+    secondary_bindings: list[object] = []
+    advisory_bindings: list[object] = []
     if isinstance(bridge, dict):
+        secondary_bindings = _packet_role_bindings(bridge, "secondary")
+        advisory_bindings = _packet_role_bindings(bridge, "advisory")
+
         from scripts.orchestration import qoder_dispatch_bridge
 
         parsed_roles: list[str] = qoder_dispatch_bridge._parse_json_packet_roles(packet)
@@ -169,10 +183,10 @@ def _packet_role_order(packet: dict[str, Any]) -> list[str]:
         reviewer = bridge.get("reviewer")
         if isinstance(reviewer, dict):
             role_order.extend(_as_string_list([reviewer.get("repo_agent_slug")]))
-        for secondary in bridge.get("secondary") or []:
+        for secondary in secondary_bindings:
             if isinstance(secondary, dict):
                 role_order.extend(_as_string_list([secondary.get("repo_agent_slug")]))
-        for advisory in bridge.get("advisory") or []:
+        for advisory in advisory_bindings:
             if isinstance(advisory, dict):
                 role_order.extend(_as_string_list([advisory.get("repo_agent_slug")]))
     if not role_order:
@@ -203,7 +217,7 @@ def _packet_advisory_roles(packet: dict[str, Any], *, executable: bool) -> list[
     bridge = packet.get("native_subagent_bridge")
     advisory_roles: list[str] = []
     if isinstance(bridge, dict):
-        for advisory in bridge.get("advisory") or []:
+        for advisory in _packet_role_bindings(bridge, "advisory"):
             if isinstance(advisory, dict):
                 is_executable = _advisory_binding_is_executable(advisory)
                 if executable == is_executable:

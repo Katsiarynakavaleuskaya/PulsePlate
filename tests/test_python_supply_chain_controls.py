@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 import scripts.ci.install_locked_python_requirements as locked_installer
+from scripts.ci.check_docker_provenance_attestation import SBOM_PREDICATE_TYPE
 from tests.runtime_toolchain_versions import CANONICAL_PYTHON
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -344,6 +345,7 @@ def test_security_requirements_pin_safety_and_regex_floor() -> None:
     )
 
     assert "safety==3.8.1" in requirements_text
+    assert "pyyaml==6.0.3" in requirements_text
     assert "regex==2026.5.9" in requirements_text
     assert any(
         artifact.get("package") == "regex"
@@ -440,8 +442,7 @@ def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> 
     assert "CODECOV_TOKEN" not in build_env
     assert "secrets.CODECOV_TOKEN" not in str(build_step)
     assert build_env["CODECOV_BUNDLE_ANALYSIS"] == (
-        "${{ github.event_name == 'push' && github.ref == "
-        "'refs/heads/main' && 'true' || 'false' }}"
+        "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'true' || 'false' }}"
     )
     assert "uploadToken" not in vite_config
     assert "process.env.CODECOV_TOKEN" not in vite_config
@@ -700,17 +701,36 @@ def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None
         ".github/workflows/ci.yml",
         ".github/workflows/security.yml",
     )
+    safety_audit_text = (REPO_ROOT / "scripts" / "ci" / "run_safety_audit.py").read_text(
+        encoding="utf-8"
+    )
 
     for workflow_path in workflow_paths:
         workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+        step_name = (
+            "Dependency audit with Safety"
+            if workflow_path.endswith("ci.yml")
+            else "Run Safety (dependency audit with policy)"
+        )
+        job_name = "security" if workflow_path.endswith("ci.yml") else "bandit"
+        safety_step = _workflow_step_by_name(workflow_path, job_name, step_name)
 
         assert "python3 scripts/ci/run_safety_audit.py" in workflow_text
+        assert safety_step["env"]["SAFETY_API_KEY"] == "${{ secrets.SAFETY_API_KEY }}"
         assert "safety-*.json" in workflow_text
         assert "safety-*.txt" in workflow_text
         assert "safety-*.log" in workflow_text
         assert 'manifests=("requirements.txt")' not in workflow_text
         assert 'cp "${report_json}" safety-report.json' not in workflow_text
         assert ".github/scripts/parse-safety-report.py" not in workflow_text
+
+    assert '"scan"' in safety_audit_text
+    assert '"check"' not in safety_audit_text
+    assert "SAFETY_API_KEY" in safety_audit_text
+
+    nightly_text = (REPO_ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
+    assert "safety check --json" not in nightly_text
+    assert "SAFETY_API_KEY" in nightly_text
 
 
 def test_requirements_lock_excludes_optional_rag_vector_stack() -> None:
@@ -866,6 +886,11 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         "publish",
         "Build and push Docker image",
     )
+    publish_sbom_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "publish",
+        "Attest Docker image SBOM",
+    )
     staging_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
         "build",
@@ -938,11 +963,25 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     for sbom_step in (staging_sbom_step, production_sbom_step):
         assert sbom_step["uses"].startswith(
-            "actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb"
+            "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
         )
         assert sbom_step["with"]["push-to-registry"] is True
-        assert sbom_step["with"]["sbom-path"] == "docker-image-sbom.spdx.json"
+        assert sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
+        assert sbom_step["with"]["predicate-path"] == "docker-image-sbom.spdx.json"
+        assert "sbom-path" not in sbom_step["with"]
         assert sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+
+    assert publish_sbom_step["uses"].startswith(
+        "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
+    )
+    assert publish_sbom_step["with"]["push-to-registry"] is True
+    assert publish_sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
+    assert publish_sbom_step["with"]["predicate-path"] == "sbom.spdx.json"
+    assert "sbom-path" not in publish_sbom_step["with"]
+    assert (
+        publish_sbom_step["with"]["subject-digest"]
+        == "${{ steps.docker-build-push.outputs.digest }}"
+    )
 
     for verify_step in (staging_verify_step, production_verify_step):
         verify_script = verify_step["run"]
