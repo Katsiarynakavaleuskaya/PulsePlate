@@ -381,12 +381,14 @@ def _collect_sensitive_import_aliases(tree: ast.Module) -> dict[str, set[str]]:
             module_keywords = {
                 keyword for keyword in SENSITIVE_CALL_KEYWORDS if keyword in module_text
             }
-            if not module_keywords:
-                continue
             for alias in node.names:
-                sensitive_aliases.setdefault(alias.asname or alias.name, set()).update(
-                    module_keywords
-                )
+                alias_text = alias.name.casefold()
+                alias_keywords = {
+                    keyword for keyword in SENSITIVE_CALL_KEYWORDS if keyword in alias_text
+                }
+                keywords = module_keywords | alias_keywords
+                if keywords:
+                    sensitive_aliases.setdefault(alias.asname or alias.name, set()).update(keywords)
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 import_text = alias.name.casefold()

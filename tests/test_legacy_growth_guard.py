@@ -253,6 +253,10 @@ def test_legacy_growth_guard_rejects_current_baseline_sensitive_growth(
             "from core.llm import model as m\nm.generate('unsafe')\n",
             "legacy_app.py: sensitive call family grew for llm: 1 > 0",
         ),
+        (
+            "from core import llm as l\nl.model.generate('unsafe')\n",
+            "legacy_app.py: sensitive call family grew for llm: 1 > 0",
+        ),
     ],
 )
 def test_legacy_growth_guard_rejects_sensitive_import_alias_calls(
