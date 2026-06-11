@@ -8,6 +8,7 @@ the same Git head.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections.abc import Iterable, Mapping, Sequence
 import json
 from pathlib import Path
@@ -22,6 +23,7 @@ from core.ai.exact_fuzzy_cache import (
     MATCH_DECISION_HIT,
     MATCH_MODE_EXACT,
     ExactFuzzyCacheLookupRequest,
+    ExactFuzzyCacheRecord,
     ExactFuzzyMatchPolicy,
     build_exact_fuzzy_lineage,
     create_exact_fuzzy_cache_record,
@@ -183,6 +185,7 @@ def collect_previous_task_packet_candidates(
     stats: dict[str, JsonValue] = {
         "status": "not_found",
         "candidate_files_seen": 0,
+        "candidate_files_enumerated": 0,
         "candidate_files_loaded": 0,
         "candidate_files_skipped": 0,
         "max_files": max_files,
@@ -203,6 +206,7 @@ def collect_previous_task_packet_candidates(
 
     packets: list[dict[str, JsonValue]] = []
     loaded_paths: set[Path] = set()
+    enumerated = 0
     seen = 0
     skipped = 0
     if priority_packet_path is not None and max_files > 0:
@@ -214,6 +218,7 @@ def collect_previous_task_packet_candidates(
             max_file_bytes=max_file_bytes,
         )
         if priority_path is not None:
+            enumerated += 1
             seen += 1
             loaded_paths.add(priority_path)
             if priority_payload is None:
@@ -221,17 +226,15 @@ def collect_previous_task_packet_candidates(
             else:
                 packets.append(priority_payload)
 
-    for path in sorted(packet_dir.glob("*.json")):
-        if seen >= max_files:
-            skipped += 1
-            continue
-        try:
-            resolved_path = path.resolve()
-        except OSError:
-            skipped += 1
-            continue
-        if resolved_path in loaded_paths:
-            continue
+    candidate_paths, candidate_files_enumerated, selection_skipped = _select_bounded_json_paths(
+        packet_dir=packet_dir,
+        loaded_paths=loaded_paths,
+        limit=max(0, max_files - seen),
+    )
+    enumerated += candidate_files_enumerated
+    skipped += selection_skipped
+
+    for path in candidate_paths:
         seen += 1
         payload, loaded_path = _load_task_packet_artifact(
             path=path,
@@ -249,9 +252,47 @@ def collect_previous_task_packet_candidates(
 
     stats["status"] = "loaded"
     stats["candidate_files_seen"] = seen
+    stats["candidate_files_enumerated"] = enumerated
     stats["candidate_files_loaded"] = len(packets)
     stats["candidate_files_skipped"] = skipped
     return packets, stats
+
+
+def _select_bounded_json_paths(
+    *,
+    packet_dir: Path,
+    loaded_paths: set[Path],
+    limit: int,
+) -> tuple[list[Path], int, int]:
+    """Return the lexically first paths without materializing every candidate."""
+
+    selected: list[tuple[str, Path]] = []
+    enumerated = 0
+    skipped = 0
+    for path in packet_dir.glob("*.json"):
+        enumerated += 1
+        try:
+            resolved_path = path.resolve()
+        except OSError:
+            skipped += 1
+            continue
+        if resolved_path in loaded_paths:
+            continue
+        if limit <= 0:
+            skipped += 1
+            continue
+        item = (str(path), path)
+        insertion_index = bisect_left([key for key, _ in selected], item[0])
+        if len(selected) < limit:
+            selected.insert(insertion_index, item)
+            continue
+        if insertion_index < limit:
+            selected.insert(insertion_index, item)
+            selected.pop()
+            skipped += 1
+            continue
+        skipped += 1
+    return [path for _, path in selected], enumerated, skipped
 
 
 def _load_task_packet_artifact(
@@ -575,7 +616,7 @@ def _record_for_summary(
     summary: Mapping[str, JsonValue],
     *,
     head_sha: str,
-):
+) -> ExactFuzzyCacheRecord:
     lineage = build_exact_fuzzy_lineage(
         eval_event_ids=(),
         admission_decision_id=None,

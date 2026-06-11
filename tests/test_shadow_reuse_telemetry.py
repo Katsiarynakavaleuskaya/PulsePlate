@@ -199,6 +199,7 @@ def test_collect_previous_task_packet_candidates_is_bounded_and_redacted(tmp_pat
     )
 
     assert [packet["task_packet_id"] for packet in packets] == ["prior"]
+    assert stats["candidate_files_enumerated"] == 4
     assert stats["candidate_files_loaded"] == 1
     assert stats["candidate_files_skipped"] == 3
     assert "path" not in json.dumps(stats, sort_keys=True).lower()
@@ -232,9 +233,42 @@ def test_collect_previous_task_packet_candidates_caps_scanned_files(tmp_path: Pa
         "prior-2",
     ]
     assert stats["candidate_files_seen"] == 3
+    assert stats["candidate_files_enumerated"] == 5
     assert stats["candidate_files_loaded"] == 3
     assert stats["candidate_files_skipped"] == 2
     assert "prior-3" not in json.dumps(stats, sort_keys=True)
+    assert "path" not in json.dumps(stats, sort_keys=True).lower()
+
+
+def test_collect_previous_task_packet_candidates_reports_enumerated_zero_cap(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path
+    packet_dir = repo_root / "artifacts" / "orchestration" / "task_packets"
+    packet_dir.mkdir(parents=True)
+    for index in range(2):
+        packet = _prior_packet(
+            task_packet_id=f"prior-{index}",
+            goal=f"Review packet reuse {index}",
+            head_sha=HEAD_A,
+        )
+        (packet_dir / f"{index:02d}-prior.json").write_text(
+            json.dumps(packet),
+            encoding="utf-8",
+        )
+
+    packets, stats = collect_previous_task_packet_candidates(
+        task_packet_dir=packet_dir,
+        repo_root=repo_root,
+        max_files=0,
+        max_file_bytes=10_000,
+    )
+
+    assert packets == []
+    assert stats["candidate_files_seen"] == 0
+    assert stats["candidate_files_enumerated"] == 2
+    assert stats["candidate_files_loaded"] == 0
+    assert stats["candidate_files_skipped"] == 2
     assert "path" not in json.dumps(stats, sort_keys=True).lower()
 
 
@@ -247,6 +281,28 @@ def test_resolve_current_head_sha_reads_loose_git_ref(tmp_path: Path) -> None:
     (ref_dir / "main").write_text(f"{HEAD_A}\n", encoding="utf-8")
 
     assert resolve_current_head_sha(repo_root) == HEAD_A
+
+
+def test_resolve_current_head_sha_reads_detached_head(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    git_dir = repo_root / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "HEAD").write_text(f"{HEAD_A}\n", encoding="utf-8")
+
+    assert resolve_current_head_sha(repo_root) == HEAD_A
+
+
+def test_resolve_current_head_sha_reads_packed_ref(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    git_dir = repo_root / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (git_dir / "packed-refs").write_text(
+        f"# pack-refs with: peeled fully-peeled sorted\n{HEAD_B} refs/heads/main\n",
+        encoding="utf-8",
+    )
+
+    assert resolve_current_head_sha(repo_root) == HEAD_B
 
 
 def test_resolve_current_head_sha_reads_worktree_common_ref(tmp_path: Path) -> None:
