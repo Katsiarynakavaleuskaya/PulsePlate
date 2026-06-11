@@ -46,8 +46,9 @@ OUT:
   path-exposure, or authority-widening behavior found.
 - `architecture-specialist`: PASS; diff stays limited to local operator-ledger
   compatibility and does not move product truth or widen semantic-cache rails.
-- `cursor-specialist-agent`: FAIL until this canonical mapping artifact and the
-  PR-body mirror exist; this artifact commit addresses that workflow blocker.
+- `cursor-specialist-agent`: FAIL at first pass until this canonical mapping
+  artifact and the PR-body mirror exist; the governance artifact and PR-body
+  refresh address that workflow blocker.
 
 ## Experiment Runner Evidence
 
@@ -71,6 +72,10 @@ OUT:
 - PASS: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_experiment_operator_ledger.py`
 - PASS: `make validate-changed`
 - PASS: commit hook run for `6de8e93da` with `VENV_PYTHON` pointing at the repo/shared virtualenv.
+- PASS: `pre-commit run --all-files` with `VENV_PYTHON` pointing at the repo/shared virtualenv.
+- FAIL / unrelated repo-wide blocker: `make verify` passed `verify-env` and `flake8`, then failed in `make typecheck` with 13 existing mypy errors in `core/ai/semantic_cache_offline_admission_runner.py` and `core/ai/semantic_cache_shadow_admission_harness.py`; neither file is in `git diff --name-only origin/main...HEAD` for PR 1924, so this lane cannot honestly claim full local hard-gate merge readiness.
+- PASS: Codex Security diff scan / finding discovery wrote `/tmp/codex-security-scans/PulsePlate-pr-1924/fcd06a096bb2_20260611T114746Z/report.md`; no reportable security findings.
+- ADVISORY: `pulseplate-pr-review` dry-run completed; initial run inspected the then-current remote PR head and produced one advisory large-diff planning note for stale remote context, so it must be repeated after pushing current head before merge-readiness can be claimed.
 
 ## Discussion Thread Pass
 
@@ -112,13 +117,14 @@ None.
 
 Not merge-ready yet. Pending after this artifact commit:
 
-- PR-body mirror refresh from this canonical artifact.
-- `pre-commit run --all-files` after the governance artifact commit.
+- Push local commits and rerun current-head CI for the pushed head.
 - Current-head CI rerun with `PR Body Phase2 gates` and `Merge readiness gate`
   passing for the pushed head.
 - Sourcery review thread resolution after this artifact and PR-body mirror are
   pushed.
-- Codex Security diff scan / finding discovery and `pulseplate-pr-review`
-  evidence.
+- Repeat `pulseplate-pr-review` against the pushed current head.
+- Full `make verify` remains blocked locally by unrelated repo-wide mypy errors
+  outside the PR 1924 diff; do not claim merge-ready until this is resolved or
+  explicitly dispositioned under repo policy.
 - Strict merge-readiness wrapper with auth, no unresolved review threads, no
   actionable bot comments, and the required wait window.
