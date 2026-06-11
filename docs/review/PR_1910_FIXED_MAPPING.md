@@ -30,6 +30,7 @@ Reason: Sourcery's caching, helper-extraction, and comment suggestions are valid
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1910#pullrequestreview-4476444708 -> 3fe8c0453
 Disposition: FIXED
+Commit: 3fe8c0453
 Evidence: removed the shadowed local `resolved` declarations from `_resolve_binary_expr` and `_resolve_argv_binary`; `. .venv/bin/activate && pytest -q tests/guards/test_subprocess_uses_absolute_binaries.py` passed with 36 tests.
 Reason: CodeRabbit's low-value nitpick was valid and stayed inside the already-touched guard test file.
 
@@ -88,6 +89,7 @@ Reason: CodeRabbit's low-value nitpick was valid and stayed inside the already-t
 - PASS: `make validate-changed`
 - PASS: commit hooks for `3fe8c0453`, including changed-file backend tests.
 - PASS: `. .venv/bin/activate && pytest -q tests/guards/test_subprocess_uses_absolute_binaries.py` after the CodeRabbit cleanup.
+- PASS: `make validate-changed` after the CodeRabbit cleanup.
 - OPERATOR-DEFERRED: full local `make verify` was not run; the operator
   explicitly limited local validation to `make validate-changed` because full
   verify runs the large project suite.
@@ -95,8 +97,11 @@ Reason: CodeRabbit's low-value nitpick was valid and stayed inside the already-t
   locally because the full-repo Bandit hook was terminated with exit `-15`
   after warnings and no finding. Do not claim full pre-commit green from local
   evidence; current-head CI/pre-commit parity remains required before merge.
-- PENDING: current-head CI after pushing the follow-up commits.
-- PENDING: strict merge readiness with `check_merge_ready.py --require-auth`.
+- CURRENT-HEAD CI: all current-head required/governance checks observed by the
+  strict wrapper passed; `gh pr checks` still exits non-zero because the
+  advisory `security` Safety job reports the pre-existing
+  `torch==2.11.0+cpu` vulnerability in `requirements-rag-vector*.txt`.
+- STRICT WRAPPER: rerun required after this parser-shape mapping cleanup.
 
 ## Risks / Rollback
 
