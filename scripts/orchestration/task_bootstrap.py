@@ -92,6 +92,12 @@ from scripts.orchestration.requested_agents import (
     normalize_requested_agents,
 )
 from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills
+from scripts.orchestration.shadow_reuse_telemetry import (
+    SHADOW_REUSE_FIELD,
+    build_shadow_reuse_telemetry,
+    collect_previous_task_packet_candidates,
+    resolve_current_head_sha,
+)
 
 SCHEMA_VERSION = "2.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
@@ -1136,7 +1142,7 @@ def build_task_packet(
         secondary_agents=requested_agent_resolution["secondary_agents"],
     )
 
-    return {
+    packet: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "task_packet_id": packet_id,
         "goal": goal.strip(),
@@ -1185,6 +1191,11 @@ def build_task_packet(
         "native_subagent_bridge": native_subagent_bridge,
         "routing_rationale": decision.rationale,
     }
+    packet[SHADOW_REUSE_FIELD] = build_shadow_reuse_telemetry(
+        packet=packet,
+        current_head_sha=None,
+    )
+    return packet
 
 
 def _resolve_output_path(raw_output: str | None, packet_id: str) -> Path:
@@ -1302,6 +1313,15 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"FAIL: {exc}")
         return 1
+    previous_packets, artifact_scan = collect_previous_task_packet_candidates(
+        task_packet_dir=TASK_PACKET_DIR,
+    )
+    packet[SHADOW_REUSE_FIELD] = build_shadow_reuse_telemetry(
+        packet=packet,
+        current_head_sha=resolve_current_head_sha(REPO_ROOT),
+        previous_packets=previous_packets,
+        artifact_scan=artifact_scan,
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
         json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

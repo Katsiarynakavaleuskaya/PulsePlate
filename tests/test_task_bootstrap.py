@@ -29,6 +29,7 @@ from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
     REQUIRED_BOOTSTRAP_LANE,
 )
+from scripts.orchestration.shadow_reuse_telemetry import SHADOW_REUSE_FIELD
 from scripts.orchestration.skill_router import RESEARCH_POLICY_BUCKET_APPROVED
 from scripts.orchestration.task_bootstrap import (
     REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
@@ -1393,6 +1394,11 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     assert (
         first_packet["provider_model_tier_routing"] == second_packet["provider_model_tier_routing"]
     )
+    assert first_packet[SHADOW_REUSE_FIELD] == second_packet[SHADOW_REUSE_FIELD]
+    assert first_packet[SHADOW_REUSE_FIELD]["semantic_cache_gate_status"] == "closed"
+    assert first_packet[SHADOW_REUSE_FIELD]["serving_allowed"] is False
+    assert first_packet[SHADOW_REUSE_FIELD]["cache_read_allowed"] is False
+    assert first_packet[SHADOW_REUSE_FIELD]["cache_write_allowed"] is False
     assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
     assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]
