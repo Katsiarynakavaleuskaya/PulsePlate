@@ -72,17 +72,23 @@ Evidence: `tests/test_no_bmi_math_outside_core.py` factors shared BMI/WHR identi
 - `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/16832e753f0d.json --pretty --pr-phase post_open_review` - PASS, role order `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor -> cursor-specialist-agent -> web-research-agent`
 - `.venv/bin/python -m py_compile tests/test_no_bmi_math_outside_core.py` - PASS via root-repo venv fallback from the isolated PR worktree
 - `.venv/bin/python -m pytest -q tests/test_no_bmi_math_outside_core.py -k "bmi_thresholds_re"` - PASS (`5 passed`) via root-repo venv fallback from the isolated PR worktree
+- `.venv/bin/python -m pytest -q tests/test_no_bmi_math_outside_core.py` - PASS (`28 passed`) via root-repo venv fallback from the isolated PR worktree
+- `make validate-changed` - PASS with repo `.venv` fallback, selected `tests/test_no_bmi_math_outside_core.py` and passed all 28 tests
+- `pre-commit run --all-files` - PASS after installing ignored local `frontend/node_modules/`; frontend hook passed under the normal hook command after the local dependency install
+- `npm run test:precommit -- --maxWorkers=1` - PASS (`91 passed`, `765 passed`, `1 skipped`) as resource-diagnostic evidence for the earlier local `frontend-tests` `SIGKILL`
+- `GH_TOKEN=$(gh auth token) python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1931 --require-auth` - PASS (`OK: No resolved review threads found`)
 - `python3 scripts/orchestration/experiment_bootstrap.py ... --runner-mode oracle_only_governance_reviewer` - PASS, packet `artifacts/orchestration/experiments/exp-a1732095b657.json`
 - `python3 scripts/orchestration/experiment_runner.py --packet artifacts/orchestration/experiments/exp-a1732095b657.json --contribution-kind fixed_mapping_review --coauthor-required --coauthor-reason "Accepted oracle evidence shaped PR #1931 fixed-mapping and merge-readiness closeout."` - PASS, accepted result `artifacts/orchestration/experiments/results/exp-a1732095b657.json`
+- Operator exception: full local `make verify` is explicitly out of scope for this closeout after operator direction on 2026-06-11; use `make validate-changed`, focused/full guard tests, pre-commit, strict PR/governance checks, and current-head CI parity. A local exploratory `make verify` attempt reached full `mypy` and failed only in unrelated semantic-cache files outside the PR diff (`core/ai/semantic_cache_offline_admission_runner.py`, `core/ai/semantic_cache_shadow_admission_harness.py`); PR #1931 diff is limited to `tests/test_no_bmi_math_outside_core.py` and this mapping artifact.
 
 ## Merge Readiness
 
 - [ ] Current-head CI terminal success confirmed after the follow-up push.
 - [ ] CodeRabbit / Sourcery / Cubic review actionables checked and mapped.
-- [ ] Strict review-thread disposition passes with auth.
+- [x] Strict review-thread disposition passes with auth.
 - [ ] Strict merge-readiness guard passes with auth.
 - [ ] Mandatory wait-window after latest bot/review activity completed.
-- [ ] Full local `make verify` passes, or an operator-approved machine-heavy exception is documented with required narrow gates and current-head CI parity.
+- [x] Operator-approved machine-heavy exception documented; required narrow gates pass locally, current-head CI parity pending after push.
 
 ## Deferred / Follow-ups
 
