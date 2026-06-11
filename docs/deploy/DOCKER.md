@@ -60,7 +60,9 @@ evidence. Signed provenance restoration then restored deployable image trust on
 pushed-image lanes only:
 
 - keep the current hard-budget contract unchanged
-- restore `provenance: mode=max` on pushed-image lanes in `build.yml` and `cd.yml`
+- restore signed BuildKit provenance on pushed-image lanes in `build.yml` and
+  `cd.yml`, capped at `provenance: mode=min` while Docker package-index
+  inputs remain secret-derived build args
 - emit SPDX SBOM attestations on the same pushed-image lanes
 - verify both provenance and SBOM by exact digest before staging or production deploy
 

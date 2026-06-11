@@ -103,9 +103,10 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-latest
           cache-from: type=gha,scope=cd-staging-${{ github.ref_name }}
           cache-to: type=gha,scope=cd-staging-${{ github.ref_name }},mode=min,ignore-error=true
-          # Keep the scoped cache workaround, but restore registry-backed
-          # provenance/SBOM attestations for push-to-registry lanes.
-          provenance: mode=max
+          # Keep the scoped cache workaround and signed provenance, but avoid
+          # max-mode BuildKit invocation metadata because package-index inputs
+          # are secret-derived build args.
+          provenance: mode=min
           sbom: true
           # Use dedicated staging target which extends production but allows
           # staging-specific customizations (e.g., debug logging, extended health checks)
@@ -489,9 +490,10 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
           cache-from: type=gha,scope=cd-production-${{ github.ref_name }}
           cache-to: type=gha,scope=cd-production-${{ github.ref_name }},mode=min,ignore-error=true
-          # Keep the scoped cache workaround, but restore registry-backed
-          # provenance/SBOM attestations for push-to-registry lanes.
-          provenance: mode=max
+          # Keep the scoped cache workaround and signed provenance, but avoid
+          # max-mode BuildKit invocation metadata because package-index inputs
+          # are secret-derived build args.
+          provenance: mode=min
           sbom: true
           target: production
 

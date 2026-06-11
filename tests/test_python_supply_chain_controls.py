@@ -801,6 +801,38 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
     )
 
 
+def test_pushed_docker_builds_do_not_use_max_provenance_with_secret_index_args() -> None:
+    """Max-mode BuildKit provenance can expose secret-derived build arguments."""
+
+    pushed_steps = (
+        _workflow_step_by_name(
+            ".github/workflows/build.yml",
+            "publish",
+            "Build and push Docker image",
+        ),
+        _workflow_step_by_name(
+            ".github/workflows/cd.yml",
+            "build",
+            "Build & Push image (staging)",
+        ),
+        _workflow_step_by_name(
+            ".github/workflows/cd.yml",
+            "build-production",
+            "Build & Push image (production)",
+        ),
+    )
+
+    for step in pushed_steps:
+        step_with = step["with"]
+        build_args = step_with["build-args"]
+
+        assert step_with["push"] is True
+        assert "PULSEPLATE_PYTHON_INDEX_URL" in build_args
+        assert "PULSEPLATE_PYTHON_TRUSTED_HOST" in build_args
+        assert step_with["provenance"] != "mode=max"
+        assert step_with["provenance"] == "mode=min"
+
+
 def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes() -> None:
     build_workflow = _load_workflow(".github/workflows/build.yml")
     cd_workflow = _load_workflow(".github/workflows/cd.yml")
@@ -875,8 +907,10 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     for step in (publish_step, staging_step, production_step):
         assert step["with"]["push"] is True
-        assert step["with"]["provenance"] == "mode=max"
+        assert step["with"]["provenance"] == "mode=min"
         assert step["with"]["sbom"] is True
+        assert "PULSEPLATE_PYTHON_INDEX_URL" in step["with"]["build-args"]
+        assert "PULSEPLATE_PYTHON_TRUSTED_HOST" in step["with"]["build-args"]
 
     for provenance_step in (staging_provenance_step, production_provenance_step):
         assert provenance_step["uses"].startswith(
