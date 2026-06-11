@@ -120,9 +120,9 @@ Artifact: `artifacts/orchestration/experiments/results/exp-9d45f3c08260.json`
 
 ## Codex Security Evidence
 
-- Diff scan id: `pr1920_8aa641197_20260611T183710Z`.
-- Scope basis: verified PR triple-dot diff, not the unrelated newer-main
-  two-dot diff after `origin/main` advanced.
+- Diff scan id: `pr1920_ade1ea137_20260611T184329Z`.
+- Scope basis: verified PR triple-dot diff on the final merged head, not
+  unrelated current-main two-dot deltas.
 - Coverage: 3/3 PR diff rows reviewed with completion receipts:
   `.github/workflows/devcontainer-smoke.yml`,
   `tests/test_devcontainer_smoke_workflow.py`, and
@@ -134,7 +134,7 @@ Artifact: `artifacts/orchestration/experiments/results/exp-9d45f3c08260.json`
 ## PulsePlate PR Review Evidence
 
 - `pulseplate-pr-review` dry run completed locally.
-- Scope reviewed: 3 changed files, 179 additions, 0 deletions.
+- Scope reviewed: 3 changed files, 198 additions, 0 deletions.
 - Findings: no deterministic findings.
 - Warnings: none.
 - GitHub posting: not eligible by design; dry-run only.
