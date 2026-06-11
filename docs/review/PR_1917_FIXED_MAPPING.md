@@ -17,7 +17,7 @@ authority.
 
 - Branch: `codex/fix-metadata-validation-for-forbidden-keys`
 - Worktree: `worktrees/pr-1917-closeout`
-- Task packet: `artifacts/orchestration/task_packets/e951467444d0.json`
+- Packet: `artifacts/orchestration/task_packets/e951467444d0.json`
 - Role dispatch command: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/e951467444d0.json --pretty`
 - Declared role order executed: `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor -> architecture-specialist`
 - Implementation commit: `b738d4f5ef57d6a8caca29bf7ac8f5f5f4601efa`
