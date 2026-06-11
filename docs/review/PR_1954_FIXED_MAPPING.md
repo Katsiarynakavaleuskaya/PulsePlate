@@ -126,6 +126,13 @@ Post-open role findings:
     `from os import path as osp`, `builtins.open(...)`, and
     `from builtins import open as bopen` artifact-read shapes.
     `tests/test_artifact_validation_boundary.py` covers these bypasses.
+- Role: `security-auditor`
+  - Disposition: FIXED
+  - Commit: `1f434117b`
+  - Evidence: `scripts/ci/check_legacy_growth_guard.py` now inspects imported
+    symbol names for sensitive aliases, blocking cases such as
+    `from core import llm as l; l.model.generate(...)`.
+    `tests/test_legacy_growth_guard.py` covers this bypass.
 
 ## Implementation Evidence
 
@@ -153,6 +160,9 @@ Post-open role findings:
 - `88696ef9a` - closes post-open security-auditor bypass findings by scanning
   route decorator aliases, provider/LLM import aliases, dynamic literal
   artifact paths, `os.path` aliases, and `builtins.open(...)`.
+- `1f434117b` - closes the remaining post-open security-auditor alias finding
+  by detecting sensitive terms in `ImportFrom` imported symbol names, not only
+  module paths.
 
 ## Premortem Evidence
 
@@ -215,6 +225,11 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 - After `88696ef9a`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
 - After `88696ef9a`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 74 tests selected.
 - After `88696ef9a`: `pre-commit run --all-files` - PASS.
+- After `1f434117b`: `.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py tests/test_artifact_validation_boundary.py` - PASS, 75 tests.
+- After `1f434117b`: `.venv/bin/python scripts/ci/check_legacy_growth_guard.py` - PASS.
+- After `1f434117b`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
+- After `1f434117b`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 75 tests selected.
+- After `1f434117b`: `pre-commit run --all-files` - PASS.
 
 ## Current Main / Merge Readiness
 
@@ -235,6 +250,6 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
   Evidence: previous false-green classes now return guard errors; focused
   tests passed with 62 tests; both guard CLIs passed; `git diff --check
   origin/main...HEAD` passed.
-- `security-auditor`: FIXED in `88696ef9a`; rerun pending.
+- `security-auditor`: FIXED in `88696ef9a` and `1f434117b`; rerun pending.
 - Codex Security diff scan / finding discovery: pending.
 - `pulseplate-pr-review`: pending.
