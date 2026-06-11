@@ -29,10 +29,10 @@ validation and regression tests.
 - `qa-engineer-agent`: requested deterministic `slack_audit_ref` coverage for the same phone-like artifact-ref rejection.
 - `bug-hunter`: confirmed no additional production-code defect; same formatter, mapping, body, and `slack_audit_ref` coverage blockers.
 - `security-auditor`: conditional pass for the detector approach; required committed `slack_audit_ref` coverage and standard security/local gates.
-- `cursor-specialist-agent`: pending post-fix pass before readiness.
-- `architecture-specialist`: pending post-fix pass before readiness.
-- Codex Security diff scan / finding discovery: pending post-fix pass before readiness.
-- `pulseplate-pr-review`: dry-run context flagged the missing mapping artifact; final post-fix pass pending.
+- `cursor-specialist-agent`: process hold cleared by committed mapping/test/formatting fix; remaining proof is current-head CI and strict review gates after push.
+- `architecture-specialist`: pass after the local path hygiene correction; no runtime, OpenAPI, client, or schema boundary changes.
+- Codex Security diff scan / finding discovery: no new security findings in the PR diff; phone-shaped artifact refs now fail closed, and valid bounded ISO date tokens remain the documented compatibility exception.
+- `pulseplate-pr-review`: post-fix context/report generated; local report still sees the live PR's pre-push GitHub diff, so final current-head review context must be re-run after the next push.
 
 ## Bot / Review Status
 
@@ -60,14 +60,19 @@ validation and regression tests.
 - `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/a77de6719804.json --mode review --pretty` - PASS; role order preserved.
 - `python3 scripts/orchestration/pr_review_context.py --pr 1923 --repo Katsiarynakavaleuskaya/PulsePlate` - PASS; warned that this artifact was missing before this remediation.
 - `python3 scripts/orchestration/experiment_runner.py --packet artifacts/orchestration/experiments/exp-efb7329b3674.json ...` - PASS; accepted oracle artifact `artifacts/orchestration/experiments/results/exp-efb7329b3674.json`.
-- Post-fix local gates below must be refreshed before readiness is claimed.
+- `python3 scripts/orchestration/check_preflight.py` - PASS after merge-main update.
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS after merge-main update.
+- `python3 -m pytest -q -p no:cacheprovider tests/test_experiment_operator_ledger.py` - PASS after merge-main update.
+- `make validate-changed` - PASS after merge-main update.
+- `pre-commit run --all-files` - PASS before merge-main update; final pre-push run must be refreshed after this artifact update.
+- `make verify` - not used as the local gate by operator instruction because the full suite is too large for this lane; changed-scope local gates plus current-head CI remain required before merge.
 
 ## Merge Readiness
 
 - [ ] Current-head CI terminal success confirmed after the final push.
-- [ ] Full local `make verify` passes.
-- [ ] `pre-commit run --all-files` passes with no uncommitted hook edits.
-- [ ] `make validate-changed` passes.
+- [x] Full local `make verify` explicitly deferred by operator instruction; no full-suite pass is claimed.
+- [ ] `pre-commit run --all-files` passes with no uncommitted hook edits after this artifact update.
+- [x] `make validate-changed` passes.
 - [ ] PR body Phase 2 gate passes against the live PR body.
 - [ ] Strict review-thread disposition passes with auth.
 - [ ] Strict merge-readiness guard passes with auth.
