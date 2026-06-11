@@ -96,25 +96,35 @@ _NUMERIC_THRESHOLDS = (
     r"0\.95|0\.80|0\.90|0\.85"
     r")"
 )
+_IDENTIFIER_START = r"(?<![A-Za-z0-9])"
+_IDENTIFIER_END = r"(?![A-Za-z0-9])"
+_CAMEL_SEGMENT = r"(?-i:[A-Z])[A-Za-z0-9]*"
+_BMI_WHR_CAMEL_CONTEXT = rf"{_IDENTIFIER_START}(?:bmi|whr){_CAMEL_SEGMENT}{_IDENTIFIER_END}"
+_BMI_THRESHOLD_WORDS = r"category|threshold|underweight|normal|overweight|obesity|healthy"
+_BMI_THRESHOLD_CAMEL_CONTEXT = (
+    rf"{_IDENTIFIER_START}(?:{_BMI_THRESHOLD_WORDS}){_CAMEL_SEGMENT}{_IDENTIFIER_END}"
+)
+_BMI_THRESHOLD_WORD_CONTEXT = rf"{_IDENTIFIER_START}(?:{_BMI_THRESHOLD_WORDS}){_IDENTIFIER_END}"
+_WAIST_TO_HIP_CAMEL_CONTEXT = (
+    rf"{_IDENTIFIER_START}waist"
+    rf"(?:{_CAMEL_SEGMENT})*"
+    r"(?-i:H)ip"
+    rf"(?:{_CAMEL_SEGMENT})?"
+    rf"{_IDENTIFIER_END}"
+)
+_WAIST_TO_HIP_WORD_CONTEXT = (
+    rf"{_IDENTIFIER_START}waist{_IDENTIFIER_END}.*{_IDENTIFIER_START}hip{_IDENTIFIER_END}"
+)
 
 _BMI_THRESHOLD_CONTEXT = (
     r"(?:"
-    r"(?<![A-Za-z0-9])bmi(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])(?:bmi|whr)(?-i:[A-Z])[A-Za-z0-9]*(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])(?:category|threshold|underweight|normal|overweight|obesity|healthy)"
-    r"(?-i:[A-Z])[A-Za-z0-9]*(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])category(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])threshold(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])underweight(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])normal(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])overweight(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])obesity(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])healthy(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])whr(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])waist(?-i:[A-Z])ip(?:(?-i:[A-Z])[A-Za-z0-9]*)?(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])waist(?-i:[A-Z])[A-Za-z0-9]*(?-i:[A-Z])ip"
-    r"(?:(?-i:[A-Z])[A-Za-z0-9]*)?(?![A-Za-z0-9])|"
-    r"(?<![A-Za-z0-9])waist(?![A-Za-z0-9]).*(?<![A-Za-z0-9])hip(?![A-Za-z0-9])"
+    rf"{_IDENTIFIER_START}bmi{_IDENTIFIER_END}|"
+    rf"{_BMI_WHR_CAMEL_CONTEXT}|"
+    rf"{_BMI_THRESHOLD_CAMEL_CONTEXT}|"
+    rf"{_BMI_THRESHOLD_WORD_CONTEXT}|"
+    rf"{_IDENTIFIER_START}whr{_IDENTIFIER_END}|"
+    rf"{_WAIST_TO_HIP_CAMEL_CONTEXT}|"
+    rf"{_WAIST_TO_HIP_WORD_CONTEXT}"
     r")"
 )
 
@@ -797,6 +807,9 @@ def test_bmi_thresholds_re_does_not_match_non_bmi_whr_context() -> None:
     assert (
         BMI_THRESHOLDS_RE.search("value 0.85 is recorded") is None
     ), "Should not match 0.85 without BMI/WHR keyword"
+    assert (
+        BMI_THRESHOLDS_RE.search("waistZipRatioThreshold = 0.90") is None
+    ), "Should not match unrelated waist camelCase identifiers"
 
 
 def test_bmi_thresholds_re_does_not_match_design_scorecard_normalized_score() -> None:
