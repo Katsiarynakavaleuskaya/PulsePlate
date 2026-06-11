@@ -619,14 +619,6 @@ def _validate_metadata_string(value: str, key_path: tuple[str, ...]) -> None:
         raise ValueError("metadata contains unsafe path-like value")
     if lower.startswith(_PATH_VALUE_PREFIXES) or lower.endswith(_PATH_VALUE_SUFFIXES):
         raise ValueError("metadata contains unsafe path-like value")
-    if key_path:
-        normalized_key = _normalize_metadata_key(key_path[-1])
-        if any(
-            _normalize_metadata_claim_text(fragment) in normalized_key
-            for fragment in _AUTHORITY_KEY_FRAGMENTS
-        ):
-            if _metadata_claim_text_contains(value, _AUTHORITY_VALUE_FRAGMENTS):
-                raise ValueError("metadata contains forbidden authority claim")
 
 
 def _metadata_value_claims_authority(value: JsonValue) -> bool:
