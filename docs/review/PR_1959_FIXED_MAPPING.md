@@ -39,15 +39,42 @@ or touching runtime code.
 - Rebased before PR open onto `origin/main`
   `ad453c4088a9b958231ed7e108a1ced356e2dd17`.
 
-## Fixed In Commit Mapping
-
-- Main A1b guard failure on semantic-cache gate wording -> `30bfa813c2ab4cd27a90710e11f3c959791a3c7e`
-
 ## Discussion Thread Pass
 
-No GitHub review threads were resolved by this mapping at creation time.
-Post-open review comments must be added below with disposition evidence before
-any thread is resolved.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Implementation Commit Evidence
+
+- Main A1b guard failure on semantic-cache gate wording:
+  `30bfa813c2ab4cd27a90710e11f3c959791a3c7e`
+
+## External Bot And Review Dispositions
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1959#issuecomment-4685337001
+Disposition: NOT-A-BUG
+Evidence: Codex usage-limit notice contains no code-actionable finding.
+Reason: External reviewer availability notice only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1959#issuecomment-4685337179
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit review-rate/usage-credit notice contains no code-actionable finding.
+Reason: External reviewer availability notice only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1959#pullrequestreview-4480805981
+Disposition: NOT-A-BUG
+Evidence: Sourcery weekly diff-character rate-limit notice contains no code-actionable finding.
+Reason: External reviewer availability notice only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1959#pullrequestreview-4480823343
+Disposition: NOT-A-BUG
+Evidence: Cubic review for head `30bfa813c2ab4cd27a90710e11f3c959791a3c7e`
+reported "No issues found" across one file.
+Reason: External reviewer completed without code-actionable findings.
 
 ## Premortem Finding Closure
 
@@ -106,8 +133,15 @@ migration is involved.
 None. No `BACKLOG_LEDGER.md` change is needed because this restores existing
 closed-gate wording and does not add scope.
 
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/536494cab9b4.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Post-open packet: `artifacts/orchestration/task_packets/9e5bd5679434.json`
+
 ## Experiment Runner Evidence
 
+- Artifact: `artifacts/orchestration/experiments/results/hotfix-main-a1b-gate-oracle-result-current-base.json`
 - Packet: `exp-ec7baea6a2e8`
 - Current-base result: `status: accepted`; `mutated_paths: []`; oracle commands
   executed: A1b checker, semantic-cache gate checker, docs phase1 gate; all
