@@ -38,6 +38,10 @@ from scripts.orchestration.context_pack_compression import (
     build_context_pack_compression,
     to_stable_mapping as context_compression_to_stable_mapping,
 )
+from scripts.orchestration.embedding_retrieval_admission_telemetry import (
+    build_embedding_retrieval_admission_telemetry,
+    embedding_retrieval_admission_to_stable_mapping,
+)
 from scripts.orchestration.provider_model_tier_policy import (
     build_provider_model_routing_telemetry,
     to_stable_mapping as provider_model_routing_to_stable_mapping,
@@ -1141,6 +1145,13 @@ def build_task_packet(
         reviewer=requested_agent_resolution["reviewer"],
         secondary_agents=requested_agent_resolution["secondary_agents"],
     )
+    embedding_retrieval_admission = build_embedding_retrieval_admission_telemetry(
+        candidate_paths=normalized_paths,
+        required_context=context_pack,
+        pr_phase=normalized_pr_phase,
+        domain=decision.domain,
+        cluster=decision.cluster,
+    )
 
     packet: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -1161,6 +1172,9 @@ def build_task_packet(
         ),
         "provider_model_tier_routing": dict(
             provider_model_routing_to_stable_mapping(provider_model_tier_routing)
+        ),
+        "embedding_retrieval_admission": dict(
+            embedding_retrieval_admission_to_stable_mapping(embedding_retrieval_admission)
         ),
         "message_envelope": message_envelope,
         "recommended_skills": flatten_recommended_skills(skill_routing),

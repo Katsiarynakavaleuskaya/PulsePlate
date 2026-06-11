@@ -76,6 +76,17 @@ calls, runtime routing, semantic-cache serving, provider-specific pricing,
 billing truth, model downgrade, embeddings, GraphRAG runtime, Redis/GPTCache,
 DB, API schema surfaces, web client surfaces, or mobile client surfaces.
 
+The embedding/retrieval admission telemetry contract is defined in
+[`SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md`](../orchestration/contracts/SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md).
+That contract is metadata-only admission telemetry for future embedding and
+retrieval review. It records safe evidence refs, deterministic candidate
+labels, policy metadata, reason codes, and false authority flags while fixing
+selected embedding backend to `none` and selected retrieval runtime to `none`.
+It does not authorize embeddings, semantic similarity, vector search, retrieval
+runtime, provider wiring, provider calls, semantic-cache serving,
+provider-specific pricing, billing truth, model downgrade, Redis/GPTCache, DB,
+API schema surfaces, web client surfaces, or mobile client surfaces.
+
 The Philosophy Epic V2 PR-1 admission contract is defined in
 [`PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md`](../orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md).
 That contract is policy-only, gate-closed, and non-serving; it defines which
