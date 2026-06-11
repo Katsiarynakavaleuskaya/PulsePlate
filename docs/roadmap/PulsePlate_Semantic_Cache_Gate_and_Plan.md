@@ -80,8 +80,9 @@ The embedding/retrieval admission telemetry contract is defined in
 [`SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md`](../orchestration/contracts/SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md).
 That contract is metadata-only admission telemetry for future embedding and
 retrieval review. It records safe evidence refs, deterministic candidate
-labels, policy metadata, reason codes, and false authority flags while fixing
-selected embedding backend to `none` and selected retrieval runtime to `none`.
+labels, policy metadata, reason codes, and false authority flags with blocked
+non-serving sentinel values for embedding backend `none` and retrieval runtime
+`none`.
 It does not authorize embeddings, semantic similarity, vector search, retrieval
 runtime, provider wiring, provider calls, semantic-cache serving,
 provider-specific pricing, billing truth, model downgrade, Redis/GPTCache, DB,
