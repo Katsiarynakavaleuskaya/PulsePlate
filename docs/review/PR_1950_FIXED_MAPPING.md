@@ -31,6 +31,8 @@ context projection.
   result status invariants and Phase2 mapping artifact format.
 - `ff9bf5f87071d5c3e4bddc30cd4f38db7516907b` - post-open bug-hunter fix for
   result status truth-table validation.
+- `07e20c9c401a8abeee1145742b583ab20130d560` - non-force branch sync with
+  current `origin/main` before final current-head gates.
 
 ## Lane Start Provenance
 
@@ -133,6 +135,19 @@ Findings:
   covered leakage, prompt-safety, medical/therapy claims, route/OpenAPI/client/
   runtime/provider/RAG/semantic-cache/write coupling, status tampering, and
   governance gaps.
+- Codex Security diff scan / finding discovery: PASS / no-actionables at
+  `07e20c9c401a8abeee1145742b583ab20130d560`. Evidence:
+  `/tmp/codex-security-scans/fitchef-markov-coaching-orchestration-adapter-v1/5b2b230a2115_20260611T190057Z/report.md`
+  validated successfully and `report.html` rendered; work ledger completed 2/2
+  deep-review rows for `app/schemas/user_coaching_state.py` and
+  `app/services/coaching_markov_orchestration_adapter.py`; no raw candidates
+  were emitted.
+- `pulseplate-pr-review`: NOT-A-BUG for the advisory large-diff note. Evidence:
+  refreshed post-sync report reviewed 5 files / 1146 additions, matching the
+  operator-requested large backend-only PR scope; deterministic gates passed:
+  focused pytest, touched-file mypy, `make validate-changed`,
+  `pre-commit run --all-files`, and pre-push hooks. No code, security,
+  architecture, wellness, or governance finding was emitted.
 
 ## Local Validation
 
@@ -145,9 +160,17 @@ Findings:
 - `pre-commit run --all-files`: PASS
 - Pre-push hooks: PASS, including changed-file mypy, pytest pre-push,
   full-repo bandit, and docker build test.
+- After non-force `origin/main` sync at
+  `07e20c9c401a8abeee1145742b583ab20130d560`:
+  - focused pytest for adapter/planner/state/bayes/nutrition idempotency:
+    PASS, 85 tests.
+  - touched-file mypy: PASS, 7 source files.
+  - `make validate-changed`: PASS, 38 tests.
+  - `pre-commit run --all-files`: PASS.
+  - pre-push hooks: PASS, including pip-audit, backend pre-push pytest,
+    full-repo bandit, and docker build test.
 
 ## Merge Readiness
 
-Not claimed. Current-head CI, post-open role/security review, bot disposition,
-strict merge-readiness, no unresolved threads, and mandatory wait-window remain
-pending.
+Not claimed. Current-head CI, strict merge-readiness, no unresolved threads, and
+mandatory wait-window remain pending.
