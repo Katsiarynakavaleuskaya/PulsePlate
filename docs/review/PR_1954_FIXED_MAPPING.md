@@ -39,6 +39,45 @@ entitlement, billing, or broad architecture ownership.
 
 - No actionable review comments
 
+Post-open role findings:
+
+- Role: `agent-coordinator`
+  - Disposition: FIXED
+  - Commit: `e351c7202`
+  - Evidence: `scripts/ci/check_legacy_growth_guard.py` now freezes existing
+    `@app.middleware("http")` facts, rejects new `app.add_middleware(...)` and
+    `@app.middleware(...)` growth, preserves current `api_key` baseline, and
+    adds `auth` / `api_key` sensitive-family limits. Covered by
+    `tests/test_legacy_growth_guard.py`.
+- Role: `agent-coordinator`
+  - Disposition: FIXED
+  - Commit: `e351c7202`
+  - Evidence: `scripts/ci/check_artifact_reader_contracts.py` now handles
+    keyword-only path arguments for `open(file=...)`, `os.listdir(path=...)`,
+    `os.scandir(path=...)`, `glob.glob(pathname=...)`, and
+    `glob.iglob(pathname=...)`, and covers these with
+    `tests/test_artifact_validation_boundary.py`.
+- Role: `agent-coordinator`
+  - Disposition: FIXED
+  - Commit: `e351c7202`
+  - Evidence: `scripts/ci/check_artifact_reader_contracts.py` now rejects
+    `os.path.exists(...)`, `os.path.isfile(...)`, `os.path.isdir(...)`, and
+    related `os.path` existence checks against forbidden local artifact roots.
+    Covered by `tests/test_artifact_validation_boundary.py`.
+- Role: `agent-coordinator`
+  - Disposition: FIXED
+  - Commit: `e351c7202`
+  - Evidence: both repo-level validators now run architecture-doc validation
+    when the doc file exists even if it is empty, so empty docs fail closed.
+    Covered by repo-level empty-doc tests in both focused test files.
+- Role: `qa-engineer-agent`
+  - Disposition: FIXED
+  - Commit: `e351c7202`
+  - Evidence: deterministic tests were added for middleware growth, direct
+    `add_api_route(...)`, auth/API-key/provider/LLM/entitlement/quota sensitive
+    call-family growth, keyword artifact paths, `os.path` existence checks, and
+    empty-doc repo validation.
+
 ## Implementation Evidence
 
 - `49dff74637a247cdfdb2930ee6be6ca0c8b80747` - documents the accepted
@@ -48,6 +87,12 @@ entitlement, billing, or broad architecture ownership.
 - This commit includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` because
   the accepted oracle-only Experiment Runner result shaped the commit decision.
+- `a2b29adb515ac84a2a8be35bbd38eda4389220c8` - adds the PR #1954 fixed
+  mapping artifact with lane provenance and initial validation evidence.
+- `e351c7202` - closes post-open coordinator and QA findings by expanding the
+  guard surface for middleware/API-route growth, auth/API-key sensitive-family
+  growth, keyword artifact path arguments, `os.path` existence checks, and
+  empty-doc fail-closed validation.
 
 ## Premortem Evidence
 
@@ -90,6 +135,11 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 - `pre-commit run --all-files` - PASS after rebase.
 - Push pre-hook - PASS: mypy changed files, pip-audit, backend pre-push pytest,
   full-repo Bandit, and Docker build test.
+- After `e351c7202`: `.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py tests/test_artifact_validation_boundary.py` - PASS, 43 tests.
+- After `e351c7202`: `.venv/bin/python scripts/ci/check_legacy_growth_guard.py` - PASS.
+- After `e351c7202`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
+- After `e351c7202`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 43 tests selected.
+- After `e351c7202`: `pre-commit run --all-files` - PASS.
 
 ## Current Main / Merge Readiness
 
@@ -103,7 +153,8 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 
 ## Post-open Role Findings
 
-- `qa-engineer-agent`: pending.
+- `agent-coordinator`: FIXED in `e351c7202`; see Fixed in Commit Mapping.
+- `qa-engineer-agent`: FIXED in `e351c7202`; see Fixed in Commit Mapping.
 - `bug-hunter`: pending.
 - `security-auditor`: pending.
 - Codex Security diff scan / finding discovery: pending.
