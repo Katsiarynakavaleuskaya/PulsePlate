@@ -321,7 +321,6 @@ def _resolve_binary_expr(
     if isinstance(expr, ast.Name):
         if expr.id in seen_names:
             return None
-        resolved: str | None = None
         assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
         if not assignments:
             return None
@@ -431,7 +430,6 @@ def _resolve_argv_binary(
     if isinstance(expr, ast.Name):
         if expr.id in seen_names:
             return None
-        resolved: str | None = None
         assignments = _find_recent_assignments(tree, upto_lineno, expr.id)
         if not assignments:
             return None
