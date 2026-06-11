@@ -1,14 +1,14 @@
 # PR 1941 Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Initial discussion-thread pass completed at PR open.
-- [x] Fixed in commit mapping artifact created after PR number allocation.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Post-open review-thread pass completed.
 
 ## Fixed in Commit Mapping
-- No GitHub review threads existed at PR open.
-- New human, bot, or role-agent findings must be added here with `FIXED`,
-  `NOT-A-BUG`, or `DEFERRED` disposition before readiness claims.
+No GitHub review threads existed at PR open. New human, bot, or role-agent
+findings must be added here with `FIXED`, `NOT-A-BUG`, or `DEFERRED`
+disposition before readiness claims.
 
 ## Lane Start Provenance
 - Packet: `artifacts/orchestration/task_packets/897c356ac39e.json`
@@ -47,7 +47,7 @@
 
 ## Experiment Runner Evidence
 - Packet: `artifacts/orchestration/experiments/food-data-fdc-record-metadata-passthrough-packet.json`
-- Result artifact:
+- Artifact:
   `artifacts/orchestration/experiments/results/food-data-fdc-record-metadata-passthrough-oracle.json`
 - Mode: `oracle_only_governance_reviewer`.
 - Status: `accepted`.
