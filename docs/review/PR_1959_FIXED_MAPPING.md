@@ -100,7 +100,7 @@ Passed on the rebased hotfix branch:
 
 - `python3 scripts/orchestration/check_preflight.py --path docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md --path tests/test_ai_pro_quota_a1b_closeout.py --path scripts/ci/check_ai_pro_quota_a1b_closeout.py`
 - `python3 scripts/ci/check_ai_pro_quota_a1b_closeout.py --repo-root .`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ai_pro_quota_a1b_closeout.py::test_checker_passes_on_current_repository`
+- `"$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" -m pytest -q tests/test_ai_pro_quota_a1b_closeout.py::test_checker_passes_on_current_repository`
 - `python3 scripts/ci/check_semantic_cache_gate.py`
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1959_FIXED_MAPPING.md`
