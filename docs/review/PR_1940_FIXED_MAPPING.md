@@ -40,6 +40,10 @@ No actionable GitHub review threads have been resolved yet.
 - `51fd8d34d8f11df5ea33146b4b7b32b0efbda19d` - closes post-open QA findings by
   adding a real `task_bootstrap.py main()` repeat-packet test for same-ID
   same-head exact hits and a bounded `max_files` artifact-scan regression test.
+- `e4c5fd61e2b302f7e8e33a8c053d1910030c2f52` - closes the post-open bug-hunter
+  finding by prioritizing the same packet output path before the bounded generic
+  artifact scan so repeated same-ID packets cannot be hidden behind older local
+  artifacts.
 
 ## Premortem Evidence
 
@@ -83,14 +87,14 @@ No actionable GitHub review threads have been resolved yet.
 
 ## Live Shadow Reuse Proof
 
-Second identical `task_bootstrap.py` run on current head
-`51fd8d34d8f11df5ea33146b4b7b32b0efbda19d` produced:
+Second identical `task_bootstrap.py` run on code-bearing head
+`e4c5fd61e2b302f7e8e33a8c053d1910030c2f52` produced:
 
 - `decision=hit`
 - `match_mode=exact`
 - `score_bps=10000`
 - `checked_previous_packet_count=1`
-- `skipped_previous_packet_count=6`
+- `skipped_previous_packet_count=7`
 - `provider_calls_avoided_count=0`
 - `cost_saved_microunits=0`
 
@@ -113,13 +117,22 @@ Second identical `task_bootstrap.py` run on current head
 - Role: `qa-engineer-agent`
   - Disposition: FIXED
   - Commit: `51fd8d34d8f11df5ea33146b4b7b32b0efbda19d`
-  - Evidence: current-head live shadow reuse proof above now cites
-    `51fd8d34d8f11df5ea33146b4b7b32b0efbda19d` and records an exact hit on the
-    second identical packet run.
+  - Evidence: live shadow reuse proof above records an exact hit on the second
+    identical packet run after the QA regression coverage landed.
+- Role: `bug-hunter`
+  - Disposition: FIXED
+  - Commit: `e4c5fd61e2b302f7e8e33a8c053d1910030c2f52`
+  - Evidence: `collect_previous_task_packet_candidates(...,
+    priority_packet_path=out_path)` loads the existing same-ID output packet
+    before the bounded generic scan, and
+    `test_main_repeated_packet_records_same_head_shadow_exact_hit` seeds 60
+    earlier-sorting unrelated artifacts while still asserting the second run
+    records `decision=hit`, `match_mode=exact`, and one checked same-head
+    candidate.
 
 Pending required post-open sequence continuation:
-`bug-hunter -> security-auditor`, then Codex Security diff scan / finding
-discovery and `pulseplate-pr-review`.
+`security-auditor`, then Codex Security diff scan / finding discovery and
+`pulseplate-pr-review`.
 
 ## Merge Readiness
 
