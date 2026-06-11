@@ -76,10 +76,10 @@ Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported "No actionable comments were generated in the recent review." Current fixed mapping separately covers the later actionable Codex/Cubic authority-value findings.
 Reason: The CodeRabbit comment is a no-actionable review summary, not a requested code change.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1917#issuecomment-4659248806 -> b738d4f5ef57d6a8caca29bf7ac8f5f5f4601efa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1917#issuecomment-4659248806 -> d168b40a98fa915ae6056d2ffef5c84e670ad639
 Disposition: FIXED
-Commit: b738d4f5ef57d6a8caca29bf7ac8f5f5f4601efa
-Evidence: `tests/core/evidence/test_wiki_bridge.py` adds regression coverage for previously missing wiki bridge authority branches, including dotted/dashed authority values and admission-adapter metadata. Focused pytest and Experiment Runner pytest oracle passed.
+Commit: d168b40a98fa915ae6056d2ffef5c84e670ad639
+Evidence: `core/evidence/wiki_bridge.py` removes a redundant, unreachable authority-string branch after coverage showed lines 628-629 below the 97% threshold. The same fail-closed behavior remains covered through `_validate_metadata_key(...)->_metadata_value_claims_authority(...)`; focused pytest and `make validate-changed` passed after the cleanup.
 
 ## Experiment Runner Evidence
 
@@ -155,6 +155,8 @@ Evidence: `tests/core/evidence/test_wiki_bridge.py` adds regression coverage for
 - PASS: Experiment Runner oracle-only governance review accepted with pytest and `git diff --check` oracle commands returning 0.
 - PASS: Codex Security diff scan / finding discovery with no diff-scoped findings.
 - PASS: `pre-commit run --all-files`
+- PASS: post-diff-coverage cleanup focused pytest for `tests/core/evidence/test_wiki_bridge.py`
+- PASS: post-diff-coverage cleanup `make validate-changed`
 - STOPPED: full local `make verify` was started, passed `verify-env`, and entered
   `mypy`; the operator then explicitly narrowed this PR lane to
   `make validate-changed` because full verify runs the repository-scale test
