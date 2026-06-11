@@ -29,9 +29,31 @@
   Reason: commit `1451694cf` rejects bare `prompt`, `query`, and
   `similarity_score` metadata and broadens O4 forbidden-claim gate coverage
   beyond the old phrase-specific wording.
+- Post-open `security-auditor`: PASS / no blocking findings at head
+  `eeceaf3ef`.
+  Evidence: reviewed diff surface for provider, cache, vector, retrieval,
+  DB/OpenAPI/frontend/iOS, subprocess, network, auth, and secrets behavior;
+  read-only reproductions rejected `query`, `prompt`, `similarity_score`,
+  `similarity_scores`, and `raw_context` metadata.
+- Post-open Codex Security diff scan / finding discovery: PASS / no reportable
+  findings at head `eeceaf3ef`.
+  Evidence:
+  `/tmp/codex-security-scans/embedding-retrieval-admission-o4/eeceaf3ef8e9dd17d44dc3c8ab9c2f3a6d4dc5ca_20260611T173804Z/report.md`;
+  report validator passed and `report.html` was generated. Discovery worklist
+  covered 13/13 PR-O4 changed files with receipts in
+  `/tmp/codex-security-scans/embedding-retrieval-admission-o4/eeceaf3ef8e9dd17d44dc3c8ab9c2f3a6d4dc5ca_20260611T173804Z/artifacts/02_discovery/work_ledger.jsonl`.
+- Post-open `pulseplate-pr-review`: one advisory large-diff planning note
+  dispositioned as NOT-A-BUG.
+  Evidence: `/tmp/pulseplate_pr_review_1943.md`;
+  `/tmp/pulseplate_pr_review_1943.json`.
+  Reason: PR-O4 is one cohesive gate-closed contract/schema/module/gate/test
+  slice; the large line count is primarily new contract/schema/tests and gate
+  assertions, not a mixed runtime surface. Focused local gates, Codex Security
+  diff scan, and current-head CI lint/security/docs/merge-readiness gates cover
+  the changed surface.
 - Mandatory post-open order remaining:
-  `security-auditor`, then Codex Security diff scan / finding discovery and
-  `pulseplate-pr-review`.
+  current-head CI completion, bot/no-actionable review pass, strict merge
+  readiness wrapper, and wait-window.
 
 ## Premortem Evidence
 - Artifact: `artifacts/orchestration/premortem/pr-o4-premortem.md`
@@ -74,10 +96,16 @@
   `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --explicit-package-bases scripts/orchestration/embedding_retrieval_admission_telemetry.py scripts/orchestration/task_bootstrap.py`.
 - PASS after bug-hunter fix: `make validate-changed`.
 - PASS after bug-hunter fix: `pre-commit run --all-files`.
+- PASS after Codex Security scan:
+  `python3 /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated/codex-security/c6ea566d/scripts/validate_report_format.py --report-md /tmp/codex-security-scans/embedding-retrieval-admission-o4/eeceaf3ef8e9dd17d44dc3c8ab9c2f3a6d4dc5ca_20260611T173804Z/report.md`.
+- PASS after `pulseplate-pr-review` generation:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_pr_review_report.py tests/test_pr_review_context.py`.
+- INFO: the same PR review calibration command failed under the bare worktree
+  interpreter with `ModuleNotFoundError: No module named 'fastapi'`; rerun
+  through the root repo `.venv` passed as listed above.
 
 ## Known Non-Ready Gate
 - Full local `make verify` was operator-deferred for this semantic optimization
   train. Do not claim full local green unless that command is explicitly run.
-- Current-head PR CI, remaining post-open role review loop, Codex Security diff
-  scan / finding discovery, `pulseplate-pr-review`, bot disposition pass,
-  strict merge-readiness, and required wait window remain pending.
+- Current-head PR CI, bot disposition pass, strict merge-readiness, and
+  required wait window remain pending.
