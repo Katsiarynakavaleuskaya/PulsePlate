@@ -20,9 +20,18 @@
   follow-up commit.
   Evidence: Phase2 body/mapping parser rejected non-canonical checkbox labels
   and no-thread prose in this artifact before the follow-up fix.
+- Post-open `bug-hunter`: FINDINGS / blocking sanitizer and contract-gate
+  findings fixed in commit `1451694cf`.
+  Evidence: `scripts/orchestration/embedding_retrieval_admission_telemetry.py`;
+  `scripts/ci/check_semantic_cache_gate.py`;
+  `tests/test_embedding_retrieval_admission_telemetry.py`;
+  `tests/test_semantic_cache_embedding_retrieval_admission_contract.py`.
+  Reason: commit `1451694cf` rejects bare `prompt`, `query`, and
+  `similarity_score` metadata and broadens O4 forbidden-claim gate coverage
+  beyond the old phrase-specific wording.
 - Mandatory post-open order remaining:
-  `bug-hunter -> security-auditor`, then Codex Security diff scan / finding
-  discovery and `pulseplate-pr-review`.
+  `security-auditor`, then Codex Security diff scan / finding discovery and
+  `pulseplate-pr-review`.
 
 ## Premortem Evidence
 - Artifact: `artifacts/orchestration/premortem/pr-o4-premortem.md`
@@ -55,6 +64,16 @@
   `git diff --check && git diff --cached --check`.
 - PASS during push hooks: changed-file mypy, pip-audit, backend pytest,
   full-repo Bandit, and docker build test.
+- PASS after bug-hunter fix:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_embedding_retrieval_admission_telemetry.py tests/test_semantic_cache_embedding_retrieval_admission_contract.py tests/test_task_bootstrap.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py`.
+- PASS after bug-hunter fix:
+  `python3 scripts/ci/check_semantic_cache_gate.py`.
+- PASS after bug-hunter fix:
+  `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/contracts/SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md docs/orchestration/contracts/SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.schema.json`.
+- PASS after bug-hunter fix:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --explicit-package-bases scripts/orchestration/embedding_retrieval_admission_telemetry.py scripts/orchestration/task_bootstrap.py`.
+- PASS after bug-hunter fix: `make validate-changed`.
+- PASS after bug-hunter fix: `pre-commit run --all-files`.
 
 ## Known Non-Ready Gate
 - Full local `make verify` was operator-deferred for this semantic optimization
