@@ -77,7 +77,14 @@ jobs:
             --blocked-debian-package libgnutls30 \
             --output-json docker-runtime-dependency-surface.json
 
+      - name: Use checked-in Docker image telemetry baseline on pull requests
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          cp docs/telemetry/docker_image_baseline.production.json docker-image-baseline.json
+
       - name: Resolve Docker image telemetry baseline
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -478,11 +485,12 @@ jobs:
 
       - name: Attest Docker image SBOM
         id: attest-build-sbom
-        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
           subject-digest: ${{ steps.docker-build-push.outputs.digest }}
-          sbom-path: sbom.spdx.json
+          predicate-type: https://spdx.dev/Document/v2.3
+          predicate-path: sbom.spdx.json
           push-to-registry: true
 
       - name: Verify Docker image attestations
