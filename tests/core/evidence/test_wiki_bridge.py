@@ -136,7 +136,16 @@ def test_rejects_raw_prompt_response_query_user_health_secret_metadata(
         {"source_of_truth": [0, 1]},
         {"source of truth": "runtime"},
         {"source.of.truth": "source of truth"},
+        {"source.of.truth": "source.of.truth"},
+        {"source_of_truth": "source.of.truth"},
+        {"source_of_truth": "source-of-truth"},
         {"product.truth": "authoritative"},
+        {"product.truth": "product.truth"},
+        {"authority.claims": "product.runtime"},
+        {"runtime.context": {"nested": "source.of.truth"}},
+        {"authority.claims": ["neutral", "user.facing"]},
+        {"authority.claims": {"candidate": "product.truth"}},
+        {"canonical": "user.facing"},
     ],
 )
 def test_rejects_runtime_or_canonical_authority_claims(metadata: dict[str, object]) -> None:
@@ -196,6 +205,29 @@ def test_admission_adapter_rejects_separator_variant_bridge_metadata() -> None:
             verification_rate=1.0,
             fallback_rate=0.0,
             metadata={"api.key": "redacted credential payload"},
+        )
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"source.of.truth": "source.of.truth"},
+        {"authority.claims": ["neutral", "user.facing"]},
+    ],
+)
+def test_admission_adapter_rejects_separator_variant_authority_values(
+    metadata: dict[str, object],
+) -> None:
+    artifact = _artifact()
+
+    with pytest.raises(ValueError):
+        wiki_artifact_to_admission_input(
+            artifact,
+            produced_at=_PRODUCED_AT,
+            coverage_rate=1.0,
+            verification_rate=1.0,
+            fallback_rate=0.0,
+            metadata=metadata,
         )
 
 

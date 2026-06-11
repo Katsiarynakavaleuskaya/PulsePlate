@@ -575,17 +575,29 @@ def _validate_metadata(value: JsonValue, *, key_path: tuple[str, ...] = ()) -> N
     raise ValueError("metadata must be JSON-compatible")
 
 
+def _normalize_metadata_claim_text(value: str) -> str:
+    # Canonicalizes separator variants such as "api key" or "source.of.truth".
+    return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+
+
 def _normalize_metadata_key(key: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
+    return _normalize_metadata_claim_text(key)
+
+
+def _metadata_claim_text_contains(value: str, fragments: Iterable[str]) -> bool:
+    normalized_value = _normalize_metadata_claim_text(value)
+    return any(
+        _normalize_metadata_claim_text(fragment) in normalized_value for fragment in fragments
+    )
 
 
 def _validate_metadata_key(key: str, value: JsonValue) -> None:
     normalized_key = _normalize_metadata_key(key)
     if not normalized_key:
         raise ValueError("metadata keys must not be blank")
-    if any(fragment in normalized_key for fragment in _FORBIDDEN_METADATA_KEY_FRAGMENTS):
+    if _metadata_claim_text_contains(key, _FORBIDDEN_METADATA_KEY_FRAGMENTS):
         raise ValueError(f"metadata contains forbidden field: {key}")
-    if any(fragment in normalized_key for fragment in _AUTHORITY_KEY_FRAGMENTS):
+    if _metadata_claim_text_contains(key, _AUTHORITY_KEY_FRAGMENTS):
         if _metadata_value_claims_authority(value):
             raise ValueError(f"metadata contains forbidden authority claim: {key}")
     if normalized_key == "advisory_only" and value is not True:
@@ -609,8 +621,11 @@ def _validate_metadata_string(value: str, key_path: tuple[str, ...]) -> None:
         raise ValueError("metadata contains unsafe path-like value")
     if key_path:
         normalized_key = _normalize_metadata_key(key_path[-1])
-        if any(fragment in normalized_key for fragment in _AUTHORITY_KEY_FRAGMENTS):
-            if any(fragment in lower for fragment in _AUTHORITY_VALUE_FRAGMENTS):
+        if any(
+            _normalize_metadata_claim_text(fragment) in normalized_key
+            for fragment in _AUTHORITY_KEY_FRAGMENTS
+        ):
+            if _metadata_claim_text_contains(value, _AUTHORITY_VALUE_FRAGMENTS):
                 raise ValueError("metadata contains forbidden authority claim")
 
 
@@ -620,8 +635,7 @@ def _metadata_value_claims_authority(value: JsonValue) -> bool:
     if isinstance(value, (int, float)):
         return value != 0
     if isinstance(value, str):
-        lower = value.strip().lower()
-        return any(fragment in lower for fragment in _AUTHORITY_VALUE_FRAGMENTS)
+        return _metadata_claim_text_contains(value, _AUTHORITY_VALUE_FRAGMENTS)
     if isinstance(value, Mapping):
         return any(_metadata_value_claims_authority(child) for child in value.values())
     if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray, memoryview)):
