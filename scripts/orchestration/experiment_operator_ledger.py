@@ -70,9 +70,7 @@ IDEMPOTENCY_KEY_CHECK_NAMESPACE = b"pulseplate-operator-ledger-idempotency-check
 CONTENT_HASH_NAMESPACE = b"pulseplate-operator-ledger-content-v1"
 CONTENT_HASH_ITERATIONS = 1_000
 IDEMPOTENCY_KEY_RE = re.compile(r"^[a-f0-9]{24}$")
-EMAIL_SHAPED_ARTIFACT_RE = re.compile(
-    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
-)
+EMAIL_SHAPED_ARTIFACT_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PHONE_SHAPED_ARTIFACT_RE = re.compile(r"\b\+?\d[\d .()_-]{7,}\d\b")
 ARTIFACT_DATE_TOKEN_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MIN_ALLOWED_ARTIFACT_DATE_YEAR = 2000
