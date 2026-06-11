@@ -1,14 +1,11 @@
 # PR 1943 Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread artifact created after PR number assignment.
-- [x] Fixed in commit mapping initialized for the current no-thread state.
-- [ ] Post-open review-thread pass pending.
-- [ ] Fixed in commit mapping completed after latest bot/human review cycle.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No review threads have been resolved.
-- No bot or human actionable comments were present when this artifact was created.
+- No actionable review comments
 
 ## Lane Start Provenance
 - Packet: `artifacts/orchestration/task_packets/3447feba1558.json`
@@ -19,9 +16,13 @@
 ## Role Dispatch Evidence
 - Required pre-open role order executed:
   `agent-coordinator -> rag-systems-agent -> prompt-engineering-eval-agent -> architecture-specialist -> security-auditor -> qa-engineer-agent -> ai-innovation-specialist`.
-- Mandatory post-open order pending:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`, then Codex Security
-  diff scan / finding discovery and `pulseplate-pr-review`.
+- Post-open `qa-engineer-agent`: FINDINGS / governance blocker fixed in
+  follow-up commit.
+  Evidence: Phase2 body/mapping parser rejected non-canonical checkbox labels
+  and no-thread prose in this artifact before the follow-up fix.
+- Mandatory post-open order remaining:
+  `bug-hunter -> security-auditor`, then Codex Security diff scan / finding
+  discovery and `pulseplate-pr-review`.
 
 ## Premortem Evidence
 - Artifact: `artifacts/orchestration/premortem/pr-o4-premortem.md`
@@ -58,6 +59,6 @@
 ## Known Non-Ready Gate
 - Full local `make verify` was operator-deferred for this semantic optimization
   train. Do not claim full local green unless that command is explicitly run.
-- Current-head PR CI, post-open role review loop, Codex Security diff scan /
-  finding discovery, `pulseplate-pr-review`, bot disposition pass, strict
-  merge-readiness, and required wait window remain pending.
+- Current-head PR CI, remaining post-open role review loop, Codex Security diff
+  scan / finding discovery, `pulseplate-pr-review`, bot disposition pass,
+  strict merge-readiness, and required wait window remain pending.
