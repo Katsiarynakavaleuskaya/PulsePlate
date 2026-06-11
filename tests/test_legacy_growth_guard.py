@@ -74,6 +74,30 @@ def test_legacy_growth_guard_rejects_add_api_route_registration() -> None:
     ("source", "expected"),
     [
         (
+            'app.add_route("/api/v1/new-runtime", new_runtime_route)\n',
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:add_route:/api/v1/new-runtime",
+        ),
+        (
+            'app.router.add_api_route("/api/v1/new-runtime", new_runtime_route)\n',
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:router.add_api_route:/api/v1/new-runtime",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_router_api_registration_aliases(
+    source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [expected]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
             'registered = app.add_api_route("/api/v1/new-runtime", new_runtime_route)\n',
             "legacy_app.py: unexpected legacy route growth: "
             "registration:add_api_route:/api/v1/new-runtime",
@@ -201,6 +225,28 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
     assert errors == ["legacy_app.py: sensitive app surface grew for auth: 1 > 0"]
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        textwrap.dedent("""
+            deps = [Depends(auth_guard)]
+
+            @app.get("/health", dependencies=deps)
+            def health():
+                return {"ok": True}
+            """),
+        textwrap.dedent("""
+            deps = [Depends(auth_guard)]
+            app.include_router(foods_router, dependencies=deps)
+            """),
+    ],
+)
+def test_legacy_growth_guard_rejects_sensitive_dependency_aliases(source: str) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == ["legacy_app.py: sensitive app surface grew for auth: 1 > 0"]
+
+
 def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline() -> None:
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
     source += textwrap.dedent("""
@@ -212,7 +258,7 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
 
     errors = legacy_guard.validate_legacy_growth(source)
 
-    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 18 > 17"]
+    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 22 > 21"]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:

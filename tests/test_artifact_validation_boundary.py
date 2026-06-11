@@ -62,6 +62,14 @@ def test_artifact_guard_rejects_direct_read_text() -> None:
             textwrap.dedent("""
                 from pathlib import Path
 
+                Path("artifacts", "orchestration", "packet.json").read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/orchestration",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
                 Path("artifacts").joinpath("security_lab", "report.json").read_text()
                 """),
             "app/unsafe.py:4: read_text reads local artifacts/security_lab",
@@ -121,6 +129,40 @@ def test_artifact_guard_rejects_builtin_open_default_read() -> None:
     ],
 )
 def test_artifact_guard_rejects_keyword_path_arguments(
+    source: str,
+    expected: str,
+) -> None:
+    findings, errors = artifact_guard.collect_artifact_read_findings_for_source(
+        source,
+        rel_path="core/unsafe.py",
+    )
+
+    assert errors == []
+    assert [finding.display() for finding in findings] == [expected]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            'from os import listdir\nlistdir("artifacts/orchestration")\n',
+            "core/unsafe.py:2: os.listdir reads local artifacts/orchestration",
+        ),
+        (
+            'from os.path import exists\nexists("artifacts/agent_runs/report.json")\n',
+            "core/unsafe.py:2: os.path.exists reads local artifacts/agent_runs",
+        ),
+        (
+            'from glob import glob\nglob("artifacts/security_lab/*.json")\n',
+            "core/unsafe.py:2: glob.glob reads local artifacts/security_lab",
+        ),
+        (
+            'import io\nio.open("artifacts/orchestration/packet.json")\n',
+            "core/unsafe.py:2: io.open reads local artifacts/orchestration",
+        ),
+    ],
+)
+def test_artifact_guard_rejects_imported_stdlib_aliases(
     source: str,
     expected: str,
 ) -> None:

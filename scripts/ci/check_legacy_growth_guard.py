@@ -46,7 +46,9 @@ APP_ROUTE_METHODS = frozenset(
         "websocket",
     }
 )
-APP_REGISTRATION_METHODS = frozenset({"add_api_route", "add_middleware", "include_router"})
+APP_REGISTRATION_METHODS = frozenset(
+    {"add_api_route", "add_middleware", "add_route", "include_router"}
+)
 SENSITIVE_CALL_KEYWORDS: tuple[str, ...] = (
     "api_key",
     "auth",
@@ -70,7 +72,7 @@ SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
     "subscription": 0,
 }
 SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
-    "api_key": 17,
+    "api_key": 21,
     "auth": 0,
     "billing": 0,
     "entitlement": 0,
@@ -281,6 +283,21 @@ def _parse_source(source_text: str, *, filename: str) -> tuple[ast.Module | None
         return None, [f"{filename}:{line}: syntax error: {exc.msg}"]
 
 
+def _app_call_action(func: ast.AST, methods: frozenset[str]) -> str | None:
+    if not isinstance(func, ast.Attribute) or func.attr not in methods:
+        return None
+    if isinstance(func.value, ast.Name) and func.value.id == "app":
+        return func.attr
+    if (
+        isinstance(func.value, ast.Attribute)
+        and func.value.attr == "router"
+        and isinstance(func.value.value, ast.Name)
+        and func.value.value.id == "app"
+    ):
+        return f"router.{func.attr}"
+    return None
+
+
 def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) -> set[LegacyFact]:
     """Return route and router-registration facts from legacy_app.py source."""
 
@@ -294,26 +311,16 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
             for decorator in node.decorator_list:
                 if not isinstance(decorator, ast.Call):
                     continue
-                func = decorator.func
-                if (
-                    isinstance(func, ast.Attribute)
-                    and isinstance(func.value, ast.Name)
-                    and func.value.id == "app"
-                    and func.attr in APP_ROUTE_METHODS
-                ):
+                action = _app_call_action(decorator.func, APP_ROUTE_METHODS)
+                if action is not None:
                     facts.add(
-                        LegacyFact("decorator", func.attr, _first_arg_label(decorator), node.name)
+                        LegacyFact("decorator", action, _first_arg_label(decorator), node.name)
                     )
         elif isinstance(node, ast.Call):
             call = node
-            func = call.func
-            if (
-                isinstance(func, ast.Attribute)
-                and isinstance(func.value, ast.Name)
-                and func.value.id == "app"
-                and func.attr in APP_REGISTRATION_METHODS
-            ):
-                facts.add(LegacyFact("registration", func.attr, _first_arg_label(call), ""))
+            action = _app_call_action(call.func, APP_REGISTRATION_METHODS)
+            if action is not None:
+                facts.add(LegacyFact("registration", action, _first_arg_label(call), ""))
     return facts
 
 
@@ -360,6 +367,30 @@ def collect_sensitive_call_counts(
     return counts
 
 
+def _collect_sensitive_names(tree: ast.Module) -> dict[str, set[str]]:
+    sensitive_names: dict[str, set[str]] = {}
+    for node in ast.walk(tree):
+        value: ast.AST | None = None
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            value = node.value
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            value = node.value
+            targets = [node.target]
+        if value is None:
+            continue
+
+        value_text = _safe_unparse(value).casefold()
+        keywords = {keyword for keyword in SENSITIVE_CALL_KEYWORDS if keyword in value_text}
+        if not keywords:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                sensitive_names.setdefault(target.id, set()).update(keywords)
+    return sensitive_names
+
+
 def collect_sensitive_app_surface_counts(
     source_text: str,
     *,
@@ -373,20 +404,19 @@ def collect_sensitive_app_surface_counts(
         return counts
 
     app_surface_methods = APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
+    sensitive_names = _collect_sensitive_names(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        func = node.func
-        if not (
-            isinstance(func, ast.Attribute)
-            and isinstance(func.value, ast.Name)
-            and func.value.id == "app"
-            and func.attr in app_surface_methods
-        ):
+        if _app_call_action(node.func, app_surface_methods) is None:
             continue
         call_text = _safe_unparse(node).casefold()
+        call_keywords = {keyword for keyword in SENSITIVE_CALL_KEYWORDS if keyword in call_text}
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name):
+                call_keywords.update(sensitive_names.get(child.id, set()))
         for keyword in SENSITIVE_CALL_KEYWORDS:
-            if keyword in call_text:
+            if keyword in call_keywords:
                 counts[keyword] += 1
     return counts
 

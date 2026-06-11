@@ -104,7 +104,13 @@ def _literal_path_parts(
     if isinstance(node, ast.Call):
         func = node.func
         if isinstance(func, ast.Name) and func.id in path_constructors and node.args:
-            return _literal_path_parts(node.args[0], names, path_constructors, path_modules)
+            parts: list[str] = []
+            for arg in node.args:
+                arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
+                if arg_parts is None:
+                    return None
+                parts.extend(arg_parts)
+            return tuple(parts)
         if (
             isinstance(func, ast.Attribute)
             and func.attr == "Path"
@@ -112,7 +118,13 @@ def _literal_path_parts(
             and func.value.id in path_modules
             and node.args
         ):
-            return _literal_path_parts(node.args[0], names, path_constructors, path_modules)
+            parts = []
+            for arg in node.args:
+                arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
+                if arg_parts is None:
+                    return None
+                parts.extend(arg_parts)
+            return tuple(parts)
         if isinstance(func, ast.Attribute) and func.attr == "joinpath":
             base = _literal_path_parts(func.value, names, path_constructors, path_modules)
             if base is None:
@@ -151,13 +163,14 @@ def _call_arg(call: ast.Call, index: int, keyword_names: tuple[str, ...]) -> ast
     return None
 
 
-def _mode_from_call(call: ast.Call) -> str | None:
+def _mode_from_call(call: ast.Call, *, path_method: bool = False) -> str | None:
     for keyword in call.keywords:
         if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
             value = keyword.value.value
             return value if isinstance(value, str) else None
     if (
-        isinstance(call.func, ast.Attribute)
+        path_method
+        and isinstance(call.func, ast.Attribute)
         and call.func.attr == "open"
         and call.args
         and isinstance(call.args[0], ast.Constant)
@@ -192,17 +205,49 @@ class ArtifactReadVisitor(ast.NodeVisitor):
     def __init__(self, *, rel_path: str) -> None:
         self.rel_path = rel_path
         self.name_paths: dict[str, tuple[str, ...]] = {}
+        self.glob_functions: dict[str, str] = {}
+        self.glob_modules: set[str] = {"glob"}
+        self.io_modules: set[str] = {"io"}
+        self.open_functions: dict[str, str] = {}
+        self.os_enum_functions: dict[str, str] = {}
+        self.os_modules: set[str] = {"os"}
+        self.os_path_functions: dict[str, str] = {}
+        self.os_path_modules: set[str] = set()
         self.path_constructors: set[str] = {"Path"}
         self.path_modules: set[str] = {"pathlib"}
         self.findings: list[ArtifactReadFinding] = []
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
+            if alias.name == "glob":
+                self.glob_modules.add(alias.asname or "glob")
+            if alias.name == "io":
+                self.io_modules.add(alias.asname or "io")
+            if alias.name == "os":
+                self.os_modules.add(alias.asname or "os")
+            if alias.name == "os.path":
+                self.os_path_modules.add(alias.asname or "path")
             if alias.name == "pathlib":
                 self.path_modules.add(alias.asname or "pathlib")
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module == "glob":
+            for alias in node.names:
+                if alias.name in GLOB_METHODS:
+                    self.glob_functions[alias.asname or alias.name] = alias.name
+        if node.module == "io":
+            for alias in node.names:
+                if alias.name == "open":
+                    self.open_functions[alias.asname or alias.name] = "io.open"
+        if node.module == "os":
+            for alias in node.names:
+                if alias.name in OS_ENUMERATION_METHODS:
+                    self.os_enum_functions[alias.asname or alias.name] = alias.name
+        if node.module == "os.path":
+            for alias in node.names:
+                if alias.name in OS_PATH_CHECK_METHODS:
+                    self.os_path_functions[alias.asname or alias.name] = alias.name
         if node.module == "pathlib":
             for alias in node.names:
                 if alias.name == "Path":
@@ -247,10 +292,33 @@ class ArtifactReadVisitor(ast.NodeVisitor):
 
     def _check_call(self, node: ast.Call) -> None:
         func = node.func
-        if isinstance(func, ast.Name) and func.id == "open":
+        if isinstance(func, ast.Name) and (func.id == "open" or func.id in self.open_functions):
             path_node = _call_arg(node, 0, ("file",))
             if path_node is not None:
-                self._check_open_like(node, path_node, operation="open")
+                self._check_open_like(
+                    node,
+                    path_node,
+                    operation=self.open_functions.get(func.id, "open"),
+                )
+            return
+        if isinstance(func, ast.Name) and func.id in self.os_enum_functions:
+            original = self.os_enum_functions[func.id]
+            keyword_names = ("top",) if original == "walk" else ("path",)
+            path_node = _call_arg(node, 0, keyword_names)
+            if path_node is not None:
+                self._check_path_operation(node, path_node, operation=f"os.{original}")
+            return
+        if isinstance(func, ast.Name) and func.id in self.os_path_functions:
+            original = self.os_path_functions[func.id]
+            path_node = _call_arg(node, 0, ("path",))
+            if path_node is not None:
+                self._check_path_operation(node, path_node, operation=f"os.path.{original}")
+            return
+        if isinstance(func, ast.Name) and func.id in self.glob_functions:
+            original = self.glob_functions[func.id]
+            path_node = _call_arg(node, 0, ("pathname",))
+            if path_node is not None:
+                self._check_path_operation(node, path_node, operation=f"glob.{original}")
             return
 
         if isinstance(func, ast.Attribute):
@@ -258,7 +326,15 @@ class ArtifactReadVisitor(ast.NodeVisitor):
                 isinstance(func.value, ast.Attribute)
                 and func.value.attr == "path"
                 and isinstance(func.value.value, ast.Name)
-                and func.value.value.id == "os"
+                and func.value.value.id in self.os_modules
+                and func.attr in OS_PATH_CHECK_METHODS
+            ):
+                path_node = _call_arg(node, 0, ("path",))
+                if path_node is not None:
+                    self._check_path_operation(node, path_node, operation=f"os.path.{func.attr}")
+            elif (
+                isinstance(func.value, ast.Name)
+                and func.value.id in self.os_path_modules
                 and func.attr in OS_PATH_CHECK_METHODS
             ):
                 path_node = _call_arg(node, 0, ("path",))
@@ -273,13 +349,21 @@ class ArtifactReadVisitor(ast.NodeVisitor):
                 elif (
                     artifact_root
                     and func.attr in OPEN_METHODS
-                    and _mode_reads(_mode_from_call(node))
+                    and _mode_reads(_mode_from_call(node, path_method=True))
                 ):
                     self._add(node, operation=func.attr, artifact_root=artifact_root)
 
             if (
                 isinstance(func.value, ast.Name)
-                and func.value.id == "os"
+                and func.value.id in self.io_modules
+                and func.attr == "open"
+            ):
+                path_node = _call_arg(node, 0, ("file",))
+                if path_node is not None:
+                    self._check_open_like(node, path_node, operation="io.open")
+            if (
+                isinstance(func.value, ast.Name)
+                and func.value.id in self.os_modules
                 and func.attr in OS_ENUMERATION_METHODS
             ):
                 keyword_names = ("top",) if func.attr == "walk" else ("path",)
@@ -288,7 +372,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
                     self._check_path_operation(node, path_node, operation=f"os.{func.attr}")
             if (
                 isinstance(func.value, ast.Name)
-                and func.value.id == "glob"
+                and func.value.id in self.glob_modules
                 and func.attr in GLOB_METHODS
             ):
                 path_node = _call_arg(node, 0, ("pathname",))
