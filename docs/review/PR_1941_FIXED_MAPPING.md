@@ -6,9 +6,7 @@
 - [ ] Post-open review-thread pass completed.
 
 ## Fixed in Commit Mapping
-No GitHub review threads existed at PR open. New human, bot, or role-agent
-findings must be added here with `FIXED`, `NOT-A-BUG`, or `DEFERRED`
-disposition before readiness claims.
+- No actionable review comments
 
 ## Lane Start Provenance
 - Packet: `artifacts/orchestration/task_packets/897c356ac39e.json`
