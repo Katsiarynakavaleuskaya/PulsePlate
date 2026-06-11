@@ -136,13 +136,13 @@ Post-open role findings:
 - Role: `Codex Security`
   - Disposition: NOT-A-BUG
   - Evidence: local Codex Security diff scan completed at
-    `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z`.
+    `/tmp/codex-security-scans/PulsePlate/ed89aacbebcb_20260611T230404Z`.
     The scan wrote 7/7 work-ledger receipts, validated and rendered
     `report.md` / `report.html`, and emitted no reportable findings.
 - Role: `pulseplate-pr-review`
   - Disposition: NOT-A-BUG
   - Evidence: local dry-run report
-    `/tmp/pulseplate_pr_1954_review_report_local.md` flagged only an advisory
+    `/tmp/pulseplate_pr_1954_review_report_current.md` flagged only an advisory
     large-diff review-planning note. The scope is the operator-approved narrow
     architecture slice, and the proving gate
     `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`
@@ -177,6 +177,9 @@ Post-open role findings:
 - `1f434117b` - closes the remaining post-open security-auditor alias finding
   by detecting sensitive terms in `ImportFrom` imported symbol names, not only
   module paths.
+- `ed89aacbe` - fixes the final pre-push changed-file mypy failure in
+  `scripts/ci/check_artifact_reader_contracts.py` by removing duplicate local
+  variable type redeclarations without changing guard behavior.
 
 ## Premortem Evidence
 
@@ -244,17 +247,28 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 - After `1f434117b`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
 - After `1f434117b`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 75 tests selected.
 - After `1f434117b`: `pre-commit run --all-files` - PASS.
+- First push attempt after post-open fixes: pre-push hook FAILED on changed-file
+  mypy with `scripts/ci/check_artifact_reader_contracts.py:158` and `:173`
+  `Name "parts" already defined`. Root cause fixed in `ed89aacbe`.
+- After `ed89aacbe`: `.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py tests/test_artifact_validation_boundary.py` - PASS, 75 tests.
+- After `ed89aacbe`: `.venv/bin/python scripts/ci/check_legacy_growth_guard.py` - PASS.
+- After `ed89aacbe`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
+- After `ed89aacbe`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 75 tests selected.
+- After `ed89aacbe`: `pre-commit run --all-files` - PASS.
+- After `ed89aacbe`: push pre-hook - PASS: changed-file mypy, pip-audit,
+  backend pre-push pytest, full-repo Bandit, and Docker build test.
 - Codex Security diff scan / finding discovery - PASS, no reportable
   findings. Report:
-  `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z/report.md`;
+  `/tmp/codex-security-scans/PulsePlate/ed89aacbebcb_20260611T230404Z/report.md`;
   HTML:
-  `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z/report.html`;
+  `/tmp/codex-security-scans/PulsePlate/ed89aacbebcb_20260611T230404Z/report.html`;
   work ledger:
-  `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z/artifacts/02_discovery/work_ledger.jsonl`.
+  `/tmp/codex-security-scans/PulsePlate/ed89aacbebcb_20260611T230404Z/artifacts/02_discovery/work_ledger.jsonl`.
 - `pulseplate-pr-review` local dry-run - PASS with one advisory large-diff
   planning note dispositioned as NOT-A-BUG for this operator-approved narrow
   architecture slice. Report:
-  `/tmp/pulseplate_pr_1954_review_report_local.md`.
+  `/tmp/pulseplate_pr_1954_review_report_current.md`.
+- `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS, 13 tests.
 
 ## Current Main / Merge Readiness
 
@@ -284,10 +298,10 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
   suppression, subprocess, `eval`, or `exec` changes found.
 - Codex Security diff scan / finding discovery: PASS, no reportable findings.
   Evidence: scan report
-  `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z/report.md`;
+  `/tmp/codex-security-scans/PulsePlate/ed89aacbebcb_20260611T230404Z/report.md`;
   7/7 diff files have `work_ledger.jsonl` completion receipts; final report
   validated and rendered to HTML.
 - `pulseplate-pr-review`: PASS with advisory note dispositioned.
-  Evidence: `/tmp/pulseplate_pr_1954_review_report_local.md`; the only finding
+  Evidence: `/tmp/pulseplate_pr_1954_review_report_current.md`; the only finding
   was a large-diff review-planning note, addressed by the explicit narrow scope
   and passing `make validate-changed` evidence.
