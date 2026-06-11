@@ -25,6 +25,10 @@ context projection.
 
 - `8a4730e25fafa2301f04b346c3c45100e1957cb7` - implementation, tests,
   pre-open governance fixes, and Experiment Runner co-author trailer.
+- `18c82466de44a902aa46c12aa64888bffe0738a3` - canonical PR #1950 mapping
+  artifact.
+- `01f2ad6ee949f9c5147730af33c134291230592a` - post-open QA fixes for
+  result status invariants and Phase2 mapping artifact format.
 
 ## Lane Start Provenance
 
@@ -100,6 +104,24 @@ Findings:
 ## Fixed in Commit Mapping
 
 - No actionable review comments
+
+## Post-Open Review Disposition
+
+- `qa-engineer-agent`: FIXED required, then fixed in
+  `01f2ad6ee949f9c5147730af33c134291230592a`.
+  Evidence:
+  `app/schemas/user_coaching_state.py`,
+  `app/services/coaching_markov_orchestration_adapter.py`,
+  `tests/test_coaching_markov_orchestration_adapter.py`, and this artifact.
+  Findings fixed: result status invariants, prompt-safe projection under
+  `no_recommendation`, exact Phase2 mapping format, and PR body heading
+  contract.
+- CodeRabbit: NOT-A-BUG for this code diff at this stage. The bot comment is a
+  rate-limit/usage notice and does not identify code actionables. Explicit
+  no-actionables/pass remains a merge-readiness prerequisite if the bot reruns.
+- Sourcery: NOT-A-BUG for this code diff at this stage. The bot review comment
+  is a weekly rate-limit notice and does not identify code actionables. Explicit
+  no-actionables/pass remains a merge-readiness prerequisite if the bot reruns.
 
 ## Local Validation
 
