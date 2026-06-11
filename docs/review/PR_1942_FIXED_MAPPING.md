@@ -13,14 +13,17 @@ Reason: External reviewer quota notice; no repository code or documentation chan
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#pullrequestreview-4477183535
 
 Disposition: NOT-A-BUG
-Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#issuecomment-4681105440 is a CodeRabbit rate-limit notice and contains no code-actionable finding.
-Reason: External reviewer quota notice; no repository code or documentation change is requested by the bot comment.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#issuecomment-4681105440
-
-Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#issuecomment-4681091305 is a Codex review quota notice and contains no code-actionable finding.
 Reason: External reviewer quota notice; no repository code or documentation change is requested by the bot comment.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#issuecomment-4681091305
+
+Disposition: FIXED
+Commit: 841b0ce6769a9f7b420532c1049d98e3e8c9eda4
+Evidence: scripts/ci/run_safety_audit.py:425 adds transitive requirement/constraint include collection with cycle protection; scripts/ci/run_safety_audit.py:444 uses it when preparing the temp scan target.
+Evidence: scripts/ci/run_safety_audit.py:581 folds non-zero Safety exit codes into the aggregate workflow verdict; scripts/ci/run_safety_audit.py:659 prints non-zero Safety exits as errors in main.
+Evidence: tests/test_run_safety_audit.py:177 covers nested include copying; tests/test_run_safety_audit.py:198 covers include cycles; tests/test_run_safety_audit.py:310 covers non-zero Safety exits with below-HIGH parsed findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#pullrequestreview-4477432600 -> 841b0ce6769a9f7b420532c1049d98e3e8c9eda4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#discussion_r3396494884 -> 841b0ce6769a9f7b420532c1049d98e3e8c9eda4
 
 ## External Review Availability Notes
 
