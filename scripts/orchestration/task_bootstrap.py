@@ -1315,6 +1315,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     previous_packets, artifact_scan = collect_previous_task_packet_candidates(
         task_packet_dir=TASK_PACKET_DIR,
+        priority_packet_path=out_path,
     )
     packet[SHADOW_REUSE_FIELD] = build_shadow_reuse_telemetry(
         packet=packet,

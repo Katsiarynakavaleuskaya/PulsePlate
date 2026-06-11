@@ -1579,6 +1579,17 @@ def test_main_repeated_packet_records_same_head_shadow_exact_hit(
         "resolve_current_head_sha",
         lambda _repo_root: head_sha,
     )
+    task_packet_dir.mkdir(parents=True)
+    for index in range(60):
+        unrelated_packet = {
+            "schema_version": "2.0",
+            "task_packet_id": f"unrelated-{index}",
+            "goal": f"Unrelated packet {index}",
+        }
+        (task_packet_dir / f"00-unrelated-{index:02d}.json").write_text(
+            json.dumps(unrelated_packet),
+            encoding="utf-8",
+        )
 
     try:
         first_exit = main(args)
@@ -1599,10 +1610,12 @@ def test_main_repeated_packet_records_same_head_shadow_exact_hit(
         second_summary = second_packet[SHADOW_REUSE_FIELD]["reuse_summary"]
         assert first_summary["decision"] == "miss"
         assert first_summary["checked_previous_packet_count"] == 0
+        assert first_summary["skipped_previous_packet_count"] > 0
         assert second_summary["decision"] == "hit"
         assert second_summary["match_mode"] == "exact"
         assert second_summary["matched_packet_id"] == second_packet["task_packet_id"]
         assert second_summary["checked_previous_packet_count"] == 1
+        assert second_summary["skipped_previous_packet_count"] > 0
         assert second_packet[SHADOW_REUSE_FIELD]["same_head_partition"]["head_sha"] == head_sha
     finally:
         shutil.rmtree(task_packet_dir, ignore_errors=True)

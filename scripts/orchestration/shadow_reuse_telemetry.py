@@ -173,6 +173,7 @@ def collect_previous_task_packet_candidates(
     task_packet_dir: Path,
     repo_root: Path = REPO_ROOT,
     current_task_packet_id: str | None = None,
+    priority_packet_path: Path | None = None,
     max_files: int = MAX_TASK_PACKET_ARTIFACTS,
     max_file_bytes: int = MAX_TASK_PACKET_ARTIFACT_BYTES,
 ) -> tuple[list[dict[str, JsonValue]], dict[str, JsonValue]]:
@@ -200,42 +201,84 @@ def collect_previous_task_packet_candidates(
         return [], stats
 
     packets: list[dict[str, JsonValue]] = []
+    loaded_paths: set[Path] = set()
     seen = 0
     skipped = 0
+    if priority_packet_path is not None and max_files > 0:
+        priority_payload, priority_path = _load_task_packet_artifact(
+            path=priority_packet_path,
+            packet_dir=packet_dir,
+            repo_root=repo_root,
+            current_task_packet_id=current_task_packet_id,
+            max_file_bytes=max_file_bytes,
+        )
+        if priority_path is not None:
+            seen += 1
+            loaded_paths.add(priority_path)
+            if priority_payload is None:
+                skipped += 1
+            else:
+                packets.append(priority_payload)
+
     for path in sorted(packet_dir.glob("*.json")):
         if seen >= max_files:
             skipped += 1
             continue
-        seen += 1
         try:
-            resolved = path.resolve()
-            resolved.relative_to(packet_dir)
-            resolved.relative_to(repo_root)
-            if path.is_symlink():
-                skipped += 1
-                continue
-            stat = path.stat()
-            if stat.st_size > max_file_bytes:
-                skipped += 1
-                continue
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            resolved_path = path.resolve()
+        except OSError:
             skipped += 1
             continue
-        if not isinstance(payload, dict):
+        if resolved_path in loaded_paths:
+            continue
+        seen += 1
+        payload, loaded_path = _load_task_packet_artifact(
+            path=path,
+            packet_dir=packet_dir,
+            repo_root=repo_root,
+            current_task_packet_id=current_task_packet_id,
+            max_file_bytes=max_file_bytes,
+        )
+        if loaded_path is not None:
+            loaded_paths.add(loaded_path)
+        if payload is None:
             skipped += 1
             continue
-        task_packet_id = _string_or_empty(payload.get("task_packet_id"))
-        if current_task_packet_id and task_packet_id == current_task_packet_id:
-            skipped += 1
-            continue
-        packets.append(dict(payload))
+        packets.append(payload)
 
     stats["status"] = "loaded"
     stats["candidate_files_seen"] = seen
     stats["candidate_files_loaded"] = len(packets)
     stats["candidate_files_skipped"] = skipped
     return packets, stats
+
+
+def _load_task_packet_artifact(
+    *,
+    path: Path,
+    packet_dir: Path,
+    repo_root: Path,
+    current_task_packet_id: str | None,
+    max_file_bytes: int,
+) -> tuple[dict[str, JsonValue] | None, Path | None]:
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(packet_dir)
+        resolved.relative_to(repo_root)
+        if path.is_symlink():
+            return None, resolved
+        stat = path.stat()
+        if stat.st_size > max_file_bytes:
+            return None, resolved
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return None, None
+    if not isinstance(payload, dict):
+        return None, resolved
+    task_packet_id = _string_or_empty(payload.get("task_packet_id"))
+    if current_task_packet_id and task_packet_id == current_task_packet_id:
+        return None, resolved
+    return dict(payload), resolved
 
 
 def build_shadow_reuse_telemetry(
