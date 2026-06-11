@@ -19,7 +19,13 @@ import core.ai.exact_fuzzy_cache as sc_g2
 import core.ai.semantic_cache_backend_selection as sc_g5
 
 JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonValue: TypeAlias = (
+    JsonScalar
+    | list["JsonValue"]
+    | tuple["JsonValue", ...]
+    | dict[str, "JsonValue"]
+    | Mapping[str, "JsonValue"]
+)
 
 REPORT_ID = "semantic_cache_offline_admission_runner_report"
 REPORT_VERSION = "2026-06-05"
@@ -258,6 +264,17 @@ def compose_semantic_cache_offline_admission_report(
 
     backend_matrix = _build_backend_label_context()
     backend_context = _backend_label_context(backend_matrix)
+    sc_g5_phase_result: Mapping[str, JsonValue] = {
+        "phase_id": "sc_g5_backend_label_context",
+        "scenario_count": len(input.scenario_ids),
+        "scenario_ids": list(SCENARIO_IDS),
+        "matrix_id": backend_matrix.matrix_id,
+        "final_decision": _json_safe_copy(backend_context["final_decision"]),
+        "candidate_decisions": _json_safe_copy(backend_context["candidate_decisions"]),
+        "cache_read_allowed": False,
+        "cache_write_allowed": False,
+        "serving_allowed": False,
+    }
     phase_results = (
         _phase_result("sc_g2_exact_fuzzy", scenario_ids=input.scenario_ids, results=sc_g2_results),
         _phase_result(
@@ -270,17 +287,7 @@ def compose_semantic_cache_offline_admission_report(
             scenario_ids=input.scenario_ids,
             results=sc_g4_results,
         ),
-        {
-            "phase_id": "sc_g5_backend_label_context",
-            "scenario_count": len(input.scenario_ids),
-            "scenario_ids": list(SCENARIO_IDS),
-            "matrix_id": backend_matrix.matrix_id,
-            "final_decision": _json_safe_copy(backend_context["final_decision"]),
-            "candidate_decisions": _json_safe_copy(backend_context["candidate_decisions"]),
-            "cache_read_allowed": False,
-            "cache_write_allowed": False,
-            "serving_allowed": False,
-        },
+        sc_g5_phase_result,
     )
     return SemanticCacheOfflineAdmissionReport(
         schema_version=SCHEMA_VERSION,
@@ -442,7 +449,7 @@ def _evaluate_scenario(
         scenario_id=spec.scenario_id,
         decision=bounded_decision,
     )
-    scenario = {
+    scenario: dict[str, JsonValue] = {
         "scenario_id": spec.scenario_id,
         "risk_class": spec.risk_class,
         "expected_action": spec.expected_action,

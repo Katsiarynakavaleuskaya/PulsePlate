@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -28,7 +28,9 @@ from core.ai.cache_observability import (
     FalseHitHarnessCase,
     JsonValue,
     KillSwitchSnapshot,
+    TokenEconomyEstimate,
     build_cache_lookup_audit_event,
+    build_token_economy_estimate,
     compute_cache_observability_metrics,
     evaluate_cache_stop_rules,
     evaluate_false_hit_case,
@@ -53,6 +55,42 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 MODULE = REPO_ROOT / "core" / "ai" / "cache_observability.py"
 PRODUCED_AT = "2026-05-07T12:00:00Z"
 SafeMetadata = Mapping[str, JsonValue]
+
+
+def test_prompt_module_contracts_are_covered_by_route_contract_suite() -> None:
+    """Bridge PR-O1 prompt-module coverage into the selected CI route suite."""
+
+    from tests.core.ai import test_prompt_modules as prompt_module_tests
+
+    prompt_module_tests.test_prompt_module_record_serializes_metadata_only()
+    prompt_module_tests.test_prompt_module_record_allows_safe_prompt_label_ids()
+    prompt_module_tests.test_prompt_module_metadata_allows_non_path_url_like_labels()
+    prompt_module_tests.test_prompt_module_metadata_is_deep_frozen_after_validation()
+    prompt_module_tests.test_prompt_module_metadata_copies_tuple_and_int_values()
+    prompt_module_tests.test_prompt_module_registry_identity_is_deterministic()
+    prompt_module_tests.test_prompt_module_registry_hashes_normalized_policy_version()
+    prompt_module_tests.test_prompt_module_registry_derives_id_for_public_constructor()
+    prompt_module_tests.test_prompt_module_registry_stable_mapping_serializes_registry()
+    for metadata in prompt_module_tests.UNSAFE_METADATA_CASES:
+        prompt_module_tests.test_prompt_module_metadata_rejects_unsafe_nested_values(metadata)
+    prompt_module_tests.test_prompt_module_validation_fails_closed_for_bad_shapes()
+    for module_id, match in (
+        ("", "non-empty"),
+        ("safe module", "must not contain whitespace"),
+        ("*safe-module", "unsupported characters"),
+        ("raw_prompt", "unsafe metadata"),
+    ):
+        prompt_module_tests.test_prompt_module_token_validation_fails_closed(module_id, match)
+    prompt_module_tests.test_prompt_module_validation_rejects_bool_numeric_fields()
+    prompt_module_tests.test_prompt_module_registry_rejects_duplicate_modules()
+    prompt_module_tests.test_prompt_module_registry_rejects_empty_or_malformed_records()
+    prompt_module_tests.test_prompt_module_stable_mapping_rejects_unsupported_values()
+    prompt_module_tests.test_prompt_module_metadata_validation_rejects_non_mapping_input()
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        prompt_module_tests.test_prompt_module_metadata_validation_rejects_non_mapping_freeze(
+            monkeypatch,
+        )
+    prompt_module_tests.test_prompt_modules_have_no_runtime_imports_or_calls()
 
 
 def _record() -> ExactFuzzyCacheRecord:
@@ -547,6 +585,272 @@ def test_zero_denominator_rates_are_deterministic_zero() -> None:
     assert metrics.cache_precision_proxy_bps == 0
 
 
+def test_token_economy_estimate_is_deterministic_and_metadata_only() -> None:
+    first = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("metadata_recorded", "gate_closed"),
+        produced_at=PRODUCED_AT,
+        metadata={"estimate": "heuristic"},
+    )
+    second = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("gate_closed", "metadata_recorded"),
+        produced_at=PRODUCED_AT,
+        metadata={"estimate": "heuristic"},
+    )
+
+    assert first.estimate_id == second.estimate_id
+    serialized = json.dumps(dict(to_stable_mapping(first)), sort_keys=True)
+    assert "private prompt text" not in serialized
+    assert "tokens_saved_estimate" in serialized
+    assert "cost_saved_microunits" in serialized
+    assert first.cost_saved_microunits == 0
+    assert first.tokens_saved_estimate == 300
+
+
+def test_token_economy_estimate_identity_includes_material_estimate_fields() -> None:
+    baseline = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("metadata_recorded", "gate_closed"),
+        produced_at=PRODUCED_AT,
+        metadata={},
+    )
+    materially_different = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1201,
+        prompt_output_chars=301,
+        prompt_input_tokens_estimate=301,
+        prompt_output_tokens_estimate=76,
+        baseline_context_tokens_estimate=901,
+        candidate_context_tokens_estimate=601,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=5,
+        provider_calls_avoided_count=1,
+        cost_saved_microunits=1,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("gate_closed", "metadata_recorded"),
+        produced_at=PRODUCED_AT,
+        metadata={},
+    )
+
+    assert baseline.estimate_id != materially_different.estimate_id
+
+
+def test_token_economy_estimate_hashes_normalized_reason_codes() -> None:
+    baseline = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("metadata_recorded", "gate_closed"),
+        produced_at=PRODUCED_AT,
+        metadata={},
+    )
+    normalized = build_token_economy_estimate(
+        surface=" orchestration ",
+        route_type=" review ",
+        provider_label=" gpt-family ",
+        model_label=" frontier ",
+        token_estimate_version=" heuristic-tokens-v1 ",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version=" not-billing-truth-v1 ",
+        currency_code=" XXX ",
+        reason_codes=(" gate_closed ", " metadata_recorded "),
+        produced_at=PRODUCED_AT,
+        metadata={},
+    )
+
+    assert baseline.reason_codes == normalized.reason_codes
+    assert baseline.estimate_id == normalized.estimate_id
+
+
+def test_token_economy_estimate_metadata_is_deep_frozen_after_validation() -> None:
+    estimate = build_token_economy_estimate(
+        surface="orchestration",
+        route_type="review",
+        provider_label="gpt-family",
+        model_label="frontier",
+        token_estimate_version="heuristic-tokens-v1",
+        prompt_input_chars=1200,
+        prompt_output_chars=300,
+        prompt_input_tokens_estimate=300,
+        prompt_output_tokens_estimate=75,
+        baseline_context_tokens_estimate=900,
+        candidate_context_tokens_estimate=600,
+        tokens_saved_estimate=300,
+        orchestration_fanout_multiplier=4,
+        provider_calls_avoided_count=0,
+        cost_saved_microunits=0,
+        cost_estimate_policy_version="not-billing-truth-v1",
+        currency_code="XXX",
+        reason_codes=("metadata_recorded", "gate_closed"),
+        produced_at=PRODUCED_AT,
+        metadata={"nested": {"safe": ["label"]}},
+    )
+    nested = cast(MutableMapping[str, JsonValue], estimate.metadata["nested"])
+    safe_values = cast(list[JsonValue], nested["safe"])
+
+    with pytest.raises(TypeError):
+        nested["raw_prompt"] = "unsafe"
+    with pytest.raises(AttributeError):
+        safe_values.append("/Users/private/path")
+
+    assert dict(to_stable_mapping(estimate))["metadata"] == {
+        "nested": {"safe": ["label"]},
+    }
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"provider_label": "provider_payload"},
+        {"model_label": "/Users/model"},
+        {"tokens_saved_estimate": -1},
+        {"prompt_input_tokens_estimate": cast(int, 1.2)},
+        {"cost_saved_microunits": -1},
+        {"currency_code": "US D"},
+        {"reason_codes": ()},
+        {"metadata": {"nested": {"raw_response": "unsafe"}}},
+        {"metadata": {"provider_payload": "unsafe"}},
+        {"metadata": {"path": "file:///tmp/raw.txt"}},
+        {"metadata": {"path": "see(/Users/alice/raw.txt)"}},
+        {"metadata": {"path": "see:/Users/alice/raw.txt"}},
+        {"metadata": {"path": "see:file:///tmp/raw.txt"}},
+    ],
+)
+def test_token_economy_estimate_fails_closed_for_unsafe_inputs(
+    kwargs: dict[str, object],
+) -> None:
+    payload: dict[str, object] = {
+        "surface": "orchestration",
+        "route_type": "review",
+        "provider_label": "gpt-family",
+        "model_label": "frontier",
+        "token_estimate_version": "heuristic-tokens-v1",
+        "prompt_input_chars": 1200,
+        "prompt_output_chars": 300,
+        "prompt_input_tokens_estimate": 300,
+        "prompt_output_tokens_estimate": 75,
+        "baseline_context_tokens_estimate": 900,
+        "candidate_context_tokens_estimate": 600,
+        "tokens_saved_estimate": 300,
+        "orchestration_fanout_multiplier": 4,
+        "provider_calls_avoided_count": 0,
+        "cost_saved_microunits": 0,
+        "cost_estimate_policy_version": "not-billing-truth-v1",
+        "currency_code": "XXX",
+        "reason_codes": ("metadata_recorded", "gate_closed"),
+        "produced_at": PRODUCED_AT,
+        "metadata": {},
+    }
+    payload.update(kwargs)
+
+    with pytest.raises(ValueError):
+        build_token_economy_estimate(**payload)
+
+
+def test_token_economy_estimate_constructor_rejects_bool_fields() -> None:
+    with pytest.raises(ValueError, match="must be an integer"):
+        TokenEconomyEstimate(
+            estimate_id="token-economy:bad",
+            surface="orchestration",
+            route_type="review",
+            provider_label="gpt-family",
+            model_label="frontier",
+            token_estimate_version="heuristic-tokens-v1",
+            prompt_input_chars=cast(int, True),
+            prompt_output_chars=0,
+            prompt_input_tokens_estimate=0,
+            prompt_output_tokens_estimate=0,
+            baseline_context_tokens_estimate=0,
+            candidate_context_tokens_estimate=0,
+            tokens_saved_estimate=0,
+            orchestration_fanout_multiplier=0,
+            provider_calls_avoided_count=0,
+            cost_saved_microunits=0,
+            cost_estimate_policy_version="not-billing-truth-v1",
+            currency_code="XXX",
+            reason_codes=("metadata_recorded",),
+            produced_at=PRODUCED_AT,
+            metadata={},
+        )
+
+
 def test_stop_rule_triggers_rollback_on_threshold_breach() -> None:
     evaluation = evaluate_false_hit_case(
         case=_case(
@@ -959,7 +1263,9 @@ def test_caller_owned_containers_are_defensively_copied() -> None:
     assert dict(to_stable_mapping(audit))["metadata"] == {"tags": ["safe"]}
     case = _case(case_id="case:copy", metadata=metadata)
     tags.append("changed-again")
-    assert dict(case.metadata) == {"tags": ["safe", "changed"]}
+    assert dict(case.metadata) == {"tags": ("safe", "changed")}
+    with pytest.raises(AttributeError):
+        cast(list[JsonValue], case.metadata["tags"]).append("unsafe")
 
 
 def test_stable_mapping_covers_all_contract_shapes_and_rejects_unknowns() -> None:
@@ -983,6 +1289,34 @@ def test_stable_mapping_covers_all_contract_shapes_and_rejects_unknowns() -> Non
 
     assert dict(to_stable_mapping(evaluation))["evaluation_id"] == evaluation.evaluation_id
     assert dict(to_stable_mapping(metrics))["metrics_id"] == metrics.metrics_id
+    assert (
+        dict(
+            to_stable_mapping(
+                build_token_economy_estimate(
+                    surface="orchestration",
+                    route_type="review",
+                    provider_label="gpt-family",
+                    model_label="frontier",
+                    token_estimate_version="heuristic-tokens-v1",
+                    prompt_input_chars=0,
+                    prompt_output_chars=0,
+                    prompt_input_tokens_estimate=0,
+                    prompt_output_tokens_estimate=0,
+                    baseline_context_tokens_estimate=0,
+                    candidate_context_tokens_estimate=0,
+                    tokens_saved_estimate=0,
+                    orchestration_fanout_multiplier=0,
+                    provider_calls_avoided_count=0,
+                    cost_saved_microunits=0,
+                    cost_estimate_policy_version="not-billing-truth-v1",
+                    currency_code="XXX",
+                    reason_codes=("metadata_recorded",),
+                    produced_at=PRODUCED_AT,
+                )
+            )
+        )["tokens_saved_estimate"]
+        == 0
+    )
     assert dict(to_stable_mapping(decision))["decision_id"] == decision.decision_id
     assert dict(to_stable_mapping(KillSwitchSnapshot(True, True, False, False))) == {
         "bypass_forced": False,

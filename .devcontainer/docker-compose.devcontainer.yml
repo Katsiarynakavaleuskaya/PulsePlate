@@ -1,8 +1,11 @@
 # ---------------------------------------------------------------------------
 # PulsePlate Dev Container — Compose service
 # ---------------------------------------------------------------------------
-# SECURITY: No secrets in this file.  .env is runtime-only (not baked into
-#           image layers).  Do not add build args for package proxy.
+# SECURITY: No secrets in this file. Do not import ../.env or add build args.
+#           Devcontainer bootstrap is manual. Package-proxy env vars
+#           (PULSEPLATE_PYTHON_*) are forwarded for dependency install;
+#           WATCHFILES_FORCE_POLLING is a safe optional dev-tool override.
+#           Tests enforce the explicit environment allowlist.
 # ---------------------------------------------------------------------------
 
 services:
@@ -10,12 +13,11 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
-    env_file:
-      - path: ../.env
-        required: false
     environment:
       PYTHONPATH: /workspaces/PulsePlate
       PULSEPLATE_IN_CONTAINER: "1"
+      PULSEPLATE_PYTHON_INDEX_URL: "${PULSEPLATE_PYTHON_INDEX_URL:-}"
+      PULSEPLATE_PYTHON_TRUSTED_HOST: "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
       APP_ENV: local
       VIP_MODULE_ENABLED: "true"
       WATCHFILES_FORCE_POLLING: "${WATCHFILES_FORCE_POLLING:-false}"

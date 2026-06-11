@@ -15,6 +15,8 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`](../architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json)
 - Current PR6 USDA manifest preflight packet:
   [`FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md`](./FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md)
+- Current USDA/FDC 2026 compatibility preflight packet:
+  [`FOOD_DATA_USDA_FDC_2026_COMPAT_PREFLIGHT_PACKET_2026-06-08.md`](./FOOD_DATA_USDA_FDC_2026_COMPAT_PREFLIGHT_PACKET_2026-06-08.md)
 - Current PR7 Open Food Facts manifest preflight packet:
   [`FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md`](./FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md)
 - Current PR8 JPTN identity/license packet:
@@ -88,11 +90,12 @@ current tooling packet for food-data lanes that need non-dated links.
 
 Update this alias when a later accepted packet supersedes the dated PR1
 criteria, PR2 tooling packet, PR3 source catalog, PR4 collision policy, PR5
-source-onboarding gate, PR6 USDA manifest preflight gate, PR7 Open Food Facts
-manifest preflight gate, PR8 JPTN identity/license gate, PR9 MenuStat
-replacement gate, PR10 MenuStat source-decision gate, PR11
-coverage/source-gap audit, PR12 chain public nutrition pages governance, PR13
-per-chain legal / anti-scraping review, or PR14 recipe/dish corpus governance.
+source-onboarding gate, PR6 USDA manifest preflight gate, USDA/FDC 2026
+compatibility preflight gate, PR7 Open Food Facts manifest preflight gate, PR8
+JPTN identity/license gate, PR9 MenuStat replacement gate, PR10 MenuStat
+source-decision gate, PR11 coverage/source-gap audit, PR12 chain public
+nutrition pages governance, PR13 per-chain legal / anti-scraping review, or
+PR14 recipe/dish corpus governance.
 Update it again when a later accepted packet supersedes PR15 preference recipe
 mapping contract governance.
 Update it again when a later accepted packet supersedes PR16 preference mapping
