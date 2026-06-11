@@ -77,7 +77,14 @@ jobs:
             --blocked-debian-package libgnutls30 \
             --output-json docker-runtime-dependency-surface.json
 
+      - name: Use checked-in Docker image telemetry baseline on pull requests
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          cp docs/telemetry/docker_image_baseline.production.json docker-image-baseline.json
+
       - name: Resolve Docker image telemetry baseline
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
