@@ -1091,7 +1091,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "ignore-policy": ".trivy-ignore-policy.rego",
                 "scanners": "vuln",
                 "format": "sarif",
-                "output": "trivy-results.sarif",
+                "output": "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif",
                 "severity": "CRITICAL,HIGH",
                 "limit-severities-for-sarif": True,
                 "exit-code": "1",
@@ -1150,6 +1150,52 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
+
+
+def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
+    workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    prepare_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Prepare Trivy SARIF output path and ignore policy",
+    )
+    scanner_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Run Trivy vulnerability scanner (filesystem scan)",
+    )
+    sarif_check_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Check Trivy filesystem SARIF output",
+    )
+    upload_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Upload Trivy scan results to GitHub Security tab",
+    )
+
+    prepare_run = str(prepare_step["run"])
+    assert "rm -rf -- trivy-results.sarif" in prepare_run
+    assert 'rm -rf "${RUNNER_TEMP}/pulseplate-trivy"' in prepare_run
+    assert 'mkdir -p "${RUNNER_TEMP}/pulseplate-trivy"' in prepare_run
+    assert scanner_step["with"]["output"] == (
+        "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif"
+    )
+
+    sarif_check_run = str(sarif_check_step["run"])
+    assert sarif_check_step["id"] == "trivy_fs_sarif"
+    assert sarif_check_step["if"] == "${{ always() }}"
+    assert 'sarif_path="${RUNNER_TEMP}/pulseplate-trivy/trivy-results.sarif"' in sarif_check_run
+    assert 'if [ -s "$sarif_path" ]; then' in sarif_check_run
+    assert 'cp -- "$sarif_path" trivy-results.sarif' in sarif_check_run
+    assert 'echo "present=true" >> "${GITHUB_OUTPUT}"' in sarif_check_run
+    assert 'echo "present=false" >> "${GITHUB_OUTPUT}"' in sarif_check_run
+
+    assert upload_step["if"] == (
+        "${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}"
+    )
+    assert upload_step["with"]["sarif_file"] == "trivy-results.sarif"
 
 
 def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
