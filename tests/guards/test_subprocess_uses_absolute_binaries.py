@@ -348,18 +348,6 @@ def _resolve_binary_expr(
                     seen_names=seen_names,
                 )
             return candidate
-        if _expr_resolution_hits_name_cycle(
-            tree,
-            latest.value,
-            upto_lineno=latest_lineno,
-            seen_names=seen_names | {expr.id},
-        ):
-            return _resolve_binary_expr(
-                tree,
-                expr,
-                upto_lineno=latest_lineno,
-                seen_names=seen_names,
-            )
         resolved: str | None = None
         for assignment in assignments:
             candidate = _resolve_binary_expr(
@@ -372,6 +360,8 @@ def _resolve_binary_expr(
                 return candidate
             if resolved is None:
                 resolved = candidate
+            if not assignment.branch_dependent:
+                break
         return resolved
     if isinstance(expr, ast.Subscript) and _is_os_environ_subscript(expr):
         key = _literal_subscript_key(expr)
@@ -457,18 +447,6 @@ def _resolve_argv_binary(
                     seen_names=seen_names,
                 )
             return candidate
-        if _expr_resolution_hits_name_cycle(
-            tree,
-            latest.value,
-            upto_lineno=latest_lineno,
-            seen_names=seen_names | {expr.id},
-        ):
-            return _resolve_argv_binary(
-                tree,
-                expr,
-                upto_lineno=latest_lineno,
-                seen_names=seen_names,
-            )
         resolved: str | None = None
         for assignment in assignments:
             candidate = _resolve_argv_binary(
@@ -481,6 +459,8 @@ def _resolve_argv_binary(
                 return candidate
             if resolved is None:
                 resolved = candidate
+            if not assignment.branch_dependent:
+                break
         return resolved
     return None
 
@@ -957,6 +937,48 @@ subprocess.run(args)
     violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
 
     assert violations == []
+
+
+def test_guard_flags_branch_alias_self_cycle_binary_bypass() -> None:
+    source = """\
+import subprocess
+import sys
+
+cmd = sys.executable
+other = "python"
+if keep_other:
+    other = other
+if use_other:
+    cmd = other
+subprocess.run([cmd, "-c", "print(42)"])
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 10
+    assert "repo-approved interpreter path" in violations[0].reason
+
+
+def test_guard_flags_branch_alias_self_cycle_argv_bypass() -> None:
+    source = """\
+import subprocess
+import sys
+
+args = [sys.executable, "-c", "print(42)"]
+other = ["git", "status"]
+if keep_other:
+    other = other
+if use_other:
+    args = other
+subprocess.run(args)
+"""
+
+    violations = _find_subprocess_violations_in_source(source, relpath="sample.py")
+
+    assert len(violations) == 1
+    assert violations[0].lineno == 10
+    assert "resolve with shutil.which('git')" in violations[0].reason
 
 
 def test_guard_allows_linear_safe_assignment_overwrite() -> None:
