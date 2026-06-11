@@ -89,9 +89,29 @@
 
 ## Merge Readiness
 
-- [ ] Current-head CI terminal success confirmed.
-- [ ] Required checks complete with no pending jobs.
-- [ ] Bot review/governance completed with no unmapped actionable comments.
-- [ ] Strict review-thread disposition passes with auth.
-- [ ] Strict merge-readiness guard passes with auth.
-- [ ] Mandatory wait-window after latest bot/review activity completed.
+- [x] Current-head CI terminal success confirmed.
+- [x] Required checks complete with no pending jobs.
+- [x] Bot review/governance completed with no unmapped actionable comments.
+- [x] Strict review-thread disposition passes with auth.
+- [x] Strict merge-readiness guard passes with auth.
+- [x] Mandatory wait-window after latest bot/review activity completed.
+
+Evidence:
+
+- Current-head CI for `333c5c4776dd415493a792209a2dc9a85287235e`
+  completed successfully on workflow run `27376256534`, attempt 2.
+- Required/current-head checks were terminal with no pending jobs:
+  `lint`, `test-pr (3.13)`, `coverage-pr`, `diff-coverage`,
+  `security`, `OpenAPI sync (backend -> frontend artifacts)`,
+  `Merge readiness gate`, `PR Body Phase2 gates`, docs/governance guards,
+  CodeQL, CodeRabbit, Sourcery review, Cubic, and Codecov patch.
+- `GH_TOKEN=$(gh auth token) ../../.venv/bin/python scripts/orchestration/check_review_threads_disposition.py --pr-number 1953 --require-auth`
+  passed with no resolved review threads to enforce.
+- `GITHUB_TOKEN=$(gh auth token) ../../.venv/bin/python scripts/ci/check_pr_merge_readiness.py --pr-number 1953 --repo Katsiarynakavaleuskaya/PulsePlate`
+  passed with zero unresolved threads and all actionable bot comments mapped.
+- Latest external bot review activity was before the final current-head CI pass;
+  the final verification pass completed after `2026-06-11T21:28:21Z` UTC.
+
+Note: this mapping update is documentation-only. If it changes the PR head, the
+same current-head CI and strict merge-readiness checks must be reconfirmed
+before merge.
