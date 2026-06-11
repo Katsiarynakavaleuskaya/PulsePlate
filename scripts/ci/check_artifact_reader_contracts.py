@@ -94,15 +94,41 @@ def _literal_path_parts(
 ) -> tuple[str, ...] | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return _normalize_path_parts(node.value)
+    if isinstance(node, ast.JoinedStr):
+        literal_parts: list[str] = []
+        for value in node.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                literal_parts.append(value.value)
+            elif isinstance(value, ast.FormattedValue):
+                literal_parts.append("<dynamic>")
+            else:
+                return None
+        return _normalize_path_parts("".join(literal_parts))
     if isinstance(node, ast.Name):
         return names.get(node.id)
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Div)):
         left = _literal_path_parts(node.left, names, path_constructors, path_modules)
         right = _literal_path_parts(node.right, names, path_constructors, path_modules)
         if left is not None and right is not None:
             return (*left, *right)
     if isinstance(node, ast.Call):
         func = node.func
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "cwd"
+            and isinstance(func.value, ast.Name)
+            and func.value.id in path_constructors
+        ):
+            return ()
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "cwd"
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == "Path"
+            and isinstance(func.value.value, ast.Name)
+            and func.value.value.id in path_modules
+        ):
+            return ()
         if isinstance(func, ast.Name) and func.id in path_constructors and node.args:
             parts: list[str] = []
             for arg in node.args:
@@ -204,6 +230,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
 
     def __init__(self, *, rel_path: str) -> None:
         self.rel_path = rel_path
+        self.builtins_modules: set[str] = {"builtins"}
         self.name_paths: dict[str, tuple[str, ...]] = {}
         self.glob_functions: dict[str, str] = {}
         self.glob_modules: set[str] = {"glob"}
@@ -219,6 +246,8 @@ class ArtifactReadVisitor(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
+            if alias.name == "builtins":
+                self.builtins_modules.add(alias.asname or "builtins")
             if alias.name == "glob":
                 self.glob_modules.add(alias.asname or "glob")
             if alias.name == "io":
@@ -236,6 +265,10 @@ class ArtifactReadVisitor(ast.NodeVisitor):
             for alias in node.names:
                 if alias.name in GLOB_METHODS:
                     self.glob_functions[alias.asname or alias.name] = alias.name
+        if node.module == "builtins":
+            for alias in node.names:
+                if alias.name == "open":
+                    self.open_functions[alias.asname or alias.name] = "builtins.open"
         if node.module == "io":
             for alias in node.names:
                 if alias.name == "open":
@@ -244,6 +277,8 @@ class ArtifactReadVisitor(ast.NodeVisitor):
             for alias in node.names:
                 if alias.name in OS_ENUMERATION_METHODS:
                     self.os_enum_functions[alias.asname or alias.name] = alias.name
+                if alias.name == "path":
+                    self.os_path_modules.add(alias.asname or "path")
         if node.module == "os.path":
             for alias in node.names:
                 if alias.name in OS_PATH_CHECK_METHODS:
@@ -353,6 +388,14 @@ class ArtifactReadVisitor(ast.NodeVisitor):
                 ):
                     self._add(node, operation=func.attr, artifact_root=artifact_root)
 
+            if (
+                isinstance(func.value, ast.Name)
+                and func.value.id in self.builtins_modules
+                and func.attr == "open"
+            ):
+                path_node = _call_arg(node, 0, ("file",))
+                if path_node is not None:
+                    self._check_open_like(node, path_node, operation="builtins.open")
             if (
                 isinstance(func.value, ast.Name)
                 and func.value.id in self.io_modules

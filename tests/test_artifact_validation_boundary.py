@@ -175,6 +175,36 @@ def test_artifact_guard_rejects_imported_stdlib_aliases(
     assert [finding.display() for finding in findings] == [expected]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            'from os import path as osp\nosp.exists("artifacts/orchestration/packet.json")\n',
+            "core/unsafe.py:2: os.path.exists reads local artifacts/orchestration",
+        ),
+        (
+            'import builtins\nbuiltins.open("artifacts/security_lab/report.json")\n',
+            "core/unsafe.py:2: builtins.open reads local artifacts/security_lab",
+        ),
+        (
+            'from builtins import open as bopen\nbopen("artifacts/agent_runs/report.json")\n',
+            "core/unsafe.py:2: builtins.open reads local artifacts/agent_runs",
+        ),
+    ],
+)
+def test_artifact_guard_rejects_remaining_stdlib_aliases(
+    source: str,
+    expected: str,
+) -> None:
+    findings, errors = artifact_guard.collect_artifact_read_findings_for_source(
+        source,
+        rel_path="core/unsafe.py",
+    )
+
+    assert errors == []
+    assert [finding.display() for finding in findings] == [expected]
+
+
 def test_artifact_guard_rejects_read_write_open_modes() -> None:
     source = 'Path("artifacts/security_lab/report.json").open("a+")\n'
 
@@ -246,6 +276,40 @@ def test_artifact_guard_rejects_glob_patterns() -> None:
     assert [finding.display() for finding in findings] == [
         "core/unsafe.py:4: glob.glob reads local artifacts/orchestration"
     ]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            'Path("artifacts/" + "orchestration/packet.json").read_text()\n',
+            "app/unsafe.py:1: read_text reads local artifacts/orchestration",
+        ),
+        (
+            'Path(f"artifacts/agent_runs/{run_id}.json").read_text()\n',
+            "app/unsafe.py:1: read_text reads local artifacts/agent_runs",
+        ),
+        (
+            'Path.cwd().joinpath("artifacts", "security_lab", "report.json").read_text()\n',
+            "app/unsafe.py:1: read_text reads local artifacts/security_lab",
+        ),
+        (
+            '(Path.cwd() / "artifacts" / "orchestration" / "packet.json").read_text()\n',
+            "app/unsafe.py:1: read_text reads local artifacts/orchestration",
+        ),
+    ],
+)
+def test_artifact_guard_rejects_dynamic_literal_path_construction(
+    source: str,
+    expected: str,
+) -> None:
+    findings, errors = artifact_guard.collect_artifact_read_findings_for_source(
+        source,
+        rel_path="app/unsafe.py",
+    )
+
+    assert errors == []
+    assert [finding.display() for finding in findings] == [expected]
 
 
 @pytest.mark.parametrize(

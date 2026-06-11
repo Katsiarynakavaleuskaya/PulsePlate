@@ -42,12 +42,14 @@ APP_ROUTE_METHODS = frozenset(
         "patch",
         "post",
         "put",
+        "route",
         "trace",
         "websocket",
+        "websocket_route",
     }
 )
 APP_REGISTRATION_METHODS = frozenset(
-    {"add_api_route", "add_middleware", "add_route", "include_router"}
+    {"add_api_route", "add_middleware", "add_route", "add_websocket_route", "include_router"}
 )
 SENSITIVE_CALL_KEYWORDS: tuple[str, ...] = (
     "api_key",
@@ -65,7 +67,7 @@ SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
     "auth": 0,
     "billing": 0,
     "entitlement": 0,
-    "llm": 1,
+    "llm": 2,
     "provider": 1,
     "quota": 1,
     "receipt": 0,
@@ -357,14 +359,59 @@ def collect_sensitive_call_counts(
     if errors or tree is None:
         return counts
 
+    sensitive_aliases = _collect_sensitive_import_aliases(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         func_name = _safe_unparse(node.func).casefold()
+        call_keywords = {keyword for keyword in SENSITIVE_CALL_KEYWORDS if keyword in func_name}
+        for alias_name in _function_alias_names(node.func):
+            call_keywords.update(sensitive_aliases.get(alias_name, set()))
         for keyword in SENSITIVE_CALL_KEYWORDS:
-            if keyword in func_name:
+            if keyword in call_keywords:
                 counts[keyword] += 1
     return counts
+
+
+def _collect_sensitive_import_aliases(tree: ast.Module) -> dict[str, set[str]]:
+    sensitive_aliases: dict[str, set[str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            module_text = node.module.casefold()
+            module_keywords = {
+                keyword for keyword in SENSITIVE_CALL_KEYWORDS if keyword in module_text
+            }
+            if not module_keywords:
+                continue
+            for alias in node.names:
+                sensitive_aliases.setdefault(alias.asname or alias.name, set()).update(
+                    module_keywords
+                )
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                import_text = alias.name.casefold()
+                import_keywords = {
+                    keyword for keyword in SENSITIVE_CALL_KEYWORDS if keyword in import_text
+                }
+                if not import_keywords:
+                    continue
+                sensitive_aliases.setdefault(
+                    alias.asname or alias.name.split(".", maxsplit=1)[0],
+                    set(),
+                ).update(import_keywords)
+    return sensitive_aliases
+
+
+def _function_alias_names(func: ast.AST) -> set[str]:
+    aliases: set[str] = set()
+    current = func
+    while isinstance(current, ast.Attribute):
+        current = current.value
+    if isinstance(current, ast.Name):
+        aliases.add(current.id)
+    if isinstance(func, ast.Name):
+        aliases.add(func.id)
+    return aliases
 
 
 def _collect_sensitive_names(tree: ast.Module) -> dict[str, set[str]]:

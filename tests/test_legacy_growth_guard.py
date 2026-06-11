@@ -83,9 +83,46 @@ def test_legacy_growth_guard_rejects_add_api_route_registration() -> None:
             "legacy_app.py: unexpected legacy route growth: "
             "registration:router.add_api_route:/api/v1/new-runtime",
         ),
+        (
+            'app.add_websocket_route("/ws/new-runtime", new_runtime_ws)\n',
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:add_websocket_route:/ws/new-runtime",
+        ),
     ],
 )
 def test_legacy_growth_guard_rejects_router_api_registration_aliases(
+    source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [expected]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                @app.route("/api/v1/new-runtime")
+                async def new_runtime_route():
+                    return {"ok": True}
+                """),
+            "legacy_app.py: unexpected legacy route growth: "
+            "decorator:route:/api/v1/new-runtime -> new_runtime_route",
+        ),
+        (
+            textwrap.dedent("""
+                @app.websocket_route("/ws/new-runtime")
+                async def new_runtime_ws(websocket):
+                    pass
+                """),
+            "legacy_app.py: unexpected legacy route growth: "
+            "decorator:websocket_route:/ws/new-runtime -> new_runtime_ws",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_route_decorator_aliases(
     source: str,
     expected: str,
 ) -> None:
@@ -188,7 +225,7 @@ def test_legacy_growth_guard_rejects_sensitive_call_growth() -> None:
         ("api_key", "\n".join("api_key_guard()" for _ in range(4))),
         ("auth", "auth_guard()\n"),
         ("entitlement", "entitlement.check()\n"),
-        ("llm", "llm.generate()\nllm.generate()\n"),
+        ("llm", "llm.generate()\nllm.generate()\nllm.generate()\n"),
         ("provider", "provider.generate()\nprovider.generate()\n"),
         ("quota", "quota.consume()\nquota.consume()\n"),
     ],
@@ -203,6 +240,31 @@ def test_legacy_growth_guard_rejects_current_baseline_sensitive_growth(
     assert errors == [
         f"legacy_app.py: sensitive call family grew for {keyword}: {limit + 1} > {limit}"
     ]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "from providers.openai import client\nclient.generate('unsafe')\n",
+            "legacy_app.py: sensitive call family grew for provider: 1 > 0",
+        ),
+        (
+            "from core.llm import model as m\nm.generate('unsafe')\n",
+            "legacy_app.py: sensitive call family grew for llm: 1 > 0",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_sensitive_import_alias_calls(
+    source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(
+        source,
+        sensitive_call_limits={key: 0 for key in legacy_guard.SENSITIVE_CALL_KEYWORDS},
+    )
+
+    assert errors == [expected]
 
 
 def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
