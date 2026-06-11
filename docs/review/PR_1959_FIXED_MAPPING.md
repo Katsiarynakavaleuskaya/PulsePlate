@@ -38,6 +38,8 @@ or touching runtime code.
   real-repo guard test reproduces and proves the fix.
 - Rebased before PR open onto `origin/main`
   `ad453c4088a9b958231ed7e108a1ced356e2dd17`.
+- Kept the final PR diff to two docs/governance files: the semantic-cache gate
+  document and this required mapping artifact.
 
 ## Discussion Thread Pass
 
@@ -87,8 +89,10 @@ Reason: External reviewer completed without code-actionable findings.
   - Evidence: `python3 scripts/ci/check_semantic_cache_gate.py` passed.
 - Finding: the PR might widen beyond the docs-only hotfix.
   - Disposition: FIXED
-  - Evidence: branch diff before PR open was limited to
-    `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`.
+  - Evidence: implementation diff before the PR-numbered mapping artifact was
+    limited to `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`; the
+    current PR diff is limited to that gate document plus
+    `docs/review/PR_1959_FIXED_MAPPING.md`.
 
 ## Tests / Validation
 
@@ -99,6 +103,7 @@ Passed on the rebased hotfix branch:
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ai_pro_quota_a1b_closeout.py::test_checker_passes_on_current_repository`
 - `python3 scripts/ci/check_semantic_cache_gate.py`
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1959_FIXED_MAPPING.md`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `make validate-changed`
 - `pre-commit run --all-files`
@@ -125,8 +130,9 @@ Risk: wording could still be interpreted as runtime expansion.
 Mitigation: A1b checker, focused pytest, semantic-cache gate checker, docs phase1
 gate, and Experiment Runner oracle all passed.
 
-Rollback: revert `30bfa813c2ab4cd27a90710e11f3c959791a3c7e`; no data or runtime
-migration is involved.
+Rollback: revert the hotfix implementation commit
+`30bfa813c2ab4cd27a90710e11f3c959791a3c7e` and this PR's mapping follow-up
+commits; no data or runtime migration is involved.
 
 ## Deferred / Follow-Ups
 
