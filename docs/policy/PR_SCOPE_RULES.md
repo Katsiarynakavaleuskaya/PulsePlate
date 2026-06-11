@@ -137,24 +137,26 @@ PR-495:
 ### Frontend Vertical MVP PR
 
 - **≤30 files changed**
-- Requires explicit `Operator approval: approved` and `Frontend vertical MVP approval: approved` in the PR body
+- Requires explicit `Operator approval: approved` and `Frontend vertical MVP approval: approved` in the PR body, backed by trusted GitHub labels `operator-approved` and `scope/frontend-mvp-approved`
 - Requires `Split Justification`
 - Must remain one vertical user flow
-- Must not mix frontend UI with backend/API/AI runtime unless `Frontend/backend mix approval: approved` or an emergency exception is documented
+- Must not mix frontend UI with backend/API/AI runtime unless `Frontend/backend mix approval: approved` is documented and backed by `scope/frontend-backend-mix-approved`, or a trusted emergency exception is documented
 
 ### Privileged CI / Security / Workflow PR
 
 - Target **≤10 files changed**
-- Hard cap **≤15 files changed** unless `Operator approval: approved` plus `Privileged scope exception: approved` is documented
+- Hard cap **≤15 files changed** unless `Operator approval: approved` plus `Privileged scope exception: approved` is documented and backed by trusted GitHub labels `operator-approved` and `scope/privileged-approved`
 - Requires security review and bug-hunter pass
-- Cannot mix with frontend product implementation unless `Frontend/backend mix approval: approved` or an emergency exception is documented
+- Cannot mix with frontend product implementation unless `Frontend/backend mix approval: approved` is documented and backed by `scope/frontend-backend-mix-approved`, or a trusted emergency exception is documented
 
 The file-count guard enforces the privileged lane cap and mixed-scope boundary. The security review and bug-hunter proof are enforced by coordinator-owned PR lifecycle review, fixed mapping, and merge-readiness governance rather than by the file-count helper alone.
+
+The file-count guard treats PR body approval lines as documentation only. Exception approval lines are effective only when paired with trusted GitHub labels from the pull request event payload, so a PR author cannot self-attest exceptions by editing the PR description.
 
 ### Oversized PR
 
 - **>30 files changed** fails closed
-- Must split unless `Operator approval: approved` plus `Emergency exception: approved` is documented
+- Must split unless `Operator approval: approved` plus `Emergency exception: approved` is documented and backed by trusted GitHub labels `operator-approved` and `scope/emergency-approved`
 
 ---
 
@@ -268,8 +270,8 @@ This policy exists because:
 |---------|-----------|----------------|-------------|
 | Micro | ≤5 | No split justification; governance/security docs still need `Scope`, `Out of scope`, `Tests` | `check_pr_size_governance.py` |
 | Standard governance/design | ≤20 | `Scope`, `Out of scope`, `Tests`; `Split Justification` if >15 files | `check_pr_size_governance.py` |
-| Frontend vertical MVP | ≤30 | `Operator approval: approved`, `Frontend vertical MVP approval: approved`, `Split Justification`; add `Frontend/backend mix approval: approved` when frontend mixes with backend/API/AI runtime | `check_pr_size_governance.py` |
-| Privileged CI/security/workflow | target ≤10, hard cap ≤15 | `Operator approval: approved` plus `Privileged scope exception: approved` if >15 files; role review proof via PR lifecycle | `check_pr_size_governance.py` + review governance |
-| Oversized | >30 | Split, unless `Emergency exception: approved` with operator approval | `check_pr_size_governance.py` |
+| Frontend vertical MVP | ≤30 | `Operator approval: approved`, `Frontend vertical MVP approval: approved`, `Split Justification`, with trusted label backing; add `Frontend/backend mix approval: approved` with trusted label backing when frontend mixes with backend/API/AI runtime | `check_pr_size_governance.py` |
+| Privileged CI/security/workflow | target ≤10, hard cap ≤15 | `Operator approval: approved` plus `Privileged scope exception: approved` with trusted label backing if >15 files; role review proof via PR lifecycle | `check_pr_size_governance.py` + review governance |
+| Oversized | >30 | Split, unless `Emergency exception: approved` with operator approval and trusted label backing | `check_pr_size_governance.py` |
 
 **If your PR doesn't fit these categories, split it or get an explicit operator-approved exception before opening review.**

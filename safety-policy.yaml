@@ -6,6 +6,12 @@
 # currently exposes only fonttools 4.61.1 while public PyPI has >=4.62.0.
 # Remove this ignore when requirements pin fonttools>=4.62.0 and the mirror syncs.
 # Advisory: docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md
+#
+# SFTY-20250331-30014 / CVE-2025-3000 (PyTorch torch.jit.script memory
+# corruption): optional RAG/vector manifests pin torch while Safety reports no
+# fixed version. Remove by 2026-07-11 or earlier when a fixed torch build,
+# upstream correction, or vector-profile replacement is available.
+# Advisory: docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md
 
 security:
   ignore-vulnerabilities:
@@ -14,3 +20,13 @@ security:
         Private PULSEPLATE_PYTHON_INDEX_URL mirrors fonttools 4.61.1 only (pip:
         "from versions: 4.61.1"). Bump pin to >=4.62.0 when the index publishes
         it; then drop this ignore. See docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md.
+    "SFTY-20250331-30014":
+      reason: >-
+        CVE-2025-3000 is reported against torch.jit.script in the optional
+        RAG/vector dependency manifests only. Safety 3.8.1 reports no fixed
+        torch version for this advisory as of 2026-06-11, while production and
+        Docker runtime manifests pass Safety without torch. Remove by
+        2026-07-11 or earlier when a fixed torch build, upstream advisory
+        correction, or vector-profile replacement is available. See
+        docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md and
+        docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile.

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic Cache Cost Provenance Telemetry Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "telemetry_phase",
+    "token_economy_estimate_fields",
+    "prompt_module_record_fields",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
+    "required_followups"
+  ],
+  "properties": {
+    "gate_status": {
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "cache_read_allowed": {
+      "const": false
+    },
+    "cache_write_allowed": {
+      "const": false
+    },
+    "serving_allowed": {
+      "const": false
+    },
+    "provider_calls_allowed": {
+      "const": false
+    },
+    "telemetry_phase": {
+      "const": "PR-O1"
+    },
+    "token_economy_estimate_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "estimate_id",
+          "surface",
+          "route_type",
+          "provider_label",
+          "model_label",
+          "token_estimate_version",
+          "prompt_input_chars",
+          "prompt_output_chars",
+          "prompt_input_tokens_estimate",
+          "prompt_output_tokens_estimate",
+          "baseline_context_tokens_estimate",
+          "candidate_context_tokens_estimate",
+          "tokens_saved_estimate",
+          "orchestration_fanout_multiplier",
+          "provider_calls_avoided_count",
+          "cost_saved_microunits",
+          "cost_estimate_policy_version",
+          "currency_code",
+          "reason_codes",
+          "produced_at",
+          "metadata"
+        ]
+      },
+      "minItems": 21,
+      "uniqueItems": true
+    },
+    "prompt_module_record_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "module_id",
+          "module_version",
+          "surface",
+          "text_fingerprint",
+          "char_count",
+          "token_estimate",
+          "token_estimate_version",
+          "policy_version",
+          "metadata"
+        ]
+      },
+      "minItems": 9,
+      "uniqueItems": true
+    },
+    "blocked_payloads": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "raw_prompts",
+          "raw_queries",
+          "normalized_queries",
+          "raw_model_responses",
+          "raw_answers",
+          "provider_payloads",
+          "secrets",
+          "credentials",
+          "local_paths",
+          "account_truth",
+          "health_sensitive_payloads"
+        ]
+      },
+      "minItems": 11,
+      "uniqueItems": true
+    },
+    "blocked_backends": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "provider_calls",
+          "OpenAPI",
+          "DB",
+          "cache_backend",
+          "Redis",
+          "GPTCache",
+          "embeddings",
+          "semantic_similarity",
+          "vector_search",
+          "GraphRAG_runtime"
+        ]
+      },
+      "minItems": 10,
+      "uniqueItems": true
+    },
+    "blocked_policy_decisions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "billing_decisions",
+          "entitlement_decisions",
+          "account_truth_decisions",
+          "production_cost_claims",
+          "production_roi_claims"
+        ]
+      },
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "required_followups": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}

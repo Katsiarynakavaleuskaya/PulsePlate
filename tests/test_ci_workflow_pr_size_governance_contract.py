@@ -542,6 +542,23 @@ def _extract_shell_conditional_block(
     return branch_tail.split(end_anchor, maxsplit=1)[0]
 
 
+def test_pr_size_governance_reruns_when_trusted_approval_labels_change() -> None:
+    """Trusted scope labels must trigger fresh PR-size governance event payloads."""
+
+    workflow = _load_ci_workflow()
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+    pull_request_section = on_section["pull_request"]
+    assert isinstance(pull_request_section, dict)
+    event_types = pull_request_section["types"]
+    assert isinstance(event_types, list)
+
+    assert "labeled" in event_types
+    assert "unlabeled" in event_types
+
+
 def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     """Guard against merge-SHA inflation in PR-size governance diff calculation."""
 
@@ -558,6 +575,7 @@ def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     assert "python3 scripts/ci/check_pr_size_governance.py \\" in pr_scope_guard_section
     assert '--base-sha "${{ github.event.pull_request.base.sha }}" \\' in pr_scope_guard_section
     assert '--head-sha "${{ github.event.pull_request.head.sha }}" \\' in pr_scope_guard_section
+    assert '--event-path "$GITHUB_EVENT_PATH"' in pr_scope_guard_section
     assert '--head-sha "${{ github.sha }}" \\' not in pr_scope_guard_section
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
@@ -1073,7 +1091,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "ignore-policy": ".trivy-ignore-policy.rego",
                 "scanners": "vuln",
                 "format": "sarif",
-                "output": "trivy-results.sarif",
+                "output": "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif",
                 "severity": "CRITICAL,HIGH",
                 "limit-severities-for-sarif": True,
                 "exit-code": "1",
@@ -1132,6 +1150,56 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
+
+
+def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
+    workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    prepare_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Prepare Trivy SARIF output path and ignore policy",
+    )
+    scanner_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Run Trivy vulnerability scanner (filesystem scan)",
+    )
+    sarif_check_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Check Trivy filesystem SARIF output",
+    )
+    upload_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Upload Trivy scan results to GitHub Security tab",
+    )
+
+    prepare_run = str(prepare_step["run"])
+    assert "rm -rf -- trivy-results.sarif" in prepare_run
+    assert 'rm -rf "${RUNNER_TEMP}/pulseplate-trivy"' in prepare_run
+    assert 'mkdir -p "${RUNNER_TEMP}/pulseplate-trivy"' in prepare_run
+    assert scanner_step["with"]["exit-code"] == "1"
+    assert scanner_step.get("continue-on-error") is None
+    assert scanner_step["with"]["output"] == (
+        "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif"
+    )
+
+    sarif_check_run = str(sarif_check_step["run"])
+    assert sarif_check_step["id"] == "trivy_fs_sarif"
+    assert sarif_check_step["if"] == "${{ always() }}"
+    assert 'sarif_path="${RUNNER_TEMP}/pulseplate-trivy/trivy-results.sarif"' in sarif_check_run
+    assert 'if [ -s "$sarif_path" ]; then' in sarif_check_run
+    assert 'cp -- "$sarif_path" trivy-results.sarif' in sarif_check_run
+    assert 'echo "present=true" >> "${GITHUB_OUTPUT}"' in sarif_check_run
+    assert 'echo "present=false" >> "${GITHUB_OUTPUT}"' in sarif_check_run
+
+    assert upload_step["if"] == (
+        "${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}"
+    )
+    assert upload_step["uses"].startswith("github/codeql-action/upload-sarif@")
+    assert upload_step["continue-on-error"] is True
+    assert upload_step["with"]["sarif_file"] == "trivy-results.sarif"
 
 
 def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
@@ -1256,10 +1324,9 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 "path": (
                     "release-control-plane-build-sources/artifact_digest.txt\n"
                     "release-control-plane-build-sources/sbom_digest.txt\n"
+                    "release-control-plane-build-sources/attestation_check_digest.txt\n"
                     "release-control-plane-build-sources/provenance_digest.txt\n"
                     "release-control-plane-build-sources/attestation_status.txt\n"
-                    "docker-provenance-attestation-check.json\n"
-                    "docker-provenance-attestation-check.md\n"
                 ),
                 "if-no-files-found": "error",
                 "retention-days": 14,

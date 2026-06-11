@@ -581,6 +581,35 @@ class TestMergeRecords:
         assert len(result) == 1
         assert set(result[0]["flags"]) == {"DAIRY", "ORGANIC", "LOW_FAT"}
 
+    def test_merge_records_preserves_first_non_empty_metadata_fields(self):
+        """Merged records should keep representative source identifiers."""
+        records1 = [
+            self.create_food_record(
+                "granola bar",
+                "USDA",
+                brand="USDA Brand",
+                gtin=None,
+                fdc_id="234567",
+            )
+        ]
+        records2 = [
+            self.create_food_record(
+                "granola bar",
+                "OFF",
+                brand="OFF Brand",
+                gtin="0012345678905",
+                fdc_id=None,
+            )
+        ]
+        streams = [records1, records2]
+
+        result = merge_records(streams)
+
+        assert len(result) == 1
+        assert result[0]["brand"] == "USDA Brand"
+        assert result[0]["gtin"] == "0012345678905"
+        assert result[0]["fdc_id"] == "234567"
+
     def test_merge_records_multiple_foods(self):
         """Test merging multiple different foods."""
         records1 = [

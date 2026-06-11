@@ -14,15 +14,20 @@ This repo uses a simple branch model designed to keep `main` always green.
 ## Pull Requests
 
 - Keep PRs small and focused. Prefer squash merge.
-- Ensure CI is green:
-  - Tests pass on Python 3.13.13
-  - Coverage ≥ 96% (repo currently ~99%)
+- Ensure CI is green and follow the canonical local gates in `AGENTS.md` and
+  `RUNBOOK_AGENT.md`. Do not duplicate Python-version or coverage thresholds
+  here; repo policy owns those values.
 - Run locally before pushing:
 
 ```bash
-# Standard tests
-pytest -q --maxfail=1 --disable-warnings \
-  --cov=. --cov-report=term-missing --cov-fail-under=97
+# Required before every push
+pre-commit run --all-files
+
+# Standard verification bundle
+make verify
+
+# Operator-approved machine-heavy exception only: run and document narrow gates
+make validate-changed
 
 # Docker tests (if Docker files changed)
 make docker-build
@@ -35,15 +40,29 @@ curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify hea
 
 ### Dev Container (recommended)
 
-The recommended path for backend/web/docs/orchestration work:
+The recommended path for backend/web/docs/orchestration work keeps repository
+bootstrap manual and forwards only the private package proxy settings needed for
+dependency installation. Do not load the full project `.env` into the
+devcontainer.
 
 ```bash
-cp .env.example .env
+export PULSEPLATE_PYTHON_INDEX_URL=https://packages.example.internal/simple
+# Optional, only if the approved proxy requires pip trusted-host behavior:
+export PULSEPLATE_PYTHON_TRUSTED_HOST=
+
 # VS Code: Cmd/Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
 # CLI: make dc-up && make dc-shell
+# After reviewing/trusting the workspace, run bootstrap manually inside the container:
 make devcontainer-bootstrap
+[ -f .env ] || cp .env.example .env
+# Fill required local-only values such as SERVER_SALT before starting the app.
 make dev
 ```
+
+Host Docker daemon access is intentionally not enabled by default. If a task
+requires Docker from inside the devcontainer, use a separate reviewed local
+override after the workspace is trusted rather than committing socket access to
+the default configuration.
 
 ### Legacy .venv fallback
 
