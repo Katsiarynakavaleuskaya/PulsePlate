@@ -169,3 +169,55 @@ PR-B must not commit:
 - local brainstorming logs
 - provider traces
 - raw hidden-memory artifacts
+
+---
+
+## 7. Manual adoption metrics
+
+The adoption/conversion loop is a manual operator report, not a merge gate.
+It reads local eval artifacts and experiment promotion decisions, then writes
+aggregate-only local artifacts under:
+
+- `artifacts/orchestration/creative_research/metrics/`
+
+Manual command:
+
+```bash
+python3 scripts/orchestration/creative_research_metrics.py \
+  --output-json artifacts/orchestration/creative_research/metrics/latest.json \
+  --output-md artifacts/orchestration/creative_research/metrics/latest.md
+```
+
+Report contract:
+
+- `schema_version = creative-research-metrics-v1`
+- counts are aggregated from evaluated candidate rows, not trusted from summary alone
+- conversion grain is `(bundle_id, candidate_id)`
+- destination type and sanitized repo-relative ref come from existing promotion
+  fields: `promotion_target` and `durable_artifact_path`
+- raw prompts, claims, mechanisms, evidence text, provider output, local absolute
+  paths, and secrets must not appear in the JSON or Markdown report
+
+Optional origin link convention for experiment promotion packets:
+
+```json
+{
+  "creative_research_origin": {
+    "bundle_id": "creative-research-valid",
+    "candidate_id": "hyp-batch",
+    "promotion_decision": "promote"
+  }
+}
+```
+
+Rules:
+
+- `creative_research_origin` is passive provenance only
+- it must not change promotion policy, result status, target selection, or
+  durable artifact path semantics
+- unsupported fields or invalid `promotion_decision` values fail promotion
+  cleanly
+- absence of origin metadata remains backward-compatible
+
+Future enforcement, telemetry rollups, or CI-required checks require a separate
+coordinator-owned PR after this report proves low-noise.

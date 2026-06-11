@@ -93,8 +93,9 @@ def _packet(
     *,
     experiment_id: str = "exp-promote",
     promotion_target: str = "pr_packet",
+    creative_research_origin: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    return {
+    packet: dict[str, object] = {
         "schema_version": "1.0",
         "experiment_id": experiment_id,
         "decision_question": "Promote governed experiment result",
@@ -122,6 +123,9 @@ def _packet(
         "negative_controls": ["oracle file unchanged", "no hidden memory"],
         "promotion_target": promotion_target,
     }
+    if creative_research_origin is not None:
+        packet["creative_research_origin"] = creative_research_origin
+    return packet
 
 
 def _result(
@@ -228,6 +232,80 @@ def test_build_promotion_decision_writes_guard_proposal(
     assert "Experiment Guard Proposal" in proposal_path.read_text(encoding="utf-8")
 
 
+def test_creative_research_origin_is_copied_to_decision_and_markdown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    origin = {
+        "bundle_id": "creative-research-valid",
+        "candidate_id": "hyp-batch",
+        "promotion_decision": "promote",
+    }
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(creative_research_origin=origin)
+    )
+    result = experiment_contract.validate_experiment_result(_result())
+
+    decision = experiment_promote.build_promotion_decision(packet, result)
+
+    assert decision["promotion_target"] == "pr_packet"
+    assert decision["disposition"] == "promoted"
+    assert decision["creative_research_origin"] == origin
+    packet_output = repo / "docs" / "orchestration" / "experiment_pr_packets" / "exp-promote.md"
+    markdown = packet_output.read_text(encoding="utf-8")
+    assert "Creative Research Origin" in markdown
+    assert "creative-research-valid" in markdown
+    assert "hyp-batch" in markdown
+
+
+def test_invalid_creative_research_origin_fails_before_artifact_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(
+            creative_research_origin={
+                "bundle_id": "creative-research-valid",
+                "candidate_id": "hyp-batch",
+                "promotion_decision": "promote",
+                "raw_prompt": "must not be accepted",
+            }
+        )
+    )
+    result = experiment_contract.validate_experiment_result(_result())
+
+    with pytest.raises(experiment_promote.ExperimentPromotionError, match="unsupported"):
+        experiment_promote.build_promotion_decision(packet, result)
+
+    packet_output = repo / "docs" / "orchestration" / "experiment_pr_packets" / "exp-promote.md"
+    assert not packet_output.exists()
+
+
+def test_invalid_creative_research_origin_decision_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(
+            creative_research_origin={
+                "bundle_id": "creative-research-valid",
+                "candidate_id": "hyp-batch",
+                "promotion_decision": "ship",
+            }
+        )
+    )
+    result = experiment_contract.validate_experiment_result(_result())
+
+    with pytest.raises(experiment_promote.ExperimentPromotionError, match="must be one of"):
+        experiment_promote.build_promotion_decision(packet, result)
+
+
 def test_memory_capsule_updates_index_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -268,6 +346,38 @@ def test_rejected_result_backlog_entry_is_allowed(
     ledger = (repo / "docs" / "roadmap" / "BACKLOG_LEDGER.md").read_text(encoding="utf-8")
     assert "Experiment follow-up for exp-promote" in ledger
     assert ledger.count("ledger-exp-promote") == 1
+
+
+def test_rejected_backlog_entry_preserves_creative_research_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    origin = {
+        "bundle_id": "creative-research-valid",
+        "candidate_id": "hyp-batch",
+        "promotion_decision": "defer",
+    }
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(
+            promotion_target="backlog_entry",
+            creative_research_origin=origin,
+        )
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+
+    decision = experiment_promote.build_promotion_decision(packet, result)
+
+    assert decision["disposition"] == "deferred"
+    assert decision["creative_research_origin"] == origin
+    ledger = (repo / "docs" / "roadmap" / "BACKLOG_LEDGER.md").read_text(encoding="utf-8")
+    assert "Creative research origin:" in ledger
+    assert "Bundle ID: `creative-research-valid`" in ledger
+    assert "Candidate ID: `hyp-batch`" in ledger
+    assert "Promotion decision: `defer`" in ledger
 
 
 def test_rejected_result_with_non_backlog_target_fails(
