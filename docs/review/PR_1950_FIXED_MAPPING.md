@@ -29,6 +29,8 @@ context projection.
   artifact.
 - `01f2ad6ee949f9c5147730af33c134291230592a` - post-open QA fixes for
   result status invariants and Phase2 mapping artifact format.
+- `<pending>` - post-open bug-hunter fix for result status truth-table
+  validation.
 
 ## Lane Start Provenance
 
@@ -122,6 +124,10 @@ Findings:
 - Sourcery: NOT-A-BUG for this code diff at this stage. The bot review comment
   is a weekly rate-limit notice and does not identify code actionables. Explicit
   no-actionables/pass remains a merge-readiness prerequisite if the bot reruns.
+- `bug-hunter`: FIXED in pending local commit. Evidence:
+  `app/schemas/user_coaching_state.py` now rejects `ready` traces with degraded
+  evidence and `no_recommendation` traces attached to recommending plans;
+  regression coverage is in `tests/test_coaching_markov_orchestration_adapter.py`.
 
 ## Local Validation
 

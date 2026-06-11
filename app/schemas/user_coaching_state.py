@@ -629,8 +629,20 @@ class MarkovCoachingOrchestrationResultV1(BaseModel):
         if trace.decision_status in {"ready", "degraded"}:
             if self.transition_plan is None or self.prompt_safe_context is None:
                 raise ValueError("ready or degraded result requires plan and context")
-        if trace.decision_status == "no_recommendation" and self.prompt_safe_context is not None:
-            raise ValueError("no_recommendation result must not include prompt_safe_context")
+        if trace.decision_status == "ready":
+            if trace.state_degraded or trace.planner_degraded or trace.degrade_reasons:
+                raise ValueError("ready result must not be degraded")
+        if trace.decision_status == "degraded":
+            if not (trace.state_degraded or trace.planner_degraded or trace.degrade_reasons):
+                raise ValueError("degraded result must include degraded evidence")
+        if trace.decision_status == "no_recommendation":
+            if self.prompt_safe_context is not None:
+                raise ValueError("no_recommendation result must not include prompt_safe_context")
+            if (
+                self.transition_plan is not None
+                and self.transition_plan.recommended_scenario is not None
+            ):
+                raise ValueError("no_recommendation result must not include recommendation")
         if self.prompt_safe_context is not None and self.transition_plan is None:
             raise ValueError("prompt_safe_context requires transition_plan")
         if self.transition_plan is not None:

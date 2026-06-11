@@ -437,6 +437,36 @@ def test_ready_status_uses_existing_prompt_safe_markov_projection(
     with pytest.raises(ValidationError, match="no_recommendation"):
         to_prompt_safe_markov_orchestration_context(no_recommendation_with_context)
 
+    ready_with_degraded_evidence = result.model_copy(
+        update={
+            "decision_trace": result.decision_trace.model_copy(
+                update={
+                    "decision_status": "ready",
+                    "state_degraded": True,
+                    "planner_degraded": True,
+                    "degrade_reasons": ("adherence_state_invalid_degraded",),
+                }
+            ),
+        }
+    )
+    with pytest.raises(ValidationError, match="ready result must not be degraded"):
+        MarkovCoachingOrchestrationResultV1.model_validate(
+            ready_with_degraded_evidence.model_dump(mode="python")
+        )
+
+    no_recommendation_with_recommended_plan = result.model_copy(
+        update={
+            "prompt_safe_context": None,
+            "decision_trace": result.decision_trace.model_copy(
+                update={"decision_status": "no_recommendation"}
+            ),
+        }
+    )
+    with pytest.raises(ValidationError, match="no_recommendation result"):
+        MarkovCoachingOrchestrationResultV1.model_validate(
+            no_recommendation_with_recommended_plan.model_dump(mode="python")
+        )
+
 
 def test_degraded_state_and_recent_behavior_reasons_are_deterministic(
     configure_sqlite_database: Any,
