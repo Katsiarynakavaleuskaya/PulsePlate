@@ -121,8 +121,10 @@ Artifact: `artifacts/orchestration/experiments/results/exp-9d45f3c08260.json`
 ## Local Validation
 
 - `python3 -m py_compile tests/test_devcontainer_smoke_workflow.py` PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_devcontainer_smoke_workflow.py` PASS: `10 passed`.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m black --check tests/test_devcontainer_smoke_workflow.py` PASS.
+- `$ROOT_VENV_PYTHON -m pytest -q tests/test_devcontainer_smoke_workflow.py` PASS: `10 passed`.
+- `$ROOT_VENV_PYTHON -m black --check tests/test_devcontainer_smoke_workflow.py` PASS.
+- `$ROOT_VENV_PYTHON` resolves to the repo root `.venv/bin/python` for this
+  isolated worktree.
 - `python3 scripts/orchestration/check_agent_consistency.py --json` PASS.
 - `make validate-changed` PASS: selected
   `tests/test_devcontainer_smoke_workflow.py`, `10 passed`.
