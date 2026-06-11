@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import shutil
 import uuid
 from pathlib import Path
 
 import pytest
 
+import scripts.orchestration.task_bootstrap as task_bootstrap_module
 from core.judgment import (
     CLAIM_EVIDENCE_FIELDS,
     CLAIM_TYPES,
@@ -1543,6 +1545,67 @@ def test_main_rejects_output_outside_repo(tmp_path, capsys) -> None:
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "FAIL: --output must stay within the repository root" in captured.out
+
+
+def test_main_repeated_packet_records_same_head_shadow_exact_hit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI artifact loop should see prior same-ID packets as shadow candidates."""
+
+    del tmp_path
+    task_packet_dir = (REPO_ROOT / f"tmp/task-packets-{uuid.uuid4().hex}").resolve()
+    head_sha = "c" * 40
+    args = [
+        "--goal",
+        "Review coordinator packet reuse",
+        "--task-class",
+        "Orchestration",
+        "--path",
+        "scripts/orchestration/task_bootstrap.py",
+        "--path",
+        "scripts/orchestration/shadow_reuse_telemetry.py",
+        "--requested-agent",
+        "agent-coordinator",
+        "--requested-agent",
+        "architecture-specialist",
+        "--pr-phase",
+        "pre_open",
+    ]
+    monkeypatch.setattr(task_bootstrap_module, "TASK_PACKET_DIR", task_packet_dir)
+    monkeypatch.setattr(
+        task_bootstrap_module,
+        "resolve_current_head_sha",
+        lambda _repo_root: head_sha,
+    )
+
+    try:
+        first_exit = main(args)
+        first_stdout = json.loads(capsys.readouterr().out)
+        first_packet_path = task_packet_dir / f"{first_stdout['task_packet_id']}.json"
+        first_packet = json.loads(first_packet_path.read_text(encoding="utf-8"))
+
+        second_exit = main(args)
+        second_stdout = json.loads(capsys.readouterr().out)
+        second_packet_path = task_packet_dir / f"{second_stdout['task_packet_id']}.json"
+        second_packet = json.loads(second_packet_path.read_text(encoding="utf-8"))
+
+        assert first_exit == 0
+        assert second_exit == 0
+        assert first_stdout["task_packet_id"] == second_stdout["task_packet_id"]
+        assert first_packet["task_packet_id"] == second_packet["task_packet_id"]
+        first_summary = first_packet[SHADOW_REUSE_FIELD]["reuse_summary"]
+        second_summary = second_packet[SHADOW_REUSE_FIELD]["reuse_summary"]
+        assert first_summary["decision"] == "miss"
+        assert first_summary["checked_previous_packet_count"] == 0
+        assert second_summary["decision"] == "hit"
+        assert second_summary["match_mode"] == "exact"
+        assert second_summary["matched_packet_id"] == second_packet["task_packet_id"]
+        assert second_summary["checked_previous_packet_count"] == 1
+        assert second_packet[SHADOW_REUSE_FIELD]["same_head_partition"]["head_sha"] == head_sha
+    finally:
+        shutil.rmtree(task_packet_dir, ignore_errors=True)
 
 
 def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:

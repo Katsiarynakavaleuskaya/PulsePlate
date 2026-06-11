@@ -180,6 +180,40 @@ def test_collect_previous_task_packet_candidates_is_bounded_and_redacted(tmp_pat
     assert "path" not in json.dumps(stats, sort_keys=True).lower()
 
 
+def test_collect_previous_task_packet_candidates_caps_scanned_files(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    packet_dir = repo_root / "artifacts" / "orchestration" / "task_packets"
+    packet_dir.mkdir(parents=True)
+    for index in range(5):
+        packet = _prior_packet(
+            task_packet_id=f"prior-{index}",
+            goal=f"Review packet reuse {index}",
+            head_sha=HEAD_A,
+        )
+        (packet_dir / f"{index:02d}-prior.json").write_text(
+            json.dumps(packet),
+            encoding="utf-8",
+        )
+
+    packets, stats = collect_previous_task_packet_candidates(
+        task_packet_dir=packet_dir,
+        repo_root=repo_root,
+        max_files=3,
+        max_file_bytes=10_000,
+    )
+
+    assert [packet["task_packet_id"] for packet in packets] == [
+        "prior-0",
+        "prior-1",
+        "prior-2",
+    ]
+    assert stats["candidate_files_seen"] == 3
+    assert stats["candidate_files_loaded"] == 3
+    assert stats["candidate_files_skipped"] == 2
+    assert "prior-3" not in json.dumps(stats, sort_keys=True)
+    assert "path" not in json.dumps(stats, sort_keys=True).lower()
+
+
 def test_resolve_current_head_sha_reads_loose_git_ref(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     git_dir = repo_root / ".git"
