@@ -102,6 +102,52 @@ class TestUSDAAdapter:
 
         os.unlink(f.name)
 
+    def test_usda_normalize_preserves_fdc_brand_and_gtin_metadata(self):
+        """USDA branded rows should keep source identifiers for downstream lookup."""
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    "description",
+                    "energy_kcal",
+                    "fdc_id",
+                    "gtin_upc",
+                    "brand_owner",
+                ]
+            )
+            writer.writerow(["Granola Bar", "250", "234567", "00 123-456 78905", "Test Foods"])
+            f.flush()
+
+            adapter = USDAAdapter(csv_path=f.name)
+            results = list(adapter.normalize())
+
+            assert len(results) == 1
+            food = results[0]
+            assert food.fdc_id == "234567"
+            assert food.brand == "Test Foods"
+            assert food.gtin == "0012345678905"
+
+        os.unlink(f.name)
+
+    def test_usda_normalize_treats_blank_metadata_as_none(self):
+        """Blank/null-like source metadata should not become persisted strings."""
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
+            writer = csv.writer(f)
+            writer.writerow(["description", "fdcId", "gtin", "brandName"])
+            writer.writerow(["Plain Oats", " null ", "nan", "  "])
+            f.flush()
+
+            adapter = USDAAdapter(csv_path=f.name)
+            results = list(adapter.normalize())
+
+            assert len(results) == 1
+            food = results[0]
+            assert food.fdc_id is None
+            assert food.brand is None
+            assert food.gtin is None
+
+        os.unlink(f.name)
+
 
 class TestOFFAdapter:
     """Test OFF adapter error handling scenarios."""
@@ -239,6 +285,44 @@ class TestOFFAdapter:
         assert len(results) == 1
         assert results[0].name
 
+    def test_off_normalize_preserves_brand_and_gtin_metadata(self) -> None:
+        """OFF rows should map barcode and brands into FoodRecord metadata."""
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
+            writer = csv.writer(f)
+            writer.writerow(["product_name", "code", "brands", "energy-kcal_100g"])
+            writer.writerow(["Chocolate Bar", "0 301-7620422003", "ChocoCorp", "540"])
+            f.flush()
+
+            adapter = OFFAdapter(csv_path=f.name)
+            results = list(adapter.normalize())
+
+            assert len(results) == 1
+            food = results[0]
+            assert food.brand == "ChocoCorp"
+            assert food.gtin == "03017620422003"
+            assert food.fdc_id is None
+
+        os.unlink(f.name)
+
+    def test_off_normalize_treats_blank_metadata_as_none(self) -> None:
+        """OFF null markers should not leak into brand or GTIN fields."""
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
+            writer = csv.writer(f)
+            writer.writerow(["product_name", "code", "gtin", "barcode", "brands"])
+            writer.writerow(["Plain Crackers", "nan", " null ", "", "None"])
+            f.flush()
+
+            adapter = OFFAdapter(csv_path=f.name)
+            results = list(adapter.normalize())
+
+            assert len(results) == 1
+            food = results[0]
+            assert food.brand is None
+            assert food.gtin is None
+            assert food.fdc_id is None
+
+        os.unlink(f.name)
+
 
 class TestBaseAdapter:
     """Test base adapter abstract methods."""
@@ -282,6 +366,9 @@ class TestBaseAdapter:
         assert record.kcal == 250.0
         assert record.flags == ["GF"]
         assert record.source == "TEST"
+        assert record.brand is None
+        assert record.gtin is None
+        assert record.fdc_id is None
 
 
 class TestFoodSourcesIntegration:

@@ -14,7 +14,7 @@ from typing import Dict, Iterable, Optional
 
 from ..aliases import map_to_canonical
 from ..units import iu_vitd_from_ug
-from .base import BaseAdapter, FoodRecord
+from .base import BaseAdapter, FoodRecord, first_gtin_value, first_metadata_value
 
 
 class OFFAdapter(BaseAdapter):
@@ -120,6 +120,8 @@ class OFFAdapter(BaseAdapter):
                 flags.append("LOW_COST")
             if row.get("dairy_free") == "yes":
                 flags.append("DAIRY_FREE")
+            brand = first_metadata_value(row, ("brands", "brands_en", "brand"))
+            gtin = first_gtin_value(row, ("code", "gtin", "barcode"))
 
             yield FoodRecord(
                 name=canonical,
@@ -142,4 +144,7 @@ class OFFAdapter(BaseAdapter):
                 price=0.0,
                 source="OFF",
                 version_date=today,
+                brand=brand,
+                gtin=gtin,
+                fdc_id=None,
             )

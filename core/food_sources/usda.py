@@ -14,7 +14,7 @@ from typing import Any, Dict, Iterable, Optional
 
 from ..aliases import map_to_canonical
 from ..units import iu_vitd_from_ug
-from .base import BaseAdapter, FoodRecord
+from .base import BaseAdapter, FoodRecord, first_gtin_value, first_metadata_value
 
 
 class USDAAdapter(BaseAdapter):
@@ -86,6 +86,15 @@ class USDAAdapter(BaseAdapter):
             Iodine_ug = float(row.get("iodine_ug", 0) or 0)
             K_mg = float(row.get("potassium_mg", 0) or 0)
             Mg_mg = float(row.get("magnesium_mg", 0) or 0)
+            fdc_id = first_metadata_value(row, ("fdc_id", "fdcId"))
+            brand = first_metadata_value(
+                row,
+                ("brand_owner", "brandOwner", "brand_name", "brandName", "brand"),
+            )
+            gtin = first_gtin_value(
+                row,
+                ("gtin_upc", "gtinUpc", "gtinUPC", "gtin", "upc", "barcode"),
+            )
 
             yield FoodRecord(
                 name=canonical,
@@ -108,4 +117,7 @@ class USDAAdapter(BaseAdapter):
                 price=0.0,
                 source="USDA",
                 version_date=today,
+                brand=brand,
+                gtin=gtin,
+                fdc_id=fdc_id,
             )
