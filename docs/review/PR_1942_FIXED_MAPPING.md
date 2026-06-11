@@ -25,6 +25,13 @@ Evidence: tests/test_run_safety_audit.py:177 covers nested include copying; test
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#pullrequestreview-4477432600 -> 841b0ce6769a9f7b420532c1049d98e3e8c9eda4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#discussion_r3396494884 -> 841b0ce6769a9f7b420532c1049d98e3e8c9eda4
 
+Disposition: FIXED
+Commit: 5bda41d10
+Evidence: current-head `security` job failed because authenticated Safety Platform scan reported `fonttools` vulnerability `88739` as `ignored: null` while the repo policy carries a non-expired waiver for the private-index lag.
+Evidence: scripts/ci/run_safety_audit.py:256 loads active repo policy waivers; scripts/ci/run_safety_audit.py:469 moves matching active Safety findings to ignored only when the waiver is valid; scripts/ci/run_safety_audit.py:737 keeps non-zero Safety exits fail-closed unless explained by repo-policy waivers.
+Evidence: tests/test_run_safety_audit.py:265 covers the cloud-policy-not-ignored case; tests/test_run_safety_audit.py:294 covers expired waiver blocking; tests/test_run_safety_audit.py:418 covers non-zero Safety exits with only repo-policy-waived findings.
+Evidence: focused gates PASS: `pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py`; `make validate-changed`; `pre-commit run --all-files`.
+
 ## External Review Availability Notes
 
 External bot capacity or availability notices are not treated as code-actionable
