@@ -118,9 +118,17 @@ Reason: The coverage report has no actionable remediation request.
 
 - [ ] Current-head CI terminal success confirmed after this artifact commit is pushed.
 - [ ] `pre-commit run --all-files` passes after mapping/body updates.
-- [ ] `make verify` passes locally.
+- [ ] Full local `make verify` is not used as local pass evidence for this lane; operator stopped the machine-heavy full run during coverage pytest and current-head CI parity remains required.
 - [ ] PR body Phase2 mirror synchronized with this artifact.
 - [ ] Strict review-thread disposition passes with auth.
 - [ ] Strict merge-readiness wrapper passes with auth.
 - [ ] No unresolved review threads or actionable bot comments remain.
 - [ ] Mandatory wait-window after latest bot/review activity completed.
+
+## Full Verify Deferral
+
+- Operator instruction on 2026-06-11: "полный мейк верифай не делаем".
+- Local `make verify` was stopped during the full coverage pytest phase and is not cited as PASS evidence.
+- Completed before stop: `verify-env`, `flake8`, `mypy`, and smoke tests passed.
+- The interrupted coverage pytest stream had failure markers before the stop, but no pytest failure summary was produced; no green or merge-ready claim is made from that run.
+- Required remaining path: narrow local gates, `pre-commit run --all-files`, current-head CI parity, strict review-thread disposition, strict merge-readiness wrapper with auth, and the mandatory wait-window.
