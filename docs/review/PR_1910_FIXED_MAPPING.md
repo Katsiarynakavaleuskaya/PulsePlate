@@ -79,8 +79,15 @@ Reason: Sourcery's caching, helper-extraction, and comment suggestions are valid
 - PASS: `. .venv/bin/activate && pytest -q tests/guards/test_subprocess_uses_absolute_binaries.py`
 - PASS: `git diff --check -- tests/guards/test_subprocess_uses_absolute_binaries.py`
 - PASS: commit hooks for `f5df2c4fc`, including changed-file backend tests.
-- PENDING: `make validate-changed`
-- PENDING: `pre-commit run --all-files`
+- PASS: commit hooks for `a491250b0`, docs-only with no changed-file backend tests.
+- PASS: `make validate-changed`
+- OPERATOR-DEFERRED: full local `make verify` was not run; the operator
+  explicitly limited local validation to `make validate-changed` because full
+  verify runs the large project suite.
+- ATTEMPTED / LOCAL LIMIT: `pre-commit run --all-files` did not complete
+  locally because the full-repo Bandit hook was terminated with exit `-15`
+  after warnings and no finding. Do not claim full pre-commit green from local
+  evidence; current-head CI/pre-commit parity remains required before merge.
 - PENDING: current-head CI after pushing the follow-up commits.
 - PENDING: strict merge readiness with `check_merge_ready.py --require-auth`.
 
