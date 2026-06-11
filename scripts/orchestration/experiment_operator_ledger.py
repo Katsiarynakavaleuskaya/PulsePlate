@@ -228,6 +228,17 @@ IDEMPOTENCY_MATERIAL_FIELDS = (
     "status",
     "task_packet_id",
 )
+LEGACY_SHA256_IDEMPOTENCY_MATERIAL_FIELDS = (
+    "branch_hash",
+    "command_kind",
+    "event_hash",
+    "human_review_outcome",
+    "hypothesis_hash",
+    "oracle_result_hash",
+    "slack_audit_hash",
+    "status",
+    "task_packet_id",
+)
 
 
 class OperatorLedgerError(RuntimeError):
@@ -420,8 +431,14 @@ def _idempotency_material(payload: dict[str, Any]) -> dict[str, Any]:
     return {key: payload[key] for key in IDEMPOTENCY_MATERIAL_FIELDS}
 
 
+def _legacy_sha256_idempotency_material(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: payload[key] for key in LEGACY_SHA256_IDEMPOTENCY_MATERIAL_FIELDS}
+
+
 def _legacy_sha256_idempotency_key(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json_bytes(_idempotency_material(payload))).hexdigest()[:24]
+    return hashlib.sha256(
+        _canonical_json_bytes(_legacy_sha256_idempotency_material(payload))
+    ).hexdigest()[:24]
 
 
 def _idempotency_key(payload: dict[str, Any]) -> str:
