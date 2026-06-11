@@ -28,6 +28,13 @@
     touched.
   - Validation: `make validate-changed` passed for the branch scope, and the
     focused metrics/promotion pytest suite passed after the QA coverage fix.
+- `bug-hunter`: FIXED local absolute-path leakage in the review mapping
+  artifact.
+  - Commit: `13e7dad82`
+  - Evidence: `docs/review/PR_1953_FIXED_MAPPING.md` now uses repo-relative
+    validation commands and sanitized local review-context wording.
+  - Validation: `../../.venv/bin/python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths -p no:cacheprovider`
+    passed.
 - `security-auditor`: no reportable post-open security finding.
   - Evidence: the change is local-artifact only; report inputs and outputs are
     confined to gitignored orchestration artifact roots; promotion origin
