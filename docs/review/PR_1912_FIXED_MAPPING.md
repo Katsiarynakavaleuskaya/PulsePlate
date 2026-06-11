@@ -30,9 +30,10 @@ Slack command hints fail closed.
   `scripts/orchestration/experiment_slack_bridge_commands.py`.
 - Regression coverage in `tests/test_experiment_slack_socket_bridge.py`.
 - Review/governance artifact and PR-body mirror for PR #1912.
-- Current-head dependency-audit drift remediation for Safety
-  `SFTY-20250331-30014` / `CVE-2025-3000`, limited to optional RAG/vector
-  torch requirement profiles and a time-boxed `safety-policy.yaml` waiver.
+- Current-head dependency-audit drift evidence for Safety
+  `SFTY-20250331-30014` / `CVE-2025-3000`; after merging current
+  `origin/main`, the canonical optional RAG/vector torch waiver is inherited
+  from main rather than added by the final PR #1912 diff.
 
 ## Out of Scope
 
@@ -75,12 +76,13 @@ Evidence: Commit `cf143b396` normalizes whitespace-only `command_hint` values to
 - `tests/test_experiment_slack_socket_bridge.py` covers unknown command-hint
   rejection, `/pulseplate-runner` dispatch rejection, execute-mode no-dispatch
   behavior, and direct no-hint parser compatibility.
-- `safety-policy.yaml` records a time-boxed Safety waiver for
-  `SFTY-20250331-30014` because Safety reports `torch<=2.12.0` vulnerable with
-  no fixed or recommended version.
+- Current `origin/main` records a time-boxed Safety waiver for
+  `SFTY-20250331-30014` because Safety reports optional RAG/vector `torch`
+  pins vulnerable with no fixed or recommended version.
 - `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md` and
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
-  document scope, exposure, remove-by date, and remediation.
+  on current `origin/main` document scope, exposure, remove-by date, and
+  remediation.
 - `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py`
   passed after the fix.
 
@@ -141,10 +143,10 @@ Evidence: Commit `cf143b396` normalizes whitespace-only `command_hint` values to
   `ERROR: Safety found high/critical/unknown vulnerabilities in requirements-rag-vector.txt`
   and
   `ERROR: Safety found high/critical/unknown vulnerabilities in requirements-rag-vector-cpu.txt`.
-- Disposition: current-head dependency-audit drift is remediated with a
-  time-boxed Safety waiver only for `SFTY-20250331-30014`, plus advisory and
-  backlog removal path. The audit remains fail-closed for any other active
-  Safety finding.
+- Disposition: current-head dependency-audit drift is covered by the canonical
+  current-main time-boxed Safety waiver only for `SFTY-20250331-30014`, plus
+  advisory and backlog removal path. The audit remains fail-closed for any
+  other active Safety finding.
 
 ## Premortem Findings
 
@@ -197,6 +199,11 @@ strict merge wrapper, unresolved-thread proof, and wait-window evidence.
 - After merging current `origin/main`, `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py`
   passed.
 - After merging current `origin/main`, `make validate-changed` passed.
+- After merging current `origin/main` again, `git diff --name-only origin/main...HEAD`
+  showed the final PR diff limited to
+  `docs/review/PR_1912_FIXED_MAPPING.md`,
+  `scripts/orchestration/experiment_slack_bridge_commands.py`, and
+  `tests/test_experiment_slack_socket_bridge.py`.
 - `make verify` was started after the current-main merge and reached
   `diff-cov` after passing `verify-env`, `flake8`, `mypy`, and the deterministic
   smoke subset. The operator then explicitly redirected the lane to
