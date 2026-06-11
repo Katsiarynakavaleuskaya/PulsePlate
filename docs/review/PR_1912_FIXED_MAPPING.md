@@ -152,6 +152,17 @@ strict merge wrapper, unresolved-thread proof, and wait-window evidence.
 - `git diff --check` passed before the code-fix commit.
 - Commit hook pre-commit checks passed for commit `633b54e9a`, including black,
   ruff, bandit changed-files, backend changed-files tests, and detect-secrets.
+- After merging current `origin/main` into the lane, the PR diff remained limited
+  to this artifact, `scripts/orchestration/experiment_slack_bridge_commands.py`,
+  and `tests/test_experiment_slack_socket_bridge.py`.
+- After merging current `origin/main`, `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py`
+  passed.
+- After merging current `origin/main`, `make validate-changed` passed.
+- `make verify` was started after the current-main merge and reached
+  `diff-cov` after passing `verify-env`, `flake8`, `mypy`, and the deterministic
+  smoke subset. The operator then explicitly redirected the lane to
+  changed-surface verification only, so full `make verify` was terminated and is
+  not used as merge-readiness evidence for this PR.
 
 ## Merge Readiness
 
@@ -159,10 +170,12 @@ strict merge wrapper, unresolved-thread proof, and wait-window evidence.
 - [x] Sourcery actionable review submission is mapped with FIXED proof.
 - [x] CodeRabbit/Cubic review comments have no actionable code findings at the
   last checked pass.
-- [ ] `pre-commit run --all-files` passed after the final governance commit.
-- [ ] `make validate-changed` passed after the final governance commit.
-- [ ] `make verify` passed after the final governance commit or a documented
-  operator-approved machine-heavy exception exists.
+- [ ] `pre-commit run --all-files` passed after the final governance commit, or
+  current-head CI pre-commit parity covers the final pushed SHA.
+- [x] `make validate-changed` passed after syncing the branch with current
+  `origin/main`.
+- [x] Full `make verify` is not required for this lane by explicit operator
+  direction; changed-surface verification is the local evidence basis.
 - [ ] Current-head CI is green for the final pushed SHA.
 - [ ] `python3 scripts/orchestration/check_merge_ready.py --pr-number 1912 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
   passed after the final pushed SHA and latest bot/review activity.
