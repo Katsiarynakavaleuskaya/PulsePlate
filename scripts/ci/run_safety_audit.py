@@ -756,15 +756,26 @@ def run_audit(config: SafetyAuditConfig) -> tuple[ManifestAuditResult, ...]:
     return tuple(results)
 
 
+def _nonzero_safety_exit_is_fully_waived(analysis: SafetyAnalysis) -> bool:
+    """Return whether a non-zero Safety exit is fully explained by repo waivers."""
+
+    return (
+        analysis.repo_policy_ignored_count > 0
+        and analysis.high_risk_count == 0
+        and analysis.other_count == 0
+    )
+
+
 def exit_code_for_results(results: Sequence[ManifestAuditResult]) -> int:
     """Return aggregate workflow exit code for parsed Safety results."""
 
+    if any(result.analysis.status == PARSE_BLOCKING for result in results):
+        return 1
     if any(
-        result.safety_exit_code != 0 and result.analysis.repo_policy_ignored_count == 0
+        result.safety_exit_code != 0
+        and not _nonzero_safety_exit_is_fully_waived(result.analysis)
         for result in results
     ):
-        return 1
-    if any(result.analysis.status == PARSE_BLOCKING for result in results):
         return 1
     return 0
 
@@ -845,8 +856,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest_name = result.manifest.name
         if (
             result.safety_exit_code != 0
-            and result.analysis.repo_policy_ignored_count > 0
-            and result.analysis.status != PARSE_BLOCKING
+            and _nonzero_safety_exit_is_fully_waived(result.analysis)
         ):
             print(
                 "OK: Safety scan passed for "
