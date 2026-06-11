@@ -341,6 +341,33 @@ def test_scan_v3_expired_repo_policy_waiver_stays_blocking(tmp_path: Path) -> No
     assert "- [UNKNOWN] fonttools 4.61.1 - 88739" in summary_path.read_text(encoding="utf-8")
 
 
+def test_repo_policy_waivers_skip_toml_policy_files(tmp_path: Path) -> None:
+    policy_path = tmp_path / "safety-policy.toml"
+    policy_path.write_text("not: yaml: report:\n", encoding="utf-8")
+
+    assert safety_audit.repo_policy_waivers(policy_path) == {}
+
+
+def test_repo_policy_parse_errors_write_summary_artifact(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    policy_path = tmp_path / "safety-policy.yaml"
+    policy_path.write_text("[]\n", encoding="utf-8")
+    _write_scan_report(report_path, ["LOW"])
+
+    with pytest.raises(
+        safety_audit.SafetyAuditError,
+        match="Safety policy file must be a YAML mapping",
+    ):
+        safety_audit.analyze_report(
+            report_path,
+            summary_path,
+            policy_path=policy_path,
+        )
+
+    assert "Safety policy file must be a YAML mapping" in summary_path.read_text(encoding="utf-8")
+
+
 def test_cpu_rag_vector_manifest_high_risk_finding_fails_aggregate(tmp_path: Path) -> None:
     report_path = tmp_path / "safety-requirements-rag-vector-cpu.json"
     summary_path = tmp_path / "safety-requirements-rag-vector-cpu.txt"

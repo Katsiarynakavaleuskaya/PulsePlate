@@ -257,6 +257,8 @@ def repo_policy_waivers(policy_path: Path | None) -> dict[str, RepoPolicyWaiver]
 
     if policy_path is None:
         return {}
+    if policy_path.suffix.lower() not in {".yaml", ".yml"}:
+        return {}
     try:
         yaml_module = importlib.import_module("yaml")
     except ImportError as exc:
@@ -534,12 +536,17 @@ def analyze_report(
         summary_path.write_text(f"{message}\n", encoding="utf-8")
         raise
 
-    waivers = repo_policy_waivers(policy_path)
-    vulnerabilities, ignored, repo_policy_ignored_count = _apply_repo_policy_waivers(
-        vulnerabilities,
-        ignored,
-        waivers,
-    )
+    try:
+        waivers = repo_policy_waivers(policy_path)
+        vulnerabilities, ignored, repo_policy_ignored_count = _apply_repo_policy_waivers(
+            vulnerabilities,
+            ignored,
+            waivers,
+        )
+    except SafetyAuditError as exc:
+        message = str(exc)
+        summary_path.write_text(f"{message}\n", encoding="utf-8")
+        raise
     lines = build_summary_lines(vulnerabilities, ignored)
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     high_risk_count = sum(
