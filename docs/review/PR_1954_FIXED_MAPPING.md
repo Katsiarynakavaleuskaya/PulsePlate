@@ -33,11 +33,17 @@ entitlement, billing, or broad architecture ownership.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - Review threads: none resolved by this artifact at PR open.
-- Bot reviews/actionables: pending post-open review cycle.
+- Bot reviews/actionables: Cubic findings mapped below; current-head
+  CodeRabbit/Cubic reruns remain external review signals until they complete.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+### Cubic Bot Review Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#pullrequestreview-4480675325 -> bedb6afa40ea27fc9958db020e12321b79d1680f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233363 -> e351c7202f3e680de2a13458255519b2b57c0661
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233367 -> bedb6afa40ea27fc9958db020e12321b79d1680f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233369 -> e351c7202f3e680de2a13458255519b2b57c0661
 
 Post-open role findings:
 
@@ -147,6 +153,14 @@ Post-open role findings:
     architecture slice, and the proving gate
     `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`
     passed with 75 selected tests.
+- Role: `cubic-dev-ai[bot]`
+  - Disposition: FIXED
+  - Commit: `e351c7202` and `bedb6afa40ea27fc9958db020e12321b79d1680f`
+  - Evidence: `e351c7202` fixed Cubic's keyword-only artifact path reader
+    bypass and empty-doc seam validation bypass. `bedb6afa40` fixed Cubic's
+    prefix-semantics finding by requiring forbidden artifact roots at the path
+    prefix and adding
+    `test_artifact_guard_does_not_match_non_root_artifact_path`.
 
 ## Implementation Evidence
 
@@ -180,6 +194,9 @@ Post-open role findings:
 - `ed89aacbe` - fixes the final pre-push changed-file mypy failure in
   `scripts/ci/check_artifact_reader_contracts.py` by removing duplicate local
   variable type redeclarations without changing guard behavior.
+- `bedb6afa40ea27fc9958db020e12321b79d1680f` - closes Cubic's remaining
+  prefix-semantics finding by matching only repo-root artifact prefixes and
+  adding a deterministic non-root path regression test.
 
 ## Premortem Evidence
 
@@ -257,6 +274,11 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 - After `ed89aacbe`: `pre-commit run --all-files` - PASS.
 - After `ed89aacbe`: push pre-hook - PASS: changed-file mypy, pip-audit,
   backend pre-push pytest, full-repo Bandit, and Docker build test.
+- After `bedb6afa40`: `.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py tests/test_artifact_validation_boundary.py` - PASS, 76 tests.
+- After `bedb6afa40`: `.venv/bin/python scripts/ci/check_legacy_growth_guard.py` - PASS.
+- After `bedb6afa40`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
+- After `bedb6afa40`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 76 tests selected.
+- After `bedb6afa40`: `pre-commit run --all-files` - PASS.
 - Codex Security diff scan / finding discovery - PASS, no reportable
   findings. Report:
   `/tmp/codex-security-scans/PulsePlate/ed89aacbebcb_20260611T230404Z/report.md`;
@@ -305,3 +327,5 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
   Evidence: `/tmp/pulseplate_pr_1954_review_report_current.md`; the only finding
   was a large-diff review-planning note, addressed by the explicit narrow scope
   and passing `make validate-changed` evidence.
+- `cubic-dev-ai[bot]`: FIXED in `e351c7202` and `bedb6afa40`; see Cubic Bot
+  Review Mapping above.
