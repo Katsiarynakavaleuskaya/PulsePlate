@@ -19,7 +19,7 @@
     `promotion_target="backlog_entry"` with `creative_research_origin` and
     asserts the ledger preserves bundle ID, candidate ID, and promotion
     decision.
-  - Validation: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_promote.py tests/test_creative_research_metrics.py`
+  - Validation: `.venv/bin/python -m pytest -q tests/test_experiment_promote.py tests/test_creative_research_metrics.py`
     passed with `29 passed`.
 - `bug-hunter`: NOT-A-BUG for the PulsePlate review dry-run large-diff advisory.
   - Evidence: the diff is intentionally concentrated in one manual
@@ -32,7 +32,7 @@
   - Evidence: the change is local-artifact only; report inputs and outputs are
     confined to gitignored orchestration artifact roots; promotion origin
     metadata is strict-schema and passive.
-  - Validation: `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make bandit-full`
+  - Validation: `make bandit-full`
     passed; pre-push `bandit (pre-push, full repo)` also passed.
 - Codex Security diff scan / finding discovery: no diff-scoped candidate finding
   promoted.
@@ -43,8 +43,8 @@
     local absolute path, and secret payloads from reports.
   - Validation: no raw-leak/path-containment tests pass in
     `tests/test_creative_research_metrics.py`; full-repo Bandit passed.
-- `pulseplate-pr-review`: advisory dry-run report generated from
-  `/tmp/pulseplate_pr_1953_review_context.json`.
+- `pulseplate-pr-review`: advisory dry-run report generated from sanitized local
+  PR review context.
   - Evidence: report found one `note` only for large diff review-planning risk,
     owned by `bug-hunter`, with `make validate-changed` as the proving gate.
   - Disposition: NOT-A-BUG; the diff size is from deterministic tests and local
@@ -66,10 +66,10 @@
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/creative_research_adoption_metrics_pre_open.json --pretty`
 - PASS: required pre-open role passes completed in order: `agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter -> data-scientist-agent -> cursor-specialist-agent`.
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_creative_research_metrics.py tests/test_creative_research_eval.py tests/test_creative_research_eval_contract.py tests/test_experiment_promote.py`
-- PASS after QA fix: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_promote.py tests/test_creative_research_metrics.py` (`29 passed`).
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m py_compile scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py`
+- PASS: `.venv/bin/python -m pytest -q tests/test_creative_research_metrics.py tests/test_creative_research_eval.py tests/test_creative_research_eval_contract.py tests/test_experiment_promote.py`
+- PASS after QA fix: `.venv/bin/python -m pytest -q tests/test_experiment_promote.py tests/test_creative_research_metrics.py` (`29 passed`).
+- PASS: `.venv/bin/python -m py_compile scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py`
+- PASS: `.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks, including `mypy (type-check, changed files)`, `backend tests (pytest, pre-push)`, `bandit (pre-push, full repo)`, and `docker build test`.
