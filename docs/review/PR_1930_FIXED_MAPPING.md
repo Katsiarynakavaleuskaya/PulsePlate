@@ -81,17 +81,17 @@ Contribution: `fixed_mapping_review`; accepted result with three passing immutab
 - `pulseplate-pr-review`: dry-run report generated under `/tmp/pulseplate_pr_1930_review_report.md`; no code findings. One advisory large-diff note is NOT-A-BUG for PR #1930 because GitHub `files` and local `origin/main...HEAD` diff both show only `scripts/orchestration/render_codex_start_prompt.py` and `tests/test_render_codex_start_prompt.py`; the helper's broader list came from a double-dot comparison against the PR creation-time base SHA.
 - `make validate-changed` with `VENV_PYTHON` set to the repo-approved root venv -> PASS; selected `tests/test_render_codex_start_prompt.py`.
 - `pre-commit run --all-files` -> first run failed in `backend-tests` because the isolated worktree could not auto-discover the shared/root `.venv`; rerun with absolute `VENV_PYTHON` override -> PASS.
-- `make verify` -> FAIL in full-repo `make typecheck` on unrelated semantic-cache mypy errors in `core/ai/semantic_cache_offline_admission_runner.py` and `core/ai/semantic_cache_shadow_admission_harness.py`. These files are outside the PR #1930 diff; do not claim merge readiness until full verify passes, CI/current-head parity plus an approved exception is documented, or the unrelated typecheck failure is resolved in the owning lane.
+- Full local `make verify`: operator-approved deferral on 2026-06-11 ("полный мейк верифай не делаем"). Before that instruction, a branch-only attempt failed in full-repo `make typecheck` on stale-base semantic-cache mypy errors outside the PR #1930 diff; a merge-ref attempt was stopped after the operator instruction and is not used as readiness evidence. Readiness evidence for this narrow closeout is the passed PR-scoped local gates above, current-head CI parity, and the strict merge wrapper.
 
 ## Merge Readiness
 
-- [ ] Current-head PR Body Phase2 gates pass after the closeout commit.
-- [ ] Current-head Merge readiness gate passes after the closeout commit.
-- [ ] Required current-head code/governance/security checks pass after the closeout commit.
-- [ ] `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_merge_ready.py --pr-number 1930 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` passes after current-head checks settle.
-- [ ] No unresolved review threads or actionable bot comments remain.
-- [ ] CodeRabbit receives a substantive rerun/no-actionable signal or an approved repo-governance disposition is recorded.
-- [ ] Mandatory wait-window after latest bot/review activity has elapsed.
+- [x] Current-head PR Body Phase2 gates passed in the closeout loop; rerun after this operator-deferral documentation update before merge.
+- [x] Current-head Merge readiness gate passed in the closeout loop; rerun after this operator-deferral documentation update before merge.
+- [x] Required current-head code/governance/security checks passed in the closeout loop; rerun after this operator-deferral documentation update before merge. Superseded failures were non-blocking historical rows.
+- [x] `GH_TOKEN="$(gh auth token)" GITHUB_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_merge_ready.py --pr-number 1930 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` passed.
+- [x] No unresolved review threads or actionable bot comments remain.
+- [x] CodeRabbit rerun completed; Sourcery and Cubic reported no actionable issues.
+- [ ] Mandatory final wait-window/final-check pass after this operator-deferral documentation update.
 
 ## Deferred / Follow-ups
 
