@@ -866,6 +866,11 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         "publish",
         "Build and push Docker image",
     )
+    publish_sbom_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "publish",
+        "Attest Docker image SBOM",
+    )
     staging_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
         "build",
@@ -938,11 +943,25 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     for sbom_step in (staging_sbom_step, production_sbom_step):
         assert sbom_step["uses"].startswith(
-            "actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb"
+            "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
         )
         assert sbom_step["with"]["push-to-registry"] is True
-        assert sbom_step["with"]["sbom-path"] == "docker-image-sbom.spdx.json"
+        assert sbom_step["with"]["predicate-type"] == "https://spdx.dev/Document"
+        assert sbom_step["with"]["predicate-path"] == "docker-image-sbom.spdx.json"
+        assert "sbom-path" not in sbom_step["with"]
         assert sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+
+    assert publish_sbom_step["uses"].startswith(
+        "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
+    )
+    assert publish_sbom_step["with"]["push-to-registry"] is True
+    assert publish_sbom_step["with"]["predicate-type"] == "https://spdx.dev/Document"
+    assert publish_sbom_step["with"]["predicate-path"] == "sbom.spdx.json"
+    assert "sbom-path" not in publish_sbom_step["with"]
+    assert (
+        publish_sbom_step["with"]["subject-digest"]
+        == "${{ steps.docker-build-push.outputs.digest }}"
+    )
 
     for verify_step in (staging_verify_step, production_verify_step):
         verify_script = verify_step["run"]
