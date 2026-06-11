@@ -57,14 +57,17 @@ Reason: External reviewer quota notice; no code change is requested by the bot c
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
 - PASS: `python3 scripts/ci/guard_actions_pin.py`.
 - PASS: focused pytest through repo-approved root virtualenv for `tests/test_python_supply_chain_controls.py::test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes` and `tests/test_check_docker_provenance_attestation.py`.
-- PASS: commit hook rerun with `VENV_PYTHON` pointing to the repo-approved root virtualenv; backend changed-file pytest passed.
+- PASS: `make validate-changed` with repo-approved root virtualenv; changed-file selection ran `tests/test_python_supply_chain_controls.py` and passed 46 tests.
+- PASS: `pre-commit run --all-files` with repo-approved root virtualenv on current head; workflow schema, formatting, Ruff, Bandit, frontend tests, changed-file backend tests, and iOS syntax hooks passed.
+- PASS: Codex Security `security-diff-scan` / finding discovery completed for code-changing head `7a800086613e`; scan id `pr1951-7a800086613e_20260611T202955Z`, 4/4 scoped rows closed with completion receipts, report validation passed, no reportable findings. Later changes are review-artifact evidence only.
+- PASS: `pulseplate-pr-review` dry-run report for code-changing head `7a800086613e` reviewed the 4-file diff and produced zero deterministic findings. Later changes are review-artifact evidence only.
 - DEFERRED by operator instruction: full local `make verify` because the project has a very large test suite; this PR uses the machine-heavy narrow-gate path with `make validate-changed` as the heavy local diff gate.
 
 ## Merge Readiness
-- [ ] `make validate-changed` passes.
-- [ ] `pre-commit run --all-files` passes.
-- [ ] Codex Security diff scan / finding discovery completes.
-- [ ] `pulseplate-pr-review` completes.
+- [x] `make validate-changed` passes.
+- [x] `pre-commit run --all-files` passes.
+- [x] Codex Security diff scan / finding discovery completes.
+- [x] `pulseplate-pr-review` completes.
 - [ ] Current-head CI terminal success confirmed.
 - [ ] Required checks complete with no pending jobs.
 - [ ] Bot review/governance completed with no unmapped actionable comments.
