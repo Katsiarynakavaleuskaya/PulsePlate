@@ -14,6 +14,9 @@ from scripts.orchestration.shadow_reuse_telemetry import (
 
 HEAD_A = "a" * 40
 HEAD_B = "b" * 40
+PACKET_A = "111111111111"
+PACKET_B = "222222222222"
+PACKET_C = "333333333333"
 
 
 def _packet(*, task_packet_id: str, goal: str) -> dict[str, object]:
@@ -67,19 +70,19 @@ def test_first_packet_on_head_records_shadow_miss() -> None:
 
 def test_repeated_same_head_packet_records_exact_shadow_hit() -> None:
     prior = _prior_packet(
-        task_packet_id="stable-packet",
+        task_packet_id=PACKET_A,
         goal="Review coordinator packet reuse",
         head_sha=HEAD_A,
     )
     telemetry = build_shadow_reuse_telemetry(
-        packet=_packet(task_packet_id="stable-packet", goal="Review coordinator packet reuse"),
+        packet=_packet(task_packet_id=PACKET_A, goal="Review coordinator packet reuse"),
         current_head_sha=HEAD_A,
         previous_packets=[prior],
     )
 
     summary = telemetry["reuse_summary"]
     assert summary["decision"] == "hit"
-    assert summary["matched_packet_id"] == "stable-packet"
+    assert summary["matched_packet_id"] == PACKET_A
     assert summary["match_mode"] == "exact"
     assert summary["score_bps"] == 10000
     assert summary["exact_reuse_count"] == 1
@@ -91,23 +94,44 @@ def test_repeated_same_head_packet_records_exact_shadow_hit() -> None:
 
 def test_reordered_same_head_packet_records_fuzzy_shadow_hit() -> None:
     prior = _prior_packet(
-        task_packet_id="prior-fuzzy",
+        task_packet_id=PACKET_B,
         goal="coordinate reviewer task packet reuse",
         head_sha=HEAD_A,
     )
     telemetry = build_shadow_reuse_telemetry(
-        packet=_packet(
-            task_packet_id="current-fuzzy", goal="reviewer task packet coordinate reuse"
-        ),
+        packet=_packet(task_packet_id=PACKET_C, goal="reviewer task packet coordinate reuse"),
         current_head_sha=HEAD_A,
         previous_packets=[prior],
     )
 
     summary = telemetry["reuse_summary"]
     assert summary["decision"] == "hit"
-    assert summary["matched_packet_id"] == "prior-fuzzy"
+    assert summary["matched_packet_id"] == PACKET_B
     assert summary["match_mode"] in {"fuzzy_reordered_tokens", "fuzzy_near_duplicate"}
     assert summary["fuzzy_reuse_count"] == 1
+
+
+def test_matched_packet_id_redacts_unsafe_prior_artifact_metadata() -> None:
+    unsafe_packet_id = "/Users/example/project/sk-test-leaked"
+    prior = _prior_packet(
+        task_packet_id=unsafe_packet_id,
+        goal="Review coordinator packet reuse",
+        head_sha=HEAD_A,
+    )
+    telemetry = build_shadow_reuse_telemetry(
+        packet=_packet(task_packet_id=PACKET_A, goal="Review coordinator packet reuse"),
+        current_head_sha=HEAD_A,
+        previous_packets=[prior],
+    )
+    serialized = json.dumps(telemetry, sort_keys=True).lower()
+
+    assert telemetry["reuse_summary"]["decision"] == "hit"
+    assert telemetry["reuse_summary"]["match_mode"] == "exact"
+    assert telemetry["reuse_summary"]["matched_packet_id"] == ""
+    assert "matched_packet_id_redacted" in telemetry["reason_codes"]
+    assert unsafe_packet_id.lower() not in serialized
+    assert "/users/" not in serialized
+    assert "sk-test" not in serialized
 
 
 def test_different_head_sha_is_hard_shadow_miss() -> None:

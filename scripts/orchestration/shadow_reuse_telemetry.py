@@ -49,6 +49,7 @@ MAX_TASK_PACKET_ARTIFACTS = 50
 MAX_TASK_PACKET_ARTIFACT_BYTES = 256_000
 
 _HEAD_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_TASK_PACKET_ID_RE = re.compile(r"^[0-9a-f]{12}$")
 
 
 def resolve_current_head_sha(repo_root: Path = REPO_ROOT) -> str | None:
@@ -381,9 +382,12 @@ def build_shadow_reuse_telemetry(
             reason_codes=reason_codes,
         )
 
-    matched_packet_id = record_to_packet_id.get(lookup_result.matched_record_id or "")
+    raw_matched_packet_id = record_to_packet_id.get(lookup_result.matched_record_id or "")
+    matched_packet_id = _safe_task_packet_id(raw_matched_packet_id)
     estimated_tokens = _estimated_reusable_context_tokens(current_summary)
     reason_codes.extend(lookup_result.reason_codes)
+    if raw_matched_packet_id and not matched_packet_id:
+        reason_codes.append("matched_packet_id_redacted")
     reason_codes.append("estimate_only_token_savings")
     return _telemetry_mapping(
         packet=current_summary,
@@ -469,7 +473,7 @@ def _telemetry_mapping(
         "serving_allowed": False,
         "same_head_partition": head_partition,
         "packet_identity": {
-            "task_packet_id": _string_or_empty(packet.get("task_packet_id")),
+            "task_packet_id": _safe_task_packet_id(packet.get("task_packet_id")),
             "packet_input_fingerprint": packet_fingerprint,
             "context_pack_id": _string_or_empty(packet.get("context_pack_id")),
             "provider_model_routing_telemetry_id": _string_or_empty(
@@ -617,6 +621,13 @@ def _normalize_head_sha(value: str | None) -> str | None:
     if not _HEAD_SHA_RE.match(candidate):
         return None
     return candidate
+
+
+def _safe_task_packet_id(value: object) -> str:
+    candidate = _string_or_empty(value)
+    if _TASK_PACKET_ID_RE.match(candidate):
+        return candidate
+    return ""
 
 
 def _candidate_head_sha(summary: Mapping[str, JsonValue]) -> str | None:
