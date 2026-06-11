@@ -22,6 +22,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     resolve_analysis_envelope_mode,
 )
 from scripts.orchestration.context_pack import repo_relative_paths
+from scripts.orchestration.context_pack_compression import _ROLE_FINGERPRINT_RE
 from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.routing_graph_loader import (
@@ -89,6 +90,9 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"] == (
         "architecture-specialist"
     )
+    compression = packet["context_pack_compression"]
+    assert _ROLE_FINGERPRINT_RE.match(compression["metadata"]["primary_agent_fingerprint"])
+    assert _ROLE_FINGERPRINT_RE.match(compression["metadata"]["reviewer_fingerprint"])
 
 
 def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
@@ -189,6 +193,20 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
             "must_return": ["AGENT_RESULT_V1 envelope only (no preamble)"],
         },
     }
+    compression = packet["context_pack_compression"]
+    assert compression["authority_boundary"] == "metadata_only_non_serving"
+    assert compression["policy_version"] == "semantic-context-compression-o2-v1"
+    assert compression["required_context"] == packet["required_context"]
+    assert compression["estimate"]["tokens_saved_estimate"] >= 0
+    assert "gate_closed" in compression["reason_codes"]
+    assert "metadata_only" in compression["reason_codes"]
+    provider_routing = packet["provider_model_tier_routing"]
+    assert provider_routing["telemetry_phase"] == "PR-O3"
+    assert provider_routing["selected_route"] == "no_runtime_selection"
+    assert "frontier_required" in provider_routing["model_tier_labels"]
+    assert "agent-coordinator" in provider_routing["required_frontier_roles"]
+    assert "no_provider_call" in provider_routing["reason_codes"]
+    assert "no_cache_serving" in provider_routing["reason_codes"]
     assert packet["skill_routing"]["envelope_mode_hint"] == "docs_only"
     _docs_paths = ["docs/ENGINEERING_LESSONS.md"]
     _norm_docs = repo_relative_paths([p.strip() for p in _docs_paths if p.strip()])
@@ -206,6 +224,25 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False
+
+
+def test_task_bootstrap_keeps_wide_pr_packets_when_context_graph_truncates() -> None:
+    """Advisory compression limits must never block task-packet creation."""
+
+    packet = build_task_packet(
+        goal="Wide orchestration lane",
+        task_class="Orchestration",
+        candidate_paths=[
+            f"scripts/orchestration/generated_context_{index}.py" for index in range(225)
+        ],
+    )
+
+    compression = packet["context_pack_compression"]
+    assert len(packet["candidate_paths"]) == 225
+    assert len(compression["graph_nodes"]) <= 200
+    assert compression["required_context"] == packet["required_context"]
+    assert "graph_limit_truncated" in compression["reason_codes"]
+    assert "compression_limit_exceeded" in compression["reason_codes"]
 
 
 def test_task_bootstrap_dispatch_command_includes_runtime_owner_flags() -> None:
@@ -1352,6 +1389,10 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     assert first_packet["design_lane_mode"] == second_packet["design_lane_mode"]
     assert first_packet["design_lane_contract"] == second_packet["design_lane_contract"]
     assert first_packet["message_envelope"] == second_packet["message_envelope"]
+    assert first_packet["context_pack_compression"] == second_packet["context_pack_compression"]
+    assert (
+        first_packet["provider_model_tier_routing"] == second_packet["provider_model_tier_routing"]
+    )
     assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
     assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]

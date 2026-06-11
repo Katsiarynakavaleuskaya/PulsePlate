@@ -79,7 +79,6 @@ FORBIDDEN_PREFLIGHT_AUTHORITY_RE = re.compile(
     r"[^\n]*\b(?:host/codex|host|codex|cursor|raw|local)\s+preflight\b"
 )
 LANE_START_PACKET_PREFIX = "artifacts/orchestration/task_packets/"
-LANE_START_REPO_PACKET_PREFIX = "docs/orchestration/"
 LANE_STARTER_PATH = "scripts/orchestration/start_pr_lane.sh"
 COMMIT_MESSAGE_SEPARATOR = "\x1e"
 MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING = (
@@ -111,6 +110,18 @@ UNVERIFIED_LANE_START_PACKET_WARNING = (
     "is not available locally, so bootstrap provenance cannot be verified. "
     "This would fail when lane-start provenance is promoted to a hard gate."
 )
+
+
+def _lane_start_missing_warnings(warnings: list[str]) -> list[str]:
+    return [warning for warning in warnings if warning == MISSING_LANE_START_PROVENANCE_WARNING]
+
+
+def _lane_start_non_missing_warnings(warnings: list[str]) -> list[str]:
+    return [warning for warning in warnings if warning != MISSING_LANE_START_PROVENANCE_WARNING]
+
+
+def _lane_start_source_seen(errors: list[str], warnings: list[str]) -> bool:
+    return not errors and MISSING_LANE_START_PROVENANCE_WARNING not in warnings
 
 
 class BodyValidationMode(str, Enum):
@@ -266,16 +277,6 @@ def _valid_lane_start_packet_path(path: str) -> bool:
             return False
         return len(path_parts[-1].removesuffix(".json")) > 0
 
-    if cleaned.startswith(LANE_START_REPO_PACKET_PREFIX):
-        if not cleaned.endswith(".md"):
-            return False
-        if "packet" not in Path(cleaned).name.lower():
-            return False
-        path_parts = cleaned.split("/")
-        if any(part in ("", ".", "..") for part in path_parts):
-            return False
-        return True
-
     return False
 
 
@@ -308,11 +309,6 @@ def _lane_start_packet_available(path: str, *, repo_root: Path) -> bool:
     except (OSError, RuntimeError, ValueError):
         return False
     return candidate.is_file()
-
-
-def _is_repo_tracked_lane_start_packet(path: str) -> bool:
-    cleaned = path.strip().strip("`")
-    return cleaned.startswith(LANE_START_REPO_PACKET_PREFIX)
 
 
 def check_lane_start_provenance(
@@ -350,21 +346,14 @@ def check_lane_start_provenance(
     if invalid_packets:
         errors.append(
             "Lane Start Provenance packet must be "
-            f"`{LANE_START_PACKET_PREFIX}<id>.json` or a repo-tracked "
-            "`docs/orchestration/*.md` packet: " + ", ".join(invalid_packets)
+            f"`{LANE_START_PACKET_PREFIX}<id>.json`: " + ", ".join(invalid_packets)
         )
     for match in packet_matches:
         path = match.group("path")
         if path not in invalid_packets and not _lane_start_packet_available(
             path, repo_root=repo_root
         ):
-            if _is_repo_tracked_lane_start_packet(path):
-                errors.append(
-                    "Lane Start Provenance repo packet is referenced but not available "
-                    f"locally: {path}"
-                )
-            else:
-                warnings.append(UNVERIFIED_LANE_START_PACKET_WARNING.format(path=path))
+            warnings.append(UNVERIFIED_LANE_START_PACKET_WARNING.format(path=path))
 
     if starter_matches and not packet_matches and not exception_matches:
         errors.append("Lane Start Provenance starter is supplemental and cannot be used alone.")
@@ -869,7 +858,7 @@ def main() -> int:
         lane_errors, lane_warnings = check_lane_start_provenance(artifact_text)
         artifact_errors.extend(lane_errors)
         lane_start_warning_candidates.extend(lane_warnings)
-        if not lane_errors and not lane_warnings:
+        if _lane_start_source_seen(lane_errors, lane_warnings):
             lane_start_seen = True
 
     if body.strip():
@@ -910,7 +899,7 @@ def main() -> int:
                 body_checked = True
             body_errors.extend(lane_errors)
             lane_start_warning_candidates.extend(lane_warnings)
-            if not lane_errors and not lane_warnings:
+            if _lane_start_source_seen(lane_errors, lane_warnings):
                 lane_start_seen = True
     elif not artifact_checked:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
@@ -951,8 +940,13 @@ def main() -> int:
                     for warning in advisory_warnings
                     if _required_experiment_runner_artifact_warning_to_error(warning) is None
                 ]
+    advisory_warnings.extend(
+        dict.fromkeys(_lane_start_non_missing_warnings(lane_start_warning_candidates))
+    )
     if not lane_start_seen:
-        advisory_warnings.extend(dict.fromkeys(lane_start_warning_candidates))
+        advisory_warnings.extend(
+            dict.fromkeys(_lane_start_missing_warnings(lane_start_warning_candidates))
+        )
     advisory_warnings = list(dict.fromkeys(advisory_warnings))
 
     errors = [*artifact_errors, *body_errors]

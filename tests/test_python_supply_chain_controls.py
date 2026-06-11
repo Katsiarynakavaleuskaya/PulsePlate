@@ -321,6 +321,39 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
     assert "-c constraints.txt" in install_script
 
 
+def test_ci_security_job_installs_safety_through_locked_installer() -> None:
+    install_step = next(
+        step
+        for step in _workflow_steps(".github/workflows/ci.yml", "security")
+        if step.get("name") == "Install Safety"
+    )
+    install_script = install_step["run"]
+
+    assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--python-executable python" not in install_script
+    assert "--requirements-file requirements-security.txt" in install_script
+    assert "--install-mode direct-proxy" in install_script
+    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
+    assert "python -m pip install" not in install_script
+
+
+def test_security_requirements_pin_safety_and_regex_floor() -> None:
+    requirements_text = (REPO_ROOT / "requirements-security.txt").read_text(encoding="utf-8")
+    emergency_manifest = json.loads(
+        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
+    )
+
+    assert "safety==3.8.1" in requirements_text
+    assert "regex==2026.5.9" in requirements_text
+    assert any(
+        artifact.get("package") == "regex"
+        and artifact.get("version") == "2026.5.9"
+        and artifact.get("filename", "").endswith("manylinux_2_28_x86_64.whl")
+        and "sha256_parts" in artifact
+        for artifact in emergency_manifest["artifacts"]
+    )
+
+
 @pytest.mark.parametrize(
     "job_name", ("test", "performance-test", "integration-test", "coverage-merge")
 )
@@ -531,6 +564,24 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     assert expected_arg in cd_staging_build_args
     assert expected_arg in cd_production_build_args
     assert expected_arg in trivy_build_args
+
+
+def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args() -> None:
+    workflow_specs = (
+        (".github/workflows/build.yml", "publish", "Build and push Docker image"),
+        (".github/workflows/cd.yml", "build", "Build & Push image (staging)"),
+        (".github/workflows/cd.yml", "build-production", "Build & Push image (production)"),
+    )
+
+    for workflow_path, job_name, step_name in workflow_specs:
+        step = _workflow_step_by_name(workflow_path, job_name, step_name)
+        assert step["with"]["provenance"] == "mode=max"
+        build_args = step["with"]["build-args"]
+        assert "PULSEPLATE_PYTHON_INDEX_URL" not in build_args
+        assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in build_args
+        build_secret_envs = step["with"]["secret-envs"]
+        assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in build_secret_envs
+        assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in build_secret_envs
 
 
 def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:

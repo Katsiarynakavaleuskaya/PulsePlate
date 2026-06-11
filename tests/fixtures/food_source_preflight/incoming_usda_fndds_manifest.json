@@ -1,11 +1,11 @@
 {
   "source": "usda_fndds",
   "source_classification": "current",
-  "source_version": "fixture-2025-12-fndds-incoming",
+  "source_version": "fdc-fndds-2021-2023-2024-10",
   "source_url": "https://fdc.nal.usda.gov/download-datasets",
-  "retrieved_on": "2026-04-24",
+  "retrieved_on": "2026-06-08",
   "artifact": {
-    "path": "fixtures/usda/fndds_incoming.json",
+    "path": "fixtures/usda/fndds_2021_2023_2024_10.csv",
     "checksum_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
     "size_bytes": 1664,
     "record_count": 160
@@ -17,7 +17,8 @@
       "description",
       "start_date",
       "end_date",
-      "survey_cycle"
+      "survey_cycle",
+      "data_type"
     ],
     "primary_keys": ["fdc_id"]
   },
