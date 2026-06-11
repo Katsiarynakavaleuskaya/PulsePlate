@@ -30,6 +30,9 @@ Slack command hints fail closed.
   `scripts/orchestration/experiment_slack_bridge_commands.py`.
 - Regression coverage in `tests/test_experiment_slack_socket_bridge.py`.
 - Review/governance artifact and PR-body mirror for PR #1912.
+- Current-head dependency-audit drift remediation for Safety
+  `SFTY-20250331-30014` / `CVE-2025-3000`, limited to optional RAG/vector
+  torch requirement profiles and a time-boxed `safety-policy.yaml` waiver.
 
 ## Out of Scope
 
@@ -39,6 +42,8 @@ Slack command hints fail closed.
 - No PR, review-thread, merge, or GitHub mutation authority from Slack.
 - No semantic-cache runtime, GraphRAG, product runtime, backend API/OpenAPI,
   frontend, iOS, App Store, nutrition, or medical/wellness claim changes.
+- No promotion of optional RAG/vector dependencies into default/runtime
+  installs.
 
 ## Discussion Thread Pass
 
@@ -70,6 +75,12 @@ Evidence: Commit `cf143b396` normalizes whitespace-only `command_hint` values to
 - `tests/test_experiment_slack_socket_bridge.py` covers unknown command-hint
   rejection, `/pulseplate-runner` dispatch rejection, execute-mode no-dispatch
   behavior, and direct no-hint parser compatibility.
+- `safety-policy.yaml` records a time-boxed Safety waiver for
+  `SFTY-20250331-30014` because Safety reports `torch<=2.12.0` vulnerable with
+  no fixed or recommended version.
+- `docs/security/CVE-2025-3000_TORCH_JIT_SCRIPT_OPTIONAL_RAG_VECTOR.md` and
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-torch-cve-2025-3000-rag-vector-bump`
+  document scope, exposure, remove-by date, and remediation.
 - `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py`
   passed after the fix.
 
@@ -115,6 +126,25 @@ Evidence: Commit `cf143b396` normalizes whitespace-only `command_hint` values to
 | bug-hunter | Existing `SLASH_COMMAND_SCOPES.get(...) is None` behavior left unknown hints unscoped. | FIXED | Commit `633b54e9a`; parser now rejects unknown non-empty hints. |
 | security-auditor | The dispatch-capable command must remain fail-closed for unrecognized Slack slash-command surfaces. | FIXED | Commit `633b54e9a`; no new Slack command, token, workflow-selection, or merge authority added. |
 | architecture-specialist | Command authority belongs in the shared parser boundary, not in web/iOS clients or downstream dispatch code. | FIXED | Parser-level fix only; changed files are limited to parser/test/governance. |
+
+## Current-Head CI Drift Evidence
+
+- Current-head run `27348087309` for SHA
+  `8646bc8e778921a0f959acdaa343b123ab8bcabb` passed `lint`,
+  `test-pr (3.13)`, `PR Body Phase2 gates`, `Merge readiness gate`,
+  `OpenAPI sync`, and `pr_scope_guard`.
+- The same current-head run failed `security` in `Dependency audit with Safety`
+  because Safety reported `SFTY-20250331-30014` / `CVE-2025-3000` for
+  optional `torch==2.11.0` and `torch==2.11.0+cpu` RAG/vector profiles.
+- Raw CI evidence: Safety reported vulnerable spec `<=2.12.0`,
+  `fixed_versions: []`, and `recommended_version: null`, then emitted:
+  `ERROR: Safety found high/critical/unknown vulnerabilities in requirements-rag-vector.txt`
+  and
+  `ERROR: Safety found high/critical/unknown vulnerabilities in requirements-rag-vector-cpu.txt`.
+- Disposition: current-head dependency-audit drift is remediated with a
+  time-boxed Safety waiver only for `SFTY-20250331-30014`, plus advisory and
+  backlog removal path. The audit remains fail-closed for any other active
+  Safety finding.
 
 ## Premortem Findings
 
@@ -172,6 +202,11 @@ strict merge wrapper, unresolved-thread proof, and wait-window evidence.
   smoke subset. The operator then explicitly redirected the lane to
   changed-surface verification only, so full `make verify` was terminated and is
   not used as merge-readiness evidence for this PR.
+- Local targeted Safety helper attempt:
+  `python3 scripts/ci/run_safety_audit.py --root . --output-dir /tmp/pr1912-safety-test --manifest requirements-rag-vector.txt --manifest requirements-rag-vector-cpu.txt`
+  hung inside the local Safety CLI before producing output and was terminated by
+  PID. This local tooling hang is not used as pass evidence; current-head CI
+  security must pass after the waiver commit.
 
 ## Merge Readiness
 
@@ -188,6 +223,7 @@ strict merge wrapper, unresolved-thread proof, and wait-window evidence.
   `origin/main`.
 - [ ] Full `make verify` is not required for this lane by explicit operator
   direction; changed-surface verification is the local evidence basis.
+- [ ] Current-head `security` job passes after the Safety waiver/advisory commit.
 - [ ] Current-head CI is green for the final pushed SHA.
 - [ ] `python3 scripts/orchestration/check_merge_ready.py --pr-number 1912 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
   passed after the final pushed SHA and latest bot/review activity.
@@ -195,4 +231,6 @@ strict merge wrapper, unresolved-thread proof, and wait-window evidence.
 
 ## Deferred / Follow-ups
 
-- None.
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-torch-cve-2025-3000-rag-vector-bump`:
+  remove the `SFTY-20250331-30014` Safety waiver after a fixed torch release is
+  available for the optional RAG/vector profiles.

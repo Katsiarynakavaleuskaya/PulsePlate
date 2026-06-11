@@ -694,6 +694,37 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Locked install + Docker production target succeed against the private index; `make verify` green
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
+<a id="ledger-p1-torch-cve-2025-3000-rag-vector-bump"></a>
+- [ ] P1: Retire torch CVE-2025-3000 Safety waiver after fixed optional RAG/vector release
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / optional RAG-vector dependency debt)
+  - Target PR: TBD (land when Safety or upstream torch publishes a fixed release)
+  - Area: security / CI / optional RAG-vector dependencies
+  - Reason (EN): Safety reports `SFTY-20250331-30014` / `CVE-2025-3000` for
+    `torch<=2.12.0` and currently reports no fixed or recommended version.
+    PulsePlate pins `torch` only in optional `requirements-rag-vector*.txt`
+    profiles, outside default/runtime installs, so PR #1912 adds a time-boxed
+    Safety waiver to keep current-head dependency audit fail-closed for all
+    other findings while a fixed upstream release is unavailable. (RU: Safety
+    пока не даёт исправленную версию torch, а зависимость находится только в
+    optional RAG/vector профиле; waiver должен быть снят сразу после появления
+    фиксированной версии.)
+  - Links:
+    - `docs/security/CVE-2025-3000_TORCH_JIT_SCRIPT_OPTIONAL_RAG_VECTOR.md:1`
+    - `safety-policy.yaml:21`
+    - `requirements-rag-vector.txt:162`
+    - `requirements-rag-vector-cpu.txt:119`
+    - `scripts/ci/run_safety_audit.py:18`
+  - DoD:
+    - A torch release outside the Safety vulnerable spec is available for the
+      required optional vector profiles
+    - `requirements-rag-vector.txt` and `requirements-rag-vector-cpu.txt` are
+      regenerated to fixed torch pins
+    - Remove `SFTY-20250331-30014` from `safety-policy.yaml`
+    - `python3 scripts/ci/run_safety_audit.py --root .` passes without this
+      waiver
+    - Advisory updated or closed with remediation evidence
+
 <a id="ledger-p1-cryptography-private-index-sync"></a>
 - [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya

@@ -6,6 +6,14 @@
 # currently exposes only fonttools 4.61.1 while public PyPI has >=4.62.0.
 # Remove this ignore when requirements pin fonttools>=4.62.0 and the mirror syncs.
 # Advisory: docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md
+#
+# SFTY-20250331-30014 / CVE-2025-3000 (torch jit.script): Safety currently
+# reports all torch releases through 2.12.0 as vulnerable and provides no
+# fixed or recommended version. The pin is isolated to optional RAG/vector
+# manifests, not default/runtime CI installs. Remove this ignore when Safety or
+# upstream publishes a fixed torch release and the optional vector manifests are
+# regenerated.
+# Advisory: docs/security/CVE-2025-3000_TORCH_JIT_SCRIPT_OPTIONAL_RAG_VECTOR.md
 
 security:
   ignore-vulnerabilities:
@@ -14,3 +22,11 @@ security:
         Private PULSEPLATE_PYTHON_INDEX_URL mirrors fonttools 4.61.1 only (pip:
         "from versions: 4.61.1"). Bump pin to >=4.62.0 when the index publishes
         it; then drop this ignore. See docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md.
+    "SFTY-20250331-30014":
+      reason: >-
+        Safety reports CVE-2025-3000 for torch<=2.12.0 with fixed_versions=[]
+        and recommended_version=null. PulsePlate pins torch only in optional
+        requirements-rag-vector*.txt profiles, outside default/runtime CI
+        installs. Remove-by 2026-07-11: bump/regenerate the optional vector
+        manifests and remove this ignore when a fixed torch release is
+        published. See docs/security/CVE-2025-3000_TORCH_JIT_SCRIPT_OPTIONAL_RAG_VECTOR.md.
