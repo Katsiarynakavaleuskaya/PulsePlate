@@ -78,7 +78,12 @@
 - PASS: `.venv/bin/python -m py_compile scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py`
 - PASS: `.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py`
 - PASS: `make validate-changed`
-- PASS: `pre-commit run --all-files`
+- PASS: `pre-commit run --files docs/review/PR_1953_FIXED_MAPPING.md tests/test_experiment_promote.py scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py tests/test_creative_research_metrics.py docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md`
+- NOTE: final `pre-commit run --all-files` rerun was interrupted after the
+  `check-added-large-files` hook stalled on the full repository file list;
+  earlier all-files pre-commit had passed before the post-open docs/test
+  updates, and the bounded changed-file hooks plus pre-push hooks passed for
+  the current head.
 - PASS: pre-push hooks, including `mypy (type-check, changed files)`, `backend tests (pytest, pre-push)`, `bandit (pre-push, full repo)`, and `docker build test`.
 - PARTIAL / NOT CLAIMED: `make verify` passed `verify-env`, `flake8`, `mypy app core`, and `test-fast`, then the local harness exited during full coverage pytest without a completed diff-cover result. Local merge readiness from `make verify` is not claimed.
 
