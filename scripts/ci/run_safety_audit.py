@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from datetime import date, datetime
+import importlib
 import json
 import os
 from pathlib import Path
@@ -14,8 +15,6 @@ import subprocess  # nosec B404: Safety CLI execution is the bounded CI audit pu
 import sys
 import tempfile
 from typing import Any, Mapping, Sequence
-
-import yaml
 
 REQUIRED_MANIFEST = "requirements.txt"
 OPTIONAL_MANIFESTS: tuple[str, ...] = (
@@ -259,8 +258,18 @@ def repo_policy_waivers(policy_path: Path | None) -> dict[str, RepoPolicyWaiver]
     if policy_path is None:
         return {}
     try:
-        payload = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
+        yaml_module = importlib.import_module("yaml")
+    except ImportError as exc:
+        raise SafetyAuditError(
+            "PyYAML is required to apply repo Safety policy waivers.",
+            PARSE_ERROR,
+        ) from exc
+    safe_load = getattr(yaml_module, "safe_load", None)
+    if not callable(safe_load):
+        raise SafetyAuditError("PyYAML safe_load is unavailable.", PARSE_ERROR)
+    try:
+        payload = safe_load(policy_path.read_text(encoding="utf-8"))
+    except Exception as exc:
         raise SafetyAuditError(f"Failed to parse Safety policy file: {exc}", PARSE_ERROR) from exc
 
     if not isinstance(payload, Mapping):
