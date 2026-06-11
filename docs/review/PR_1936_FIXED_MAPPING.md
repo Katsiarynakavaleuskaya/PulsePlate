@@ -24,6 +24,18 @@ Commit: d5272007d9ec2ec494b583db7769a151a66e143e
 Evidence: tests/test_ci_workflow_pr_size_governance_contract.py; python3 -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py
 Reason: cubic found the same stale test-contract expectation; the committed test now preserves the temp-output security behavior instead of reverting the workflow to workspace output.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1936#pullrequestreview-4465821357 -> d5272007d9ec2ec494b583db7769a151a66e143e
+Disposition: FIXED
+Commit: d5272007d9ec2ec494b583db7769a151a66e143e
+Evidence: tests/test_ci_workflow_pr_size_governance_contract.py; python3 -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py
+Reason: CodeRabbit's review-level actionable item is the same stale workflow contract test mismatch covered by the discussion mapping above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1936#pullrequestreview-4465835196 -> d5272007d9ec2ec494b583db7769a151a66e143e
+Disposition: FIXED
+Commit: d5272007d9ec2ec494b583db7769a151a66e143e
+Evidence: tests/test_ci_workflow_pr_size_governance_contract.py; python3 -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py
+Reason: Cubic's review-level actionable item is the same stale workflow contract test mismatch covered by the discussion mapping above.
+
 ## Lane Start Provenance
 Packet: `artifacts/orchestration/task_packets/7313715fbcd1.json`
 Dispatch manifest: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/7313715fbcd1.json --pretty`
