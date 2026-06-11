@@ -1191,10 +1191,6 @@ def build_task_packet(
         "native_subagent_bridge": native_subagent_bridge,
         "routing_rationale": decision.rationale,
     }
-    packet[SHADOW_REUSE_FIELD] = build_shadow_reuse_telemetry(
-        packet=packet,
-        current_head_sha=None,
-    )
     return packet
 
 

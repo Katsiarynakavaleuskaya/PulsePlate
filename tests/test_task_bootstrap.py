@@ -1396,11 +1396,8 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     assert (
         first_packet["provider_model_tier_routing"] == second_packet["provider_model_tier_routing"]
     )
-    assert first_packet[SHADOW_REUSE_FIELD] == second_packet[SHADOW_REUSE_FIELD]
-    assert first_packet[SHADOW_REUSE_FIELD]["semantic_cache_gate_status"] == "closed"
-    assert first_packet[SHADOW_REUSE_FIELD]["serving_allowed"] is False
-    assert first_packet[SHADOW_REUSE_FIELD]["cache_read_allowed"] is False
-    assert first_packet[SHADOW_REUSE_FIELD]["cache_write_allowed"] is False
+    assert SHADOW_REUSE_FIELD not in first_packet
+    assert SHADOW_REUSE_FIELD not in second_packet
     assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
     assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]
@@ -1548,13 +1545,11 @@ def test_main_rejects_output_outside_repo(tmp_path, capsys) -> None:
 
 
 def test_main_repeated_packet_records_same_head_shadow_exact_hit(
-    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """CLI artifact loop should see prior same-ID packets as shadow candidates."""
 
-    del tmp_path
     task_packet_dir = (REPO_ROOT / f"tmp/task-packets-{uuid.uuid4().hex}").resolve()
     head_sha = "c" * 40
     args = [
