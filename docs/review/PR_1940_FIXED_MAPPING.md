@@ -31,7 +31,18 @@ DB/cache backend, OpenAPI/client changes, or raw response storage are added.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: Actionable bot review findings are mapped to the fixing commits below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#pullrequestreview-4476591903 -> 32b84a6e67317c69813f5826e3447604f6e771ac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395773654 -> 32b84a6e67317c69813f5826e3447604f6e771ac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395773667 -> 32b84a6e67317c69813f5826e3447604f6e771ac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#pullrequestreview-4476635845 -> 32b84a6e67317c69813f5826e3447604f6e771ac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395807618 -> 32b84a6e67317c69813f5826e3447604f6e771ac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395986039 -> 7d74b021a8b4e9e5c567f8ed8a60a3e391b5c2b9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#discussion_r3395986055 -> 32b84a6e67317c69813f5826e3447604f6e771ac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1940#pullrequestreview-4476851012 -> 32b84a6e67317c69813f5826e3447604f6e771ac
 
 ## Implementation Evidence
 
@@ -52,6 +63,12 @@ DB/cache backend, OpenAPI/client changes, or raw response storage are added.
 - `ef50b6d7418a814551b019fc020e4264da8e98b8` - closes the post-open
   security-auditor finding by redacting unsafe prior packet IDs from serialized
   shadow telemetry.
+- `32b84a6e67317c69813f5826e3447604f6e771ac` - closes actionable bot review
+  findings by replacing unbounded `sorted(glob())` candidate enumeration with
+  bounded lexical selection, adding explicit enumerated-file accounting for
+  zero-cap/overflow cases, covering detached HEAD and packed-refs Git metadata
+  branches, and adding the missing `ExactFuzzyCacheRecord` return type
+  annotation.
 
 ## Premortem Evidence
 
@@ -99,13 +116,13 @@ Artifact: artifacts/orchestration/experiments/results/exp-7d5fbf5201ec.json
 
 - Skill: `codex-security:security-diff-scan`
 - Scan directory:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/01cb5daef109_20260611T133037Z`
+  `/tmp/codex-security-scans/BMI-App_2025_clean/32b84a6e6731_20260611T134340Z`
 - Worklist: `scripts/orchestration/shadow_reuse_telemetry.py` and
   `scripts/orchestration/task_bootstrap.py`
 - Work ledger:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/01cb5daef109_20260611T133037Z/artifacts/02_discovery/work_ledger.jsonl`
+  `/tmp/codex-security-scans/BMI-App_2025_clean/32b84a6e6731_20260611T134340Z/artifacts/02_discovery/work_ledger.jsonl`
 - Final report:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/01cb5daef109_20260611T133037Z/report.md`
+  `/tmp/codex-security-scans/BMI-App_2025_clean/32b84a6e6731_20260611T134340Z/report.md`
 - Result: no reportable Codex Security findings; discovery produced no
   candidates, so validation and attack-path phases were skipped by the scan
   procedure.
@@ -180,6 +197,31 @@ Second identical `task_bootstrap.py` run on code-bearing head
     semantic-cache gate, focused bootstrap/cache pytest, `make
     validate-changed`, `pre-commit run --all-files`, push pre-hook, and Codex
     Security diff scan with no findings.
+- Bot: `sourcery-ai[bot]`
+  - Disposition: FIXED
+  - Commit: `32b84a6e67317c69813f5826e3447604f6e771ac`
+  - Evidence: `candidate_files_enumerated` now distinguishes enumerated files
+    from capped `candidate_files_seen`, and
+    `test_collect_previous_task_packet_candidates_reports_enumerated_zero_cap`
+    covers `max_files=0`; detached HEAD and packed-ref resolution are covered by
+    `test_resolve_current_head_sha_reads_detached_head` and
+    `test_resolve_current_head_sha_reads_packed_ref`.
+- Bot: `cubic-dev-ai[bot]`
+  - Disposition: FIXED
+  - Commit: `32b84a6e67317c69813f5826e3447604f6e771ac`
+  - Evidence: `_select_bounded_json_paths` streams `packet_dir.glob("*.json")`
+    and keeps only a bounded selected list instead of materializing all JSON
+    paths with `sorted(glob())`.
+- Bot: `coderabbitai[bot]`
+  - Disposition: FIXED
+  - Commit: `7d74b021a8b4e9e5c567f8ed8a60a3e391b5c2b9`
+  - Evidence: the canonical mapping artifact now uses exact Phase2 checklist
+    labels, `Packet:`, `Artifact:`, and parser-safe mapping lines.
+- Bot: `coderabbitai[bot]`
+  - Disposition: FIXED
+  - Commit: `32b84a6e67317c69813f5826e3447604f6e771ac`
+  - Evidence: `_record_for_summary` now returns `ExactFuzzyCacheRecord`
+    explicitly.
 
 ## Merge Readiness
 
