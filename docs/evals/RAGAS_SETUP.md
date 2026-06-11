@@ -35,6 +35,9 @@
 - Do not add `ragas` or `datasets` to `requirements.txt` or `requirements-dev.txt`
 - Keep `ragas` imports lazy inside the runner entrypoint
 - Do not call live providers or runtime routes from this lane
+- The CLI fails closed when known live LLM/embedding provider credential
+  environment variables are present; unset those variables or inject a local,
+  offline evaluator when running this companion lane
 - Do not claim a second canonical evaluation source of truth beside
   `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
 - Keep outputs out of tracked repo paths by default

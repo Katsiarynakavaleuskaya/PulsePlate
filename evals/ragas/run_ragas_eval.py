@@ -6,6 +6,7 @@ import argparse
 import inspect
 import json
 import math
+import os
 import sys
 from pathlib import Path
 from statistics import mean
@@ -17,6 +18,24 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATASET_PATH = REPO_ROOT / "evals" / "ragas" / "testset.jsonl"
 
 REQUIRED_METRIC_NAMES: tuple[str, ...] = DEFAULT_RAGAS_METRICS
+PROHIBITED_LIVE_PROVIDER_ENV_VARS: tuple[str, ...] = (
+    "AI21_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "COHERE_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "FIREWORKS_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GROQ_API_KEY",
+    "HUGGINGFACEHUB_API_TOKEN",
+    "HUGGINGFACE_API_KEY",
+    "MISTRAL_API_KEY",
+    "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
+    "PERPLEXITY_API_KEY",
+    "TOGETHER_API_KEY",
+)
 
 
 MetricEvaluator = Callable[[list[dict[str, Any]], tuple[str, ...]], Mapping[str, float]]
@@ -195,6 +214,21 @@ def _validate_metric_names(metric_names: tuple[str, ...]) -> tuple[str, ...]:
     return metric_names
 
 
+def _assert_no_live_provider_credentials() -> None:
+    """RU: Запретить live provider creds. EN: Block live provider credentials."""
+
+    present = [
+        name for name in PROHIBITED_LIVE_PROVIDER_ENV_VARS if os.environ.get(name)
+    ]
+    if present:
+        joined_names = ", ".join(sorted(present))
+        raise RuntimeError(
+            "RAGAS companion evals are offline-only and must not run with live "
+            f"provider credentials in the environment: {joined_names}. "
+            "Unset these variables or inject a local/offline evaluator.",
+        )
+
+
 def _load_ragas_dependencies() -> tuple[Any, Any, Mapping[str, Any]]:
     """RU: Lazy import RAGAS deps. EN: Lazy import RAGAS dependencies."""
 
@@ -301,6 +335,7 @@ def evaluate_records(
         scores = evaluator(rows, metric_names)
         return _validate_metric_scores(scores, metric_names, source="custom evaluator")
 
+    _assert_no_live_provider_credentials()
     dataset_cls, evaluate, metric_map = _load_ragas_dependencies()
     ragas_rows = [
         {
