@@ -15,17 +15,14 @@ import hashlib
 import json
 import re
 from types import MappingProxyType
-from typing import TypeAlias, cast
 
 from core.ai.semantic_cache_offline_admission_runner import (
     SCENARIO_IDS as OFFLINE_SCENARIO_IDS,
+    JsonValue,
     build_default_semantic_cache_offline_admission_input,
     compose_semantic_cache_offline_admission_report,
     to_stable_mapping as offline_to_stable_mapping,
 )
-
-JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 REPORT_ID = "semantic_cache_shadow_admission_harness_report"
 REPORT_VERSION = "2026-06-06"
@@ -492,7 +489,7 @@ def _offline_decision_mapping(*, produced_at: str) -> Mapping[str, JsonValue]:
     report = compose_semantic_cache_offline_admission_report(
         build_default_semantic_cache_offline_admission_input(produced_at=produced_at)
     )
-    return cast(Mapping[str, JsonValue], offline_to_stable_mapping(report))
+    return offline_to_stable_mapping(report)
 
 
 def _offline_scenarios(mapping: Mapping[str, JsonValue]) -> Mapping[str, Mapping[str, JsonValue]]:

@@ -1,17 +1,17 @@
 {
   "source": "usda_foundation",
   "source_classification": "current",
-  "source_version": "fixture-2025-12-foundation-current",
+  "source_version": "fdc-foundation-2025-12-compat-baseline",
   "source_url": "https://fdc.nal.usda.gov/download-datasets",
   "retrieved_on": "2026-04-24",
   "artifact": {
-    "path": "fixtures/usda/foundation_current.json",
+    "path": "fixtures/usda/foundation_2025_12_compat_baseline.csv",
     "checksum_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
     "size_bytes": 1024,
     "record_count": 100
   },
   "schema": {
-    "fields": ["fdc_id", "description", "food_category_id", "publication_date"],
+    "fields": ["fdc_id", "description", "food_category_id", "publication_date", "data_type"],
     "primary_keys": ["fdc_id"]
   },
   "collision_policy": {

@@ -302,6 +302,17 @@ def test_cpu_rag_manifest_change_routes_backend_and_security(changed_file: str) 
     assert profile.to_outputs()["run_security"] == "true"
 
 
+def test_security_tooling_manifest_change_routes_backend_and_security() -> None:
+    profile = risk_profile.build_risk_profile(["requirements-security.txt"])
+
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.to_outputs()["backend_shared"] == "true"
+    assert profile.to_outputs()["run_backend_blocking"] == "true"
+    assert profile.to_outputs()["run_security"] == "true"
+
+
 EXPECTED_ROOT_BACKEND_SHARED_MODULES = (
     "llm.py",
     "main.py",
