@@ -1,5 +1,5 @@
-# Safety policy file for ignoring known vulnerabilities
-# Format: YAML (required by Safety 3.6.2+)
+# Safety policy file for Safety CLI 3 scan.
+# Format: YAML v3.0 (required by Safety scan).
 # Documentation: https://docs.safetycli.com/
 #
 # PyUp ID 88739 (fonttools TTX eval): approved private CI/Docker package index
@@ -13,20 +13,64 @@
 # upstream correction, or vector-profile replacement is available.
 # Advisory: docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md
 
-security:
-  ignore-vulnerabilities:
-    "88739":
-      reason: >-
-        Private PULSEPLATE_PYTHON_INDEX_URL mirrors fonttools 4.61.1 only (pip:
-        "from versions: 4.61.1"). Bump pin to >=4.62.0 when the index publishes
-        it; then drop this ignore. See docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md.
-    "SFTY-20250331-30014":
-      reason: >-
-        CVE-2025-3000 is reported against torch.jit.script in the optional
-        RAG/vector dependency manifests only. Safety 3.8.1 reports no fixed
-        torch version for this advisory as of 2026-06-11, while production and
-        Docker runtime manifests pass Safety without torch. Remove by
-        2026-07-11 or earlier when a fixed torch build, upstream advisory
-        correction, or vector-profile replacement is available. See
-        docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md and
-        docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile.
+version: "3.0"
+
+scanning-settings:
+  max-depth: 6
+  exclude: []
+  include-files: []
+  system:
+    targets: []
+
+report:
+  dependency-vulnerabilities:
+    enabled: true
+    auto-ignore-in-report:
+      python:
+        environment-results: true
+        unpinned-requirements: true
+      vulnerabilities:
+        "88739":
+          reason: >-
+            Private package index still mirrors fonttools 4.61.1 only; remove
+            when docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md is closed.
+          expires: "2026-07-08"
+        "SFTY-20250331-30014":
+          reason: >-
+            Optional RAG/vector torch.jit.script advisory; remove when
+            docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md is closed.
+          expires: "2026-07-11"
+      cvss-severity: []
+
+fail-scan-with-exit-code:
+  dependency-vulnerabilities:
+    enabled: true
+    fail-on-any-of:
+      cvss-severity:
+        - critical
+        - high
+        - unknown
+      exploitability:
+        - critical
+        - high
+        - unknown
+
+security-updates:
+  dependency-vulnerabilities:
+    auto-security-updates-limit:
+      - patch
+
+installation:
+  default-action: allow
+  audit-logging:
+    enabled: true
+  allow:
+    packages: []
+    vulnerabilities: {}
+  deny:
+    packages: {}
+    vulnerabilities:
+      warning-on-any-of:
+        cvss-severity: []
+      block-on-any-of:
+        cvss-severity: []
