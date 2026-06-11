@@ -44,10 +44,9 @@ Slack command hints fail closed.
 
 - [x] Discussion-thread pass completed.
 - [x] Fixed in commit mapping completed.
-- Notes: GitHub review threads currently list no inline review threads for this
-  PR. Sourcery's review submission had one actionable high-level finding and is
-  mapped below. CodeRabbit reported no actionable generated comments. Cubic
-  reported no issues found.
+- Notes: Sourcery's review submission had one actionable high-level finding and
+  is mapped below. CodeRabbit later reported two actionable comments and one
+  aggregate review; all are mapped below. Cubic reported no issues found.
 
 ## Fixed in Commit Mapping
 
@@ -56,6 +55,14 @@ Commit: 633b54e9a
 Evidence: Commit `633b54e9a` makes unknown non-empty Slack `command_hint` values fail closed in `scripts/orchestration/experiment_slack_bridge_commands.py`, preserves direct no-hint parser compatibility, adds regression coverage in `tests/test_experiment_slack_socket_bridge.py`, and `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py` passed after the fix.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#pullrequestreview-4453298969 -> 633b54e9a
+
+Disposition: FIXED
+Commit: cf143b396
+Evidence: Commit `cf143b396` normalizes whitespace-only `command_hint` values to `None`, adds direct parser compatibility coverage for whitespace-only hints, and keeps merge-readiness checklist items unchecked until the final merge cycle. `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py -k "command_hint or pulseplate_runner_cannot_dispatch or parser_preserves_direct"` and `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py` passed after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#discussion_r3395626711 -> cf143b396
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#discussion_r3395626731 -> cf143b396
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#pullrequestreview-4476415949 -> cf143b396
 
 ## Fixed Evidence Detail
 
@@ -74,6 +81,10 @@ Evidence: Commit `633b54e9a` makes unknown non-empty Slack `command_hint` values
   <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#issuecomment-4653370690>:
   no actionable generated comments; pre-merge description/template warning is
   handled by this artifact plus the PR-body mirror.
+- CodeRabbit review
+  <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#pullrequestreview-4476415949>:
+  actionable checklist and whitespace-only command-hint comments fixed in commit
+  `cf143b396`.
 - Sourcery guide comment
   <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#issuecomment-4653371239>:
   reviewer guide only, no separate actionable code issue beyond the mapped
