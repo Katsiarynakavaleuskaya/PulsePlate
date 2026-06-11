@@ -348,6 +348,38 @@ def test_rejected_result_backlog_entry_is_allowed(
     assert ledger.count("ledger-exp-promote") == 1
 
 
+def test_rejected_backlog_entry_preserves_creative_research_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    origin = {
+        "bundle_id": "creative-research-valid",
+        "candidate_id": "hyp-batch",
+        "promotion_decision": "defer",
+    }
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(
+            promotion_target="backlog_entry",
+            creative_research_origin=origin,
+        )
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+
+    decision = experiment_promote.build_promotion_decision(packet, result)
+
+    assert decision["disposition"] == "deferred"
+    assert decision["creative_research_origin"] == origin
+    ledger = (repo / "docs" / "roadmap" / "BACKLOG_LEDGER.md").read_text(encoding="utf-8")
+    assert "Creative research origin:" in ledger
+    assert "Bundle ID: `creative-research-valid`" in ledger
+    assert "Candidate ID: `hyp-batch`" in ledger
+    assert "Promotion decision: `defer`" in ledger
+
+
 def test_rejected_result_with_non_backlog_target_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
