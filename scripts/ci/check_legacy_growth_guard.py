@@ -63,7 +63,7 @@ SENSITIVE_CALL_KEYWORDS: tuple[str, ...] = (
     "subscription",
 )
 SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
-    "api_key": 3,
+    "api_key": 5,
     "auth": 0,
     "billing": 0,
     "entitlement": 0,
@@ -285,16 +285,71 @@ def _parse_source(source_text: str, *, filename: str) -> tuple[ast.Module | None
         return None, [f"{filename}:{line}: syntax error: {exc.msg}"]
 
 
-def _app_call_action(func: ast.AST, methods: frozenset[str]) -> str | None:
+def _collect_app_aliases(tree: ast.Module) -> tuple[frozenset[str], frozenset[str]]:
+    app_aliases: set[str] = {"app"}
+    router_aliases: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            value: ast.AST | None = None
+            targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = list(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = [node.target]
+            if value is None:
+                continue
+
+            for target in targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                if (
+                    isinstance(value, ast.Name)
+                    and value.id in app_aliases
+                    and target.id not in app_aliases
+                ):
+                    app_aliases.add(target.id)
+                    changed = True
+                elif (
+                    isinstance(value, ast.Name)
+                    and value.id in router_aliases
+                    and target.id not in router_aliases
+                ):
+                    router_aliases.add(target.id)
+                    changed = True
+                elif (
+                    isinstance(value, ast.Attribute)
+                    and value.attr == "router"
+                    and isinstance(value.value, ast.Name)
+                    and value.value.id in app_aliases
+                    and target.id not in router_aliases
+                ):
+                    router_aliases.add(target.id)
+                    changed = True
+    return frozenset(app_aliases), frozenset(router_aliases)
+
+
+def _app_call_action(
+    func: ast.AST,
+    methods: frozenset[str],
+    *,
+    app_aliases: frozenset[str] = frozenset({"app"}),
+    router_aliases: frozenset[str] = frozenset(),
+) -> str | None:
     if not isinstance(func, ast.Attribute) or func.attr not in methods:
         return None
-    if isinstance(func.value, ast.Name) and func.value.id == "app":
+    if isinstance(func.value, ast.Name) and func.value.id in app_aliases:
         return func.attr
+    if isinstance(func.value, ast.Name) and func.value.id in router_aliases:
+        return f"router.{func.attr}"
     if (
         isinstance(func.value, ast.Attribute)
         and func.value.attr == "router"
         and isinstance(func.value.value, ast.Name)
-        and func.value.value.id == "app"
+        and func.value.value.id in app_aliases
     ):
         return f"router.{func.attr}"
     return None
@@ -308,19 +363,30 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         return set()
 
     facts: set[LegacyFact] = set()
+    app_aliases, router_aliases = _collect_app_aliases(tree)
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for decorator in node.decorator_list:
                 if not isinstance(decorator, ast.Call):
                     continue
-                action = _app_call_action(decorator.func, APP_ROUTE_METHODS)
+                action = _app_call_action(
+                    decorator.func,
+                    APP_ROUTE_METHODS,
+                    app_aliases=app_aliases,
+                    router_aliases=router_aliases,
+                )
                 if action is not None:
                     facts.add(
                         LegacyFact("decorator", action, _first_arg_label(decorator), node.name)
                     )
         elif isinstance(node, ast.Call):
             call = node
-            action = _app_call_action(call.func, APP_REGISTRATION_METHODS)
+            action = _app_call_action(
+                call.func,
+                APP_REGISTRATION_METHODS,
+                app_aliases=app_aliases,
+                router_aliases=router_aliases,
+            )
             if action is not None:
                 facts.add(LegacyFact("registration", action, _first_arg_label(call), ""))
     return facts
@@ -359,7 +425,7 @@ def collect_sensitive_call_counts(
     if errors or tree is None:
         return counts
 
-    sensitive_aliases = _collect_sensitive_import_aliases(tree)
+    sensitive_aliases = _collect_sensitive_aliases(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -402,6 +468,48 @@ def _collect_sensitive_import_aliases(tree: ast.Module) -> dict[str, set[str]]:
                     set(),
                 ).update(import_keywords)
     return sensitive_aliases
+
+
+def _propagate_sensitive_aliases(
+    tree: ast.Module,
+    aliases: dict[str, set[str]],
+) -> dict[str, set[str]]:
+    sensitive_aliases = {name: set(keywords) for name, keywords in aliases.items()}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            value: ast.AST | None = None
+            targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = list(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = [node.target]
+            if value is None:
+                continue
+            source_names = _function_alias_names(value)
+            keywords: set[str] = set()
+            for source_name in source_names:
+                keywords.update(sensitive_aliases.get(source_name, set()))
+            if not keywords:
+                continue
+            for target in targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                before = len(sensitive_aliases.get(target.id, set()))
+                sensitive_aliases.setdefault(target.id, set()).update(keywords)
+                if len(sensitive_aliases[target.id]) > before:
+                    changed = True
+    return sensitive_aliases
+
+
+def _collect_sensitive_aliases(tree: ast.Module) -> dict[str, set[str]]:
+    aliases = _collect_sensitive_import_aliases(tree)
+    for name, keywords in _collect_sensitive_names(tree).items():
+        aliases.setdefault(name, set()).update(keywords)
+    return _propagate_sensitive_aliases(tree, aliases)
 
 
 def _function_alias_names(func: ast.AST) -> set[str]:
@@ -454,10 +562,19 @@ def collect_sensitive_app_surface_counts(
 
     app_surface_methods = APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
     sensitive_names = _collect_sensitive_names(tree)
+    app_aliases, router_aliases = _collect_app_aliases(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if _app_call_action(node.func, app_surface_methods) is None:
+        if (
+            _app_call_action(
+                node.func,
+                app_surface_methods,
+                app_aliases=app_aliases,
+                router_aliases=router_aliases,
+            )
+            is None
+        ):
             continue
         call_text = _safe_unparse(node).casefold()
         call_keywords = {keyword for keyword in SENSITIVE_CALL_KEYWORDS if keyword in call_text}

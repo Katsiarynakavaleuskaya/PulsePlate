@@ -104,6 +104,48 @@ def test_legacy_growth_guard_rejects_router_api_registration_aliases(
     [
         (
             textwrap.dedent("""
+                legacy = app
+                legacy.add_api_route("/api/v1/new-runtime", new_runtime_route)
+                """),
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:add_api_route:/api/v1/new-runtime",
+        ),
+        (
+            textwrap.dedent("""
+                legacy = app
+
+                @legacy.post("/api/v1/new-runtime")
+                async def new_runtime_route():
+                    return {"ok": True}
+                """),
+            "legacy_app.py: unexpected legacy route growth: "
+            "decorator:post:/api/v1/new-runtime -> new_runtime_route",
+        ),
+        (
+            textwrap.dedent("""
+                legacy = app
+                legacy_router = legacy.router
+                legacy_router.add_api_route("/api/v1/new-runtime", new_runtime_route)
+                """),
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:router.add_api_route:/api/v1/new-runtime",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_app_alias_registrations(
+    source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [expected]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
                 @app.route("/api/v1/new-runtime")
                 async def new_runtime_route():
                     return {"ok": True}
@@ -222,7 +264,12 @@ def test_legacy_growth_guard_rejects_sensitive_call_growth() -> None:
 @pytest.mark.parametrize(
     ("keyword", "source"),
     [
-        ("api_key", "\n".join("api_key_guard()" for _ in range(4))),
+        (
+            "api_key",
+            "\n".join(
+                "api_key_guard()" for _ in range(legacy_guard.SENSITIVE_CALL_LIMITS["api_key"] + 1)
+            ),
+        ),
         ("auth", "auth_guard()\n"),
         ("entitlement", "entitlement.check()\n"),
         ("llm", "llm.generate()\nllm.generate()\nllm.generate()\n"),
@@ -260,6 +307,40 @@ def test_legacy_growth_guard_rejects_current_baseline_sensitive_growth(
     ],
 )
 def test_legacy_growth_guard_rejects_sensitive_import_alias_calls(
+    source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(
+        source,
+        sensitive_call_limits={key: 0 for key in legacy_guard.SENSITIVE_CALL_KEYWORDS},
+    )
+
+    assert errors == [expected]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                auth_alias = auth_guard
+                guard = auth_alias
+                guard()
+                """),
+            "legacy_app.py: sensitive call family grew for auth: 1 > 0",
+        ),
+        (
+            textwrap.dedent("""
+                from app.auth import auth_guard as imported_guard
+
+                guard = imported_guard
+                guard()
+                """),
+            "legacy_app.py: sensitive call family grew for auth: 1 > 0",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_sensitive_local_assignment_alias_calls(
     source: str,
     expected: str,
 ) -> None:
@@ -372,7 +453,7 @@ def test_legacy_repo_validation_rejects_empty_doc(tmp_path: Path) -> None:
     )
 
 
-def test_legacy_growth_guard_cli_passes(capsys) -> None:
+def test_legacy_growth_guard_cli_passes(capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = legacy_guard.main(["--repo-root", str(REPO_ROOT)])
 
     captured = capsys.readouterr()

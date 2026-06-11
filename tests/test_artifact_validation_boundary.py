@@ -179,6 +179,42 @@ def test_artifact_guard_rejects_imported_stdlib_aliases(
     ("source", "expected"),
     [
         (
+            textwrap.dedent("""
+                import os as o
+
+                packet_path = o.path.join("artifacts", "orchestration", "packet.json")
+                open(packet_path)
+                """),
+            "core/unsafe.py:5: open reads local artifacts/orchestration",
+        ),
+        (
+            textwrap.dedent("""
+                from os import path as osp
+
+                packet_path = osp.join("artifacts", "agent_runs", "report.json")
+                open(packet_path)
+                """),
+            "core/unsafe.py:5: open reads local artifacts/agent_runs",
+        ),
+    ],
+)
+def test_artifact_guard_rejects_os_path_join_aliases(
+    source: str,
+    expected: str,
+) -> None:
+    findings, errors = artifact_guard.collect_artifact_read_findings_for_source(
+        source,
+        rel_path="core/unsafe.py",
+    )
+
+    assert errors == []
+    assert [finding.display() for finding in findings] == [expected]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
             'from os import path as osp\nosp.exists("artifacts/orchestration/packet.json")\n',
             "core/unsafe.py:2: os.path.exists reads local artifacts/orchestration",
         ),
@@ -423,7 +459,7 @@ def test_artifact_repo_validation_rejects_empty_doc(tmp_path: Path) -> None:
     ) in errors
 
 
-def test_artifact_guard_cli_passes(capsys) -> None:
+def test_artifact_guard_cli_passes(capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = artifact_guard.main(["--repo-root", str(REPO_ROOT)])
 
     captured = capsys.readouterr()

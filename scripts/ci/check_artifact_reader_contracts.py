@@ -92,6 +92,8 @@ def _literal_path_parts(
     names: Mapping[str, tuple[str, ...]],
     path_constructors: frozenset[str] = frozenset({"Path"}),
     path_modules: frozenset[str] = frozenset({"pathlib"}),
+    os_modules: frozenset[str] = frozenset({"os"}),
+    os_path_modules: frozenset[str] = frozenset(),
 ) -> tuple[str, ...] | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return _normalize_path_parts(node.value)
@@ -108,8 +110,22 @@ def _literal_path_parts(
     if isinstance(node, ast.Name):
         return names.get(node.id)
     if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Div)):
-        left = _literal_path_parts(node.left, names, path_constructors, path_modules)
-        right = _literal_path_parts(node.right, names, path_constructors, path_modules)
+        left = _literal_path_parts(
+            node.left,
+            names,
+            path_constructors,
+            path_modules,
+            os_modules,
+            os_path_modules,
+        )
+        right = _literal_path_parts(
+            node.right,
+            names,
+            path_constructors,
+            path_modules,
+            os_modules,
+            os_path_modules,
+        )
         if left is not None and right is not None:
             return (*left, *right)
     if isinstance(node, ast.Call):
@@ -133,7 +149,14 @@ def _literal_path_parts(
         if isinstance(func, ast.Name) and func.id in path_constructors and node.args:
             parts: list[str] = []
             for arg in node.args:
-                arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
+                arg_parts = _literal_path_parts(
+                    arg,
+                    names,
+                    path_constructors,
+                    path_modules,
+                    os_modules,
+                    os_path_modules,
+                )
                 if arg_parts is None:
                     return None
                 parts.extend(arg_parts)
@@ -147,18 +170,39 @@ def _literal_path_parts(
         ):
             parts = []
             for arg in node.args:
-                arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
+                arg_parts = _literal_path_parts(
+                    arg,
+                    names,
+                    path_constructors,
+                    path_modules,
+                    os_modules,
+                    os_path_modules,
+                )
                 if arg_parts is None:
                     return None
                 parts.extend(arg_parts)
             return tuple(parts)
         if isinstance(func, ast.Attribute) and func.attr == "joinpath":
-            base = _literal_path_parts(func.value, names, path_constructors, path_modules)
+            base = _literal_path_parts(
+                func.value,
+                names,
+                path_constructors,
+                path_modules,
+                os_modules,
+                os_path_modules,
+            )
             if base is None:
                 return None
             parts = list(base)
             for arg in node.args:
-                arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
+                arg_parts = _literal_path_parts(
+                    arg,
+                    names,
+                    path_constructors,
+                    path_modules,
+                    os_modules,
+                    os_path_modules,
+                )
                 if arg_parts is None:
                     return None
                 parts.extend(arg_parts)
@@ -166,14 +210,26 @@ def _literal_path_parts(
         if (
             isinstance(func, ast.Attribute)
             and func.attr == "join"
-            and isinstance(func.value, ast.Attribute)
-            and func.value.attr == "path"
-            and isinstance(func.value.value, ast.Name)
-            and func.value.value.id == "os"
+            and (
+                (
+                    isinstance(func.value, ast.Attribute)
+                    and func.value.attr == "path"
+                    and isinstance(func.value.value, ast.Name)
+                    and func.value.value.id in os_modules
+                )
+                or (isinstance(func.value, ast.Name) and func.value.id in os_path_modules)
+            )
         ):
             parts = []
             for arg in node.args:
-                arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
+                arg_parts = _literal_path_parts(
+                    arg,
+                    names,
+                    path_constructors,
+                    path_modules,
+                    os_modules,
+                    os_path_modules,
+                )
                 if arg_parts is None:
                     return None
                 parts.extend(arg_parts)
@@ -296,6 +352,8 @@ class ArtifactReadVisitor(ast.NodeVisitor):
             self.name_paths,
             frozenset(self.path_constructors),
             frozenset(self.path_modules),
+            frozenset(self.os_modules),
+            frozenset(self.os_path_modules),
         )
 
     def visit_Assign(self, node: ast.Assign) -> None:
