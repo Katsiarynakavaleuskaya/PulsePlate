@@ -33,6 +33,15 @@ Evidence: scripts/ci/run_safety_audit.py:258 loads PyYAML dynamically so the pre
 Evidence: tests/test_run_safety_audit.py:265 covers the cloud-policy-not-ignored case; tests/test_run_safety_audit.py:294 covers expired waiver blocking; tests/test_run_safety_audit.py:418 covers non-zero Safety exits with only repo-policy-waived findings.
 Evidence: focused gates PASS: `pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py`; `make validate-changed`; `pre-commit run --all-files`.
 
+Disposition: FIXED
+Commit: 066b6b8749b6de1e59b028fd1dbe194e10a0bbee
+Evidence: scripts/ci/run_safety_audit.py:585 validates every top-level and nested requirement/constraint manifest source against the resolved repo root before reading it.
+Evidence: scripts/ci/run_safety_audit.py:614 now passes the resolved repo root into recursive manifest collection, so nested out-of-root references fail through the intended SafetyAuditError path before any nested read.
+Evidence: tests/test_run_safety_audit.py:154 covers the Cubic-reported nested manifest escape case.
+Evidence: focused gates PASS: `pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py`; `ruff check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py`; `pre-commit run mypy --hook-stage pre-push --files scripts/ci/run_safety_audit.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#pullrequestreview-4477542316 -> 066b6b8749b6de1e59b028fd1dbe194e10a0bbee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1942#discussion_r3396586707 -> 066b6b8749b6de1e59b028fd1dbe194e10a0bbee
+
 ## External Review Availability Notes
 
 External bot capacity or availability notices are not treated as code-actionable
