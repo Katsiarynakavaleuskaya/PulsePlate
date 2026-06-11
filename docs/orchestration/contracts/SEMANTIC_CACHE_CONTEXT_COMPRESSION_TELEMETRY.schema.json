@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic Cache Context Compression Telemetry Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "telemetry_phase",
+    "authority_boundary",
+    "asset_type",
+    "upstream_assets",
+    "compressed_context_pack_fields",
+    "context_graph_node_fields",
+    "context_graph_edge_fields",
+    "context_compression_estimate_fields",
+    "allowed_node_types",
+    "allowed_edge_types",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
+    "required_followups"
+  ],
+  "properties": {
+    "gate_status": {
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "runtime_handoff_allowed": {
+      "const": false
+    },
+    "cache_read_allowed": {
+      "const": false
+    },
+    "cache_write_allowed": {
+      "const": false
+    },
+    "serving_allowed": {
+      "const": false
+    },
+    "provider_calls_allowed": {
+      "const": false
+    },
+    "telemetry_phase": {
+      "const": "PR-O2"
+    },
+    "authority_boundary": {
+      "const": "metadata_only_non_serving"
+    },
+    "asset_type": {
+      "const": "orchestration_context_compression_telemetry"
+    },
+    "upstream_assets": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "task_packet",
+          "required_context",
+          "candidate_paths",
+          "prompt_module_fingerprints",
+          "source_fingerprints",
+          "semantic_cache_gate_markers"
+        ]
+      },
+      "minItems": 6,
+      "uniqueItems": true
+    },
+    "compressed_context_pack_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "context_pack_id",
+          "policy_version",
+          "authority_boundary",
+          "required_context",
+          "selected_context_refs",
+          "omitted_duplicate_refs",
+          "graph_nodes",
+          "graph_edges",
+          "estimate",
+          "reason_codes",
+          "metadata"
+        ]
+      },
+      "minItems": 11,
+      "uniqueItems": true
+    },
+    "context_graph_node_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "node_id",
+          "node_type",
+          "path",
+          "path_fingerprint",
+          "token_estimate",
+          "required",
+          "metadata"
+        ]
+      },
+      "minItems": 7,
+      "uniqueItems": true
+    },
+    "context_graph_edge_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "edge_id",
+          "source",
+          "target",
+          "edge_type",
+          "metadata"
+        ]
+      },
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "context_compression_estimate_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "estimate_id",
+          "baseline_context_chars_estimate",
+          "candidate_context_chars_estimate",
+          "baseline_context_tokens_estimate",
+          "candidate_context_tokens_estimate",
+          "tokens_saved_estimate",
+          "orchestration_fanout_multiplier",
+          "fanout_tokens_saved_estimate",
+          "token_estimate_version",
+          "reason_codes"
+        ]
+      },
+      "minItems": 10,
+      "uniqueItems": true
+    },
+    "allowed_node_types": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "changed_file",
+          "contract",
+          "test",
+          "agent_rule",
+          "review_artifact",
+          "roadmap"
+        ]
+      },
+      "minItems": 6,
+      "uniqueItems": true
+    },
+    "allowed_edge_types": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "requires",
+          "validates",
+          "constrains",
+          "documents",
+          "reviews"
+        ]
+      },
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "blocked_payloads": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "raw_prompts",
+          "raw_queries",
+          "normalized_queries",
+          "raw_context_snippets",
+          "raw_model_responses",
+          "raw_answers",
+          "provider_payloads",
+          "secrets",
+          "credentials",
+          "local_paths",
+          "account_truth",
+          "health_sensitive_payloads"
+        ]
+      },
+      "minItems": 12,
+      "uniqueItems": true
+    },
+    "blocked_backends": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "provider_calls",
+          "OpenAPI",
+          "DB",
+          "cache_backend",
+          "Redis",
+          "GPTCache",
+          "embeddings",
+          "semantic_similarity",
+          "vector_search",
+          "GraphRAG_runtime",
+          "runtime_handoff"
+        ]
+      },
+      "minItems": 11,
+      "uniqueItems": true
+    },
+    "blocked_policy_decisions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "billing_decisions",
+          "entitlement_decisions",
+          "account_truth_decisions",
+          "production_cost_claims",
+          "production_roi_claims",
+          "latency_improvement_claims",
+          "quota_improvement_claims",
+          "cache_hit_rate_claims",
+          "merge_readiness_claims",
+          "model_downgrade_decisions"
+        ]
+      },
+      "minItems": 10,
+      "uniqueItems": true
+    },
+    "required_followups": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}

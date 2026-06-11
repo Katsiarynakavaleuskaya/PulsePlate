@@ -85,12 +85,34 @@ def test_devcontainer_dockerfile_has_no_build_args() -> None:
 
 
 def test_devcontainer_json_configuration() -> None:
-    """devcontainer.json must have correct workspace, user, and bootstrap."""
+    """devcontainer.json must have correct workspace and user."""
     data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
 
     assert data["workspaceFolder"] == "/workspaces/PulsePlate"
     assert data["remoteUser"] == "vscode"
-    assert data["postCreateCommand"] == "make devcontainer-bootstrap"
+
+
+def test_devcontainer_json_does_not_auto_execute_workspace_bootstrap() -> None:
+    """Opening the devcontainer must not auto-run repository-controlled code."""
+    data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
+
+    assert "postCreateCommand" not in data
+    assert "onCreateCommand" not in data
+    assert "updateContentCommand" not in data
+    assert "postAttachCommand" not in data
+    assert "overrideCommand" not in data
+    assert data.get("postStartCommand") == (
+        "git config --global --add safe.directory /workspaces/PulsePlate"
+    )
+
+
+def test_devcontainer_json_does_not_enable_host_docker_socket() -> None:
+    """Default devcontainer must not expose the host Docker daemon."""
+    data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
+
+    features = data.get("features", {})
+    assert "ghcr.io/devcontainers/features/docker-outside-of-docker:1" not in features
+    assert "ghcr.io/devcontainers/features/docker-in-docker:2" not in features
 
 
 def test_devcontainer_json_node_24_feature() -> None:
@@ -113,31 +135,83 @@ def test_devcontainer_json_container_env_marker() -> None:
     ), "devcontainer.json must set PULSEPLATE_IN_CONTAINER=1 in containerEnv"
 
 
+def test_devcontainer_json_container_env_forwards_only_safe_bootstrap_env() -> None:
+    """Only safe bootstrap proxy env vars may use localEnv passthrough."""
+    data = json.loads((DEVCONTAINER_DIR / "devcontainer.json").read_text(encoding="utf-8"))
+
+    env = data.get("containerEnv", {})
+    forbidden = {
+        "SERVER_SALT",
+        "APPLE_SHARED_SECRET",
+        "EXPORT_TOKEN_SECRET",
+        "PERPLEXITY_API_KEY",
+        "DATABASE_URL",
+        "POSTGRES_PASSWORD",
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+    }
+    assert forbidden.isdisjoint(env), "devcontainer.json must not forward app or CI secrets"
+    assert env["PULSEPLATE_PYTHON_INDEX_URL"] == "${localEnv:PULSEPLATE_PYTHON_INDEX_URL}"
+    assert env["PULSEPLATE_PYTHON_TRUSTED_HOST"] == ("${localEnv:PULSEPLATE_PYTHON_TRUSTED_HOST}")
+
+    local_env_keys = {
+        key
+        for key, value in env.items()
+        if isinstance(value, str) and value.startswith("${localEnv:")
+    }
+    assert local_env_keys == {
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Compose configuration
 # ---------------------------------------------------------------------------
 
 
-def test_devcontainer_compose_uses_runtime_env_file() -> None:
-    """Compose must load .env at runtime, not bake secrets via build args."""
+def test_devcontainer_compose_does_not_import_full_env_file() -> None:
+    """Compose must not load the full application .env into the devcontainer."""
     data = yaml.safe_load(
         (DEVCONTAINER_DIR / "docker-compose.devcontainer.yml").read_text(encoding="utf-8")
     )
     service = data["services"]["devcontainer"]
 
-    # env_file uses Compose v2.24+ extended syntax: path + required: false
-    env_entries = service["env_file"]
-    assert isinstance(env_entries, list), "Compose env_file must be a list"
-    assert len(env_entries) >= 1, "Compose env_file must have at least one entry"
-    first_entry = env_entries[0]
-    if isinstance(first_entry, dict):
-        assert first_entry.get("path") == "../.env", "Compose env_file path must be ../.env"
-    else:
-        assert first_entry == "../.env", "Compose env_file must reference ../.env"
+    assert "env_file" not in service, "Devcontainer must not import ../.env wholesale"
     build_cfg = service.get("build", {})
     assert (
         "args" not in build_cfg
     ), "Compose build must NOT pass args (secrets leak into image layers)"
+
+
+def test_devcontainer_compose_forwards_only_bootstrap_proxy_env() -> None:
+    """Only package-proxy env vars may be forwarded for manual bootstrap."""
+    data = yaml.safe_load(
+        (DEVCONTAINER_DIR / "docker-compose.devcontainer.yml").read_text(encoding="utf-8")
+    )
+    service = data["services"]["devcontainer"]
+
+    env = service["environment"]
+    forbidden = {
+        "SERVER_SALT",
+        "APPLE_SHARED_SECRET",
+        "EXPORT_TOKEN_SECRET",
+        "PERPLEXITY_API_KEY",
+        "DATABASE_URL",
+        "POSTGRES_PASSWORD",
+    }
+    assert forbidden.isdisjoint(env), "Devcontainer must not forward app secrets from .env"
+    assert set(env) == {
+        "PYTHONPATH",
+        "PULSEPLATE_IN_CONTAINER",
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "APP_ENV",
+        "VIP_MODULE_ENABLED",
+        "WATCHFILES_FORCE_POLLING",
+    }
+    assert env["PULSEPLATE_PYTHON_INDEX_URL"] == "${PULSEPLATE_PYTHON_INDEX_URL:-}"
+    assert env["PULSEPLATE_PYTHON_TRUSTED_HOST"] == "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
 
 
 def test_devcontainer_compose_container_marker() -> None:

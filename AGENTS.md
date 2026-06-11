@@ -744,9 +744,9 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 - Micro PR: `<=5` changed files, no split justification required.
 - Standard governance/design PR: `<=20` changed files; normal `Scope`, `Out of scope`, and `Tests` sections required; `Split Justification` required when `>15` files.
-- Frontend vertical MVP PR: `<=30` changed files only with explicit `Operator approval: approved` plus `Frontend vertical MVP approval: approved` and `Split Justification`; must stay one vertical user flow and must not mix frontend UI with backend/API/AI runtime unless `Frontend/backend mix approval: approved` or an emergency exception is documented.
-- Privileged CI/security/workflow PR: target `<=10` files; hard cap `<=15` unless `Operator approval: approved` plus `Privileged scope exception: approved` is documented; cannot mix with frontend product implementation unless `Frontend/backend mix approval: approved` or an emergency exception is documented.
-- `>30` files fail closed unless explicit `Operator approval: approved` plus `Emergency exception: approved` is documented.
+- Frontend vertical MVP PR: `<=30` changed files only with explicit `Operator approval: approved` plus `Frontend vertical MVP approval: approved` and `Split Justification`, backed by trusted GitHub labels; must stay one vertical user flow and must not mix frontend UI with backend/API/AI runtime unless `Frontend/backend mix approval: approved` is backed by a trusted label or an emergency exception is documented with trusted label backing.
+- Privileged CI/security/workflow PR: target `<=10` files; hard cap `<=15` unless `Operator approval: approved` plus `Privileged scope exception: approved` is documented and backed by trusted GitHub labels; cannot mix with frontend product implementation unless `Frontend/backend mix approval: approved` is backed by a trusted label or an emergency exception is documented with trusted label backing.
+- `>30` files fail closed unless explicit `Operator approval: approved` plus `Emergency exception: approved` is documented and backed by trusted GitHub labels.
 - Closeout/mapping files such as `docs/review/PR_<N>_FIXED_MAPPING.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and narrow runbook/PR-body mirror docs tied to the PR are allowed in the same PR and still count for visibility.
 4. **Warnings (non-blocking):**
 

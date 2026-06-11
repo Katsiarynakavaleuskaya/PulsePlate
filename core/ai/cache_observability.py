@@ -24,7 +24,9 @@ from core.ai.exact_fuzzy_cache import (
 )
 
 JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonValue: TypeAlias = (
+    JsonScalar | list["JsonValue"] | tuple["JsonValue", ...] | Mapping[str, "JsonValue"]
+)
 
 EXPECTED_ACTION_FALLBACK = "fallback"
 EXPECTED_ACTION_SAFE_HIT = "safe_hit"
@@ -70,10 +72,13 @@ _ALLOWED_RISK_CLASSES = {
 }
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _ISO_PRODUCED_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
-_PATH_RE = re.compile(r"(?:^|[\s=])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)")
+_PATH_RE = re.compile(
+    r"(?:(?:^|[\s=(;,]|:(?!//))(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)|(?:^|[\s=(:;,])file://)"
+)
 _UNSAFE_METADATA_RE = re.compile(
     r"raw[_ -]?(?:query|prompt|response|answer)"
     r"|normalized[_ -]?query"
+    r"|provider[_ -]?payload"
     r"|prompt"
     r"|response"
     r"|answer"
@@ -91,6 +96,7 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|sk-[a-z0-9]"
     r"|gh[pousr]_[a-z0-9._-]+"
     r"|github_pat_[a-z0-9._-]+"
+    r"|xox[baprs]-[a-z0-9._-]+"
     r"|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
     r"|\+?\d[\d ()-]{7,}\d"
     r"|healthkit"
@@ -394,6 +400,66 @@ class CacheObservabilityMetrics:
         ):
             _validate_bps(name, getattr(self, name))
         object.__setattr__(self, "produced_at", _validate_produced_at(self.produced_at))
+
+
+@dataclass(frozen=True)
+class TokenEconomyEstimate:
+    """Metadata-only token/cost estimate for future cache economics review."""
+
+    estimate_id: str
+    surface: str
+    route_type: str
+    provider_label: str
+    model_label: str
+    token_estimate_version: str
+    prompt_input_chars: int
+    prompt_output_chars: int
+    prompt_input_tokens_estimate: int
+    prompt_output_tokens_estimate: int
+    baseline_context_tokens_estimate: int
+    candidate_context_tokens_estimate: int
+    tokens_saved_estimate: int
+    orchestration_fanout_multiplier: int
+    provider_calls_avoided_count: int
+    cost_saved_microunits: int
+    cost_estimate_policy_version: str
+    currency_code: str
+    reason_codes: tuple[str, ...]
+    produced_at: str
+    metadata: Mapping[str, JsonValue]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "estimate_id", _validate_token("estimate_id", self.estimate_id))
+        for name in (
+            "surface",
+            "route_type",
+            "provider_label",
+            "model_label",
+            "token_estimate_version",
+            "cost_estimate_policy_version",
+            "currency_code",
+        ):
+            object.__setattr__(self, name, _validate_safe_token(name, getattr(self, name)))
+        for name in (
+            "prompt_input_chars",
+            "prompt_output_chars",
+            "prompt_input_tokens_estimate",
+            "prompt_output_tokens_estimate",
+            "baseline_context_tokens_estimate",
+            "candidate_context_tokens_estimate",
+            "tokens_saved_estimate",
+            "orchestration_fanout_multiplier",
+            "provider_calls_avoided_count",
+            "cost_saved_microunits",
+        ):
+            _validate_non_negative_int(name, getattr(self, name))
+        object.__setattr__(
+            self,
+            "reason_codes",
+            _normalize_required_unique_tokens("reason_codes", self.reason_codes),
+        )
+        object.__setattr__(self, "produced_at", _validate_produced_at(self.produced_at))
+        object.__setattr__(self, "metadata", _freeze_metadata(self.metadata))
 
 
 @dataclass(frozen=True)
@@ -751,6 +817,131 @@ def compute_cache_observability_metrics(
     )
 
 
+def build_token_economy_estimate(
+    *,
+    surface: str,
+    route_type: str,
+    provider_label: str,
+    model_label: str,
+    token_estimate_version: str,
+    prompt_input_chars: int,
+    prompt_output_chars: int,
+    prompt_input_tokens_estimate: int,
+    prompt_output_tokens_estimate: int,
+    baseline_context_tokens_estimate: int,
+    candidate_context_tokens_estimate: int,
+    tokens_saved_estimate: int,
+    orchestration_fanout_multiplier: int,
+    provider_calls_avoided_count: int,
+    cost_saved_microunits: int,
+    cost_estimate_policy_version: str,
+    currency_code: str,
+    reason_codes: Iterable[str],
+    produced_at: str,
+    metadata: Mapping[str, JsonValue] | None = None,
+) -> TokenEconomyEstimate:
+    """Build a deterministic metadata-only token/cost estimate."""
+
+    normalized_surface = _validate_safe_token("surface", surface)
+    normalized_route_type = _validate_safe_token("route_type", route_type)
+    normalized_provider_label = _validate_safe_token("provider_label", provider_label)
+    normalized_model_label = _validate_safe_token("model_label", model_label)
+    normalized_token_estimate_version = _validate_safe_token(
+        "token_estimate_version",
+        token_estimate_version,
+    )
+    normalized_cost_estimate_policy_version = _validate_safe_token(
+        "cost_estimate_policy_version",
+        cost_estimate_policy_version,
+    )
+    normalized_currency_code = _validate_safe_token("currency_code", currency_code)
+    normalized_reasons = _normalize_required_unique_tokens("reason_codes", reason_codes)
+    normalized_prompt_input_chars = _validate_non_negative_int(
+        "prompt_input_chars",
+        prompt_input_chars,
+    )
+    normalized_prompt_output_chars = _validate_non_negative_int(
+        "prompt_output_chars",
+        prompt_output_chars,
+    )
+    normalized_prompt_input_tokens_estimate = _validate_non_negative_int(
+        "prompt_input_tokens_estimate",
+        prompt_input_tokens_estimate,
+    )
+    normalized_prompt_output_tokens_estimate = _validate_non_negative_int(
+        "prompt_output_tokens_estimate",
+        prompt_output_tokens_estimate,
+    )
+    normalized_baseline_context_tokens_estimate = _validate_non_negative_int(
+        "baseline_context_tokens_estimate",
+        baseline_context_tokens_estimate,
+    )
+    normalized_candidate_context_tokens_estimate = _validate_non_negative_int(
+        "candidate_context_tokens_estimate",
+        candidate_context_tokens_estimate,
+    )
+    normalized_tokens_saved_estimate = _validate_non_negative_int(
+        "tokens_saved_estimate",
+        tokens_saved_estimate,
+    )
+    normalized_orchestration_fanout_multiplier = _validate_non_negative_int(
+        "orchestration_fanout_multiplier",
+        orchestration_fanout_multiplier,
+    )
+    normalized_provider_calls_avoided_count = _validate_non_negative_int(
+        "provider_calls_avoided_count",
+        provider_calls_avoided_count,
+    )
+    normalized_cost_saved_microunits = _validate_non_negative_int(
+        "cost_saved_microunits",
+        cost_saved_microunits,
+    )
+    sorted_reason_codes: list[JsonValue] = [reason for reason in sorted(normalized_reasons)]
+    payload: JsonValue = {
+        "baseline_context_tokens_estimate": normalized_baseline_context_tokens_estimate,
+        "candidate_context_tokens_estimate": normalized_candidate_context_tokens_estimate,
+        "cost_estimate_policy_version": normalized_cost_estimate_policy_version,
+        "cost_saved_microunits": normalized_cost_saved_microunits,
+        "currency_code": normalized_currency_code,
+        "model_label": normalized_model_label,
+        "orchestration_fanout_multiplier": normalized_orchestration_fanout_multiplier,
+        "prompt_input_chars": normalized_prompt_input_chars,
+        "prompt_input_tokens_estimate": normalized_prompt_input_tokens_estimate,
+        "prompt_output_chars": normalized_prompt_output_chars,
+        "prompt_output_tokens_estimate": normalized_prompt_output_tokens_estimate,
+        "provider_label": normalized_provider_label,
+        "provider_calls_avoided_count": normalized_provider_calls_avoided_count,
+        "reason_codes": sorted_reason_codes,
+        "route_type": normalized_route_type,
+        "surface": normalized_surface,
+        "token_estimate_version": normalized_token_estimate_version,
+        "tokens_saved_estimate": normalized_tokens_saved_estimate,
+    }
+    return TokenEconomyEstimate(
+        estimate_id=f"token-economy:{_fingerprint_payload(payload)[:24]}",
+        surface=normalized_surface,
+        route_type=normalized_route_type,
+        provider_label=normalized_provider_label,
+        model_label=normalized_model_label,
+        token_estimate_version=normalized_token_estimate_version,
+        prompt_input_chars=normalized_prompt_input_chars,
+        prompt_output_chars=normalized_prompt_output_chars,
+        prompt_input_tokens_estimate=normalized_prompt_input_tokens_estimate,
+        prompt_output_tokens_estimate=normalized_prompt_output_tokens_estimate,
+        baseline_context_tokens_estimate=normalized_baseline_context_tokens_estimate,
+        candidate_context_tokens_estimate=normalized_candidate_context_tokens_estimate,
+        tokens_saved_estimate=normalized_tokens_saved_estimate,
+        orchestration_fanout_multiplier=normalized_orchestration_fanout_multiplier,
+        provider_calls_avoided_count=normalized_provider_calls_avoided_count,
+        cost_saved_microunits=normalized_cost_saved_microunits,
+        cost_estimate_policy_version=normalized_cost_estimate_policy_version,
+        currency_code=normalized_currency_code,
+        reason_codes=normalized_reasons,
+        produced_at=produced_at,
+        metadata=metadata or {},
+    )
+
+
 def evaluate_cache_stop_rules(
     *,
     metrics: CacheObservabilityMetrics,
@@ -840,6 +1031,32 @@ def to_stable_mapping(value: object) -> Mapping[str, JsonValue]:
         )
     if isinstance(value, CacheObservabilityMetrics):
         return _freeze_mapping({name: getattr(value, name) for name in value.__dataclass_fields__})
+    if isinstance(value, TokenEconomyEstimate):
+        return _freeze_mapping(
+            {
+                "baseline_context_tokens_estimate": value.baseline_context_tokens_estimate,
+                "candidate_context_tokens_estimate": value.candidate_context_tokens_estimate,
+                "cost_estimate_policy_version": value.cost_estimate_policy_version,
+                "cost_saved_microunits": value.cost_saved_microunits,
+                "currency_code": value.currency_code,
+                "estimate_id": value.estimate_id,
+                "metadata": _json_safe_copy(value.metadata),
+                "model_label": value.model_label,
+                "orchestration_fanout_multiplier": value.orchestration_fanout_multiplier,
+                "produced_at": value.produced_at,
+                "prompt_input_chars": value.prompt_input_chars,
+                "prompt_input_tokens_estimate": value.prompt_input_tokens_estimate,
+                "prompt_output_chars": value.prompt_output_chars,
+                "prompt_output_tokens_estimate": value.prompt_output_tokens_estimate,
+                "provider_calls_avoided_count": value.provider_calls_avoided_count,
+                "provider_label": value.provider_label,
+                "reason_codes": list(value.reason_codes),
+                "route_type": value.route_type,
+                "surface": value.surface,
+                "token_estimate_version": value.token_estimate_version,
+                "tokens_saved_estimate": value.tokens_saved_estimate,
+            }
+        )
     if isinstance(value, CacheStopDecision):
         return _freeze_mapping(
             {
@@ -905,11 +1122,23 @@ def _freeze_metadata(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
     if not isinstance(copied, dict):
         raise ValueError("metadata must be a mapping")
     _validate_metadata_is_safe(copied)
-    return _freeze_mapping(copied)
+    return _deep_freeze_mapping(copied)
 
 
 def _freeze_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
     return MappingProxyType(dict(sorted(value.items())))
+
+
+def _deep_freeze_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
+    return MappingProxyType({key: _deep_freeze_json(item) for key, item in sorted(value.items())})
+
+
+def _deep_freeze_json(value: JsonValue) -> JsonValue:
+    if isinstance(value, Mapping):
+        return _deep_freeze_mapping(value)
+    if isinstance(value, list | tuple):
+        return tuple(_deep_freeze_json(item) for item in value)
+    return value
 
 
 def _json_safe_copy(value: JsonValue | Mapping[str, JsonValue]) -> JsonValue:
@@ -974,6 +1203,12 @@ def _validate_token(name: str, value: str) -> str:
         raise ValueError(f"{name} must not contain whitespace")
     if not _TOKEN_RE.match(normalized):
         raise ValueError(f"{name} contains unsupported characters")
+    return normalized
+
+
+def _validate_safe_token(name: str, value: str) -> str:
+    normalized = _validate_token(name, value)
+    _validate_safe_metadata_string(name, normalized)
     return normalized
 
 

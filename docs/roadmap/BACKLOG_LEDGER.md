@@ -24,6 +24,38 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-semantic-cache-cost-provenance-train"></a>
+- [ ] P1: Semantic cache cost provenance and context-economy PR train
+  - Owner: @katsiaryna_kavaleuskaya (AI runtime / orchestration governance)
+  - Priority: P1
+  - Target PR: PR-O1 merged baseline; PR-O2 merged baseline; current slice PR-O3 `codex/provider-model-tier-routing-o3`; PR-O4..PR-O7 TBD
+  - Status: PR-O1 merged as metadata-only cost provenance baseline; PR-O2 merged as deterministic orchestration context compression baseline; PR-O3 active for provider/model-tier routing policy telemetry; later runtime-serving work deferred behind separate gate-open PRs
+  - Area: AI runtime governance / orchestration cost / semantic-cache scaffold
+  - Reason (EN): Expensive GPT-5.5/Codex orchestration currently repeats prompt modules, context, and merge-readiness documentation work without a deterministic way to attribute safe reusable context, estimate saved tokens, or label future provider/model-tier policy choices without weakening review quality. PR-O1 created metadata-only provenance, prompt-module fingerprints, and token/cost estimate scaffolding; PR-O2 added deterministic graph/context-pack compression metadata so repeated orchestration context can be measured and de-duplicated without opening semantic-cache serving or provider integration; PR-O3 adds metadata-only provider/model-tier routing telemetry with final review and synthesis still `frontier_required`.
+  - Links: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.md`, `core/evidence/fingerprints.py`, `core/ai/prompt_modules.py`, `core/ai/cache_observability.py`, `scripts/orchestration/context_pack_compression.py`, `scripts/orchestration/provider_model_tier_policy.py`
+  - PR train:
+    - PR-O1: deterministic provenance envelope, prompt-module fingerprint registry, and token/cost telemetry scaffold; metadata-only and non-serving.
+    - PR-O2: graph/context-pack compression for repeated orchestration and merge-readiness context; metadata-only, advisory, and non-serving.
+    - PR-O3: provider/model-tier routing policy telemetry for orchestration cost decisions; metadata-only, label-only, selected route fixed to `no_runtime_selection`, and final review/synthesis preserved as `frontier_required`.
+    - PR-O4..PR-O7: cache admission, replay, observability, and serving candidates remain TBD and require dedicated reviewed gates.
+  - Deferred review follow-up: after PR-O3 stabilizes, evaluate whether safe-label,
+    metadata-safety, and fingerprint validation helpers should be centralized in a
+    shared orchestration utility; do not widen PR-O2 into unrelated shared helper
+    extraction.
+  - Out of scope: semantic-cache reads/writes, Redis, GPTCache, GraphRAG runtime, embeddings/vector search, Ollama or Perplexity/Sonar API wiring, provider clients/calls, runtime model/provider selection, OpenAPI, DB, frontend, iOS, entitlement/billing truth, provider-specific pricing truth, raw prompts, raw responses, raw queries, raw context snippets, provider payloads, and live cost-savings claims.
+  - DoD: PR-O3 keeps markers `closed / false / false / true`; stores only safe fingerprints, IDs, counts, estimates, labels, graph nodes/edges, selected refs, omitted duplicate refs, provider/model-tier labels, reason codes, and token-economy estimate references; fixes selected route to `no_runtime_selection`; preserves final reasoning/review/synthesis as `frontier_required`; separates token estimates from runtime cost claims and provider pricing; rejects raw and provider payloads, secrets, and local paths; passes focused contract tests plus semantic-cache gate checks; documents that runtime serving and provider wiring remain no earlier than separately gated PR-O4+ work.
+
+<a id="ledger-p1-pr-size-governance-trusted-base-execution"></a>
+- [ ] P1: PR size governance trusted-base execution switch
+  - Owner: @katsiaryna_kavaleuskaya (CI governance)
+  - Priority: P1
+  - Target PR: Follow-up after PR #1909 merge
+  - Status: Open
+  - Area: CI / merge governance / PR scope guard
+  - Reason (EN): PR #1909 hardens trusted label-backed scope approvals, but premortem found that switching the workflow to execute `check_pr_size_governance.py` from the protected base checkout inside the same PR would ask base code to support behavior introduced only by PR #1909. That sequencing can make current-head CI fail or provide misleading assurance. The switch must land only after base contains the repo-root override and trusted-label contract.
+  - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_size_governance.py`, `tests/test_ci_workflow_pr_size_governance_contract.py`, `docs/review/PR_1909_FIXED_MAPPING.md`
+  - DoD: Update `pr_scope_guard` to checkout PR code and trusted base guard code separately; execute PR size governance from the trusted base copy while setting `PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT` to the PR checkout; preserve `--base-sha`, `--head-sha`, and `--event-path`; add workflow contract coverage; verify current-head CI and merge-readiness gates.
+
 <a id="ledger-p1-scientific-writing-agent"></a>
 - [ ] P1: Scientific Writing Agent registration
   - Owner: @katsiaryna_kavaleuskaya (Agent governance)

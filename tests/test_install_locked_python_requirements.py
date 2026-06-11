@@ -1446,6 +1446,128 @@ def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
     ]
 
 
+def test_stage_emergency_wheels_accepts_split_sha256_parts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("regex==2026.5.9\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "regex",
+                        "version": "2026.5.9",
+                        "filename": "regex-2026.5.9.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+                        "sha256_parts": ["a" * 32, "b" * 32],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=manifest,
+    )
+
+    assert [path.name for path in staged] == ["regex-2026.5.9.whl"]
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+            tmp_path / "wheelhouse" / "regex-2026.5.9.whl",
+            "a" * 32 + "b" * 32,
+        )
+    ]
+
+
+def test_verify_emergency_artifact_for_floor_accepts_split_sha256_parts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "regex",
+                        "version": "2026.5.9",
+                        "filename": "regex-2026.5.9.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+                        "sha256_parts": ["a" * 32, "b" * 32],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    assert (
+        installer.verify_emergency_artifact_for_floor(
+            manifest_path=manifest,
+            package="regex",
+            version="2026.5.9",
+        )
+        is True
+    )
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+            observed_downloads[0][1],
+            "a" * 32 + "b" * 32,
+        )
+    ]
+
+
+def test_load_emergency_wheel_manifest_mentions_split_sha256_contract(tmp_path: Path) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "regex",
+                        "version": "2026.5.9",
+                        "filename": "regex-2026.5.9.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="sha256_parts"):
+        installer.load_emergency_wheel_manifest(manifest)
+
+
 def test_stage_emergency_wheels_downloads_requested_artifacts_across_multiple_packages(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
