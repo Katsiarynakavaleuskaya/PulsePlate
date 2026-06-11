@@ -133,6 +133,20 @@ Post-open role findings:
     symbol names for sensitive aliases, blocking cases such as
     `from core import llm as l; l.model.generate(...)`.
     `tests/test_legacy_growth_guard.py` covers this bypass.
+- Role: `Codex Security`
+  - Disposition: NOT-A-BUG
+  - Evidence: local Codex Security diff scan completed at
+    `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z`.
+    The scan wrote 7/7 work-ledger receipts, validated and rendered
+    `report.md` / `report.html`, and emitted no reportable findings.
+- Role: `pulseplate-pr-review`
+  - Disposition: NOT-A-BUG
+  - Evidence: local dry-run report
+    `/tmp/pulseplate_pr_1954_review_report_local.md` flagged only an advisory
+    large-diff review-planning note. The scope is the operator-approved narrow
+    architecture slice, and the proving gate
+    `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`
+    passed with 75 selected tests.
 
 ## Implementation Evidence
 
@@ -230,6 +244,17 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
 - After `1f434117b`: `.venv/bin/python scripts/ci/check_artifact_reader_contracts.py` - PASS.
 - After `1f434117b`: `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 75 tests selected.
 - After `1f434117b`: `pre-commit run --all-files` - PASS.
+- Codex Security diff scan / finding discovery - PASS, no reportable
+  findings. Report:
+  `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z/report.md`;
+  HTML:
+  `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z/report.html`;
+  work ledger:
+  `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z/artifacts/02_discovery/work_ledger.jsonl`.
+- `pulseplate-pr-review` local dry-run - PASS with one advisory large-diff
+  planning note dispositioned as NOT-A-BUG for this operator-approved narrow
+  architecture slice. Report:
+  `/tmp/pulseplate_pr_1954_review_report_local.md`.
 
 ## Current Main / Merge Readiness
 
@@ -250,6 +275,19 @@ Artifact: artifacts/orchestration/experiments/results/exp-ef7d993bc3c7.json
   Evidence: previous false-green classes now return guard errors; focused
   tests passed with 62 tests; both guard CLIs passed; `git diff --check
   origin/main...HEAD` passed.
-- `security-auditor`: FIXED in `88696ef9a` and `1f434117b`; rerun pending.
-- Codex Security diff scan / finding discovery: pending.
-- `pulseplate-pr-review`: pending.
+- `security-auditor`: FIXED in `88696ef9a` and `1f434117b`.
+- `security-auditor` rerun: PASS at head `03840c09557f2e7e7531548410f3ae7865e661f2`.
+  Evidence: focused tests passed with 75 tests; both guard CLIs passed;
+  targeted probes blocked for route aliases, provider/LLM aliases, dynamic
+  artifact paths, stdlib aliases, and `from core import llm as l`; no runtime,
+  OpenAPI/client, semantic-cache serving, FoodDB, local absolute path, secret,
+  suppression, subprocess, `eval`, or `exec` changes found.
+- Codex Security diff scan / finding discovery: PASS, no reportable findings.
+  Evidence: scan report
+  `/tmp/codex-security-scans/PulsePlate/03840c09557f_20260611T224332Z/report.md`;
+  7/7 diff files have `work_ledger.jsonl` completion receipts; final report
+  validated and rendered to HTML.
+- `pulseplate-pr-review`: PASS with advisory note dispositioned.
+  Evidence: `/tmp/pulseplate_pr_1954_review_report_local.md`; the only finding
+  was a large-diff review-planning note, addressed by the explicit narrow scope
+  and passing `make validate-changed` evidence.
