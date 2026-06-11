@@ -128,6 +128,11 @@ Findings:
   `app/schemas/user_coaching_state.py` now rejects `ready` traces with degraded
   evidence and `no_recommendation` traces attached to recommending plans;
   regression coverage is in `tests/test_coaching_markov_orchestration_adapter.py`.
+- `security-auditor`: PASS / no-actionables at
+  `0bcba262564978cd365c57e7bca371af772cecae`. Evidence: read-only review
+  covered leakage, prompt-safety, medical/therapy claims, route/OpenAPI/client/
+  runtime/provider/RAG/semantic-cache/write coupling, status tampering, and
+  governance gaps.
 
 ## Local Validation
 
