@@ -9,6 +9,8 @@ DB/cache backend, OpenAPI/client changes, or raw response storage are added.
 
 ## Lane Start Provenance
 
+- Packet: artifacts/orchestration/task_packets/0c3299212eef.json
+- Starter: scripts/orchestration/start_pr_lane.sh
 - Branch: `codex/orchestration-shadow-reuse-cache-v1`
 - Base: `origin/main`
 - Startup packet: `artifacts/orchestration/task_packets/ee13e65a9cb4.json`
@@ -21,15 +23,15 @@ DB/cache backend, OpenAPI/client changes, or raw response storage are added.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after latest review activity.
-- [x] Fixed in commit mapping artifact created.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - Review threads: none resolved by this artifact at PR open.
 - Bot reviews/actionables: pending post-open CodeRabbit, Sourcery, Cubic, Codex
   Security, and PulsePlate role passes.
 
 ## Fixed in Commit Mapping
 
-No actionable GitHub review threads have been resolved yet.
+- No actionable review comments
 
 ## Implementation Evidence
 
@@ -57,6 +59,8 @@ No actionable GitHub review threads have been resolved yet.
   and unsafe observability labels.
 
 ## Experiment Runner Evidence
+
+Artifact: artifacts/orchestration/experiments/results/exp-7d5fbf5201ec.json
 
 - Mode: `oracle_only_governance_reviewer`
 - Packet: `artifacts/orchestration/experiments/exp-7d5fbf5201ec.json`
