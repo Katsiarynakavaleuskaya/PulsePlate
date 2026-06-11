@@ -39,6 +39,48 @@ def test_artifact_guard_rejects_direct_read_text() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                import pathlib
+
+                pathlib.Path("artifacts/orchestration/packet.json").read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/orchestration",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path as P
+
+                P("artifacts/agent_runs/report.json").read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/agent_runs",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("artifacts").joinpath("security_lab", "report.json").read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/security_lab",
+        ),
+    ],
+)
+def test_artifact_guard_rejects_pathlib_variants(
+    source: str,
+    expected: str,
+) -> None:
+    findings, errors = artifact_guard.collect_artifact_read_findings_for_source(
+        source,
+        rel_path="app/unsafe.py",
+    )
+
+    assert errors == []
+    assert [finding.display() for finding in findings] == [expected]
+
+
 def test_artifact_guard_rejects_builtin_open_default_read() -> None:
     source = 'open("artifacts/agent_runs/summary.json")\n'
 

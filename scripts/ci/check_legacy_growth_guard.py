@@ -69,6 +69,17 @@ SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
     "receipt": 0,
     "subscription": 0,
 }
+SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
+    "api_key": 17,
+    "auth": 0,
+    "billing": 0,
+    "entitlement": 0,
+    "llm": 0,
+    "provider": 0,
+    "quota": 0,
+    "receipt": 0,
+    "subscription": 0,
+}
 
 ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
     {
@@ -293,8 +304,8 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     facts.add(
                         LegacyFact("decorator", func.attr, _first_arg_label(decorator), node.name)
                     )
-        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
-            call = node.value
+        elif isinstance(node, ast.Call):
+            call = node
             func = call.func
             if (
                 isinstance(func, ast.Attribute)
@@ -315,12 +326,15 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
 
     facts: set[LegacyFact] = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.ImportFrom) or node.module is None:
-            continue
-        if node.module != "app.routers" and not node.module.startswith("app.routers."):
-            continue
-        for alias in node.names:
-            facts.add(LegacyFact("router_import", node.module, alias.name, alias.asname or ""))
+        if isinstance(node, ast.ImportFrom) and node.module is not None:
+            if node.module != "app.routers" and not node.module.startswith("app.routers."):
+                continue
+            for alias in node.names:
+                facts.add(LegacyFact("router_import", node.module, alias.name, alias.asname or ""))
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "app.routers" or alias.name.startswith("app.routers."):
+                    facts.add(LegacyFact("router_import", "import", alias.name, alias.asname or ""))
     return facts
 
 
@@ -346,6 +360,37 @@ def collect_sensitive_call_counts(
     return counts
 
 
+def collect_sensitive_app_surface_counts(
+    source_text: str,
+    *,
+    filename: str = LEGACY_APP,
+) -> Counter[str]:
+    """Return sensitive terms present on app route/router registration calls."""
+
+    counts: Counter[str] = Counter()
+    tree, errors = _parse_source(source_text, filename=filename)
+    if errors or tree is None:
+        return counts
+
+    app_surface_methods = APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "app"
+            and func.attr in app_surface_methods
+        ):
+            continue
+        call_text = _safe_unparse(node).casefold()
+        for keyword in SENSITIVE_CALL_KEYWORDS:
+            if keyword in call_text:
+                counts[keyword] += 1
+    return counts
+
+
 def validate_legacy_growth(
     source_text: str,
     *,
@@ -355,6 +400,7 @@ def validate_legacy_growth(
         ALLOWED_ROUTER_IMPORT_FACTS
     ),
     sensitive_call_limits: Mapping[str, int] = SENSITIVE_CALL_LIMITS,
+    sensitive_app_surface_limits: Mapping[str, int] = SENSITIVE_APP_SURFACE_LIMITS,
 ) -> list[str]:
     """Return deterministic errors for legacy_app.py growth."""
 
@@ -366,6 +412,10 @@ def validate_legacy_growth(
     route_facts = collect_legacy_route_facts(source_text, filename=filename)
     router_import_facts = collect_router_import_facts(source_text, filename=filename)
     sensitive_counts = collect_sensitive_call_counts(source_text, filename=filename)
+    sensitive_app_surface_counts = collect_sensitive_app_surface_counts(
+        source_text,
+        filename=filename,
+    )
 
     for fact in sorted(route_facts - set(allowed_route_facts)):
         errors.append(f"{filename}: unexpected legacy route growth: {fact.display()}")
@@ -376,6 +426,12 @@ def validate_legacy_growth(
         if actual > limit:
             errors.append(
                 f"{filename}: sensitive call family grew for {keyword}: {actual} > {limit}"
+            )
+    for keyword, limit in sorted(sensitive_app_surface_limits.items()):
+        actual = sensitive_app_surface_counts[keyword]
+        if actual > limit:
+            errors.append(
+                f"{filename}: sensitive app surface grew for {keyword}: {actual} > {limit}"
             )
     return errors
 

@@ -87,21 +87,43 @@ def _forbidden_root(parts: tuple[str, ...]) -> str | None:
 
 
 def _literal_path_parts(
-    node: ast.AST, names: Mapping[str, tuple[str, ...]]
+    node: ast.AST,
+    names: Mapping[str, tuple[str, ...]],
+    path_constructors: frozenset[str] = frozenset({"Path"}),
+    path_modules: frozenset[str] = frozenset({"pathlib"}),
 ) -> tuple[str, ...] | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return _normalize_path_parts(node.value)
     if isinstance(node, ast.Name):
         return names.get(node.id)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
-        left = _literal_path_parts(node.left, names)
-        right = _literal_path_parts(node.right, names)
+        left = _literal_path_parts(node.left, names, path_constructors, path_modules)
+        right = _literal_path_parts(node.right, names, path_constructors, path_modules)
         if left is not None and right is not None:
             return (*left, *right)
     if isinstance(node, ast.Call):
         func = node.func
-        if isinstance(func, ast.Name) and func.id == "Path" and node.args:
-            return _literal_path_parts(node.args[0], names)
+        if isinstance(func, ast.Name) and func.id in path_constructors and node.args:
+            return _literal_path_parts(node.args[0], names, path_constructors, path_modules)
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "Path"
+            and isinstance(func.value, ast.Name)
+            and func.value.id in path_modules
+            and node.args
+        ):
+            return _literal_path_parts(node.args[0], names, path_constructors, path_modules)
+        if isinstance(func, ast.Attribute) and func.attr == "joinpath":
+            base = _literal_path_parts(func.value, names, path_constructors, path_modules)
+            if base is None:
+                return None
+            parts: list[str] = list(base)
+            for arg in node.args:
+                arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
+                if arg_parts is None:
+                    return None
+                parts.extend(arg_parts)
+            return tuple(parts)
         if (
             isinstance(func, ast.Attribute)
             and func.attr == "join"
@@ -112,7 +134,7 @@ def _literal_path_parts(
         ):
             parts: list[str] = []
             for arg in node.args:
-                arg_parts = _literal_path_parts(arg, names)
+                arg_parts = _literal_path_parts(arg, names, path_constructors, path_modules)
                 if arg_parts is None:
                     return None
                 parts.extend(arg_parts)
@@ -170,10 +192,33 @@ class ArtifactReadVisitor(ast.NodeVisitor):
     def __init__(self, *, rel_path: str) -> None:
         self.rel_path = rel_path
         self.name_paths: dict[str, tuple[str, ...]] = {}
+        self.path_constructors: set[str] = {"Path"}
+        self.path_modules: set[str] = {"pathlib"}
         self.findings: list[ArtifactReadFinding] = []
 
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            if alias.name == "pathlib":
+                self.path_modules.add(alias.asname or "pathlib")
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module == "pathlib":
+            for alias in node.names:
+                if alias.name == "Path":
+                    self.path_constructors.add(alias.asname or "Path")
+        self.generic_visit(node)
+
+    def _literal_path_parts(self, node: ast.AST) -> tuple[str, ...] | None:
+        return _literal_path_parts(
+            node,
+            self.name_paths,
+            frozenset(self.path_constructors),
+            frozenset(self.path_modules),
+        )
+
     def visit_Assign(self, node: ast.Assign) -> None:
-        parts = _literal_path_parts(node.value, self.name_paths)
+        parts = self._literal_path_parts(node.value)
         for target in node.targets:
             if isinstance(target, ast.Name) and parts is not None:
                 self.name_paths[target.id] = parts
@@ -181,7 +226,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         if isinstance(node.target, ast.Name) and node.value is not None:
-            parts = _literal_path_parts(node.value, self.name_paths)
+            parts = self._literal_path_parts(node.value)
             if parts is not None:
                 self.name_paths[node.target.id] = parts
         self.generic_visit(node)
@@ -220,7 +265,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
                 if path_node is not None:
                     self._check_path_operation(node, path_node, operation=f"os.path.{func.attr}")
 
-            receiver_parts = _literal_path_parts(func.value, self.name_paths)
+            receiver_parts = self._literal_path_parts(func.value)
             if receiver_parts is not None:
                 artifact_root = _forbidden_root(receiver_parts)
                 if artifact_root and func.attr in READ_METHODS:
@@ -251,7 +296,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
                     self._check_path_operation(node, path_node, operation=f"glob.{func.attr}")
 
     def _check_open_like(self, node: ast.Call, path_node: ast.AST, *, operation: str) -> None:
-        parts = _literal_path_parts(path_node, self.name_paths)
+        parts = self._literal_path_parts(path_node)
         if parts is None:
             return
         artifact_root = _forbidden_root(parts)
@@ -259,7 +304,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
             self._add(node, operation=operation, artifact_root=artifact_root)
 
     def _check_path_operation(self, node: ast.Call, path_node: ast.AST, *, operation: str) -> None:
-        parts = _literal_path_parts(path_node, self.name_paths)
+        parts = self._literal_path_parts(path_node)
         if parts is None:
             return
         artifact_root = _forbidden_root(parts)

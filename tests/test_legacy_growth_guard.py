@@ -70,6 +70,35 @@ def test_legacy_growth_guard_rejects_add_api_route_registration() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            'registered = app.add_api_route("/api/v1/new-runtime", new_runtime_route)\n',
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:add_api_route:/api/v1/new-runtime",
+        ),
+        (
+            "registered = app.add_middleware(NewRuntimeMiddleware)\n",
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:add_middleware:NewRuntimeMiddleware",
+        ),
+        (
+            "registered = app.include_router(new_router)\n",
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:include_router:new_router",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_non_expression_app_registrations(
+    source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [expected]
+
+
 def test_legacy_growth_guard_rejects_add_middleware() -> None:
     source = "app.add_middleware(NewRuntimeMiddleware)\n"
 
@@ -107,6 +136,17 @@ def test_legacy_growth_guard_rejects_new_router_import() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_normal_router_import() -> None:
+    source = "import app.routers.new_surface as new_surface\n"
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:import:app.routers.new_surface -> new_surface"
+    ]
+
+
 def test_legacy_growth_guard_rejects_sensitive_call_growth() -> None:
     source = "def call(provider):\n    return provider.generate('unsafe')\n"
 
@@ -139,6 +179,40 @@ def test_legacy_growth_guard_rejects_current_baseline_sensitive_growth(
     assert errors == [
         f"legacy_app.py: sensitive call family grew for {keyword}: {limit + 1} > {limit}"
     ]
+
+
+def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
+    source = textwrap.dedent("""
+        @app.get("/health", dependencies=[Depends(auth_guard)])
+        def health():
+            return {"ok": True}
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == ["legacy_app.py: sensitive app surface grew for auth: 1 > 0"]
+
+
+def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None:
+    source = "app.include_router(foods_router, dependencies=[Depends(auth_guard)])\n"
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == ["legacy_app.py: sensitive app surface grew for auth: 1 > 0"]
+
+
+def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline() -> None:
+    source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
+    source += textwrap.dedent("""
+
+        @app.get("/health", dependencies=[Depends(api_key_guard)])
+        def health():
+            return {"ok": True}
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 18 > 17"]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:
