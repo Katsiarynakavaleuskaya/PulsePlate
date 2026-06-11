@@ -62,7 +62,7 @@ def normalize_optional_gtin(value: object) -> str | None:
     raw = normalize_optional_metadata(value)
     if raw is None:
         return None
-    digits = "".join(ch for ch in raw if ch.isdigit())
+    digits = "".join(ch for ch in raw if ch in "0123456789")
     return digits or None
 
 

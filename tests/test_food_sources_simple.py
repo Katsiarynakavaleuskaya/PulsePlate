@@ -13,7 +13,7 @@ import tempfile
 
 import pytest
 
-from core.food_sources.base import BaseAdapter, FoodRecord
+from core.food_sources.base import BaseAdapter, FoodRecord, normalize_optional_gtin
 from core.food_sources.off import OFFAdapter
 from core.food_sources.usda import USDAAdapter
 
@@ -369,6 +369,11 @@ class TestBaseAdapter:
         assert record.brand is None
         assert record.gtin is None
         assert record.fdc_id is None
+
+    def test_gtin_cleanup_keeps_ascii_digits_only(self) -> None:
+        """Barcode cleanup should not translate non-ASCII digit code points."""
+
+        assert normalize_optional_gtin(" 0-12 ٣٤-56 ") == "01256"
 
 
 class TestFoodSourcesIntegration:

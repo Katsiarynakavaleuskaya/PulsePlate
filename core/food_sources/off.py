@@ -16,6 +16,9 @@ from ..aliases import map_to_canonical
 from ..units import iu_vitd_from_ug
 from .base import BaseAdapter, FoodRecord, first_gtin_value, first_metadata_value
 
+OFF_BRAND_KEYS = ("brands", "brands_en", "brand")
+OFF_GTIN_KEYS = ("code", "gtin", "barcode")
+
 
 class OFFAdapter(BaseAdapter):
     """
@@ -120,8 +123,8 @@ class OFFAdapter(BaseAdapter):
                 flags.append("LOW_COST")
             if row.get("dairy_free") == "yes":
                 flags.append("DAIRY_FREE")
-            brand = first_metadata_value(row, ("brands", "brands_en", "brand"))
-            gtin = first_gtin_value(row, ("code", "gtin", "barcode"))
+            brand = first_metadata_value(row, OFF_BRAND_KEYS)
+            gtin = first_gtin_value(row, OFF_GTIN_KEYS)
 
             yield FoodRecord(
                 name=canonical,
