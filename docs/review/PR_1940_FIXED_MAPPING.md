@@ -37,6 +37,9 @@ No actionable GitHub review threads have been resolved yet.
   telemetry, task packet wiring, and focused tests for first-run miss,
   same-head exact hit, fuzzy hit, different-head hard miss, redaction, bounded
   artifact loading, and Git metadata HEAD resolution.
+- `51fd8d34d8f11df5ea33146b4b7b32b0efbda19d` - closes post-open QA findings by
+  adding a real `task_bootstrap.py main()` repeat-packet test for same-ID
+  same-head exact hits and a bounded `max_files` artifact-scan regression test.
 
 ## Premortem Evidence
 
@@ -80,21 +83,43 @@ No actionable GitHub review threads have been resolved yet.
 
 ## Live Shadow Reuse Proof
 
-Second identical `task_bootstrap.py` run on head
-`be01a4f7882d73c6f0170b2125b258198a6f89e8` produced:
+Second identical `task_bootstrap.py` run on current head
+`51fd8d34d8f11df5ea33146b4b7b32b0efbda19d` produced:
 
 - `decision=hit`
 - `match_mode=exact`
 - `score_bps=10000`
 - `checked_previous_packet_count=1`
+- `skipped_previous_packet_count=6`
 - `provider_calls_avoided_count=0`
 - `cost_saved_microunits=0`
 
 ## Post-open Role Findings
 
-Pending required post-open sequence:
-`qa-engineer-agent -> bug-hunter -> security-auditor`, then Codex Security diff
-scan / finding discovery and `pulseplate-pr-review`.
+- Role: `qa-engineer-agent`
+  - Disposition: FIXED
+  - Commit: `51fd8d34d8f11df5ea33146b4b7b32b0efbda19d`
+  - Evidence: `test_main_repeated_packet_records_same_head_shadow_exact_hit`
+    exercises the real `task_bootstrap.py main()` artifact loop with a
+    repo-contained temp task-packet directory, mocked stable HEAD, two identical
+    invocations, unchanged `task_packet_id`, first-run miss, and second-run
+    `decision=hit` / `match_mode=exact`.
+- Role: `qa-engineer-agent`
+  - Disposition: FIXED
+  - Commit: `51fd8d34d8f11df5ea33146b4b7b32b0efbda19d`
+  - Evidence: `test_collect_previous_task_packet_candidates_caps_scanned_files`
+    covers the `max_files` cap branch and asserts overflow files are counted as
+    skipped without serializing path-like metadata.
+- Role: `qa-engineer-agent`
+  - Disposition: FIXED
+  - Commit: `51fd8d34d8f11df5ea33146b4b7b32b0efbda19d`
+  - Evidence: current-head live shadow reuse proof above now cites
+    `51fd8d34d8f11df5ea33146b4b7b32b0efbda19d` and records an exact hit on the
+    second identical packet run.
+
+Pending required post-open sequence continuation:
+`bug-hunter -> security-auditor`, then Codex Security diff scan / finding
+discovery and `pulseplate-pr-review`.
 
 ## Merge Readiness
 
