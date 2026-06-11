@@ -78,8 +78,8 @@ Evidence: Commit `cf143b396` normalizes whitespace-only `command_hint` values to
 - `safety-policy.yaml` records a time-boxed Safety waiver for
   `SFTY-20250331-30014` because Safety reports `torch<=2.12.0` vulnerable with
   no fixed or recommended version.
-- `docs/security/CVE-2025-3000_TORCH_JIT_SCRIPT_OPTIONAL_RAG_VECTOR.md` and
-  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-torch-cve-2025-3000-rag-vector-bump`
+- `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md` and
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
   document scope, exposure, remove-by date, and remediation.
 - `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py`
   passed after the fix.
@@ -231,6 +231,6 @@ strict merge wrapper, unresolved-thread proof, and wait-window evidence.
 
 ## Deferred / Follow-ups
 
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-torch-cve-2025-3000-rag-vector-bump`:
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`:
   remove the `SFTY-20250331-30014` Safety waiver after a fixed torch release is
   available for the optional RAG/vector profiles.

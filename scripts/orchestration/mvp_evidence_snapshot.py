@@ -348,6 +348,8 @@ def read_latest_snapshot_line(
     try:
         with open(latest, "r", encoding="utf-8") as f:
             data = json.load(f)
+        if not isinstance(data, dict):
+            return None
         # Policy version validation (fail closed on unknown versions)
         if data.get("policy_version") not in _SUPPORTED_POLICY_VERSIONS:
             return None
