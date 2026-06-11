@@ -26,8 +26,8 @@ DB/cache backend, OpenAPI/client changes, or raw response storage are added.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - Review threads: none resolved by this artifact at PR open.
-- Bot reviews/actionables: pending post-open CodeRabbit, Sourcery, Cubic, Codex
-  Security, and PulsePlate role passes.
+- Bot reviews/actionables: pending final current-head CodeRabbit, Sourcery,
+  Cubic, and CI review pass.
 
 ## Fixed in Commit Mapping
 
@@ -95,6 +95,21 @@ Artifact: artifacts/orchestration/experiments/results/exp-7d5fbf5201ec.json
 - Push pre-hook - PASS: mypy changed files, pip-audit, backend tests, full-repo
   Bandit, and docker build test.
 
+## Codex Security Evidence
+
+- Skill: `codex-security:security-diff-scan`
+- Scan directory:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/01cb5daef109_20260611T133037Z`
+- Worklist: `scripts/orchestration/shadow_reuse_telemetry.py` and
+  `scripts/orchestration/task_bootstrap.py`
+- Work ledger:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/01cb5daef109_20260611T133037Z/artifacts/02_discovery/work_ledger.jsonl`
+- Final report:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/01cb5daef109_20260611T133037Z/report.md`
+- Result: no reportable Codex Security findings; discovery produced no
+  candidates, so validation and attack-path phases were skipped by the scan
+  procedure.
+
 ## Live Shadow Reuse Proof
 
 Second identical `task_bootstrap.py` run on code-bearing head
@@ -153,11 +168,20 @@ Second identical `task_bootstrap.py` run on code-bearing head
     same-head exact hit with `/Users/.../sk-test...` in the prior local
     artifact still records the hit while excluding path and secret-shaped text
     from serialized telemetry.
-
-Pending required post-open sequence continuation:
-Codex Security diff scan / finding discovery and `pulseplate-pr-review`.
+- Role: `pulseplate-pr-review`
+  - Disposition: NOT-A-BUG
+  - Evidence: dry-run report
+    `/tmp/pulseplate_pr1940_review_report.md` flags only the calibrated
+    large-diff review-risk note after being rerun with the PR merge-base and
+    packet `0c3299212eef`. The actual PR scope is the narrow orchestration
+    helper, bootstrap wiring, focused tests, and the mapping artifact; splitting
+    would separate the helper from its deterministic regression coverage.
+    Targeted gates passed: `check_preflight`, `check_agent_consistency`,
+    semantic-cache gate, focused bootstrap/cache pytest, `make
+    validate-changed`, `pre-commit run --all-files`, push pre-hook, and Codex
+    Security diff scan with no findings.
 
 ## Merge Readiness
 
-Not claimed. Pending current-head CI, post-open role passes, bot/actionable
-review disposition, strict merge-ready wrapper, and wait-window.
+Not claimed. Pending current-head CI, final bot/actionable review pass, strict
+merge-ready wrapper, and wait-window.
