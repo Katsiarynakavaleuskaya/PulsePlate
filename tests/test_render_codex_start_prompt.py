@@ -417,6 +417,30 @@ def test_main_rejects_non_object_packet_json(
     assert "Paste into Codex now:" not in captured.out
 
 
+@pytest.mark.parametrize("field", ["secondary", "advisory"])
+def test_main_rejects_malformed_native_bridge_role_lists(
+    field: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Malformed native bridge role lists should fail closed without tracebacks."""
+
+    packet = {
+        "goal": "test malformed bridge",
+        "task_class": "pr_governance",
+        "pr_phase": "none",
+        "native_subagent_bridge": {field: 1},
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    result = main(["packet", "--packet", str(packet_path)])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert f"native_subagent_bridge.{field} must be a list when present" in captured.err
+    assert "Traceback" not in captured.err
+    assert "Paste into Codex now:" not in captured.out
+
+
 def test_main_renders_packet_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """CLI packet mode should read a real packet object."""
 

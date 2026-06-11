@@ -533,6 +533,8 @@ jobs:
             "${install_args[@]}"
 
       - name: Dependency audit with Safety
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           set -euo pipefail
           python3 scripts/ci/run_safety_audit.py

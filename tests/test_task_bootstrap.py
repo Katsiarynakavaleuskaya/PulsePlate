@@ -210,6 +210,33 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert "agent-coordinator" in provider_routing["required_frontier_roles"]
     assert "no_provider_call" in provider_routing["reason_codes"]
     assert "no_cache_serving" in provider_routing["reason_codes"]
+    embedding_admission = packet["embedding_retrieval_admission"]
+    assert embedding_admission["telemetry_phase"] == "PR-O4"
+    assert embedding_admission["admission_allowed"] is False
+    assert embedding_admission["embedding_allowed"] is False
+    assert embedding_admission["retrieval_runtime_allowed"] is False
+    assert embedding_admission["semantic_similarity_allowed"] is False
+    assert embedding_admission["vector_search_allowed"] is False
+    assert embedding_admission["provider_calls_allowed"] is False
+    assert embedding_admission["cache_read_allowed"] is False
+    assert embedding_admission["cache_write_allowed"] is False
+    assert embedding_admission["serving_allowed"] is False
+    assert embedding_admission["selected_embedding_backend"] == "none"
+    assert embedding_admission["selected_retrieval_runtime"] == "none"
+    assert embedding_admission["evidence_refs"]
+    assert len(embedding_admission["candidates"]) == 3
+    for reason in (
+        "gate_closed",
+        "metadata_only",
+        "admission_deferred",
+        "no_embeddings",
+        "no_vector_search",
+        "no_runtime_retrieval",
+        "no_provider_call",
+        "no_cache_serving",
+        "future_gate_required",
+    ):
+        assert reason in embedding_admission["reason_codes"]
     assert packet["skill_routing"]["envelope_mode_hint"] == "docs_only"
     _docs_paths = ["docs/ENGINEERING_LESSONS.md"]
     _norm_docs = repo_relative_paths([p.strip() for p in _docs_paths if p.strip()])
@@ -1398,6 +1425,10 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     )
     assert SHADOW_REUSE_FIELD not in first_packet
     assert SHADOW_REUSE_FIELD not in second_packet
+    assert (
+        first_packet["embedding_retrieval_admission"]
+        == second_packet["embedding_retrieval_admission"]
+    )
     assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
     assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]
