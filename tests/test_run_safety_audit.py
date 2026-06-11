@@ -85,8 +85,10 @@ def _write_scan_report(path: Path, severities: list[str], *, ignored: bool = Fal
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _write_manifest(root: Path, name: str) -> None:
-    (root / name).write_text("example==1.0.0\n", encoding="utf-8")
+def _write_manifest(root: Path, name: str, content: str = "example==1.0.0\n") -> None:
+    path = root / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def _report_path_from_scan_command(command: list[str]) -> Path:
@@ -172,6 +174,38 @@ def test_run_audit_emits_per_manifest_artifacts(
     )
 
 
+def test_scan_target_copies_nested_requirement_references(tmp_path: Path) -> None:
+    _write_manifest(
+        tmp_path,
+        "requirements.txt",
+        "-r requirements/base.txt\n-c constraints/global.txt\n",
+    )
+    _write_manifest(
+        tmp_path, "requirements/base.txt", "--constraint nested/pins.txt\nexample==1.0.0\n"
+    )
+    _write_manifest(tmp_path, "requirements/nested/pins.txt", "example==1.0.0\n")
+    _write_manifest(tmp_path, "constraints/global.txt", "example<2\n")
+    target_dir = tmp_path / "scan-target"
+
+    safety_audit._prepare_scan_target(tmp_path, tmp_path / "requirements.txt", target_dir)
+
+    assert (target_dir / "requirements.txt").is_file()
+    assert (target_dir / "requirements/base.txt").is_file()
+    assert (target_dir / "requirements/nested/pins.txt").is_file()
+    assert (target_dir / "constraints/global.txt").is_file()
+
+
+def test_scan_target_handles_cyclic_requirement_references(tmp_path: Path) -> None:
+    _write_manifest(tmp_path, "requirements.txt", "-r requirements/base.txt\n")
+    _write_manifest(tmp_path, "requirements/base.txt", "-r ../requirements.txt\n")
+    target_dir = tmp_path / "scan-target"
+
+    safety_audit._prepare_scan_target(tmp_path, tmp_path / "requirements.txt", target_dir)
+
+    assert (target_dir / "requirements.txt").is_file()
+    assert (target_dir / "requirements/base.txt").is_file()
+
+
 def test_scan_v3_report_high_risk_finding_fails_aggregate(tmp_path: Path) -> None:
     report_path = tmp_path / "safety-requirements.json"
     summary_path = tmp_path / "safety-requirements.txt"
@@ -251,7 +285,9 @@ def test_high_risk_findings_fail_aggregate(tmp_path: Path, severity: str) -> Non
 
 
 @pytest.mark.parametrize("severity", ["LOW", "MEDIUM"])
-def test_low_and_medium_findings_warn_without_failing(tmp_path: Path, severity: str) -> None:
+def test_low_and_medium_findings_warn_without_failing_when_safety_exits_zero(
+    tmp_path: Path, severity: str
+) -> None:
     report_path = tmp_path / "safety-requirements.json"
     summary_path = tmp_path / "safety-requirements.txt"
     _write_report(report_path, [severity])
@@ -265,10 +301,32 @@ def test_low_and_medium_findings_warn_without_failing(tmp_path: Path, severity: 
         report_json=report_path,
         report_txt=summary_path,
         console_log=tmp_path / "safety-requirements.log",
-        safety_exit_code=64,
+        safety_exit_code=0,
         analysis=analysis,
     )
     assert safety_audit.exit_code_for_results([result]) == 0
+
+
+@pytest.mark.parametrize("severity", ["LOW", "MEDIUM"])
+def test_low_and_medium_findings_fail_when_safety_exits_nonzero(
+    tmp_path: Path, severity: str
+) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    _write_report(report_path, [severity])
+
+    analysis = safety_audit.analyze_report(report_path, summary_path)
+    result = safety_audit.ManifestAuditResult(
+        manifest=tmp_path / "requirements.txt",
+        report_json=report_path,
+        report_txt=summary_path,
+        console_log=tmp_path / "safety-requirements.log",
+        safety_exit_code=64,
+        analysis=analysis,
+    )
+
+    assert analysis.status == safety_audit.PARSE_WARNING
+    assert safety_audit.exit_code_for_results([result]) == 1
 
 
 def test_missing_or_empty_report_fails_closed(tmp_path: Path) -> None:

@@ -415,17 +415,33 @@ def _manifest_reference_paths(manifest: Path) -> tuple[Path, ...]:
         option = parts[0]
         if option in {"-r", "--requirement", "-c", "--constraint"} and len(parts) >= 2:
             references.append((manifest.parent / parts[1]).resolve())
+        elif option.startswith(("--requirement=", "--constraint=")):
+            references.append((manifest.parent / option.split("=", 1)[1]).resolve())
         elif option.startswith(("-r", "-c")) and len(option) > 2:
             references.append((manifest.parent / option[2:]).resolve())
     return tuple(references)
+
+
+def _collect_manifest_paths(manifest: Path, seen: set[Path] | None = None) -> tuple[Path, ...]:
+    """Return a manifest and all nested requirement/constraint references."""
+
+    resolved_manifest = manifest.resolve()
+    visited = set() if seen is None else seen
+    if resolved_manifest in visited:
+        return ()
+    visited.add(resolved_manifest)
+
+    collected = [resolved_manifest]
+    for reference in _manifest_reference_paths(resolved_manifest):
+        collected.extend(_collect_manifest_paths(reference, visited))
+    return tuple(collected)
 
 
 def _prepare_scan_target(root: Path, manifest: Path, target_dir: Path) -> Path:
     """Copy one manifest and its local requirement references into a scan target."""
 
     root_resolved = root.resolve()
-    paths = [manifest.resolve()]
-    paths.extend(_manifest_reference_paths(manifest))
+    paths = _collect_manifest_paths(manifest)
     for source in paths:
         if root_resolved not in (source, *source.parents):
             raise SafetyAuditError(f"Safety manifest reference escapes repo root: {source}")
@@ -562,6 +578,8 @@ def run_audit(config: SafetyAuditConfig) -> tuple[ManifestAuditResult, ...]:
 def exit_code_for_results(results: Sequence[ManifestAuditResult]) -> int:
     """Return aggregate workflow exit code for parsed Safety results."""
 
+    if any(result.safety_exit_code != 0 for result in results):
+        return 1
     if any(result.analysis.status == PARSE_BLOCKING for result in results):
         return 1
     return 0
@@ -641,7 +659,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     exit_code = exit_code_for_results(results)
     for result in results:
         manifest_name = result.manifest.name
-        if result.analysis.status == PARSE_BLOCKING:
+        if result.safety_exit_code != 0:
+            print(
+                f"ERROR: Safety scan exited with code {result.safety_exit_code} for {manifest_name}"
+            )
+        elif result.analysis.status == PARSE_BLOCKING:
             print(f"ERROR: Safety found high/critical/unknown vulnerabilities in {manifest_name}")
         elif result.analysis.status == PARSE_WARNING:
             print(
