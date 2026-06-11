@@ -53,13 +53,11 @@ Slack command hints fail closed.
 Disposition: FIXED
 Commit: 633b54e9a
 Evidence: Commit `633b54e9a` makes unknown non-empty Slack `command_hint` values fail closed in `scripts/orchestration/experiment_slack_bridge_commands.py`, preserves direct no-hint parser compatibility, adds regression coverage in `tests/test_experiment_slack_socket_bridge.py`, and `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py` passed after the fix.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#pullrequestreview-4453298969 -> 633b54e9a
 
 Disposition: FIXED
 Commit: cf143b396
 Evidence: Commit `cf143b396` normalizes whitespace-only `command_hint` values to `None`, adds direct parser compatibility coverage for whitespace-only hints, and keeps merge-readiness checklist items unchecked until the final merge cycle. `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py -k "command_hint or pulseplate_runner_cannot_dispatch or parser_preserves_direct"` and `. .venv/bin/activate && python -m pytest -q tests/test_experiment_slack_socket_bridge.py` passed after the fix.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#discussion_r3395626711 -> cf143b396
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#discussion_r3395626731 -> cf143b396
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1912#pullrequestreview-4476415949 -> cf143b396
