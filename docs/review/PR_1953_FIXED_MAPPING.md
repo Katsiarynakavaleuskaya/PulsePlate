@@ -9,6 +9,19 @@
 
 - No actionable review comments
 
+## Post-Open Role Review
+
+- `qa-engineer-agent`: FIXED missing target-specific test coverage for
+  `creative_research_origin` rendered through rejected/deferred `backlog_entry`
+  promotion.
+  - Commit: `5bb31f57d`
+  - Evidence: `tests/test_experiment_promote.py` covers
+    `promotion_target="backlog_entry"` with `creative_research_origin` and
+    asserts the ledger preserves bundle ID, candidate ID, and promotion
+    decision.
+  - Validation: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_promote.py tests/test_creative_research_metrics.py`
+    passed with `29 passed`.
+
 ## Experiment Runner Evidence
 
 - Artifact: `artifacts/orchestration/experiments/results/creative_research_adoption_metrics_oracle_result.json`
@@ -26,6 +39,7 @@
 - PASS: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/creative_research_adoption_metrics_pre_open.json --pretty`
 - PASS: required pre-open role passes completed in order: `agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter -> data-scientist-agent -> cursor-specialist-agent`.
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_creative_research_metrics.py tests/test_creative_research_eval.py tests/test_creative_research_eval_contract.py tests/test_experiment_promote.py`
+- PASS after QA fix: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_promote.py tests/test_creative_research_metrics.py` (`29 passed`).
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m py_compile scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py`
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/orchestration/creative_research_metrics.py scripts/orchestration/experiment_promote.py`
 - PASS: `make validate-changed`
