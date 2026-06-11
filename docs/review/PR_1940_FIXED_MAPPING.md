@@ -46,6 +46,12 @@ DB/cache backend, OpenAPI/client changes, or raw response storage are added.
   finding by prioritizing the same packet output path before the bounded generic
   artifact scan so repeated same-ID packets cannot be hidden behind older local
   artifacts.
+- `7d74b021a8b4e9e5c567f8ed8a60a3e391b5c2b9` - aligns this canonical mapping
+  artifact with the parser-safe Phase2 body contract (`Packet:`, `Artifact:`,
+  exact checklist labels, and `- No actionable review comments`).
+- `ef50b6d7418a814551b019fc020e4264da8e98b8` - closes the post-open
+  security-auditor finding by redacting unsafe prior packet IDs from serialized
+  shadow telemetry.
 
 ## Premortem Evidence
 
@@ -92,15 +98,20 @@ Artifact: artifacts/orchestration/experiments/results/exp-7d5fbf5201ec.json
 ## Live Shadow Reuse Proof
 
 Second identical `task_bootstrap.py` run on code-bearing head
-`e4c5fd61e2b302f7e8e33a8c053d1910030c2f52` produced:
+`ef50b6d7418a814551b019fc020e4264da8e98b8` produced:
 
 - `decision=hit`
 - `match_mode=exact`
 - `score_bps=10000`
 - `checked_previous_packet_count=1`
-- `skipped_previous_packet_count=7`
+- `skipped_previous_packet_count=8`
 - `provider_calls_avoided_count=0`
 - `cost_saved_microunits=0`
+- `semantic_cache_gate_status=closed`
+- `runtime_allowed=false`
+- `cache_read_allowed=false`
+- `cache_write_allowed=false`
+- `serving_allowed=false`
 
 ## Post-open Role Findings
 
@@ -133,10 +144,18 @@ Second identical `task_bootstrap.py` run on code-bearing head
     earlier-sorting unrelated artifacts while still asserting the second run
     records `decision=hit`, `match_mode=exact`, and one checked same-head
     candidate.
+- Role: `security-auditor`
+  - Disposition: FIXED
+  - Commit: `ef50b6d7418a814551b019fc020e4264da8e98b8`
+  - Evidence: `_safe_task_packet_id` now serializes only 12-character
+    lower-hex task packet IDs in `matched_packet_id` and `packet_identity`, and
+    `test_matched_packet_id_redacts_unsafe_prior_artifact_metadata` proves a
+    same-head exact hit with `/Users/.../sk-test...` in the prior local
+    artifact still records the hit while excluding path and secret-shaped text
+    from serialized telemetry.
 
 Pending required post-open sequence continuation:
-`security-auditor`, then Codex Security diff scan / finding discovery and
-`pulseplate-pr-review`.
+Codex Security diff scan / finding discovery and `pulseplate-pr-review`.
 
 ## Merge Readiness
 
