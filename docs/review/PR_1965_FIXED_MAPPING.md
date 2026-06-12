@@ -37,6 +37,10 @@ guard bypass here can create a false green for evidence-rail separation.
   `80b3a03e8555429d70ecef7a0adea8435ae14492`.
 - Fixed role-discovered parent-traversal bypasses in commit
   `fd74cf3dc7446d96c4533acae7d1f8f2aa671cec`.
+- Merged current `origin/main` in commit
+  `eb28431e36a10d0825676308c67905e65826fe60` and preserved main's
+  repo-root-prefix normalization together with this PR's dynamic-prefix and
+  parent-traversal hardening.
 - Kept the client/runtime/product contract surface unchanged.
 - Used the operator-approved machine-heavy exception for local full
   `make verify`; narrow local gates plus fresh current-head CI are required
@@ -166,7 +170,7 @@ Passed on this PR lane:
 - `python3 -m py_compile scripts/ci/check_artifact_reader_contracts.py tests/test_artifact_validation_boundary.py`
 - `python3 scripts/ci/check_artifact_reader_contracts.py --repo-root .`
 - focused boundary pytest through the repo-approved Python interpreter:
-  50 passed.
+  58 passed after merging current `origin/main`.
 - `git diff --check origin/main...HEAD && git diff --check`
 - commit-time pre-commit changed-file hooks for commit
   `fd74cf3dc7446d96c4533acae7d1f8f2aa671cec`.
@@ -197,9 +201,11 @@ Mitigation: the changed guard now preserves forbidden literal roots through
 dynamic suffixes and parent traversal folding, and tests cover the discovered
 equivalence classes.
 
-Rollback: revert commit `fd74cf3dc7446d96c4533acae7d1f8f2aa671cec`, the
-original PR code commit `80b3a03e8555429d70ecef7a0adea8435ae14492`, and this
-governance artifact commit. No data or runtime migration is involved.
+Rollback: revert merge-resolution commit
+`eb28431e36a10d0825676308c67905e65826fe60`, code hardening commit
+`fd74cf3dc7446d96c4533acae7d1f8f2aa671cec`, the original PR code commit
+`80b3a03e8555429d70ecef7a0adea8435ae14492`, and this governance artifact
+commit. No data or runtime migration is involved.
 
 ## Deferred / Follow-Ups
 
