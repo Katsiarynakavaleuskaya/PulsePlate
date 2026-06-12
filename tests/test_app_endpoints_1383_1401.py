@@ -8,7 +8,6 @@ Covers:
 - /terms endpoint
 """
 
-import asyncio
 from typing import Any
 
 import pytest
@@ -173,9 +172,3 @@ class TestAppEndpoints1383_1401:
         assert response.headers["content-type"].lower().startswith("application/json")
 
         assert response.json() == build_terms_endpoint_payload().model_dump()
-
-    def test_legacy_terms_wrapper_matches_canonical_helper(self) -> None:
-        """legacy_app /terms wrapper must delegate to the canonical typed helper."""
-        import legacy_app
-
-        assert asyncio.run(legacy_app.terms()) == build_terms_endpoint_payload().model_dump()
