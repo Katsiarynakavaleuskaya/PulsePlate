@@ -44,7 +44,7 @@ Out of scope:
   `fix(db): validate preexisting foods catalog schemas`
 - `fa6800f853f937d91bcb769d2c1a0fd046538548` -
   `chore(pre-commit): apply hook fixes`
-- `876991bf7b8e48253eb9177c0f067589bdad3f35` -
+- `876991bf7a57f28870e55391a4a772c09f928423` -
   `fix(db): scope catalog validation to managed indexes`
 - `c285565bba47392de856ff385eee5b89b99232e8` -
   `docs(review): map PR 1966 CodeRabbit findings`
@@ -86,24 +86,24 @@ Disposition: NOT-A-BUG
 Evidence: Sourcery's review body is a weekly diff-character rate-limit notice and emits no inline finding or requested repository change.
 Reason: Non-actionable external-review status. Do not count this as completed Sourcery review evidence; any later Sourcery actionable must be fixed or dispositioned before merge.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#pullrequestreview-4483981830 -> 876991bf7b8e48253eb9177c0f067589bdad3f35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#pullrequestreview-4483981830 -> 876991bf7a57f28870e55391a4a772c09f928423
 Disposition: FIXED
-Commit: 876991bf7b8e48253eb9177c0f067589bdad3f35
-Evidence: CodeRabbit's review summary reports the same three actionable inline discussion threads individually mapped below; commit `876991bf7b8e48253eb9177c0f067589bdad3f35` fixes the SQLite/PostgreSQL validation bug, corrects the Experiment Runner packet path evidence, and removes machine-specific absolute paths from the review artifact.
+Commit: 876991bf7a57f28870e55391a4a772c09f928423
+Evidence: CodeRabbit's review summary reports the same three actionable inline discussion threads individually mapped below; commit `876991bf7a57f28870e55391a4a772c09f928423` fixes the SQLite/PostgreSQL validation bug, corrects the Experiment Runner packet path evidence, and removes machine-specific absolute paths from the review artifact.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#discussion_r3401967313 -> 876991bf7b8e48253eb9177c0f067589bdad3f35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#discussion_r3401967313 -> 876991bf7a57f28870e55391a4a772c09f928423
 Disposition: FIXED
-Commit: 876991bf7b8e48253eb9177c0f067589bdad3f35
+Commit: 876991bf7a57f28870e55391a4a772c09f928423
 Evidence: `alembic/versions/202604120001_add_foods_catalog_foundation.py` now excludes PostgreSQL-only trigram indexes from existing-table compatibility validation when `op.get_bind().dialect.name` is not `postgresql`; `_create_owned_postgres_index()` still validates the trigram columns on the PostgreSQL branch. `tests/test_foods_catalog_foundation_migration.py` adds `test_foods_catalog_foundation_sqlite_allows_preexisting_foods_without_trigram_columns`. `python -m pytest -q tests/test_foods_catalog_foundation_migration.py` PASS: `9 passed`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#discussion_r3401967321 -> 876991bf7b8e48253eb9177c0f067589bdad3f35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#discussion_r3401967321 -> 876991bf7a57f28870e55391a4a772c09f928423
 Disposition: FIXED
-Commit: 876991bf7b8e48253eb9177c0f067589bdad3f35
+Commit: 876991bf7a57f28870e55391a4a772c09f928423
 Evidence: The Experiment Runner packet evidence now uses the repo-relative packet path `artifacts/orchestration/experiments/pr1966_merge_ready_oracle.json`; the runner result artifact path remains `artifacts/orchestration/experiments/results/pr1966_merge_ready_oracle_result.json`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#discussion_r3401967326 -> 876991bf7b8e48253eb9177c0f067589bdad3f35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#discussion_r3401967326 -> 876991bf7a57f28870e55391a4a772c09f928423
 Disposition: FIXED
-Commit: 876991bf7b8e48253eb9177c0f067589bdad3f35
+Commit: 876991bf7a57f28870e55391a4a772c09f928423
 Evidence: Review artifact validation commands were sanitized to repo-relative command forms (`python -m pytest ...`, `python -m compileall ...`, and `pre-commit run black ...`) instead of machine-specific absolute paths.
 
 ## Role-Agent Evidence
@@ -150,7 +150,7 @@ Evidence: Review artifact validation commands were sanitized to repo-relative co
   current-head CI required before merge.
 - Risk PM-1966-004: the migration fail-fast guard is too broad and blocks a
   compatible pre-existing catalog schema. Closure: CodeRabbit found the concrete
-  SQLite/PostgreSQL split; commit `876991bf7b8e48253eb9177c0f067589bdad3f35`
+  SQLite/PostgreSQL split; commit `876991bf7a57f28870e55391a4a772c09f928423`
   scopes pre-existing table validation to dialect-managed indexes and adds a
   SQLite regression for a compatible pre-existing `foods` table without the
   PostgreSQL-only `brand` trigram column.
@@ -236,7 +236,7 @@ Evidence: Review artifact validation commands were sanitized to repo-relative co
   initially reformatted the file, then PASS after commit
   `fa6800f853f937d91bcb769d2c1a0fd046538548`.
 - `python -m pytest -q tests/test_foods_catalog_foundation_migration.py`
-  PASS after commit `876991bf7b8e48253eb9177c0f067589bdad3f35`: `9 passed`.
+  PASS after commit `876991bf7a57f28870e55391a4a772c09f928423`: `9 passed`.
 - `git diff --check` PASS.
 - Commit hook on `fa6800f853f937d91bcb769d2c1a0fd046538548` PASS:
   Black, ruff, detect-secrets, and backend changed-file tests passed.
