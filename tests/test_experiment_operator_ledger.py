@@ -57,6 +57,11 @@ def _event(**overrides: object) -> dict[str, object]:
     return payload
 
 
+def _legacy_sha256_idempotency_key(payload: dict[str, object]) -> str:
+    stable = {key: payload[key] for key in ledger.LEGACY_SHA256_IDEMPOTENCY_MATERIAL_FIELDS}
+    return hashlib.sha256(ledger._canonical_json_bytes(stable)).hexdigest()[:24]
+
+
 def _result(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "schema_version": "1.0",
@@ -1022,6 +1027,56 @@ def test_operator_ledger_content_hash_must_match_event_payload(tmp_path: Path) -
         "operator_ledger_scope=local_only",
         "operator_ledger_authority=display_only",
     )
+
+
+def test_operator_ledger_loads_legacy_sha256_idempotency_records(tmp_path: Path) -> None:
+    normalized = dict(
+        ledger.normalize_operator_ledger_event(_event(), derive_idempotency_key=False).payload
+    )
+    legacy_key = _legacy_sha256_idempotency_key(normalized)
+    assert legacy_key != ledger._idempotency_key(normalized)
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.mkdir(parents=True)
+    (event_dir / f"{legacy_key}.json").write_text(
+        json.dumps({**normalized, "idempotency_key": legacy_key}, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    records = ledger.load_operator_ledger_events(repo_root=tmp_path)
+
+    assert [record.idempotency_key for record in records] == [legacy_key]
+    assert len(records[0].payload["content_hash"]) == 64
+    assert len(records[0].payload["idempotency_key_check"]) == 64
+    summary = ledger.latest_operator_ledger_summary(repo_root=tmp_path)
+    assert summary[0] == "operator_ledger_status=dry_run"
+    assert "operator_ledger_scope=local_only" in summary
+    assert "operator_ledger_authority=display_only" in summary
+
+
+def test_operator_ledger_legacy_sha256_load_survives_current_material_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    normalized = dict(
+        ledger.normalize_operator_ledger_event(_event(), derive_idempotency_key=False).payload
+    )
+    legacy_key = _legacy_sha256_idempotency_key(normalized)
+    event_dir = ledger.default_ledger_dir(tmp_path) / "events"
+    event_dir.mkdir(parents=True)
+    (event_dir / f"{legacy_key}.json").write_text(
+        json.dumps({**normalized, "idempotency_key": legacy_key}, sort_keys=True),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        ledger,
+        "IDEMPOTENCY_MATERIAL_FIELDS",
+        (*ledger.IDEMPOTENCY_MATERIAL_FIELDS, "workflow_ref"),
+    )
+
+    records = ledger.load_operator_ledger_events(repo_root=tmp_path)
+
+    assert [record.idempotency_key for record in records] == [legacy_key]
+    assert records[0].payload["workflow_ref"] == normalized["workflow_ref"]
 
 
 def test_operator_ledger_idempotency_key_check_must_match_payload(
