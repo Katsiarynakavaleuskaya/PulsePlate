@@ -56,6 +56,7 @@ Forbidden in `legacy_app.py`:
 | Existing legacy compatibility aliases | `legacy_app.py` | Runtime compatibility only; no growth. |
 | Canonical app bootstrap | `app/main.py` | Additive, idempotent registration over the compatibility base. |
 | New route implementations | `app/routers/` | Canonical route families own new behavior. |
+| Operational health/readiness routes | `app/routers/health.py` + `app/main.py` | Runtime paths unchanged; no legacy decorator ownership. |
 | Infra and observability bootstrap | `app/bootstrap/` | Register from canonical entrypoint, not from `legacy_app.py`. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |

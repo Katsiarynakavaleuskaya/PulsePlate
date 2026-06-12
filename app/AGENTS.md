@@ -284,7 +284,9 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - If logic is needed in multiple endpoints, put it into `core/` and call it.
 - BMI math (formulas/thresholds/grouping/interpretation) MUST live only in `core/bmi/*`; `app/*` is adapters/rendering only.
 - `legacy_app.py` is compatibility-only: do not add new behavior there unless it is purely shim/bridge.
-  - **Exception (approved)**: Observability endpoints (`/metrics`, `/health`, `/ready`, `/health/db`) are infrastructure concerns and may be added to `legacy_app.py` for operational visibility.
+  - Observability and operational endpoints are infrastructure concerns, but their route
+    ownership belongs in canonical routers/bootstrap such as `app/routers/health.py`
+    and `app/main.py`, not new `legacy_app.py` decorators.
 
 ## Common pitfalls
 

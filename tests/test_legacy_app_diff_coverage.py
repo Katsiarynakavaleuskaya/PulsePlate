@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
+from app.routers import health as health_router
 import legacy_app
 
 
@@ -46,11 +47,11 @@ async def test_readiness_logs_warning_when_insight_runtime_probe_fails(
 
     import llm
 
-    monkeypatch.setattr(legacy_app, "database_health", _database_health_stub)
+    monkeypatch.setattr(health_router, "database_health", _database_health_stub)
     monkeypatch.setattr(llm, "get_insight_runtime_readiness", _raise_runtime_probe)
 
     with caplog.at_level(logging.WARNING):
-        payload = await legacy_app.ready(session=None)
+        payload = await health_router.ready(session=None)
 
     assert payload["status"] == "ok"
     assert payload["insight_runtime"] == {"status": "unavailable"}

@@ -59,6 +59,22 @@ class TestHealthAndMonitoringEndpoints:
         # Verify new fields exist (version, git_sha, timestamp, environment)
         assert {"version", "git_sha", "timestamp", "environment"}.issubset(data.keys())
 
+    def test_health_routes_are_owned_by_canonical_router(self, client: TestClient) -> None:
+        """Operational health/readiness routes are served by app.routers.health."""
+        for path in ("/health", "/api/v1/health", "/health/db", "/ready"):
+            route = _find_route(client, path)
+            assert route.endpoint.__module__ == "app.routers.health"
+
+    def test_health_routes_stay_hidden_from_public_openapi(self, client: TestClient) -> None:
+        """Health/readiness routes remain runtime-only, not public OpenAPI paths."""
+        app = cast(FastAPI, client.app)
+        paths = app.openapi()["paths"]
+
+        assert "/health" not in paths
+        assert "/api/v1/health" not in paths
+        assert "/health/db" not in paths
+        assert "/ready" not in paths
+
     @pytest.mark.skipif(
         os.getenv("METRICS_ENABLED", "true").lower() != "true",
         reason="Metrics disabled in this build",

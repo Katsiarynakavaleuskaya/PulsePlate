@@ -68,6 +68,37 @@ def test_legacy_growth_guard_rejects_reintroduced_legal_routes() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_health_routes() -> None:
+    source = textwrap.dedent("""
+        @app.get("/health")
+        async def health():
+            return {"status": "legacy"}
+
+        @app.get("/api/v1/health", include_in_schema=False)
+        async def health_v1():
+            return await health()
+
+        @app.get("/health/db", include_in_schema=False)
+        async def database_health():
+            return {"status": "ok"}
+
+        @app.get("/ready", include_in_schema=False)
+        async def ready():
+            return {"status": "ok"}
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/health -> health_v1",
+        "legacy_app.py: unexpected legacy route growth: decorator:get:/health -> health",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/health/db -> database_health",
+        "legacy_app.py: unexpected legacy route growth: decorator:get:/ready -> ready",
+    ]
+
+
 def test_legacy_growth_guard_rejects_new_router_registration() -> None:
     source = "app.include_router(new_router)\n"
 
@@ -384,8 +415,8 @@ def test_legacy_growth_guard_rejects_sensitive_local_assignment_alias_calls(
 
 def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
     source = textwrap.dedent("""
-        @app.get("/health", dependencies=[Depends(auth_guard)])
-        def health():
+        @app.get("/favicon.ico", dependencies=[Depends(auth_guard)])
+        def favicon():
             return {"ok": True}
         """)
 
@@ -408,8 +439,8 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
         textwrap.dedent("""
             deps = [Depends(auth_guard)]
 
-            @app.get("/health", dependencies=deps)
-            def health():
+            @app.get("/favicon.ico", dependencies=deps)
+            def favicon():
                 return {"ok": True}
             """),
         textwrap.dedent("""
@@ -428,8 +459,8 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
     source += textwrap.dedent("""
 
-        @app.get("/health", dependencies=[Depends(api_key_guard)])
-        def health():
+        @app.get("/favicon.ico", dependencies=[Depends(api_key_guard)])
+        def favicon():
             return {"ok": True}
         """)
 

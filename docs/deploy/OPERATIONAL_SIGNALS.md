@@ -6,10 +6,10 @@ Operator-facing index for the runtime signals that already exist in PulsePlate t
 
 | Surface | Purpose | Expected behavior | Source of truth |
 | --- | --- | --- | --- |
-| `/health` | Liveness | Always `200`; does not depend on the DB | `legacy_app.py`, `app/AGENTS.md` |
-| `/health/db` | DB readiness | `200` when DB is reachable, `503` otherwise | `legacy_app.py`, `app/AGENTS.md` |
-| `/ready` | Readiness alias | Same behavior as `/health/db`; hidden from OpenAPI | `legacy_app.py`, `app/AGENTS.md` |
-| `/api/v1/health` | Compatibility alias | Mirrors `/health` payload | `legacy_app.py` |
+| `/health` | Liveness | Always `200`; does not depend on the DB | `app/routers/health.py`, `app/main.py`, `app/AGENTS.md` |
+| `/health/db` | DB readiness | `200` when DB is reachable, `503` otherwise | `app/routers/health.py`, `app/main.py`, `app/AGENTS.md` |
+| `/ready` | Readiness alias | Same behavior as `/health/db`; hidden from OpenAPI | `app/routers/health.py`, `app/main.py`, `app/AGENTS.md` |
+| `/api/v1/health` | Compatibility alias | Mirrors `/health` payload | `app/routers/health.py`, `app/main.py` |
 | `/debug_env` | Local/operator debug surface | Returns a gated env dump when debug/operator access is enabled; otherwise stays unavailable to avoid production leakage | `legacy_app.py` |
 
 Use `/health` for liveness checks and `/ready` or `/health/db` for dependency-aware readiness checks.
@@ -41,8 +41,10 @@ Use `/health` for liveness checks and `/ready` or `/health/db` for dependency-aw
 
 - The repo already has health, readiness, metrics, and tracing entrypoints.
 - These surfaces are intentionally split:
-  - health/readiness endpoints live on the legacy compatibility app surface
-  - metrics/tracing/request telemetry are registered from the canonical `app.main` bootstrap
+  - health/readiness endpoints live in the canonical `app.routers.health` router
+    registered from `app.main`
+  - metrics/tracing/request telemetry are also registered from the canonical
+    `app.main` bootstrap
 - When documenting or validating runtime behavior, prefer linking to this file first instead of rediscovering those surfaces from code.
 
 ## Current gap
