@@ -16,7 +16,10 @@ auth, entitlement, or public client behavior.
 - Earlier inherited packet: artifacts/orchestration/task_packets/a8e92e24ad56.json
 - Branch: `codex/fix-docker-provenance-secret-exposure`
 - Worktree: `worktrees/pr-1946-docker-provenance`
-- Base sync: `git merge --no-edit origin/main` into the existing PR branch
+- Base sync: `git merge --no-edit origin/main` into the existing PR branch;
+  refreshed again after `origin/main` advanced to `794011a5e38019f9699e20141c92088e3776db51`
+- Latest base-sync merge commit before this evidence update:
+  `91eebaf64f905a3db401c98c0cd31c3c0cacf587`
 - PR phase: `post_open_review`
 - Machine-heavy exception: operator approved not running full local `make verify`;
   narrow local gates plus current-head CI parity are required instead.
@@ -25,8 +28,9 @@ auth, entitlement, or public client behavior.
 - Dispatch manifest:
   `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/51b010298b3f.json --mode runtime --pretty`
 - Dispatch result: every declared role pass completed before mapping or thread
-  resolution. Post-open follow-ups still require Codex Security diff scan /
-  finding discovery and `pulseplate-pr-review`.
+  resolution. Post-open Codex Security diff scan / finding discovery and
+  `pulseplate-pr-review` also completed before thread resolution or merge
+  readiness.
 
 ## Discussion Thread Pass
 
@@ -97,6 +101,22 @@ Reason: No code, docs, tests, security, or governance change is requested by the
   - Evidence: Private index values remain out of pushed-image `build-args`,
     BuildKit secret env wiring is asserted, `sbom: true` remains asserted, and
     CD attestation verification remains in place.
+- Role: `Codex Security`
+  - Disposition: NOT-A-BUG
+  - Evidence: Current-head diff scan completed at
+    `/tmp/codex-security-scans/BMI-App_2025_clean/91eebaf64f90_20260612T123822Z`.
+    The scan reviewed 8/8 diff worklist rows, validated `report.md`, rendered
+    `report.html`, and emitted zero reportable findings.
+  - Reason: No plausible security candidate survived discovery for the current
+    Docker provenance/private-index diff.
+- Role: `pulseplate-pr-review`
+  - Disposition: NOT-A-BUG
+  - Evidence: Current-head dry-run report
+    `artifacts/agent_runs/pr1946/pr_review_report_current.md` reviewed the
+    exact 8-file `origin/main...HEAD` diff and returned no deterministic
+    findings.
+  - Reason: The report is advisory and side-effect free; it produced no
+    actionables to fix or defer.
 
 ## Premortem Evidence
 
@@ -127,12 +147,13 @@ Reason: No code, docs, tests, security, or governance change is requested by the
 
 ## Experiment Runner Evidence
 
-- Artifact: artifacts/orchestration/experiments/results/pr1946_docker_provenance_oracle_v2_result.json
+- Artifact: artifacts/orchestration/experiments/results/pr1946_docker_provenance_oracle_v3_result.json
 - Status: accepted
 - Contribution kind: fixed_mapping_review
 - Co-author required: yes, for the governance/mapping commit only.
-- Evidence: The oracle ran preflight, agent consistency, and focused pytest in
-  an isolated checkout and returned zero for all configured oracle commands.
+- Evidence: The current post-merge-head oracle ran preflight, agent
+  consistency, and focused pytest in an isolated checkout and returned zero for
+  all configured oracle commands.
 
 ## Validation
 
@@ -143,6 +164,10 @@ Reason: No code, docs, tests, security, or governance change is requested by the
 - `make validate-changed` - PASS, 47 selected supply-chain tests
 - `PRE_COMMIT_HOME=/tmp/pre-commit-pr1946 pre-commit run --all-files` - PASS
 - `git diff --check` - PASS
+- `python3 scripts/orchestration/pr_review_context.py --pr 1946 --repo Katsiarynakavaleuskaya/PulsePlate --base origin/main --head HEAD --repo-root . --output artifacts/agent_runs/pr1946/pr_review_context_current.json` - PASS
+- `python3 scripts/orchestration/pr_review_report.py --context artifacts/agent_runs/pr1946/pr_review_context_current.json --format markdown --packet-path artifacts/orchestration/task_packets/51b010298b3f.json --output artifacts/agent_runs/pr1946/pr_review_report_current.md` - PASS, no deterministic findings
+- Codex Security current-head diff scan - PASS, zero reportable findings,
+  report: `/tmp/codex-security-scans/BMI-App_2025_clean/91eebaf64f90_20260612T123822Z/report.md`
 
 ## Merge Readiness
 
