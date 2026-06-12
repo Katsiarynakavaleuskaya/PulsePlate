@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = REPO_ROOT / "scripts/design/screen_evidence_pack.py"
 
@@ -170,15 +172,14 @@ def test_malformed_component_ids_return_validation_errors():
     assert "component_ids must contain only non-empty strings" in errors
 
 
-def test_malformed_token_mirror_paths_return_validation_errors():
+@pytest.mark.parametrize("malformed_value", [{}, []], ids=["dict", "list"])
+def test_malformed_token_mirror_paths_return_validation_errors(malformed_value):
     module = load_evidence_module()
+    manifest = valid_manifest(token_mirror_paths_checked=[malformed_value])
 
-    for malformed_value in ({}, []):
-        manifest = valid_manifest(token_mirror_paths_checked=[malformed_value])
+    errors = module.validate_record(manifest, repo_root=REPO_ROOT)
 
-        errors = module.validate_record(manifest, repo_root=REPO_ROOT)
-
-        assert "token_mirror_paths_checked must contain only non-empty strings" in errors
+    assert "token_mirror_paths_checked must contain only non-empty strings" in errors
 
 
 def test_cli_malformed_token_mirror_paths_returns_controlled_error(tmp_path):
@@ -192,8 +193,7 @@ def test_cli_malformed_token_mirror_paths_returns_controlled_error(tmp_path):
 
     assert exit_code == 1
     assert (
-        "ERROR: token_mirror_paths_checked must contain only non-empty strings"
-        in stderr.getvalue()
+        "ERROR: token_mirror_paths_checked must contain only non-empty strings" in stderr.getvalue()
     )
     assert "Traceback" not in stderr.getvalue()
 
