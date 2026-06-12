@@ -40,6 +40,7 @@ validator, focused regression tests, and required review-governance artifacts.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1928#discussion_r3380639611 -> 7ae591bc19
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1928#discussion_r3380639644 -> 7ae591bc19
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1928#pullrequestreview-4458587426 -> 7ae591bc19
 Disposition: FIXED
 Commit: 7ae591bc19
 Evidence: `scripts/design/design_bridge_coverage_inventory.py`; `tests/test_design_bridge_coverage_inventory.py`; `docs/review/PR_1928_PREMORTEM.md`
