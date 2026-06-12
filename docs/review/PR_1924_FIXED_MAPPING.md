@@ -10,11 +10,17 @@ the current PBKDF2 idempotency, content hash, and idempotency-key-check path.
 
 ## Lane Start Provenance
 
-- Packet: `artifacts/orchestration/task_packets/71b19978fa8d.json`
+- Packet: `artifacts/orchestration/task_packets/084ae57479a4.json`
+- Original packet: `artifacts/orchestration/task_packets/71b19978fa8d.json`
 - Branch: `codex/fix-ledger-record-compatibility-issue`
 - Head commit at bootstrap: `ec6c62ccf6e03ac1edcdedfa2cfbd71882339fb0`
-- Role dispatch command executed: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/71b19978fa8d.json --pretty`
-- Role order executed: `agent-coordinator -> backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor -> architecture-specialist -> cursor-specialist-agent`
+- Current local head after main refresh: `516ff66a2501c70cb53bd23d919d73a9cca9a430`
+- Current `origin/main` merge-base: `38571b1621f4d061367c63d04a0c5fb04e808cda`
+- Main refresh commits on this branch:
+  `47f0762091a0b896f38a74ba8516b1122be52607`,
+  `516ff66a2501c70cb53bd23d919d73a9cca9a430`
+- Role dispatch command executed: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/084ae57479a4.json --pretty`
+- Role order declared: `agent-coordinator -> backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor -> architecture-specialist -> cursor-specialist-agent`
 
 ## Scope
 
@@ -33,22 +39,31 @@ OUT:
 
 ## Agent Execution Log
 
-- `agent-coordinator`: PASS for scope lock and role-order confirmation; blocked
-  merge-readiness until the mapping artifact and GitHub-backed Sourcery
-  disposition were added.
-- `backend-engineer`: PASS after confirming the Sourcery finding and recommending
-  a pinned legacy SHA-256 material tuple separate from current PBKDF2 material.
-- `qa-engineer-agent`: PASS; deterministic regression coverage is sufficient for
-  the legacy SHA-256 load path and current-material drift scenario.
+- `agent-coordinator`: PASS for final current-main scope lock, role order, and
+  narrow-gate plan on packet `084ae57479a4`; merge-readiness remains blocked
+  until the local head is pushed and current-head CI/review governance is fresh.
+- `backend-engineer`: PASS; legacy SHA-256 material is pinned separately from
+  current PBKDF2 material, the legacy read helper uses the pinned tuple, and
+  current record validation still fails closed on filename/key, content hash,
+  and idempotency-key-check mismatch.
+- `qa-engineer-agent`: PASS for coverage sufficiency; deterministic tests cover
+  legacy SHA-256 load, current-material drift, current record tamper rejection,
+  and persisted-key loading.
 - `bug-hunter`: PASS; no edge-case regressions found in exact-key validation,
-  filename/key mismatch handling, or current PBKDF2 record validation.
-- `security-auditor`: PASS; no subprocess, network, secret-decoding,
-  path-exposure, or authority-widening behavior found.
-- `architecture-specialist`: PASS; diff stays limited to local operator-ledger
-  compatibility and does not move product truth or widen semantic-cache rails.
-- `cursor-specialist-agent`: FAIL at first pass until this canonical mapping
-  artifact and the PR-body mirror exist; the governance artifact and PR-body
-  refresh address that workflow blocker.
+  filename/key mismatch handling, legacy exact-shape detection, or current
+  PBKDF2 record validation.
+- `security-auditor`: PASS; no reportable security findings in the scoped
+  three-file diff. Legacy records are accepted only by exact legacy shape and
+  current records still fail closed on filename/key, content hash, and
+  idempotency-key-check validation.
+- `architecture-specialist`: PASS; diff remains limited to the planned
+  local-operator-ledger compatibility files and does not move product runtime,
+  OpenAPI/client contracts, semantic-cache rails, advisory wiki, support-plane,
+  or knowledge-promotion authority.
+- `cursor-specialist-agent`: PASS; packet 084ae57479a4, dispatch manifest role 7,
+  role-order wording, pending/current-head gates, PR body Phase2 structural
+  compatibility, and no absolute local paths in the artifact were verified
+  read-only.
 
 ## Experiment Runner Evidence
 
@@ -63,19 +78,26 @@ OUT:
 
 ## Validation Evidence
 
-- PASS: `python3 scripts/orchestration/check_preflight.py`
+- PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path scripts/orchestration/experiment_operator_ledger.py --path tests/test_experiment_operator_ledger.py --path docs/review/PR_1924_FIXED_MAPPING.md`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
-- PASS: `python3 scripts/orchestration/task_bootstrap.py --goal "Complete PR 1924 legacy operator ledger idempotency compatibility and review governance" --task-class orchestration --path scripts/orchestration/experiment_operator_ledger.py --path tests/test_experiment_operator_ledger.py --path docs/review/PR_1924_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent backend-engineer --requested-agent qa-engineer-agent --requested-agent bug-hunter --requested-agent security-auditor --requested-agent architecture-specialist --pr-phase post_open_review --native-bridge-transport codex-native-subagents`
-- PASS: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/71b19978fa8d.json --pretty`
+- PASS: `python3 scripts/orchestration/task_bootstrap.py --goal "Final current-main PR 1924 legacy operator ledger idempotency compatibility closeout and merge-readiness refresh" --task-class orchestration --path scripts/orchestration/experiment_operator_ledger.py --path tests/test_experiment_operator_ledger.py --path docs/review/PR_1924_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent backend-engineer --requested-agent qa-engineer-agent --requested-agent bug-hunter --requested-agent security-auditor --requested-agent architecture-specialist --requested-agent cursor-specialist-agent --pr-phase merge_ready --native-bridge-transport codex-native-subagents`
+- PASS: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/084ae57479a4.json --pretty`
 - PASS: `python3 -m py_compile scripts/orchestration/experiment_operator_ledger.py tests/test_experiment_operator_ledger.py`
-- PASS: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_experiment_operator_ledger.py -k 'legacy_sha256 or idempotency_key_check or persisted_key_without_rederiving'`
-- PASS: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_experiment_operator_ledger.py`
-- PASS: `make validate-changed`
-- PASS: commit hook run for `6de8e93da` with `VENV_PYTHON` pointing at the repo/shared virtualenv.
-- PASS: `pre-commit run --all-files` with `VENV_PYTHON` pointing at the repo/shared virtualenv.
-- FAIL / unrelated repo-wide blocker: `make verify` passed `verify-env` and `flake8`, then failed in `make typecheck` with 13 existing mypy errors in `core/ai/semantic_cache_offline_admission_runner.py` and `core/ai/semantic_cache_shadow_admission_harness.py`; neither file is in `git diff --name-only origin/main...HEAD` for PR 1924, so this lane cannot honestly claim full local hard-gate merge readiness.
-- PASS: Codex Security diff scan / finding discovery wrote `/tmp/codex-security-scans/PulsePlate-pr-1924/fcd06a096bb2_20260611T114746Z/report.md`; no reportable security findings.
-- ADVISORY: `pulseplate-pr-review` dry-run completed; initial run inspected the then-current remote PR head and produced one advisory large-diff planning note for stale remote context, so it must be repeated after pushing current head before merge-readiness can be claimed.
+- PASS: repo-approved shared virtualenv Python ran
+  `python -m pytest -q -p no:cacheprovider tests/test_experiment_operator_ledger.py`
+- PASS: `make validate-changed` with `VENV_PYTHON` pointing at the
+  repo-approved shared virtualenv Python
+- PASS: `git diff --check origin/main...HEAD`
+- PASS: `git diff --check`
+- PASS: `pre-commit run --all-files` with `GIT_TERMINAL_PROMPT=0` and
+  `VENV_PYTHON` pointing at the repo-approved shared virtualenv Python.
+- NOT RUN: full `make verify` is intentionally deferred under the operator
+  approved machine-heavy exception for this narrow orchestration lane. This
+  artifact and the PR body use focused local gates plus current-head CI as the
+  heavy signal.
+- PENDING: Codex Security diff scan / finding discovery on the pushed current
+  head.
+- PENDING: `pulseplate-pr-review` on the pushed current head.
 
 ## Discussion Thread Pass
 
@@ -87,27 +109,27 @@ OUT:
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1924#pullrequestreview-4458575633 -> 6de8e93da
 Disposition: FIXED
 Commit: 6de8e93da
-Evidence: scripts/orchestration/experiment_operator_ledger.py:231; scripts/orchestration/experiment_operator_ledger.py:434; tests/test_experiment_operator_ledger.py:60; tests/test_experiment_operator_ledger.py:1036
+Evidence: scripts/orchestration/experiment_operator_ledger.py:229; scripts/orchestration/experiment_operator_ledger.py:451; tests/test_experiment_operator_ledger.py:60; tests/test_experiment_operator_ledger.py:1056
 Reason: Sourcery review-level feedback is fixed by pinning legacy SHA-256 idempotency material separately from the current PBKDF2 material and covering the drift case with a deterministic regression test.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1924#discussion_r3380629400 -> 6de8e93da
 Disposition: FIXED
 Commit: 6de8e93da
-Evidence: scripts/orchestration/experiment_operator_ledger.py:231; scripts/orchestration/experiment_operator_ledger.py:434; tests/test_experiment_operator_ledger.py:60; tests/test_experiment_operator_ledger.py:1036
+Evidence: scripts/orchestration/experiment_operator_ledger.py:229; scripts/orchestration/experiment_operator_ledger.py:451; tests/test_experiment_operator_ledger.py:60; tests/test_experiment_operator_ledger.py:1056
 Reason: `_legacy_sha256_idempotency_key(...)` now uses `LEGACY_SHA256_IDEMPOTENCY_MATERIAL_FIELDS` through a legacy-only material helper, so future changes to `IDEMPOTENCY_MATERIAL_FIELDS` do not make existing SHA-256 ledger events unreadable.
 
 ## Bot Review Summary
 
 - Sourcery: FIXED in commit `6de8e93da`; the review-level and inline discussion
   actionables are mapped above.
-- Cubic: NOT-A-BUG / no actionable findings visible for current reviewed head;
-  Cubic reported no issues across the two changed files.
-- CodeRabbit: NOT-A-BUG for current state; CodeRabbit was rate-limited and did
-  not produce actionable review findings for this PR. A later CodeRabbit review
-  remains acceptable but is not claimed here.
-- Codecov: NOT-A-BUG; patch coverage comment reports all modified coverable
-  lines covered for the previous head, and current-head CI remains required
-  after this artifact commit.
+- Cubic: prior pushed head reported no issues across the two changed files.
+  Current-head bot freshness remains pending after the next push.
+- CodeRabbit: prior pushed head was rate-limited and did not produce actionable
+  review findings for this PR. Current-head bot freshness remains pending after
+  the next push.
+- Codecov: prior pushed head patch coverage comment reported all modified
+  coverable lines covered. Current-head CI/coverage remains required after the
+  next push.
 
 ## Deferred / Follow-ups
 
@@ -115,16 +137,19 @@ None.
 
 ## Merge Readiness
 
-Not merge-ready yet. Pending after this artifact commit:
+Not merge-ready yet. Pending after this artifact refresh:
 
-- Push local commits and rerun current-head CI for the pushed head.
+- Push local commits and rerun current-head CI for the pushed head
+  `516ff66a2501c70cb53bd23d919d73a9cca9a430` or its successor.
 - Current-head CI rerun with `PR Body Phase2 gates` and `Merge readiness gate`
   passing for the pushed head.
-- Sourcery review thread resolution after this artifact and PR-body mirror are
-  pushed.
+- Sourcery review thread remains resolved only if strict disposition checks pass
+  against the pushed current head.
+- CodeRabbit, Sourcery, Cubic, and Codecov must have no actionable items on the
+  pushed current head.
+- Codex Security diff scan / finding discovery must be repeated for the pushed
+  current head.
 - Repeat `pulseplate-pr-review` against the pushed current head.
-- Full `make verify` remains blocked locally by unrelated repo-wide mypy errors
-  outside the PR 1924 diff; do not claim merge-ready until this is resolved or
-  explicitly dispositioned under repo policy.
-- Strict merge-readiness wrapper with auth, no unresolved review threads, no
-  actionable bot comments, and the required wait window.
+- Strict merge-readiness wrapper with auth must pass with no unresolved review
+  threads, no actionable bot comments, current-head checks acceptable under the
+  machine-heavy exception, and the required wait window elapsed.
