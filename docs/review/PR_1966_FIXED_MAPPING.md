@@ -48,6 +48,8 @@ Out of scope:
   `fix(db): scope catalog validation to managed indexes`
 - `c285565bba47392de856ff385eee5b89b99232e8` -
   `docs(review): map PR 1966 CodeRabbit findings`
+- `8fc606791ce3d5fd045cd51807563e2f4e15cf54` -
+  `docs(review): record PR 1966 review advisory disposition`
 
 ## Discussion Thread Pass
 
@@ -83,6 +85,11 @@ Reason: Informational coverage status only; no code, test, or documentation chan
 Disposition: NOT-A-BUG
 Evidence: Sourcery's review body is a weekly diff-character rate-limit notice and emits no inline finding or requested repository change.
 Reason: Non-actionable external-review status. Do not count this as completed Sourcery review evidence; any later Sourcery actionable must be fixed or dispositioned before merge.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#pullrequestreview-4483981830 -> 876991bf7b8e48253eb9177c0f067589bdad3f35
+Disposition: FIXED
+Commit: 876991bf7b8e48253eb9177c0f067589bdad3f35
+Evidence: CodeRabbit's review summary reports the same three actionable inline discussion threads individually mapped below; commit `876991bf7b8e48253eb9177c0f067589bdad3f35` fixes the SQLite/PostgreSQL validation bug, corrects the Experiment Runner packet path evidence, and removes machine-specific absolute paths from the review artifact.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1966#discussion_r3401967313 -> 876991bf7b8e48253eb9177c0f067589bdad3f35
 Disposition: FIXED
