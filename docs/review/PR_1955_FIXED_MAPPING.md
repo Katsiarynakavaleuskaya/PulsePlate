@@ -34,6 +34,11 @@ Disposition: NOT-A-BUG
 Evidence: Sourcery review body says the weekly diff-character rate limit was reached and asks to try later or upgrade; it contains no file/line/code finding.
 Reason: This is a Sourcery capacity notice, not a code finding.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1955#issuecomment-4691107752
+Disposition: NOT-A-BUG
+Evidence: Codecov reported patch coverage at 99.01961%; current-head `codecov/patch` passed; current-head `diff-coverage` passed; focused local diff-cover reported `Coverage: 100%`.
+Reason: This is a non-blocking partial-line coverage advisory above the repo threshold, not an actionable missing-test blocker for this PR.
+
 ## Internal Finding Dispositions
 
 - Disposition: FIXED
