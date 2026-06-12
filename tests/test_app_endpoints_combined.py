@@ -11,21 +11,25 @@ These are "easy coverage" tests that cover basic monitoring endpoints and app pa
 import asyncio
 import os
 import sys
+from typing import cast
 from xml.etree import ElementTree
-from fastapi import Request
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 import app as apppkg
-from app.bootstrap import public_discovery
 from app.routers.legal import build_terms_endpoint_payload
+from app.bootstrap import public_discovery
+from core.compliance import build_privacy_endpoint_payload
 import pytest
 
 
 def _find_route(client: TestClient, path: str, method: str = "GET") -> APIRoute:
+    app = cast(FastAPI, client.app)
     matches = [
         route
-        for route in client.app.routes
+        for route in app.routes
         if isinstance(route, APIRoute)
         and route.path == path
         and method.upper() in (route.methods or set())
@@ -144,18 +148,12 @@ class TestHealthAndMonitoringEndpoints:
         assert response.status_code in [200, 204, 404]  # 200 OK is valid for successful favicon
 
     def test_privacy_endpoint(self, client: TestClient) -> None:
-        """Test /privacy endpoint returns privacy policy"""
+        """Test /privacy endpoint returns canonical legal publication payload."""
         response = client.get("/privacy")
         assert response.status_code == 200
         assert response.headers["content-type"].lower().startswith("application/json")
-        data = response.json()
-        assert "privacy_policy" in data
-        assert "data_retention" in data
-        assert "contact" in data
-        assert "policy_version" in data
-        assert "providers" in data
-        # Assert structure/keys; avoid brittle exact phrasing
-        assert isinstance(data["privacy_policy"], str)
+
+        assert response.json() == jsonable_encoder(build_privacy_endpoint_payload())
 
     def test_terms_endpoint(self, client: TestClient) -> None:
         """Test /terms endpoint returns canonical legal publication payload."""
@@ -173,7 +171,8 @@ class TestHealthAndMonitoringEndpoints:
 
     def test_legal_routes_stay_hidden_from_public_openapi(self, client: TestClient) -> None:
         """Legal publication routes remain runtime-only, not public OpenAPI paths."""
-        paths = client.app.openapi()["paths"]
+        app = cast(FastAPI, client.app)
+        paths = app.openapi()["paths"]
 
         assert "/privacy" not in paths
         assert "/terms" not in paths
@@ -326,5 +325,6 @@ class TestPublicDiscoveryHelpers:
         )
 
         assert response.media_type == "application/xml"
-        assert response.body.startswith(b'<?xml version="1.0" encoding="UTF-8"?>')
-        assert b"https://edge.pulseplate.test/privacy" in response.body
+        body = bytes(response.body)
+        assert body.startswith(b'<?xml version="1.0" encoding="UTF-8"?>')
+        assert b"https://edge.pulseplate.test/privacy" in body

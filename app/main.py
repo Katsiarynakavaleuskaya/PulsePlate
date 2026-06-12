@@ -115,13 +115,17 @@ def _include_legal_router_if_needed(target_app: FastAPI) -> None:
 
     expected_paths = set(_LEGAL_ROUTE_PATHS)
     expected_endpoints: dict[str, object] = {}
+    expected_route_counts = dict.fromkeys(expected_paths, 0)
     for route in legal_router.routes:
         path = getattr(route, "path", None)
         methods = getattr(route, "methods", None) or set()
         if path in expected_paths and "GET" in methods:
+            expected_route_counts[str(path)] += 1
             expected_endpoints[str(path)] = getattr(route, "endpoint", None)
 
-    if set(expected_endpoints) != expected_paths:
+    if set(expected_endpoints) != expected_paths or any(
+        count != 1 for count in expected_route_counts.values()
+    ):
         raise RuntimeError("Legal router does not define the expected route family.")
 
     legal_paths_present = {path for path in expected_paths if _has_route(target_app, path, "GET")}

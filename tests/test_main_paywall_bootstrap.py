@@ -40,6 +40,16 @@ def _legal_stub_router() -> APIRouter:
     return router
 
 
+def _duplicate_privacy_legal_stub_router() -> APIRouter:
+    router = _legal_stub_router()
+
+    async def _second_privacy() -> dict[str, str]:
+        return {"status": "/privacy-duplicate"}
+
+    router.get("/privacy")(_second_privacy)
+    return router
+
+
 def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "_install_openapi_builder", lambda target_app: None)
     monkeypatch.setattr(app_main, "_internalize_users_openapi_surface", lambda target_app: None)
@@ -168,6 +178,16 @@ def test_legal_route_registration_rejects_malformed_router(
 ) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
     monkeypatch.setattr(app_main, "legal_router", _stub_router("/terms", method="get"))
+
+    with pytest.raises(RuntimeError, match="Legal router does not define"):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_legal_route_registration_rejects_duplicate_canonical_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(app_main, "legal_router", _duplicate_privacy_legal_stub_router())
 
     with pytest.raises(RuntimeError, match="Legal router does not define"):
         _bootstrap_temp_app(FastAPI())
