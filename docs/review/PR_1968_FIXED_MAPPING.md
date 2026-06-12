@@ -171,11 +171,13 @@ OUT:
 
 ## Merge Readiness
 
-- [x] Real implementation commit exists.
-- [x] Canonical fixed-mapping artifact exists.
-- [x] Focused local gates passed.
-- [x] Full local `make verify` deferral is documented.
-- [x] Post-open role loop completed after bot review.
+- Final merge-cycle checklist is intentionally left unchecked until the final
+  strict merge-readiness pass immediately before merge.
+- [ ] Real implementation commit exists.
+- [ ] Canonical fixed-mapping artifact exists.
+- [ ] Focused local gates passed.
+- [ ] Full local `make verify` deferral is documented.
+- [ ] Post-open role loop completed after bot review.
 - [ ] `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1968 --body "$(gh pr view 1968 --repo Katsiarynakavaleuskaya/PulsePlate --json body --jq .body)"` passes after this artifact update is mirrored to the PR body.
 - [ ] `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1968 --require-auth` passes after this artifact update is pushed.
 - [ ] `GH_TOKEN="$(gh auth token)" GITHUB_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_merge_ready.py --pr-number 1968 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` passes.
