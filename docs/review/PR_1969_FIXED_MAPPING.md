@@ -88,6 +88,12 @@
   FIXED by commit `79c44aae0`, which restores the explicit
   `_short_git_sha as _short_git_sha` legacy compatibility re-export without
   returning health/readiness route ownership to `legacy_app.py`.
+- `bug-hunter`: found one blocker. `_include_health_router_if_needed` accepted
+  pre-existing canonical endpoint routes if those routes had
+  `include_in_schema=True`, leaving health/readiness probes visible in OpenAPI.
+  Disposition: FIXED by commit `a0041d9e8`, which rejects visible pre-existing
+  health routes and adds
+  `test_health_route_registration_rejects_visible_existing_canonical_handlers`.
 
 ## Fixed in Commit Mapping
 
@@ -105,6 +111,7 @@
 - `PRE_COMMIT_HOME=/tmp/pre-commit-health-readiness-routes .venv/bin/pre-commit run mypy --hook-stage pre-push --files app/routers/health.py app/main.py legacy_app.py`: PASS after the typed helper fix.
 - `.venv/bin/python -m pytest -q tests/test_legacy_app_git_sha.py`: PASS after
   commit `79c44aae0`.
+- `.venv/bin/python -m pytest -q tests/test_main_paywall_bootstrap.py::test_health_route_registration_rejects_visible_existing_canonical_handlers tests/test_main_paywall_bootstrap.py::test_health_route_registration_is_idempotent`: PASS after commit `a0041d9e8`.
 - `git push` pre-push hooks: PASS for mypy, pip-audit, backend pytest,
   full-repo bandit, and Docker build test.
 
