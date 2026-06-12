@@ -46,6 +46,8 @@ Out of scope:
   `chore(pre-commit): apply hook fixes`
 - `876991bf7b8e48253eb9177c0f067589bdad3f35` -
   `fix(db): scope catalog validation to managed indexes`
+- `c285565bba47392de856ff385eee5b89b99232e8` -
+  `docs(review): map PR 1966 CodeRabbit findings`
 
 ## Discussion Thread Pass
 
@@ -199,10 +201,19 @@ Evidence: Review artifact validation commands were sanitized to repo-relative co
 - JSON report:
   `artifacts/agent_runs/pr1966/pr_review_report.json`
 - Mode: dry-run report, side-effect free.
-- Scope reviewed: 2 files, 207 additions, 1 deletion, 208 changed lines:
-  `alembic/versions/202604120001_add_foods_catalog_foundation.py` and
+- Scope reviewed: 3 files, 534 additions, 11 deletions, 545 changed lines:
+  `alembic/versions/202604120001_add_foods_catalog_foundation.py`,
+  `docs/review/PR_1966_FIXED_MAPPING.md`, and
   `tests/test_foods_catalog_foundation_migration.py`.
-- Findings: 0.
+- Findings: 1 advisory `large-diff-risk` planning note.
+- Disposition: NOT-A-BUG.
+- Evidence: The line-count warning is caused by the required canonical mapping
+  artifact plus focused migration tests, while the PR remains 3 files and inside
+  the repo's micro file-count scope. The requested closeout plan explicitly
+  approved the narrow machine-heavy exception and requires `make
+  validate-changed`, `pre-commit run --all-files`, Phase 2 body gates,
+  current-head CI, strict merge readiness, and review-thread closure before
+  merge.
 - Warnings: 0.
 - Posting: not eligible by design; no GitHub comments or review-thread
   resolutions were performed by the dry-run report.
