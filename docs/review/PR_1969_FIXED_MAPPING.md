@@ -100,6 +100,38 @@
   current PR head `8be6db630b1fb257be583d0d76a8aee8f6590a66`. Security-auditor
   found no security code blockers on that local reviewed head.
 
+## Codex Security Diff Scan / Finding Discovery
+
+- Skill: `codex-security:security-diff-scan`.
+- Scope: PR diff `origin/main...HEAD` for source-like changed files
+  `app/main.py`, `app/routers/health.py`, and `legacy_app.py`.
+- Report: `/tmp/codex-security-scans/BMI-App_2025_clean/pr-1969-health-readiness-routes/report.md`.
+- HTML report: `/tmp/codex-security-scans/BMI-App_2025_clean/pr-1969-health-readiness-routes/report.html`.
+- Work ledger:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/pr-1969-health-readiness-routes/artifacts/02_discovery/work_ledger.jsonl`.
+- Result: PASS, no reportable findings. Every diff-scoped source-like row has
+  a completion receipt, and discovery produced no plausible candidates requiring
+  validation or attack-path analysis.
+- Validator:
+  `python3 .../codex-security/0.1.8/scripts/validate_report_format.py --report-md /tmp/codex-security-scans/BMI-App_2025_clean/pr-1969-health-readiness-routes/report.md`: PASS.
+
+## PulsePlate PR Review
+
+- Skill: `pulseplate-pr-review`.
+- Context: `/tmp/pulseplate_pr_1969_review_context.json`.
+- Markdown report: `/tmp/pulseplate_pr_1969_review_report.md`.
+- JSON report: `/tmp/pulseplate_pr_1969_review_report.json`.
+- Result: one advisory `note` for large-diff review planning because the PR
+  diff exceeds the 800 changed-line threshold.
+- Disposition: NOT-A-BUG.
+- Evidence: this PR is intentionally the bounded health/readiness extraction
+  slice; the oversized line count is dominated by review/governance artifacts
+  (`docs/review/PR_1969_FIXED_MAPPING.md` and
+  `docs/review/PR_HEALTH_READINESS_ROUTE_EXTRACTION_PREMORTEM.md`) plus tests.
+  The code scope remains the planned canonical route extraction, bootstrap
+  guard, legacy handler removal, and guard shrink. Focused gates and
+  post-open role reviews have run.
+
 ## Fixed in Commit Mapping
 
 - No actionable review comments
@@ -133,10 +165,10 @@
 
 ## Merge Readiness
 
-- [ ] Post-open required role pass:
+- [x] Post-open required role pass:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan / finding discovery.
-- [ ] `pulseplate-pr-review`.
+- [x] Codex Security diff scan / finding discovery.
+- [x] `pulseplate-pr-review`.
 - [ ] Current-head CI terminal success.
 - [ ] PR body Phase2 gate against the live PR body.
 - [ ] Strict review-thread disposition with auth.
