@@ -14,7 +14,8 @@ Configure these outside the repository, for example as GitHub Actions secrets:
   execute-mode fixed workflow dispatch path. Execute mode also requires
   `EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED=reviewed-dry-run-dispatch`. It
   defaults to workflow input `dry_run: true`; `dry_run: false` is allowed only
-  when the reviewed live-dispatch approval digest matches exactly. `GH_TOKEN`
+  when the reviewed live-dispatch approval digest matches exactly and the bridge
+  signs the workflow inputs with the workflow-dispatch HMAC secret. `GH_TOKEN`
   takes precedence over `GITHUB_TOKEN`. Cross-repo private-pilot dispatch must
   use an externally minted GitHub App installation credential in the `ghs_`
   class; the repository must not mint app JWTs, read app private keys, or create
@@ -32,6 +33,13 @@ Configure these outside the repository, for example as GitHub Actions secrets:
   `dry_run: true`. When present, the bridge computes
   `SHA256(branch_ref + "\0" + hypothesis)` and allows `dry_run: false`
   only on exact match.
+- Optional `EXPERIMENT_SLACK_SOCKET_WORKFLOW_DISPATCH_SECRET`: high-entropy
+  bridge-to-workflow HMAC secret required only for approved live workflow
+  dispatch. It is not required at backend/container startup and therefore is not
+  a repository default. The Slack bridge uses it to send `approval_proof` as
+  lowercase HMAC-SHA256 over
+  `branch_ref + "\0" + hypothesis_sha256 + "\0" + approval_ref`; the GitHub
+  workflow validates that proof before accepting `dry_run: false`.
 - Optional `EXPERIMENT_OPERATOR_LEDGER_TASK_PACKET_ID`: local operator-ledger
   packet id for bridge write-through. If absent, the bridge uses the safe static
   id `operator-plane-slack-bridge`. Malformed values fail closed before
@@ -374,7 +382,7 @@ before parsing or acting on any HTTP Slack payload.
 ## Live-Dispatch Approval Gate
 
 Live Experiment Runner dispatch (workflow input `dry_run: false`) is gated by a
-reviewed approval digest.
+reviewed approval digest plus a bridge-signed workflow proof.
 
 1. A human reviewer generates the approval digest offline:
    ```python
@@ -385,13 +393,23 @@ reviewed approval digest.
    `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`.
 3. The bridge computes the same digest from the Slack operator command and
    allows `dry_run: false` only on exact match.
-4. A mismatch rejects the command with a clear error and writes an audit record.
-5. The digest is treated as a single-use secret: rotate it after each live
-dispatch or when leaked.
+4. For the matching command, the bridge computes `hypothesis_sha256` and signs
+   the workflow tuple with `EXPERIMENT_SLACK_SOCKET_WORKFLOW_DISPATCH_SECRET`:
+   `HMAC_SHA256(secret, branch_ref + "\0" + hypothesis_sha256 + "\0" + approval_ref)`.
+5. The dispatch workflow validates `approval_proof` with the same secret before
+   accepting `dry_run: false`. Missing, malformed, or mismatched proof fails
+   closed without printing raw values.
+6. A mismatch rejects the command with a clear error and writes an audit record.
+7. The approval digest is treated as a single-use secret: rotate it after each
+   live dispatch or when leaked. Rotate
+   `EXPERIMENT_SLACK_SOCKET_WORKFLOW_DISPATCH_SECRET` on suspected proof or
+   secret exposure. The HMAC proof binds one branch/hypothesis-digest/approval
+   tuple, but it is not a nonce-backed single-use token.
 
 Dry-run remains the default when the approval env is absent or does not match.
-Operators must not post raw approval digests, branch names, or hypotheses into
-Slack.
+Dry-run dispatch sends `approval_ref=none` and `approval_proof=none`. Operators
+must not post raw approval digests, approval proofs, branch names, or hypotheses
+into Slack.
 
 For an approved `dry_run: false` dispatch, the Slack-visible reply may include
 only sanitized evidence: fixed workflow file/ref, branch hash, hypothesis hash,
@@ -401,7 +419,9 @@ that Slack is not merge readiness. The manual workflow summary must keep
 branch/hypothesis approval binding; the bridge remains the authority for that
 bounded approval check. Neither surface may include raw branch refs, raw
 hypotheses, raw approval digests, Slack IDs, workflow logs, provider logs, local
-paths, or patch text.
+paths, or patch text. The workflow summary may report
+`workflow_live_approval=bridge_proof_validated` after proof validation, but it
+must not print proof prefixes or secret material.
 
 See also: `docs/orchestration/PREMORTEM_SLACK_LIVE_DISPATCH_APPROVAL.md` for
 reviewed risk analysis and failure modes.
@@ -503,9 +523,11 @@ redacted Guided Planning MVP evidence contract summaries, and in explicit execut
 `.github/workflows/experiment-runner-dispatch.yml` workflow with typed,
 sanitized inputs. The dispatch workflow is manual-only, defaults to `dry_run:
 true`, and allows `dry_run: false` only when the reviewed approval digest
-matches the requested branch and hypothesis exactly. Cross-repo private-pilot
-targets must be selected by runtime allowlist and dispatched with an externally
-minted GitHub App installation credential scoped to the selected repository.
+matches the requested branch and hypothesis exactly and the workflow validates
+the bridge HMAC proof for the same branch, hypothesis digest, and approval ref.
+Cross-repo private-pilot targets must be selected by runtime allowlist and
+dispatched with an externally minted GitHub App installation credential scoped
+to the selected repository.
 The GitHub App needs Actions write for workflow dispatch and must not receive
 `pull_requests:write`, `contents:write`, `workflows:write`, administration,
 sensitive-store, review-thread, or merge permissions. It must not:
