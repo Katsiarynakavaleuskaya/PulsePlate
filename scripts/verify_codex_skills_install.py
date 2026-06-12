@@ -60,6 +60,13 @@ def _resolve_destination(
 
 COPY_MARKER_FILE = ".pulseplate_codex_skill_source"
 COPY_MARKER_MAX_BYTES = 4096
+MARKER_ERROR_INVALID_UTF8 = "marker_invalid_utf8"
+MARKER_ERROR_NO_NOFOLLOW = "marker_no_nofollow"
+MARKER_ERROR_NOT_REGULAR = "marker_not_regular"
+MARKER_ERROR_REPLACED = "marker_replaced"
+MARKER_ERROR_SYMLINK = "marker_symlink"
+MARKER_ERROR_TOO_LARGE = "marker_too_large"
+MARKER_ERROR_UNREADABLE = "marker_unreadable"
 
 
 def _canonical_path(path: Path) -> str | None:
@@ -106,38 +113,49 @@ def _read_copy_marker(marker_path: Path) -> tuple[str, str | None]:
     except FileNotFoundError:
         return "", None
     except OSError:
-        return "", "marker_unreadable"
+        return "", MARKER_ERROR_UNREADABLE
 
+    if stat.S_ISLNK(marker_stat.st_mode):
+        return "", MARKER_ERROR_SYMLINK
     if not stat.S_ISREG(marker_stat.st_mode):
-        return "", "marker_not_regular"
+        return "", MARKER_ERROR_NOT_REGULAR
     if marker_stat.st_size > COPY_MARKER_MAX_BYTES:
-        return "", "marker_too_large"
+        return "", MARKER_ERROR_TOO_LARGE
 
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    open_no_follow = getattr(os, "O_NOFOLLOW", None)
+    if open_no_follow is None:
+        return "", MARKER_ERROR_NO_NOFOLLOW
+
+    flags = os.O_RDONLY | open_no_follow
     try:
         fd = os.open(marker_path, flags)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
-            return "", "marker_symlink"
-        return "", "marker_unreadable"
+            return "", MARKER_ERROR_SYMLINK
+        return "", MARKER_ERROR_UNREADABLE
 
     try:
         with os.fdopen(fd, "rb") as marker_file:
             marker_fd_stat = os.fstat(marker_file.fileno())
+            if (marker_fd_stat.st_dev, marker_fd_stat.st_ino) != (
+                marker_stat.st_dev,
+                marker_stat.st_ino,
+            ):
+                return "", MARKER_ERROR_REPLACED
             if not stat.S_ISREG(marker_fd_stat.st_mode):
-                return "", "marker_not_regular"
+                return "", MARKER_ERROR_NOT_REGULAR
             if marker_fd_stat.st_size > COPY_MARKER_MAX_BYTES:
-                return "", "marker_too_large"
+                return "", MARKER_ERROR_TOO_LARGE
             marker_bytes = marker_file.read(COPY_MARKER_MAX_BYTES + 1)
     except OSError:
-        return "", "marker_unreadable"
+        return "", MARKER_ERROR_UNREADABLE
 
     if len(marker_bytes) > COPY_MARKER_MAX_BYTES:
-        return "", "marker_too_large"
+        return "", MARKER_ERROR_TOO_LARGE
     try:
         return marker_bytes.decode("utf-8").strip(), None
     except UnicodeDecodeError:
-        return "", "marker_invalid_utf8"
+        return "", MARKER_ERROR_INVALID_UTF8
 
 
 def _inspect_installed_skill(
