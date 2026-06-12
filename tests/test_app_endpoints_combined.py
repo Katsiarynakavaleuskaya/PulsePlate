@@ -15,10 +15,13 @@ from typing import cast
 from xml.etree import ElementTree
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import HTTPException
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 import app as apppkg
+from app.routers import health as health_router
 from app.routers.legal import build_terms_endpoint_payload
 from app.bootstrap import public_discovery
 from core.compliance import build_privacy_endpoint_payload
@@ -74,6 +77,43 @@ class TestHealthAndMonitoringEndpoints:
         assert "/api/v1/health" not in paths
         assert "/health/db" not in paths
         assert "/ready" not in paths
+
+    def test_database_health_rejects_degraded_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DB degraded mode keeps the readiness failure contract."""
+        monkeypatch.setenv("DB_HEALTH_DEGRADED", "1")
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(health_router.database_health(session=cast(Session, object())))
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Database unavailable"
+
+    def test_database_health_rejects_session_without_execute(self) -> None:
+        """DB readiness fails closed when the session cannot execute SQL."""
+
+        class _NoExecuteSession:
+            bind = object()
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(health_router.database_health(session=cast(Session, _NoExecuteSession())))
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Database unavailable"
+
+    def test_database_health_rejects_unbound_session(self) -> None:
+        """DB readiness fails closed when the session has no bound engine."""
+
+        class _UnboundSession:
+            bind = None
+
+            def execute(self, query: object) -> None:
+                raise AssertionError(f"unexpected execute call: {query!r}")
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(health_router.database_health(session=cast(Session, _UnboundSession())))
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Database unavailable"
 
     @pytest.mark.skipif(
         os.getenv("METRICS_ENABLED", "true").lower() != "true",
