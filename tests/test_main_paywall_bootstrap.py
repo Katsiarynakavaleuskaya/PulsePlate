@@ -203,6 +203,27 @@ def test_health_route_registration_rejects_foreign_handlers(
         _bootstrap_temp_app(app)
 
 
+def test_health_route_registration_rejects_visible_existing_canonical_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+    for route in app_main.health_router.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        if path in app_main._HEALTH_ROUTE_PATHS and "GET" in methods:
+            app.add_api_route(
+                str(path),
+                getattr(route, "endpoint"),
+                methods=["GET"],
+                include_in_schema=True,
+            )
+
+    with pytest.raises(RuntimeError, match="hidden OpenAPI visibility"):
+        _bootstrap_temp_app(app)
+
+
 def test_health_route_registration_rejects_canonical_plus_foreign_duplicate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

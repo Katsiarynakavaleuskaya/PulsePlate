@@ -213,6 +213,10 @@ def _include_health_router_if_needed(target_app: FastAPI) -> None:
             or getattr(matching_routes[0], "endpoint", None) is not endpoint
         ):
             raise RuntimeError(f"Duplicate {path} route detected with a different health handler.")
+        if getattr(matching_routes[0], "include_in_schema", True):
+            raise RuntimeError(
+                f"Existing {path} route does not preserve hidden OpenAPI visibility."
+            )
 
 
 def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
