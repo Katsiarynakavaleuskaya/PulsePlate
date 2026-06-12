@@ -1193,7 +1193,13 @@ jobs:
     timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
       contents: read
-      actions: write
+      actions: read
+    env:
+      # PR diagnostic runs execute code from the pull request checkout. Start
+      # with an empty job-level proxy env so those runs cannot inherit the
+      # workflow-level secret-backed defaults before the guarded resolver below.
+      PULSEPLATE_PYTHON_INDEX_URL: ""
+      PULSEPLATE_PYTHON_TRUSTED_HOST: ""
     strategy:
       fail-fast: false
       matrix:
@@ -1210,6 +1216,54 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+
+      - name: Resolve PR diagnostic package proxy
+        if: github.event_name == 'pull_request'
+        env:
+          PULSEPLATE_PR_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PR_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          resolved_index="${PULSEPLATE_PR_PYTHON_INDEX_URL:-}"
+          resolved_trusted_host="${PULSEPLATE_PR_PYTHON_TRUSTED_HOST:-}"
+          if [[ -z "$resolved_index" ]]; then
+            echo "::error::Set repository variable PULSEPLATE_PYTHON_INDEX_URL for PR test-main diagnostics."
+            exit 1
+          fi
+          case "$resolved_index$resolved_trusted_host" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::Resolved Python package proxy settings must be single-line values."
+              exit 1
+              ;;
+          esac
+          {
+            echo "PULSEPLATE_PYTHON_INDEX_URL=$resolved_index"
+            echo "PULSEPLATE_PYTHON_TRUSTED_HOST=$resolved_trusted_host"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve protected package proxy
+        if: github.event_name != 'pull_request'
+        env:
+          PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          resolved_index="${PULSEPLATE_PROTECTED_PYTHON_INDEX_URL:-}"
+          resolved_trusted_host="${PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST:-}"
+          if [[ -z "$resolved_index" ]]; then
+            echo "::error::Set PULSEPLATE_PYTHON_INDEX_URL secret or repository variable for protected test-main runs."
+            exit 1
+          fi
+          case "$resolved_index$resolved_trusted_host" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::Resolved Python package proxy settings must be single-line values."
+              exit 1
+              ;;
+          esac
+          {
+            echo "PULSEPLATE_PYTHON_INDEX_URL=$resolved_index"
+            echo "PULSEPLATE_PYTHON_TRUSTED_HOST=$resolved_trusted_host"
+          } >> "$GITHUB_ENV"
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup

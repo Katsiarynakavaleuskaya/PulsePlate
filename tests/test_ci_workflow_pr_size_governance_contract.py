@@ -1791,6 +1791,68 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(test_main_if, str)
     assert "github.ref == 'refs/heads/main'" in test_main_if
     assert "needs.changes.outputs.run_main_ci_diagnostic == 'true'" in test_main_if
+
+    permissions = test_main["permissions"]
+    assert permissions == {"contents": "read", "actions": "read"}
+
+    test_main_env = test_main["env"]
+    assert test_main_env == {
+        "PULSEPLATE_PYTHON_INDEX_URL": "",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST": "",
+    }
+
+    steps = test_main["steps"]
+    assert isinstance(steps, list)
+    step_names = [step["name"] for step in steps]
+    assert step_names.index("Resolve PR diagnostic package proxy") < step_names.index(
+        "Setup Python environment"
+    )
+    assert step_names.index("Resolve protected package proxy") < step_names.index(
+        "Setup Python environment"
+    )
+
+    pr_proxy_step = next(
+        step for step in steps if step["name"] == "Resolve PR diagnostic package proxy"
+    )
+    assert pr_proxy_step["if"] == "github.event_name == 'pull_request'"
+    assert pr_proxy_step["env"] == {
+        "PULSEPLATE_PR_PYTHON_INDEX_URL": "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}",
+        "PULSEPLATE_PR_PYTHON_TRUSTED_HOST": ("${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"),
+    }
+    pr_proxy_script = pr_proxy_step["run"]
+    assert "secrets." not in pr_proxy_script
+    assert "PULSEPLATE_PR_PYTHON_INDEX_URL" in pr_proxy_script
+    assert 'if [[ -z "$resolved_index" ]]; then' in pr_proxy_script
+    assert "Set repository variable PULSEPLATE_PYTHON_INDEX_URL" in pr_proxy_script
+    assert "exit 1" in pr_proxy_script
+    assert "*$'\\n'*|*$'\\r'*)" in pr_proxy_script
+    assert "must be single-line values" in pr_proxy_script
+    assert "$GITHUB_ENV" in pr_proxy_script
+
+    protected_proxy_step = next(
+        step for step in steps if step["name"] == "Resolve protected package proxy"
+    )
+    assert protected_proxy_step["if"] == "github.event_name != 'pull_request'"
+    assert protected_proxy_step["env"] == {
+        "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL": (
+            "${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+        ),
+        "PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST": (
+            "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || "
+            "vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+        ),
+    }
+    protected_proxy_script = protected_proxy_step["run"]
+    assert "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL" in protected_proxy_script
+    assert 'if [[ -z "$resolved_index" ]]; then' in protected_proxy_script
+    assert "Set PULSEPLATE_PYTHON_INDEX_URL secret or repository variable" in (
+        protected_proxy_script
+    )
+    assert "exit 1" in protected_proxy_script
+    assert "*$'\\n'*|*$'\\r'*)" in protected_proxy_script
+    assert "must be single-line values" in protected_proxy_script
+    assert "$GITHUB_ENV" in protected_proxy_script
+
     matrix = test_main["strategy"]["matrix"]["include"]
     assert isinstance(matrix, list)
 
@@ -1799,6 +1861,8 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
+    assert "https://pypi.org/simple" not in test_main_section
+    assert "pypi.org" not in test_main_section
     assert (
         "python-version: ${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || "
         "matrix.python-version }}"
