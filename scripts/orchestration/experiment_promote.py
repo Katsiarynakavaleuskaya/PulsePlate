@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import re
 from typing import Any
 
 try:
@@ -20,6 +19,7 @@ try:
     from scripts.orchestration.experiment_contract import (
         ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
         SCHEMA_VERSION,
+        validate_creative_research_origin,
         validate_experiment_id,
         validate_experiment_packet,
         validate_experiment_result,
@@ -34,6 +34,7 @@ except ImportError:  # pragma: no cover - CLI fallback for direct script executi
     from scripts.orchestration.experiment_contract import (
         ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
         SCHEMA_VERSION,
+        validate_creative_research_origin,
         validate_experiment_id,
         validate_experiment_packet,
         validate_experiment_result,
@@ -53,50 +54,28 @@ DEFAULT_BACKLOG_PRIORITY = "P1"
 DEFAULT_BACKLOG_TARGET_PR_PREFIX = "PR_TBD_"
 DEFAULT_BACKLOG_AREA = "orchestration / experimentation"
 RESULT_PROMOTION_STATUSES: tuple[str, ...] = ("promoted", "deferred")
-CREATIVE_RESEARCH_ORIGIN_KEYS = frozenset({"bundle_id", "candidate_id", "promotion_decision"})
-CREATIVE_RESEARCH_PROMOTION_DECISIONS: tuple[str, ...] = (
-    "promote",
-    "defer",
-    "discard",
-)
-CREATIVE_RESEARCH_ORIGIN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 class ExperimentPromotionError(RuntimeError):
     """Base error for promotion contract violations."""
 
 
-def _validate_creative_research_origin(raw_origin: Any) -> dict[str, str] | None:
-    """Validate optional passive creative-research origin metadata."""
+def _promotion_packet(packet: dict[str, Any]) -> dict[str, Any]:
+    try:
+        validated_packet: dict[str, Any] = validate_experiment_packet(packet)
+        return validated_packet
+    except ValueError as exc:
+        raise ExperimentPromotionError(str(exc)) from exc
 
-    if raw_origin is None:
-        return None
-    if not isinstance(raw_origin, dict):
-        raise ExperimentPromotionError("creative_research_origin must be a JSON object.")
-    if set(raw_origin) != CREATIVE_RESEARCH_ORIGIN_KEYS:
-        raise ExperimentPromotionError("creative_research_origin has unsupported fields.")
 
-    normalized: dict[str, str] = {}
-    for field in ("bundle_id", "candidate_id", "promotion_decision"):
-        value = raw_origin.get(field)
-        if not isinstance(value, str):
-            raise ExperimentPromotionError(f"creative_research_origin.{field} must be a string.")
-        value = value.strip()
-        if not value:
-            raise ExperimentPromotionError(f"creative_research_origin.{field} must be non-empty.")
-        if field in {"bundle_id", "candidate_id"}:
-            if not CREATIVE_RESEARCH_ORIGIN_ID_RE.fullmatch(value):
-                raise ExperimentPromotionError(
-                    f"creative_research_origin.{field} must be a safe local identifier."
-                )
-        normalized[field] = value
-
-    if normalized["promotion_decision"] not in CREATIVE_RESEARCH_PROMOTION_DECISIONS:
-        raise ExperimentPromotionError(
-            "creative_research_origin.promotion_decision must be one of: "
-            + ", ".join(CREATIVE_RESEARCH_PROMOTION_DECISIONS)
+def _creative_research_origin_for_promotion(packet: dict[str, Any]) -> dict[str, str] | None:
+    try:
+        validated_origin: dict[str, str] | None = validate_creative_research_origin(
+            packet.get("creative_research_origin")
         )
-    return normalized
+        return validated_origin
+    except ValueError as exc:
+        raise ExperimentPromotionError(str(exc)) from exc
 
 
 def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
@@ -210,7 +189,7 @@ def _creative_research_origin_markdown(origin: dict[str, str] | None) -> str:
 
 
 def _base_markdown(packet: dict[str, Any], result: dict[str, Any], disposition: str) -> str:
-    origin = _validate_creative_research_origin(packet.get("creative_research_origin"))
+    origin = _creative_research_origin_for_promotion(packet)
     mutated = (
         "\n".join(f"- `{path}`" for path in result["mutated_paths"])
         if result["mutated_paths"]
@@ -295,7 +274,7 @@ def _insert_once(path: Path, marker: str, block: str) -> None:
 def _render_backlog_entry(packet: dict[str, Any], result: dict[str, Any], disposition: str) -> str:
     experiment_slug = packet["experiment_id"].replace("_", "-")
     failure_class = result["failure_class"] if result["failure_class"] is not None else "none"
-    origin = _validate_creative_research_origin(packet.get("creative_research_origin"))
+    origin = _creative_research_origin_for_promotion(packet)
     origin_lines = ""
     if origin is not None:
         origin_lines = (
@@ -373,10 +352,9 @@ def _write_durable_artifacts(
 
 
 def build_promotion_decision(packet: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    packet = _promotion_packet(packet)
     _require_matching_experiment(packet, result)
-    creative_research_origin = _validate_creative_research_origin(
-        packet.get("creative_research_origin")
-    )
+    creative_research_origin = _creative_research_origin_for_promotion(packet)
     disposition = _result_policy(packet, result)
     if disposition not in RESULT_PROMOTION_STATUSES:
         raise ExperimentPromotionError(f"Unsupported disposition: {disposition}")
@@ -427,9 +405,7 @@ def main(argv: list[str] | None = None) -> int:
     result_path = Path(args.result).expanduser().resolve()
 
     try:
-        packet = validate_experiment_packet(
-            _read_json_object(packet_path, label="experiment packet")
-        )
+        packet = _promotion_packet(_read_json_object(packet_path, label="experiment packet"))
         result = validate_experiment_result(
             _read_json_object(result_path, label="experiment result")
         )

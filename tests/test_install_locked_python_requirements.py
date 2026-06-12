@@ -3245,7 +3245,65 @@ def test_main_runs_direct_proxy_install_and_static_guard(
     assert "--index-url" in install_command
     assert APPROVED_PROXY_URL in install_command
     assert str(requirements) in install_command
-    assert observed_guard_python == ["staging-python"]
+    assert observed_guard_python == ["staging-python", "python"]
+
+
+def test_main_direct_proxy_mode_fails_when_target_guard_finds_startup_hook(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    guard_script = tmp_path / "check_python_startup_hooks.py"
+    guard_script.write_text("# test guard\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+    observed_guard_python: list[str] = []
+
+    @contextmanager
+    def fake_staging_environment(target_python: str) -> str:
+        yield "staging-python"
+
+    def fake_collect_startup_hook_failure_lines(**kwargs: object) -> list[str]:
+        python_executable = str(kwargs["python_executable"])
+        observed_guard_python.append(python_executable)
+        if python_executable == "python":
+            return [
+                "ERROR: unexpected executable Python startup hook (.pth) detected.",
+                "- /tmp/final_install_hook.pth:1 :: import os",
+            ]
+        return []
+
+    monkeypatch.setattr(
+        installer, "run_command", lambda command: observed_commands.append(list(command))
+    )
+    monkeypatch.setattr(
+        installer,
+        "collect_startup_hook_failure_lines",
+        fake_collect_startup_hook_failure_lines,
+    )
+    monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--guard-script",
+            str(guard_script),
+            "--install-mode",
+            "direct-proxy",
+        ]
+    )
+
+    assert result == 1
+    assert "final_install_hook.pth:1 :: import os" in capsys.readouterr().out
+    assert len(observed_commands) == 2
+    assert observed_commands[0][:4] == ["staging-python", "-m", "pip", "install"]
+    assert observed_commands[1][:4] == ["python", "-m", "pip", "install"]
+    assert observed_guard_python == ["staging-python", "python"]
 
 
 def test_main_direct_proxy_docker_layer_cache_skips_no_cache_dir_on_target_only(
