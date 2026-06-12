@@ -87,6 +87,32 @@ def _forbidden_root(parts: tuple[str, ...]) -> str | None:
     return None
 
 
+def _extend_literal_path_parts_until_dynamic(
+    args: Sequence[ast.AST],
+    names: Mapping[str, tuple[str, ...]],
+    path_constructors: frozenset[str],
+    path_modules: frozenset[str],
+    os_modules: frozenset[str],
+    os_path_modules: frozenset[str],
+    *,
+    initial_parts: Sequence[str] = (),
+) -> tuple[str, ...] | None:
+    parts = list(initial_parts)
+    for arg in args:
+        arg_parts = _literal_path_parts(
+            arg,
+            names,
+            path_constructors,
+            path_modules,
+            os_modules,
+            os_path_modules,
+        )
+        if arg_parts is None:
+            return tuple(parts) if _forbidden_root(tuple(parts)) else None
+        parts.extend(arg_parts)
+    return tuple(parts)
+
+
 def _literal_path_parts(
     node: ast.AST,
     names: Mapping[str, tuple[str, ...]],
@@ -128,6 +154,8 @@ def _literal_path_parts(
         )
         if left is not None and right is not None:
             return (*left, *right)
+        if left is not None and _forbidden_root(left):
+            return left
     if isinstance(node, ast.Call):
         func = node.func
         if (
@@ -147,20 +175,14 @@ def _literal_path_parts(
         ):
             return ()
         if isinstance(func, ast.Name) and func.id in path_constructors and node.args:
-            parts: list[str] = []
-            for arg in node.args:
-                arg_parts = _literal_path_parts(
-                    arg,
-                    names,
-                    path_constructors,
-                    path_modules,
-                    os_modules,
-                    os_path_modules,
-                )
-                if arg_parts is None:
-                    return None
-                parts.extend(arg_parts)
-            return tuple(parts)
+            return _extend_literal_path_parts_until_dynamic(
+                node.args,
+                names,
+                path_constructors,
+                path_modules,
+                os_modules,
+                os_path_modules,
+            )
         if (
             isinstance(func, ast.Attribute)
             and func.attr == "Path"
@@ -168,20 +190,14 @@ def _literal_path_parts(
             and func.value.id in path_modules
             and node.args
         ):
-            parts = []
-            for arg in node.args:
-                arg_parts = _literal_path_parts(
-                    arg,
-                    names,
-                    path_constructors,
-                    path_modules,
-                    os_modules,
-                    os_path_modules,
-                )
-                if arg_parts is None:
-                    return None
-                parts.extend(arg_parts)
-            return tuple(parts)
+            return _extend_literal_path_parts_until_dynamic(
+                node.args,
+                names,
+                path_constructors,
+                path_modules,
+                os_modules,
+                os_path_modules,
+            )
         if isinstance(func, ast.Attribute) and func.attr == "joinpath":
             base = _literal_path_parts(
                 func.value,
@@ -193,20 +209,15 @@ def _literal_path_parts(
             )
             if base is None:
                 return None
-            parts = list(base)
-            for arg in node.args:
-                arg_parts = _literal_path_parts(
-                    arg,
-                    names,
-                    path_constructors,
-                    path_modules,
-                    os_modules,
-                    os_path_modules,
-                )
-                if arg_parts is None:
-                    return None
-                parts.extend(arg_parts)
-            return tuple(parts)
+            return _extend_literal_path_parts_until_dynamic(
+                node.args,
+                names,
+                path_constructors,
+                path_modules,
+                os_modules,
+                os_path_modules,
+                initial_parts=base,
+            )
         if (
             isinstance(func, ast.Attribute)
             and func.attr == "join"
@@ -220,20 +231,14 @@ def _literal_path_parts(
                 or (isinstance(func.value, ast.Name) and func.value.id in os_path_modules)
             )
         ):
-            parts = []
-            for arg in node.args:
-                arg_parts = _literal_path_parts(
-                    arg,
-                    names,
-                    path_constructors,
-                    path_modules,
-                    os_modules,
-                    os_path_modules,
-                )
-                if arg_parts is None:
-                    return None
-                parts.extend(arg_parts)
-            return tuple(parts)
+            return _extend_literal_path_parts_until_dynamic(
+                node.args,
+                names,
+                path_constructors,
+                path_modules,
+                os_modules,
+                os_path_modules,
+            )
     return None
 
 

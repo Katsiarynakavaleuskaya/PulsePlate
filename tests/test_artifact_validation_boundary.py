@@ -74,6 +74,38 @@ def test_artifact_guard_rejects_direct_read_text() -> None:
                 """),
             "app/unsafe.py:4: read_text reads local artifacts/security_lab",
         ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("artifacts/security_lab", user_supplied_name).read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/security_lab",
+        ),
+        (
+            textwrap.dedent("""
+                import pathlib
+
+                pathlib.Path("artifacts/orchestration", name).open("r")
+                """),
+            "app/unsafe.py:4: open reads local artifacts/orchestration",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("artifacts").joinpath("agent_runs", run_id).read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/agent_runs",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                (Path("artifacts/security_lab") / name).read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/security_lab",
+        ),
     ],
 )
 def test_artifact_guard_rejects_pathlib_variants(
