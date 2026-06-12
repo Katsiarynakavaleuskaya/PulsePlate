@@ -43,6 +43,18 @@ Commit: 1a37e7820a3764d3e11e383f5600841ed324ae78
 Evidence: `docs/security/CVE-2026-48959-perl-base.md:63` names `trivy/ignore-policy.rego`; `docs/security/CVE-2026-48959-perl-base.md:64` documents the generated `.trivy-ignore-policy.rego` path used by `.github/workflows/build.yml:441`.
 Reason: Sourcery flagged a policy-path ambiguity; the committed doc text now separates source policy path from the workflow-generated Trivy path.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#discussion_r3406133288 -> 6b4920ce884a250836cc9203b6262ed07700b69f
+Disposition: FIXED
+Commit: 6b4920ce884a250836cc9203b6262ed07700b69f
+Evidence: `docs/review/PR_1968_FIXED_MAPPING.md:186` states the final merge-cycle checklist remains unchecked until the strict merge-readiness pass before merge.
+Reason: CodeRabbit flagged pre-checked merge-readiness boxes; the artifact now separates validation evidence from final merge-cycle checklist completion.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#pullrequestreview-4489078532 -> 6b4920ce884a250836cc9203b6262ed07700b69f
+Disposition: FIXED
+Commit: 6b4920ce884a250836cc9203b6262ed07700b69f
+Evidence: `docs/review/PR_1968_FIXED_MAPPING.md:186` states the final merge-cycle checklist remains unchecked until the strict merge-readiness pass before merge.
+Reason: CodeRabbit review summarized the same actionable checklist issue; fixed by leaving final merge-cycle boxes unchecked.
+
 ## Scope
 
 IN:
