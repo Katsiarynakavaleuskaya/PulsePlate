@@ -71,10 +71,38 @@ class ArtifactReadFinding:
         return f"{self.path}:{self.line}: {self.operation} reads local {self.artifact_root}"
 
 
-def _normalize_path_parts(value: str) -> tuple[str, ...]:
-    normalized = value.replace("\\", "/")
-    parts = tuple(part for part in normalized.split("/") if part and part not in {".", ".."})
+def _lexically_normalized_parts(parts: Sequence[str]) -> tuple[str, ...]:
+    resolved: list[str] = []
+    for part in parts:
+        if not part or part == ".":
+            continue
+        if part == "..":
+            if resolved:
+                resolved.pop()
+            continue
+        resolved.append(part)
+    return tuple(resolved)
+
+
+def _strip_repo_root_prefix(parts: tuple[str, ...]) -> tuple[str, ...]:
+    repo_root_parts = tuple(part for part in REPO_ROOT.parts if part not in {"/", ""})
+    if len(parts) < len(repo_root_parts):
+        return parts
+    lowered = tuple(part.casefold() for part in parts)
+    lowered_repo_root = tuple(part.casefold() for part in repo_root_parts)
+    if lowered[: len(lowered_repo_root)] == lowered_repo_root:
+        return parts[len(repo_root_parts) :]
     return parts
+
+
+def _raw_path_parts(value: str) -> tuple[str, ...]:
+    normalized = value.replace("\\", "/")
+    return tuple(part for part in normalized.split("/") if part)
+
+
+def _normalize_path_parts(parts: Sequence[str]) -> tuple[str, ...]:
+    resolved_parts = _lexically_normalized_parts(parts)
+    return _lexically_normalized_parts(_strip_repo_root_prefix(resolved_parts))
 
 
 def _forbidden_root(parts: tuple[str, ...]) -> str | None:
@@ -96,7 +124,7 @@ def _literal_path_parts(
     os_path_modules: frozenset[str] = frozenset(),
 ) -> tuple[str, ...] | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return _normalize_path_parts(node.value)
+        return _raw_path_parts(node.value)
     if isinstance(node, ast.JoinedStr):
         literal_parts: list[str] = []
         for value in node.values:
@@ -106,7 +134,7 @@ def _literal_path_parts(
                 literal_parts.append("<dynamic>")
             else:
                 return None
-        return _normalize_path_parts("".join(literal_parts))
+        return _raw_path_parts("".join(literal_parts))
     if isinstance(node, ast.Name):
         return names.get(node.id)
     if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Div)):
@@ -437,7 +465,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
 
             receiver_parts = self._literal_path_parts(func.value)
             if receiver_parts is not None:
-                artifact_root = _forbidden_root(receiver_parts)
+                artifact_root = _forbidden_root(_normalize_path_parts(receiver_parts))
                 if artifact_root and func.attr in READ_METHODS:
                     self._add(node, operation=func.attr, artifact_root=artifact_root)
                 elif (
@@ -485,7 +513,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
         parts = self._literal_path_parts(path_node)
         if parts is None:
             return
-        artifact_root = _forbidden_root(parts)
+        artifact_root = _forbidden_root(_normalize_path_parts(parts))
         if artifact_root and _mode_reads(_mode_from_call(node)):
             self._add(node, operation=operation, artifact_root=artifact_root)
 
@@ -493,7 +521,7 @@ class ArtifactReadVisitor(ast.NodeVisitor):
         parts = self._literal_path_parts(path_node)
         if parts is None:
             return
-        artifact_root = _forbidden_root(parts)
+        artifact_root = _forbidden_root(_normalize_path_parts(parts))
         if artifact_root:
             self._add(node, operation=operation, artifact_root=artifact_root)
 
