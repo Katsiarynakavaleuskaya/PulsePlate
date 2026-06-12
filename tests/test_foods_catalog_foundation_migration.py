@@ -200,23 +200,35 @@ def _seed_preexisting_restaurant_store_schema(database_url: str) -> None:
 def _seed_preexisting_foods_catalog(
     database_url: str,
     *,
+    include_brand: bool = True,
     preexisting_indexes: tuple[str, ...] = (),
 ) -> None:
     """Create a minimal compatible foods table before running the migration."""
 
+    create_table_sql = """
+        CREATE TABLE foods (
+            id TEXT NOT NULL PRIMARY KEY,
+            canonical_name TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            source TEXT NOT NULL,
+            gtin TEXT,
+            brand TEXT
+        )
+        """
+    if not include_brand:
+        create_table_sql = """
+            CREATE TABLE foods (
+                id TEXT NOT NULL PRIMARY KEY,
+                canonical_name TEXT NOT NULL,
+                group_name TEXT NOT NULL,
+                source TEXT NOT NULL,
+                gtin TEXT
+            )
+            """
     engine = create_engine(database_url)
     try:
         with engine.begin() as connection:
-            connection.exec_driver_sql("""
-                CREATE TABLE foods (
-                    id TEXT NOT NULL PRIMARY KEY,
-                    canonical_name TEXT NOT NULL,
-                    group_name TEXT NOT NULL,
-                    source TEXT NOT NULL,
-                    gtin TEXT,
-                    brand TEXT
-                )
-                """)
+            connection.exec_driver_sql(create_table_sql)
             for index_name in preexisting_indexes:
                 if index_name == "ix_foods_canonical_name":
                     connection.exec_driver_sql(
@@ -644,6 +656,51 @@ def test_foods_catalog_foundation_preserves_preexisting_foods_table_on_downgrade
     assert "restaurant_menu_items" not in tables_after_downgrade
     assert foods_indexes_after_downgrade == set()
     assert OWNERSHIP_REGISTRY_TABLE not in tables_after_downgrade
+
+
+def test_foods_catalog_foundation_sqlite_allows_preexisting_foods_without_trigram_columns(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "foods-foundation-sqlite-no-brand.sqlite3"
+    database_url = f"sqlite:///{db_path}"
+    temp_alembic_ini = _write_temp_alembic_ini(tmp_path)
+
+    _seed_preexisting_foods_catalog(database_url, include_brand=False)
+
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+    env.pop("PYTHONPATH", None)
+
+    _run_alembic_command(
+        temp_alembic_ini,
+        REPO_ROOT,
+        "upgrade",
+        FOUNDATION_REVISION,
+        env,
+    )
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        foods_columns = {column["name"] for column in inspector.get_columns("foods")}
+        foods_indexes = {
+            index["name"] for index in inspector.get_indexes("foods") if index.get("name")
+        }
+    finally:
+        engine.dispose()
+
+    assert "brand" not in foods_columns
+    assert {
+        "ix_foods_canonical_name",
+        "ix_foods_group_name",
+        "ix_foods_source",
+        "ix_foods_gtin",
+    } <= foods_indexes
+    assert (FOUNDATION_REVISION, "table", "foods", "foods") not in _read_ownership_rows(
+        database_url
+    )
 
 
 def test_foods_catalog_foundation_preserves_preexisting_foods_indexes_on_downgrade(

@@ -132,7 +132,7 @@ Reason: Non-actionable external-review status. Do not count this as completed So
 ## Experiment Runner Evidence
 
 - Packet:
-  `artifacts/orchestration/experiments/artifacts/orchestration/experiments/pr1966_merge_ready_oracle.json`
+  `artifacts/orchestration/experiments/pr1966_merge_ready_oracle.json`
 - Artifact:
   `artifacts/orchestration/experiments/results/pr1966_merge_ready_oracle_result.json`
 - Status: accepted.
@@ -165,9 +165,9 @@ Reason: Non-actionable external-review status. Do not count this as completed So
     `tests/test_foods_catalog_foundation_migration.py:140`
     (`type: ignore[return-value]`), blamed to `e458cf7b4` and not modified by
     this PR.
-  - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_subprocess_uses_absolute_binaries.py tests/guards/test_nosec_policy_guard.py`
+  - `python -m pytest -q tests/guards/test_subprocess_uses_absolute_binaries.py tests/guards/test_nosec_policy_guard.py`
     PASS: `40 passed`.
-  - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m compileall -q alembic/versions/202604120001_add_foods_catalog_foundation.py tests/test_foods_catalog_foundation_migration.py`
+  - `python -m compileall -q alembic/versions/202604120001_add_foods_catalog_foundation.py tests/test_foods_catalog_foundation_migration.py`
     PASS.
 
 ## PulsePlate PR Review Evidence
@@ -194,10 +194,10 @@ Reason: Non-actionable external-review status. Do not count this as completed So
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Close PR #1966 to merge readiness for foods catalog migration compatibility validation" --task-class db --path alembic/versions/202604120001_add_foods_catalog_foundation.py --path tests/test_foods_catalog_foundation_migration.py --path docs/review/PR_1966_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent qa-engineer-agent --requested-agent bug-hunter --requested-agent security-auditor --pr-phase post_open_review --native-bridge-transport codex-native-subagents`
   PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pre-commit run black --files tests/test_foods_catalog_foundation_migration.py`
+- `pre-commit run black --files tests/test_foods_catalog_foundation_migration.py`
   initially reformatted the file, then PASS after commit
   `fa6800f853f937d91bcb769d2c1a0fd046538548`.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_foods_catalog_foundation_migration.py`
+- `python -m pytest -q tests/test_foods_catalog_foundation_migration.py`
   PASS: `8 passed`.
 - `git diff --check` PASS.
 - Commit hook on `fa6800f853f937d91bcb769d2c1a0fd046538548` PASS:

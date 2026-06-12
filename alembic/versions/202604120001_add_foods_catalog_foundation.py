@@ -71,6 +71,13 @@ _INDEX_REQUIRED_COLUMNS: dict[str, dict[str, set[str]]] = {
         "ix_restaurant_menu_items_food_id": {"food_id"},
     },
 }
+_POSTGRES_ONLY_INDEXES: dict[str, set[str]] = {
+    "foods": {
+        "ix_foods_canonical_name_gin_trgm",
+        "ix_foods_group_name_gin_trgm",
+        "ix_foods_brand_gin_trgm",
+    },
+}
 
 
 def _json_type() -> sa.JSON:
@@ -122,9 +129,13 @@ def _validate_existing_catalog_tables() -> None:
     catalog tables exist without the columns required by managed indexes.
     """
 
+    dialect = op.get_bind().dialect.name
     for table_name, index_columns_by_name in _INDEX_REQUIRED_COLUMNS.items():
         required_columns: set[str] = set()
-        for columns in index_columns_by_name.values():
+        postgres_only_indexes = _POSTGRES_ONLY_INDEXES.get(table_name, set())
+        for index_name, columns in index_columns_by_name.items():
+            if dialect != "postgresql" and index_name in postgres_only_indexes:
+                continue
             required_columns.update(columns)
         _require_columns(
             table_name,
