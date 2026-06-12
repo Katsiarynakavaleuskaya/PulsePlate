@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from threading import RLock
 from typing import Any, Mapping, Protocol, Sequence, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -28,6 +29,7 @@ FEATURE_RESTAURANT_POSTGRES_SHADOW_READS = "FEATURE_RESTAURANT_POSTGRES_SHADOW_R
 RESTAURANT_POSTGRES_SHADOW_READS_URL = "RESTAURANT_POSTGRES_SHADOW_READS_URL"
 SHADOW_READ_CIRCUIT_BREAKER_SECONDS = 30.0
 _shadow_read_circuit_open_until: dict[tuple[str, str], float] = {}
+_shadow_read_circuit_lock = RLock()
 
 
 class RestaurantStore(Protocol):
@@ -144,9 +146,13 @@ def _shadow_circuit_key(operation: str, pg_url: str) -> tuple[str, str]:
 
 
 def _shadow_read_circuit_is_open(operation: str, pg_url: str) -> bool:
-    open_until = _shadow_read_circuit_open_until.get(_shadow_circuit_key(operation, pg_url), 0.0)
-    if open_until <= time.monotonic():
-        return False
+    key = _shadow_circuit_key(operation, pg_url)
+    now = time.monotonic()
+    with _shadow_read_circuit_lock:
+        open_until = _shadow_read_circuit_open_until.get(key, 0.0)
+        if open_until <= now:
+            _shadow_read_circuit_open_until.pop(key, None)
+            return False
     logger.debug(
         "restaurant PostgreSQL shadow %s skipped while failure circuit is open",
         operation,
@@ -154,14 +160,39 @@ def _shadow_read_circuit_is_open(operation: str, pg_url: str) -> bool:
     return True
 
 
-def _record_shadow_read_success(operation: str, pg_url: str) -> None:
-    _shadow_read_circuit_open_until.pop(_shadow_circuit_key(operation, pg_url), None)
+def _begin_shadow_read_attempt(operation: str, pg_url: str) -> float | None:
+    attempt_started_at = time.monotonic()
+    if _shadow_read_circuit_is_open(operation, pg_url):
+        return None
+    return attempt_started_at
 
 
-def _record_shadow_read_failure(operation: str, pg_url: str) -> None:
-    _shadow_read_circuit_open_until[_shadow_circuit_key(operation, pg_url)] = (
-        time.monotonic() + SHADOW_READ_CIRCUIT_BREAKER_SECONDS
-    )
+def _record_shadow_read_success(
+    operation: str,
+    pg_url: str,
+    *,
+    started_at: float | None = None,
+) -> None:
+    attempt_started_at = time.monotonic() if started_at is None else started_at
+    key = _shadow_circuit_key(operation, pg_url)
+    with _shadow_read_circuit_lock:
+        open_until = _shadow_read_circuit_open_until.get(key)
+        if open_until is not None and open_until <= attempt_started_at:
+            _shadow_read_circuit_open_until.pop(key, None)
+
+
+def _record_shadow_read_failure(
+    operation: str,
+    pg_url: str,
+    *,
+    started_at: float | None = None,
+) -> None:
+    attempt_started_at = time.monotonic() if started_at is None else started_at
+    key = _shadow_circuit_key(operation, pg_url)
+    open_until = attempt_started_at + SHADOW_READ_CIRCUIT_BREAKER_SECONDS
+    with _shadow_read_circuit_lock:
+        existing_open_until = _shadow_read_circuit_open_until.get(key, 0.0)
+        _shadow_read_circuit_open_until[key] = max(existing_open_until, open_until)
 
 
 class _RestaurantStoreShadowCompat(_RestaurantStoreCompat):
@@ -196,7 +227,8 @@ class _RestaurantStoreShadowCompat(_RestaurantStoreCompat):
             )
             return
         operation = "search_restaurants"
-        if _shadow_read_circuit_is_open(operation, pg_url):
+        attempt_started_at = _begin_shadow_read_attempt(operation, pg_url)
+        if attempt_started_at is None:
             return
         try:
             pg_rows = restaurant_postgres_read.search_restaurants_pg(
@@ -208,9 +240,9 @@ class _RestaurantStoreShadowCompat(_RestaurantStoreCompat):
             parity = restaurant_shadow_parity.compare_restaurant_hits(sqlite_rows, pg_rows)
             if not parity.match:
                 _log_shadow_read_mismatch(operation, parity)
-            _record_shadow_read_success(operation, pg_url)
+            _record_shadow_read_success(operation, pg_url, started_at=attempt_started_at)
         except Exception:
-            _record_shadow_read_failure(operation, pg_url)
+            _record_shadow_read_failure(operation, pg_url, started_at=attempt_started_at)
             logger.warning(
                 "restaurant PostgreSQL shadow search failed; keeping SQLite canonical response",
                 exc_info=True,
@@ -232,7 +264,8 @@ class _RestaurantStoreShadowCompat(_RestaurantStoreCompat):
             )
             return
         operation = "get_restaurant_menu"
-        if _shadow_read_circuit_is_open(operation, pg_url):
+        attempt_started_at = _begin_shadow_read_attempt(operation, pg_url)
+        if attempt_started_at is None:
             return
         try:
             pg_rows = restaurant_postgres_read.get_restaurant_menu_pg(
@@ -243,9 +276,9 @@ class _RestaurantStoreShadowCompat(_RestaurantStoreCompat):
             parity = restaurant_shadow_parity.compare_restaurant_menu(sqlite_rows, pg_rows)
             if not parity.match:
                 _log_shadow_read_mismatch(operation, parity)
-            _record_shadow_read_success(operation, pg_url)
+            _record_shadow_read_success(operation, pg_url, started_at=attempt_started_at)
         except Exception:
-            _record_shadow_read_failure(operation, pg_url)
+            _record_shadow_read_failure(operation, pg_url, started_at=attempt_started_at)
             logger.warning(
                 "restaurant PostgreSQL shadow menu read failed; keeping SQLite canonical response",
                 exc_info=True,

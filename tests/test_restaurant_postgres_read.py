@@ -81,10 +81,8 @@ def test_build_pg_engine_sets_bounded_connect_timeout(monkeypatch: pytest.Monkey
     assert engine is fake_engine
     assert captured["kwargs"]["connect_args"] == {
         "connect_timeout": restaurant_postgres_read.POSTGRES_CONNECT_TIMEOUT_SECONDS,
-        "options": (
-            f"-c statement_timeout="
-            f"{restaurant_postgres_read.POSTGRES_STATEMENT_TIMEOUT_MS}"
-        ),
+        "options": f"-c statement_timeout="
+        f"{restaurant_postgres_read.POSTGRES_STATEMENT_TIMEOUT_MS}",
     }
     assert captured["kwargs"]["pool_size"] == restaurant_postgres_read.POSTGRES_POOL_SIZE
     assert captured["kwargs"]["max_overflow"] == restaurant_postgres_read.POSTGRES_MAX_OVERFLOW
