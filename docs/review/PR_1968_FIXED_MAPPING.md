@@ -31,17 +31,17 @@ finding without weakening fail-closed Trivy scan behavior.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#discussion_r3405939500 -> `1a37e7820eab7baedfb94bf4a3f9fec4c21e937c`
-  Disposition: FIXED.
-  Evidence: `docs/security/CVE-2026-48959-perl-base.md:31` replaces the
-  ambiguous `lane` wording with `finding` for the blank fixed-version
-  disposition.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#pullrequestreview-4488809272 -> `1a37e7820eab7baedfb94bf4a3f9fec4c21e937c`
-  Disposition: FIXED.
-  Evidence: `docs/security/CVE-2026-48959-perl-base.md:63` states the source
-  policy file is `trivy/ignore-policy.rego`; lines 63-65 state the workflow
-  copies it to `.trivy-ignore-policy.rego` before passing that generated path
-  to Trivy in `.github/workflows/build.yml:441`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#discussion_r3405939500 -> 1a37e7820eab7baedfb94bf4a3f9fec4c21e937c
+Disposition: FIXED
+Commit: 1a37e7820eab7baedfb94bf4a3f9fec4c21e937c
+Evidence: `docs/security/CVE-2026-48959-perl-base.md:31` replaces the ambiguous `lane` wording with `finding` for the blank fixed-version disposition.
+Reason: Sourcery flagged the wording as a typo; the committed doc text now uses the reviewed finding terminology.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#pullrequestreview-4488809272 -> 1a37e7820eab7baedfb94bf4a3f9fec4c21e937c
+Disposition: FIXED
+Commit: 1a37e7820eab7baedfb94bf4a3f9fec4c21e937c
+Evidence: `docs/security/CVE-2026-48959-perl-base.md:63` names `trivy/ignore-policy.rego`; `docs/security/CVE-2026-48959-perl-base.md:64` documents the generated `.trivy-ignore-policy.rego` path used by `.github/workflows/build.yml:441`.
+Reason: Sourcery flagged a policy-path ambiguity; the committed doc text now separates source policy path from the workflow-generated Trivy path.
 
 ## Scope
 
