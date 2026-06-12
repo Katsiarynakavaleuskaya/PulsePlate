@@ -15,6 +15,7 @@ the current PBKDF2 idempotency, content hash, and idempotency-key-check path.
 - Branch: `codex/fix-ledger-record-compatibility-issue`
 - Head commit at bootstrap: `ec6c62ccf6e03ac1edcdedfa2cfbd71882339fb0`
 - Current local head after main refresh: `516ff66a2501c70cb53bd23d919d73a9cca9a430`
+- Pushed governance refresh head reviewed: `a599cb7fa94526ba48385608f9c69fc9d79b2ebb`
 - Current `origin/main` merge-base: `38571b1621f4d061367c63d04a0c5fb04e808cda`
 - Main refresh commits on this branch:
   `47f0762091a0b896f38a74ba8516b1122be52607`,
@@ -95,9 +96,12 @@ OUT:
   approved machine-heavy exception for this narrow orchestration lane. This
   artifact and the PR body use focused local gates plus current-head CI as the
   heavy signal.
-- PENDING: Codex Security diff scan / finding discovery on the pushed current
-  head.
-- PENDING: `pulseplate-pr-review` on the pushed current head.
+- PASS: Codex Security diff scan / finding discovery for pushed head
+  `a599cb7fa94526ba48385608f9c69fc9d79b2ebb`; the plugin report validated and
+  rendered with no reportable findings. The scan bundle is local-only and not
+  committed.
+- PASS: `pulseplate-pr-review` dry-run for pushed head
+  `a599cb7fa94526ba48385608f9c69fc9d79b2ebb`; no deterministic findings.
 
 ## Discussion Thread Pass
 
@@ -139,17 +143,13 @@ None.
 
 Not merge-ready yet. Pending after this artifact refresh:
 
-- Push local commits and rerun current-head CI for the pushed head
-  `516ff66a2501c70cb53bd23d919d73a9cca9a430` or its successor.
+- Push this artifact-only refresh and rerun current-head CI for the pushed head.
 - Current-head CI rerun with `PR Body Phase2 gates` and `Merge readiness gate`
   passing for the pushed head.
 - Sourcery review thread remains resolved only if strict disposition checks pass
   against the pushed current head.
 - CodeRabbit, Sourcery, Cubic, and Codecov must have no actionable items on the
   pushed current head.
-- Codex Security diff scan / finding discovery must be repeated for the pushed
-  current head.
-- Repeat `pulseplate-pr-review` against the pushed current head.
 - Strict merge-readiness wrapper with auth must pass with no unresolved review
   threads, no actionable bot comments, current-head checks acceptable under the
   machine-heavy exception, and the required wait window elapsed.
