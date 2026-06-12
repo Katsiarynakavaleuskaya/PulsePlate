@@ -80,6 +80,15 @@
 - Final current-head review thread, bot actionable, and strict disposition
   checks are still required before any merge-readiness claim.
 
+## Post-Open Role Review Evidence
+
+- `qa-engineer-agent`: found one blocker. `tests/test_legacy_app_git_sha.py`
+  still imports `legacy_app._short_git_sha`, and the implementation commit had
+  removed that compatibility re-export while moving route ownership. Disposition:
+  FIXED by commit `79c44aae0`, which restores the explicit
+  `_short_git_sha as _short_git_sha` legacy compatibility re-export without
+  returning health/readiness route ownership to `legacy_app.py`.
+
 ## Fixed in Commit Mapping
 
 - No actionable review comments
@@ -94,6 +103,8 @@
 - `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`: PASS after rebase and after the typed helper fix.
 - `PRE_COMMIT_HOME=/tmp/pre-commit-health-readiness-routes .venv/bin/pre-commit run --all-files`: PASS.
 - `PRE_COMMIT_HOME=/tmp/pre-commit-health-readiness-routes .venv/bin/pre-commit run mypy --hook-stage pre-push --files app/routers/health.py app/main.py legacy_app.py`: PASS after the typed helper fix.
+- `.venv/bin/python -m pytest -q tests/test_legacy_app_git_sha.py`: PASS after
+  commit `79c44aae0`.
 - `git push` pre-push hooks: PASS for mypy, pip-audit, backend pytest,
   full-repo bandit, and Docker build test.
 
