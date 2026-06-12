@@ -52,6 +52,33 @@ _COUNT_OWNED_OBJECTS_SQL = sa.text("""
     FROM pulseplate_migration_ownership
     """)
 
+_INDEX_REQUIRED_COLUMNS: dict[str, dict[str, set[str]]] = {
+    "foods": {
+        "ix_foods_canonical_name": {"canonical_name"},
+        "ix_foods_group_name": {"group_name"},
+        "ix_foods_source": {"source"},
+        "ix_foods_gtin": {"gtin"},
+        "ix_foods_canonical_name_gin_trgm": {"canonical_name"},
+        "ix_foods_group_name_gin_trgm": {"group_name"},
+        "ix_foods_brand_gin_trgm": {"brand"},
+    },
+    "restaurant_chains": {
+        "ix_restaurant_chains_name": {"name"},
+    },
+    "restaurant_menu_items": {
+        "ix_restaurant_menu_items_chain_id": {"chain_id"},
+        "ix_restaurant_menu_items_item_name": {"item_name"},
+        "ix_restaurant_menu_items_food_id": {"food_id"},
+    },
+}
+_POSTGRES_ONLY_INDEXES: dict[str, set[str]] = {
+    "foods": {
+        "ix_foods_canonical_name_gin_trgm",
+        "ix_foods_group_name_gin_trgm",
+        "ix_foods_brand_gin_trgm",
+    },
+}
+
 
 def _json_type() -> sa.JSON:
     """RU: Диалект-безопасный JSON/JSONB. EN: Dialect-safe JSON/JSONB."""
@@ -72,6 +99,49 @@ def _index_exists(table_name: str, index_name: str) -> bool:
         return False
     inspector = sa.inspect(op.get_bind())
     return any(index.get("name") == index_name for index in inspector.get_indexes(table_name))
+
+
+def _table_columns(table_name: str) -> set[str]:
+    """RU: Получить имена колонок таблицы. EN: Return table column names."""
+
+    inspector = sa.inspect(op.get_bind())
+    return {str(column["name"]) for column in inspector.get_columns(table_name)}
+
+
+def _require_columns(table_name: str, columns: set[str], *, context: str) -> None:
+    """RU: Проверить совместимость существующей схемы. EN: Validate existing schema compatibility."""
+
+    if not _table_exists(table_name):
+        return
+    missing_columns = sorted(columns - _table_columns(table_name))
+    if missing_columns:
+        missing = ", ".join(missing_columns)
+        raise RuntimeError(
+            f"Revision {revision} cannot {context}: existing table "
+            f"{table_name!r} is missing required columns: {missing}"
+        )
+
+
+def _validate_existing_catalog_tables() -> None:
+    """RU: Fail-fast for incompatible pre-existing catalog tables.
+
+    EN: Fail fast before this revision creates owned objects when same-named
+    catalog tables exist without the columns required by managed indexes.
+    """
+
+    dialect = op.get_bind().dialect.name
+    for table_name, index_columns_by_name in _INDEX_REQUIRED_COLUMNS.items():
+        required_columns: set[str] = set()
+        postgres_only_indexes = _POSTGRES_ONLY_INDEXES.get(table_name, set())
+        for index_name, columns in index_columns_by_name.items():
+            if dialect != "postgresql" and index_name in postgres_only_indexes:
+                continue
+            required_columns.update(columns)
+        _require_columns(
+            table_name,
+            required_columns,
+            context="manage foods catalog indexes",
+        )
 
 
 def _ownership_registry_exists() -> bool:
@@ -172,6 +242,11 @@ def _create_owned_table(
 def _create_owned_index(index_name: str, table_name: str, columns: list[str]) -> None:
     """RU: Создать индекс и пометить ownership. EN: Create index and mark ownership."""
 
+    _require_columns(
+        table_name,
+        _INDEX_REQUIRED_COLUMNS.get(table_name, {}).get(index_name, set(columns)),
+        context=f"create index {index_name!r}",
+    )
     if _index_exists(table_name, index_name):
         return
     op.create_index(index_name, table_name, columns, unique=False)
@@ -184,6 +259,11 @@ def _create_owned_postgres_index(index_name: str, ddl: str) -> None:
     EN: Create Postgres-only index and mark ownership.
     """
 
+    _require_columns(
+        "foods",
+        _INDEX_REQUIRED_COLUMNS["foods"].get(index_name, set()),
+        context=f"create postgres index {index_name!r}",
+    )
     if _index_exists("foods", index_name):
         return
     op.execute(ddl)
@@ -212,6 +292,8 @@ def _drop_owned_table(table_name: str) -> None:
 
 def upgrade() -> None:
     """Create repo-aligned foods catalog foundation tables."""
+
+    _validate_existing_catalog_tables()
 
     _create_owned_table(
         "foods",

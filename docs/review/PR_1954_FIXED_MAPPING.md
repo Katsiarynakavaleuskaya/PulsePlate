@@ -42,21 +42,21 @@ entitlement, billing, or broad architecture ownership.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233363 -> e351c7202f3e680de2a13458255519b2b57c0661
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233367 -> bedb6afa40ea27fc9958db020e12321b79d1680f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233369 -> e351c7202f3e680de2a13458255519b2b57c0661
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#pullrequestreview-4481218621 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#pullrequestreview-4481237491 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699625 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699634 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699635 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699636 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699641 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399714388 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399714391 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399714393 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#pullrequestreview-4481218621 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#pullrequestreview-4481237491 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699625 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699634 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699635 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699636 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699641 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399714388 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399714391 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399714393 -> b4a8e8dc23357a8b394bbd5db933f03f349c6a91
 
 Disposition: FIXED
 Commit: `e351c7202f3e680de2a13458255519b2b57c0661`
 Commit: `bedb6afa40ea27fc9958db020e12321b79d1680f`
-Commit: `b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7`
+Commit: `b4a8e8dc23357a8b394bbd5db933f03f349c6a91`
 Evidence: Cubic's keyword-only path-argument and empty-doc findings were fixed in `e351c7202`; Cubic's prefix-semantics finding was fixed in `bedb6afa40` by requiring forbidden artifact roots at the path prefix and adding `test_artifact_guard_does_not_match_non_root_artifact_path`.
 Evidence: CodeRabbit/Cubic alias findings were fixed in `b4a8e8dc2` by resolving `os.path.join` aliases, `app`/`app.router` aliases, and sensitive local assignment aliases; CodeRabbit capsys typing findings were fixed in the same commit.
 
@@ -212,7 +212,7 @@ Evidence: CodeRabbit/Cubic alias findings were fixed in `b4a8e8dc2` by resolving
 - `bedb6afa40ea27fc9958db020e12321b79d1680f` - closes Cubic's remaining
   prefix-semantics finding by matching only repo-root artifact prefixes and
   adding a deterministic non-root path regression test.
-- `b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7` - closes current-head
+- `b4a8e8dc23357a8b394bbd5db933f03f349c6a91` - closes current-head
   CodeRabbit/Cubic alias findings by resolving `os.path.join` aliases,
   `app`/`app.router` aliases, and sensitive local assignment aliases, and
   annotates the two `capsys` fixtures requested by CodeRabbit.
