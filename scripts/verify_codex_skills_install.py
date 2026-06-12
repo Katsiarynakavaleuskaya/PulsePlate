@@ -10,9 +10,11 @@ No mutations, no network, no secrets, no shell profile access.
 from __future__ import annotations
 
 import argparse
+import errno
 import filecmp
 import json
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -57,6 +59,14 @@ def _resolve_destination(
 
 
 COPY_MARKER_FILE = ".pulseplate_codex_skill_source"
+COPY_MARKER_MAX_BYTES = 4096
+MARKER_ERROR_INVALID_UTF8 = "marker_invalid_utf8"
+MARKER_ERROR_NO_NOFOLLOW = "marker_no_nofollow"
+MARKER_ERROR_NOT_REGULAR = "marker_not_regular"
+MARKER_ERROR_REPLACED = "marker_replaced"
+MARKER_ERROR_SYMLINK = "marker_symlink"
+MARKER_ERROR_TOO_LARGE = "marker_too_large"
+MARKER_ERROR_UNREADABLE = "marker_unreadable"
 
 
 def _canonical_path(path: Path) -> str | None:
@@ -96,6 +106,58 @@ def _copied_skill_matches_source(skill_path: Path, source_skill: Path) -> bool:
     return True
 
 
+def _read_copy_marker(marker_path: Path) -> tuple[str, str | None]:
+    """Read a trusted copy marker without following symlinks or large files."""
+    try:
+        marker_stat = marker_path.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return "", None
+    except OSError:
+        return "", MARKER_ERROR_UNREADABLE
+
+    if stat.S_ISLNK(marker_stat.st_mode):
+        return "", MARKER_ERROR_SYMLINK
+    if not stat.S_ISREG(marker_stat.st_mode):
+        return "", MARKER_ERROR_NOT_REGULAR
+    if marker_stat.st_size > COPY_MARKER_MAX_BYTES:
+        return "", MARKER_ERROR_TOO_LARGE
+
+    open_no_follow = getattr(os, "O_NOFOLLOW", None)
+    if open_no_follow is None:
+        return "", MARKER_ERROR_NO_NOFOLLOW
+
+    flags = os.O_RDONLY | open_no_follow
+    try:
+        fd = os.open(marker_path, flags)
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            return "", MARKER_ERROR_SYMLINK
+        return "", MARKER_ERROR_UNREADABLE
+
+    try:
+        with os.fdopen(fd, "rb") as marker_file:
+            marker_fd_stat = os.fstat(marker_file.fileno())
+            if (marker_fd_stat.st_dev, marker_fd_stat.st_ino) != (
+                marker_stat.st_dev,
+                marker_stat.st_ino,
+            ):
+                return "", MARKER_ERROR_REPLACED
+            if not stat.S_ISREG(marker_fd_stat.st_mode):
+                return "", MARKER_ERROR_NOT_REGULAR
+            if marker_fd_stat.st_size > COPY_MARKER_MAX_BYTES:
+                return "", MARKER_ERROR_TOO_LARGE
+            marker_bytes = marker_file.read(COPY_MARKER_MAX_BYTES + 1)
+    except OSError:
+        return "", MARKER_ERROR_UNREADABLE
+
+    if len(marker_bytes) > COPY_MARKER_MAX_BYTES:
+        return "", MARKER_ERROR_TOO_LARGE
+    try:
+        return marker_bytes.decode("utf-8").strip(), None
+    except UnicodeDecodeError:
+        return "", MARKER_ERROR_INVALID_UTF8
+
+
 def _inspect_installed_skill(
     dest_dir: Path,
     skill_name: str,
@@ -119,23 +181,25 @@ def _inspect_installed_skill(
         }
     if skill_path.is_dir():
         marker_path = skill_path / COPY_MARKER_FILE
-        marker_value = (
-            marker_path.read_text(encoding="utf-8").strip() if marker_path.exists() else ""
-        )
+        marker_value, marker_error = _read_copy_marker(marker_path)
         marker_resolved = _canonical_path(Path(marker_value)) if marker_value else None
         has_skill_md = (skill_path / "SKILL.md").exists()
         is_repo_managed = (
-            has_skill_md
+            marker_error is None
+            and has_skill_md
             and marker_resolved == expected_resolved
             and _copied_skill_matches_source(skill_path, source_skill)
         )
-        return {
+        info = {
             "name": skill_name,
             "status": "copied" if is_repo_managed else "copied_invalid",
             "type": "directory",
-            "marker": marker_value,
+            "marker": marker_value if is_repo_managed else "",
             "expected": expected_resolved or str(source_skill),
         }
+        if marker_error is not None:
+            info["marker_error"] = marker_error
+        return info
     return {
         "name": skill_name,
         "status": "missing",
