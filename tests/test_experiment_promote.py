@@ -266,15 +266,13 @@ def test_invalid_creative_research_origin_fails_before_artifact_write(
 ) -> None:
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
-    packet = experiment_contract.validate_experiment_packet(
-        _packet(
-            creative_research_origin={
-                "bundle_id": "creative-research-valid",
-                "candidate_id": "hyp-batch",
-                "promotion_decision": "promote",
-                "raw_prompt": "must not be accepted",
-            }
-        )
+    packet = _packet(
+        creative_research_origin={
+            "bundle_id": "creative-research-valid",
+            "candidate_id": "hyp-batch",
+            "promotion_decision": "promote",
+            "raw_prompt": "must not be accepted",
+        }
     )
     result = experiment_contract.validate_experiment_result(_result())
 
@@ -291,19 +289,48 @@ def test_invalid_creative_research_origin_decision_fails(
 ) -> None:
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
-    packet = experiment_contract.validate_experiment_packet(
-        _packet(
-            creative_research_origin={
-                "bundle_id": "creative-research-valid",
-                "candidate_id": "hyp-batch",
-                "promotion_decision": "ship",
-            }
-        )
+    packet = _packet(
+        creative_research_origin={
+            "bundle_id": "creative-research-valid",
+            "candidate_id": "hyp-batch",
+            "promotion_decision": "ship",
+        }
     )
     result = experiment_contract.validate_experiment_result(_result())
 
     with pytest.raises(experiment_promote.ExperimentPromotionError, match="must be one of"):
         experiment_promote.build_promotion_decision(packet, result)
+
+
+def test_main_rejects_invalid_origin_before_artifact_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet_path = _write_json(
+        tmp_path / "packet.json",
+        _packet(
+            creative_research_origin={
+                "bundle_id": "../escape",
+                "candidate_id": "hyp-batch",
+                "promotion_decision": "promote",
+            }
+        ),
+    )
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_promote.main(
+        ["--packet", str(packet_path), "--result", str(result_path)]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "creative_research_origin.bundle_id must be a safe local identifier" in captured.out
+    assert not (
+        repo / "docs" / "orchestration" / "experiment_pr_packets" / "exp-promote.md"
+    ).exists()
 
 
 def test_memory_capsule_updates_index_once(

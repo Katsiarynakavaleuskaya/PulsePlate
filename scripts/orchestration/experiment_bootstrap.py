@@ -13,7 +13,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 EXPERIMENT_BOOTSTRAP_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(EXPERIMENT_BOOTSTRAP_REPO_ROOT) not in sys.path:
@@ -39,6 +39,7 @@ from scripts.orchestration.experiment_contract import (
     SCHEMA_VERSION,
     is_cv_experiment,
     validate_budget_payload,
+    validate_creative_research_origin,
     validate_cv_context,
     validate_experiment_packet,
     validate_immutable_oracles,
@@ -181,6 +182,30 @@ def _build_cv_context_from_args(args: argparse.Namespace) -> dict[str, Any] | No
     }
 
 
+def _build_creative_research_origin_from_args(
+    args: argparse.Namespace,
+) -> dict[str, str] | None:
+    """Build optional creative-research origin metadata from all-or-none CLI flags."""
+
+    raw_origin = {
+        "bundle_id": args.creative_research_origin_bundle_id,
+        "candidate_id": args.creative_research_origin_candidate_id,
+        "promotion_decision": args.creative_research_origin_promotion_decision,
+    }
+    populated = [bool(str(value).strip()) for value in raw_origin.values()]
+    if not any(populated):
+        return None
+    if not all(populated):
+        raise ValueError(
+            "creative research origin flags are all-or-none: "
+            "--creative-research-bundle-id, "
+            "--creative-research-candidate-id, and "
+            "--creative-research-promotion-decision."
+        )
+    validated_origin: dict[str, str] | None = validate_creative_research_origin(raw_origin)
+    return validated_origin
+
+
 def compute_experiment_id(
     *,
     decision_question: str,
@@ -194,9 +219,11 @@ def compute_experiment_id(
     stop_condition: str,
     runner_mode: str = DEFAULT_RUNNER_MODE,
     cv_context: dict[str, Any] | None = None,
+    creative_research_origin: dict[str, str] | None = None,
 ) -> str:
     """Return deterministic short experiment id."""
 
+    validated_creative_research_origin = validate_creative_research_origin(creative_research_origin)
     payload_data = {
         "decision_question": decision_question.strip(),
         "task_class": task_class.strip(),
@@ -212,6 +239,8 @@ def compute_experiment_id(
         payload_data["runner_mode"] = runner_mode
     if cv_context is not None:
         payload_data["cv_context"] = cv_context
+    if validated_creative_research_origin is not None:
+        payload_data["creative_research_origin"] = validated_creative_research_origin
 
     payload = json.dumps(
         payload_data,
@@ -237,6 +266,7 @@ def build_experiment_packet(
     metric_acceptance_threshold: str = DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
     runner_mode: str = DEFAULT_RUNNER_MODE,
     cv_context: dict[str, Any] | None = None,
+    creative_research_origin: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic experiment packet for PR2 bootstrap tooling."""
 
@@ -256,6 +286,7 @@ def build_experiment_packet(
     budget_payload = validate_budget_payload(budgets)
     cv_intent = is_cv_experiment(decision_question, task_class, *validated_paths)
     validated_cv_context = validate_cv_context(cv_context) if cv_context is not None else None
+    validated_creative_research_origin = validate_creative_research_origin(creative_research_origin)
     if cv_intent and validated_cv_context is None:
         raise ValueError(
             "CV-oriented experiment packets must include cv_context "
@@ -292,6 +323,7 @@ def build_experiment_packet(
         stop_condition=stop_condition,
         runner_mode=validated_runner_mode,
         cv_context=validated_cv_context,
+        creative_research_origin=validated_creative_research_origin,
     )
 
     recommended_agents = [PRIMARY_AGENT, routing_decision.primary]
@@ -339,7 +371,10 @@ def build_experiment_packet(
     }
     if validated_cv_context is not None:
         packet["cv_context"] = validated_cv_context
-    return cast(dict[str, Any], validate_experiment_packet(packet))
+    if validated_creative_research_origin is not None:
+        packet["creative_research_origin"] = validated_creative_research_origin
+    validated_packet: dict[str, Any] = validate_experiment_packet(packet)
+    return validated_packet
 
 
 def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
@@ -423,6 +458,24 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cv-degrade-low", default="")
     parser.add_argument("--cv-degrade-unknown", default="")
     parser.add_argument(
+        "--creative-research-bundle-id",
+        dest="creative_research_origin_bundle_id",
+        metavar="BUNDLE_ID",
+        default="",
+    )
+    parser.add_argument(
+        "--creative-research-candidate-id",
+        dest="creative_research_origin_candidate_id",
+        metavar="CANDIDATE_ID",
+        default="",
+    )
+    parser.add_argument(
+        "--creative-research-promotion-decision",
+        dest="creative_research_origin_promotion_decision",
+        metavar="promote|defer|discard",
+        default="",
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help=(
@@ -458,6 +511,7 @@ def main(argv: list[str] | None = None) -> int:
             metric_acceptance_threshold=args.metric_acceptance_threshold,
             runner_mode=args.runner_mode,
             cv_context=_build_cv_context_from_args(args),
+            creative_research_origin=_build_creative_research_origin_from_args(args),
         )
         out_path = _resolve_output_path(args.output, packet["experiment_id"])
     except ValueError as exc:
@@ -477,19 +531,22 @@ def main(argv: list[str] | None = None) -> int:
         output_ref = str(out_path.relative_to(REPO_ROOT))
     except ValueError:
         output_ref = str(out_path)
+    output_payload: dict[str, Any] = {
+        "experiment_id": packet["experiment_id"],
+        "runner_mode": packet["runner_mode"],
+        "domain": packet["domain"],
+        "primary_agent": packet["primary_agent"],
+        "reviewer": packet["reviewer"],
+        "recommended_agents": packet["recommended_agents"],
+        "recommended_skills": packet["recommended_skills"],
+        "promotion_target": packet["promotion_target"],
+        "output": output_ref,
+    }
+    if "creative_research_origin" in packet:
+        output_payload["creative_research_origin"] = packet["creative_research_origin"]
     print(
         json.dumps(
-            {
-                "experiment_id": packet["experiment_id"],
-                "runner_mode": packet["runner_mode"],
-                "domain": packet["domain"],
-                "primary_agent": packet["primary_agent"],
-                "reviewer": packet["reviewer"],
-                "recommended_agents": packet["recommended_agents"],
-                "recommended_skills": packet["recommended_skills"],
-                "promotion_target": packet["promotion_target"],
-                "output": output_ref,
-            },
+            output_payload,
             ensure_ascii=False,
             indent=2,
             sort_keys=True,
