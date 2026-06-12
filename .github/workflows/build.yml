@@ -424,7 +424,9 @@ jobs:
           cache-to: type=gha,scope=build-production-${{ github.ref_name }},mode=min,ignore-error=true
           # PR #1448: re-enable SLSA provenance attestations for GHCR publish.
           # Keep scoped cache + mode=min + ignore-error=true to reduce export flakes.
-          provenance: mode=max
+          # Avoid max-mode BuildKit invocation metadata because package-index inputs
+          # are passed through BuildKit secret envs.
+          provenance: mode=min
           sbom: true
           target: production
 

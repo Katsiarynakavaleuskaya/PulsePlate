@@ -90,6 +90,7 @@ STATUS_FIELDS = {
     "accessibility_regression_decision",
 }
 REFERENCE_TOOLS = {"kimi", "figma", "canva", "penpot", "storybook", "code connect"}
+ALLOWED_EVIDENCE_ROOTS = {"docs", "scripts", "tests", "frontend", "ios", "tokens"}
 
 
 class InventoryError(ValueError):
@@ -225,14 +226,30 @@ def _expected_web_coverage(component: dict[str, Any], *, prefix: str, errors: li
     return "partial" if web_anchor != "unspecified" else "missing"
 
 
-def _repo_evidence_file_exists(anchor: str, repo_root: Path) -> bool:
+def _repo_evidence_relative_path(anchor: str, repo_root: Path) -> Path | None:
     path_text = anchor.split(":", 1)[0]
-    path = repo_root / path_text
+    raw_path = Path(path_text)
+    if raw_path.is_absolute() or ".." in raw_path.parts:
+        return None
+    path = repo_root / raw_path
     try:
-        path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
+        return path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
     except (OSError, ValueError):
+        return None
+
+
+def _repo_evidence_path_has_allowed_root(relative_path: Path | None) -> bool:
+    return (
+        relative_path is not None
+        and bool(relative_path.parts)
+        and relative_path.parts[0] in ALLOWED_EVIDENCE_ROOTS
+    )
+
+
+def _repo_evidence_file_exists(relative_path: Path | None, repo_root: Path) -> bool:
+    if relative_path is None:
         return False
-    return path.is_file()
+    return (repo_root / relative_path).is_file()
 
 
 def _validate_record(
@@ -319,13 +336,14 @@ def _validate_record(
         return
     for anchor in anchors:
         normalized = _normalize_authority(anchor)
+        relative_path = _repo_evidence_relative_path(anchor, repo_root)
         if any(tool in normalized for tool in REFERENCE_TOOLS):
             errors.append(
                 f"{prefix}.evidence_anchors: reference-tool evidence is not canonical: {anchor!r}"
             )
-        if not re.match(r"^(docs|scripts|tests|frontend|ios|tokens)/", anchor):
+        if not _repo_evidence_path_has_allowed_root(relative_path):
             errors.append(f"{prefix}.evidence_anchors: expected repo evidence anchor: {anchor!r}")
-        elif not _repo_evidence_file_exists(anchor, repo_root):
+        elif not _repo_evidence_file_exists(relative_path, repo_root):
             errors.append(
                 f"{prefix}.evidence_anchors: repo evidence file does not exist: {anchor!r}"
             )
