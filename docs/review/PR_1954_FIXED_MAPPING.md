@@ -33,8 +33,8 @@ entitlement, billing, or broad architecture ownership.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - Review threads: none resolved by this artifact at PR open.
-- Bot reviews/actionables: Cubic findings mapped below; current-head
-  CodeRabbit/Cubic reruns remain external review signals until they complete.
+- Bot reviews/actionables: Cubic and CodeRabbit review/comment findings are
+  mapped below.
 
 ## Fixed in Commit Mapping
 
@@ -42,6 +42,7 @@ entitlement, billing, or broad architecture ownership.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233363 -> e351c7202f3e680de2a13458255519b2b57c0661
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233367 -> bedb6afa40ea27fc9958db020e12321b79d1680f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399233369 -> e351c7202f3e680de2a13458255519b2b57c0661
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#pullrequestreview-4481218621 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#pullrequestreview-4481237491 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699625 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1954#discussion_r3399699634 -> b4a8e8dc2326a5bd0a097ef93bcf74676aed77a7
