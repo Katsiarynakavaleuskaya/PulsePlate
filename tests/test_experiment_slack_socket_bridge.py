@@ -4005,7 +4005,14 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert inputs["dry_run"]["default"] == "true"
     assert inputs["audit_retention_days"]["default"] == "14"
     steps = job["steps"]
+    live_trusted_ref_condition = "inputs.dry_run == 'false' && github.ref == 'refs/heads/main'"
     mask_step = next(step for step in steps if step["name"] == "Mask runtime allowlist inputs")
+    checkout_step = next(
+        step for step in steps if step["name"] == "Checkout trusted live-smoke code"
+    )
+    live_ref_block_step = next(
+        step for step in steps if step["name"] == "Block live smoke on untrusted workflow ref"
+    )
     presence_step = next(
         step for step in steps if step["name"] == "Validate live Socket Mode prerequisites"
     )
@@ -4074,15 +4081,18 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     )
     assert dry_readiness_step["if"] == "inputs.dry_run != 'false'"
     assert dry_readiness_step["id"] == "dry_readiness"
-    assert live_readiness_step["if"] == "inputs.dry_run == 'false'"
+    assert live_readiness_step["if"] == live_trusted_ref_condition
     assert live_readiness_step["id"] == "live_readiness"
     assert dry_config_step["id"] == "bridge_config"
     assert input_step["id"] == "smoke_inputs"
     assert retention_step["id"] == "audit_retention"
     assert dry_evidence_step["if"] == "inputs.dry_run != 'false'"
     assert presence_step["id"] == "live_prerequisites"
+    assert presence_step["if"] == live_trusted_ref_condition
     assert runtime_step["id"] == "live_smoke"
-    assert live_evidence_step["if"] == "inputs.dry_run == 'false'"
+    assert runtime_step["if"] == live_trusted_ref_condition
+    assert live_evidence_step["if"] == live_trusted_ref_condition
+    assert summary_step["if"] == live_trusted_ref_condition
     assert "SLACK_APP_TOKEN" not in dry_readiness_step["env"]
     assert "SLACK_BOT_TOKEN" not in dry_readiness_step["env"]
     assert "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST" not in dry_readiness_step["env"]
@@ -4146,6 +4156,40 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
         runtime_step["env"]["EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256"]
         == "${{ inputs.hypothesis_sha256 }}"
     )
+    assert checkout_step["with"] == {
+        "persist-credentials": False,
+        "ref": "${{ (inputs.dry_run == 'false' && 'refs/heads/main') || github.ref }}",
+    }
+    assert live_ref_block_step["if"] == (
+        "inputs.dry_run == 'false' && github.ref != 'refs/heads/main'"
+    )
+    assert "blocked_by_untrusted_workflow_ref" in live_ref_block_step["run"]
+    assert "live_slack_smoke_requires_main_workflow_ref" in live_ref_block_step["run"]
+    assert "SLACK_APP_TOKEN" not in live_ref_block_step.get("env", {})
+    assert "SLACK_BOT_TOKEN" not in live_ref_block_step.get("env", {})
+
+    secret_or_allowlist_markers = (
+        "${{ secrets.SLACK_APP_TOKEN }}",
+        "${{ secrets.SLACK_BOT_TOKEN }}",
+        "${{ inputs.channel_allowlist }}",
+        "${{ inputs.user_allowlist }}",
+        "${{ inputs.team_allowlist }}",
+    )
+    live_secret_or_allowlist_steps = [
+        step
+        for step in steps
+        if any(marker in json.dumps(step, sort_keys=True) for marker in secret_or_allowlist_markers)
+    ]
+    assert {step["name"] for step in live_secret_or_allowlist_steps} == {
+        "Report Socket Mode activation readiness for live smoke",
+        "Validate live Socket Mode prerequisites",
+        "Run bounded live Socket Mode smoke",
+        "Write redacted live activation evidence",
+    }
+    for step in live_secret_or_allowlist_steps:
+        assert step["if"] == live_trusted_ref_condition
+        assert steps.index(mask_step) < steps.index(step)
+        assert steps.index(live_ref_block_step) < steps.index(step)
     assert "${{ secrets.SLACK_APP_TOKEN }}" in workflow_text
     assert "${{ secrets.SLACK_BOT_TOKEN }}" in workflow_text
     assert "--validate-secret-presence" in workflow_text
@@ -4172,6 +4216,11 @@ def test_smoke_workflow_is_manual_only_and_secret_safe() -> None:
     assert "EXPERIMENT_NOTIFICATION_SLACK_USER_ALLOWLIST=%s" in workflow_text
     assert "EXPERIMENT_NOTIFICATION_SLACK_TEAM_ALLOWLIST=%s" in workflow_text
     assert "slack-bolt" not in workflow_text
+    assert steps.index(mask_step) < steps.index(live_ref_block_step)
+    assert steps.index(live_ref_block_step) < steps.index(checkout_step)
+    assert steps.index(live_ref_block_step) < steps.index(presence_step)
+    assert steps.index(live_ref_block_step) < steps.index(summary_step)
+    assert steps.index(checkout_step) < steps.index(presence_step)
     assert steps.index(mask_step) < steps.index(presence_step)
     assert steps.index(mask_step) < steps.index(dry_readiness_step)
     assert steps.index(mask_step) < steps.index(live_readiness_step)
