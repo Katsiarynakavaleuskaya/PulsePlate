@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -59,25 +60,72 @@ def test_sync_skill_mirror_writes_source_root_relative_marker_for_custom_root(
     assert marker.read_text(encoding="utf-8").strip() == skill_name
 
 
-def test_sync_skill_mirror_writes_nested_fallback_marker(tmp_path: Path) -> None:
-    source_root = tmp_path
-    skill_name = "custom_layout/pulseplate-pr-review"
-    source_skill = source_root / skill_name
-    source_skill.mkdir(parents=True)
-    source_skill.joinpath("SKILL.md").write_text("# nested", encoding="utf-8")
+@pytest.mark.parametrize(
+    "unsafe_skill_name",
+    [
+        "../pulseplate-pr-review",
+        "custom_layout/pulseplate-pr-review",
+        r"custom_layout\\pulseplate-pr-review",
+        "/tmp/pulseplate-pr-review",
+        "",
+        ".",
+        "..",
+    ],
+)
+def test_sync_skill_mirror_rejects_path_like_skill_names(
+    tmp_path: Path, unsafe_skill_name: str
+) -> None:
+    source_root = tmp_path / "tools" / "codex_skills"
+    mirror_root = tmp_path / "mirror"
 
-    mirror_root = tmp_path / "nested_mirror"
+    with pytest.raises(ValueError, match="single directory name"):
+        sync_skill_mirror.sync_skill_mirror(
+            skill_name=unsafe_skill_name,
+            source_root=source_root,
+            mirror_root=mirror_root,
+            force=True,
+        )
 
-    sync_skill_mirror.sync_skill_mirror(
-        skill_name=skill_name,
-        source_root=source_root,
-        mirror_root=mirror_root,
-        force=False,
-    )
 
-    marker = mirror_root / skill_name / ".pulseplate_codex_skill_source"
-    assert marker.exists()
-    assert marker.read_text(encoding="utf-8").strip() == "custom_layout/pulseplate-pr-review"
+def test_sync_skill_mirror_rejects_source_symlink_escape(tmp_path: Path) -> None:
+    source_root = tmp_path / "tools" / "codex_skills"
+    source_root.mkdir(parents=True)
+    escaped_skill = tmp_path / "escaped-skill"
+    escaped_skill.mkdir()
+    escaped_skill.joinpath("SKILL.md").write_text("# escaped", encoding="utf-8")
+    source_root.joinpath("pulseplate-pr-review").symlink_to(escaped_skill, target_is_directory=True)
+
+    with pytest.raises(
+        sync_skill_mirror.SkillMirrorValidationError, match="escapes configured root"
+    ):
+        sync_skill_mirror.sync_skill_mirror(
+            skill_name="pulseplate-pr-review",
+            source_root=source_root,
+            mirror_root=tmp_path / "mirror",
+            force=False,
+        )
+
+
+def test_sync_skill_mirror_force_does_not_clear_traversed_destination(tmp_path: Path) -> None:
+    source_root = tmp_path / "source" / "deeper"
+    payload_source = tmp_path / "source" / "payload"
+    payload_source.mkdir(parents=True)
+    payload_source.joinpath("SKILL.md").write_text("# payload", encoding="utf-8")
+    outside_destination = tmp_path / "payload"
+    outside_destination.mkdir()
+    outside_destination.joinpath("stale.txt").write_text("stale", encoding="utf-8")
+    mirror_root = tmp_path / "mirror"
+
+    with pytest.raises(sync_skill_mirror.SkillMirrorValidationError, match="single directory name"):
+        sync_skill_mirror.sync_skill_mirror(
+            skill_name="../payload",
+            source_root=source_root,
+            mirror_root=mirror_root,
+            force=True,
+        )
+
+    assert outside_destination.joinpath("stale.txt").read_text(encoding="utf-8") == "stale"
+    assert not mirror_root.exists()
 
 
 def test_sync_skill_mirror_rejects_existing_without_force(tmp_path: Path) -> None:
@@ -122,3 +170,45 @@ def test_sync_skill_mirror_force_replaces_existing_destination(tmp_path: Path) -
     assert destination.joinpath("SKILL.md").exists()
     marker = destination / ".pulseplate_codex_skill_source"
     assert marker.read_text(encoding="utf-8").strip() == "tools/codex_skills/pulseplate-pr-review"
+
+
+def test_sync_skill_mirror_force_replaces_destination_symlink_without_mutating_target(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "tools" / "codex_skills" / "pulseplate-pr-review"
+    source_root.mkdir(parents=True)
+    source_root.joinpath("SKILL.md").write_text("# source", encoding="utf-8")
+
+    mirror_root = tmp_path / "mirror"
+    mirror_root.mkdir()
+    symlink_target = tmp_path / "outside-target"
+    symlink_target.mkdir()
+    symlink_target.joinpath("sentinel.txt").write_text("keep", encoding="utf-8")
+    destination = mirror_root / "pulseplate-pr-review"
+    destination.symlink_to(symlink_target, target_is_directory=True)
+
+    sync_skill_mirror.sync_skill_mirror(
+        skill_name="pulseplate-pr-review",
+        source_root=source_root.parent,
+        mirror_root=mirror_root,
+        force=True,
+    )
+
+    assert destination.is_dir()
+    assert not destination.is_symlink()
+    assert destination.joinpath("SKILL.md").read_text(encoding="utf-8") == "# source"
+    assert symlink_target.joinpath("sentinel.txt").read_text(encoding="utf-8") == "keep"
+    assert not symlink_target.joinpath("SKILL.md").exists()
+
+
+def test_sync_skill_mirror_main_does_not_catch_unexpected_value_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_unexpected_value_error(**_: object) -> None:
+        raise ValueError("unexpected programmer bug")
+
+    monkeypatch.setattr(sync_skill_mirror, "sync_skill_mirror", raise_unexpected_value_error)
+    monkeypatch.setattr(sys, "argv", ["sync_skill_mirror.py", "--name", "pulseplate-pr-review"])
+
+    with pytest.raises(ValueError, match="unexpected programmer bug"):
+        sync_skill_mirror.main()
