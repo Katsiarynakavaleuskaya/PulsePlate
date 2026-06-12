@@ -98,6 +98,58 @@ def _write_scan_report(
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_mixed_repo_policy_scan_report(path: Path) -> None:
+    payload = {
+        "meta": {"scan_type": "scan"},
+        "scan_results": {
+            "projects": [
+                {
+                    "files": [
+                        {
+                            "location": "requirements.txt",
+                            "results": {
+                                "dependencies": [
+                                    {
+                                        "name": "fonttools",
+                                        "specifications": [
+                                            {
+                                                "raw": "fonttools==4.61.1",
+                                                "vulnerabilities": {
+                                                    "known_vulnerabilities": [
+                                                        {
+                                                            "id": "88739",
+                                                            "vulnerable_spec": "<4.62.0",
+                                                            "CVE": {
+                                                                "cvssv3": {
+                                                                    "base_severity": "UNKNOWN",
+                                                                },
+                                                            },
+                                                        },
+                                                        {
+                                                            "id": "ACTIVE-MEDIUM-HIGH-EXPLOIT",
+                                                            "vulnerable_spec": "<4.62.0",
+                                                            "CVE": {
+                                                                "cvssv3": {
+                                                                    "base_severity": "MEDIUM",
+                                                                },
+                                                            },
+                                                        },
+                                                    ],
+                                                },
+                                            }
+                                        ],
+                                    }
+                                ],
+                            },
+                        }
+                    ]
+                }
+            ]
+        },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _write_manifest(root: Path, name: str, content: str = "example==1.0.0\n") -> None:
     path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -465,6 +517,31 @@ def test_low_and_medium_findings_fail_when_safety_exits_nonzero(
 
     assert analysis.status == safety_audit.PARSE_WARNING
     assert safety_audit.exit_code_for_results([result]) == 1
+
+
+def test_nonzero_safety_exit_with_repo_policy_waiver_and_active_finding_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    _write_policy(tmp_path, "88739")
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        report_path = _report_path_from_scan_command(command)
+        _write_mixed_repo_policy_scan_report(report_path)
+        return SimpleNamespace(returncode=64, stdout="", stderr="")
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+
+    exit_code = safety_audit.main(["--root", str(tmp_path), "--output-dir", str(tmp_path)])
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "ERROR: Safety scan exited with code 64 for requirements.txt" in output
+    assert "OK: Safety scan passed for requirements.txt after 1 repo-policy waiver(s)" not in output
 
 
 def test_nonzero_safety_exit_with_only_repo_policy_waiver_passes_aggregate(
