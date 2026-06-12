@@ -301,6 +301,47 @@ def test_artifact_guard_does_not_match_non_root_artifact_path() -> None:
             f'Path("{REPO_ROOT.as_posix()}/artifacts/agent_runs/report.json").read_text()\n',
             "app/unsafe.py:1: read_text reads local artifacts/agent_runs",
         ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                (Path("app") / ".." / "artifacts/orchestration/packet.json").read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/orchestration",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("app", "..", "artifacts/orchestration/packet.json").read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/orchestration",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("app").joinpath("..", "artifacts/security_lab/report.json").read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/security_lab",
+        ),
+        (
+            textwrap.dedent("""
+                import os
+
+                os.path.exists(os.path.join("app", "..", "artifacts/agent_runs/report.json"))
+                """),
+            "app/unsafe.py:4: os.path.exists reads local artifacts/agent_runs",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                packet_path = Path("app") / ".." / "artifacts/orchestration/packet.json"
+                packet_path.read_text()
+                """),
+            "app/unsafe.py:5: read_text reads local artifacts/orchestration",
+        ),
     ],
 )
 def test_artifact_guard_rejects_paths_resolving_to_artifact_roots(
