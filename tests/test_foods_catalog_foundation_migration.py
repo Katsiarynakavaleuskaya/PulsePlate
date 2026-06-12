@@ -83,6 +83,40 @@ def _run_alembic_command(
     )
 
 
+def _run_alembic_command_raw(
+    config_path: Path,
+    repo_root: Path,
+    verb: str,
+    revision: str,
+    env: dict[str, str],
+) -> subprocess.CompletedProcess[str]:
+    """Run Alembic and return the completed process for negative-path assertions."""
+
+    return subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "config_path, repo_root, verb, revision = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]; "
+                "from alembic.config import main; "
+                "sys.path.append(repo_root); "
+                'main(argv=["-c", config_path, verb, revision], prog="alembic")'
+            ),
+            str(config_path),
+            str(repo_root),
+            verb,
+            revision,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(config_path.parent),
+        env=env,
+        timeout=ALEMBIC_SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+
 def _fk_signature(
     foreign_key: dict[str, object],
 ) -> tuple[tuple[str, ...], str | None, tuple[str, ...]]:
@@ -122,6 +156,45 @@ def _read_ownership_rows(database_url: str) -> set[tuple[str, str, str, str]]:
     finally:
         engine.dispose()
     return {_ownership_signature(row) for row in rows}
+
+
+def _seed_preexisting_restaurant_store_schema(database_url: str) -> None:
+    """Create the local restaurant store schema that predates food_id."""
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("""
+                CREATE TABLE restaurant_chains (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    country TEXT,
+                    source TEXT NOT NULL,
+                    source_id TEXT,
+                    updated_at TEXT NOT NULL
+                )
+                """)
+            connection.exec_driver_sql("""
+                CREATE TABLE restaurant_menu_items (
+                    id TEXT PRIMARY KEY,
+                    chain_id TEXT NOT NULL,
+                    item_name TEXT NOT NULL,
+                    category TEXT,
+                    serving_size_g REAL,
+                    kcal REAL,
+                    protein_g REAL,
+                    fat_g REAL,
+                    carbs_g REAL,
+                    sodium_mg REAL,
+                    source TEXT NOT NULL,
+                    source_id TEXT,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (chain_id) REFERENCES restaurant_chains(id)
+                )
+                """)
+    finally:
+        engine.dispose()
 
 
 def _seed_preexisting_foods_catalog(
@@ -176,6 +249,10 @@ class _FakeMigrationInspector:
         table_indexes = self._state["indexes"].get(table_name, set())
         return [{"name": index_name} for index_name in sorted(table_indexes)]
 
+    def get_columns(self, table_name: str) -> list[dict[str, str]]:
+        table_columns = self._state.get("columns", {}).get(table_name, set())
+        return [{"name": column_name} for column_name in sorted(table_columns)]
+
 
 class _FakeMigrationOp:
     """Stateful fake Alembic `op` surface for deterministic revision tests."""
@@ -190,6 +267,11 @@ class _FakeMigrationOp:
     def create_table(self, table_name: str, *args: object, **kwargs: object) -> None:
         self._state["tables"].add(table_name)
         self._state["indexes"].setdefault(table_name, set())
+        self._state.setdefault("columns", {})[table_name] = {
+            str(getattr(arg, "name"))
+            for arg in args
+            if getattr(arg, "name", None) is not None
+        }
 
     def create_index(
         self,
@@ -199,7 +281,13 @@ class _FakeMigrationOp:
         *,
         unique: bool = False,
     ) -> None:
-        del columns, unique
+        del unique
+        missing_columns = set(columns) - self._state.get("columns", {}).get(
+            table_name,
+            set(),
+        )
+        if missing_columns:
+            raise AssertionError(f"index {index_name} missing columns: {sorted(missing_columns)}")
         self._state["indexes"].setdefault(table_name, set()).add(index_name)
 
     def drop_index(self, index_name: str, *, table_name: str) -> None:
@@ -210,6 +298,7 @@ class _FakeMigrationOp:
         self._state["dropped_tables"].append(table_name)
         self._state["tables"].discard(table_name)
         self._state["indexes"].pop(table_name, None)
+        self._state.get("columns", {}).pop(table_name, None)
 
     def execute(self, statement: object) -> None:
         sql = str(statement).strip()
@@ -445,6 +534,49 @@ def test_foods_catalog_foundation_migration_sqlite_downgrade_cycle(
     assert initial_menu_indexes == final_menu_indexes
 
 
+def test_foods_catalog_foundation_rejects_incompatible_preexisting_menu_schema(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "foods-foundation-incompatible-menu.sqlite3"
+    database_url = f"sqlite:///{db_path}"
+    temp_alembic_ini = _write_temp_alembic_ini(tmp_path)
+
+    _seed_preexisting_restaurant_store_schema(database_url)
+
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+    env.pop("PYTHONPATH", None)
+
+    completed = _run_alembic_command_raw(
+        temp_alembic_ini,
+        REPO_ROOT,
+        "upgrade",
+        FOUNDATION_REVISION,
+        env,
+    )
+
+    assert completed.returncode != 0
+    assert "missing required columns: food_id" in completed.stderr
+    assert "no such column: food_id" not in completed.stderr
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        tables_after_failed_upgrade = set(inspector.get_table_names())
+        menu_indexes_after_failed_upgrade = {
+            index["name"]
+            for index in inspector.get_indexes("restaurant_menu_items")
+            if index.get("name")
+        }
+    finally:
+        engine.dispose()
+
+    assert "foods" not in tables_after_failed_upgrade
+    assert OWNERSHIP_REGISTRY_TABLE not in tables_after_failed_upgrade
+    assert menu_indexes_after_failed_upgrade == set()
+
 def test_foods_catalog_foundation_preserves_preexisting_foods_table_on_downgrade(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -599,6 +731,9 @@ def test_foods_catalog_foundation_postgres_trigram_mixed_preexisting_cycle(
                 "ix_foods_canonical_name_gin_trgm",
             }
         },
+        "columns": {
+            "foods": {"canonical_name", "group_name", "brand", "source", "gtin"},
+        },
         "owned": set(),
         "executed_sql": [],
         "dropped_indexes": [],
@@ -644,6 +779,7 @@ def test_foods_catalog_foundation_postgres_clean_room_cycle(
     state = {
         "tables": set(),
         "indexes": {},
+        "columns": {},
         "owned": set(),
         "executed_sql": [],
         "dropped_indexes": [],
