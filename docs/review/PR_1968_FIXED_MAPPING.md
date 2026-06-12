@@ -14,6 +14,7 @@ finding without weakening fail-closed Trivy scan behavior.
 - Branch: `codex/stabilize-main-trivy-perl-base-cve-2026-48959`
 - PR phase: `post_open_review`
 - Implementation commit: `1d47d65c7aecba1700fa341b0b60fee30b3500a0`
+- Sourcery doc-clarity fix commit: `1a37e7820eab7baedfb94bf4a3f9fec4c21e937c`
 - Packet: `artifacts/orchestration/task_packets/7d26be3d0cc9.json`
 - Pre-open packet: `artifacts/orchestration/task_packets/6338fa0a7e51.json`
 - Post-open packet: `artifacts/orchestration/task_packets/7d26be3d0cc9.json`
@@ -25,12 +26,22 @@ finding without weakening fail-closed Trivy scan behavior.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] No actionable review threads existed when this artifact was created.
-- [ ] Re-check review threads after bot review completes.
+- [x] Sourcery review feedback mapped with FIXED disposition.
+- [ ] Re-check review threads after resolving the mapped Sourcery discussion.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#discussion_r3405939500 -> `1a37e7820eab7baedfb94bf4a3f9fec4c21e937c`
+  Disposition: FIXED.
+  Evidence: `docs/security/CVE-2026-48959-perl-base.md:31` replaces the
+  ambiguous `lane` wording with `finding` for the blank fixed-version
+  disposition.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#pullrequestreview-4488809272 -> `1a37e7820eab7baedfb94bf4a3f9fec4c21e937c`
+  Disposition: FIXED.
+  Evidence: `docs/security/CVE-2026-48959-perl-base.md:63` states the source
+  policy file is `trivy/ignore-policy.rego`; lines 63-65 state the workflow
+  copies it to `.trivy-ignore-policy.rego` before passing that generated path
+  to Trivy in `.github/workflows/build.yml:441`.
 
 ## Scope
 
@@ -110,6 +121,13 @@ OUT:
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: commit hooks and pre-push hooks with repo-approved `VENV_PYTHON`.
+- PASS: Sourcery doc-clarity focused rerun after commit
+  `1a37e7820eab7baedfb94bf4a3f9fec4c21e937c`:
+  `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`,
+  `python -m pytest -q tests/test_trivy_ignore_policy_expiry.py`
+  (`12 passed`), `python scripts/ci/check_docs_phase1_gates.py --files
+  docs/security/CVE-2026-48959-perl-base.md`, `git diff --check`,
+  `make validate-changed`, and `pre-commit run --all-files`.
 - NOT RUN: full local `make verify`; intentionally deferred under the
   operator-approved machine-heavy exception.
 
