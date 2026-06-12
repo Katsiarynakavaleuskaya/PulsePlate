@@ -122,7 +122,7 @@ from app.scheduler_helpers import (
     execute_async_starter,
     safe_stop_with_cleanup,
 )
-from app.utils.helpers import _resolve_app_callable
+from app.utils.helpers import _resolve_app_callable, _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
 from app.middleware.api_tiers import derive_subject_id_from_api_key, require_vip_tier
 from app.security.llm_monthly_quota import (
