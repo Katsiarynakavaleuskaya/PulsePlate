@@ -94,6 +94,11 @@
   Disposition: FIXED by commit `a0041d9e8`, which rejects visible pre-existing
   health routes and adds
   `test_health_route_registration_rejects_visible_existing_canonical_handlers`.
+- `security-auditor`: found one procedural blocker. The remote PR ref still
+  pointed at `79c44aae0` while local reviewed `HEAD` included the
+  bug-hunter fix and mapping evidence. Disposition: FIXED by pushing through
+  current PR head `8be6db630b1fb257be583d0d76a8aee8f6590a66`. Security-auditor
+  found no security code blockers on that local reviewed head.
 
 ## Fixed in Commit Mapping
 
