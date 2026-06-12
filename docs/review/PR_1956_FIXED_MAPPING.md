@@ -4,6 +4,13 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
+## Merge-Readiness Checklist
+- [ ] Current-head CI gates green
+- [ ] Strict merge-readiness wrapper passes (`--require-auth`)
+- [ ] No unresolved review threads remain
+- [ ] All blocked disposition items addressed or deferred
+- [ ] PR body final metadata and co-author trailers updated
+
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1956#pullrequestreview-4480810788 -> 057a61f36e7032b6247aaded07d13f50ac56d0e6
 Disposition: FIXED
