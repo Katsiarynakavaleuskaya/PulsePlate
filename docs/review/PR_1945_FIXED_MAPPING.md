@@ -54,7 +54,7 @@ Evidence: full `make verify` is intentionally not run for this PR; no full-suite
 - Review threads: GraphQL `reviewThreads(first:100)` returned `[]` on the pre-governance code head `60e5b91ddc29452f74d24f4541c41261279ad676`; final current-head recheck is required before merge.
 - Sourcery: `COMMENTED`, no actionable thread found; review text says the changes look good.
 - Cubic: `COMMENTED`, review text says no issues found across 1 file.
-- CodeRabbit: current review produced a walkthrough and a docstring-coverage pre-merge warning; the warning was fixed by adding a docstring to `test_ci_main_full_suite_checkout_uses_pinned_checkout_action`, with final current-head recheck required after the follow-up push.
+- CodeRabbit: substantive review on head `2fddc7244159811c5cac24355f2202b4a573ffa2` produced a walkthrough and one docstring-coverage pre-merge warning; the warning was fixed by adding a docstring to `test_ci_main_full_suite_checkout_uses_pinned_checkout_action`. Final recheck on the follow-up head hit CodeRabbit quota/rate limit again. Coordinator disposition: NOT-A-BUG / external service limitation accepted for this narrow test-only PR after the only substantive CodeRabbit warning was fixed and repo-native current-head gates remain authoritative.
 - Codecov: previous current-head comment reported all modified and coverable lines covered; current-head coverage must be rechecked after the final follow-up push.
 
 ## Discussion Thread Pass
