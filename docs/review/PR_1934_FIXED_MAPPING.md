@@ -84,6 +84,29 @@ current-head CI and strict merge readiness remain required before merge.
 - Co-author reason: Experiment Runner oracle-only evidence shaped PR 1934
   fixed-mapping and merge-governance evidence.
 
+## Post-Open Review Gates
+
+- Codex Security diff scan / finding discovery:
+  - Scan ID: `de2e493b9a30_20260612T135709Z`
+  - Local report: `/tmp/codex-security-scans/PulsePlate-pr-1934/de2e493b9a30_20260612T135709Z/report.md`
+  - Worklist: `scripts/orchestration/sync_skill_mirror.py`
+  - Support files reviewed: `tests/test_sync_skill_mirror.py`;
+    `docs/review/PR_1934_FIXED_MAPPING.md`
+  - Result: no reportable security findings remain in the PR-scoped diff.
+- `pulseplate-pr-review` dry-run:
+  - Local report: `/tmp/pr1934_pulseplate_pr_review/report.md`
+  - Result: one advisory `large-diff-risk` planning note.
+  - Disposition: NOT-A-BUG
+  - Evidence: scope is three files; the implementation change is limited to
+    `scripts/orchestration/sync_skill_mirror.py`, regression coverage is in
+    `tests/test_sync_skill_mirror.py`, and this governance artifact accounts
+    for the remaining line volume.
+  - Gate: `make validate-changed` passed before push; current-head CI remains
+    required before merge.
+  - Reason: The advisory note asks for split rationale and deterministic gates;
+    this PR is already the narrow security/tooling slice and has the bounded
+    gates documented below.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
@@ -148,6 +171,8 @@ Reason: The comment is a coverage status report, not an actionable review thread
 - PASS: `make validate-changed`
 - PASS: commit hook with `VENV_PYTHON` / `DEV_PYTHON` set to the repo `.venv/bin/python` ran changed-file pre-commit hooks, including Black, Ruff, Bandit, and changed-file backend tests.
 - PASS: Experiment Runner oracle-only stdlib result artifact listed above.
+- PASS: Codex Security diff scan / finding discovery listed above.
+- PASS with NOT-A-BUG disposition: `pulseplate-pr-review` dry-run listed above.
 
 ## Machine-Heavy Verify Exception
 
@@ -164,7 +189,7 @@ None.
 
 Not claimed yet. Required before merge:
 
-- Push current branch head.
+- Push this post-open review artifact update.
 - Run `pre-commit run --all-files` before push and commit hook modifications if
   any appear.
 - Refresh the PR body mirror from this canonical artifact.
