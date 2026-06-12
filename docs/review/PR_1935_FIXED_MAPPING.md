@@ -58,6 +58,7 @@ OUT:
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1935#pullrequestreview-4465780547 -> 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1935#discussion_r3386545107 -> 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1935#discussion_r3386545114 -> 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 Disposition: FIXED
