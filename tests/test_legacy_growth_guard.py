@@ -49,6 +49,25 @@ def test_legacy_growth_guard_rejects_new_route() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_legal_routes() -> None:
+    source = textwrap.dedent("""
+        @app.get("/privacy")
+        async def privacy():
+            return {"privacy_policy": "legacy"}
+
+        @app.get("/terms", include_in_schema=False)
+        async def terms():
+            return {"terms_of_use": "legacy"}
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: decorator:get:/privacy -> privacy",
+        "legacy_app.py: unexpected legacy route growth: decorator:get:/terms -> terms",
+    ]
+
+
 def test_legacy_growth_guard_rejects_new_router_registration() -> None:
     source = "app.include_router(new_router)\n"
 
@@ -236,6 +255,17 @@ def test_legacy_growth_guard_rejects_new_router_import() -> None:
     assert errors == [
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:app.routers.new_surface:router -> new_router"
+    ]
+
+
+def test_legacy_growth_guard_rejects_legal_router_import() -> None:
+    source = "from app.routers.legal import build_terms_endpoint_payload\n"
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.legal:build_terms_endpoint_payload"
     ]
 
 

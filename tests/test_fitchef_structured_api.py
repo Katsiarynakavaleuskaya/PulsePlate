@@ -779,6 +779,19 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
         getattr(router, method)(path)(_handler)
         return router
 
+    def _make_legal_router() -> APIRouter:
+        router = APIRouter()
+
+        async def _privacy() -> dict[str, str]:
+            return {"status": "/privacy"}
+
+        async def _terms() -> dict[str, str]:
+            return {"status": "/terms"}
+
+        router.get("/privacy")(_privacy)
+        router.get("/terms")(_terms)
+        return router
+
     ws_router = APIRouter()
 
     @ws_router.websocket("/ws")
@@ -799,7 +812,7 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
     monkeypatch.setattr(app_main, "register_pro_contract_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_billing_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "feedback_router", _make_router("/api/v1/feedback/rag"))
-    monkeypatch.setattr(app_main, "legal_router", _make_router("/terms", method="get"))
+    monkeypatch.setattr(app_main, "legal_router", _make_legal_router())
     monkeypatch.setattr(app_main, "cbt_insight_router", _make_router("/api/v1/pro/cbt/insight"))
     monkeypatch.setattr(
         app_main, "fitchef_structured_router", _make_router("/api/v1/pro/fitchef/explain")

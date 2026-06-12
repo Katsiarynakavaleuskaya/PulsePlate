@@ -13,11 +13,25 @@ import os
 import sys
 from xml.etree import ElementTree
 from fastapi import Request
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 import app as apppkg
 from app.bootstrap import public_discovery
+from app.routers.legal import build_terms_endpoint_payload
 import pytest
+
+
+def _find_route(client: TestClient, path: str, method: str = "GET") -> APIRoute:
+    matches = [
+        route
+        for route in client.app.routes
+        if isinstance(route, APIRoute)
+        and route.path == path
+        and method.upper() in (route.methods or set())
+    ]
+    assert len(matches) == 1
+    return matches[0]
 
 
 class TestHealthAndMonitoringEndpoints:
@@ -133,6 +147,7 @@ class TestHealthAndMonitoringEndpoints:
         """Test /privacy endpoint returns privacy policy"""
         response = client.get("/privacy")
         assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
         data = response.json()
         assert "privacy_policy" in data
         assert "data_retention" in data
@@ -141,6 +156,27 @@ class TestHealthAndMonitoringEndpoints:
         assert "providers" in data
         # Assert structure/keys; avoid brittle exact phrasing
         assert isinstance(data["privacy_policy"], str)
+
+    def test_terms_endpoint(self, client: TestClient) -> None:
+        """Test /terms endpoint returns canonical legal publication payload."""
+        response = client.get("/terms")
+        assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
+
+        assert response.json() == build_terms_endpoint_payload().model_dump()
+
+    def test_legal_routes_are_owned_by_canonical_router(self, client: TestClient) -> None:
+        """/privacy and /terms are served by app.routers.legal, not legacy_app."""
+        for path in ("/privacy", "/terms"):
+            route = _find_route(client, path)
+            assert route.endpoint.__module__ == "app.routers.legal"
+
+    def test_legal_routes_stay_hidden_from_public_openapi(self, client: TestClient) -> None:
+        """Legal publication routes remain runtime-only, not public OpenAPI paths."""
+        paths = client.app.openapi()["paths"]
+
+        assert "/privacy" not in paths
+        assert "/terms" not in paths
 
 
 class TestDebugEndpoint:

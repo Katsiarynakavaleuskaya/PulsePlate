@@ -93,8 +93,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("decorator", "get", "/favicon.ico", "favicon"),
         LegacyFact("decorator", "get", "/health", "health"),
         LegacyFact("decorator", "get", "/api/v1/health", "health_v1"),
-        LegacyFact("decorator", "get", "/privacy", "privacy"),
-        LegacyFact("decorator", "get", "/terms", "terms"),
         LegacyFact("decorator", "middleware", "http", "csp_nonce_middleware"),
         LegacyFact("decorator", "middleware", "http", "log_requests"),
         LegacyFact("decorator", "post", "/admin/logs/cleanup", "cleanup_expired_logs"),
@@ -190,7 +188,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
             "router",
             "legacy_nutrition_alias_router",
         ),
-        LegacyFact("router_import", "app.routers.legal", "build_terms_endpoint_payload", ""),
         LegacyFact(
             "router_import",
             "app.routers.nutrition_recommendations",
