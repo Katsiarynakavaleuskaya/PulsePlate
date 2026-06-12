@@ -372,6 +372,7 @@ def test_nightly_workflow_jobs_use_runtime_dev_direct_proxy_setup(job_name: str)
 
 
 def test_ci_main_full_suite_checkout_uses_pinned_checkout_action() -> None:
+    """Ensure the main CI diagnostic job keeps the immutable checkout action pin."""
     checkout_step = _workflow_step_by_name(".github/workflows/ci.yml", "test-main", "Checkout")
 
     assert checkout_step["uses"] == PINNED_CHECKOUT_ACTION

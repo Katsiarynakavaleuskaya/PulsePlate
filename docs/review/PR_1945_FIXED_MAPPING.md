@@ -51,11 +51,11 @@ Evidence: full `make verify` is intentionally not run for this PR; no full-suite
 - Validator: `python3 .../codex-security/0.1.8/scripts/validate_report_format.py --report-md /tmp/codex-security-scans/pr-1945-sha-pin-governance/60e5b91ddc29_20260612T122434Z_mbase/report.md` PASS.
 
 ## Bot / Review Status
-- Review threads: GraphQL `reviewThreads(first:100)` returned `[]` on current PR head `60e5b91ddc29452f74d24f4541c41261279ad676`.
+- Review threads: GraphQL `reviewThreads(first:100)` returned `[]` on the pre-governance code head `60e5b91ddc29452f74d24f4541c41261279ad676`; final current-head recheck is required before merge.
 - Sourcery: `COMMENTED`, no actionable thread found; review text says the changes look good.
 - Cubic: `COMMENTED`, review text says no issues found across 1 file.
-- CodeRabbit: status context was successful, but the comment states review was skipped because the PR review limit was reached. This is not used as substantive no-actionable proof and must be rechecked or explicitly dispositioned before merge.
-- Codecov: previous current-head comment reported all modified and coverable lines covered; current-head coverage must be rechecked after the governance push.
+- CodeRabbit: current review produced a walkthrough and a docstring-coverage pre-merge warning; the warning was fixed by adding a docstring to `test_ci_main_full_suite_checkout_uses_pinned_checkout_action`, with final current-head recheck required after the follow-up push.
+- Codecov: previous current-head comment reported all modified and coverable lines covered; current-head coverage must be rechecked after the final follow-up push.
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
