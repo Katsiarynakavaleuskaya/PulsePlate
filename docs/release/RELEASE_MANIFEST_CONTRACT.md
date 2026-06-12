@@ -87,6 +87,7 @@ The manifest contains:
     "schema_version": "release-rag-gate-result.v1",
     "rag_gate_result_hash": "<64 lowercase hex>",
     "eval_artifact_hash": "<64 lowercase hex>",
+    "git_sha": "<git sha>",
     "release_decision": "PASS",
     "source_artifacts": [
       {
@@ -106,6 +107,8 @@ The manifest contains:
 }
 ```
 
+The ML identity `git_sha` is copied from the PR-2 RAG gate export and must
+match `build_identity.git_sha`, binding release evidence to the build commit.
 Optional ML identity fields `mlflow_run_id` and `model_version` are copied only
 when the PR-2 RAG gate export supplies them.
 
@@ -117,13 +120,14 @@ The validator recomputes the release-control decision.
 
 - required build, reviewer, ML, and supply-chain identity groups are present;
 - RAG gate result decision is `PASS`;
+- RAG gate result `git_sha` matches `build_identity.git_sha`;
 - `sbom_digest` and `provenance_digest` use OCI `sha256:<hex>` format;
 - `attestation_status` is `VERIFIED`;
 - `release_manifest_hash` matches the canonical payload.
 
 Any missing or invalid required evidence results in `BLOCK` with deterministic
 `decision_reasons`, such as `rag_gate_result_not_pass`,
-`attestation_not_verified`, `invalid_sbom_digest`, or
+`rag_git_sha_mismatch`, `attestation_not_verified`, `invalid_sbom_digest`, or
 `invalid_provenance_digest`.
 
 ## Boundaries

@@ -41,6 +41,10 @@ COPY scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_pytho
 # Mirror-lag fallback is governed by install_locked_python_requirements.py and the sha256 manifest.
 # BuildKit cache mount speeds rebuilds; omit --no-cache-dir so pip can use the mounted HTTP cache.
 RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=secret,id=pp_py_index,required=false \
+    --mount=type=secret,id=pp_py_host,required=false \
+    PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
+    PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
@@ -67,6 +71,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY requirements.txt requirements-ci-lite.txt requirements-docker-runtime.txt constraints.txt ./
 COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=secret,id=pp_py_index,required=false \
+    --mount=type=secret,id=pp_py_host,required=false \
+    PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
+    PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
@@ -131,6 +139,10 @@ ENV PYTHONUNBUFFERED=1 \
 # Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
 COPY scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=secret,id=pp_py_index,required=false \
+    --mount=type=secret,id=pp_py_host,required=false \
+    PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
+    PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
@@ -347,7 +359,11 @@ COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_r
 # SECURITY NOTE: Do NOT uninstall setuptools/wheel in development stage.
 # They are required runtime dependencies of pip-tools for lockfile generation (pip-compile).
 # Security mitigation (GHSA-58pv-8j8x-9vj2) applies to runtime/production images only.
-RUN if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
+RUN --mount=type=secret,id=pp_py_index,required=false \
+    --mount=type=secret,id=pp_py_host,required=false \
+    PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
+    PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
+    if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
     fi; \

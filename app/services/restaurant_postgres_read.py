@@ -8,10 +8,12 @@ EN: No runtime cutover here — this module serves shadow-read path only.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from threading import RLock
 from typing import Any
 
 from sqlalchemy import MetaData, Table, create_engine, text
-from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.engine import Connection, Engine, make_url
 from sqlalchemy.exc import NoSuchTableError
 
 RESTAURANT_CHAINS_TABLE = "restaurant_chains"
@@ -35,7 +37,21 @@ REQUIRED_MENU_COLUMNS = frozenset(
     }
 )
 POSTGRES_CONNECT_TIMEOUT_SECONDS = 5
+POSTGRES_STATEMENT_TIMEOUT_MS = 1_000
+POSTGRES_POOL_SIZE = 2
+POSTGRES_MAX_OVERFLOW = 0
+POSTGRES_POOL_TIMEOUT_SECONDS = 1
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _RestaurantPostgresRuntime:
+    engine: Engine
+    schema_validated: bool = False
+
+
+_runtime_lock = RLock()
+_runtime_cache: dict[str, _RestaurantPostgresRuntime] = {}
 
 
 class RestaurantPostgresReadError(RuntimeError):
@@ -48,11 +64,25 @@ def _build_pg_engine(pg_url: str) -> Engine:
     EN: Build a PostgreSQL engine and fail-closed validate dialect.
     """
 
+    url = make_url(pg_url)
+    if url.get_backend_name() != "postgresql":
+        logger.debug(
+            "restaurant shadow-read adapter rejected non-PostgreSQL dialect: %s",
+            url.get_backend_name(),
+        )
+        raise RestaurantPostgresReadError("target database must be PostgreSQL")
+
     engine = create_engine(
-        pg_url,
+        url,
         pool_pre_ping=True,
         future=True,
-        connect_args={"connect_timeout": POSTGRES_CONNECT_TIMEOUT_SECONDS},
+        pool_size=POSTGRES_POOL_SIZE,
+        max_overflow=POSTGRES_MAX_OVERFLOW,
+        pool_timeout=POSTGRES_POOL_TIMEOUT_SECONDS,
+        connect_args={
+            "connect_timeout": POSTGRES_CONNECT_TIMEOUT_SECONDS,
+            "options": f"-c statement_timeout={POSTGRES_STATEMENT_TIMEOUT_MS}",
+        },
     )
     if engine.dialect.name != "postgresql":
         logger.debug(
@@ -168,6 +198,39 @@ def _fetch_menu_rows(connection: Connection, *, chain_id: str, limit: int) -> li
     return menu_rows
 
 
+def _get_pg_runtime(pg_url: str) -> _RestaurantPostgresRuntime:
+    with _runtime_lock:
+        runtime = _runtime_cache.get(pg_url)
+        if runtime is None:
+            runtime = _RestaurantPostgresRuntime(engine=_build_pg_engine(pg_url))
+            _runtime_cache[pg_url] = runtime
+        return runtime
+
+
+def reset_restaurant_postgres_runtime_cache() -> None:
+    """RU/EN: Dispose cached shadow-read engines; intended for deterministic tests/shutdown."""
+
+    with _runtime_lock:
+        runtimes = list(_runtime_cache.values())
+        _runtime_cache.clear()
+    for runtime in runtimes:
+        runtime.engine.dispose()
+
+
+def _drop_pg_runtime(pg_url: str) -> None:
+    with _runtime_lock:
+        runtime = _runtime_cache.pop(pg_url, None)
+    if runtime is not None:
+        runtime.engine.dispose()
+
+
+def _ensure_schema_validated(runtime: _RestaurantPostgresRuntime, connection: Connection) -> None:
+    with _runtime_lock:
+        if not runtime.schema_validated:
+            _reflect_read_tables(connection)
+            runtime.schema_validated = True
+
+
 def search_restaurants_pg(
     *,
     pg_url: str,
@@ -180,13 +243,14 @@ def search_restaurants_pg(
     EN: Read search rows from PostgreSQL for shadow comparison.
     """
 
-    engine = _build_pg_engine(pg_url)
+    runtime = _get_pg_runtime(pg_url)
     try:
-        with engine.connect() as connection:
-            _reflect_read_tables(connection)
+        with runtime.engine.connect() as connection:
+            _ensure_schema_validated(runtime, connection)
             return _fetch_search_rows(connection, query=query, limit=limit, offset=offset)
-    finally:
-        engine.dispose()
+    except Exception:
+        _drop_pg_runtime(pg_url)
+        raise
 
 
 def get_restaurant_menu_pg(*, pg_url: str, chain_id: str, limit: int) -> list[dict[str, Any]]:
@@ -195,10 +259,11 @@ def get_restaurant_menu_pg(*, pg_url: str, chain_id: str, limit: int) -> list[di
     EN: Read menu rows from PostgreSQL for shadow comparison.
     """
 
-    engine = _build_pg_engine(pg_url)
+    runtime = _get_pg_runtime(pg_url)
     try:
-        with engine.connect() as connection:
-            _reflect_read_tables(connection)
+        with runtime.engine.connect() as connection:
+            _ensure_schema_validated(runtime, connection)
             return _fetch_menu_rows(connection, chain_id=chain_id, limit=limit)
-    finally:
-        engine.dispose()
+    except Exception:
+        _drop_pg_runtime(pg_url)
+        raise

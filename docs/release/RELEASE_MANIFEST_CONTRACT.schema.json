@@ -95,6 +95,7 @@
         "schema_version",
         "rag_gate_result_hash",
         "eval_artifact_hash",
+        "git_sha",
         "release_decision",
         "source_artifacts"
       ],
@@ -109,6 +110,10 @@
         "eval_artifact_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "git_sha": {
+          "type": "string",
+          "minLength": 1
         },
         "release_decision": {
           "enum": [

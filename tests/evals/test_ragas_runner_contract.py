@@ -128,6 +128,32 @@ def test_run_report_is_deterministic_and_lazy(
     assert "NO-GO" not in summary
 
 
+def test_evaluate_records_rejects_live_provider_credentials_before_ragas_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Offline runner must fail closed before data can reach provider-backed RAGAS."""
+
+    runner = importlib.import_module("evals.ragas.run_ragas_eval")
+    rows = [
+        {
+            "question": "private CBT question",
+            "answer": "private candidate answer",
+            "contexts": ["private context"],
+            "reference": "private reference",
+            "ground_truth": "private reference",
+        }
+    ]
+
+    def _boom() -> tuple[object, object, object]:
+        raise AssertionError("ragas must not load while live provider creds are set")
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-real")
+    monkeypatch.setattr(runner, "_load_ragas_dependencies", _boom)
+
+    with pytest.raises(RuntimeError, match="offline-only.*OPENAI_API_KEY"):
+        runner.evaluate_records(rows, runner.DEFAULT_RAGAS_METRICS)
+
+
 def test_run_report_uses_repo_relative_dataset_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

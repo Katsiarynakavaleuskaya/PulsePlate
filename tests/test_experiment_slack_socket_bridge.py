@@ -2985,6 +2985,61 @@ def test_parser_rejects_extra_args_for_read_only_commands(text: str) -> None:
         bridge.parse_operator_command(text)
 
 
+def test_parser_rejects_dispatch_through_pulseplate_runner_hint() -> None:
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.parse_operator_command(
+            "run-experiment feature/test Validate runner bypass from display command",
+            command_hint="/pulseplate-runner",
+        )
+
+
+@pytest.mark.parametrize(
+    ("text", "command_hint"),
+    [
+        ("help", "/unknown-command"),
+        ("run-experiment feature/test Validate unknown hint bypass", "/unknown-command"),
+    ],
+)
+def test_parser_rejects_unknown_non_empty_command_hint(text: str, command_hint: str) -> None:
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.parse_operator_command(text, command_hint=command_hint)
+
+
+def test_parser_preserves_direct_no_hint_compatibility() -> None:
+    assert bridge.parse_operator_command("help", command_hint=None).kind == "help"
+    assert bridge.parse_operator_command("status", command_hint="").kind == "status"
+    assert bridge.parse_operator_command("mvp-evidence", command_hint=" \t ").kind == "mvp-evidence"
+
+
+def test_pulseplate_runner_cannot_dispatch_in_execute_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_dir = _configure_repo(monkeypatch, tmp_path)
+    _configure_env(monkeypatch)
+    monkeypatch.setenv("GH_TOKEN", "ghp_" + "m" * 24)
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_EXECUTE_ENABLED", "reviewed-dry-run-dispatch")
+    monkeypatch.setenv("EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256", "a" * 64)
+    config = _config_without_rate_limit(
+        monkeypatch=monkeypatch,
+        dispatch_mode="execute",
+        audit_dir=audit_dir,
+    )
+    calls: list[dict[str, Any]] = []
+
+    with pytest.raises(bridge.SlackSocketCommandError):
+        bridge.process_payload(
+            _event(
+                command="/pulseplate-runner",
+                text="run-experiment feature/test Validate runner bypass from display command",
+            ),
+            config,
+            dispatch_transport=lambda **kwargs: calls.append(kwargs),
+        )
+
+    assert calls == []
+
+
 def test_channel_and_user_allowlists_fail_closed_without_leaking_ids(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

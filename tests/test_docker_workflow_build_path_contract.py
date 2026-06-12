@@ -78,6 +78,41 @@ def test_build_workflow_owns_docker_validation_contract() -> None:
     ) in run_script
 
 
+def test_build_workflow_does_not_expose_github_token_to_pr_baseline_script() -> None:
+    """PR builds must not pass workflow tokens to checked-out baseline code."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    build_job = jobs["build"]
+    assert isinstance(build_job, dict)
+    steps = build_job["steps"]
+    assert isinstance(steps, list)
+
+    fallback_step = next(
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("name") == "Use checked-in Docker image telemetry baseline on pull requests"
+    )
+    assert fallback_step["if"] == "github.event_name == 'pull_request'"
+    fallback_run = fallback_step["run"]
+    assert isinstance(fallback_run, str)
+    assert "fetch_docker_image_baseline.py" not in fallback_run
+    assert "GH_TOKEN" not in fallback_step.get("env", {})
+    assert "GITHUB_TOKEN" not in fallback_step.get("env", {})
+
+    resolve_step = next(
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == "Resolve Docker image telemetry baseline"
+    )
+    assert resolve_step["if"] == "github.event_name != 'pull_request'"
+    resolve_env = resolve_step["env"]
+    assert isinstance(resolve_env, dict)
+    assert resolve_env["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert resolve_env["GITHUB_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+
+
 def test_production_dockerfile_prunes_package_manager_surface() -> None:
     """Production target removes package-manager packages after runtime-base."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")

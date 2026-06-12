@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import shutil
 import uuid
 from pathlib import Path
 
 import pytest
 
+import scripts.orchestration.task_bootstrap as task_bootstrap_module
 from core.judgment import (
     CLAIM_EVIDENCE_FIELDS,
     CLAIM_TYPES,
@@ -22,12 +24,14 @@ from scripts.orchestration.bootstrap_sync_policy import (
     resolve_analysis_envelope_mode,
 )
 from scripts.orchestration.context_pack import repo_relative_paths
+from scripts.orchestration.context_pack_compression import _ROLE_FINGERPRINT_RE
 from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
     REQUIRED_BOOTSTRAP_LANE,
 )
+from scripts.orchestration.shadow_reuse_telemetry import SHADOW_REUSE_FIELD
 from scripts.orchestration.skill_router import RESEARCH_POLICY_BUCKET_APPROVED
 from scripts.orchestration.task_bootstrap import (
     REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
@@ -89,6 +93,9 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"] == (
         "architecture-specialist"
     )
+    compression = packet["context_pack_compression"]
+    assert _ROLE_FINGERPRINT_RE.match(compression["metadata"]["primary_agent_fingerprint"])
+    assert _ROLE_FINGERPRINT_RE.match(compression["metadata"]["reviewer_fingerprint"])
 
 
 def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
@@ -189,6 +196,47 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
             "must_return": ["AGENT_RESULT_V1 envelope only (no preamble)"],
         },
     }
+    compression = packet["context_pack_compression"]
+    assert compression["authority_boundary"] == "metadata_only_non_serving"
+    assert compression["policy_version"] == "semantic-context-compression-o2-v1"
+    assert compression["required_context"] == packet["required_context"]
+    assert compression["estimate"]["tokens_saved_estimate"] >= 0
+    assert "gate_closed" in compression["reason_codes"]
+    assert "metadata_only" in compression["reason_codes"]
+    provider_routing = packet["provider_model_tier_routing"]
+    assert provider_routing["telemetry_phase"] == "PR-O3"
+    assert provider_routing["selected_route"] == "no_runtime_selection"
+    assert "frontier_required" in provider_routing["model_tier_labels"]
+    assert "agent-coordinator" in provider_routing["required_frontier_roles"]
+    assert "no_provider_call" in provider_routing["reason_codes"]
+    assert "no_cache_serving" in provider_routing["reason_codes"]
+    embedding_admission = packet["embedding_retrieval_admission"]
+    assert embedding_admission["telemetry_phase"] == "PR-O4"
+    assert embedding_admission["admission_allowed"] is False
+    assert embedding_admission["embedding_allowed"] is False
+    assert embedding_admission["retrieval_runtime_allowed"] is False
+    assert embedding_admission["semantic_similarity_allowed"] is False
+    assert embedding_admission["vector_search_allowed"] is False
+    assert embedding_admission["provider_calls_allowed"] is False
+    assert embedding_admission["cache_read_allowed"] is False
+    assert embedding_admission["cache_write_allowed"] is False
+    assert embedding_admission["serving_allowed"] is False
+    assert embedding_admission["selected_embedding_backend"] == "none"
+    assert embedding_admission["selected_retrieval_runtime"] == "none"
+    assert embedding_admission["evidence_refs"]
+    assert len(embedding_admission["candidates"]) == 3
+    for reason in (
+        "gate_closed",
+        "metadata_only",
+        "admission_deferred",
+        "no_embeddings",
+        "no_vector_search",
+        "no_runtime_retrieval",
+        "no_provider_call",
+        "no_cache_serving",
+        "future_gate_required",
+    ):
+        assert reason in embedding_admission["reason_codes"]
     assert packet["skill_routing"]["envelope_mode_hint"] == "docs_only"
     _docs_paths = ["docs/ENGINEERING_LESSONS.md"]
     _norm_docs = repo_relative_paths([p.strip() for p in _docs_paths if p.strip()])
@@ -206,6 +254,25 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False
+
+
+def test_task_bootstrap_keeps_wide_pr_packets_when_context_graph_truncates() -> None:
+    """Advisory compression limits must never block task-packet creation."""
+
+    packet = build_task_packet(
+        goal="Wide orchestration lane",
+        task_class="Orchestration",
+        candidate_paths=[
+            f"scripts/orchestration/generated_context_{index}.py" for index in range(225)
+        ],
+    )
+
+    compression = packet["context_pack_compression"]
+    assert len(packet["candidate_paths"]) == 225
+    assert len(compression["graph_nodes"]) <= 200
+    assert compression["required_context"] == packet["required_context"]
+    assert "graph_limit_truncated" in compression["reason_codes"]
+    assert "compression_limit_exceeded" in compression["reason_codes"]
 
 
 def test_task_bootstrap_dispatch_command_includes_runtime_owner_flags() -> None:
@@ -1352,6 +1419,16 @@ def test_task_bootstrap_keeps_packet_id_stable_for_identical_inputs() -> None:
     assert first_packet["design_lane_mode"] == second_packet["design_lane_mode"]
     assert first_packet["design_lane_contract"] == second_packet["design_lane_contract"]
     assert first_packet["message_envelope"] == second_packet["message_envelope"]
+    assert first_packet["context_pack_compression"] == second_packet["context_pack_compression"]
+    assert (
+        first_packet["provider_model_tier_routing"] == second_packet["provider_model_tier_routing"]
+    )
+    assert SHADOW_REUSE_FIELD not in first_packet
+    assert SHADOW_REUSE_FIELD not in second_packet
+    assert (
+        first_packet["embedding_retrieval_admission"]
+        == second_packet["embedding_retrieval_admission"]
+    )
     assert first_packet["needs_backlog_update"] == second_packet["needs_backlog_update"]
     assert first_packet["needs_docs_sync"] == second_packet["needs_docs_sync"]
     assert first_packet["needs_agents_sync"] == second_packet["needs_agents_sync"]
@@ -1496,6 +1573,78 @@ def test_main_rejects_output_outside_repo(tmp_path, capsys) -> None:
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "FAIL: --output must stay within the repository root" in captured.out
+
+
+def test_main_repeated_packet_records_same_head_shadow_exact_hit(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI artifact loop should see prior same-ID packets as shadow candidates."""
+
+    task_packet_dir = (REPO_ROOT / f"tmp/task-packets-{uuid.uuid4().hex}").resolve()
+    head_sha = "c" * 40
+    args = [
+        "--goal",
+        "Review coordinator packet reuse",
+        "--task-class",
+        "Orchestration",
+        "--path",
+        "scripts/orchestration/task_bootstrap.py",
+        "--path",
+        "scripts/orchestration/shadow_reuse_telemetry.py",
+        "--requested-agent",
+        "agent-coordinator",
+        "--requested-agent",
+        "architecture-specialist",
+        "--pr-phase",
+        "pre_open",
+    ]
+    monkeypatch.setattr(task_bootstrap_module, "TASK_PACKET_DIR", task_packet_dir)
+    monkeypatch.setattr(
+        task_bootstrap_module,
+        "resolve_current_head_sha",
+        lambda _repo_root: head_sha,
+    )
+    task_packet_dir.mkdir(parents=True)
+    for index in range(60):
+        unrelated_packet = {
+            "schema_version": "2.0",
+            "task_packet_id": f"unrelated-{index}",
+            "goal": f"Unrelated packet {index}",
+        }
+        (task_packet_dir / f"00-unrelated-{index:02d}.json").write_text(
+            json.dumps(unrelated_packet),
+            encoding="utf-8",
+        )
+
+    try:
+        first_exit = main(args)
+        first_stdout = json.loads(capsys.readouterr().out)
+        first_packet_path = task_packet_dir / f"{first_stdout['task_packet_id']}.json"
+        first_packet = json.loads(first_packet_path.read_text(encoding="utf-8"))
+
+        second_exit = main(args)
+        second_stdout = json.loads(capsys.readouterr().out)
+        second_packet_path = task_packet_dir / f"{second_stdout['task_packet_id']}.json"
+        second_packet = json.loads(second_packet_path.read_text(encoding="utf-8"))
+
+        assert first_exit == 0
+        assert second_exit == 0
+        assert first_stdout["task_packet_id"] == second_stdout["task_packet_id"]
+        assert first_packet["task_packet_id"] == second_packet["task_packet_id"]
+        first_summary = first_packet[SHADOW_REUSE_FIELD]["reuse_summary"]
+        second_summary = second_packet[SHADOW_REUSE_FIELD]["reuse_summary"]
+        assert first_summary["decision"] == "miss"
+        assert first_summary["checked_previous_packet_count"] == 0
+        assert first_summary["skipped_previous_packet_count"] > 0
+        assert second_summary["decision"] == "hit"
+        assert second_summary["match_mode"] == "exact"
+        assert second_summary["matched_packet_id"] == second_packet["task_packet_id"]
+        assert second_summary["checked_previous_packet_count"] == 1
+        assert second_summary["skipped_previous_packet_count"] > 0
+        assert second_packet[SHADOW_REUSE_FIELD]["same_head_partition"]["head_sha"] == head_sha
+    finally:
+        shutil.rmtree(task_packet_dir, ignore_errors=True)
 
 
 def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:

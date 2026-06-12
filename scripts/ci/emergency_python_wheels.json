@@ -199,6 +199,23 @@
             "sha256": "3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b"
         },
         {
+            "package": "regex",
+            "version": "2026.5.9",
+            "expires_at": "2026-06-15",
+            "filename": "regex-2026.5.9-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/30/e1/c93444052cf41581f3c884ab3fb5823daf0992f11cd4388d4275ca610558/regex-2026.5.9-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256_parts": [
+                "b6d18904",
+                "1f15691c",
+                "fa2b6c42",
+                "90448ec2",
+                "21244d22",
+                "5b3f5fe9",
+                "e7771b34",
+                "ffcdf6e2"
+            ]
+        },
+        {
             "package": "sentence-transformers",
             "version": "5.5.1",
             "expires_at": "2026-06-15",

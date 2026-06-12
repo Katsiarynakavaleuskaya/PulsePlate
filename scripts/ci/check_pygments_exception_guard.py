@@ -330,7 +330,7 @@ def main() -> int:
     try:
         alerts = _fetch_dependabot_alerts(repo=repo, token=token)
     except urllib.error.HTTPError as exc:
-        if exc.code == 403:
+        if exc.code in {401, 403}:
             print(
                 "WARN: Dependabot alerts endpoint is not accessible with the current token; "
                 "falling back to the public GHSA advisory."

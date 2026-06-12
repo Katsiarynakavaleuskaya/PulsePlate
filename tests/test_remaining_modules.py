@@ -80,6 +80,20 @@ def _write_ragas_bootstrap_dataset(path: Path) -> None:
     )
 
 
+def _clear_ragas_live_provider_env(
+    monkeypatch: pytest.MonkeyPatch,
+    runner: ModuleType,
+) -> None:
+    """Keep RAGAS smoke tests independent from the operator shell environment."""
+
+    prohibited_env_vars = cast(
+        Sequence[str],
+        getattr(runner, "PROHIBITED_LIVE_PROVIDER_ENV_VARS"),
+    )
+    for name in prohibited_env_vars:
+        monkeypatch.delenv(name, raising=False)
+
+
 class TestOfflineEvalBootstrapSmoke:
     """Exercise the eval bootstrap lane in the always-on smoke suite."""
 
@@ -209,6 +223,44 @@ class TestOfflineEvalBootstrapSmoke:
                 ("faithfulness", "answer_relevancy", "context_precision"),
             )
 
+    def test_ragas_runner_rejects_live_provider_credentials_before_ragas_load(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """The fast lane must cover fail-closed credential guards before RAGAS loads."""
+
+        runner = importlib.import_module("evals.ragas.run_ragas_eval")
+        dataset_path = tmp_path / "testset.jsonl"
+        _write_ragas_bootstrap_dataset(dataset_path)
+        rows = runner.load_dataset_rows(dataset_path)
+        prohibited_env_vars = cast(
+            Sequence[str],
+            getattr(runner, "PROHIBITED_LIVE_PROVIDER_ENV_VARS"),
+        )
+        load_attempts = 0
+
+        def _boom() -> tuple[object, object, object]:
+            nonlocal load_attempts
+            load_attempts += 1
+            raise AssertionError("ragas must not load while live provider creds are set")
+
+        monkeypatch.setattr(runner, "_load_ragas_dependencies", _boom)
+
+        for index, name in enumerate(prohibited_env_vars):
+            secret_value = f"test-secret-{index}"
+            _clear_ragas_live_provider_env(monkeypatch, runner)
+            monkeypatch.setenv(name, secret_value)
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner.evaluate_records(rows, runner.REQUIRED_METRIC_NAMES)
+
+            message = str(exc_info.value)
+            assert "offline-only" in message
+            assert name in message
+            assert secret_value not in message
+            assert load_attempts == 0
+
     def test_ragas_dataset_validation_paths(self, tmp_path: Path) -> None:
         """Dataset parsing must fail closed on malformed bootstrap inputs."""
 
@@ -288,6 +340,7 @@ class TestOfflineEvalBootstrapSmoke:
         """Default evaluator branches must stay covered in the deterministic smoke suite."""
 
         runner = importlib.import_module("evals.ragas.run_ragas_eval")
+        _clear_ragas_live_provider_env(monkeypatch, runner)
         dataset_path = tmp_path / "testset.jsonl"
         _write_ragas_bootstrap_dataset(dataset_path)
         rows = runner.load_dataset_rows(dataset_path)

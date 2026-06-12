@@ -1446,6 +1446,128 @@ def test_stage_emergency_wheels_downloads_only_requested_exact_artifacts(
     ]
 
 
+def test_stage_emergency_wheels_accepts_split_sha256_parts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("regex==2026.5.9\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "regex",
+                        "version": "2026.5.9",
+                        "filename": "regex-2026.5.9.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+                        "sha256_parts": ["a" * 32, "b" * 32],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=manifest,
+    )
+
+    assert [path.name for path in staged] == ["regex-2026.5.9.whl"]
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+            tmp_path / "wheelhouse" / "regex-2026.5.9.whl",
+            "a" * 32 + "b" * 32,
+        )
+    ]
+
+
+def test_verify_emergency_artifact_for_floor_accepts_split_sha256_parts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "regex",
+                        "version": "2026.5.9",
+                        "filename": "regex-2026.5.9.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+                        "sha256_parts": ["a" * 32, "b" * 32],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_downloads: list[tuple[str, Path, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    assert (
+        installer.verify_emergency_artifact_for_floor(
+            manifest_path=manifest,
+            package="regex",
+            version="2026.5.9",
+        )
+        is True
+    )
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+            observed_downloads[0][1],
+            "a" * 32 + "b" * 32,
+        )
+    ]
+
+
+def test_load_emergency_wheel_manifest_mentions_split_sha256_contract(tmp_path: Path) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "regex",
+                        "version": "2026.5.9",
+                        "filename": "regex-2026.5.9.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/regex-2026.5.9.whl",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="sha256_parts"):
+        installer.load_emergency_wheel_manifest(manifest)
+
+
 def test_stage_emergency_wheels_downloads_requested_artifacts_across_multiple_packages(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -3123,7 +3245,65 @@ def test_main_runs_direct_proxy_install_and_static_guard(
     assert "--index-url" in install_command
     assert APPROVED_PROXY_URL in install_command
     assert str(requirements) in install_command
-    assert observed_guard_python == ["staging-python"]
+    assert observed_guard_python == ["staging-python", "python"]
+
+
+def test_main_direct_proxy_mode_fails_when_target_guard_finds_startup_hook(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    guard_script = tmp_path / "check_python_startup_hooks.py"
+    guard_script.write_text("# test guard\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+    observed_guard_python: list[str] = []
+
+    @contextmanager
+    def fake_staging_environment(target_python: str) -> str:
+        yield "staging-python"
+
+    def fake_collect_startup_hook_failure_lines(**kwargs: object) -> list[str]:
+        python_executable = str(kwargs["python_executable"])
+        observed_guard_python.append(python_executable)
+        if python_executable == "python":
+            return [
+                "ERROR: unexpected executable Python startup hook (.pth) detected.",
+                "- /tmp/final_install_hook.pth:1 :: import os",
+            ]
+        return []
+
+    monkeypatch.setattr(
+        installer, "run_command", lambda command: observed_commands.append(list(command))
+    )
+    monkeypatch.setattr(
+        installer,
+        "collect_startup_hook_failure_lines",
+        fake_collect_startup_hook_failure_lines,
+    )
+    monkeypatch.setattr(installer, "staged_python_environment", fake_staging_environment)
+    monkeypatch.setenv(installer.APPROVED_INDEX_ENV_VAR, APPROVED_PROXY_URL)
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(requirements),
+            "--guard-script",
+            str(guard_script),
+            "--install-mode",
+            "direct-proxy",
+        ]
+    )
+
+    assert result == 1
+    assert "final_install_hook.pth:1 :: import os" in capsys.readouterr().out
+    assert len(observed_commands) == 2
+    assert observed_commands[0][:4] == ["staging-python", "-m", "pip", "install"]
+    assert observed_commands[1][:4] == ["python", "-m", "pip", "install"]
+    assert observed_guard_python == ["staging-python", "python"]
 
 
 def test_main_direct_proxy_docker_layer_cache_skips_no_cache_dir_on_target_only(
