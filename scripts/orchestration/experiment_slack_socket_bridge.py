@@ -41,6 +41,7 @@ try:
     from scripts.orchestration.experiment_slack_bridge_config import (
         _allowlist_from_env,
         _compute_live_approval_digest,
+        _compute_workflow_dispatch_approval_proof,
         _github_auth,
         _github_dispatch_repo_allowlist,
         _github_token,
@@ -52,8 +53,10 @@ try:
         _positive_int_from_env,
         _reject_symlinked_existing_path,
         _validate_repo,
+        _validate_workflow_dispatch_approval_proof,
         _validate_workflow_file,
         _validate_workflow_ref,
+        _workflow_dispatch_secret,
     )
     from scripts.orchestration.experiment_slack_bridge_constants import (
         ALLOWED_COMMANDS,
@@ -101,6 +104,8 @@ try:
         SLACK_LIVE_SMOKE_METHODS,
         SLACK_TEAM_ALLOWLIST_ENV,
         SLACK_USER_ALLOWLIST_ENV,
+        WORKFLOW_DISPATCH_APPROVAL_PROOF_ENV,
+        WORKFLOW_DISPATCH_SECRET_ENV,
         default_audit_artifact_dir,
     )
     from scripts.orchestration.experiment_slack_bridge_models import (
@@ -213,6 +218,8 @@ __all__ = (
     "SlackSocketCommandError",
     "SlackSocketConfigError",
     "SlackSocketDispatchError",
+    "WORKFLOW_DISPATCH_APPROVAL_PROOF_ENV",
+    "WORKFLOW_DISPATCH_SECRET_ENV",
     "WorkflowDispatchTransport",
     "_allowlist_from_env",
     "_approval_prefix",
@@ -226,6 +233,7 @@ __all__ = (
     "_claim_rejected_event_audit_throttle",
     "_cleanup_partial_rate_limit_claim",
     "_compute_live_approval_digest",
+    "_compute_workflow_dispatch_approval_proof",
     "_format_command_reply",
     "_github_auth",
     "_github_dispatch_repo_allowlist",
@@ -261,8 +269,10 @@ __all__ = (
     "_utcnow",
     "_validate_hypothesis",
     "_validate_repo",
+    "_validate_workflow_dispatch_approval_proof",
     "_validate_workflow_file",
     "_validate_workflow_ref",
+    "_workflow_dispatch_secret",
     "_write_audit",
     "_write_audit_exclusive",
     "_write_operator_ledger_event",
@@ -804,7 +814,7 @@ def process_operator_event(
         workflow_ref=config.workflow_ref,
         branch_hash=_safe_hash(command.branch_ref),
         hypothesis_hash=_safe_hash(command.hypothesis),
-        approval_hash=_approval_prefix(config, command),
+        approval_hash=_approval_prefix(config, command) if status == "dispatched" else None,
         failure_class=failure_class,
         operator_ledger_ref=operator_ledger_ref,
         operator_ledger_status=operator_ledger_status,
@@ -993,6 +1003,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Validate live-dispatch approval digest without printing the raw value.",
     )
     parser.add_argument(
+        "--validate-workflow-dispatch-approval",
+        action="store_true",
+        dest="validate_workflow_dispatch_approval",
+        help="Validate live workflow-dispatch HMAC proof without printing raw values.",
+    )
+    parser.add_argument(
         "--branch-ref",
         default=None,
         help="Manual smoke branch ref; if omitted, read runtime env.",
@@ -1066,6 +1082,14 @@ def main(argv: list[str] | None = None) -> int:
                 print("FAIL: Slack live-dispatch approval is missing or invalid.")
                 return 1
             print(json.dumps({"approval_status": "valid", "status": "pass"}, sort_keys=True))
+            return 0
+        if args.validate_workflow_dispatch_approval:
+            try:
+                payload = _validate_workflow_dispatch_approval_proof()
+            except SlackSocketConfigError:
+                print("FAIL: Slack workflow-dispatch approval proof is missing or invalid.")
+                return 1
+            print(json.dumps(payload, sort_keys=True))
             return 0
         config = build_config(
             dispatch_mode=args.dispatch_mode,

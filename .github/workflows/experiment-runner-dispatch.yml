@@ -27,6 +27,11 @@ on:
         required: true
         type: string
         default: "none"
+      approval_proof:
+        description: "HMAC approval proof for live dispatch; default 'none' for dry-run"
+        required: true
+        type: string
+        default: "none"
 
 permissions:
   contents: read
@@ -40,6 +45,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Enforce main workflow ref before checkout
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Experiment Runner dispatch workflow must run on main."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -63,7 +76,7 @@ jobs:
           def _escape_workflow_command_value(value: str) -> str:
               return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
-          for key in ("branch_ref", "hypothesis_sha256", "approval_ref"):
+          for key in ("branch_ref", "hypothesis_sha256", "approval_ref", "approval_proof"):
               value = str(inputs.get(key, "")).strip()
               if value:
                   print(f"::add-mask::{_escape_workflow_command_value(value)}")
@@ -78,12 +91,18 @@ jobs:
           python3 -m scripts.orchestration.experiment_slack_socket_bridge \
             --validate-dispatch-inputs
 
-      - name: Reject manual live dispatch
+      - name: Validate bridge live dispatch approval proof
         if: inputs.dry_run == 'false'
+        env:
+          EXPERIMENT_SLACK_SOCKET_BRANCH_REF: ${{ inputs.branch_ref }}
+          EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256: ${{ inputs.hypothesis_sha256 }}
+          EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256: ${{ inputs.approval_ref }}
+          EXPERIMENT_SLACK_SOCKET_WORKFLOW_DISPATCH_APPROVAL_PROOF: ${{ inputs.approval_proof }}
+          EXPERIMENT_SLACK_SOCKET_WORKFLOW_DISPATCH_SECRET: ${{ secrets.EXPERIMENT_SLACK_SOCKET_WORKFLOW_DISPATCH_SECRET }}
         run: |
           set -euo pipefail
-          echo "Manual workflow_dispatch live dispatch is disabled; use the reviewed Slack bridge approval path."
-          exit 1
+          python3 -m scripts.orchestration.experiment_slack_socket_bridge \
+            --validate-workflow-dispatch-approval
 
       - name: Record sanitized dispatch contract summary
         run: |
@@ -99,14 +118,15 @@ jobs:
           branch_hash = hashlib.sha256(str(inputs.get("branch_ref", "")).encode("utf-8")).hexdigest()
           hypothesis_hash = str(inputs.get("hypothesis_sha256", "none")).strip().lower() or "none"
           approval_ref = str(inputs.get("approval_ref", "none")).strip().lower() or "none"
+          approval_proof = str(inputs.get("approval_proof", "none")).strip().lower() or "none"
           dry_run = str(inputs.get("dry_run", "true")).strip().lower()
           workflow_ref_full = os.environ.get("GITHUB_REF", "").strip()
           if workflow_ref_full != "refs/heads/main":
               raise SystemExit("Experiment Runner dispatch workflow must run on main.")
           workflow_ref = "main"
           workflow_live_approval = (
-              "bridge_required_not_workflow_proven"
-              if dry_run == "false" and approval_ref != "none"
+              "bridge_proof_validated"
+              if dry_run == "false" and approval_ref != "none" and approval_proof != "none"
               else "none"
           )
           with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary:

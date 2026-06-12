@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import http.client
+import hmac
 import json
 import os
 
 from scripts.orchestration.experiment_slack_bridge_config import (
     _compute_live_approval_digest,
+    _compute_workflow_dispatch_approval_proof,
 )
 from scripts.orchestration.experiment_slack_bridge_constants import (
     BRIDGE_EXECUTE_ENABLED_ENV,
@@ -52,22 +54,34 @@ def _github_dispatch_inputs(command: OperatorCommand, *, config: BridgeConfig) -
         raise SlackSocketDispatchError("Slack operator command is not dispatchable.")
     if config.live_approval_sha256 is not None:
         digest = _compute_live_approval_digest(command.branch_ref, command.hypothesis)
-        if digest != config.live_approval_sha256:
+        if not hmac.compare_digest(digest, config.live_approval_sha256):
             raise SlackSocketDispatchError(
                 "Slack live-dispatch approval mismatch. "
                 "The requested branch and hypothesis do not match the reviewed approval digest."
             )
+        hypothesis_sha256 = _sha256_text(command.hypothesis)
+        if config.workflow_dispatch_secret is None:
+            raise SlackSocketDispatchError(
+                "Slack workflow-dispatch approval proof configuration is incomplete."
+            )
         return {
             "branch_ref": command.branch_ref,
             "dry_run": "false",
-            "hypothesis_sha256": _sha256_text(command.hypothesis),
+            "hypothesis_sha256": hypothesis_sha256,
             "approval_ref": config.live_approval_sha256,
+            "approval_proof": _compute_workflow_dispatch_approval_proof(
+                branch_ref=command.branch_ref,
+                hypothesis_sha256=hypothesis_sha256,
+                approval_ref=config.live_approval_sha256,
+                secret=config.workflow_dispatch_secret,
+            ),
         }
     return {
         "branch_ref": command.branch_ref,
         "dry_run": "true",
         "hypothesis_sha256": _sha256_text(command.hypothesis),
         "approval_ref": "none",
+        "approval_proof": "none",
     }
 
 
