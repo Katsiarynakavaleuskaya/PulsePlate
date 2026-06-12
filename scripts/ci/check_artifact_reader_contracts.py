@@ -71,10 +71,35 @@ class ArtifactReadFinding:
         return f"{self.path}:{self.line}: {self.operation} reads local {self.artifact_root}"
 
 
+def _lexically_normalized_parts(parts: Sequence[str]) -> tuple[str, ...]:
+    resolved: list[str] = []
+    for part in parts:
+        if not part or part == ".":
+            continue
+        if part == "..":
+            if resolved:
+                resolved.pop()
+            continue
+        resolved.append(part)
+    return tuple(resolved)
+
+
+def _strip_repo_root_prefix(parts: tuple[str, ...]) -> tuple[str, ...]:
+    repo_root_parts = tuple(part for part in REPO_ROOT.parts if part not in {"/", ""})
+    if len(parts) < len(repo_root_parts):
+        return parts
+    lowered = tuple(part.casefold() for part in parts)
+    lowered_repo_root = tuple(part.casefold() for part in repo_root_parts)
+    if lowered[: len(lowered_repo_root)] == lowered_repo_root:
+        return parts[len(repo_root_parts) :]
+    return parts
+
+
 def _normalize_path_parts(value: str) -> tuple[str, ...]:
     normalized = value.replace("\\", "/")
-    parts = tuple(part for part in normalized.split("/") if part and part not in {".", ".."})
-    return parts
+    raw_parts = tuple(part for part in normalized.split("/") if part)
+    resolved_parts = _lexically_normalized_parts(raw_parts)
+    return _lexically_normalized_parts(_strip_repo_root_prefix(resolved_parts))
 
 
 def _forbidden_root(parts: tuple[str, ...]) -> str | None:
