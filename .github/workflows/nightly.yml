@@ -69,6 +69,8 @@ jobs:
 
       - name: Run security checks
         if: matrix.shard_id == 1  # Run once (shard 1 only) - codebase-wide check
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           set +e  # Disable immediate exit on error
           set -u  # Check undefined variables
@@ -102,17 +104,15 @@ jobs:
           # Only fail on MEDIUM/HIGH severity (-ll) and MEDIUM/HIGH confidence (-ii)
           bandit -r . -f json -o bandit-report.json --exclude './tests,./tests_strict' -ll -ii || BANDIT_EXIT=$?
 
-          # Safety (v3 preferred: scan with --save-as, fallback to deprecated check)
+          # Safety scan remains advisory in nightly; PR CI owns the blocking gate.
           # Only run if safety is installed
           if [ "$SAFETY_INSTALLED" -eq 1 ]; then
-            safety --stage cicd scan --save-as json safety-report.json > safety-text-report.txt 2> safety-stderr.log
-            SAFETY_EXIT=$?
-
-            if [ "$SAFETY_EXIT" -ne 0 ]; then
-              echo "safety scan failed (exit=$SAFETY_EXIT). Falling back to deprecated 'safety check'..."
-              : > safety-stderr.log
-              safety check --json > safety-report.json 2> safety-stderr.log
+            if [ -n "${SAFETY_API_KEY:-}" ]; then
+              safety --stage cicd --disable-optional-telemetry scan --save-as json safety-report.json > safety-text-report.txt 2> safety-stderr.log
               SAFETY_EXIT=$?
+            else
+              echo "WARNING: SAFETY_API_KEY is not configured; skipping advisory nightly Safety scan." | tee safety-stderr.log
+              SAFETY_EXIT=1
             fi
 
             echo "--- safety-stderr.log (first 120 lines) ---"
@@ -136,7 +136,7 @@ jobs:
 
           # Warn but don't fail if safety failed (when installed)
           if [ "$SAFETY_INSTALLED" -eq 1 ] && [ "$SAFETY_EXIT" -ne 0 ]; then
-            echo "WARNING: safety check failed (exit=$SAFETY_EXIT) - review safety-report.json"
+            echo "WARNING: safety scan failed or skipped (exit=$SAFETY_EXIT) - review safety-report.json"
           fi
 
       - name: Run tests with coverage (shard ${{ matrix.shard_id }}/${{ env.SHARD_TOTAL }})

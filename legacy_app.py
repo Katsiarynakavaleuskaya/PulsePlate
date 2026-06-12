@@ -1535,30 +1535,6 @@ async def health_v1() -> Dict[str, Any]:
     return await health()
 
 
-@app.get("/privacy")
-async def privacy() -> Dict[str, Any]:
-    """Privacy policy endpoint with explicit pseudonymous data disclosure.
-
-    RU: Эндпоинт политики конфиденциальности с явным раскрытием псевдонимных данных.
-    EN: Privacy policy endpoint with explicit pseudonymous data disclosure.
-    """
-    from core.compliance import build_privacy_endpoint_payload
-
-    return build_privacy_endpoint_payload()
-
-
-@app.get("/terms", include_in_schema=False)
-async def terms() -> Dict[str, Any]:
-    """Terms of use endpoint for release-safe legal publication.
-
-    RU: Эндпоинт условий использования для канонической legal-публикации.
-    EN: Terms of use endpoint for canonical legal publication.
-    """
-    from app.routers.legal import build_terms_endpoint_payload
-
-    return build_terms_endpoint_payload().model_dump()
-
-
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])
 async def cleanup_expired_logs(
     data_class: Optional[str] = None,

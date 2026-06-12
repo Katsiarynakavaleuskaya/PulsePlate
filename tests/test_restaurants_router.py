@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Dict, Mapping, Sequence
 
@@ -18,6 +19,13 @@ from app.schemas.restaurants import (
     SubmissionReviewStatus,
     SubmissionStatus,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_shadow_read_circuit() -> Iterator[None]:
+    restaurants._shadow_read_circuit_open_until.clear()
+    yield
+    restaurants._shadow_read_circuit_open_until.clear()
 
 
 @dataclass
@@ -512,6 +520,81 @@ def test_shadow_wrapper_fails_open_when_postgres_menu_errors(
     assert "keeping SQLite canonical response" in caplog.text
 
 
+def test_shadow_read_success_does_not_close_newer_failure_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operation = "get_restaurant_menu"
+    pg_url = "postgresql://shadow"
+    now = {"value": 111.0}
+    monkeypatch.setattr(restaurants.time, "monotonic", lambda: now["value"])
+
+    restaurants._record_shadow_read_failure(operation, pg_url, started_at=110.0)
+    restaurants._record_shadow_read_success(operation, pg_url, started_at=100.0)
+
+    assert restaurants._shadow_read_circuit_is_open(operation, pg_url) is True
+
+    now["value"] = 141.0
+    assert restaurants._shadow_read_circuit_is_open(operation, pg_url) is False
+
+
+def test_shadow_read_success_closes_older_failure_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operation = "get_restaurant_menu"
+    pg_url = "postgresql://shadow"
+    now = {"value": 111.0}
+    monkeypatch.setattr(restaurants.time, "monotonic", lambda: now["value"])
+
+    restaurants._record_shadow_read_failure(operation, pg_url, started_at=100.0)
+    restaurants._record_shadow_read_success(operation, pg_url, started_at=131.0)
+
+    assert restaurants._shadow_read_circuit_is_open(operation, pg_url) is False
+
+
+def test_shadow_read_failure_does_not_shorten_newer_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operation = "search_restaurants"
+    pg_url = "postgresql://shadow"
+    now = {"value": 140.0}
+    monkeypatch.setattr(restaurants.time, "monotonic", lambda: now["value"])
+
+    restaurants._record_shadow_read_failure(operation, pg_url, started_at=120.0)
+    restaurants._record_shadow_read_failure(operation, pg_url, started_at=100.0)
+
+    assert restaurants._shadow_read_circuit_is_open(operation, pg_url) is True
+
+    now["value"] = 151.0
+    assert restaurants._shadow_read_circuit_is_open(operation, pg_url) is False
+
+
+def test_shadow_wrapper_skips_postgres_menu_when_circuit_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.delenv(restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL, raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "get_restaurant_menu",
+        lambda **_: [{"id": "m1", "chain_id": "c1", "item_name": "Protein Bowl"}],
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_postgres_read,
+        "get_restaurant_menu_pg",
+        lambda **_: (_ for _ in ()).throw(AssertionError("open circuit should skip menu")),
+    )
+    restaurants._record_shadow_read_failure(
+        "get_restaurant_menu",
+        "postgresql://shadow",
+    )
+
+    rows = wrapper.get_restaurant_menu("c1", 10)
+
+    assert list(rows)[0]["id"] == "m1"
+
+
 def test_shadow_wrapper_menu_skips_when_flag_off(monkeypatch: pytest.MonkeyPatch) -> None:
     wrapper = restaurants._RestaurantStoreShadowCompat()
     monkeypatch.delenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, raising=False)
@@ -634,3 +717,34 @@ def test_shadow_wrapper_submission_paths_remain_sqlite_only(
     )
     assert wrapper.get_submission("s1")["id"] == "s1"
     assert wrapper.review_submission("s1", status="approved", reviewer_notes=None)["id"] == "s1"
+
+
+def test_shadow_wrapper_opens_circuit_after_search_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    calls = 0
+    monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.delenv(restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL, raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "search_restaurants",
+        lambda **_: [{"id": "c1", "name": "Chain 1", "country": "US", "source": "menustat"}],
+    )
+
+    def _boom(**kwargs: Any) -> list[dict[str, Any]]:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("pg down")
+
+    monkeypatch.setattr(restaurants.restaurant_postgres_read, "search_restaurants_pg", _boom)
+
+    with caplog.at_level("WARNING"):
+        first = wrapper.search_restaurants("chain", 10, 0)
+        second = wrapper.search_restaurants("chain", 10, 0)
+
+    assert list(first)[0]["id"] == "c1"
+    assert list(second)[0]["id"] == "c1"
+    assert calls == 1
+    assert "keeping SQLite canonical response" in caplog.text

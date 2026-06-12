@@ -529,6 +529,26 @@ def test_operator_ledger_accepts_date_like_artifact_filenames() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "artifact_ref_field",
+    ("oracle_result_ref", "slack_audit_ref"),
+)
+@pytest.mark.parametrize(
+    "artifact_ref_value",
+    (
+        "artifacts/orchestration/experiments/results/customer-1555-12-34.json",
+        "artifacts/orchestration/experiments/results/customer-2026-02-31.json",
+        "artifacts/orchestration/experiments/results/customer-1555-12-31.json",
+    ),
+)
+def test_operator_ledger_rejects_phone_like_artifact_filenames(
+    artifact_ref_field: str,
+    artifact_ref_value: str,
+) -> None:
+    with pytest.raises(ledger.OperatorLedgerError, match="artifact reference is invalid"):
+        ledger.normalize_operator_ledger_event(_event(**{artifact_ref_field: artifact_ref_value}))
+
+
 def test_operator_ledger_report_and_status_summary_are_redacted(tmp_path: Path) -> None:
     ledger.write_operator_ledger_event(_event(), repo_root=tmp_path)
 

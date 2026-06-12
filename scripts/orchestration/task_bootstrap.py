@@ -34,6 +34,18 @@ from scripts.orchestration.context_pack import (
     repo_relative_paths,
     resolve_domain,
 )
+from scripts.orchestration.context_pack_compression import (
+    build_context_pack_compression,
+    to_stable_mapping as context_compression_to_stable_mapping,
+)
+from scripts.orchestration.embedding_retrieval_admission_telemetry import (
+    build_embedding_retrieval_admission_telemetry,
+    embedding_retrieval_admission_to_stable_mapping,
+)
+from scripts.orchestration.provider_model_tier_policy import (
+    build_provider_model_routing_telemetry,
+    to_stable_mapping as provider_model_routing_to_stable_mapping,
+)
 from scripts.orchestration.agent_consistency_loader import (
     load_inventory_agents,
     load_non_routable_agents,
@@ -84,6 +96,12 @@ from scripts.orchestration.requested_agents import (
     normalize_requested_agents,
 )
 from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills
+from scripts.orchestration.shadow_reuse_telemetry import (
+    SHADOW_REUSE_FIELD,
+    build_shadow_reuse_telemetry,
+    collect_previous_task_packet_candidates,
+    resolve_current_head_sha,
+)
 
 SCHEMA_VERSION = "2.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
@@ -1100,7 +1118,42 @@ def build_task_packet(
             "promotion_labels": [],
         }
 
-    return {
+    context_pack_compression = build_context_pack_compression(
+        candidate_paths=normalized_paths,
+        required_context=context_pack,
+        pr_phase=normalized_pr_phase,
+        domain=decision.domain,
+        cluster=decision.cluster,
+        primary_agent=requested_agent_resolution["primary_agent"],
+        reviewer=requested_agent_resolution["reviewer"],
+        secondary_agents=requested_agent_resolution["secondary_agents"],
+        requested_agents=normalized_requested_agents,
+        orchestration_fanout_multiplier=max(
+            1,
+            len(
+                {
+                    requested_agent_resolution["primary_agent"],
+                    requested_agent_resolution["reviewer"],
+                    *requested_agent_resolution["secondary_agents"],
+                }
+            ),
+        ),
+    )
+    provider_model_tier_routing = build_provider_model_routing_telemetry(
+        requested_agents=normalized_requested_agents,
+        primary_agent=requested_agent_resolution["primary_agent"],
+        reviewer=requested_agent_resolution["reviewer"],
+        secondary_agents=requested_agent_resolution["secondary_agents"],
+    )
+    embedding_retrieval_admission = build_embedding_retrieval_admission_telemetry(
+        candidate_paths=normalized_paths,
+        required_context=context_pack,
+        pr_phase=normalized_pr_phase,
+        domain=decision.domain,
+        cluster=decision.cluster,
+    )
+
+    packet: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "task_packet_id": packet_id,
         "goal": goal.strip(),
@@ -1114,6 +1167,15 @@ def build_task_packet(
         "requested_agents": normalized_requested_agents,
         "requested_agent_disposition": requested_agent_resolution["requested_agent_disposition"],
         "required_context": context_pack,
+        "context_pack_compression": dict(
+            context_compression_to_stable_mapping(context_pack_compression)
+        ),
+        "provider_model_tier_routing": dict(
+            provider_model_routing_to_stable_mapping(provider_model_tier_routing)
+        ),
+        "embedding_retrieval_admission": dict(
+            embedding_retrieval_admission_to_stable_mapping(embedding_retrieval_admission)
+        ),
         "message_envelope": message_envelope,
         "recommended_skills": flatten_recommended_skills(skill_routing),
         "skill_routing": skill_routing,
@@ -1143,6 +1205,7 @@ def build_task_packet(
         "native_subagent_bridge": native_subagent_bridge,
         "routing_rationale": decision.rationale,
     }
+    return packet
 
 
 def _resolve_output_path(raw_output: str | None, packet_id: str) -> Path:
@@ -1260,6 +1323,16 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"FAIL: {exc}")
         return 1
+    previous_packets, artifact_scan = collect_previous_task_packet_candidates(
+        task_packet_dir=TASK_PACKET_DIR,
+        priority_packet_path=out_path,
+    )
+    packet[SHADOW_REUSE_FIELD] = build_shadow_reuse_telemetry(
+        packet=packet,
+        current_head_sha=resolve_current_head_sha(REPO_ROOT),
+        previous_packets=previous_packets,
+        artifact_scan=artifact_scan,
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
         json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

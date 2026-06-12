@@ -7,16 +7,28 @@ It is 6 months from now. The Slack live-dispatch approval gate failed. We are lo
 ## Raw Failure Modes
 
 ### 1. Approval SHA256 env var leaked into CI logs or commit
-- **Story:** An operator set `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256` in a workflow dispatch input for convenience. It was echoed in a step summary, captured in a public artifact, and scraped. An attacker reused the leaked approval digest to dispatch arbitrary live experiments.
+- **Story:** An operator set `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`
+  or `approval_proof` in a workflow dispatch input for convenience. It was
+  echoed in a step summary, captured in a public artifact, and scraped. An
+  attacker reused the leaked value to replay a live experiment tuple.
 - **Assumption:** The approval digest is treated as a secret.
-- **Warning signs:** `::add-mask::` missing for approval ref in workflow; approval digest appears in GITHUB_STEP_SUMMARY or workflow artifact.
-- **Containment:** Workflow must mask approval_ref inputs; audit artifacts must store only a hash prefix or redacted marker.
+- **Warning signs:** `::add-mask::` missing for approval ref/proof in workflow;
+  approval digest or proof appears in GITHUB_STEP_SUMMARY or workflow artifact.
+- **Containment:** Workflow must mask approval_ref and approval_proof inputs;
+  audit artifacts must store only a hash prefix or redacted marker and must not
+  persist the proof.
 
 ### 2. Workflow approval validation is too weak
-- **Story:** The `experiment-runner-dispatch.yml` workflow accepted `dry_run: false` because the `approval_ref` input was present but empty (`""`), and the check was truthy (`if: inputs.approval_ref != ''`) instead of validating SHA256 shape. Live dispatch ran without reviewed approval.
+- **Story:** The `experiment-runner-dispatch.yml` workflow accepted
+  `dry_run: false` because `approval_ref` was present and no bridge-signed
+  `approval_proof` was validated. Live dispatch ran without proof that the
+  Slack bridge had checked the reviewed approval digest.
 - **Assumption:** A non-empty string means "approved."
 - **Warning signs:** Workflow `if` conditions use loose string checks; no explicit SHA256 hex regex validation.
-- **Containment:** Validate `approval_ref` with the same `SHA256_HEX_RE` pattern used by the bridge; fail closed on malformed refs.
+- **Containment:** Validate lowercase SHA256 shape for `approval_ref` and
+  `approval_proof`, then verify `approval_proof` as HMAC-SHA256 over
+  `branch_ref + "\0" + hypothesis_sha256 + "\0" + approval_ref` with the
+  workflow-dispatch secret.
 
 ### 3. Bridge sends `dry_run: false` without approval by code path error
 - **Story:** A refactor of `_github_dispatch_inputs` introduced a default parameter or branch where `dry_run` was set to `"false"` when `approval_ref` was `None`. The existing tests only checked execute mode with `dry_run: true`, so the regression reached `main`.
@@ -28,7 +40,11 @@ It is 6 months from now. The Slack live-dispatch approval gate failed. We are lo
 - **Story:** An operator approved one specific `branch_ref` + `hypothesis` pair. The approval SHA256 was reused for a different pair because the bridge only checked that *some* approval existed, not that it matched the current command.
 - **Assumption:** The bridge validates approval against the current command.
 - **Warning signs:** Approval check is a global boolean, not a per-command hash comparison.
-- **Containment:** Bridge must compute `SHA256(branch_ref + "\0" + hypothesis)` and compare with the env var; mismatch must reject with a clear error class.
+- **Containment:** Bridge must compute
+  `SHA256(branch_ref + "\0" + hypothesis)` and compare with the env var before
+  it emits `dry_run: false`; mismatch must reject with a clear error class.
+  The workflow must separately validate the HMAC proof for the emitted
+  branch/hypothesis-digest/approval tuple.
 
 ### 5. Race condition between approval env update and Slack command
 - **Story:** An operator updated the GitHub Actions environment secret with a new approval digest. Before the secret propagated, another operator issued a Slack command. The old approval was still active and matched an unintended command.
@@ -52,7 +68,12 @@ It is 6 months from now. The Slack live-dispatch approval gate failed. We are lo
 
 ### Summary
 
-Add a reviewed live-dispatch approval gate to the Experiment Runner Slack bridge by introducing an env-var approval digest (`EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`) that the bridge matches against `SHA256(branch_ref + "\0" + hypothesis)` before allowing `dry_run: false` in the workflow dispatch.
+Add a reviewed live-dispatch approval gate to the Experiment Runner Slack bridge
+by introducing an env-var approval digest
+(`EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`) that the bridge matches against
+`SHA256(branch_ref + "\0" + hypothesis)`, then requiring the bridge to sign the
+workflow inputs with `EXPERIMENT_SLACK_SOCKET_WORKFLOW_DISPATCH_SECRET` before
+the workflow accepts `dry_run: false`.
 
 ### Most likely failure
 
@@ -60,24 +81,34 @@ Add a reviewed live-dispatch approval gate to the Experiment Runner Slack bridge
 
 ### Most dangerous failure
 
-**Failure mode #1:** Approval digest leaked into logs/artifacts. If leaked, it is a single-factor bypass for live dispatch. The workflow `::add-mask::` step must cover `approval_ref`, and the bridge must never print the raw env var.
+**Failure mode #1:** Approval digest or proof leaked into logs/artifacts. If
+both leaked with the same tuple still valid, they can replay that tuple. The
+workflow `::add-mask::` step must cover `approval_ref` and `approval_proof`, and
+the bridge must never print the raw env var, proof, branch, or hypothesis.
 
 ### Hidden assumption
 
-The approval digest is treated as a long-lived shared secret between the reviewing human and the runtime environment. This is acceptable for a first gate, but it assumes the secret store (GitHub Secrets or operator env) is the weakest link, not the bridge logic.
+The approval digest and workflow proof are not nonce-backed single-use tokens.
+They bind one tuple, so leaked values require immediate rotation of the approval
+digest and suspected secret exposure requires rotation of the workflow-dispatch
+HMAC secret.
 
 ### Revised plan
 
 1. **Bridge:** Compute `SHA256(branch_ref + "\0" + hypothesis)` and compare with `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`. Reject with `SlackSocketDispatchError` on mismatch. Never log the env var or computed hash. See runbook for operator digest generation instructions.
-2. **Workflow:** Add `approval_ref` input with default `"none"`. Validate SHA256 hex shape via bridge CLI `--validate-live-approval`. Only allow `dry_run: false` when `approval_ref` is valid and `inputs.dry_run == 'false'`. Mask `approval_ref` in `::add-mask::`.
+2. **Workflow:** Add `approval_ref` and `approval_proof` inputs with default
+   `"none"`. Validate live dispatch via bridge CLI
+   `--validate-workflow-dispatch-approval`. Only allow `dry_run: false` when
+   the proof matches the branch, hypothesis digest, and approval ref. Mask both
+   fields in `::add-mask::`.
 3. **Audit:** Add `approval_hash` field to run-experiment dispatch audits only. Store `"none"` when dry-run, a truncated hash prefix when live-approved.
 4. **Tests:** Add parameterized unsafe-input tests for the live-dispatch path. Add explicit tests for approval mismatch, approval match, missing approval env, case normalization, and sentinel `"none"`.
 5. **Runbook:** Document that approval digests are operator-managed secrets, single-use per dispatch is recommended, and leaked digests must be rotated immediately.
 
 ### Pre-merge checklist
 
-- [ ] `::add-mask::` covers `approval_ref` in the dispatch workflow.
-- [ ] No raw `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256` appears in stdout, stderr, audit artifacts, or step summaries.
+- [ ] `::add-mask::` covers `approval_ref` and `approval_proof` in the dispatch workflow.
+- [ ] No raw `EXPERIMENT_SLACK_SOCKET_LIVE_APPROVAL_SHA256`, `EXPERIMENT_SLACK_SOCKET_WORKFLOW_DISPATCH_SECRET`, or `approval_proof` appears in stdout, stderr, audit artifacts, or step summaries.
 - [ ] Tests prove `dry_run: false` is rejected without approval.
 - [ ] Tests prove `dry_run: false` is accepted with matching approval.
 - [ ] Audit schema tests include `approval_hash` field.

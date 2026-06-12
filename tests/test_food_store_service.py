@@ -603,6 +603,41 @@ def test_get_food_by_barcode_returns_row_with_normalized_input(
     assert conn.calls == ["00012345678905"]
 
 
+def test_get_food_by_barcode_returns_stored_metadata_from_sqlite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "food.sqlite"
+    with sqlite3.connect(db_path) as con:
+        con.execute("""
+            CREATE TABLE foods (
+                id TEXT PRIMARY KEY,
+                canonical_name TEXT,
+                gtin TEXT,
+                brand TEXT,
+                fdc_id TEXT,
+                nutrition_confidence REAL
+            )
+            """)
+        con.execute(
+            "INSERT INTO foods (id, canonical_name, gtin, brand, fdc_id, nutrition_confidence) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("food-gtin", "Granola Bar", "0012345678905", "USDA Brand", "234567", 0.8),
+        )
+
+    monkeypatch.setattr(food_store, "DB_PATH", db_path)
+    food_store.reset_foods_nutrition_confidence_column_cache()
+
+    result = food_store.get_food_by_barcode("00 123-456 78905")
+
+    assert result is not None
+    assert result["id"] == "food-gtin"
+    assert result["brand"] == "USDA Brand"
+    assert result["gtin"] == "0012345678905"
+    assert result["fdc_id"] == "234567"
+    assert result["nutrition_confidence"] == 0.8
+
+
 def test_get_food_by_barcode_uses_leading_zero_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     conn = _DummyBarcodeConn(
         rows_by_barcode={

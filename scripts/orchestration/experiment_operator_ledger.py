@@ -70,13 +70,11 @@ IDEMPOTENCY_KEY_CHECK_NAMESPACE = b"pulseplate-operator-ledger-idempotency-check
 CONTENT_HASH_NAMESPACE = b"pulseplate-operator-ledger-content-v1"
 CONTENT_HASH_ITERATIONS = 1_000
 IDEMPOTENCY_KEY_RE = re.compile(r"^[a-f0-9]{24}$")
-PII_SHAPED_ARTIFACT_RE = re.compile(
-    r"("
-    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
-    r"|"
-    r"(?!\b\d{4}-\d{2}-\d{2}\b)\b\+?\d[\d .()_-]{7,}\d\b"
-    r")"
-)
+EMAIL_SHAPED_ARTIFACT_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PHONE_SHAPED_ARTIFACT_RE = re.compile(r"\b\+?\d[\d .()_-]{7,}\d\b")
+ARTIFACT_DATE_TOKEN_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+MIN_ALLOWED_ARTIFACT_DATE_YEAR = 2000
+MAX_ALLOWED_ARTIFACT_DATE_YEAR = 2099
 LOCAL_PATH_SEGMENT_RE = re.compile(
     r"(^|/)(Users|home|var|opt|tmp|private|Volumes|etc|usr|Library|System)(/|$)"
 )
@@ -319,6 +317,25 @@ def _validate_timestamp(value: Any) -> str:
     return normalized.isoformat()
 
 
+def _is_allowed_artifact_date_token(value: str) -> bool:
+    if ARTIFACT_DATE_TOKEN_RE.fullmatch(value) is None:
+        return False
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return False
+    return MIN_ALLOWED_ARTIFACT_DATE_YEAR <= parsed.year <= MAX_ALLOWED_ARTIFACT_DATE_YEAR
+
+
+def _contains_pii_shaped_artifact_ref(value: str) -> bool:
+    if EMAIL_SHAPED_ARTIFACT_RE.search(value):
+        return True
+    for candidate in PHONE_SHAPED_ARTIFACT_RE.finditer(value):
+        if not _is_allowed_artifact_date_token(candidate.group(0)):
+            return True
+    return False
+
+
 def _validate_hash(value: Any) -> str:
     if value is None:
         return "none"
@@ -367,7 +384,7 @@ def _validate_artifact_ref(value: Any) -> str:
     normalized_ref = normalized.replace("\\", "/")
     if (
         "//" in normalized_ref
-        or PII_SHAPED_ARTIFACT_RE.search(normalized_ref)
+        or _contains_pii_shaped_artifact_ref(normalized_ref)
         or GITHUB_APP_TOKEN_ARTIFACT_RE.search(normalized_ref)
         or LOCAL_PATH_SEGMENT_RE.search(normalized_ref)
         or WINDOWS_DRIVE_SEGMENT_RE.search(normalized_ref)

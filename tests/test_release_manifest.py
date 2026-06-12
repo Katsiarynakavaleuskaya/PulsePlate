@@ -37,7 +37,9 @@ def _write_metadata_pack(repo_root: Path) -> None:
             )
 
 
-def _rag_payload(*, release_decision: str = "PASS") -> dict[str, object]:
+def _rag_payload(
+    *, release_decision: str = "PASS", git_sha: str = TEST_GIT_SHA
+) -> dict[str, object]:
     payload: dict[str, object] = {
         "schema_version": "release-rag-gate-result.v1",
         "hash_algorithm": "sha256",
@@ -53,7 +55,7 @@ def _rag_payload(*, release_decision: str = "PASS") -> dict[str, object]:
         "dataset_path_used": "tests/fixtures/rag.jsonl",
         "dataset_fallback_used": False,
         "sample_size": 1,
-        "git_sha": TEST_GIT_SHA,
+        "git_sha": git_sha,
         "retriever_mode": "local_tfidf",
         "generator_mode": "extractive_stub",
         "small_fixture_metric_gates_advisory": False,
@@ -71,11 +73,17 @@ def _rag_payload(*, release_decision: str = "PASS") -> dict[str, object]:
     return payload
 
 
-def _write_rag_gate_result(repo_root: Path, *, release_decision: str = "PASS") -> Path:
+def _write_rag_gate_result(
+    repo_root: Path, *, release_decision: str = "PASS", git_sha: str = TEST_GIT_SHA
+) -> Path:
     rag_path = repo_root / "artifacts/rag_eval/unit-test/rag_gate_result.json"
     rag_path.parent.mkdir(parents=True, exist_ok=True)
     rag_path.write_text(
-        json.dumps(_rag_payload(release_decision=release_decision), sort_keys=True) + "\n",
+        json.dumps(
+            _rag_payload(release_decision=release_decision, git_sha=git_sha),
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     return rag_path
@@ -121,6 +129,7 @@ def test_build_manifest_emits_schema_hashes_and_identity_groups(tmp_path: Path) 
     assert HASH_RE.fullmatch(payload["reviewer_identity"]["appstore_metadata_hash"])
     assert HASH_RE.fullmatch(payload["ml_identity"]["rag_gate_result_hash"])
     assert HASH_RE.fullmatch(payload["ml_identity"]["eval_artifact_hash"])
+    assert payload["ml_identity"]["git_sha"] == TEST_GIT_SHA
     assert payload["supply_chain_identity"]["attestation_status"] == "VERIFIED"
 
 
@@ -152,6 +161,52 @@ def test_validate_manifest_payload_fails_closed_on_missing_identity_group(tmp_pa
     errors = release_manifest.validate_manifest_payload(payload)
 
     assert "reviewer_identity must be an object." in errors
+
+
+def test_build_manifest_rejects_rag_gate_result_for_different_git_sha(tmp_path: Path) -> None:
+    _write_metadata_pack(tmp_path)
+    rag_path = _write_rag_gate_result(tmp_path, git_sha="old-safe-sha")
+
+    with pytest.raises(release_manifest.ReleaseManifestError) as exc_info:
+        release_manifest.build_manifest_payload(
+            repo_root=tmp_path,
+            git_sha="new-unevaluated-sha",
+            ios_build_number="100",
+            marketing_version="1.0",
+            bundle_id="app.pulseplate.PulsePlate",
+            rag_gate_result_path=rag_path,
+            sbom_digest=OCI_DIGEST,
+            provenance_digest=PROVENANCE_DIGEST,
+            attestation_status="VERIFIED",
+        )
+
+    assert "rag_gate_result.git_sha must match build_identity.git_sha" in str(exc_info.value)
+
+
+def test_validate_manifest_payload_rejects_stale_rag_git_sha(tmp_path: Path) -> None:
+    payload = _build_manifest(tmp_path)
+    payload["ml_identity"] = dict(payload["ml_identity"])
+    payload["ml_identity"]["git_sha"] = "old-safe-sha"
+    payload = _rehash_manifest(payload)
+
+    errors = release_manifest.validate_manifest_payload(payload)
+
+    assert "ml_identity.git_sha must match build_identity.git_sha." in errors
+    assert "release_decision must be BLOCK." in errors
+    assert "decision_reasons do not match the fail-closed decision contract." in errors
+
+
+def test_validate_manifest_payload_requires_ml_identity_git_sha(tmp_path: Path) -> None:
+    payload = _build_manifest(tmp_path)
+    payload["ml_identity"] = dict(payload["ml_identity"])
+    del payload["ml_identity"]["git_sha"]
+    payload["release_decision"] = "BLOCK"
+    payload["decision_reasons"] = ["rag_git_sha_mismatch"]
+    payload = _rehash_manifest(payload)
+
+    errors = release_manifest.validate_manifest_payload(payload)
+
+    assert "ml_identity.git_sha must be a non-empty string." in errors
 
 
 def test_rag_no_go_blocks_release_with_reason(tmp_path: Path) -> None:
@@ -264,6 +319,7 @@ def test_rag_gate_result_metadata_is_required(tmp_path: Path) -> None:
     del rag_payload["hash_algorithm"]
     rag_payload["canonicalization"] = "json-unsorted"
     del rag_payload["source_artifacts"]
+    del rag_payload["git_sha"]
     rag_payload["rag_gate_result_hash"] = release_manifest.sha256_lower_hex(
         release_manifest.canonical_json_bytes(
             {key: value for key, value in rag_payload.items() if key != "rag_gate_result_hash"}
@@ -289,6 +345,7 @@ def test_rag_gate_result_metadata_is_required(tmp_path: Path) -> None:
     error_text = str(exc_info.value)
     assert "rag_gate_result.hash_algorithm must be sha256" in error_text
     assert "rag_gate_result.canonicalization must be" in error_text
+    assert "rag_gate_result.git_sha must be a non-empty string" in error_text
     assert "rag_gate_result.source_artifacts is required" in error_text
 
 

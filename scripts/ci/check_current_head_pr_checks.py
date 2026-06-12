@@ -51,6 +51,7 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "diff-coverage",
 }
 DOCKER_FALLBACK_WORKFLOW_NAMES = {"Docker Build and Push"}
+SECURITY_FALLBACK_CHECK_NAMES = {"security-scan"}
 DOCKER_SURFACE_PREFIXES = {
     ".dockerignore",
     ".trivyignore",
@@ -438,7 +439,9 @@ def _is_blocking_fallback_advisory(entry: CheckEntry, changed_paths: set[str]) -
     if entry.workflow_name in CANONICAL_FALLBACK_WORKFLOW_NAMES:
         return entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
     if entry.workflow_name in DOCKER_FALLBACK_WORKFLOW_NAMES:
-        return _path_touches_any(changed_paths, DOCKER_SURFACE_PREFIXES)
+        return entry.name in SECURITY_FALLBACK_CHECK_NAMES or _path_touches_any(
+            changed_paths, DOCKER_SURFACE_PREFIXES
+        )
     if entry.workflow_name in FRONTEND_FALLBACK_WORKFLOW_NAMES:
         return _path_touches_any(changed_paths, FRONTEND_SURFACE_PREFIXES)
     return False
@@ -449,10 +452,10 @@ def _partition_fallback_advisory_entries(
 ) -> tuple[list[CheckEntry], list[CheckEntry]]:
     """Split fallback-blocking entries from advisory-only entries.
 
-    RU: В fallback-режиме canonical PR checks блокируют merge; specialized
-    checks блокируют только когда changed paths прикрепляют surface.
-    EN: In fallback mode, canonical PR checks block merge; specialized checks
-    block only when changed paths attach that surface.
+    RU: В fallback-режиме canonical PR checks и security scans блокируют merge;
+    остальные specialized checks блокируют когда changed paths прикрепляют surface.
+    EN: In fallback mode, canonical PR checks and security scans block merge;
+    other specialized checks block when changed paths attach that surface.
     """
 
     blocking_entries: list[CheckEntry] = []
@@ -586,8 +589,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(
             "Required check metadata unavailable; merge gating falls back to a "
-            "fail-closed current-head check snapshot. Canonical PR checks remain "
-            "blocking; specialized checks block only when changed files attach their surface."
+            "fail-closed current-head check snapshot. Canonical PR checks and security "
+            "scans remain blocking; other specialized checks block when changed files "
+            "attach their surface."
         )
         if advisory_blocking_entries:
             _print_entries("Current-head blocking fallback checks:", advisory_blocking_entries)

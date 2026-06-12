@@ -208,8 +208,9 @@ def _audit_payload(
     status: str,
     failure_class: str | None,
 ) -> dict[str, Any]:
+    approval_hash = _approval_prefix(config, command) if status == "dispatched" else None
     return {
-        "approval_hash": _approval_prefix(config, command) or "none",
+        "approval_hash": approval_hash or "none",
         "branch_hash": _safe_hash(command.branch_ref),
         "channel_hash": _sha256_text(event.channel_id),
         "command_kind": command.kind,

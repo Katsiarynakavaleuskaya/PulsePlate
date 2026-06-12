@@ -24,6 +24,39 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-semantic-cache-cost-provenance-train"></a>
+- [ ] P1: Semantic cache cost provenance and context-economy PR train
+  - Owner: @katsiaryna_kavaleuskaya (AI runtime / orchestration governance)
+  - Priority: P1
+  - Target PR: PR-O1 merged baseline; PR-O2 merged baseline; PR-O3 merged baseline; current slice PR-O4 `codex/embedding-retrieval-admission-o4`; PR-O5+ deferred behind separate reviewed gates
+  - Status: PR-O1 merged as metadata-only cost provenance baseline; PR-O2 merged as deterministic orchestration context compression baseline; PR-O3 merged as provider/model-tier routing policy telemetry; PR-O4 active for gate-closed embedding/retrieval admission telemetry; later runtime-serving work deferred behind separate gate-open PRs
+  - Area: AI runtime governance / orchestration cost / semantic-cache scaffold
+  - Reason (EN): Expensive GPT-5.5/Codex orchestration currently repeats prompt modules, context, and merge-readiness documentation work without a deterministic way to attribute safe reusable context, estimate saved tokens, label future provider/model-tier policy choices, or pre-classify future embedding/retrieval admission evidence without weakening review quality. PR-O1 created metadata-only provenance, prompt-module fingerprints, and token/cost estimate scaffolding; PR-O2 added deterministic graph/context-pack compression metadata so repeated orchestration context can be measured and de-duplicated without opening semantic-cache serving or provider integration; PR-O3 added metadata-only provider/model-tier routing telemetry with final review and synthesis still `frontier_required`; PR-O4 adds gate-closed embedding/retrieval admission telemetry with all runtime/provider/cache/serving authority flags false.
+  - Links: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md`, `core/evidence/fingerprints.py`, `core/ai/prompt_modules.py`, `core/ai/cache_observability.py`, `scripts/orchestration/context_pack_compression.py`, `scripts/orchestration/provider_model_tier_policy.py`, `scripts/orchestration/embedding_retrieval_admission_telemetry.py`
+  - PR train:
+    - PR-O1: deterministic provenance envelope, prompt-module fingerprint registry, and token/cost telemetry scaffold; metadata-only and non-serving.
+    - PR-O2: graph/context-pack compression for repeated orchestration and merge-readiness context; metadata-only, advisory, and non-serving.
+    - PR-O3: provider/model-tier routing policy telemetry for orchestration cost decisions; metadata-only, label-only, selected route fixed to `no_runtime_selection`, and final review/synthesis preserved as `frontier_required`.
+    - PR-O4: gate-closed embedding/retrieval admission telemetry scaffold; metadata-only, selected embedding backend fixed to `none`, selected retrieval runtime fixed to `none`, and all admission/runtime/provider/cache/serving authority flags false.
+    - PR-O5+: replay, observability, runtime admission, and serving candidates remain deferred and require dedicated reviewed gates.
+  - Deferred review follow-up: after PR-O3 stabilizes, evaluate whether safe-label,
+    metadata-safety, and fingerprint validation helpers should be centralized in a
+    shared orchestration utility; do not widen PR-O2 into unrelated shared helper
+    extraction.
+  - Out of scope: semantic-cache reads/writes, Redis, GPTCache, GraphRAG runtime, embeddings/vector search, Ollama or Perplexity/Sonar API wiring, provider clients/calls, runtime model/provider selection, OpenAPI, DB, frontend, iOS, entitlement/billing truth, provider-specific pricing truth, raw prompts, raw responses, raw queries, raw context snippets, provider payloads, and live cost-savings claims.
+  - DoD: PR-O4 keeps markers `closed / false / false / true`; stores only safe fingerprints, IDs, counts, estimates, labels, graph nodes/edges, selected refs, omitted duplicate refs, provider/model-tier labels, embedding/retrieval admission labels, reason codes, and token-economy estimate references; fixes selected route to `no_runtime_selection`, selected embedding backend to `none`, and selected retrieval runtime to `none`; preserves final reasoning/review/synthesis as `frontier_required`; separates token estimates from runtime cost claims and provider pricing; rejects raw and provider payloads, embedding vectors, retrieval queries, similarity scores, secrets, and local paths; passes focused contract tests plus semantic-cache gate checks; documents that runtime serving and provider wiring remain no earlier than separately gated PR-O5+ work.
+
+<a id="ledger-p1-pr-size-governance-trusted-base-execution"></a>
+- [ ] P1: PR size governance trusted-base execution switch
+  - Owner: @katsiaryna_kavaleuskaya (CI governance)
+  - Priority: P1
+  - Target PR: Follow-up after PR #1909 merge
+  - Status: Open
+  - Area: CI / merge governance / PR scope guard
+  - Reason (EN): PR #1909 hardens trusted label-backed scope approvals, but premortem found that switching the workflow to execute `check_pr_size_governance.py` from the protected base checkout inside the same PR would ask base code to support behavior introduced only by PR #1909. That sequencing can make current-head CI fail or provide misleading assurance. The switch must land only after base contains the repo-root override and trusted-label contract.
+  - Links: `.github/workflows/ci.yml`, `scripts/ci/check_pr_size_governance.py`, `tests/test_ci_workflow_pr_size_governance_contract.py`, `docs/review/PR_1909_FIXED_MAPPING.md`
+  - DoD: Update `pr_scope_guard` to checkout PR code and trusted base guard code separately; execute PR size governance from the trusted base copy while setting `PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT` to the PR checkout; preserve `--base-sha`, `--head-sha`, and `--event-path`; add workflow contract coverage; verify current-head CI and merge-readiness gates.
+
 <a id="ledger-p1-scientific-writing-agent"></a>
 - [ ] P1: Scientific Writing Agent registration
   - Owner: @katsiaryna_kavaleuskaya (Agent governance)
@@ -662,6 +695,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Locked install + Docker production target succeed against the private index; `make verify` green
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
+<a id="ledger-p1-pytorch-jit-cve-2025-3000-vector-profile"></a>
+- [ ] P1: Retire PyTorch TorchScript CVE-2025-3000 Safety waiver for optional vector profile
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / optional RAG-vector profile)
+  - Target PR: TBD (land by 2026-07-11 or earlier if fixed torch builds are available)
+  - Area: security / CI / dependencies / RAG-vector
+  - Reason (EN): PR #1925 current-head CI started failing Safety on
+    `SFTY-20250331-30014` / `CVE-2025-3000` for `torch==2.11.0` and
+    `torch==2.11.0+cpu` in optional RAG/vector manifests. Safety 3.8.1 reports
+    no fixed version for the advisory, while default production and Docker
+    runtime manifests pass Safety without torch. The waiver is scoped to the
+    optional vector profile and must be retired when a fixed build, upstream
+    advisory correction, or vector-profile replacement is available.
+  - Links:
+    - `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md:1`
+    - `safety-policy.yaml:18`
+    - `requirements-rag-vector.txt:162`
+    - `requirements-rag-vector-cpu.txt:119`
+  - DoD:
+    - Re-check Safety, OSV, GitHub Advisory Database, and PyTorch upstream for
+      fixed-version truth before changing pins.
+    - If fixed torch builds exist and the approved index serves them, bump
+      `requirements-rag-vector.txt` and `requirements-rag-vector-cpu.txt`.
+    - If no fixed build exists, replace or disable the TorchScript-dependent
+      optional vector capability, or extend the waiver with fresh evidence and a
+      new remove-by date.
+    - Remove `SFTY-20250331-30014` from `safety-policy.yaml` and close this
+      ledger item in the same PR.
+
 <a id="ledger-p1-cryptography-private-index-sync"></a>
 - [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
@@ -1075,7 +1137,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain maturity after tooling-surface guard baseline)
   - Target PR: PR #1503
-  - Status: Landed via `PR #1503`; provenance/SBOM attestations are restored for pushed-image lanes and verified before deploy.
+  - Status: Landed via `PR #1503`; provenance/SBOM attestations are restored for pushed-image lanes and verified before deploy. PR #1946 narrowed BuildKit in-action provenance to `mode=min` for private package-index secret-env lanes while preserving GitHub-signed provenance/SBOM verification.
   - Reason (EN): Docker baseline and hard-budget gates are now stable enough to restore signed provenance on pushed-image lanes without widening scope into `load: true` jobs or alternate control planes. This slice must re-enable provenance/SBOM attestations on registry pushes and fail closed before staging or production deploy if digest verification breaks.
   - Links:
     - `docs/orchestration/DOCKER_SIGNED_BUILD_PROVENANCE_TASK_PACKET_2026-04-23.md`
@@ -1085,7 +1147,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
     - `docs/security/TOOLING_SURFACE_POLICY.md`
   - DoD:
-    - `build.yml` and `cd.yml` pushed-image lanes use `provenance: mode=max`
+    - `build.yml` and `cd.yml` pushed-image lanes use `provenance: mode=min` when private package-index inputs flow through BuildKit secret envs
     - pushed-image lanes emit SBOM attestations alongside provenance
     - CD verifies provenance and SPDX SBOM attestations by exact pushed digest before any deploy step
     - `load: true` jobs remain on `provenance: false`

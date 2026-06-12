@@ -309,6 +309,25 @@ def _validate_sha256(value: str, *, filename: str) -> str:
     return digest
 
 
+def _normalize_artifact_sha256(artifact: dict[str, object], *, filename: str) -> str:
+    """Return an emergency artifact digest from a direct string or split parts."""
+
+    direct_digest = artifact.get("sha256")
+    if isinstance(direct_digest, str) and direct_digest.strip():
+        return _validate_sha256(direct_digest, filename=filename)
+    digest_parts = artifact.get("sha256_parts")
+    if (
+        isinstance(digest_parts, list)
+        and digest_parts
+        and all(isinstance(part, str) and part.strip() for part in digest_parts)
+    ):
+        return _validate_sha256("".join(digest_parts), filename=filename)
+    raise RuntimeError(
+        "Emergency wheel artifacts require non-empty package/version/filename/url and "
+        "either sha256 or sha256_parts."
+    )
+
+
 def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, str]]:
     """Load and validate an optional exact-wheel fallback manifest."""
     resolved_path = resolve_emergency_wheel_manifest_path(manifest_path)
@@ -346,19 +365,18 @@ def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, 
         version = artifact.get("version")
         filename = artifact.get("filename")
         url = artifact.get("url")
-        sha256 = artifact.get("sha256")
         if not all(
-            isinstance(value, str) and value.strip()
-            for value in (package, version, filename, url, sha256)
+            isinstance(value, str) and value.strip() for value in (package, version, filename, url)
         ):
             raise RuntimeError(
-                "Emergency wheel artifacts require non-empty package/version/filename/url/sha256."
+                "Emergency wheel artifacts require non-empty package/version/filename/url "
+                "and either sha256 or sha256_parts."
             )
         package_text = cast(str, package).strip()
         version_text = cast(str, version).strip()
         filename_text = cast(str, filename).strip()
         url_text = cast(str, url).strip()
-        sha256_text = cast(str, sha256).strip()
+        sha256_text = _normalize_artifact_sha256(artifact, filename=filename_text)
         artifact_expires_at = artifact.get("expires_at")
         if artifact_expires_at is None:
             effective_expires_at = default_expires_at
@@ -521,6 +539,20 @@ def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) 
         raise
 
 
+def _emergency_artifact_sha256(artifact: dict[str, str]) -> str:
+    """Return the exact expected digest for an emergency artifact."""
+
+    digest = artifact.get("sha256")
+    if isinstance(digest, str) and digest.strip():
+        return digest.strip()
+    digest_parts = artifact.get("sha256_parts")
+    if isinstance(digest_parts, list) and all(isinstance(part, str) for part in digest_parts):
+        joined_digest = "".join(digest_parts).strip()
+        if joined_digest:
+            return joined_digest
+    raise RuntimeError(f"Emergency artifact missing sha256 digest: {artifact.get('filename')}")
+
+
 def stage_emergency_wheels(
     *,
     requirement_files: Sequence[Path],
@@ -552,13 +584,13 @@ def _stage_emergency_artifacts(
         destination = wheelhouse_dir / artifact["filename"]
         if destination.exists():
             existing_sha256 = hashlib.sha256(destination.read_bytes()).hexdigest()
-            if existing_sha256 != artifact["sha256"]:
+            if existing_sha256 != _emergency_artifact_sha256(artifact):
                 raise RuntimeError(f"Existing emergency wheel has unexpected sha256: {destination}")
         else:
             _download_with_sha256(
                 url=artifact["url"],
                 destination=destination,
-                expected_sha256=artifact["sha256"],
+                expected_sha256=_emergency_artifact_sha256(artifact),
             )
         staged_paths.append(destination)
     return staged_paths
@@ -1061,13 +1093,13 @@ def _stage_pip_upgrade_emergency_wheel(
     destination = wheelhouse_dir / artifact["filename"]
     if destination.exists():
         existing_sha256 = hashlib.sha256(destination.read_bytes()).hexdigest()
-        if existing_sha256 != artifact["sha256"]:
+        if existing_sha256 != _emergency_artifact_sha256(artifact):
             raise RuntimeError(f"Existing emergency pip wheel has unexpected sha256: {destination}")
     else:
         _download_with_sha256(
             url=artifact["url"],
             destination=destination,
-            expected_sha256=artifact["sha256"],
+            expected_sha256=_emergency_artifact_sha256(artifact),
         )
     return destination
 
@@ -1092,7 +1124,7 @@ def verify_emergency_artifact_for_floor(
             _download_with_sha256(
                 url=artifact["url"],
                 destination=destination,
-                expected_sha256=artifact["sha256"],
+                expected_sha256=_emergency_artifact_sha256(artifact),
             )
     return True
 
@@ -1682,6 +1714,14 @@ def install_with_guard_from_proxy(
             emergency_wheel_manifest=emergency_wheel_manifest,
             allow_pip_download_cache=docker_pip_layer_cache_enabled(),
         )
+        failure_lines = collect_startup_hook_failure_lines(
+            guard_script=guard_script,
+            python_executable=python_executable,
+        )
+        if failure_lines:
+            for line in failure_lines:
+                print(line)
+            return 1
         return 0
 
 

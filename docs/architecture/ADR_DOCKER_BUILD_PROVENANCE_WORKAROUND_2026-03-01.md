@@ -10,9 +10,9 @@ To unblock main and stabilize CI/CD, we keep one workaround profile across
 workflows. The **steps below follow the same order as** [Evidence Anchors](#evidence-anchors) (top → bottom) so operators can walk the YAML and the ADR in lockstep.
 
 1. **`build.yml` — local test image (`load: true`)** — `push: false`, scoped `cache-from` / `cache-to` (`build-production-${{ github.ref_name }}`, `mode=min`, `ignore-error=true`), **`provenance: false`**. Uses the docker exporter; **SLSA attestations are not supported for `load: true`** (registry push is required for attestations). Do not enable `provenance` on this step without a separate push-based job.
-2. **`build.yml` — publish to GHCR (`push: true`)** — **`platforms: linux/amd64`** only (reduces cache/export surface; restore `linux/arm64` when stable), same scoped cache pattern as (1), **`provenance: mode=max`** (PR #1448) while keeping `cache-to: ... mode=min,ignore-error=true` to reduce export flakes.
-3. **`cd.yml` — staging image** — keep **`cache-from` / `cache-to`** with scope `cd-staging-${{ github.ref_name }}` (`mode=min`, `ignore-error=true`), restore **`provenance: mode=max`** and **`sbom: true`**, then verify both attestations by exact digest before any deploy step.
-4. **`cd.yml` — production image** — same cache policy with scope **`cd-production-${{ github.ref_name }}`**, restore **`provenance: mode=max`** and **`sbom: true`**, then verify both attestations by exact digest before any deploy step.
+2. **`build.yml` — publish to GHCR (`push: true`)** — **`platforms: linux/amd64`** only (reduces cache/export surface; restore `linux/arm64` when stable), same scoped cache pattern as (1), **`provenance: mode=min`** for private package-index secret-env inputs while keeping GitHub-signed attestations and `cache-to: ... mode=min,ignore-error=true` to reduce export flakes.
+3. **`cd.yml` — staging image** — keep **`cache-from` / `cache-to`** with scope `cd-staging-${{ github.ref_name }}` (`mode=min`, `ignore-error=true`), use **`provenance: mode=min`** and **`sbom: true`**, then verify both attestations by exact digest before any deploy step.
+4. **`cd.yml` — production image** — same cache policy with scope **`cd-production-${{ github.ref_name }}`**, use **`provenance: mode=min`** and **`sbom: true`**, then verify both attestations by exact digest before any deploy step.
 5. **`docker-openapi-smoke.yml` — smoke build** — same pattern as (1): `load: true`, scoped cache (`docker-openapi-smoke-v2-${{ github.ref_name }}`), **`provenance: false`** (attestations incompatible with `load`; see (1)).
 
 Cross-cutting themes: **scoped GHA cache keys** (per ref / job family) replace an older “omit `cache-from` on CD” iteration that avoided `BlobNotFound` but hurt hit rate; **`ignore-error=true` on `cache-to`** remains the export fail-safe everywhere.
@@ -20,7 +20,7 @@ Cross-cutting themes: **scoped GHA cache keys** (per ref / job family) replace a
 ## Decision
 Aligned with **Context steps (1)–(5)** above (same order as [Evidence Anchors](#evidence-anchors)):
 
-- Keep **`provenance: false`** on `load: true` paths listed in those anchors; for pushed-image lanes in `build.yml` and `cd.yml`, use **`provenance: mode=max`** plus **`sbom: true`**.
+- Keep **`provenance: false`** on `load: true` paths listed in those anchors; for pushed-image lanes in `build.yml` and `cd.yml`, use **`provenance: mode=min`** plus **`sbom: true`** while private package-index inputs flow through BuildKit secret envs.
 - Keep **`linux/amd64` only** on all publish/CD image builds; restore multi-arch when cache/provenance is stable.
 - Keep **scoped** `cache-from: type=gha` + `cache-to: type=gha,mode=min,ignore-error=true` on each of those steps (scopes differ per job; see anchors).
 - Keep **inline comments** in workflows stating the narrowed workaround boundary: `load: true` jobs remain excluded, pushed-image lanes verify OCI-backed provenance/SBOM before deploy.
@@ -42,12 +42,12 @@ Aligned with **Context steps (1)–(5)** above (same order as [Evidence Anchors]
   scoped `cache-from` / `cache-to`, `provenance: false`.
 - `.github/workflows/build.yml:327-345` publish job: `linux/amd64`,
   `push: true`, scoped `cache-from` / `cache-to`,
-  `provenance: mode=max`, `sbom: true`.
+  `provenance: mode=min`, `sbom: true`.
 - `.github/workflows/cd.yml:88-148` staging image: scoped
-  `cache-from` / `cache-to`, `provenance: mode=max`, `sbom: true`,
+  `cache-from` / `cache-to`, `provenance: mode=min`, `sbom: true`,
   exact-digest attestation verification before deploy.
 - `.github/workflows/cd.yml:343-402` production image: scoped
-  `cache-from` / `cache-to`, `provenance: mode=max`, `sbom: true`,
+  `cache-from` / `cache-to`, `provenance: mode=min`, `sbom: true`,
   exact-digest attestation verification before deploy.
 - `.github/workflows/docker-openapi-smoke.yml:61-80` smoke build:
   `load: true`, `provenance: false` (attestations incompatible with
@@ -55,9 +55,9 @@ Aligned with **Context steps (1)–(5)** above (same order as [Evidence Anchors]
 
 ## Exit Criteria / Definition of Done
 - [ ] Upstream fix or documented stable approach: buildx and/or GHA cache backend no longer produces "cache entry no longer exists" (or equivalent) when using `cache-from: type=gha` and provenance enabled.
-- [x] Remove `provenance: false` and restore `provenance: mode=max`
+- [x] Remove `provenance: false` and restore pushed-image provenance
   for `build.yml` publish (`push: true`) path (PR #1448).
-- [x] Remove `provenance: false` and restore `provenance: mode=max`
+- [x] Remove `provenance: false` and restore pushed-image provenance
   for `cd.yml` pushed-image paths while keeping scoped cache, `mode=min`,
   and `ignore-error=true`.
 - [x] Verify pushed-image provenance and SPDX SBOM attestations by exact digest before deploy.

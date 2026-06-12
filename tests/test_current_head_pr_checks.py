@@ -107,7 +107,7 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
                 workflow_name="Docker Build and Push",
                 conclusion="",
             ),
-            {"Dockerfile"},
+            set(),
             True,
         ),
         (
@@ -658,7 +658,7 @@ def test_main_passes_when_merge_state_is_not_clean_but_advisory_snapshot_is_clea
     assert "no fallback-blocking current-head checks are pending or failed" in captured.out
 
 
-def test_main_passes_when_merge_state_is_not_clean_and_unattached_specialized_check_is_pending(
+def test_main_fails_when_security_scan_is_pending_in_fallback_mode(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -692,11 +692,11 @@ def test_main_passes_when_merge_state_is_not_clean_and_unattached_specialized_ch
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 0
+    assert exit_code == 1
     assert "Required check metadata unavailable" in captured.out
-    assert "Current-head advisory checks:" in captured.out
+    assert "Current-head blocking fallback checks:" in captured.out
     assert "- security-scan: pending [Docker Build and Push]" in captured.out
-    assert "current-head-checks: passed." in captured.out
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
 def test_main_fails_when_merge_state_is_not_clean_and_attached_specialized_check_is_pending(

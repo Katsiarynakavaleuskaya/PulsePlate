@@ -129,6 +129,7 @@ class BridgeConfig:
     slack_bot_token: str | None = field(repr=False)
     github_token: str | None = field(repr=False)
     live_approval_sha256: str | None
+    workflow_dispatch_secret: str | None = field(repr=False)
     operator_ledger_task_packet_id: str
     github_dispatch: GitHubDispatchConfig | None = None
 
