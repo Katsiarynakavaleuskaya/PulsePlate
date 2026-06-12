@@ -27,7 +27,7 @@ finding without weakening fail-closed Trivy scan behavior.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Sourcery review feedback mapped with FIXED disposition.
-- [ ] Re-check review threads after resolving the mapped Sourcery discussion.
+- [x] Re-check review threads after resolving the mapped Sourcery discussion.
 
 ## Fixed in Commit Mapping
 
@@ -78,6 +78,20 @@ OUT:
   uses current anchors and tests include negative canary cases.
 - `architecture-specialist`: confirmed this is policy/docs/tests/backlog only,
   with no Dockerfile/workflow/app changes.
+- Mandatory post-open review stack executed after bot review:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Post-open `qa-engineer-agent`: no QA/test-sufficiency blocker; identified
+  Sourcery mapping/disposition as the remaining governance blocker.
+- Post-open `bug-hunter`: no Rego/Trivy implementation blocker; confirmed the
+  Sourcery feedback was documentation clarity and mapping/disposition work.
+- Post-open `security-auditor`: no blocking or nonblocking findings; confirmed
+  the suppression remains exact, `.trivyignore` is not broadened, fail-closed
+  publish behavior is unchanged, and docs/mapping do not claim premature proof.
+- Codex Security diff scan: current-head report
+  `/tmp/codex-security-scans/PulsePlate-main-trivy-hotfix/1b6fbf4b8b00_20260612T210539Z/report.md`
+  validated with zero reportable findings.
+- `pulseplate-pr-review`: dry-run report generated at
+  `/tmp/pr1968_pr_review_report.md`; calibration tests passed.
 
 ## Premortem Finding Closure
 
@@ -96,6 +110,13 @@ OUT:
 - `PM-1968-004` Local tests cannot prove GitHub publish SARIF behavior.
   Disposition: NOT-A-BUG.
   Evidence: current-head Docker publish evidence is required before merge.
+- `PPR-1968-001` `pulseplate-pr-review` advisory large-diff note.
+  Disposition: NOT-A-BUG.
+  Evidence: current GitHub PR diff contains the five intended files only;
+  `make validate-changed` passed; Codex Security current-head diff scan found
+  zero reportable findings; the line count is expected for a security note plus
+  canonical mapping artifact and does not indicate an unscoped implementation
+  expansion.
 
 ## Experiment Runner Evidence
 
@@ -128,6 +149,17 @@ OUT:
   (`12 passed`), `python scripts/ci/check_docs_phase1_gates.py --files
   docs/security/CVE-2026-48959-perl-base.md`, `git diff --check`,
   `make validate-changed`, and `pre-commit run --all-files`.
+- PASS: after merging latest `origin/main` to current head
+  `1b6fbf4b8b00bc5b7f9776b9f6bd320817326f97`:
+  `python3 scripts/orchestration/check_preflight.py --path ...`,
+  `python3 scripts/orchestration/check_agent_consistency.py`,
+  `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`,
+  `python -m pytest -q tests/test_trivy_ignore_policy_expiry.py`
+  (`12 passed`), `python scripts/ci/check_docs_phase1_gates.py --files
+  docs/security/CVE-2026-48959-perl-base.md`, `git diff --check`,
+  `make validate-changed`, `pre-commit run --all-files`, and pre-push hooks.
+- PASS: `python3 -m pytest tests/test_pr_review_context.py
+  tests/test_pr_review_report.py -q` (`13 passed`) with repo venv.
 - NOT RUN: full local `make verify`; intentionally deferred under the
   operator-approved machine-heavy exception.
 
@@ -143,9 +175,9 @@ OUT:
 - [x] Canonical fixed-mapping artifact exists.
 - [x] Focused local gates passed.
 - [x] Full local `make verify` deferral is documented.
-- [ ] Post-open role loop completed after bot review.
-- [ ] `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1968 --body "$(gh pr view 1968 --repo Katsiarynakavaleuskaya/PulsePlate --json body --jq .body)"` passes.
-- [ ] `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1968 --require-auth` passes.
+- [x] Post-open role loop completed after bot review.
+- [ ] `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1968 --body "$(gh pr view 1968 --repo Katsiarynakavaleuskaya/PulsePlate --json body --jq .body)"` passes after this artifact update is mirrored to the PR body.
+- [ ] `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1968 --require-auth` passes after this artifact update is pushed.
 - [ ] `GH_TOKEN="$(gh auth token)" GITHUB_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_merge_ready.py --pr-number 1968 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` passes.
 - [ ] Current-head PR CI is green.
 - [ ] Docker publish path proves Trivy/SARIF passes before GHCR publish on the
