@@ -103,10 +103,9 @@
 - `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1963 --body "<updated PR body>"`: PASS with the expected pre-commit advisory that the Experiment Runner co-author trailer was not yet present before the docs commit.
 - `git diff --check origin/main...HEAD`: PASS.
 - `make validate-changed`: PASS, selected `tests/test_artifact_validation_boundary.py`, `48 passed`.
+- `pre-commit run --all-files`: PASS.
 - Commit hook for `19eef16b5f343f436eaa2e3abdd29b41727286b5`: PASS for black, ruff, detect-secrets, changed-file Bandit, and changed-file backend pytest.
-
-## Required Before Push
-- `pre-commit run --all-files`
+- Commit hook for `8bae7b6db`: PASS for docs-only mapping commit checks.
 
 ## Required Before Merge Claim
 - PR body live refresh and body gate after the docs commit.
