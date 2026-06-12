@@ -132,6 +132,21 @@
   guard, legacy handler removal, and guard shrink. Focused gates and
   post-open role reviews have run.
 
+## Current-Head CI Findings
+
+- `test-pr (3.13)` initial current-head run `27444774843` failed with exit 139
+  after a Python/coverage segmentation fault around 78% of the contract/risk
+  suite. Local reproduction slice covering the surrounding cumulative test
+  window passed under Python 3.13.6 and coverage. Disposition: NOT-A-BUG for
+  PR code after rerun; rerun attempt 2 passed `test-pr (3.13)`.
+- `diff-coverage` current-head attempt 2 failed at 96% with missing lines
+  `app/routers/health.py:57`, `app/routers/health.py:61`, and
+  `app/routers/health.py:63`. Disposition: FIXED by commit `e4dd4914e`, which
+  adds selected-CI coverage in `tests/test_app_endpoints_combined.py` for
+  degraded DB readiness, missing `execute`, and unbound session failure paths.
+  Local diff-cover evidence after the fix reports `app/routers/health.py
+  (100%)`, total diff coverage `100%`.
+
 ## Fixed in Commit Mapping
 
 - No actionable review comments
@@ -141,14 +156,16 @@
 - `python3 scripts/orchestration/check_preflight.py`: PASS after rebase onto
   `origin/main`.
 - `.venv/bin/python -m py_compile app/routers/health.py app/main.py legacy_app.py scripts/ci/check_legacy_growth_guard.py`: PASS.
-- `.venv/bin/python -m pytest -q tests/test_health_db.py tests/test_app_endpoints_combined.py tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/test_app_openapi_coverage.py tests/test_legacy_app_diff_coverage.py`: PASS.
+- `.venv/bin/python -m pytest -q tests/test_health_db.py tests/test_app_endpoints_combined.py tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/test_app_openapi_coverage.py tests/test_legacy_app_diff_coverage.py tests/test_legacy_app_git_sha.py`: PASS.
 - `.venv/bin/python scripts/ci/check_legacy_growth_guard.py`: PASS.
 - `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`: PASS after rebase and after the typed helper fix.
-- `PRE_COMMIT_HOME=/tmp/pre-commit-health-readiness-routes .venv/bin/pre-commit run --all-files`: PASS.
+- `PRE_COMMIT_HOME=/tmp/pre-commit-health-readiness-routes /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pre-commit run --all-files`: PASS after commit `e4dd4914e` formatting rerun.
 - `PRE_COMMIT_HOME=/tmp/pre-commit-health-readiness-routes .venv/bin/pre-commit run mypy --hook-stage pre-push --files app/routers/health.py app/main.py legacy_app.py`: PASS after the typed helper fix.
 - `.venv/bin/python -m pytest -q tests/test_legacy_app_git_sha.py`: PASS after
   commit `79c44aae0`.
 - `.venv/bin/python -m pytest -q tests/test_main_paywall_bootstrap.py::test_health_route_registration_rejects_visible_existing_canonical_handlers tests/test_main_paywall_bootstrap.py::test_health_route_registration_is_idempotent`: PASS after commit `a0041d9e8`.
+- `COVERAGE_FILE=/tmp/pulseplate-pr1969-diff.coverage python -m coverage run --source=app,legacy_app,scripts -m pytest -q tests/test_health_db.py tests/test_app_endpoints_combined.py tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_legacy_app_diff_coverage.py tests/test_legacy_app_git_sha.py`: PASS after commit `e4dd4914e`.
+- `diff-cover /tmp/pulseplate-pr1969-coverage.xml --compare-branch origin/main --fail-under 97 ...`: PASS, `Coverage: 100%`.
 - `git push` pre-push hooks: PASS for mypy, pip-audit, backend pytest,
   full-repo bandit, and Docker build test.
 
