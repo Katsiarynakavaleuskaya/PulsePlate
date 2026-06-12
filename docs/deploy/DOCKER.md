@@ -62,7 +62,7 @@ pushed-image lanes only:
 - keep the current hard-budget contract unchanged
 - restore signed BuildKit provenance on pushed-image lanes in `build.yml` and
   `cd.yml`, capped at `provenance: mode=min` while Docker package-index
-  inputs remain secret-derived build args
+  inputs remain BuildKit secret envs
 - emit SPDX SBOM attestations on the same pushed-image lanes
 - verify both provenance and SBOM by exact digest before staging or production deploy
 
@@ -154,8 +154,8 @@ Build the production target:
 ```bash
 docker build \
   --target production \
-  --build-arg PULSEPLATE_PYTHON_INDEX_URL="$PULSEPLATE_PYTHON_INDEX_URL" \
-  --build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
+  --secret id=pp_py_index,env=PULSEPLATE_PYTHON_INDEX_URL \
+  --secret id=pp_py_host,env=PULSEPLATE_PYTHON_TRUSTED_HOST \
   --build-arg PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt \
   -t pulseplate:runtime-slim .
 ```

@@ -425,7 +425,7 @@ jobs:
           # PR #1448: re-enable SLSA provenance attestations for GHCR publish.
           # Keep scoped cache + mode=min + ignore-error=true to reduce export flakes.
           # Avoid max-mode BuildKit invocation metadata because package-index inputs
-          # are secret-derived build args.
+          # are passed through BuildKit secret envs.
           provenance: mode=min
           sbom: true
           target: production

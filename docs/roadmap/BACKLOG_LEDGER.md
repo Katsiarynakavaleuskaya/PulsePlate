@@ -1137,7 +1137,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain maturity after tooling-surface guard baseline)
   - Target PR: PR #1503
-  - Status: Landed via `PR #1503`; provenance/SBOM attestations are restored for pushed-image lanes and verified before deploy.
+  - Status: Landed via `PR #1503`; provenance/SBOM attestations are restored for pushed-image lanes and verified before deploy. PR #1946 narrowed BuildKit in-action provenance to `mode=min` for private package-index secret-env lanes while preserving GitHub-signed provenance/SBOM verification.
   - Reason (EN): Docker baseline and hard-budget gates are now stable enough to restore signed provenance on pushed-image lanes without widening scope into `load: true` jobs or alternate control planes. This slice must re-enable provenance/SBOM attestations on registry pushes and fail closed before staging or production deploy if digest verification breaks.
   - Links:
     - `docs/orchestration/DOCKER_SIGNED_BUILD_PROVENANCE_TASK_PACKET_2026-04-23.md`
@@ -1147,7 +1147,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
     - `docs/security/TOOLING_SURFACE_POLICY.md`
   - DoD:
-    - `build.yml` and `cd.yml` pushed-image lanes use `provenance: mode=max`
+    - `build.yml` and `cd.yml` pushed-image lanes use `provenance: mode=min` when private package-index inputs flow through BuildKit secret envs
     - pushed-image lanes emit SBOM attestations alongside provenance
     - CD verifies provenance and SPDX SBOM attestations by exact pushed digest before any deploy step
     - `load: true` jobs remain on `provenance: false`
