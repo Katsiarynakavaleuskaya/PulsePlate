@@ -969,20 +969,6 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         (
             ".github/workflows/build.yml",
             "publish",
-            "Log in to GHCR",
-            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA}",
-            {
-                "registry": "${{ env.REGISTRY }}",
-                "username": "${{ github.repository_owner }}",
-                "password": "${{ secrets.GITHUB_TOKEN }}",
-            },
-            None,
-            None,
-            None,
-        ),
-        (
-            ".github/workflows/build.yml",
-            "publish",
             "Extract metadata",
             f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA}",
             {
@@ -995,6 +981,20 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                     "type=semver,pattern={{major}}.{{minor}}\n"
                     "type=raw,value=latest,enable={{is_default_branch}}\n"
                 ),
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Log in to GHCR",
+            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA}",
+            {
+                "registry": "${{ env.REGISTRY }}",
+                "username": "${{ github.repository_owner }}",
+                "password": "${{ secrets.GITHUB_TOKEN }}",
             },
             None,
             None,
@@ -1105,7 +1105,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         (
             ".github/workflows/build.yml",
             "publish",
-            "Run Trivy vulnerability scanner (image scan, report-only)",
+            "Run Trivy vulnerability scanner (image scan, fail-closed)",
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
             {
                 "scan-type": "image",
@@ -1118,12 +1118,12 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "severity": "CRITICAL,HIGH",
                 "limit-severities-for-sarif": True,
                 "trivyignores": ".trivyignore",
-                "exit-code": "0",
+                "exit-code": "1",
                 "version": "v0.69.3",
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
-            True,
+            None,
         ),
         (
             ".github/workflows/trivy.yml",
@@ -1143,6 +1143,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "ignore-unfixed": True,
                 "trivyignores": ".trivyignore",
                 "ignore-policy": ".trivy-ignore-policy.rego",
+                "exit-code": "1",
                 "version": "v0.69.3",
             },
             None,
