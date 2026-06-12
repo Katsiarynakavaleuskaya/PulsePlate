@@ -7,6 +7,10 @@ from pathlib import Path
 import shutil
 import subprocess
 
+import pytest
+
+from scripts import verify_codex_skills_install
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALLER_PATH = REPO_ROOT / "scripts" / "install_codex_skills.sh"
 BASH_PATH = shutil.which("bash")
@@ -426,6 +430,96 @@ def test_verify_codex_skills_install_rejects_modified_same_name_copy(
     assert result.returncode == 1
     assert "Invalid: 1" in result.stdout
     assert "pulseplate-workflow" in result.stdout
+
+
+def test_verify_codex_skills_install_rejects_marker_symlink_without_leaking_target(
+    tmp_path: Path,
+) -> None:
+    """Verifier JSON must not disclose marker symlink target contents."""
+
+    import json as json_mod
+
+    _run_installer(tmp_path, "--copy", "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+    copied_skill = agents_skills / "pulseplate-workflow"
+    payload_path = tmp_path / "marker-payload.txt"
+    marker_payload = "PULSEPLATE_MARKER_PAYLOAD_DO_NOT_LOG"
+    payload_path.write_text(marker_payload, encoding="utf-8")
+    marker = copied_skill / ".pulseplate_codex_skill_source"
+    marker.unlink()
+    marker.symlink_to(payload_path)
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--json", "--strict")
+    assert result.returncode == 1
+    assert marker_payload not in result.stdout
+
+    report = json_mod.loads(result.stdout)
+    detail = next(item for item in report["details"] if item["name"] == "pulseplate-workflow")
+    assert detail["status"] == "copied_invalid"
+    assert detail["marker"] == ""
+    assert detail["marker_error"] in {"marker_not_regular", "marker_symlink"}
+
+
+def test_read_copy_marker_fails_closed_without_no_follow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Existing marker files must fail closed if no no-follow open flag exists."""
+
+    marker = tmp_path / ".pulseplate_codex_skill_source"
+    marker.write_text(str(REPO_ROOT / "tools" / "codex_skills"), encoding="utf-8")
+
+    monkeypatch.delattr(verify_codex_skills_install.os, "O_NOFOLLOW", raising=False)
+    read_copy_marker = getattr(verify_codex_skills_install, "_read_copy_marker")
+    marker_error = getattr(verify_codex_skills_install, "MARKER_ERROR_NO_NOFOLLOW")
+
+    assert read_copy_marker(marker) == ("", marker_error)
+
+
+def test_read_copy_marker_rejects_path_replacement_before_reading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A marker swapped after stat but before open must not be trusted."""
+
+    marker = tmp_path / ".pulseplate_codex_skill_source"
+    marker.write_text("original-marker", encoding="utf-8")
+    replacement = tmp_path / "replacement-marker"
+    replacement.write_text("replacement-marker", encoding="utf-8")
+    real_open = verify_codex_skills_install.os.open
+
+    def replacing_open(path: Path, flags: int) -> int:
+        replacement.replace(marker)
+        return real_open(path, flags)
+
+    monkeypatch.setattr(verify_codex_skills_install.os, "open", replacing_open)
+    read_copy_marker = getattr(verify_codex_skills_install, "_read_copy_marker")
+    marker_error = getattr(verify_codex_skills_install, "MARKER_ERROR_REPLACED")
+
+    assert read_copy_marker(marker) == ("", marker_error)
+
+
+def test_verify_codex_skills_install_rejects_invalid_utf8_marker_without_crashing(
+    tmp_path: Path,
+) -> None:
+    """Malformed copy markers should be reported as invalid instead of crashing."""
+
+    import json as json_mod
+
+    _run_installer(tmp_path, "--copy", "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+    copied_skill = agents_skills / "pulseplate-workflow"
+    marker = copied_skill / ".pulseplate_codex_skill_source"
+    marker.write_bytes(b"\xff\xfe\xfd")
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--json", "--strict")
+    assert result.returncode == 1
+
+    report = json_mod.loads(result.stdout)
+    detail = next(item for item in report["details"] if item["name"] == "pulseplate-workflow")
+    assert detail["status"] == "copied_invalid"
+    assert detail["marker"] == ""
+    assert detail["marker_error"] == "marker_invalid_utf8"
 
 
 def test_verify_codex_skills_install_fails_when_skill_missing(tmp_path: Path) -> None:
