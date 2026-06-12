@@ -106,6 +106,46 @@ def test_artifact_guard_rejects_direct_read_text() -> None:
                 """),
             "app/unsafe.py:4: read_text reads local artifacts/security_lab",
         ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("artifacts/safe/../orchestration", name).read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/orchestration",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("artifacts/../artifacts/security_lab", name).open("r")
+                """),
+            "app/unsafe.py:4: open reads local artifacts/security_lab",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("artifacts/safe", "../orchestration", name).read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/orchestration",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                Path("artifacts/safe").joinpath("../agent_runs", run_id).read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/agent_runs",
+        ),
+        (
+            textwrap.dedent("""
+                from pathlib import Path
+
+                (Path("artifacts/safe") / "../security_lab" / name).read_text()
+                """),
+            "app/unsafe.py:4: read_text reads local artifacts/security_lab",
+        ),
     ],
 )
 def test_artifact_guard_rejects_pathlib_variants(
@@ -227,6 +267,15 @@ def test_artifact_guard_rejects_imported_stdlib_aliases(
                 open(packet_path)
                 """),
             "core/unsafe.py:5: open reads local artifacts/agent_runs",
+        ),
+        (
+            textwrap.dedent("""
+                import os
+
+                packet_path = os.path.join("artifacts/safe", "../orchestration", run_id)
+                open(packet_path)
+                """),
+            "core/unsafe.py:5: open reads local artifacts/orchestration",
         ),
     ],
 )

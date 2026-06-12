@@ -71,10 +71,24 @@ class ArtifactReadFinding:
         return f"{self.path}:{self.line}: {self.operation} reads local {self.artifact_root}"
 
 
+def _collapse_path_parts(raw_parts: Sequence[str]) -> tuple[str, ...]:
+    parts: list[str] = []
+    for part in raw_parts:
+        if not part or part == ".":
+            continue
+        if part == "..":
+            if parts and parts[-1] != "..":
+                parts.pop()
+            else:
+                parts.append(part)
+            continue
+        parts.append(part)
+    return tuple(parts)
+
+
 def _normalize_path_parts(value: str) -> tuple[str, ...]:
     normalized = value.replace("\\", "/")
-    parts = tuple(part for part in normalized.split("/") if part and part not in {".", ".."})
-    return parts
+    return _collapse_path_parts(normalized.split("/"))
 
 
 def _forbidden_root(parts: tuple[str, ...]) -> str | None:
@@ -97,7 +111,7 @@ def _extend_literal_path_parts_until_dynamic(
     *,
     initial_parts: Sequence[str] = (),
 ) -> tuple[str, ...] | None:
-    parts = list(initial_parts)
+    parts = list(_collapse_path_parts(initial_parts))
     for arg in args:
         arg_parts = _literal_path_parts(
             arg,
@@ -110,6 +124,7 @@ def _extend_literal_path_parts_until_dynamic(
         if arg_parts is None:
             return tuple(parts) if _forbidden_root(tuple(parts)) else None
         parts.extend(arg_parts)
+        parts = list(_collapse_path_parts(parts))
     return tuple(parts)
 
 
@@ -153,7 +168,7 @@ def _literal_path_parts(
             os_path_modules,
         )
         if left is not None and right is not None:
-            return (*left, *right)
+            return _collapse_path_parts((*left, *right))
         if left is not None and _forbidden_root(left):
             return left
     if isinstance(node, ast.Call):
