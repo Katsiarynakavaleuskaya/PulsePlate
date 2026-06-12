@@ -37,7 +37,7 @@ It is 6 months from now. The `/pulseplate-runner mvp-evidence` Slack command ret
 - **Containment:** Include a `snapshot_schema_version: str` field (e.g., `"v1"`) and fail closed on unknown versions.
 
 ### 6. `artifact_refs` field stores absolute or forbidden paths
-- **Story:** The snapshot builder included an absolute path like `/Users/dev/.ssh/config` in `artifact_refs` because a downstream helper passed `__file__` without normalization. The snapshot was stored and later referenced in a Slack message, leaking local filesystem structure.
+- **Story:** The snapshot builder included an absolute path like `/Users/.../.ssh/config` in `artifact_refs` because a downstream helper passed `__file__` without normalization. The snapshot was stored and later referenced in a Slack message, leaking local filesystem structure.
 - **Assumption:** Callers always pass repo-relative, safe paths.
 - **Warning signs:** `artifact_refs` accepts `tuple[str, ...]` without validation.
 - **Containment:** Reuse `validate_source_artifact` from `core/evidence/events.py` (or equivalent logic) to reject absolute paths, traversal, and forbidden roots (`artifacts/agent_runs/`, `.venv/`, etc.).

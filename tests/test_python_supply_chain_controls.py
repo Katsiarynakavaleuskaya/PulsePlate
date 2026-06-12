@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 import scripts.ci.install_locked_python_requirements as locked_installer
+from scripts.ci.check_docker_provenance_attestation import SBOM_PREDICATE_TYPE
 from tests.runtime_toolchain_versions import CANONICAL_PYTHON
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -315,10 +316,44 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
         if step.get("name") == "Install security tooling"
     )
     install_script = install_step["run"]
-    assert '"bandit==1.8.6"' in install_script
+    assert "bandit==" not in install_script
     assert '"safety>=3.7.0"' in install_script
     assert 'python -m pip install "${pip_index_args[@]}"' in install_script
     assert "-c constraints.txt" in install_script
+
+
+def test_ci_security_job_installs_safety_through_locked_installer() -> None:
+    install_step = next(
+        step
+        for step in _workflow_steps(".github/workflows/ci.yml", "security")
+        if step.get("name") == "Install Safety"
+    )
+    install_script = install_step["run"]
+
+    assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--python-executable python" not in install_script
+    assert "--requirements-file requirements-security.txt" in install_script
+    assert "--install-mode direct-proxy" in install_script
+    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
+    assert "python -m pip install" not in install_script
+
+
+def test_security_requirements_pin_safety_and_regex_floor() -> None:
+    requirements_text = (REPO_ROOT / "requirements-security.txt").read_text(encoding="utf-8")
+    emergency_manifest = json.loads(
+        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
+    )
+
+    assert "safety==3.8.1" in requirements_text
+    assert "pyyaml==6.0.3" in requirements_text
+    assert "regex==2026.5.9" in requirements_text
+    assert any(
+        artifact.get("package") == "regex"
+        and artifact.get("version") == "2026.5.9"
+        and artifact.get("filename", "").endswith("manylinux_2_28_x86_64.whl")
+        and "sha256_parts" in artifact
+        for artifact in emergency_manifest["artifacts"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -407,8 +442,7 @@ def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> 
     assert "CODECOV_TOKEN" not in build_env
     assert "secrets.CODECOV_TOKEN" not in str(build_step)
     assert build_env["CODECOV_BUNDLE_ANALYSIS"] == (
-        "${{ github.event_name == 'push' && github.ref == "
-        "'refs/heads/main' && 'true' || 'false' }}"
+        "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'true' || 'false' }}"
     )
     assert "uploadToken" not in vite_config
     assert "process.env.CODECOV_TOKEN" not in vite_config
@@ -533,6 +567,24 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     assert expected_arg in trivy_build_args
 
 
+def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args() -> None:
+    workflow_specs = (
+        (".github/workflows/build.yml", "publish", "Build and push Docker image"),
+        (".github/workflows/cd.yml", "build", "Build & Push image (staging)"),
+        (".github/workflows/cd.yml", "build-production", "Build & Push image (production)"),
+    )
+
+    for workflow_path, job_name, step_name in workflow_specs:
+        step = _workflow_step_by_name(workflow_path, job_name, step_name)
+        assert step["with"]["provenance"] == "mode=max"
+        build_args = step["with"]["build-args"]
+        assert "PULSEPLATE_PYTHON_INDEX_URL" not in build_args
+        assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in build_args
+        build_secret_envs = step["with"]["secret-envs"]
+        assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in build_secret_envs
+        assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in build_secret_envs
+
+
 def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:
     workflow_paths = (
         ".github/workflows/build.yml",
@@ -649,17 +701,36 @@ def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None
         ".github/workflows/ci.yml",
         ".github/workflows/security.yml",
     )
+    safety_audit_text = (REPO_ROOT / "scripts" / "ci" / "run_safety_audit.py").read_text(
+        encoding="utf-8"
+    )
 
     for workflow_path in workflow_paths:
         workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+        step_name = (
+            "Dependency audit with Safety"
+            if workflow_path.endswith("ci.yml")
+            else "Run Safety (dependency audit with policy)"
+        )
+        job_name = "security" if workflow_path.endswith("ci.yml") else "bandit"
+        safety_step = _workflow_step_by_name(workflow_path, job_name, step_name)
 
         assert "python3 scripts/ci/run_safety_audit.py" in workflow_text
+        assert safety_step["env"]["SAFETY_API_KEY"] == "${{ secrets.SAFETY_API_KEY }}"
         assert "safety-*.json" in workflow_text
         assert "safety-*.txt" in workflow_text
         assert "safety-*.log" in workflow_text
         assert 'manifests=("requirements.txt")' not in workflow_text
         assert 'cp "${report_json}" safety-report.json' not in workflow_text
         assert ".github/scripts/parse-safety-report.py" not in workflow_text
+
+    assert '"scan"' in safety_audit_text
+    assert '"check"' not in safety_audit_text
+    assert "SAFETY_API_KEY" in safety_audit_text
+
+    nightly_text = (REPO_ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
+    assert "safety check --json" not in nightly_text
+    assert "SAFETY_API_KEY" in nightly_text
 
 
 def test_requirements_lock_excludes_optional_rag_vector_stack() -> None:
@@ -847,6 +918,11 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         "publish",
         "Build and push Docker image",
     )
+    publish_sbom_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "publish",
+        "Attest Docker image SBOM",
+    )
     staging_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
         "build",
@@ -921,11 +997,25 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     for sbom_step in (staging_sbom_step, production_sbom_step):
         assert sbom_step["uses"].startswith(
-            "actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb"
+            "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
         )
         assert sbom_step["with"]["push-to-registry"] is True
-        assert sbom_step["with"]["sbom-path"] == "docker-image-sbom.spdx.json"
+        assert sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
+        assert sbom_step["with"]["predicate-path"] == "docker-image-sbom.spdx.json"
+        assert "sbom-path" not in sbom_step["with"]
         assert sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+
+    assert publish_sbom_step["uses"].startswith(
+        "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
+    )
+    assert publish_sbom_step["with"]["push-to-registry"] is True
+    assert publish_sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
+    assert publish_sbom_step["with"]["predicate-path"] == "sbom.spdx.json"
+    assert "sbom-path" not in publish_sbom_step["with"]
+    assert (
+        publish_sbom_step["with"]["subject-digest"]
+        == "${{ steps.docker-build-push.outputs.digest }}"
+    )
 
     for verify_step in (staging_verify_step, production_verify_step):
         verify_script = verify_step["run"]

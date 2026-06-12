@@ -169,3 +169,80 @@ PR-B must not commit:
 - local brainstorming logs
 - provider traces
 - raw hidden-memory artifacts
+
+---
+
+## 7. Manual adoption metrics
+
+The adoption/conversion loop is a manual operator report, not a merge gate.
+It reads local eval artifacts and experiment promotion decisions, then writes
+aggregate-only local artifacts under:
+
+- `artifacts/orchestration/creative_research/metrics/`
+
+Manual command:
+
+```bash
+python3 scripts/orchestration/creative_research_metrics.py \
+  --output-json artifacts/orchestration/creative_research/metrics/latest.json \
+  --output-md artifacts/orchestration/creative_research/metrics/latest.md
+```
+
+Report contract:
+
+- `schema_version = creative-research-metrics-v1`
+- counts are aggregated from evaluated candidate rows, not trusted from summary alone
+- conversion grain is `(bundle_id, candidate_id)`
+- destination type and sanitized repo-relative ref come from existing promotion
+  fields: `promotion_target` and `durable_artifact_path`
+- raw prompts, claims, mechanisms, evidence text, provider output, local absolute
+  paths, and secrets must not appear in the JSON or Markdown report
+
+Optional origin link convention for experiment promotion packets:
+
+Bootstrap CLI example:
+
+```bash
+python3 scripts/orchestration/experiment_bootstrap.py \
+  --decision-question "Promote offline creative research candidate evidence" \
+  --task-class Experimentation \
+  --mutable-path core/rag/vector_rag.py \
+  --oracle-command "pytest -q tests/test_philosophical_runtime.py" \
+  --metric val_bpb \
+  --negative-control "oracle file unchanged" \
+  --negative-control "no forbidden path mutation" \
+  --promotion-target pr_packet \
+  --creative-research-bundle-id creative-research-valid \
+  --creative-research-candidate-id hyp-batch \
+  --creative-research-promotion-decision promote
+```
+
+The three `--creative-research-*` origin flags are optional but all-or-none.
+When present, the normalized block participates in the deterministic
+`experiment_id`; when absent, legacy no-origin packet IDs and packet shape remain
+unchanged.
+
+```json
+{
+  "creative_research_origin": {
+    "bundle_id": "creative-research-valid",
+    "candidate_id": "hyp-batch",
+    "promotion_decision": "promote"
+  }
+}
+```
+
+Rules:
+
+- `creative_research_origin` is passive provenance only and must not be treated
+  as serving approval, runtime truth, merge readiness, or evidence-promotion
+  authority
+- it must not change promotion policy, result status, target selection, or
+  durable artifact path semantics
+- unsupported fields, unsafe local IDs, missing origin keys, or invalid
+  `promotion_decision` values fail bootstrap/packet validation and promotion
+  cleanly before durable writes
+- absence of origin metadata remains backward-compatible
+
+Future enforcement, telemetry rollups, or CI-required checks require a separate
+coordinator-owned PR after this report proves low-noise.

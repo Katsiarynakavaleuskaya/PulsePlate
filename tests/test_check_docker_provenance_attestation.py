@@ -11,6 +11,22 @@ import pytest
 import scripts.ci.check_docker_provenance_attestation as verifier
 
 
+def _synthetic_private_index_url() -> str:
+    """Return runtime-only secret-shaped test data without a static finding."""
+
+    return "".join(
+        (
+            "https://",
+            "ci-user",
+            ":",
+            "TOKEN",
+            "_FOR",
+            "_TEST",
+            "@private.invalid/simple",
+        )
+    )
+
+
 def _completed_process(payload: object) -> subprocess.CompletedProcess[str]:
     """Return a completed process with JSON stdout."""
 
@@ -155,6 +171,168 @@ def test_parser_accepts_wrapped_verification_payload(
     assert calls["count"] == 2
     assert bundle.provenance.attestation_count == 1
     assert bundle.sbom.attestation_count == 1
+
+
+def test_parser_redacts_raw_attestation_build_arguments() -> None:
+    secret_index_url = _synthetic_private_index_url()
+    raw_statement = {
+        "predicateType": verifier.PROVENANCE_PREDICATE_TYPE,
+        "predicate": {
+            "buildDefinition": {
+                "externalParameters": {"build-arg:PULSEPLATE_PYTHON_INDEX_URL": secret_index_url}
+            }
+        },
+    }
+    payload = [{"verificationResult": {"statement": raw_statement}}]
+
+    parsed = verifier._parse_verification_output(
+        stdout=json.dumps(payload),
+        predicate_type=verifier.PROVENANCE_PREDICATE_TYPE,
+        label="provenance",
+    )
+
+    serialized = json.dumps(parsed, sort_keys=True)
+    assert secret_index_url not in serialized
+    assert "TOKEN_FOR_TEST" not in serialized
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in serialized
+    assert "redacted_statement_summary_sha256" in serialized
+    assert verifier._canonical_json_sha256(raw_statement) not in serialized
+    assert parsed[0]["verificationResult"]["statement"]["predicateType"] == (
+        verifier.PROVENANCE_PREDICATE_TYPE
+    )
+
+
+def test_redacted_statement_summary_digest_binds_to_non_secret_subject() -> None:
+    first_statement = {
+        "predicateType": verifier.PROVENANCE_PREDICATE_TYPE,
+        "subject": [{"name": "image", "digest": {"sha256": "a" * 64}}],
+        "predicate": {"buildDefinition": {"externalParameters": {"safe": "one"}}},
+    }
+    second_statement = {
+        "predicateType": verifier.PROVENANCE_PREDICATE_TYPE,
+        "subject": [{"name": "image", "digest": {"sha256": "b" * 64}}],
+        "predicate": {"buildDefinition": {"externalParameters": {"safe": "two"}}},
+    }
+
+    first = verifier._redacted_verification_summary(
+        {"verificationResult": {"statement": first_statement}}, index=0
+    )
+    second = verifier._redacted_verification_summary(
+        {"verificationResult": {"statement": second_statement}}, index=1
+    )
+
+    first_digest = first["verificationResult"]["statement"]["redacted_statement_summary_sha256"]
+    second_digest = second["verificationResult"]["statement"]["redacted_statement_summary_sha256"]
+    assert first_digest != second_digest
+    assert "predicate" not in first["verificationResult"]["statement"]
+    assert "safe" not in json.dumps(first, sort_keys=True)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        {"verificationResult": {"statement": {}}},
+        {"verificationResult": {"statement": {"predicateType": 123}}},
+    ),
+)
+def test_redacted_verification_summary_fails_closed_on_missing_predicate_type(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(RuntimeError, match="predicateType"):
+        verifier._redacted_verification_summary(payload, index=0)
+
+
+def test_failure_diagnostics_redact_attestation_secrets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    secret_index_url = _synthetic_private_index_url()
+    json_out = tmp_path / "attestation.json"
+    markdown_out = tmp_path / "attestation.md"
+
+    def fake_verify_attestations(**_: object) -> verifier.VerificationBundle:
+        raise RuntimeError(
+            f"verification failed for PULSEPLATE_PYTHON_INDEX_URL={secret_index_url}"
+        )
+
+    monkeypatch.setattr(verifier, "verify_attestations", fake_verify_attestations)
+
+    exit_code = verifier.main(
+        [
+            "--image-name",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate",
+            "--digest",
+            "sha256:abc123",
+            "--repo",
+            "Katsiarynakavaleuskaya/PulsePlate",
+            "--signer-workflow",
+            "Katsiarynakavaleuskaya/PulsePlate/.github/workflows/cd.yml",
+            "--source-ref",
+            "refs/heads/main",
+            "--json-out",
+            str(json_out),
+            "--markdown-out",
+            str(markdown_out),
+        ]
+    )
+
+    assert exit_code == 1
+    stderr = capsys.readouterr().err
+    failure_payload = json.loads(json_out.read_text(encoding="utf-8"))
+    failure_markdown = markdown_out.read_text(encoding="utf-8")
+    serialized = json.dumps(failure_payload, sort_keys=True) + failure_markdown + stderr
+    assert secret_index_url not in serialized
+    assert "TOKEN_FOR_TEST" not in serialized
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in serialized
+    assert "[redacted-build-arg]" in serialized
+
+
+def test_failure_diagnostics_redact_common_secret_shapes() -> None:
+    token_key = "GITHUB" + "_" + "TOKEN"
+    credential_key = "REGISTRY" + "_CREDENTIAL"
+    raw_detail = " ".join(
+        (
+            f"{token_key}=ghs_example_token_value",
+            "Bearer " + "eyJ" + ".example.token",
+            f"{credential_key}=pw-12345",
+            "plain text stays",
+        )
+    )
+
+    redacted = verifier._redact_sensitive_text(raw_detail)
+
+    assert "ghs_example_token_value" not in redacted
+    assert "eyJ.example.token" not in redacted
+    assert "pw-12345" not in redacted
+    assert "[redacted-build-arg]" in redacted
+    assert "Bearer [redacted-token]" in redacted
+    assert f"{credential_key}=[redacted-secret]" in redacted
+    assert "plain text stays" in redacted
+
+
+def test_run_gh_redacts_subprocess_failure_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    secret_index_url = _synthetic_private_index_url()
+
+    def fake_run(*_: object, **__: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["gh", "attestation", "verify"],
+            output=f"stdout PULSEPLATE_PYTHON_INDEX_URL={secret_index_url}",
+            stderr=f"stderr PULSEPLATE_PYTHON_INDEX_URL={secret_index_url}",
+        )
+
+    monkeypatch.setattr(verifier.shutil, "which", lambda _: "/usr/bin/gh")
+    monkeypatch.setattr(verifier.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        verifier._run_gh(["attestation", "verify", "oci://example@sha256:abc"])
+
+    message = str(exc_info.value)
+    assert secret_index_url not in message
+    assert "TOKEN_FOR_TEST" not in message
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in message
+    assert "[redacted-build-arg]" in message
 
 
 def test_parser_reports_unexpected_shape_with_trimmed_stdout() -> None:

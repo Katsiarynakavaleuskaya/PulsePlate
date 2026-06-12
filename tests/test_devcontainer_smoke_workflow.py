@@ -70,6 +70,35 @@ def test_devcontainer_smoke_workflow_does_not_use_secrets_or_bootstrap() -> None
         assert token not in text, f"Workflow must not contain '{token}'"
 
 
+def test_devcontainer_smoke_workflow_does_not_persist_checkout_credentials() -> None:
+    """PR-controlled smoke inputs must not receive persisted checkout credentials."""
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    assert isinstance(data, dict), "Workflow YAML must parse to a mapping"
+
+    jobs = data.get("jobs")
+    assert isinstance(jobs, dict), "Workflow must define jobs"
+
+    checkout_steps = []
+    for job_name, job in jobs.items():
+        assert isinstance(job, dict), f"Workflow job '{job_name}' must be a mapping"
+        steps = job.get("steps")
+        assert isinstance(steps, list), f"Workflow job '{job_name}' must define steps"
+
+        checkout_steps.extend(
+            step
+            for step in steps
+            if isinstance(step, dict) and str(step.get("uses", "")).startswith("actions/checkout@")
+        )
+
+    assert checkout_steps, "Workflow must include at least one checkout step"
+    for step in checkout_steps:
+        checkout_with = step.get("with")
+        assert isinstance(checkout_with, dict), "Every checkout step must define a with mapping"
+        assert (
+            checkout_with.get("persist-credentials") is False
+        ), "Every checkout step must set with.persist-credentials to false"
+
+
 # ---------------------------------------------------------------------------
 # Docker: builds devcontainer Dockerfile, not production
 # ---------------------------------------------------------------------------

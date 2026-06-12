@@ -19,6 +19,7 @@ try:
     from scripts.orchestration.experiment_contract import (
         ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
         SCHEMA_VERSION,
+        validate_creative_research_origin,
         validate_experiment_id,
         validate_experiment_packet,
         validate_experiment_result,
@@ -33,6 +34,7 @@ except ImportError:  # pragma: no cover - CLI fallback for direct script executi
     from scripts.orchestration.experiment_contract import (
         ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
         SCHEMA_VERSION,
+        validate_creative_research_origin,
         validate_experiment_id,
         validate_experiment_packet,
         validate_experiment_result,
@@ -56,6 +58,24 @@ RESULT_PROMOTION_STATUSES: tuple[str, ...] = ("promoted", "deferred")
 
 class ExperimentPromotionError(RuntimeError):
     """Base error for promotion contract violations."""
+
+
+def _promotion_packet(packet: dict[str, Any]) -> dict[str, Any]:
+    try:
+        validated_packet: dict[str, Any] = validate_experiment_packet(packet)
+        return validated_packet
+    except ValueError as exc:
+        raise ExperimentPromotionError(str(exc)) from exc
+
+
+def _creative_research_origin_for_promotion(packet: dict[str, Any]) -> dict[str, str] | None:
+    try:
+        validated_origin: dict[str, str] | None = validate_creative_research_origin(
+            packet.get("creative_research_origin")
+        )
+        return validated_origin
+    except ValueError as exc:
+        raise ExperimentPromotionError(str(exc)) from exc
 
 
 def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
@@ -157,7 +177,19 @@ def _evidence_lines(result: dict[str, Any]) -> list[str]:
     return oracle_lines
 
 
+def _creative_research_origin_markdown(origin: dict[str, str] | None) -> str:
+    if origin is None:
+        return ""
+    return (
+        "\n## Creative Research Origin\n\n"
+        f"- Bundle ID: `{origin['bundle_id']}`\n"
+        f"- Candidate ID: `{origin['candidate_id']}`\n"
+        f"- Promotion decision: `{origin['promotion_decision']}`\n"
+    )
+
+
 def _base_markdown(packet: dict[str, Any], result: dict[str, Any], disposition: str) -> str:
+    origin = _creative_research_origin_for_promotion(packet)
     mutated = (
         "\n".join(f"- `{path}`" for path in result["mutated_paths"])
         if result["mutated_paths"]
@@ -176,6 +208,7 @@ def _base_markdown(packet: dict[str, Any], result: dict[str, Any], disposition: 
         f"- Disposition: `{disposition}`\n"
         f"- Result status: `{result['status']}`\n"
         f"- Failure class: `{failure_class}`\n\n"
+        f"{_creative_research_origin_markdown(origin)}"
         "## Mutable Surface\n\n"
         f"{mutated}\n\n"
         "## Immutable Oracles\n\n"
@@ -241,6 +274,15 @@ def _insert_once(path: Path, marker: str, block: str) -> None:
 def _render_backlog_entry(packet: dict[str, Any], result: dict[str, Any], disposition: str) -> str:
     experiment_slug = packet["experiment_id"].replace("_", "-")
     failure_class = result["failure_class"] if result["failure_class"] is not None else "none"
+    origin = _creative_research_origin_for_promotion(packet)
+    origin_lines = ""
+    if origin is not None:
+        origin_lines = (
+            "  - Creative research origin:\n"
+            f"    - Bundle ID: `{origin['bundle_id']}`\n"
+            f"    - Candidate ID: `{origin['candidate_id']}`\n"
+            f"    - Promotion decision: `{origin['promotion_decision']}`\n"
+        )
     return (
         f'<a id="ledger-{experiment_slug}"></a>\n'
         f"- [ ] P1: Experiment follow-up for {packet['experiment_id']}\n"
@@ -251,6 +293,7 @@ def _render_backlog_entry(packet: dict[str, Any], result: dict[str, Any], dispos
         f"  - Status: {'Deferred' if disposition == 'deferred' else 'Planned'}\n"
         f"  - Reason (EN): Experiment `{packet['experiment_id']}` ended with status `{result['status']}` "
         f"and failure class `{failure_class}`; follow-up is tracked via KPP-only promotion.\n"
+        f"{origin_lines}"
         "  - Links:\n"
         f"    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`\n"
         f"    - `docs/memory/kpp_knowledge_promotion_pipeline.md`\n"
@@ -309,12 +352,14 @@ def _write_durable_artifacts(
 
 
 def build_promotion_decision(packet: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    packet = _promotion_packet(packet)
     _require_matching_experiment(packet, result)
+    creative_research_origin = _creative_research_origin_for_promotion(packet)
     disposition = _result_policy(packet, result)
     if disposition not in RESULT_PROMOTION_STATUSES:
         raise ExperimentPromotionError(f"Unsupported disposition: {disposition}")
     durable_artifact_path = _write_durable_artifacts(packet, result, disposition)
-    return {
+    decision = {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": packet["experiment_id"],
         "result_status": result["status"],
@@ -330,6 +375,9 @@ def build_promotion_decision(packet: dict[str, Any], result: dict[str, Any]) -> 
             "oracle_count": len(result["oracle_results"]),
         },
     }
+    if creative_research_origin is not None:
+        decision["creative_research_origin"] = creative_research_origin
+    return decision
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -357,9 +405,7 @@ def main(argv: list[str] | None = None) -> int:
     result_path = Path(args.result).expanduser().resolve()
 
     try:
-        packet = validate_experiment_packet(
-            _read_json_object(packet_path, label="experiment packet")
-        )
+        packet = _promotion_packet(_read_json_object(packet_path, label="experiment packet"))
         result = validate_experiment_result(
             _read_json_object(result_path, label="experiment result")
         )

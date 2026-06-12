@@ -28,21 +28,23 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Semantic cache cost provenance and context-economy PR train
   - Owner: @katsiaryna_kavaleuskaya (AI runtime / orchestration governance)
   - Priority: P1
-  - Target PR: PR-O1 `codex/semantic-cache-cost-provenance-o1`; PR-O2..PR-O7 TBD
-  - Status: PR-O1 active; later runtime-serving work deferred behind separate gate-open PRs
+  - Target PR: PR-O1 merged baseline; PR-O2 merged baseline; PR-O3 merged baseline; current slice PR-O4 `codex/embedding-retrieval-admission-o4`; PR-O5+ deferred behind separate reviewed gates
+  - Status: PR-O1 merged as metadata-only cost provenance baseline; PR-O2 merged as deterministic orchestration context compression baseline; PR-O3 merged as provider/model-tier routing policy telemetry; PR-O4 active for gate-closed embedding/retrieval admission telemetry; later runtime-serving work deferred behind separate gate-open PRs
   - Area: AI runtime governance / orchestration cost / semantic-cache scaffold
-  - Reason (EN): Expensive GPT-5.5/Codex orchestration currently repeats prompt modules, context, and merge-readiness documentation work without a deterministic way to attribute safe reusable context or estimate saved tokens. PR-O1 creates metadata-only provenance, prompt-module fingerprints, and token/cost estimate scaffolding so later compression work can be measured without opening semantic-cache serving or provider integration.
-  - Links: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md`, `core/evidence/fingerprints.py`, `core/ai/prompt_modules.py`, `core/ai/cache_observability.py`
+  - Reason (EN): Expensive GPT-5.5/Codex orchestration currently repeats prompt modules, context, and merge-readiness documentation work without a deterministic way to attribute safe reusable context, estimate saved tokens, label future provider/model-tier policy choices, or pre-classify future embedding/retrieval admission evidence without weakening review quality. PR-O1 created metadata-only provenance, prompt-module fingerprints, and token/cost estimate scaffolding; PR-O2 added deterministic graph/context-pack compression metadata so repeated orchestration context can be measured and de-duplicated without opening semantic-cache serving or provider integration; PR-O3 added metadata-only provider/model-tier routing telemetry with final review and synthesis still `frontier_required`; PR-O4 adds gate-closed embedding/retrieval admission telemetry with all runtime/provider/cache/serving authority flags false.
+  - Links: `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_COST_PROVENANCE_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.md`, `docs/orchestration/contracts/SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md`, `core/evidence/fingerprints.py`, `core/ai/prompt_modules.py`, `core/ai/cache_observability.py`, `scripts/orchestration/context_pack_compression.py`, `scripts/orchestration/provider_model_tier_policy.py`, `scripts/orchestration/embedding_retrieval_admission_telemetry.py`
   - PR train:
     - PR-O1: deterministic provenance envelope, prompt-module fingerprint registry, and token/cost telemetry scaffold; metadata-only and non-serving.
-    - PR-O2: graph/context-pack compression for repeated orchestration and merge-readiness context; no runtime serving unless a separate gate opens.
-    - PR-O3..PR-O7: provider routing, cache admission, replay, observability, and serving candidates remain TBD and require dedicated reviewed gates.
-  - Deferred review follow-up: after PR-O1 stabilizes, evaluate whether safe-label,
-    metadata-safety, and fingerprint validation helpers should be centralized as
-    part of PR-O2 context-compression cleanup; do not widen PR-O1 into shared
-    helper extraction.
-  - Out of scope: semantic-cache reads/writes, Redis, GPTCache, GraphRAG runtime, embeddings/vector search, Ollama or Perplexity/Sonar API wiring, OpenAPI, DB, frontend, iOS, entitlement/billing truth, raw prompts, raw responses, raw queries, raw context snippets, provider payloads, and live cost-savings claims.
-  - DoD: PR-O1 keeps markers `closed / false / false / true`; stores only safe fingerprints, IDs, counts, estimates, and labels; separates token estimates from cost estimates; rejects raw payloads/secrets/local paths; passes focused contract tests plus semantic-cache gate checks; documents that first visible savings work begins no earlier than PR-O2.
+    - PR-O2: graph/context-pack compression for repeated orchestration and merge-readiness context; metadata-only, advisory, and non-serving.
+    - PR-O3: provider/model-tier routing policy telemetry for orchestration cost decisions; metadata-only, label-only, selected route fixed to `no_runtime_selection`, and final review/synthesis preserved as `frontier_required`.
+    - PR-O4: gate-closed embedding/retrieval admission telemetry scaffold; metadata-only, selected embedding backend fixed to `none`, selected retrieval runtime fixed to `none`, and all admission/runtime/provider/cache/serving authority flags false.
+    - PR-O5+: replay, observability, runtime admission, and serving candidates remain deferred and require dedicated reviewed gates.
+  - Deferred review follow-up: after PR-O3 stabilizes, evaluate whether safe-label,
+    metadata-safety, and fingerprint validation helpers should be centralized in a
+    shared orchestration utility; do not widen PR-O2 into unrelated shared helper
+    extraction.
+  - Out of scope: semantic-cache reads/writes, Redis, GPTCache, GraphRAG runtime, embeddings/vector search, Ollama or Perplexity/Sonar API wiring, provider clients/calls, runtime model/provider selection, OpenAPI, DB, frontend, iOS, entitlement/billing truth, provider-specific pricing truth, raw prompts, raw responses, raw queries, raw context snippets, provider payloads, and live cost-savings claims.
+  - DoD: PR-O4 keeps markers `closed / false / false / true`; stores only safe fingerprints, IDs, counts, estimates, labels, graph nodes/edges, selected refs, omitted duplicate refs, provider/model-tier labels, embedding/retrieval admission labels, reason codes, and token-economy estimate references; fixes selected route to `no_runtime_selection`, selected embedding backend to `none`, and selected retrieval runtime to `none`; preserves final reasoning/review/synthesis as `frontier_required`; separates token estimates from runtime cost claims and provider pricing; rejects raw and provider payloads, embedding vectors, retrieval queries, similarity scores, secrets, and local paths; passes focused contract tests plus semantic-cache gate checks; documents that runtime serving and provider wiring remain no earlier than separately gated PR-O5+ work.
 
 <a id="ledger-p1-pr-size-governance-trusted-base-execution"></a>
 - [ ] P1: PR size governance trusted-base execution switch
@@ -692,6 +694,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove `88739` from `safety-policy.yaml`
     - Locked install + Docker production target succeed against the private index; `make verify` green
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
+
+<a id="ledger-p1-pytorch-jit-cve-2025-3000-vector-profile"></a>
+- [ ] P1: Retire PyTorch TorchScript CVE-2025-3000 Safety waiver for optional vector profile
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / optional RAG-vector profile)
+  - Target PR: TBD (land by 2026-07-11 or earlier if fixed torch builds are available)
+  - Area: security / CI / dependencies / RAG-vector
+  - Reason (EN): PR #1925 current-head CI started failing Safety on
+    `SFTY-20250331-30014` / `CVE-2025-3000` for `torch==2.11.0` and
+    `torch==2.11.0+cpu` in optional RAG/vector manifests. Safety 3.8.1 reports
+    no fixed version for the advisory, while default production and Docker
+    runtime manifests pass Safety without torch. The waiver is scoped to the
+    optional vector profile and must be retired when a fixed build, upstream
+    advisory correction, or vector-profile replacement is available.
+  - Links:
+    - `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md:1`
+    - `safety-policy.yaml:18`
+    - `requirements-rag-vector.txt:162`
+    - `requirements-rag-vector-cpu.txt:119`
+  - DoD:
+    - Re-check Safety, OSV, GitHub Advisory Database, and PyTorch upstream for
+      fixed-version truth before changing pins.
+    - If fixed torch builds exist and the approved index serves them, bump
+      `requirements-rag-vector.txt` and `requirements-rag-vector-cpu.txt`.
+    - If no fixed build exists, replace or disable the TorchScript-dependent
+      optional vector capability, or extend the waiver with fresh evidence and a
+      new remove-by date.
+    - Remove `SFTY-20250331-30014` from `safety-policy.yaml` and close this
+      ledger item in the same PR.
 
 <a id="ledger-p1-cryptography-private-index-sync"></a>
 - [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync

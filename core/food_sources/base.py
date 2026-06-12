@@ -8,7 +8,9 @@ EN: Base adapter interface.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Mapping
+
+_NULL_METADATA_MARKERS = {"none", "null", "nan"}
 
 
 @dataclass
@@ -38,6 +40,50 @@ class FoodRecord:
     price: float  # price per 100g
     source: str  # data source
     version_date: str  # ISO date
+    brand: str | None = None  # product brand
+    gtin: str | None = None  # GTIN/barcode
+    fdc_id: str | None = None  # USDA FoodData Central ID
+
+
+def normalize_optional_metadata(value: object) -> str | None:
+    """Return stripped metadata text or None for blank/null CSV markers."""
+
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw or raw.lower() in _NULL_METADATA_MARKERS:
+        return None
+    return raw
+
+
+def normalize_optional_gtin(value: object) -> str | None:
+    """Return digit-only GTIN text while preserving leading zeroes."""
+
+    raw = normalize_optional_metadata(value)
+    if raw is None:
+        return None
+    digits = "".join(ch for ch in raw if ch in "0123456789")
+    return digits or None
+
+
+def first_metadata_value(row: Mapping[str, object], keys: tuple[str, ...]) -> str | None:
+    """Return the first present metadata value across candidate source fields."""
+
+    for key in keys:
+        value = normalize_optional_metadata(row.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def first_gtin_value(row: Mapping[str, object], keys: tuple[str, ...]) -> str | None:
+    """Return the first present GTIN value across candidate source fields."""
+
+    for key in keys:
+        value = normalize_optional_gtin(row.get(key))
+        if value is not None:
+            return value
+    return None
 
 
 class BaseAdapter:
