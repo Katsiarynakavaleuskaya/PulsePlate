@@ -238,8 +238,7 @@ def _repo_evidence_relative_path(anchor: str, repo_root: Path) -> Path | None:
         return None
 
 
-def _repo_evidence_anchor_has_allowed_root(anchor: str, repo_root: Path) -> bool:
-    relative_path = _repo_evidence_relative_path(anchor, repo_root)
+def _repo_evidence_path_has_allowed_root(relative_path: Path | None) -> bool:
     return (
         relative_path is not None
         and bool(relative_path.parts)
@@ -247,10 +246,10 @@ def _repo_evidence_anchor_has_allowed_root(anchor: str, repo_root: Path) -> bool
     )
 
 
-def _repo_evidence_file_exists(anchor: str, repo_root: Path) -> bool:
-    path_text = anchor.split(":", 1)[0]
-    path = repo_root / path_text
-    return _repo_evidence_relative_path(anchor, repo_root) is not None and path.is_file()
+def _repo_evidence_file_exists(relative_path: Path | None, repo_root: Path) -> bool:
+    if relative_path is None:
+        return False
+    return (repo_root / relative_path).is_file()
 
 
 def _validate_record(
@@ -337,13 +336,14 @@ def _validate_record(
         return
     for anchor in anchors:
         normalized = _normalize_authority(anchor)
+        relative_path = _repo_evidence_relative_path(anchor, repo_root)
         if any(tool in normalized for tool in REFERENCE_TOOLS):
             errors.append(
                 f"{prefix}.evidence_anchors: reference-tool evidence is not canonical: {anchor!r}"
             )
-        if not _repo_evidence_anchor_has_allowed_root(anchor, repo_root):
+        if not _repo_evidence_path_has_allowed_root(relative_path):
             errors.append(f"{prefix}.evidence_anchors: expected repo evidence anchor: {anchor!r}")
-        elif not _repo_evidence_file_exists(anchor, repo_root):
+        elif not _repo_evidence_file_exists(relative_path, repo_root):
             errors.append(
                 f"{prefix}.evidence_anchors: repo evidence file does not exist: {anchor!r}"
             )

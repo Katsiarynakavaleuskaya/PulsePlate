@@ -269,18 +269,45 @@ def test_inventory_rejects_reference_tool_evidence_as_canonical_proof(tmp_path: 
     assert any("repo evidence anchor" in error for error in errors)
 
 
-def test_inventory_rejects_traversal_out_of_allowed_evidence_roots(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("anchor", "existing_path"),
+    [
+        ("docs/../app/main.py", "app/main.py"),
+        ("../app/main.py", "app/main.py"),
+        ("docs/foo/../../app/main.py", "app/main.py"),
+        ("docs/../app/main.py:123", "app/main.py"),
+        ("docs/foo/../bar.md", "docs/bar.md"),
+    ],
+)
+def test_inventory_rejects_traversal_out_of_allowed_evidence_roots(
+    tmp_path: Path, anchor: str, existing_path: str
+) -> None:
     inventory = _load_inventory()
     inv_path = _write_repo_inputs(tmp_path, inventory)
-    escaped_path = tmp_path / "app/main.py"
+    escaped_path = tmp_path / existing_path
     escaped_path.parent.mkdir(parents=True, exist_ok=True)
     escaped_path.touch()
-    inventory["records"][0]["evidence_anchors"] = ["docs/../app/main.py"]
+    inventory["records"][0]["evidence_anchors"] = [anchor]
     inv_path.write_text(json.dumps(inventory), encoding="utf-8")
 
     errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
 
     assert any("repo evidence anchor" in error for error in errors)
+
+
+def test_inventory_rejects_absolute_repo_evidence_anchor(tmp_path: Path) -> None:
+    inventory = _load_inventory()
+    inv_path = _write_repo_inputs(tmp_path, inventory)
+    absolute_path = (
+        tmp_path / "docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json"
+    )
+    inventory["records"][0]["evidence_anchors"] = [str(absolute_path)]
+    inv_path.write_text(json.dumps(inventory), encoding="utf-8")
+
+    errors = inventory_module.validate_inventory(inv_path, repo_root=tmp_path)
+
+    assert any("repo evidence anchor" in error for error in errors)
+
 
 def test_inventory_rejects_nonexistent_repo_evidence_anchor(tmp_path: Path) -> None:
     inventory = _load_inventory()
