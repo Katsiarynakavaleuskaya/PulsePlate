@@ -14,7 +14,7 @@ finding without weakening fail-closed Trivy scan behavior.
 - Branch: `codex/stabilize-main-trivy-perl-base-cve-2026-48959`
 - PR phase: `post_open_review`
 - Implementation commit: `1d47d65c7aecba1700fa341b0b60fee30b3500a0`
-- Sourcery doc-clarity fix commit: `1a37e7820eab7baedfb94bf4a3f9fec4c21e937c`
+- Sourcery doc-clarity fix commit: `1a37e7820a3764d3e11e383f5600841ed324ae78`
 - Packet: `artifacts/orchestration/task_packets/7d26be3d0cc9.json`
 - Pre-open packet: `artifacts/orchestration/task_packets/6338fa0a7e51.json`
 - Post-open packet: `artifacts/orchestration/task_packets/7d26be3d0cc9.json`
@@ -31,15 +31,15 @@ finding without weakening fail-closed Trivy scan behavior.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#discussion_r3405939500 -> 1a37e7820eab7baedfb94bf4a3f9fec4c21e937c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#discussion_r3405939500 -> 1a37e7820a3764d3e11e383f5600841ed324ae78
 Disposition: FIXED
-Commit: 1a37e7820eab7baedfb94bf4a3f9fec4c21e937c
+Commit: 1a37e7820a3764d3e11e383f5600841ed324ae78
 Evidence: `docs/security/CVE-2026-48959-perl-base.md:31` replaces the ambiguous `lane` wording with `finding` for the blank fixed-version disposition.
 Reason: Sourcery flagged the wording as a typo; the committed doc text now uses the reviewed finding terminology.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#pullrequestreview-4488809272 -> 1a37e7820eab7baedfb94bf4a3f9fec4c21e937c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1968#pullrequestreview-4488809272 -> 1a37e7820a3764d3e11e383f5600841ed324ae78
 Disposition: FIXED
-Commit: 1a37e7820eab7baedfb94bf4a3f9fec4c21e937c
+Commit: 1a37e7820a3764d3e11e383f5600841ed324ae78
 Evidence: `docs/security/CVE-2026-48959-perl-base.md:63` names `trivy/ignore-policy.rego`; `docs/security/CVE-2026-48959-perl-base.md:64` documents the generated `.trivy-ignore-policy.rego` path used by `.github/workflows/build.yml:441`.
 Reason: Sourcery flagged a policy-path ambiguity; the committed doc text now separates source policy path from the workflow-generated Trivy path.
 
@@ -122,7 +122,7 @@ OUT:
 - PASS: `pre-commit run --all-files`
 - PASS: commit hooks and pre-push hooks with repo-approved `VENV_PYTHON`.
 - PASS: Sourcery doc-clarity focused rerun after commit
-  `1a37e7820eab7baedfb94bf4a3f9fec4c21e937c`:
+  `1a37e7820a3764d3e11e383f5600841ed324ae78`:
   `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`,
   `python -m pytest -q tests/test_trivy_ignore_policy_expiry.py`
   (`12 passed`), `python scripts/ci/check_docs_phase1_gates.py --files
