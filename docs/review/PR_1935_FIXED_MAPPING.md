@@ -17,6 +17,7 @@ provenance/SBOM attestations.
 - PR phase: `post_open_review`
 - Worktree: `/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr-1935`
 - Current implementation fix commit: `256f2584c7b6fad7141ececdb12dcb02b5807c8b`
+- Packet: `artifacts/orchestration/task_packets/1020d9be96b8.json`
 - Bootstrap packets: `artifacts/orchestration/task_packets/fc4793de310d.json`,
   `artifacts/orchestration/task_packets/cd3a609da9dd.json`,
   `artifacts/orchestration/task_packets/1020d9be96b8.json`
