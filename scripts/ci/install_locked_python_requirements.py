@@ -1714,6 +1714,14 @@ def install_with_guard_from_proxy(
             emergency_wheel_manifest=emergency_wheel_manifest,
             allow_pip_download_cache=docker_pip_layer_cache_enabled(),
         )
+        failure_lines = collect_startup_hook_failure_lines(
+            guard_script=guard_script,
+            python_executable=python_executable,
+        )
+        if failure_lines:
+            for line in failure_lines:
+                print(line)
+            return 1
         return 0
 
 

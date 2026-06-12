@@ -111,6 +111,13 @@ FORBIDDEN_AUTONOMOUS_MUTATION_EXACT_PATHS: frozenset[str] = frozenset(
 )
 FORBIDDEN_AUTONOMOUS_MUTATION_FILENAMES: frozenset[str] = frozenset({"AGENTS.md"})
 EXPERIMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+CREATIVE_RESEARCH_ORIGIN_KEYS = frozenset({"bundle_id", "candidate_id", "promotion_decision"})
+CREATIVE_RESEARCH_PROMOTION_DECISIONS: tuple[str, ...] = (
+    "promote",
+    "defer",
+    "discard",
+)
+CREATIVE_RESEARCH_ORIGIN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 CV_EXPERIMENT_HINTS: tuple[str, ...] = (
     "cv",
     "image",
@@ -414,6 +421,43 @@ def validate_experiment_id(value: Any, *, label: str) -> str:
     return experiment_id
 
 
+def validate_creative_research_origin(raw_origin: Any) -> dict[str, str] | None:
+    """Validate optional passive creative-research origin metadata."""
+
+    if raw_origin is None:
+        return None
+    if not isinstance(raw_origin, dict):
+        raise ValueError("creative_research_origin must be a JSON object.")
+    if set(raw_origin) != CREATIVE_RESEARCH_ORIGIN_KEYS:
+        raise ValueError("creative_research_origin has unsupported fields.")
+
+    normalized: dict[str, str] = {}
+    for field in ("bundle_id", "candidate_id"):
+        value = raw_origin.get(field)
+        if not isinstance(value, str):
+            raise ValueError(f"creative_research_origin.{field} must be a string.")
+        normalized_value = value.strip()
+        if not normalized_value:
+            raise ValueError(f"creative_research_origin.{field} must be non-empty.")
+        if not CREATIVE_RESEARCH_ORIGIN_ID_RE.fullmatch(normalized_value):
+            raise ValueError(f"creative_research_origin.{field} must be a safe local identifier.")
+        normalized[field] = normalized_value
+
+    decision = raw_origin.get("promotion_decision")
+    if not isinstance(decision, str):
+        raise ValueError("creative_research_origin.promotion_decision must be a string.")
+    normalized_decision = decision.strip().lower()
+    if not normalized_decision:
+        raise ValueError("creative_research_origin.promotion_decision must be non-empty.")
+    if normalized_decision not in CREATIVE_RESEARCH_PROMOTION_DECISIONS:
+        raise ValueError(
+            "creative_research_origin.promotion_decision must be one of: "
+            + ", ".join(CREATIVE_RESEARCH_PROMOTION_DECISIONS)
+        )
+    normalized["promotion_decision"] = normalized_decision
+    return normalized
+
+
 def is_cv_experiment(*parts: Any) -> bool:
     """Return whether the experiment intent is CV-oriented and needs cv_context."""
 
@@ -662,6 +706,9 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
         cv_context = None
     else:
         cv_context = validate_cv_context(cv_context_raw)
+    creative_research_origin = validate_creative_research_origin(
+        packet.get("creative_research_origin")
+    )
 
     normalized = dict(packet)
     normalized["schema_version"] = schema_version
@@ -680,6 +727,10 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     normalized["promotion_target"] = promotion_target
     if cv_context is not None:
         normalized["cv_context"] = cv_context
+    if creative_research_origin is not None:
+        normalized["creative_research_origin"] = creative_research_origin
+    else:
+        normalized.pop("creative_research_origin", None)
     return normalized
 
 

@@ -316,7 +316,7 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
         if step.get("name") == "Install security tooling"
     )
     install_script = install_step["run"]
-    assert '"bandit==1.8.6"' in install_script
+    assert "bandit==" not in install_script
     assert '"safety>=3.7.0"' in install_script
     assert 'python -m pip install "${pip_index_args[@]}"' in install_script
     assert "-c constraints.txt" in install_script
