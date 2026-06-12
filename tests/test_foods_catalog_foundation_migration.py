@@ -268,9 +268,7 @@ class _FakeMigrationOp:
         self._state["tables"].add(table_name)
         self._state["indexes"].setdefault(table_name, set())
         self._state.setdefault("columns", {})[table_name] = {
-            str(getattr(arg, "name"))
-            for arg in args
-            if getattr(arg, "name", None) is not None
+            str(getattr(arg, "name")) for arg in args if getattr(arg, "name", None) is not None
         }
 
     def create_index(
@@ -576,6 +574,7 @@ def test_foods_catalog_foundation_rejects_incompatible_preexisting_menu_schema(
     assert "foods" not in tables_after_failed_upgrade
     assert OWNERSHIP_REGISTRY_TABLE not in tables_after_failed_upgrade
     assert menu_indexes_after_failed_upgrade == set()
+
 
 def test_foods_catalog_foundation_preserves_preexisting_foods_table_on_downgrade(
     tmp_path: Path,
