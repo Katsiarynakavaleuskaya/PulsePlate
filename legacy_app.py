@@ -39,8 +39,6 @@ from pydantic import (
     ValidationError,
     model_validator,
 )
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 from starlette import status as fastapi_status
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
@@ -124,7 +122,7 @@ from app.scheduler_helpers import (
     execute_async_starter,
     safe_stop_with_cleanup,
 )
-from app.utils.helpers import _resolve_app_callable, _short_git_sha
+from app.utils.helpers import _resolve_app_callable, _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
 from app.middleware.api_tiers import derive_subject_id_from_api_key, require_vip_tier
 from app.security.llm_monthly_quota import (
@@ -1132,59 +1130,6 @@ async def log_requests(request: Request, call_next: CallNextHandler) -> Response
     return response
 
 
-@app.get("/health/db")
-async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
-    """RU: Мини-проверка подключения к базе данных.
-
-    EN: Lightweight database connectivity check.
-    """
-
-    try:
-        import core.db_fallback as _fallback_mod
-
-        if _fallback_mod.is_fallback_active() or os.getenv("DB_HEALTH_DEGRADED") == "1":
-            raise HTTPException(status_code=503, detail="Database unavailable")
-
-        exec_fn = getattr(session, "execute", None)
-        if exec_fn is None or not callable(exec_fn):
-            raise HTTPException(status_code=503, detail="Database unavailable")
-        if getattr(session, "bind", None) is None:
-            raise HTTPException(status_code=503, detail="Database unavailable")
-        await run_in_threadpool(session.execute, text("SELECT 1"))
-    except Exception as exc:  # pragma: no cover - defensive path hit via tests
-        logger.error("Database health check failed: %s", exc)
-        raise HTTPException(status_code=503, detail="Database unavailable") from exc
-    return {"status": "ok"}
-
-
-@app.get("/ready", include_in_schema=False)
-async def ready(session: Session = Depends(get_session)) -> Dict[str, object]:
-    """RU: Readiness probe (alias для /health/db).
-
-    EN: Readiness probe for orchestrators (alias for /health/db).
-
-    Returns 200 if DB is available, 503 otherwise.
-    Use this for Kubernetes/Docker readiness checks.
-    Hidden from OpenAPI — semantics live in /health/db.
-    """
-    readiness_payload = await database_health(session=session)
-    insight_runtime: dict[str, object] = {"status": "unavailable"}
-
-    try:
-        # RU: Добавляем только безопасную runtime-видимость для insight без секретов.
-        # EN: Add only safe insight runtime visibility without leaking secrets.
-        from llm import get_insight_runtime_readiness
-
-        insight_runtime = get_insight_runtime_readiness()
-    except Exception as exc:
-        logger.warning("Insight runtime readiness unavailable on /ready: %s", exc)
-
-    return {
-        **readiness_payload,
-        "insight_runtime": insight_runtime,
-    }
-
-
 # ---------- Helpers ----------
 
 
@@ -1499,40 +1444,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)
-
-
-@app.get("/health")
-async def health() -> Dict[str, Any]:
-    """Health check endpoint with version info for debugging.
-
-    Returns server status, version, and timestamp for iOS debugging.
-    Helps diagnose "Connection refused" errors (backend offline).
-    """
-    import datetime
-
-    # RU: Окружение должно приходить из env. В проде ставим production по умолчанию.
-    # EN: Environment must come from env vars. Default to production in prod.
-    environment = get_runtime_env_name()
-
-    # Get git SHA if available (for version tracking)
-    git_sha = _short_git_sha(os.getenv("GIT_SHA"))
-
-    return {
-        "status": "ok",
-        "version": "1.0.0",  # TODO: Read from pyproject.toml
-        "git_sha": git_sha,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "environment": environment,
-    }
-
-
-@app.get("/api/v1/health")
-async def health_v1() -> Dict[str, Any]:
-    """Health check endpoint (v1 alias) with version info for debugging.
-
-    Returns the same extended payload as /health for consistency.
-    """
-    return await health()
 
 
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])

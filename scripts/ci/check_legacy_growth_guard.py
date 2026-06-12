@@ -88,11 +88,7 @@ SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
 ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
     {
         LegacyFact("decorator", "get", "/api/v1/admin/status", "admin_status"),
-        LegacyFact("decorator", "get", "/health/db", "database_health"),
-        LegacyFact("decorator", "get", "/ready", "ready"),
         LegacyFact("decorator", "get", "/favicon.ico", "favicon"),
-        LegacyFact("decorator", "get", "/health", "health"),
-        LegacyFact("decorator", "get", "/api/v1/health", "health_v1"),
         LegacyFact("decorator", "middleware", "http", "csp_nonce_middleware"),
         LegacyFact("decorator", "middleware", "http", "log_requests"),
         LegacyFact("decorator", "post", "/admin/logs/cleanup", "cleanup_expired_logs"),
