@@ -17,6 +17,16 @@ Disposition: FIXED
 Commit: 057a61f36e7032b6247aaded07d13f50ac56d0e6
 Evidence: `tests/guards/test_subprocess_uses_absolute_binaries.py:63`, `tests/guards/test_subprocess_uses_absolute_binaries.py:194`, `tests/guards/test_subprocess_uses_absolute_binaries.py:322`, `tests/guards/test_subprocess_uses_absolute_binaries.py:924`
 Reason: Sourcery requested deduplicating reachable-assignment scanning and documenting the branch-dependent alias boundary. Commit `057a61f36e7032b6247aaded07d13f50ac56d0e6` adds one shared resolver helper, documents newest-to-oldest assignment ordering, documents cycle bounding plus unconditional safe-overwrite stop behavior, and preserves the alias-cycle regression tests plus safe-overwrite controls.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1956#pullrequestreview-4482849808 -> bfb2f9a9336331ff0907abd7032ed6c45fb84cea
+Disposition: FIXED
+Commit: bfb2f9a9336331ff0907abd7032ed6c45fb84cea
+Evidence: `docs/review/PR_1956_FIXED_MAPPING.md:7`
+Reason: CodeRabbit requested a formal unchecked `Merge-Readiness Checklist` before the fixed mapping section. Commit `bfb2f9a9336331ff0907abd7032ed6c45fb84cea` adds that section with unchecked final-merge gates.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1956#discussion_r3400990320 -> bfb2f9a9336331ff0907abd7032ed6c45fb84cea
+Disposition: FIXED
+Commit: bfb2f9a9336331ff0907abd7032ed6c45fb84cea
+Evidence: `docs/review/PR_1956_FIXED_MAPPING.md:7`
+Reason: The inline CodeRabbit thread requested the same checklist addition; commit `bfb2f9a9336331ff0907abd7032ed6c45fb84cea` fixes it.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1956#issuecomment-4685200455
 Disposition: NOT-A-BUG
 Evidence: Codex connector reported review quota exhaustion only; no repo file, review thread, check failure, or actionable code change was requested.
