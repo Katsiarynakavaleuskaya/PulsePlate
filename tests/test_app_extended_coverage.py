@@ -753,6 +753,13 @@ class TestRestaurantShadowReadCoverageTail:
             monkeypatch
         )
 
+    def test_restaurant_postgres_menu_fetch_error_cache_drop_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_pg_tests.test_get_restaurant_menu_pg_drops_cached_runtime_on_fetch_error(
+            monkeypatch
+        )
+
     def test_restaurant_postgres_search_cache_reuse_tail(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -830,6 +837,39 @@ class TestRestaurantShadowReadCoverageTail:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         restaurant_router_tests.test_shadow_wrapper_fails_open_when_postgres_menu_errors(
+            monkeypatch, caplog
+        )
+
+    def test_restaurant_router_shadow_success_preserves_newer_circuit_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_read_success_does_not_close_newer_failure_circuit(
+            monkeypatch
+        )
+
+    def test_restaurant_router_shadow_success_closes_older_circuit_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_read_success_closes_older_failure_circuit(monkeypatch)
+
+    def test_restaurant_router_shadow_failure_keeps_longer_circuit_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_read_failure_does_not_shorten_newer_circuit(monkeypatch)
+
+    def test_restaurant_router_shadow_menu_circuit_skip_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_skips_postgres_menu_when_circuit_open(
+            monkeypatch
+        )
+
+    def test_restaurant_router_shadow_search_circuit_skip_tail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_opens_circuit_after_search_failure(
             monkeypatch, caplog
         )
 

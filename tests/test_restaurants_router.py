@@ -537,6 +537,20 @@ def test_shadow_read_success_does_not_close_newer_failure_circuit(
     assert restaurants._shadow_read_circuit_is_open(operation, pg_url) is False
 
 
+def test_shadow_read_success_closes_older_failure_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operation = "get_restaurant_menu"
+    pg_url = "postgresql://shadow"
+    now = {"value": 111.0}
+    monkeypatch.setattr(restaurants.time, "monotonic", lambda: now["value"])
+
+    restaurants._record_shadow_read_failure(operation, pg_url, started_at=100.0)
+    restaurants._record_shadow_read_success(operation, pg_url, started_at=131.0)
+
+    assert restaurants._shadow_read_circuit_is_open(operation, pg_url) is False
+
+
 def test_shadow_read_failure_does_not_shorten_newer_circuit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -552,6 +566,33 @@ def test_shadow_read_failure_does_not_shorten_newer_circuit(
 
     now["value"] = 151.0
     assert restaurants._shadow_read_circuit_is_open(operation, pg_url) is False
+
+
+def test_shadow_wrapper_skips_postgres_menu_when_circuit_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wrapper = restaurants._RestaurantStoreShadowCompat()
+    monkeypatch.setenv(restaurants.FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "true")
+    monkeypatch.delenv(restaurants.RESTAURANT_POSTGRES_SHADOW_READS_URL, raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://shadow")
+    monkeypatch.setattr(
+        restaurants.restaurant_store,
+        "get_restaurant_menu",
+        lambda **_: [{"id": "m1", "chain_id": "c1", "item_name": "Protein Bowl"}],
+    )
+    monkeypatch.setattr(
+        restaurants.restaurant_postgres_read,
+        "get_restaurant_menu_pg",
+        lambda **_: (_ for _ in ()).throw(AssertionError("open circuit should skip menu")),
+    )
+    restaurants._record_shadow_read_failure(
+        "get_restaurant_menu",
+        "postgresql://shadow",
+    )
+
+    rows = wrapper.get_restaurant_menu("c1", 10)
+
+    assert list(rows)[0]["id"] == "m1"
 
 
 def test_shadow_wrapper_menu_skips_when_flag_off(monkeypatch: pytest.MonkeyPatch) -> None:

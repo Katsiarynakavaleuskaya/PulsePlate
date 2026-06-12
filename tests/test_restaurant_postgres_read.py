@@ -296,6 +296,36 @@ def test_get_restaurant_menu_pg_builds_reflects_and_keeps_engine_cached(
     assert fake_engine.disposed is False
 
 
+def test_get_restaurant_menu_pg_drops_cached_runtime_on_fetch_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_connection = _RecordingConnection([])
+    fake_engine = _FakeEngine(fake_connection)
+    build_calls: list[str] = []
+
+    def _build(pg_url: str) -> _FakeEngine:
+        build_calls.append(pg_url)
+        return fake_engine
+
+    monkeypatch.setattr(restaurant_postgres_read, "_build_pg_engine", _build)
+    monkeypatch.setattr(restaurant_postgres_read, "_reflect_read_tables", lambda connection: None)
+    monkeypatch.setattr(
+        restaurant_postgres_read,
+        "_fetch_menu_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("menu fetch failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="menu fetch failed"):
+        restaurant_postgres_read.get_restaurant_menu_pg(
+            pg_url="postgresql://shadow",
+            chain_id="c1",
+            limit=25,
+        )
+
+    assert fake_engine.disposed is True
+    assert build_calls == ["postgresql://shadow"]
+
+
 def test_search_restaurants_pg_reuses_cached_engine_and_schema_validation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
