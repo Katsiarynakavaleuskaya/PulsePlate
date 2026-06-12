@@ -1147,9 +1147,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
     - `docs/security/TOOLING_SURFACE_POLICY.md`
   - DoD:
-    - `build.yml` and `cd.yml` pushed-image lanes use `provenance: mode=min` when private package-index inputs flow through BuildKit secret envs
+    - `build.yml` publish uses a scan-before-push lane: private package-index inputs stay in BuildKit secret envs, the loaded scan build keeps `provenance: false`, then the scanned tags are pushed and attested by exact digest
+    - `cd.yml` pushed-image BuildKit lanes use `provenance: mode=min` when private package-index inputs flow through BuildKit secret envs
     - pushed-image lanes emit SBOM attestations alongside provenance
-    - CD verifies provenance and SPDX SBOM attestations by exact pushed digest before any deploy step
+    - publish/CD verifies provenance and SPDX SBOM attestations by exact pushed digest before release-control-plane publication or deploy
     - `load: true` jobs remain on `provenance: false`
     - Follow-up docs and CI checks explicitly cover the restored path
 
@@ -1164,7 +1165,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
     - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
-  - Reason: Landed via `PR #1526` on 2026-04-25. Docker production image work is now functionally correct, and `PR #1526` removed the duplicate `target: production` PR rebuild pattern across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. The landed baseline consolidates PR-time runtime/telemetry/budget/OpenAPI smoke validation into `build.yml` and keeps `trivy.yml` as a scheduled/manual image-security lane, reducing CI cost and flake surface without changing the Docker base image, dependency profiles, provenance policy, or Dagger/control-plane posture. Baseline/governance closeout is the only remaining action in this PR.
+  - Reason: Landed via `PR #1526` on 2026-04-25. Docker production image work is now functionally correct, and `PR #1526` removed the duplicate `target: production` PR rebuild pattern across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. The landed baseline consolidates PR-time runtime/telemetry/budget/OpenAPI smoke validation into `build.yml` and keeps `trivy.yml` outside ordinary PR merge truth as an image-security lane; PR #1935 later promoted that lane to `main`/schedule/manual fail-closed scanning. Baseline/governance closeout is the only remaining action in this PR.
   - Links:
     - `docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md`
     - `.github/workflows/build.yml`
@@ -1173,7 +1174,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/ci/check_docker_image_budget.py`
   - DoD:
     - One canonical production-image build path owns telemetry, budget evidence, test/local validation, and GHCR publish semantics.
-    - Follow-on Docker smoke checks are folded into the produced local image validation path, while the image-security lane stays scheduled/manual instead of silently rebuilding divergent PR images.
+    - Follow-on Docker smoke checks are folded into the produced local image validation path, while the image-security lane stays outside PR-time merge truth as `main`/schedule/manual instead of silently rebuilding divergent PR images.
     - Existing artifact names and hard-budget/provenance evidence stay stable for reviewers and operators.
     - `slim-bookworm`, `.dockerignore`, non-root runtime, healthcheck, and current runtime requirements profile remain unchanged.
     - Dagger, Docker base-image changes, requirements-profile split, and SBOM/VEX maturity work remain out of scope.
@@ -4757,7 +4758,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Status: Materially completed on `origin/main` in PR `#1244` (`b7e029b4`); this slice now serves as landed baseline input for PR3.
-  - Reason: Backend/shared PR execution is now canonicalized in `ci.yml`; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` moved to a scheduled/manual audit lane, `trivy.yml` remains a scheduled/manual non-PR image-security lane, and `build.yml` remains specialized.
+  - Reason: Backend/shared PR execution is now canonicalized in `ci.yml`; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` moved to a scheduled/manual audit lane, `trivy.yml` remains a `main`/schedule/manual non-PR image-security lane, and `build.yml` remains specialized.
   - Links:
     - `.github/workflows/ci.yml`
     - Historical PR-lane duplicates removed in PR `#1244`: `pr-tests.yml`, `pr-coverage.yml`
@@ -4766,7 +4767,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Canonical backend/shared PR execution lives in `.github/workflows/ci.yml`
     - `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes
-    - `security.yml` and `trivy.yml` are removed from PR-time execution; both remain scheduled/manual outside canonical merge truth
+    - `security.yml` and `trivy.yml` are removed from PR-time execution; `security.yml` remains scheduled/manual and `trivy.yml` remains `main`/schedule/manual outside canonical merge truth
     - `build.yml`, frontend-only lanes, and nightly/release lanes stay isolated
     - Required-check parity is preserved on current-head PR checks
 

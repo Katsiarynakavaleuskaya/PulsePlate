@@ -379,13 +379,6 @@ jobs:
         run: |
           echo "image_name=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to GHCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0 / Node 24
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 / Node 24
@@ -400,8 +393,8 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
 
-      - name: Build and push Docker image
-        id: docker-build-push
+      - name: Build Docker image for publish scan
+        id: docker-build-scan
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         env:
           PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
@@ -415,19 +408,18 @@ jobs:
             pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST
           # Single-arch for cache/push stability (CodeRabbit discussion_r2869743452). Restore linux/arm64 when GHA cache/provenance is stable.
           platforms: linux/amd64
-          push: true
+          push: false
+          load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=build-production-${{ github.ref_name }}
           # mode=min to match build job and keep cache export/import fast (mode=max can hang 30+ min on export).
           # ignore-error=true prevents publish failure when cache exporter returns transient BlobNotFound.
           cache-to: type=gha,scope=build-production-${{ github.ref_name }},mode=min,ignore-error=true
-          # PR #1448: re-enable SLSA provenance attestations for GHCR publish.
-          # Keep scoped cache + mode=min + ignore-error=true to reduce export flakes.
-          # Avoid max-mode BuildKit invocation metadata because package-index inputs
-          # are passed through BuildKit secret envs.
-          provenance: mode=min
-          sbom: true
+          # The image is loaded locally so Trivy can fail closed before any GHCR write.
+          # GitHub-signed provenance/SBOM attestations are created after the scanned
+          # image is pushed and its registry digest is known.
+          provenance: false
           target: production
 
       - name: Set image ref for SBOM and image scan
@@ -470,6 +462,37 @@ jobs:
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
         with:
           sarif_file: 'trivy-image.sarif'
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0 / Node 24
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push scanned Docker image
+        id: docker-build-push
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            if [ -z "$tag" ]; then
+              continue
+            fi
+            docker image push "$tag"
+          done <<'TAGS'
+          ${{ steps.meta.outputs.tags }}
+          TAGS
+
+          image_ref="${{ steps.image-ref.outputs.ref }}"
+          image_repo="${image_ref%:*}"
+          repo_digests="$(docker image inspect "$image_ref" --format '{{range .RepoDigests}}{{println .}}{{end}}')"
+          repo_digest="$(printf '%s\n' "$repo_digests" | grep -F -m1 "${image_repo}@sha256:" || true)"
+          if [ -z "$repo_digest" ]; then
+            echo "::error::Pushed image digest not found for ${image_repo}; refusing to attest."
+            exit 1
+          fi
+          digest="${repo_digest#*@}"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
       - name: Generate SBOM
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
