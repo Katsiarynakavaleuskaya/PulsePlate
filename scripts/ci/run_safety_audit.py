@@ -772,8 +772,7 @@ def exit_code_for_results(results: Sequence[ManifestAuditResult]) -> int:
     if any(result.analysis.status == PARSE_BLOCKING for result in results):
         return 1
     if any(
-        result.safety_exit_code != 0
-        and not _nonzero_safety_exit_is_fully_waived(result.analysis)
+        result.safety_exit_code != 0 and not _nonzero_safety_exit_is_fully_waived(result.analysis)
         for result in results
     ):
         return 1
@@ -854,10 +853,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     exit_code = exit_code_for_results(results)
     for result in results:
         manifest_name = result.manifest.name
-        if (
-            result.safety_exit_code != 0
-            and _nonzero_safety_exit_is_fully_waived(result.analysis)
-        ):
+        if result.safety_exit_code != 0 and _nonzero_safety_exit_is_fully_waived(result.analysis):
             print(
                 "OK: Safety scan passed for "
                 f"{manifest_name} after {result.analysis.repo_policy_ignored_count} "
