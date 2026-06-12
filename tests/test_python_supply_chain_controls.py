@@ -35,6 +35,7 @@ APPROVED_TRUSTED_HOST_EXPRESSION = (
     "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
 )
 PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
+PINNED_CHECKOUT_ACTION = "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
 
 
 def _load_workflow(path: str) -> dict[str, object]:
@@ -370,6 +371,13 @@ def test_nightly_workflow_jobs_use_runtime_dev_direct_proxy_setup(job_name: str)
         "install_locked_python_requirements.py" not in step.get("run", "")
         for step in _workflow_steps(".github/workflows/nightly.yml", job_name)
     )
+
+
+def test_ci_main_full_suite_checkout_uses_pinned_checkout_action() -> None:
+    """Ensure the main CI diagnostic job keeps the immutable checkout action pin."""
+    checkout_step = _workflow_step_by_name(".github/workflows/ci.yml", "test-main", "Checkout")
+
+    assert checkout_step["uses"] == PINNED_CHECKOUT_ACTION
 
 
 def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> None:
