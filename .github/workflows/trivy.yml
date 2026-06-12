@@ -10,6 +10,8 @@ env:
   PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 on:
+  push:
+    branches: ["main"]
   schedule:
     - cron: '16 15 * * 6'
   workflow_dispatch:
@@ -189,6 +191,7 @@ jobs:
           ignore-unfixed: true
           trivyignores: .trivyignore
           ignore-policy: .trivy-ignore-policy.rego
+          exit-code: '1'
           version: v0.69.3
 
       - name: Fail when Trivy SARIF is missing

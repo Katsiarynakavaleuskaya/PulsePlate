@@ -80,11 +80,6 @@ def _pushed_docker_steps_with_secret_index_args() -> tuple[dict[str, object], ..
 
     return (
         _workflow_step_by_name(
-            ".github/workflows/build.yml",
-            "publish",
-            "Build and push Docker image",
-        ),
-        _workflow_step_by_name(
             ".github/workflows/cd.yml",
             "build",
             "Build & Push image (staging)",
@@ -94,6 +89,16 @@ def _pushed_docker_steps_with_secret_index_args() -> tuple[dict[str, object], ..
             "build-production",
             "Build & Push image (production)",
         ),
+    )
+
+
+def _build_publish_scan_step_with_secret_index_args() -> dict[str, object]:
+    """Return the build.yml publish image build that feeds the fail-closed scan."""
+
+    return _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "publish",
+        "Build Docker image for publish scan",
     )
 
 
@@ -577,7 +582,7 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
         build_workflow, "build", "Build Docker image (local, for tests)"
     )
     publish_build_args = _build_args_for_step(
-        build_workflow, "publish", "Build and push Docker image"
+        build_workflow, "publish", "Build Docker image for publish scan"
     )
     cd_staging_build_args = _build_args_for_step(
         cd_workflow, "build", "Build & Push image (staging)"
@@ -598,6 +603,19 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
 
 
 def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args() -> None:
+    publish_scan_step = _build_publish_scan_step_with_secret_index_args()
+    publish_scan_with = publish_scan_step["with"]
+    publish_scan_build_args = publish_scan_with["build-args"]
+    publish_scan_secret_envs = publish_scan_with["secret-envs"]
+
+    assert publish_scan_with["push"] is False
+    assert publish_scan_with["load"] is True
+    assert publish_scan_with["provenance"] is False
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in publish_scan_build_args
+    assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in publish_scan_build_args
+    assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in publish_scan_secret_envs
+    assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in publish_scan_secret_envs
+
     for step in _pushed_docker_steps_with_secret_index_args():
         assert step["with"]["provenance"] == "mode=min"
         build_args = step["with"]["build-args"]
@@ -898,6 +916,19 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
 def test_pushed_docker_builds_do_not_use_max_provenance_with_secret_index_args() -> None:
     """Max-mode BuildKit provenance can expose secret-derived build arguments."""
 
+    publish_scan_step = _build_publish_scan_step_with_secret_index_args()
+    publish_scan_with = publish_scan_step["with"]
+    publish_scan_build_args = publish_scan_with["build-args"]
+    publish_scan_secret_envs = publish_scan_with["secret-envs"]
+
+    assert publish_scan_with["push"] is False
+    assert publish_scan_with["load"] is True
+    assert publish_scan_with["provenance"] is False
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in publish_scan_build_args
+    assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in publish_scan_build_args
+    assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in publish_scan_secret_envs
+    assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in publish_scan_secret_envs
+
     for step in _pushed_docker_steps_with_secret_index_args():
         step_with = step["with"]
         build_args = step_with["build-args"]
@@ -919,6 +950,12 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         ".github/workflows/build.yml",
         "build",
         "Build Docker image (local, for tests)",
+    )
+    publish_scan_step = _build_publish_scan_step_with_secret_index_args()
+    publish_push_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "publish",
+        "Push scanned Docker image",
     )
     pushed_steps = _pushed_docker_steps_with_secret_index_args()
     publish_sbom_step = _workflow_step_by_name(
@@ -971,6 +1008,12 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     assert local_build_step["with"]["load"] is True
     assert local_build_step["with"]["provenance"] is False
+    assert publish_scan_step["with"]["load"] is True
+    assert publish_scan_step["with"]["push"] is False
+    assert publish_scan_step["with"]["provenance"] is False
+    assert publish_push_step["id"] == "docker-build-push"
+    assert "docker image push" in publish_push_step["run"]
+    assert "digest=${digest}" in publish_push_step["run"]
     assert cd_workflow["jobs"]["build"]["permissions"]["attestations"] == "write"
     assert cd_workflow["jobs"]["build-production"]["permissions"]["attestations"] == "write"
 

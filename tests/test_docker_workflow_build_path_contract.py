@@ -29,6 +29,20 @@ def _step_names(job: dict[str, object]) -> list[str]:
     return names
 
 
+def _step_by_name(job: dict[str, object], step_name: str) -> dict[str, object]:
+    steps = job.get("steps")
+    assert isinstance(steps, list)
+    for step in steps:
+        assert isinstance(step, dict)
+        if step.get("name") == step_name:
+            return step
+    raise AssertionError(f"missing step {step_name!r}")
+
+
+def _step_index(job: dict[str, object], step_name: str) -> int:
+    return _step_names(job).index(step_name)
+
+
 def test_removed_duplicate_docker_pr_workflows() -> None:
     """PR-time production image validation stays in the canonical Docker workflow."""
     assert not (WORKFLOWS_DIR / "docker-image.yml").exists()
@@ -151,13 +165,150 @@ def test_docker_entrypoint_keeps_bodyfat_hidden_but_routable() -> None:
     assert {"labels", "lang", "median", "methods"} <= response.json().keys()
 
 
-def test_trivy_workflow_is_out_of_band_image_security_lane() -> None:
-    """Trivy remains scheduled/manual instead of duplicating main-push image builds."""
+def test_trivy_workflow_is_main_push_image_security_lane() -> None:
+    """Trivy scans production images on main pushes, schedule, and manual dispatch."""
     workflow = _load_workflow(WORKFLOWS_DIR / "trivy.yml")
     on_section = workflow.get("on", workflow.get(True))
     assert isinstance(on_section, dict)
-    assert "push" not in on_section
+    push = on_section["push"]
+    assert isinstance(push, dict)
+    assert push["branches"] == ["main"]
     assert "pull_request" not in on_section
     assert "pull_request_target" not in on_section
     assert "schedule" in on_section
     assert "workflow_dispatch" in on_section
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    build_job = jobs["build"]
+    assert isinstance(build_job, dict)
+    scan_step = next(
+        step
+        for step in build_job["steps"]
+        if isinstance(step, dict) and step.get("name") == "Run Trivy vulnerability scanner"
+    )
+    scan_step_with = scan_step["with"]
+    assert isinstance(scan_step_with, dict)
+    assert scan_step_with["scan-type"] == "image"
+    assert scan_step_with["exit-code"] == "1"
+    assert scan_step_with["severity"] == "CRITICAL,HIGH"
+    assert scan_step_with["limit-severities-for-sarif"] is True
+    assert scan_step_with["ignore-unfixed"] is True
+    assert scan_step_with["trivyignores"] == ".trivyignore"
+    assert scan_step_with["ignore-policy"] == ".trivy-ignore-policy.rego"
+    assert "continue-on-error" not in scan_step
+    assert "Fail when Trivy SARIF is missing" in _step_names(build_job)
+
+
+def test_publish_image_scan_fails_closed() -> None:
+    """Publish path image scan blocks HIGH/CRITICAL findings and missing SARIF."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    publish_job = jobs["publish"]
+    assert isinstance(publish_job, dict)
+    publish_steps = publish_job["steps"]
+    assert isinstance(publish_steps, list)
+    build_scan_step = _step_by_name(publish_job, "Build Docker image for publish scan")
+    image_ref_step = _step_by_name(publish_job, "Set image ref for SBOM and image scan")
+    scan_step = _step_by_name(
+        publish_job,
+        "Run Trivy vulnerability scanner (image scan, fail-closed)",
+    )
+    fail_sarif_step = _step_by_name(publish_job, "Fail when Trivy image SARIF is missing")
+    upload_sarif_step = _step_by_name(publish_job, "Upload Trivy image scan results")
+    login_step = _step_by_name(publish_job, "Log in to GHCR")
+    push_step = _step_by_name(publish_job, "Push scanned Docker image")
+    sbom_step = _step_by_name(publish_job, "Generate SBOM")
+    provenance_step = _step_by_name(publish_job, "Attest Docker image provenance")
+    attestation_step = _step_by_name(publish_job, "Attest Docker image SBOM")
+
+    assert _step_index(publish_job, "Build Docker image for publish scan") < _step_index(
+        publish_job, "Set image ref for SBOM and image scan"
+    )
+    assert _step_index(publish_job, "Set image ref for SBOM and image scan") < _step_index(
+        publish_job, "Run Trivy vulnerability scanner (image scan, fail-closed)"
+    )
+    assert _step_index(
+        publish_job, "Run Trivy vulnerability scanner (image scan, fail-closed)"
+    ) < _step_index(publish_job, "Fail when Trivy image SARIF is missing")
+    assert _step_index(publish_job, "Fail when Trivy image SARIF is missing") < _step_index(
+        publish_job, "Upload Trivy image scan results"
+    )
+    assert _step_index(publish_job, "Upload Trivy image scan results") < _step_index(
+        publish_job, "Log in to GHCR"
+    )
+    assert _step_index(publish_job, "Log in to GHCR") < _step_index(
+        publish_job, "Push scanned Docker image"
+    )
+    assert _step_index(publish_job, "Push scanned Docker image") < _step_index(
+        publish_job, "Generate SBOM"
+    )
+
+    build_scan_with = build_scan_step["with"]
+    assert isinstance(build_scan_with, dict)
+    assert build_scan_step["id"] == "docker-build-scan"
+    assert build_scan_with["target"] == "production"
+    assert build_scan_with["platforms"] == "linux/amd64"
+    assert build_scan_with["push"] is False
+    assert build_scan_with["load"] is True
+    assert build_scan_with["provenance"] is False
+    assert "sbom" not in build_scan_with
+    assert build_scan_with["tags"] == "${{ steps.meta.outputs.tags }}"
+    assert build_scan_with["labels"] == "${{ steps.meta.outputs.labels }}"
+    assert (
+        "PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt"
+        in build_scan_with["build-args"]
+    )
+    assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in build_scan_with["secret-envs"]
+    assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in build_scan_with["secret-envs"]
+
+    for step in publish_steps[: _step_index(publish_job, "Fail when Trivy image SARIF is missing")]:
+        assert isinstance(step, dict)
+        if step.get("uses") == "docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294":
+            step_with = step.get("with")
+            assert isinstance(step_with, dict)
+            assert step_with["push"] is False
+
+    assert "GITHUB_TOKEN" not in build_scan_step.get("env", {})
+    assert "GITHUB_TOKEN" not in scan_step.get("env", {})
+    assert login_step["uses"].startswith("docker/login-action@")
+    assert _step_index(publish_job, "Log in to GHCR") > _step_index(
+        publish_job, "Fail when Trivy image SARIF is missing"
+    )
+
+    image_ref_run = image_ref_step["run"]
+    assert isinstance(image_ref_run, str)
+    assert "sha-${{ github.sha }}" in image_ref_run
+
+    scan_step_with = scan_step["with"]
+    assert isinstance(scan_step_with, dict)
+    assert scan_step_with["scan-type"] == "image"
+    assert scan_step_with["image-ref"] == "${{ steps.image-ref.outputs.ref }}"
+    assert scan_step_with["exit-code"] == "1"
+    assert scan_step_with["severity"] == "CRITICAL,HIGH"
+    assert scan_step_with["limit-severities-for-sarif"] is True
+    assert scan_step_with["trivyignores"] == ".trivyignore"
+    assert scan_step_with["ignore-policy"] == ".trivy-ignore-policy.rego"
+    assert "continue-on-error" not in scan_step
+    assert fail_sarif_step["if"] == "${{ always() }}"
+
+    assert upload_sarif_step["if"] == "${{ always() && hashFiles('trivy-image.sarif') != '' }}"
+    assert push_step["id"] == "docker-build-push"
+    push_run = push_step["run"]
+    assert isinstance(push_run, str)
+    assert "docker image push" in push_run
+    assert "steps.meta.outputs.tags" in push_run
+    assert "steps.image-ref.outputs.ref" in push_run
+    assert "grep -F -m1" in push_run
+    assert "GITHUB_OUTPUT" in push_run
+    assert "digest=${digest}" in push_run
+
+    assert sbom_step["with"]["image"] == "${{ steps.image-ref.outputs.ref }}"
+    assert (
+        provenance_step["with"]["subject-digest"] == "${{ steps.docker-build-push.outputs.digest }}"
+    )
+    assert (
+        attestation_step["with"]["subject-digest"]
+        == "${{ steps.docker-build-push.outputs.digest }}"
+    )
