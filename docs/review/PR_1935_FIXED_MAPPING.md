@@ -61,14 +61,14 @@ OUT:
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1935#discussion_r3386545107 -> 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1935#discussion_r3386545114 -> 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 Disposition: FIXED
-Commit: `256f2584c7b6fad7141ececdb12dcb02b5807c8b`
+Commit: 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 Evidence: `.github/workflows/build.yml`; `tests/test_docker_workflow_build_path_contract.py::test_publish_image_scan_fails_closed`; `tests/test_ci_workflow_pr_size_governance_contract.py::test_node24_checkout_and_docker_action_pins_use_verified_commit_shas`.
 Reason: Sourcery's severity/fail-closed findings are fixed by setting the publish image scan to `exit-code: '1'`, keeping `severity: CRITICAL,HIGH`, preserving SARIF output and the missing-SARIF gate, and removing `continue-on-error` from the publish scan contract.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1935#discussion_r3386555609 -> 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1935#discussion_r3386599926 -> 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 Disposition: FIXED
-Commit: `256f2584c7b6fad7141ececdb12dcb02b5807c8b`
+Commit: 256f2584c7b6fad7141ececdb12dcb02b5807c8b
 Evidence: `.github/workflows/build.yml`; `tests/test_docker_workflow_build_path_contract.py::test_publish_image_scan_fails_closed`; `tests/test_python_supply_chain_controls.py::test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes`.
 Reason: Codex and Cubic both identified the previous publish-after-push gap; the publish job now builds a local production image for Trivy, runs the fail-closed scan and SARIF upload gate before GHCR login, pushes the same scanned tags only after those gates pass, extracts the pushed registry digest fail-closed, and binds provenance/SBOM attestation plus verification to that digest.
 
