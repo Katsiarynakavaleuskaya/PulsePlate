@@ -93,13 +93,50 @@ Reason: Codex flagged that the pre-push `ACM` filter excluded deleted `frontend/
   the bug-hunter checklist locally on the current code head: `/bin/bash` 3.2
   syntax check, focused hook regression tests, and the lockfile topology probe
   all passed.
-- `security-auditor`: a separate post-fix security subagent was not run after
-  the subagent transport concern above. Security coverage for the current code
-  head is instead provided by the Codex Security diff scan/finding-discovery
-  artifact plus the main-agent security checklist against the changed hook
-  surfaces. No open code-scanning or secret-scanning alerts were returned.
-  Existing `torch` Dependabot alerts remain separate because GitHub reports
+- `security-auditor`: completed as a read-only PulsePlate role pass by the main
+  agent using `.cursor/agents/security-auditor.md` after the subagent transport
+  concern above. The pass covered the changed hook/test/docs surface, reviewed
+  command-injection and secret-exposure risks, confirmed the mapped fix commits
+  are ancestors of current head, and found no P0/P1 security blocker. Existing
+  `torch` Dependabot alerts remain separate because GitHub reports
   `first_patched_version: null`.
+
+## Security-Auditor Role Pass Evidence
+
+- Role slug: `security-auditor`.
+- Adapter: main-agent executed read-only role pass; no autonomous subagent
+  transport was used after the earlier subagent safety concern.
+- Required role definition loaded:
+  `.cursor/agents/security-auditor.md`.
+- Scoped agent instructions loaded:
+  `.cursor/agents/AGENTS.md`.
+- Dispatch manifest check:
+  `python3 scripts/orchestration/role_dispatch_bridge.py --roles qa-engineer-agent bug-hunter security-auditor --mode review --pr-phase post_open_review --pretty`.
+- Changed surface reviewed:
+  `.pre-commit-config.yaml`,
+  `scripts/run-backend-tests-pre-commit.sh`,
+  `tests/test_ci_workflow_pr_size_governance_contract.py`,
+  `tests/test_pre_commit_hook_python_resolver.py`, and this mapping artifact.
+- Attack-surface result: the executable change only broadens Git changed-file
+  collection from `ACM` to `ACMD`; deleted filenames remain exact path strings
+  matched by the existing package-manifest case arm before test-file selection.
+  No user-controlled command construction, secret handling, network call, or
+  runtime API surface was added.
+- PASS:
+  `rg -n "eval\\(|exec\\(|os\\.system|subprocess|curl|wget|ssh|TOKEN|SECRET|PASSWORD|API_KEY|--diff-filter" scripts/run-backend-tests-pre-commit.sh tests/test_pre_commit_hook_python_resolver.py docs/review/PR_1971_FIXED_MAPPING.md .pre-commit-config.yaml`
+  returned only existing test subprocess helpers, the expected `ACMD` diff
+  filters, and mapping evidence.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_deletion_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_preserves_upstream_frontend_package_delta tests/test_ci_workflow_pr_size_governance_contract.py::test_node24_runtime_baseline_surfaces_stay_coherent`
+  (`3 passed`).
+- PASS: `/bin/bash -n scripts/run-backend-tests-pre-commit.sh && git diff --check`.
+- PASS: open code-scanning alerts: `0`.
+- PASS: open secret-scanning alerts: `0`.
+- PASS:
+  `git merge-base --is-ancestor 29b0adf0c314241199d25e160bd57ad63b0e61db HEAD`
+  and
+  `git merge-base --is-ancestor 5bad31fb6db12e758f99a4140343ee18e67623e5 HEAD`.
+- Result: no reportable P0/P1 security finding for the current diff.
 
 ## Premortem Finding Closure
 
