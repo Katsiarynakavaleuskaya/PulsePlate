@@ -8,8 +8,8 @@ This emergency lane fixes the post-PR #1970 `main` CI fallout where the Node 24
 runtime baseline guard still asserted the removed
 `@bundled-es-modules/glob` lockfile subtree. It also adds the missing local
 governance hook coverage so future `frontend/package.json` and
-`frontend/package-lock.json` changes run the cross-surface dependency guards
-before push.
+`frontend/package-lock.json` changes, including deletions, run the cross-surface
+dependency guards before push.
 
 ## Lane Start Provenance
 
@@ -29,6 +29,8 @@ before push.
   `9e79d96017ebec26d1f7fdb5555cefa6fcf3cbd2`
 - Codex review follow-up commit:
   `29b0adf0c314241199d25e160bd57ad63b0e61db`
+- Codex deletion-review follow-up commit:
+  `5bad31fb6db12e758f99a4140343ee18e67623e5`
 - Full local `make verify`: intentionally not run under the operator-approved
   emergency narrow-lane scope; this artifact does not claim full local verify.
 
@@ -36,14 +38,14 @@ before push.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- GitHub review threads GraphQL check returned zero review-thread nodes for PR
-  #1971 at the time this artifact was written.
 - Sourcery review `4491962170`: no actionable findings; review text says the
   changes look great.
 - CodeRabbit review `4491964765`: one low-value but actionable consistency
   nitpick, dispositioned below.
 - Codex connector review `4491966692`: one P2 actionable false-green finding,
   dispositioned below.
+- Codex connector thread `discussion_r3408566375`: one P2 actionable deletion
+  blind spot finding, dispositioned below.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
@@ -64,6 +66,12 @@ Disposition: FIXED
 Commit: 29b0adf0c314241199d25e160bd57ad63b0e61db
 Evidence: `scripts/run-backend-tests-pre-commit.sh` now falls back only when `CHANGED_FILES` is empty, preserving package-manifest-only upstream deltas; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_preserves_upstream_frontend_package_delta` proves the upstream frontend package delta invokes the three mapped governance tests.
 Reason: Codex flagged that the earlier upstream fallback used `PYTHON_CHANGES`, which could erase a captured `frontend/package*.json` delta and skip the new governance tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408566375 -> 5bad31fb6db12e758f99a4140343ee18e67623e5
+Disposition: FIXED
+Commit: 5bad31fb6db12e758f99a4140343ee18e67623e5
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now uses `--diff-filter=ACMD` for hook changed-file collection, so deleted package manifests still reach `CHANGED_FILES`; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_deletion_to_governance_tests` proves deleting `frontend/package-lock.json` relative to upstream invokes the three mapped governance tests.
+Reason: Codex flagged that the pre-push `ACM` filter excluded deleted `frontend/package*.json` files, which could skip dependency governance tests on lockfile or manifest removals.
 
 ## Post-Open Role Review Evidence
 
@@ -194,6 +202,12 @@ Reason: Codex flagged that the earlier upstream fallback used `PYTHON_CHANGES`, 
   `node_modules/glob/node_modules/minimatch`, sibling
   `node_modules/glob/node_modules/brace-expansion` at `5.0.6`, and root
   `node_modules/brace-expansion` at `2.0.3`.
+- PASS after deletion-thread fix:
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py tests/test_ci_workflow_pr_size_governance_contract.py`
+  (`40 passed`).
+- PASS after deletion-thread fix:
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_preserves_upstream_frontend_package_delta tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_deletion_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests`
+  (`4 passed`).
 - NOT RUN: full local `make verify`; intentionally deferred under the
   operator-approved emergency narrow-lane scope.
 
