@@ -165,6 +165,10 @@ jobs:
         # env vars наследуются из job-level env
 
       - name: Build frontend
+        env:
+          # Keep bundle analysis off for pull requests and feature/fix branch pushes so
+          # branch-controlled Vite build code never receives Codecov upload credentials.
+          CODECOV_BUNDLE_ANALYSIS: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'true' || 'false' }}
         run: npm run build
 
       - name: Verify Tailwind CSS utilities

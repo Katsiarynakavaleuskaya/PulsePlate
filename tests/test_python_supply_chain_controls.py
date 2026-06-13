@@ -473,11 +473,12 @@ def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> 
     build_env = build_step.get("env")
     vite_config = (REPO_ROOT / "frontend" / "vite.config.ts").read_text(encoding="utf-8")
 
-    assert build_env is None or isinstance(build_env, dict)
-    build_env = build_env or {}
+    assert isinstance(build_env, dict)
     assert "CODECOV_TOKEN" not in build_env
     assert "secrets.CODECOV_TOKEN" not in str(build_step)
-    assert "CODECOV_BUNDLE_ANALYSIS" not in build_env
+    assert build_env["CODECOV_BUNDLE_ANALYSIS"] == (
+        "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'true' || 'false' }}"
+    )
     assert "@codecov/vite-plugin" not in vite_config
     assert "codecovVitePlugin" not in vite_config
     assert "uploadToken" not in vite_config
