@@ -16,7 +16,10 @@ before push.
 - Branch: `codex/fix-main-node24-runtime-baseline-guard`
 - Base: `origin/main` after merge commit
   `849df58f8945fc8386ef09ebf1650d4421533bdd`
-- Current head: `29b0adf0c314241199d25e160bd57ad63b0e61db`
+- Code head before mapping artifact:
+  `29b0adf0c314241199d25e160bd57ad63b0e61db`
+- Mapping artifact commit:
+  `2e06ed7a2a3f91f8672fce37272edd4145f89d63`
 - Task class: `CI / Test Guard / Frontend Dependencies`
 - PR phase: `post_open_review`
 - Packet: `artifacts/orchestration/task_packets/5985162446c3.json`
@@ -74,12 +77,21 @@ Reason: Codex flagged that the earlier upstream fallback used `PYTHON_CHANGES`, 
 - `bug-hunter`: no P0/P1 false-green bug found in the hook, regex, fallback,
   Bash behavior, or lockfile topology assertion; an extra read-only probe showed
   package-lock-only fallback invokes the expected governance tests.
-- `security-auditor`: no security blocker reported for the diff; existing
-  `torch` Dependabot alerts remain separate because GitHub reports
+- `bug-hunter`: initial read-only pass found no P0/P1 false-green bug before
+  the later Codex connector review. After the Codex connector P2 was fixed in
+  commit `29b0adf0c314241199d25e160bd57ad63b0e61db`, the active bug-hunter
+  subagent handle was stopped because the subagent transport appeared to treat
+  review instructions as an active PR-update workflow. The main agent then reran
+  the bug-hunter checklist locally on the current code head: `/bin/bash` 3.2
+  syntax check, focused hook regression tests, and the lockfile topology probe
+  all passed.
+- `security-auditor`: a separate post-fix security subagent was not run after
+  the subagent transport concern above. Security coverage for the current code
+  head is instead provided by the Codex Security diff scan/finding-discovery
+  artifact plus the main-agent security checklist against the changed hook
+  surfaces. No open code-scanning or secret-scanning alerts were returned.
+  Existing `torch` Dependabot alerts remain separate because GitHub reports
   `first_patched_version: null`.
-- `bug-hunter` rerun on current head `29b0adf0c314241199d25e160bd57ad63b0e61db`:
-  no remaining code-level blocker; `/bin/bash` 3.2 syntax check, focused hook
-  regression tests, and lockfile topology probe passed.
 
 ## Premortem Finding Closure
 
@@ -132,15 +144,24 @@ Reason: Codex flagged that the earlier upstream fallback used `PYTHON_CHANGES`, 
 ## PulsePlate PR Review
 
 - Skill: `pulseplate-pr-review`.
-- Context: `/tmp/pulseplate_pr_1971_review_context.json`.
-- Markdown report: `/tmp/pulseplate_pr_1971_review_report.md`.
-- JSON report: `/tmp/pulseplate_pr_1971_review_report.json`.
+- Initial context: `/tmp/pulseplate_pr_1971_review_context.json`.
+- Initial markdown report: `/tmp/pulseplate_pr_1971_review_report.md`.
+- Initial JSON report: `/tmp/pulseplate_pr_1971_review_report.json`.
+- Post-mapping context:
+  `/tmp/pulseplate_pr_1971_review_context_post_mapping.json`.
+- Post-mapping markdown report:
+  `/tmp/pulseplate_pr_1971_review_report_post_mapping.md`.
+- Post-mapping JSON report:
+  `/tmp/pulseplate_pr_1971_review_report_post_mapping.json`.
 - Result before this artifact existed: advisory governance findings for the
   missing fixed-mapping artifact and review-planning line count.
+- Result after this artifact existed: only the advisory large-diff review-planning
+  note remains.
 - Disposition: FIXED / NOT-A-BUG.
-- Evidence: this artifact fixes the missing artifact finding; the large-diff
-  note is review-planning only and expected for adding focused hook regression
-  tests rather than a scope expansion.
+- Evidence: this artifact fixes the missing artifact finding; the remaining
+  large-diff note is review-planning only and expected for adding focused hook
+  regression tests plus the canonical mapping artifact rather than a scope
+  expansion.
 
 ## Validation Evidence
 
