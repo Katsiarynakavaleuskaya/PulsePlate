@@ -46,6 +46,10 @@ dependency guards before push.
   dispositioned below.
 - Codex connector thread `discussion_r3408566375`: one P2 actionable deletion
   blind spot finding, dispositioned below.
+- Codex connector thread `discussion_r3408600887`: one P2 mapping-head finding,
+  dispositioned below as NOT-A-BUG with current-head ancestor proof.
+- Codex connector thread `discussion_r3408600888`: one P2 role-pass finding,
+  dispositioned below as FIXED with security-auditor pass evidence.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
@@ -72,6 +76,17 @@ Disposition: FIXED
 Commit: 5bad31fb6db12e758f99a4140343ee18e67623e5
 Evidence: `scripts/run-backend-tests-pre-commit.sh` now uses `--diff-filter=ACMD` for hook changed-file collection, so deleted package manifests still reach `CHANGED_FILES`; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_deletion_to_governance_tests` proves deleting `frontend/package-lock.json` relative to upstream invokes the three mapped governance tests.
 Reason: Codex flagged that the pre-push `ACM` filter excluded deleted `frontend/package*.json` files, which could skip dependency governance tests on lockfile or manifest removals.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600887
+Disposition: NOT-A-BUG
+Evidence: GitHub GraphQL reported current PR head `931c53f8bb570ff9d082ee187a102d228416850c`; local repo checks `git merge-base --is-ancestor 29b0adf0c314241199d25e160bd57ad63b0e61db HEAD` and `git merge-base --is-ancestor 5bad31fb6db12e758f99a4140343ee18e67623e5 HEAD` both passed. The cited `8a4bd84` object was not present in local repo truth for this branch. The mappings correctly point to the actual fix commits, and those commits are ancestors of current head.
+Reason: The comment's current-head premise did not match current repo/GitHub evidence. Remapping to a later docs-only head would weaken FIXED proof quality because the actual code/test fixes live in the mapped commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600888 -> b3e7f20ce62093f3dd4e3ae229adcf76213ce594
+Disposition: FIXED
+Commit: b3e7f20ce62093f3dd4e3ae229adcf76213ce594
+Evidence: The `Security-Auditor Role Pass Evidence` section records a read-only PulsePlate `security-auditor` role pass using `.cursor/agents/security-auditor.md`, the dispatch manifest order, changed-surface review, command-injection/secret-exposure checks, open code-scanning and secret-scanning alert checks, and targeted tests. No autonomous subagent transport was used after the earlier subagent safety concern.
+Reason: Codex flagged that the artifact previously recorded the post-fix security-auditor pass as not run. The pass is now completed and documented with evidence.
 
 ## Post-Open Role Review Evidence
 
