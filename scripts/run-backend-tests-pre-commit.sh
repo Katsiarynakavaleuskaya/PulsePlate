@@ -114,8 +114,10 @@ else
         fi
     fi
 
-    # Fallback: if we couldn't determine remote branch, try common patterns
-    if [ -z "$PYTHON_CHANGES" ]; then
+    # Fallback: if we couldn't determine remote branch, try common patterns.
+    # Preserve package-manifest-only upstream deltas so cross-surface
+    # governance tests are not lost just because no Python files changed.
+    if [ -z "$CHANGED_FILES" ]; then
         # Try origin/current_branch
         REMOTE_BRANCH="origin/${CURRENT_BRANCH}"
         REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
@@ -127,7 +129,7 @@ else
     fi
 
     # Last resort: compare branch diff against main/master using merge-base
-    if [ -z "$PYTHON_CHANGES" ]; then
+    if [ -z "$CHANGED_FILES" ]; then
         resolve_branch_diff_from_base || true
     fi
 fi

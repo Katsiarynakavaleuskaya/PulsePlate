@@ -64,6 +64,7 @@ def _clean_hook_env() -> dict[str, str]:
     env.pop("VENV_PYTHON", None)
     env.pop("DEV_PYTHON", None)
     env.pop("PRE_COMMIT", None)
+    env.pop("BRANCH_DIFF_MODE", None)
     env.pop("CI", None)
     return env
 
@@ -243,13 +244,17 @@ def test_backend_hook_maps_frontend_lockfile_changes_to_governance_tests(
         repo / "scripts" / "run-backend-tests-pre-commit.sh",
     )
     (repo / "frontend").mkdir()
-    (repo / "frontend" / "package-lock.json").write_text('{"lockfileVersion":3}\n')
-    (repo / "frontend" / "package.json").write_text("{}\n")
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3}\n', encoding="utf-8"
+    )
+    (repo / "frontend" / "package.json").write_text("{}\n", encoding="utf-8")
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "--quiet", "-m", "init")
     _git(repo, "switch", "--quiet", "-c", "package-lock-change")
-    (repo / "frontend" / "package-lock.json").write_text('{"lockfileVersion":3,"t":1}\n')
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3,"t":1}\n', encoding="utf-8"
+    )
     _git(repo, "add", "frontend/package-lock.json")
     _git(repo, "commit", "--quiet", "-m", "update frontend lockfile")
     calls_file = tmp_path / "pytest-args.txt"
@@ -263,6 +268,58 @@ def test_backend_hook_maps_frontend_lockfile_changes_to_governance_tests(
         cwd=repo,
         env=env,
     )
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
+    assert "tests/test_frontend_dependency_guards.py" in called_args
+    assert "tests/test_python_supply_chain_controls.py" in called_args
+    assert "Backend tests passed" in output
+
+
+def test_backend_hook_preserves_upstream_frontend_package_delta(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    _git(repo, "branch", "-M", "main")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "frontend").mkdir()
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3}\n', encoding="utf-8"
+    )
+    (repo / "frontend" / "package.json").write_text("{}\n", encoding="utf-8")
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    _git(repo, "switch", "--quiet", "-c", "package-lock-change")
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3,"remote":1}\n', encoding="utf-8"
+    )
+    _git(repo, "add", "frontend/package-lock.json")
+    _git(repo, "commit", "--quiet", "-m", "remote frontend lockfile delta")
+    _git(repo, "update-ref", "refs/remotes/origin/package-lock-change", "HEAD")
+    _git(repo, "config", "branch.package-lock-change.remote", "origin")
+    _git(repo, "config", "branch.package-lock-change.merge", "refs/heads/package-lock-change")
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3}\n', encoding="utf-8"
+    )
+    _git(repo, "add", "frontend/package-lock.json")
+    _git(repo, "commit", "--quiet", "-m", "revert frontend lockfile to main")
+    calls_file = tmp_path / "pytest-upstream-args.txt"
+    fake_python = tmp_path / "fake-python-upstream"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
 
     called_args = calls_file.read_text(encoding="utf-8").splitlines()
     assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
@@ -286,12 +343,16 @@ def test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests(
         repo / "scripts" / "run-backend-tests-pre-commit.sh",
     )
     (repo / "frontend").mkdir()
-    (repo / "frontend" / "package-lock.json").write_text('{"lockfileVersion":3}\n')
-    (repo / "frontend" / "package.json").write_text("{}\n")
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3}\n', encoding="utf-8"
+    )
+    (repo / "frontend" / "package.json").write_text("{}\n", encoding="utf-8")
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "--quiet", "-m", "init")
-    (repo / "frontend" / "package.json").write_text('{"name":"pulseplate-test"}\n')
+    (repo / "frontend" / "package.json").write_text(
+        '{"name":"pulseplate-test"}\n', encoding="utf-8"
+    )
     _git(repo, "add", "frontend/package.json")
     calls_file = tmp_path / "pytest-staged-args.txt"
     fake_python = tmp_path / "fake-python-staged"
