@@ -8,8 +8,8 @@ This emergency lane fixes the post-PR #1970 `main` CI fallout where the Node 24
 runtime baseline guard still asserted the removed
 `@bundled-es-modules/glob` lockfile subtree. It also adds the missing local
 governance hook coverage so future `frontend/package.json` and
-`frontend/package-lock.json` changes, including deletions, run the cross-surface
-dependency guards before push.
+`frontend/package-lock.json` changes, including deletions and renames, run the
+cross-surface dependency guards before push.
 
 ## Lane Start Provenance
 
@@ -31,6 +31,8 @@ dependency guards before push.
   `29b0adf0c314241199d25e160bd57ad63b0e61db`
 - Codex deletion-review follow-up commit:
   `5bad31fb6db12e758f99a4140343ee18e67623e5`
+- Codex rename-review follow-up commit:
+  `475d4459a1f33f2b47d36f062f60bbcfd70435bb`
 - Full local `make verify`: intentionally not run under the operator-approved
   emergency narrow-lane scope; this artifact does not claim full local verify.
 
@@ -50,6 +52,10 @@ dependency guards before push.
   dispositioned below as NOT-A-BUG with current-head ancestor proof.
 - Codex connector thread `discussion_r3408600888`: one P2 role-pass finding,
   dispositioned below as FIXED with security-auditor pass evidence.
+- Codex connector thread `discussion_r3408639276`: one P2 mapping-head finding,
+  dispositioned below as NOT-A-BUG with current-head proof.
+- Codex connector thread `discussion_r3408639279`: one P2 rename blind spot
+  finding, dispositioned below as FIXED.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
@@ -77,10 +83,21 @@ Commit: 5bad31fb6db12e758f99a4140343ee18e67623e5
 Evidence: `scripts/run-backend-tests-pre-commit.sh` now uses `--diff-filter=ACMD` for hook changed-file collection, so deleted package manifests still reach `CHANGED_FILES`; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_deletion_to_governance_tests` proves deleting `frontend/package-lock.json` relative to upstream invokes the three mapped governance tests.
 Reason: Codex flagged that the pre-push `ACM` filter excluded deleted `frontend/package*.json` files, which could skip dependency governance tests on lockfile or manifest removals.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408639279 -> 475d4459a1f33f2b47d36f062f60bbcfd70435bb
+Disposition: FIXED
+Commit: 475d4459a1f33f2b47d36f062f60bbcfd70435bb
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now passes `--no-renames` to every hook changed-file diff collection path, so a package-manifest rename is surfaced as the deleted original manifest path; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_rename_to_governance_tests` proves `git mv frontend/package-lock.json frontend/package-lock.old` relative to upstream invokes the three mapped governance tests.
+Reason: Codex flagged that Git rename detection could report `frontend/package-lock.json` removal as `R100` to a non-manifest destination, bypassing the package-manifest trigger.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600887
 Disposition: NOT-A-BUG
 Evidence: GitHub GraphQL reported current PR head `931c53f8bb570ff9d082ee187a102d228416850c`; local repo checks `git merge-base --is-ancestor 29b0adf0c314241199d25e160bd57ad63b0e61db HEAD` and `git merge-base --is-ancestor 5bad31fb6db12e758f99a4140343ee18e67623e5 HEAD` both passed. The cited `8a4bd84` object was not present in local repo truth for this branch. The mappings correctly point to the actual fix commits, and those commits are ancestors of current head.
 Reason: The comment's current-head premise did not match current repo/GitHub evidence. Remapping to a later docs-only head would weaken FIXED proof quality because the actual code/test fixes live in the mapped commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408639276
+Disposition: NOT-A-BUG
+Evidence: GitHub API reported current PR head `ae3f65442fb9ec6b172808d089bc5ce97927c839`, while `git show --no-patch --oneline e9d6eae53fc599d333d6c326363fcbf9c92fbbbb` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, and `b3e7f20ce62093f3dd4e3ae229adcf76213ce594` against the current branch head.
+Reason: The comment's reviewed-head premise did not match GitHub PR head or local branch truth. The mapped commits are real fix commits and remain ancestors of the current PR branch.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600888 -> b3e7f20ce62093f3dd4e3ae229adcf76213ce594
 Disposition: FIXED
@@ -133,14 +150,16 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
   `tests/test_ci_workflow_pr_size_governance_contract.py`,
   `tests/test_pre_commit_hook_python_resolver.py`, and this mapping artifact.
 - Attack-surface result: the executable change only broadens Git changed-file
-  collection from `ACM` to `ACMD`; deleted filenames remain exact path strings
-  matched by the existing package-manifest case arm before test-file selection.
-  No user-controlled command construction, secret handling, network call, or
-  runtime API surface was added.
+  collection from `ACM` to `ACMD` and disables rename detection for hook file
+  collection; deleted and renamed-from filenames remain exact path strings matched
+  by the existing package-manifest case arm before test-file selection. No
+  user-controlled command construction, secret handling, network call, or runtime
+  API surface was added.
 - PASS:
-  `rg -n "eval\\(|exec\\(|os\\.system|subprocess|curl|wget|ssh|TOKEN|SECRET|PASSWORD|API_KEY|--diff-filter" scripts/run-backend-tests-pre-commit.sh tests/test_pre_commit_hook_python_resolver.py docs/review/PR_1971_FIXED_MAPPING.md .pre-commit-config.yaml`
+  `rg -n "eval\\(|exec\\(|os\\.system|subprocess|curl|wget|ssh|TOKEN|SECRET|PASSWORD|API_KEY|--diff-filter|--no-renames" scripts/run-backend-tests-pre-commit.sh tests/test_pre_commit_hook_python_resolver.py docs/review/PR_1971_FIXED_MAPPING.md .pre-commit-config.yaml`
   returned only existing test subprocess helpers, the expected `ACMD` diff
-  filters, and mapping evidence.
+  filters, the expected `--no-renames` hook collection flags, and mapping
+  evidence.
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_deletion_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_preserves_upstream_frontend_package_delta tests/test_ci_workflow_pr_size_governance_contract.py::test_node24_runtime_baseline_surfaces_stay_coherent`
   (`3 passed`).
