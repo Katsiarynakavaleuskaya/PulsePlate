@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { fn } from '@storybook/test';
+import { fn } from 'storybook/test';
 import { DesignSystemCanvas, PanelShell } from '../design-system/shared';
 import { ProgressExportPdfButton } from './ProgressExportPdfButton';
 

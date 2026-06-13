@@ -1,20 +1,8 @@
 import { defineConfig } from "vitest/config";
-import { codecovVitePlugin } from "@codecov/vite-plugin";
 import react from "@vitejs/plugin-react";
 
-const enableCodecovBundleAnalysis =
-  process.env.CODECOV_BUNDLE_ANALYSIS === "true";
-
 export default defineConfig({
-  plugins: [
-    react(),
-    codecovVitePlugin({
-      bundleName: "pulseplate-frontend",
-      enableBundleAnalysis: enableCodecovBundleAnalysis,
-      gitService: "github",
-      telemetry: false,
-    }),
-  ],
+  plugins: [react()],
   test: {
     environment: "jsdom",
     setupFiles: ["src/setupTests.ts"],

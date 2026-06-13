@@ -1,8 +1,10 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { StorybookConfig } from '@storybook/react-vite';
 import type { OutputOptions } from 'rollup';
 
 const PREMIUM_API_CHUNK = 'premium-api';
+const storybookConfigDir = path.dirname(fileURLToPath(import.meta.url));
 type ManualChunksMap = Record<string, readonly string[]>;
 
 function storybookManualChunks(id: string): string | undefined {
@@ -44,16 +46,9 @@ function withStorybookManualChunks(output: OutputOptions | OutputOptions[] | und
 const config: StorybookConfig = {
   stories: ['../src/**/*.mdx', '../src/**/*.stories.@(ts|tsx)'],
   addons: [
-    // Keep addon-actions/addon-interactions out of this lane to avoid
+    // Keep addon-actions/addon-interactions/addon-essentials out to avoid
     // reintroducing the Dependabot #117 uuid carrier through Storybook.
-    '@storybook/addon-backgrounds',
-    '@storybook/addon-controls',
     '@storybook/addon-docs',
-    '@storybook/addon-highlight',
-    '@storybook/addon-measure',
-    '@storybook/addon-outline',
-    '@storybook/addon-toolbars',
-    '@storybook/addon-viewport',
   ],
   framework: {
     name: '@storybook/react-vite',
@@ -64,7 +59,7 @@ const config: StorybookConfig = {
     config.resolve.alias ??= {};
 
     if (!Array.isArray(config.resolve.alias)) {
-      config.resolve.alias['@'] = path.resolve(__dirname, '../src');
+      config.resolve.alias['@'] = path.resolve(storybookConfigDir, '../src');
     }
 
     config.build ??= {};

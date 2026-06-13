@@ -479,6 +479,8 @@ def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> 
     assert build_env["CODECOV_BUNDLE_ANALYSIS"] == (
         "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'true' || 'false' }}"
     )
+    assert "@codecov/vite-plugin" not in vite_config
+    assert "codecovVitePlugin" not in vite_config
     assert "uploadToken" not in vite_config
     assert "process.env.CODECOV_TOKEN" not in vite_config
 
