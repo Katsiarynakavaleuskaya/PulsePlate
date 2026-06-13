@@ -64,6 +64,8 @@ file-type changes, run the cross-surface dependency guards before push.
   dispositioned below as NOT-A-BUG with current-head proof.
 - Codex connector thread `discussion_r3408715138`: one P2 pre-commit invocation
   blind spot finding, dispositioned below as FIXED.
+- Codex connector thread `discussion_r3408715140`: one P2 local evidence path
+  finding, dispositioned below as FIXED.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
@@ -123,6 +125,12 @@ Reason: The comment's reviewed-head premise did not match GitHub PR head or loca
 Disposition: NOT-A-BUG
 Evidence: GitHub API reported current PR head `9b5038d13569fee90ba55c8899996d1ad3267340`, while `git show --no-patch --oneline 8cc6af5d90da8c405bd85ed549c3c2f08977ea91` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, `475d4459a1f33f2b47d36f062f60bbcfd70435bb`, and `b3e7f20ce62093f3dd4e3ae229adcf76213ce594` against the current branch head.
 Reason: The comment's reviewed-head premise did not match GitHub PR head or local branch truth. The mapped commits are real fix commits and remain ancestors of the current PR branch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408715140 -> 57fd10c730d822d5aa9150780f92e0b452224852
+Disposition: FIXED
+Commit: 57fd10c730d822d5aa9150780f92e0b452224852
+Evidence: `docs/review/PR_1971_FIXED_MAPPING.md` now records stable scan/review identifiers and command results instead of host-local absolute artifact paths; a local marker scan returned no remaining temporary scanner/report path references.
+Reason: Codex flagged that committed review artifacts should not depend on host-local absolute paths that cannot be inspected outside the author machine.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600888 -> b3e7f20ce62093f3dd4e3ae229adcf76213ce594
 Disposition: FIXED
@@ -294,6 +302,15 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
 - PASS after deletion-thread fix:
   `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_preserves_upstream_frontend_package_delta tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_deletion_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests`
   (`4 passed`).
+- PASS after type-change/pre-commit-invocation fix:
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_type_change_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_staged_frontend_package_rename_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests`
+  (`3 passed`).
+- PASS after type-change/pre-commit-invocation fix:
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py tests/test_ci_workflow_pr_size_governance_contract.py`
+  (`43 passed`).
+- PASS after type-change/pre-commit-invocation fix:
+  `VENV_PYTHON=.venv/bin/python make validate-changed`
+  (`43 passed`).
 - NOT RUN: full local `make verify`; intentionally deferred under the
   operator-approved emergency narrow-lane scope.
 
