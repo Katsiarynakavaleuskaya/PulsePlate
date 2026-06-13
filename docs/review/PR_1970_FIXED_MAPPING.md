@@ -25,6 +25,8 @@ audit suppressions, or fake torch remediation.
   `5352596631a9653943b995f2887bf6d19371eb50`
 - Sourcery follow-up commit:
   `d6451320b1a6c142b58d6d41fb521b639afe1742`
+- Mapping artifact commit:
+  `65942cd3bf79a41a959b35958fb456d211fe5114`
 - Full local `make verify`: intentionally not run under the operator-approved
   emergency narrow-lane scope; this artifact does not claim full local verify.
 
@@ -61,11 +63,13 @@ Reason: Sourcery flagged duplicate `esbuild` pinning and noted the generated MSW
     `5352596631a9653943b995f2887bf6d19371eb50`, which restores the workflow to
     `origin/main` and keeps Codecov executable removal in frontend config and
     package dependencies only.
-  - Disposition: FIXED for mapping by this artifact.
+  - Disposition: FIXED for mapping by commit
+    `65942cd3bf79a41a959b35958fb456d211fe5114`.
 - `security-auditor`: confirmed the npm graph/security direction and raised the
   same workflow-scope and mapping blockers.
   - Disposition: FIXED by commit
-    `5352596631a9653943b995f2887bf6d19371eb50` plus this mapping artifact.
+    `5352596631a9653943b995f2887bf6d19371eb50` plus mapping artifact commit
+    `65942cd3bf79a41a959b35958fb456d211fe5114`.
   - Torch Dependabot alerts remain out of scope because GitHub reports
     `patched: null` for the current `torch <= 2.12.0` advisory.
 
@@ -168,8 +172,26 @@ Reason: Sourcery flagged duplicate `esbuild` pinning and noted the generated MSW
   `cd frontend && npm install --package-lock-only` (`found 0 vulnerabilities`)
 - PASS after Sourcery follow-up:
   `cd frontend && npm ls esbuild vite storybook @storybook/react-vite @vitejs/plugin-react`
-- Final post-mapping `make validate-changed`, `pre-commit run --all-files`,
-  PR body gates, and current-head CI are still required before merge discussion.
+- PASS after mapping and Sourcery follow-up:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_legacy_runtime_env_canonicalization.py tests/test_health_db.py tests/test_app_endpoints_combined.py tests/test_python_supply_chain_controls.py`
+- PASS after mapping and Sourcery follow-up:
+  `python3 scripts/ci/check_pr_size_governance.py --base-sha origin/main --head-sha HEAD --body "$(cat /tmp/pr1970_body_updated.md)"`
+- PASS after mapping and Sourcery follow-up:
+  `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1970 --body "$(cat /tmp/pr1970_body_updated.md)"`
+- PASS after mapping and Sourcery follow-up:
+  `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1970 --require-auth`
+- PASS after mapping and Sourcery follow-up:
+  `cd frontend && npm ci && npm audit --audit-level=high && npm audit --omit=dev --audit-level=high && npm ls vite @vitejs/plugin-react vitest esbuild storybook @storybook/react-vite @storybook/addon-docs jsdom && npm run test:ci && npm run build && npm run smoke:css && npm run build-storybook`
+- PASS after mapping and Sourcery follow-up:
+  `npm ci && npm audit --audit-level=high` at repo root
+- PASS after mapping and Sourcery follow-up:
+  `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`
+  (`54 passed`)
+- PASS after mapping and Sourcery follow-up:
+  `PRE_COMMIT_HOME=/tmp/pre-commit-main-nightly-security-deps pre-commit run --all-files`
+- Cleanup: removed untracked generated `frontend/storybook-static/` after local
+  Storybook build.
+- Current-head CI is still required before merge discussion.
 
 ## Security Alerts
 
@@ -206,11 +228,11 @@ Reason: Sourcery flagged duplicate `esbuild` pinning and noted the generated MSW
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - [x] Codex Security diff scan / finding discovery.
 - [x] `pulseplate-pr-review` after mapping artifact.
-- [ ] PR body Phase2 gate against the live PR body.
-- [ ] Scope guard against the final PR body and current branch diff.
-- [ ] Final focused local gates after mapping/body updates.
+- [x] PR body Phase2 gate against the final PR body draft.
+- [x] Scope guard against the final PR body draft and current branch diff.
+- [x] Final focused local gates after mapping/body updates.
 - [ ] Current-head CI terminal success.
-- [ ] Strict review-thread disposition with auth.
+- [x] Strict review-thread disposition with auth.
 - [ ] Strict merge-readiness wrapper with auth.
 - [ ] CodeRabbit / Sourcery / Cubic actionables checked on current head.
 - [ ] Mandatory wait-window after latest bot/review activity.
