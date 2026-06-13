@@ -224,15 +224,19 @@ Reason: Sourcery flagged duplicate `esbuild` pinning and noted the generated MSW
 
 ## Merge Readiness
 
-- [x] Post-open required role pass:
+- Final merge-cycle checklist is intentionally left unchecked until the final
+  strict merge-readiness pass immediately before merge.
+- Completed local/current-head evidence is recorded in the sections above; these
+  boxes are not readiness claims.
+- [ ] Post-open required role pass:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [x] Codex Security diff scan / finding discovery.
-- [x] `pulseplate-pr-review` after mapping artifact.
-- [x] PR body Phase2 gate against the final PR body draft.
-- [x] Scope guard against the final PR body draft and current branch diff.
-- [x] Final focused local gates after mapping/body updates.
+- [ ] Codex Security diff scan / finding discovery.
+- [ ] `pulseplate-pr-review` after mapping artifact.
+- [ ] PR body Phase2 gate against the final PR body draft.
+- [ ] Scope guard against the final PR body draft and current branch diff.
+- [ ] Final focused local gates after mapping/body updates.
 - [ ] Current-head CI terminal success.
-- [x] Strict review-thread disposition with auth.
+- [ ] Strict review-thread disposition with auth.
 - [ ] Strict merge-readiness wrapper with auth.
 - [ ] CodeRabbit / Sourcery / Cubic actionables checked on current head.
 - [ ] Mandatory wait-window after latest bot/review activity.
