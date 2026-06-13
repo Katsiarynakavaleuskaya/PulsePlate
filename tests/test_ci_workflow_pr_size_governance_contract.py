@@ -515,12 +515,20 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.6"
     assert frontend_package["overrides"]["ws"] == "8.20.1"
-    assert (
-        frontend_lock["packages"][
-            "node_modules/@bundled-es-modules/glob/node_modules/brace-expansion"
-        ]["version"]
-        == "5.0.6"
-    )
+    packages = frontend_lock["packages"]
+    minimatch_10_paths = {
+        str(package_path)
+        for package_path, package_info in packages.items()
+        if str(package_path).endswith("node_modules/minimatch")
+        and str(package_info["version"]).startswith("10.")
+    }
+    assert minimatch_10_paths, "frontend lockfile must retain a minimatch 10.x subtree"
+    for minimatch_path in minimatch_10_paths:
+        brace_path = minimatch_path.removesuffix("node_modules/minimatch") + (
+            "node_modules/brace-expansion"
+        )
+        assert packages[brace_path]["version"] == "5.0.6"
+    assert packages["node_modules/brace-expansion"]["version"] == "2.0.3"
     assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.20.1"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
     assert "FROM node:24.16.0-bookworm-slim AS frontend-build" in dockerfile

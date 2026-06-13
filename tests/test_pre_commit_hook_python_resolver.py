@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import shlex
 import subprocess
+import textwrap
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOK_RESOLVER = REPO_ROOT / "scripts" / "hooks" / "repo_python.sh"
@@ -19,6 +20,28 @@ RESOLVE_COMMAND = f'source {shlex.quote(str(HOOK_RESOLVER))}; resolve_repo_pytho
 
 def _write_executable(path: Path) -> None:
     path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    path.chmod(0o755)
+
+
+def _write_fake_pytest_python(path: Path, calls_file: Path) -> None:
+    path.write_text(
+        textwrap.dedent(f"""\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [[ "$*" == "-m pytest --version" ]]; then
+                echo "pytest 0.0"
+                exit 0
+            fi
+            if [[ "$1" == "-m" && "$2" == "pytest" ]]; then
+                shift 2
+                printf '%s\\n' "$@" > {shlex.quote(str(calls_file))}
+                exit 0
+            fi
+            echo "unexpected fake python args: $*" >&2
+            exit 2
+            """),
+        encoding="utf-8",
+    )
     path.chmod(0o755)
 
 
@@ -40,6 +63,7 @@ def _clean_hook_env() -> dict[str, str]:
     env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     env.pop("VENV_PYTHON", None)
     env.pop("DEV_PYTHON", None)
+    env.pop("PRE_COMMIT", None)
     env.pop("CI", None)
     return env
 
@@ -202,6 +226,93 @@ def test_backend_hook_honors_skip_tests_before_python_resolution() -> None:
     pytest_index = hook_text.index('"$REPO_PYTHON_BIN" -m pytest --version')
 
     assert skip_index < resolver_index < pytest_index
+
+
+def test_backend_hook_maps_frontend_lockfile_changes_to_governance_tests(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "frontend").mkdir()
+    (repo / "frontend" / "package-lock.json").write_text('{"lockfileVersion":3}\n')
+    (repo / "frontend" / "package.json").write_text("{}\n")
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    _git(repo, "switch", "--quiet", "-c", "package-lock-change")
+    (repo / "frontend" / "package-lock.json").write_text('{"lockfileVersion":3,"t":1}\n')
+    _git(repo, "add", "frontend/package-lock.json")
+    _git(repo, "commit", "--quiet", "-m", "update frontend lockfile")
+    calls_file = tmp_path / "pytest-args.txt"
+    fake_python = tmp_path / "fake-python"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+
+    output = _bash(
+        "BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh",
+        cwd=repo,
+        env=env,
+    )
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
+    assert "tests/test_frontend_dependency_guards.py" in called_args
+    assert "tests/test_python_supply_chain_controls.py" in called_args
+    assert "Backend tests passed" in output
+
+
+def test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "frontend").mkdir()
+    (repo / "frontend" / "package-lock.json").write_text('{"lockfileVersion":3}\n')
+    (repo / "frontend" / "package.json").write_text("{}\n")
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    (repo / "frontend" / "package.json").write_text('{"name":"pulseplate-test"}\n')
+    _git(repo, "add", "frontend/package.json")
+    calls_file = tmp_path / "pytest-staged-args.txt"
+    fake_python = tmp_path / "fake-python-staged"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
+    assert "tests/test_frontend_dependency_guards.py" in called_args
+    assert "tests/test_python_supply_chain_controls.py" in called_args
+    assert "Backend tests passed" in output
+
+
+def test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests() -> None:
+    config_text = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+
+    assert "frontend/package(?:-lock)?\\.json" in config_text
 
 
 def test_makefile_hook_targets_use_shared_python_resolver() -> None:

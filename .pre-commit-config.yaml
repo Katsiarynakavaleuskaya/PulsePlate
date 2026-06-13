@@ -175,7 +175,7 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
-        files: ^(?!frontend/|\.claude/).+\.py$
+        files: ^(?:(?!frontend/|\.claude/).+\.py|frontend/package(?:-lock)?\.json)$
       - id: backend-tests-pre-push
         name: backend tests (pytest, pre-push)
         entry: bash scripts/run-backend-tests-pre-commit.sh
