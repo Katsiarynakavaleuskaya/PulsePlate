@@ -175,17 +175,17 @@ Reason: Codex flagged that the earlier upstream fallback used `PYTHON_CHANGES`, 
 - PASS:
   `bash -n scripts/run-backend-tests-pre-commit.sh && git diff --check`.
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_frontend_dependency_guards.py tests/test_python_supply_chain_controls.py`
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_frontend_dependency_guards.py tests/test_python_supply_chain_controls.py`
 - PASS: `npm audit --audit-level=high` at repo root.
 - PASS: `cd frontend && npm audit --audit-level=high`.
 - PASS:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`.
+  `VENV_PYTHON=.venv/bin/python make validate-changed`.
 - PASS:
   `PRE_COMMIT_HOME=/tmp/pre-commit-main-node24-baseline-guard pre-commit run --all-files`.
 - PASS: pre-push hooks, including `pip-audit`, backend pytest pre-push, full
   repo Bandit, and docker build test.
 - PASS after Codex follow-up:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_frontend_lockfile_changes_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_preserves_upstream_frontend_package_delta tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests tests/test_ci_workflow_pr_size_governance_contract.py::test_node24_runtime_baseline_surfaces_stay_coherent`
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_frontend_lockfile_changes_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_preserves_upstream_frontend_package_delta tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests tests/test_pre_commit_hook_python_resolver.py::test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests tests/test_ci_workflow_pr_size_governance_contract.py::test_node24_runtime_baseline_surfaces_stay_coherent`
   (`5 passed`).
 - PASS after Codex follow-up:
   `/bin/bash -n scripts/run-backend-tests-pre-commit.sh` on macOS Bash 3.2.
