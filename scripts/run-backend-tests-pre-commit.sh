@@ -75,7 +75,7 @@ resolve_branch_diff_from_base() {
         if [ -n "$base_sha" ]; then
             BRANCH_DIFF_BASE_RESOLVED=1
             log_debug "Merge-base with $base_branch: $base_sha"
-            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMD "$base_sha" HEAD)"
+            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "$base_sha" HEAD)"
             if [ -n "$PYTHON_CHANGES" ]; then
                 log_debug "Python changes (via branch diff $base_branch): $PYTHON_CHANGES"
             fi
@@ -88,7 +88,7 @@ resolve_branch_diff_from_base() {
 
 if [ -n "${PRE_COMMIT:-}" ]; then
     # Pre-commit hook: check staged files
-    record_changed_files "$(git diff --cached --no-renames --name-only --diff-filter=ACMD)"
+    record_changed_files "$(git diff --cached --no-renames --name-only --diff-filter=ACMDT)"
 elif [ "$BRANCH_DIFF_MODE" = "1" ]; then
     # Local validation command: diff the current branch against main/master merge-base.
     resolve_branch_diff_from_base || true
@@ -109,7 +109,7 @@ else
         log_debug "Upstream SHA: ${REMOTE_SHA:-<not found>}"
         if [ -n "$REMOTE_SHA" ]; then
             # Compare local HEAD with remote branch (files that will be pushed)
-            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMD "$REMOTE_SHA" HEAD)"
+            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "$REMOTE_SHA" HEAD)"
             log_debug "Python changes (via upstream): ${PYTHON_CHANGES:-<none>}"
         fi
     fi
@@ -123,7 +123,7 @@ else
         REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
         log_debug "Fallback remote branch: $REMOTE_BRANCH (SHA: ${REMOTE_SHA:-<not found>})"
         if [ -n "$REMOTE_SHA" ]; then
-            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMD "$REMOTE_SHA" HEAD)"
+            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "$REMOTE_SHA" HEAD)"
             log_debug "Python changes (via fallback remote): ${PYTHON_CHANGES:-<none>}"
         fi
     fi
@@ -183,7 +183,7 @@ if [ -z "$PYTHON_CHANGES" ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
         fi
 
         echo "⚠️  Could not determine changed Python files via upstream/base, checking last ${FALLBACK_DEPTH} commits as safety measure..."
-        record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMD "HEAD~${FALLBACK_DEPTH}" HEAD 2>/dev/null || true)"
+        record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "HEAD~${FALLBACK_DEPTH}" HEAD 2>/dev/null || true)"
         EXTRA_TEST_FILES=()
         add_extra_tests_for_changed_files
         log_debug "Python changes (via recent commits fallback, n=${FALLBACK_DEPTH}): ${PYTHON_CHANGES:-<none>}"
