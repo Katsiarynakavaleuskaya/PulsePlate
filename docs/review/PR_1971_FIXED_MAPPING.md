@@ -8,8 +8,8 @@ This emergency lane fixes the post-PR #1970 `main` CI fallout where the Node 24
 runtime baseline guard still asserted the removed
 `@bundled-es-modules/glob` lockfile subtree. It also adds the missing local
 governance hook coverage so future `frontend/package.json` and
-`frontend/package-lock.json` changes, including deletions and renames, run the
-cross-surface dependency guards before push.
+`frontend/package-lock.json` changes, including deletions, renames, and
+file-type changes, run the cross-surface dependency guards before push.
 
 ## Lane Start Provenance
 
@@ -33,6 +33,8 @@ cross-surface dependency guards before push.
   `5bad31fb6db12e758f99a4140343ee18e67623e5`
 - Codex rename-review follow-up commit:
   `475d4459a1f33f2b47d36f062f60bbcfd70435bb`
+- Codex type-change / pre-commit invocation follow-up commit:
+  `e3e95e87e8762b75efc00d67e3030fdfe01290d5`
 - Full local `make verify`: intentionally not run under the operator-approved
   emergency narrow-lane scope; this artifact does not claim full local verify.
 
@@ -56,6 +58,12 @@ cross-surface dependency guards before push.
   dispositioned below as NOT-A-BUG with current-head proof.
 - Codex connector thread `discussion_r3408639279`: one P2 rename blind spot
   finding, dispositioned below as FIXED.
+- Codex connector thread `discussion_r3408715134`: one P2 file-type change blind
+  spot finding, dispositioned below as FIXED.
+- Codex connector thread `discussion_r3408715137`: one P2 mapping-head finding,
+  dispositioned below as NOT-A-BUG with current-head proof.
+- Codex connector thread `discussion_r3408715138`: one P2 pre-commit invocation
+  blind spot finding, dispositioned below as FIXED.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
@@ -89,6 +97,18 @@ Commit: 475d4459a1f33f2b47d36f062f60bbcfd70435bb
 Evidence: `scripts/run-backend-tests-pre-commit.sh` now passes `--no-renames` to every hook changed-file diff collection path, so a package-manifest rename is surfaced as the deleted original manifest path; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_rename_to_governance_tests` proves `git mv frontend/package-lock.json frontend/package-lock.old` relative to upstream invokes the three mapped governance tests.
 Reason: Codex flagged that Git rename detection could report `frontend/package-lock.json` removal as `R100` to a non-manifest destination, bypassing the package-manifest trigger.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408715134 -> e3e95e87e8762b75efc00d67e3030fdfe01290d5
+Disposition: FIXED
+Commit: e3e95e87e8762b75efc00d67e3030fdfe01290d5
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now uses `--diff-filter=ACMDT` with `--no-renames` for all hook changed-file collection paths; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_upstream_frontend_package_type_change_to_governance_tests` proves changing `frontend/package-lock.json` from a regular file to a symlink still invokes the three mapped governance tests.
+Reason: Codex flagged that Git status `T` file-type changes were excluded from the manifest changed-file filter.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408715138 -> e3e95e87e8762b75efc00d67e3030fdfe01290d5
+Disposition: FIXED
+Commit: e3e95e87e8762b75efc00d67e3030fdfe01290d5
+Evidence: `.pre-commit-config.yaml` now sets `always_run: true` on the local `backend-tests` pre-commit hook, while `scripts/run-backend-tests-pre-commit.sh` still no-ops when no Python or mapped cross-surface governance file changed; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_staged_frontend_package_rename_to_governance_tests` proves the invoked script maps staged `git mv frontend/package-lock.json frontend/package-lock.old` to the three governance tests, and `test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests` asserts the hook has `always_run: true`.
+Reason: Codex flagged that pre-commit's own `files` filter could skip the hook before the script sees renamed/deleted manifest source paths.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600887
 Disposition: NOT-A-BUG
 Evidence: GitHub GraphQL reported current PR head `931c53f8bb570ff9d082ee187a102d228416850c`; local repo checks `git merge-base --is-ancestor 29b0adf0c314241199d25e160bd57ad63b0e61db HEAD` and `git merge-base --is-ancestor 5bad31fb6db12e758f99a4140343ee18e67623e5 HEAD` both passed. The cited `8a4bd84` object was not present in local repo truth for this branch. The mappings correctly point to the actual fix commits, and those commits are ancestors of current head.
@@ -97,6 +117,11 @@ Reason: The comment's current-head premise did not match current repo/GitHub evi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408639276
 Disposition: NOT-A-BUG
 Evidence: GitHub API reported current PR head `ae3f65442fb9ec6b172808d089bc5ce97927c839`, while `git show --no-patch --oneline e9d6eae53fc599d333d6c326363fcbf9c92fbbbb` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, and `b3e7f20ce62093f3dd4e3ae229adcf76213ce594` against the current branch head.
+Reason: The comment's reviewed-head premise did not match GitHub PR head or local branch truth. The mapped commits are real fix commits and remain ancestors of the current PR branch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408715137
+Disposition: NOT-A-BUG
+Evidence: GitHub API reported current PR head `9b5038d13569fee90ba55c8899996d1ad3267340`, while `git show --no-patch --oneline 8cc6af5d90da8c405bd85ed549c3c2f08977ea91` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, `475d4459a1f33f2b47d36f062f60bbcfd70435bb`, and `b3e7f20ce62093f3dd4e3ae229adcf76213ce594` against the current branch head.
 Reason: The comment's reviewed-head premise did not match GitHub PR head or local branch truth. The mapped commits are real fix commits and remain ancestors of the current PR branch.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600888 -> b3e7f20ce62093f3dd4e3ae229adcf76213ce594
@@ -150,14 +175,14 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
   `tests/test_ci_workflow_pr_size_governance_contract.py`,
   `tests/test_pre_commit_hook_python_resolver.py`, and this mapping artifact.
 - Attack-surface result: the executable change only broadens Git changed-file
-  collection from `ACM` to `ACMD` and disables rename detection for hook file
-  collection; deleted and renamed-from filenames remain exact path strings matched
-  by the existing package-manifest case arm before test-file selection. No
-  user-controlled command construction, secret handling, network call, or runtime
-  API surface was added.
+  collection from `ACM` to `ACMDT` and disables rename detection for hook file
+  collection; deleted, renamed-from, and file-type changed filenames remain exact
+  path strings matched by the existing package-manifest case arm before
+  test-file selection. No user-controlled command construction, secret handling,
+  network call, or runtime API surface was added.
 - PASS:
   `rg -n "eval\\(|exec\\(|os\\.system|subprocess|curl|wget|ssh|TOKEN|SECRET|PASSWORD|API_KEY|--diff-filter|--no-renames" scripts/run-backend-tests-pre-commit.sh tests/test_pre_commit_hook_python_resolver.py docs/review/PR_1971_FIXED_MAPPING.md .pre-commit-config.yaml`
-  returned only existing test subprocess helpers, the expected `ACMD` diff
+  returned only existing test subprocess helpers, the expected `ACMDT` diff
   filters, the expected `--no-renames` hook collection flags, and mapping
   evidence.
 - PASS:
@@ -208,14 +233,10 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
 ## Codex Security Diff Scan / Finding Discovery
 
 - Skill: `codex-security:security-diff-scan`.
-- Scan directory:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/29b0adf0c_20260613T200741Z`
-- Report:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/29b0adf0c_20260613T200741Z/report.md`
-- HTML report:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/29b0adf0c_20260613T200741Z/report.html`
-- Work ledger:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/29b0adf0c_20260613T200741Z/artifacts/02_discovery/work_ledger.jsonl`
+- Scan ID: `29b0adf0c_20260613T200741Z`.
+- Evidence source: local Codex Security diff-scan output was inspected during
+  review; host-local artifact paths are intentionally omitted from this
+  committed governance artifact.
 - Result: PASS, no reportable diff-scoped security findings. The two
   source-like changed files selected by the scanner each have not-applicable
   receipts; no validation or attack-path candidate remained.
@@ -223,15 +244,9 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
 ## PulsePlate PR Review
 
 - Skill: `pulseplate-pr-review`.
-- Initial context: `/tmp/pulseplate_pr_1971_review_context.json`.
-- Initial markdown report: `/tmp/pulseplate_pr_1971_review_report.md`.
-- Initial JSON report: `/tmp/pulseplate_pr_1971_review_report.json`.
-- Post-mapping context:
-  `/tmp/pulseplate_pr_1971_review_context_post_mapping.json`.
-- Post-mapping markdown report:
-  `/tmp/pulseplate_pr_1971_review_report_post_mapping.md`.
-- Post-mapping JSON report:
-  `/tmp/pulseplate_pr_1971_review_report_post_mapping.json`.
+- Evidence source: local PulsePlate PR review context/report artifacts were
+  generated and inspected during review; host-local artifact paths are
+  intentionally omitted from this committed governance artifact.
 - Result before this artifact existed: advisory governance findings for the
   missing fixed-mapping artifact and review-planning line count.
 - Result after this artifact existed: only the advisory large-diff review-planning
@@ -260,7 +275,7 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
 - PASS:
   `VENV_PYTHON=.venv/bin/python make validate-changed`.
 - PASS:
-  `PRE_COMMIT_HOME=/tmp/pre-commit-main-node24-baseline-guard pre-commit run --all-files`.
+  `PRE_COMMIT_HOME=<temp-pre-commit-cache> pre-commit run --all-files`.
 - PASS: pre-push hooks, including `pip-audit`, backend pytest pre-push, full
   repo Bandit, and docker build test.
 - PASS after Codex follow-up:
