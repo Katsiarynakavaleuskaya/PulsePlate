@@ -377,6 +377,55 @@ def test_backend_hook_maps_upstream_frontend_package_deletion_to_governance_test
     assert "Backend tests passed" in output
 
 
+def test_backend_hook_maps_upstream_frontend_package_rename_to_governance_tests(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    _git(repo, "branch", "-M", "main")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "frontend").mkdir()
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3}\n', encoding="utf-8"
+    )
+    (repo / "frontend" / "package.json").write_text("{}\n", encoding="utf-8")
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    _git(repo, "switch", "--quiet", "-c", "package-lock-rename")
+    _git(repo, "update-ref", "refs/remotes/origin/package-lock-rename", "HEAD")
+    _git(repo, "config", "branch.package-lock-rename.remote", "origin")
+    _git(
+        repo,
+        "config",
+        "branch.package-lock-rename.merge",
+        "refs/heads/package-lock-rename",
+    )
+    _git(repo, "mv", "frontend/package-lock.json", "frontend/package-lock.old")
+    _git(repo, "commit", "--quiet", "-m", "rename frontend lockfile")
+    calls_file = tmp_path / "pytest-upstream-rename-args.txt"
+    fake_python = tmp_path / "fake-python-upstream-rename"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
+    assert "tests/test_frontend_dependency_guards.py" in called_args
+    assert "tests/test_python_supply_chain_controls.py" in called_args
+    assert "Backend tests passed" in output
+
+
 def test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests(
     tmp_path: Path,
 ) -> None:
