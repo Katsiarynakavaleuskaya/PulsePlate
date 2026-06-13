@@ -51,6 +51,12 @@ Commit: d6451320b1a6c142b58d6d41fb521b639afe1742
 Evidence: `frontend/package.json` and `frontend/package-lock.json` no longer list direct `esbuild` in root `devDependencies`; `frontend/package.json` keeps `overrides.esbuild`, `npm ls esbuild vite storybook @storybook/react-vite @vitejs/plugin-react` reports `esbuild@0.28.1 overridden`, and `frontend/package.json` records `msw.workerDirectory: ["public"]` for the generated `frontend/public/mockServiceWorker.js` asset.
 Reason: Sourcery flagged duplicate `esbuild` pinning and noted the generated MSW worker header; the duplicate direct pin is removed while the audit-fixed version is still enforced, and generated-worker provenance stays in MSW package config plus mapping evidence rather than a manual generated-file comment.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1970#pullrequestreview-4491245199 -> 57e40852cabc06505283bd19867b6263e05ec000
+Disposition: FIXED
+Commit: 57e40852cabc06505283bd19867b6263e05ec000
+Evidence: `docs/review/PR_1970_FIXED_MAPPING.md` now separates completed evidence from the final merge-cycle checklist and leaves every checkbox under `## Merge Readiness` unchecked until the final strict merge pass.
+Reason: CodeRabbit flagged pre-checked merge-readiness boxes as premature; the artifact now matches the fixed-mapping merge-readiness rule.
+
 ## Post-Open Role Review Evidence
 
 - `qa-engineer-agent`: no code/test blocker on the implementation; identified
