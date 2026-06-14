@@ -18,6 +18,7 @@ MCP_EXAMPLE_PATHS = (
     REPO_ROOT / ".cursor/mcp.json.example",
     REPO_ROOT / ".kimi/mcp.json.example",
 )
+OPENCODE_MCP_EXAMPLE_PATHS = (REPO_ROOT / "opencode.json",)
 GOVERNED_MCP_DOC_PATHS = (REPO_ROOT / "docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md",)
 GOVERNED_MCP_SCRIPT_PATHS = (REPO_ROOT / "mcp-setup.sh",)
 
@@ -103,6 +104,23 @@ def _npm_install_package_args(line: str) -> list[str]:
     return packages
 
 
+def _opencode_npx_command_args(path: Path) -> list[tuple[str, list[str]]]:
+    data = _load_json(path)
+    mcp_servers = data.get("mcp", {})
+    if not isinstance(mcp_servers, dict):
+        return []
+
+    npx_servers: list[tuple[str, list[str]]] = []
+    for server_name, server_config in mcp_servers.items():
+        if not isinstance(server_config, dict):
+            continue
+
+        command = server_config.get("command")
+        if isinstance(command, list) and command[:1] == ["npx"]:
+            npx_servers.append((server_name, command[1:]))
+    return npx_servers
+
+
 def test_mcp_examples_do_not_enable_unrestricted_playwright_file_access() -> None:
     playwright_examples = 0
     for path in MCP_EXAMPLE_PATHS:
@@ -128,6 +146,14 @@ def test_mcp_examples_pin_npx_mcp_packages() -> None:
 
             matches += 1
             package_arg = _first_npx_package_arg(server_config.get("args", []))
+            assert package_arg, f"{path}:{server_name} has no npx package arg"
+            assert _is_exact_pinned_package_spec(
+                package_arg
+            ), f"{path}:{server_name} package is not exactly pinned: {package_arg}"
+    for path in OPENCODE_MCP_EXAMPLE_PATHS:
+        for server_name, command_args in _opencode_npx_command_args(path):
+            matches += 1
+            package_arg = _first_npx_package_arg(command_args)
             assert package_arg, f"{path}:{server_name} has no npx package arg"
             assert _is_exact_pinned_package_spec(
                 package_arg
