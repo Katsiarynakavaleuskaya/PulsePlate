@@ -37,8 +37,10 @@ file-type changes, run the cross-surface dependency guards before push.
   `e3e95e87e8762b75efc00d67e3030fdfe01290d5`
 - Codex no-op resolver follow-up commit:
   `9f7eb8357071a7612556e8c7cec8f63b7f7320e2`
+- Codex all-files pre-commit follow-up commit:
+  `6bfa5cabaca5a06d5d0145195cd2be160aefc28f`
 - Current-head Safety transient follow-up commit:
-  `cf81da6b40ea9af8f909a067cf46f0401f15ed88`
+  `cf81da6b47202a0fe30f3c44cb9d26040d6493e4`
 - Full local `make verify`: intentionally not run under the operator-approved
   emergency narrow-lane scope; this artifact does not claim full local verify.
 
@@ -76,12 +78,19 @@ file-type changes, run the cross-surface dependency guards before push.
   dispositioned below as FIXED.
 - Codex connector thread `discussion_r3408774156`: one P2 mapping-head finding,
   dispositioned below as NOT-A-BUG with current-head proof.
+- Codex connector thread `discussion_r3409110369`: one P2 mapping-head finding,
+  dispositioned below as NOT-A-BUG with current-head proof.
+- Codex connector thread `discussion_r3409110370`: one P2 `pre-commit
+  run --all-files` false-green finding, dispositioned below as FIXED.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Current-head `CI/security` job `81254358391` failed in Safety dependency
   audit because Safety CLI returned exit `68` with service-transient text for
   `requirements-docker-runtime.txt` while the parsed report contained no
   vulnerabilities. This is dispositioned below as FIXED.
+- Codex connector thread `discussion_r3409180472`: one P2 Safety mapping proof
+  finding. The underlying artifact SHA was corrected in the follow-up artifact
+  commit and is mapped below after that commit exists.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
   comments were returned by PR review/comment APIs.
 - Final current-head review-thread, bot actionable, and strict disposition
@@ -136,6 +145,13 @@ Commit: 9f7eb8357071a7612556e8c7cec8f63b7f7320e2
 Evidence: `scripts/run-backend-tests-pre-commit.sh` now computes staged/upstream changed files and exits no-op before sourcing `scripts/hooks/repo_python.sh` or checking `pytest --version`; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_skips_unrelated_staged_changes_without_repo_python` proves a staged docs-only change in a repo without `.venv` exits through the no-op path, while `test_backend_hook_honors_skip_tests_before_python_resolution` preserves the explicit `SKIP_TESTS` early exit ordering.
 Reason: Codex flagged that `always_run: true` could make docs-only commits require a repo Python/pytest even when no Python or governance files changed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3409110370 -> 6bfa5cabaca5a06d5d0145195cd2be160aefc28f
+Disposition: FIXED
+Commit: 6bfa5cabaca5a06d5d0145195cd2be160aefc28f
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now falls back from an empty staged pre-commit diff to the branch diff against main/master, which covers clean-checkout `pre-commit run --all-files` when `pass_filenames: false` hides file arguments. `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests` proves a committed `frontend/package-lock.json` branch delta with an empty staged diff still invokes the three dependency governance tests.
+Evidence: `bash -n scripts/run-backend-tests-pre-commit.sh && .venv/bin/python -m py_compile tests/test_pre_commit_hook_python_resolver.py`; `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py` (`18 passed`); `.venv/bin/python -m ruff check tests/test_pre_commit_hook_python_resolver.py`; `.venv/bin/python -m ruff format --check tests/test_pre_commit_hook_python_resolver.py`.
+Reason: Codex correctly flagged that mandatory `pre-commit run --all-files` could otherwise inspect only staged files and no-op in a clean checkout of a branch containing frontend dependency manifest changes.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600887
 Disposition: NOT-A-BUG
 Evidence: GitHub GraphQL reported current PR head `931c53f8bb570ff9d082ee187a102d228416850c`; local repo checks `git merge-base --is-ancestor 29b0adf0c314241199d25e160bd57ad63b0e61db HEAD` and `git merge-base --is-ancestor 5bad31fb6db12e758f99a4140343ee18e67623e5 HEAD` both passed. The cited `8a4bd84` object was not present in local repo truth for this branch. The mappings correctly point to the actual fix commits, and those commits are ancestors of current head.
@@ -156,6 +172,11 @@ Disposition: NOT-A-BUG
 Evidence: GitHub API reported current PR head `e066b2e4816f76ba01ca2e686d359be483def1a1`, while `git show --no-patch --oneline 6ba3f90e2fab3644dce871fb126ff71fe115cea1` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, `475d4459a1f33f2b47d36f062f60bbcfd70435bb`, `e3e95e87e8762b75efc00d67e3030fdfe01290d5`, `57fd10c730d822d5aa9150780f92e0b452224852`, and `b3e7f20ce62093f3dd4e3ae229adcf76213ce594` against the current branch head.
 Reason: The comment's reviewed-head premise did not match GitHub PR head or local branch truth. The mapped commits are real fix commits and remain ancestors of the current PR branch.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3409110369
+Disposition: NOT-A-BUG
+Evidence: Current code head before this mapping update is `6bfa5cabaca5a06d5d0145195cd2be160aefc28f`; `git show --no-patch --oneline b4638674f8f67bf27f6c5ec04841ac63382c3eda` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, `475d4459a1f33f2b47d36f062f60bbcfd70435bb`, `e3e95e87e8762b75efc00d67e3030fdfe01290d5`, `9f7eb8357071a7612556e8c7cec8f63b7f7320e2`, `57fd10c730d822d5aa9150780f92e0b452224852`, `b3e7f20ce62093f3dd4e3ae229adcf76213ce594`, and `6bfa5cabaca5a06d5d0145195cd2be160aefc28f` against the current branch head.
+Reason: The comment's reviewed-head premise did not match current repo/GitHub branch truth. The mapped FIXED proofs point to real code/test commits that are ancestors of the PR head; remapping those proofs to a later docs-only head would reduce proof quality.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408715140 -> 57fd10c730d822d5aa9150780f92e0b452224852
 Disposition: FIXED
 Commit: 57fd10c730d822d5aa9150780f92e0b452224852
@@ -170,9 +191,9 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
 
 ## Current-Head CI Failure Closure
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/27490437868/job/81254358391 -> cf81da6b40ea9af8f909a067cf46f0401f15ed88
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/27490437868/job/81254358391 -> cf81da6b47202a0fe30f3c44cb9d26040d6493e4
 Disposition: FIXED
-Commit: cf81da6b40ea9af8f909a067cf46f0401f15ed88
+Commit: cf81da6b47202a0fe30f3c44cb9d26040d6493e4
 Evidence: `scripts/ci/run_safety_audit.py` now retries only the narrow Safety service-transient shape: exit code `68`, known Safety service text, parsed `PARSE_OK`, zero high/other active findings, and zero repo-policy-waived findings. `tests/test_run_safety_audit.py` covers successful scan without retry, transient fail then pass, persistent transient fail-closed, active vulnerability with transient exit not retrying, and repo-policy-waived finding not retrying.
 Evidence: `.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py` (`98 passed`); `VENV_PYTHON="$PWD/.venv/bin/python" make validate-changed` (`44 passed`); `.venv/bin/python -m ruff check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed); `.venv/bin/python -m ruff format --check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed).
 Reason: The current-head CI failure was not a new vulnerability or a waiver gap. The downloaded Safety artifact for `requirements-docker-runtime.txt` reported no vulnerabilities, while the raw Safety log contained the service-transient message `Sorry, something went wrong. Our engineers are working quickly to resolve the issue.` The fix keeps real dependency findings fail-closed and avoids adding ignores or extending waivers.
