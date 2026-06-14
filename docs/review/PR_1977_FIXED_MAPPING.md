@@ -16,19 +16,19 @@ Post-open Sourcery review comments were fixed in code/tests before thread resolu
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-Commit: a3528ce8a
-Evidence: `app/routers/favicon.py` exports `FAVICON_ROUTE_PATH`; `app/main.py` imports and reuses it for bootstrap validation.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410178548 -> a3528ce8a
+Commit: 7e8ff38f3
+Evidence: Current-head tree proof includes `app/routers/favicon.py` exporting `FAVICON_ROUTE_PATH` and `app/main.py` importing and reusing it for bootstrap validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410178548 -> 7e8ff38f3
 
 Disposition: FIXED
-Commit: a3528ce8a
-Evidence: `tests/test_app_endpoints_combined.py` asserts `not route.dependant.dependencies` for `GET /favicon.ico`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410178554 -> a3528ce8a
+Commit: 7e8ff38f3
+Evidence: Current-head tree proof includes `tests/test_app_endpoints_combined.py` asserting `not route.dependant.dependencies` for `GET /favicon.ico`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410178554 -> 7e8ff38f3
 
 Disposition: FIXED
-Commit: a3528ce8a
-Evidence: The Sourcery review-level summary duplicated the two inline favicon findings; both were fixed in `app/routers/favicon.py`, `app/main.py`, and `tests/test_app_endpoints_combined.py`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#pullrequestreview-4493518770 -> a3528ce8a
+Commit: 7e8ff38f3
+Evidence: The Sourcery review-level summary duplicated the two inline favicon findings; current-head tree proof includes the fixes in `app/routers/favicon.py`, `app/main.py`, and `tests/test_app_endpoints_combined.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#pullrequestreview-4493518770 -> 7e8ff38f3
 
 Disposition: NOT-A-BUG
 Evidence: The Sourcery reviewer guide is a generated overview, not a separate requested code change after the inline Sourcery findings were fixed.
@@ -41,9 +41,9 @@ Reason: The repo does not enforce CodeRabbit's standalone docstring coverage war
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#issuecomment-4702933387
 
 Disposition: FIXED
-Commit: 20e1a3142
-Evidence: `docs/review/PR_1977_FIXED_MAPPING.md` now includes an unchecked `## Merge-readiness Checklist` before the fixed mapping section.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#pullrequestreview-4493537527 -> 20e1a3142
+Commit: 7e8ff38f3
+Evidence: Current-head tree proof includes an unchecked `## Merge-readiness Checklist` before the fixed mapping section in `docs/review/PR_1977_FIXED_MAPPING.md`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#pullrequestreview-4493537527 -> 7e8ff38f3
 
 Disposition: NOT-A-BUG
 Evidence: The Codex review body contains no concrete file/line finding or requested change; it is an automated review notification only.
