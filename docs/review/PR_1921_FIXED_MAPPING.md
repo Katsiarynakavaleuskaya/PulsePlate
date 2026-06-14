@@ -4,7 +4,7 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921
 
 Branch: `codex/fix-vulnerability-in-mcp-examples`
 
-Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`, `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`
+Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`, `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`, `9a77a2ce364a673eeeb675daa2ecc805758bdeb0`, `24f5ca975902eb9137e195df0d1f6052e026d814`
 
 Scope: MCP example security defaults, root MCP setup/config examples, governed Context7 runbook pinning, guard coverage, and review-governance closeout only. No backend runtime, OpenAPI, frontend runtime, iOS, database, or product behavior changes.
 
@@ -50,10 +50,10 @@ Disposition: FIXED
 Commit: 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
 Evidence: CodeRabbit aggregate review `4493009748` reported the same governed Context7 vacuous-pass finding as `#discussion_r3409638961`; `tests/guards/test_mcp_examples_safe_defaults.py:135` counts governed Context7 matches and `tests/guards/test_mcp_examples_safe_defaults.py:144` fails if the runbook has no governed Context7 examples.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643743 -> 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643743 -> 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
 Disposition: FIXED
-Commit: 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
-Evidence: `mcp-config.json:5` pins the root OpenAI MCP `npx` package to `mcp-server-openai@0.0.1`; the unpublished `mcp-server-chatgpt` root example was removed after `npm view mcp-server-chatgpt version` returned npm `E404`; `mcp-setup.sh:26` pins the setup helper to `mcp-server-openai@0.0.1`; `tests/guards/test_mcp_examples_safe_defaults.py:16` includes root `mcp-config.json` in governed JSON examples; `tests/guards/test_mcp_examples_safe_defaults.py:147` enforces exact pins for governed setup-script `npm install` package specs.
+Commit: 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Evidence: `mcp-config.json:4` now uses the documented Python-packaged `uvx` invocation and `mcp-config.json:5` pins it to `mcp-server-openai==0.1.4`; `mcp-setup.sh:8` requires `uvx` and `mcp-setup.sh:16` documents the same exact package pin. The earlier unpublished ChatGPT npm example remains removed, and the questionable `mcp-server-openai@0.0.1` npm install/config path is gone.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#pullrequestreview-4493037035 -> 9453bbc2db93fd4422ef7952a7a0d78242692343
 Disposition: FIXED
@@ -74,6 +74,36 @@ Evidence: `opencode.json:25` now pins the checked-in Opencode Cloudflare MCP `np
 Disposition: FIXED
 Commit: 8f5447c6be9f50ce615ab273deaf27017f6a4e0d
 Evidence: `git log -1 --pretty=raw 8f5447c6be9f50ce615ab273deaf27017f6a4e0d` shows the required trailer `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on the post-comment commit carrying the latest accepted runner-shaped closeout work.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409745075
+Disposition: NOT-A-BUG
+Evidence: The review referenced synthetic reviewed/squashed head `a194529962d802c9d2f5f89c6e74a91cf5524d49`, not the GitHub PR branch head. In the local PR branch after `24f5ca975902eb9137e195df0d1f6052e026d814`, every mapped FIXED proof commit listed above remains in first-parent history; the connector's synthetic commit is not the branch commit used by GitHub current-head checks or the strict merge wrapper.
+Reason: The comment evaluates a non-branch synthetic review commit. The actual PR branch contains the mapped proof commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409745078 -> 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Disposition: FIXED
+Commit: 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Evidence: `git log -1 --pretty=raw 9a77a2ce364a673eeeb675daa2ecc805758bdeb0` shows `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on the post-comment implementation commit carrying accepted runner-shaped closeout work.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409745081 -> 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Disposition: FIXED
+Commit: 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Evidence: `python3 -m pip download --no-deps mcp-server-openai==0.1.4` showed PyPI metadata for `mcp-server-openai 0.1.4` with console script `mcp-server-openai = mcp_server_openai.server:main`; `mcp-config.json:4` switches the root example to `uvx`, `mcp-config.json:5` pins `mcp-server-openai==0.1.4`, and `mcp-setup.sh:8`/`mcp-setup.sh:16` mirror that Python-package setup instead of `npm install -g mcp-server-openai@0.0.1`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409745083 -> 24f5ca975902eb9137e195df0d1f6052e026d814
+Disposition: FIXED
+Commit: 24f5ca975902eb9137e195df0d1f6052e026d814
+Evidence: `docs/review/PR_1921_FIXED_MAPPING.md` local validation evidence now uses repo-relative commands such as `.venv/bin/python -m pytest ...`; a direct scan of the PR #1921 review artifacts for local home-directory paths returned no matches.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409745084 -> 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Disposition: FIXED
+Commit: 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Evidence: `tests/guards/test_mcp_examples_safe_defaults.py:123` parses setup-script command lines, `tests/guards/test_mcp_examples_safe_defaults.py:230` checks every setup-script line for protected env-file reads, and `tests/guards/test_mcp_examples_safe_defaults.py:287` covers equivalent dump commands including `cat "$HOME/.cursor/.env"`, `sed`, `grep`, and `tail`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409745087 -> 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Disposition: FIXED
+Commit: 9a77a2ce364a673eeeb675daa2ecc805758bdeb0
+Evidence: `tests/guards/test_mcp_examples_safe_defaults.py:13` tokenizes exact Context7 package mentions, `tests/guards/test_mcp_examples_safe_defaults.py:208` validates every token rather than a substring, and `tests/guards/test_mcp_examples_safe_defaults.py:280` covers a mixed pinned-plus-unpinned line.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643744
 Disposition: NOT-A-BUG
@@ -132,7 +162,7 @@ Decision: proceed with changes. Findings were fixed before this mapping artifact
 
 Artifact: `artifacts/orchestration/experiments/results/exp-ef5d3fd57aeb.json`
 
-Disposition: accepted oracle-only static review. The artifact sets `coauthor_required=true` with `contribution_kind=commit_decision`, and commits `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, and `8f5447c6be9f50ce615ab273deaf27017f6a4e0d` include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Disposition: accepted oracle-only static review. The artifact sets `coauthor_required=true` with `contribution_kind=commit_decision`, and commits `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`, `9a77a2ce364a673eeeb675daa2ecc805758bdeb0`, and `24f5ca975902eb9137e195df0d1f6052e026d814` include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 Rejected setup artifacts `exp-12a0b4a5998e` and `exp-885e8677a2c5` were not used as proof; they failed on temporary-checkout venv resolution and shell-quote shape respectively.
 
