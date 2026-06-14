@@ -5,7 +5,7 @@
 # compatibility. For fully reproducible builds, use pip freeze > requirements-lock.txt
 
 # Testing - allow minor/patch updates for bug fixes
-pytest>=9.0.3
+pytest>=9.1.0
 pytest-cov>=7.0.0
 pytest-asyncio>=1.4.0
 coverage>=7.14.1  # Must match requirements-dev.txt minimum

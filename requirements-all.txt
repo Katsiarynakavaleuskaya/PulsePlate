@@ -2,7 +2,7 @@
 -r requirements.txt
 
 # Development & Testing tools (use constraints.txt for exact versions)
-pytest>=8.3
+pytest>=9.1.0
 pytest-cov>=6.0
 pytest-asyncio>=1.4.0
 coverage>=7.14.1
