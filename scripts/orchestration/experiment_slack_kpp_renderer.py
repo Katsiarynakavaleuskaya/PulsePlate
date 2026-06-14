@@ -60,12 +60,13 @@ class KPPRenderError(RuntimeError):
 def _slack_section_text(text: str, *, limit: int = SLACK_SECTION_TEXT_LIMIT) -> str:
     """Bound Slack section text while preserving already-redacted formatting."""
 
+    if limit <= 0:
+        return ""
     if len(text) <= limit:
         return text
-    return (
-        text[: limit - len(_SLACK_TRUNCATION_MARKER)].rstrip()
-        + _SLACK_TRUNCATION_MARKER
-    )
+    if limit <= len(_SLACK_TRUNCATION_MARKER):
+        return _SLACK_TRUNCATION_MARKER[:limit]
+    return text[: limit - len(_SLACK_TRUNCATION_MARKER)].rstrip() + _SLACK_TRUNCATION_MARKER
 
 
 @dataclass(frozen=True)

@@ -26,6 +26,8 @@ from scripts.orchestration.experiment_slack_kpp_renderer import (
     REDACTION_NOTICE,
     SECURITY_SENSITIVE_OUTCOMES,
     SLACK_SECTION_TEXT_LIMIT,
+    _SLACK_TRUNCATION_MARKER,
+    _slack_section_text,
     _slack_text,
     _validate_experiment_id,
     _validate_kpp_outcome,
@@ -247,8 +249,7 @@ def test_render_bounds_large_evidence_summary_to_slack_section_limit() -> None:
         kpp_outcome=KPP_ORACLE_VIOLATION,
         experiment_id="test-001",
         evidence_summary=tuple(
-            f"oracle-{index:03d} rc=0 timed_out=false truncated=false"
-            for index in range(160)
+            f"oracle-{index:03d} rc=0 timed_out=false truncated=false" for index in range(160)
         ),
     )
 
@@ -264,6 +265,50 @@ def test_render_bounds_large_evidence_summary_to_slack_section_limit() -> None:
     evidence_text = evidence_sections[0]
     assert len(evidence_text) <= SLACK_SECTION_TEXT_LIMIT
     assert evidence_text.endswith("[truncated=true]")
+
+
+@pytest.mark.parametrize(
+    "limit",
+    [
+        0,
+        1,
+        len(_SLACK_TRUNCATION_MARKER) - 1,
+        len(_SLACK_TRUNCATION_MARKER),
+        len(_SLACK_TRUNCATION_MARKER) + 1,
+    ],
+)
+def test_slack_section_text_respects_tiny_limits(limit: int) -> None:
+    result = _slack_section_text("x" * 100, limit=limit)
+
+    assert len(result) <= limit
+    if limit == 0:
+        assert result == ""
+    elif limit <= len(_SLACK_TRUNCATION_MARKER):
+        assert result == _SLACK_TRUNCATION_MARKER[:limit]
+    else:
+        assert result.endswith(_SLACK_TRUNCATION_MARKER)
+
+
+def test_render_bounds_large_artifact_action_section_to_slack_section_limit() -> None:
+    message = render_kpp_block_message(
+        kpp_outcome=KPP_FAIL,
+        experiment_id="test-001",
+        artifact_refs=tuple(f"artifacts/exp/oracle-{index:03d}.json" for index in range(160)),
+        action_required="Review artifact evidence and keep merge blocked. " * 160,
+    )
+
+    parsed = json.loads(message.as_blocks_json())
+    artifact_sections = [
+        block["text"]["text"]
+        for block in parsed["blocks"]
+        if block.get("type") == "section"
+        and "Artifact/reference" in block.get("text", {}).get("text", "")
+    ]
+
+    assert len(artifact_sections) == 1
+    artifact_text = artifact_sections[0]
+    assert len(artifact_text) <= SLACK_SECTION_TEXT_LIMIT
+    assert artifact_text.endswith("[truncated=true]")
 
 
 def test_render_custom_action_required() -> None:
