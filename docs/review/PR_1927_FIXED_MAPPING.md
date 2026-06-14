@@ -95,6 +95,16 @@ Disposition: NOT-A-BUG
 Evidence: Current branch history contains `ae6e31d98891922feb8fecedff4951c68284f9b3`; `git merge-base --is-ancestor ae6e31d98891922feb8fecedff4951c68284f9b3 HEAD` returned 0 locally on current head `de59b52ce65c0e887ce3f3abc43d753928b68f9e`.
 Reason: The connector comment was based on an older reviewed synthetic head; the current PR branch contains the mapped fix commit and strict disposition ancestry checks pass for the current branch.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1927#discussion_r3409878190 -> ef26b51ef4763921b8c62c2bd442a79687541a3b
+Disposition: FIXED
+Commit: ef26b51ef4763921b8c62c2bd442a79687541a3b
+Evidence: The `## Merge Readiness` checklist in this artifact now keeps all final-cycle readiness boxes unchecked until current-head CI, bot checks, strict merge-readiness, and the wait-window are actually complete.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1927#pullrequestreview-4493246335 -> ef26b51ef4763921b8c62c2bd442a79687541a3b
+Disposition: FIXED
+Commit: ef26b51ef4763921b8c62c2bd442a79687541a3b
+Evidence: CodeRabbit's aggregate review reported the same merge-readiness checkbox issue as inline thread `discussion_r3409878190`, fixed by the unchecked final-cycle readiness checklist.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
