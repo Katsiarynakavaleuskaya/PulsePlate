@@ -111,15 +111,21 @@ def find_blocked_packages(
 
 
 def find_blocked_debian_packages(
-    installed_packages: dict[str, str], blocked_packages: tuple[str, ...]
+    installed_packages: dict[str, str],
+    blocked_packages: tuple[str, ...],
+    blocked_prefixes: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
-    """Return exact Debian packages that must not exist in the production image."""
+    """Return Debian packages that must not exist in the production image."""
 
     normalized_blocked = {normalize_debian_package_name(item) for item in blocked_packages}
+    normalized_prefixes = tuple(
+        normalize_debian_package_name(item) for item in blocked_prefixes if item.strip()
+    )
     blocked = [
         f"{name}={version}"
         for name, version in installed_packages.items()
         if name in normalized_blocked
+        or (normalized_prefixes and name.startswith(normalized_prefixes))
     ]
     return tuple(sorted(blocked))
 
@@ -176,13 +182,22 @@ def build_result(
     image: str,
     blocked_prefixes: tuple[str, ...],
     blocked_debian_packages: tuple[str, ...] = (),
+    blocked_debian_prefixes: tuple[str, ...] = (),
 ) -> DependencySurfaceResult:
     """Build the normalized dependency-surface result for an image."""
 
     installed = inspect_image_packages(image)
     blocked = find_blocked_packages(installed, blocked_prefixes)
-    installed_debian = inspect_image_debian_packages(image) if blocked_debian_packages else {}
-    blocked_debian = find_blocked_debian_packages(installed_debian, blocked_debian_packages)
+    installed_debian = (
+        inspect_image_debian_packages(image)
+        if blocked_debian_packages or blocked_debian_prefixes
+        else {}
+    )
+    blocked_debian = find_blocked_debian_packages(
+        installed_debian,
+        blocked_debian_packages,
+        blocked_debian_prefixes,
+    )
     return DependencySurfaceResult(
         image=image,
         installed_count=len(installed),
@@ -213,6 +228,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Exact Debian package name that must not exist in the production image. May be passed multiple times.",
     )
     parser.add_argument(
+        "--blocked-debian-prefix",
+        action="append",
+        dest="blocked_debian_prefixes",
+        default=None,
+        help="Debian package-name prefix that must not exist in the production image. May be passed multiple times.",
+    )
+    parser.add_argument(
         "--output-json",
         type=Path,
         help="Optional path for writing the JSON result payload.",
@@ -227,7 +249,13 @@ def main(argv: list[str] | None = None) -> int:
     extra_blocked_prefixes = tuple(args.blocked_prefixes or ())
     blocked_prefixes = DEFAULT_BLOCKED_PREFIXES + extra_blocked_prefixes
     blocked_debian_packages = tuple(args.blocked_debian_packages or ())
-    result = build_result(args.image, blocked_prefixes, blocked_debian_packages)
+    blocked_debian_prefixes = tuple(args.blocked_debian_prefixes or ())
+    result = build_result(
+        args.image,
+        blocked_prefixes,
+        blocked_debian_packages,
+        blocked_debian_prefixes,
+    )
     payload = json.dumps(asdict(result), indent=2)
 
     if args.output_json is not None:

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-14",
+  "review_by": "2026-06-28",
+  "reason": "Emergency Docker source-artifact pin for SQLite runtime remediation. This makes the upstream fetch explicit in CI/local preparation instead of performing hidden live downloads inside Docker builds.",
+  "artifacts": [
+    {
+      "name": "sqlite-autoconf",
+      "version": "3530200",
+      "filename": "sqlite-autoconf-3530200.tar.gz",
+      "url": "https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+      "sha3_256_parts": [
+        "025328da",
+        "165109f4",
+        "8abccc6e",
+        "74785080",
+        "60804412",
+        "bed2bd81",
+        "d47e98ba",
+        "1b72983b"
+      ]
+    }
+  ]
+}

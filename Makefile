@@ -4,7 +4,7 @@ all: lint test cov-check
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: all ensure-database-versions ensure-python-proxy
+.PHONY: all ensure-database-versions ensure-python-proxy docker-source-artifacts
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
@@ -16,14 +16,17 @@ ensure-python-proxy:
 # - Always test builds locally: make docker-build && docker run -p 8000:8000 pulseplate:latest
 # - Clean old images regularly: make docker-clean-images
 # - Use versioned tags for production: docker tag pulseplate:latest pulseplate:v1.0.0
-docker-build: ensure-python-proxy ## Build production Docker image
+docker-source-artifacts: ## Prepare verified Docker source artifacts
+	$(DEV_PYTHON) scripts/ci/fetch_docker_source_artifacts.py
+
+docker-build: ensure-python-proxy docker-source-artifacts ## Build production Docker image
 	docker build -t pulseplate:latest --target production \
 		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
 		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
 		.
 	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
 
-docker-build-dev: ensure-python-proxy ## Build development Docker image
+docker-build-dev: ensure-python-proxy docker-source-artifacts ## Build development Docker image
 	docker build -t pulseplate:dev --target development \
 		--build-arg PULSEPLATE_PYTHON_INDEX_URL="$$PULSEPLATE_PYTHON_INDEX_URL" \
 		--build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="$${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
@@ -600,4 +603,4 @@ dc-smoke: ## Verify tooling inside dev container
 	docker compose -f "$(DEVCONTAINER_COMPOSE)" run --rm devcontainer \
 		bash -lc "python3 --version && node --version && make --version"
 
-.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed pr-start pr-regression-scan cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke
+.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed pr-start pr-regression-scan cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-source-artifacts docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke

@@ -42,6 +42,11 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
           df -h
 
+      - name: Prepare Docker source artifacts
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/fetch_docker_source_artifacts.py
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
 
@@ -71,6 +76,9 @@ jobs:
             --blocked-debian-package apt \
             --blocked-debian-package gpgv \
             --blocked-debian-package libgnutls30 \
+            --blocked-debian-package libsqlite3-0 \
+            --blocked-debian-package perl-base \
+            --blocked-debian-prefix perl-modules- \
             --output-json docker-runtime-dependency-surface.json
 
       - name: Resolve Docker image telemetry baseline

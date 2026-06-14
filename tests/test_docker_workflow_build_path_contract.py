@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import date
+from hashlib import sha3_256
+import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi.testclient import TestClient
+import pytest
 import yaml
+
+from scripts.ci import fetch_docker_source_artifacts as docker_sources
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
@@ -41,6 +48,36 @@ def _step_by_name(job: dict[str, object], step_name: str) -> dict[str, object]:
 
 def _step_index(job: dict[str, object], step_name: str) -> int:
     return _step_names(job).index(step_name)
+
+
+def _docker_source_manifest(
+    *,
+    payload: bytes = b"sqlite source",
+    review_by: str = "2026-06-28",
+    filename: str = "sqlite-autoconf-3530200.tar.gz",
+    url: str = "https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz",
+) -> dict[str, object]:
+    digest = sha3_256(payload).hexdigest()
+    return {
+        "schema_version": 1,
+        "generated_at": "2026-06-14",
+        "review_by": review_by,
+        "artifacts": [
+            {
+                "name": "sqlite-autoconf",
+                "version": "3530200",
+                "filename": filename,
+                "url": url,
+                "sha3_256_parts": [digest[index : index + 8] for index in range(0, len(digest), 8)],
+            }
+        ],
+    }
+
+
+def _write_docker_source_manifest(tmp_path: Path, manifest: dict[str, object]) -> Path:
+    manifest_path = tmp_path / "docker_source_artifacts.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest_path
 
 
 def test_removed_duplicate_docker_pr_workflows() -> None:
@@ -128,14 +165,271 @@ def test_build_workflow_does_not_expose_github_token_to_pr_baseline_script() -> 
 
 
 def test_production_dockerfile_prunes_package_manager_surface() -> None:
-    """Production target removes package-manager packages after runtime-base."""
+    """Production target removes package-manager and Perl runtime packages."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     production_section = dockerfile.split("FROM runtime-base AS production", 1)[1]
     production_section = production_section.split("FROM production AS staging", 1)[0]
+    pruning_block = production_section.split(
+        "# SECURITY: production-package-pruning-start",
+        1,
+    )[
+        1
+    ].split("# SECURITY: production-package-pruning-end", 1)[0]
 
-    assert "dpkg --purge --force-depends apt gpgv libgnutls30" in production_section
-    assert "dpkg-query -W" in production_section
-    assert "import ssl" in production_section
+    assert "dpkg --purge --force-depends --force-remove-essential" in pruning_block
+    assert "perl_module_packages=" in pruning_block
+    assert "'perl-modules-*'" in pruning_block
+    for package in ("apt", "gpgv", "libgnutls30", "libsqlite3-0", "perl-base"):
+        assert f"        {package} \\" in pruning_block
+        assert f" {package} " in pruning_block
+    assert "dpkg-query -W -f='${db:Status-Abbrev}'" in pruning_block
+    assert "import ssl" in pruning_block
+    assert "import sqlite3" in pruning_block
+    assert "expected >= 3.53.2" in pruning_block
+
+
+def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:
+    """Dockerfile builds pre-fetched SQLite 3.53.2 before removing Debian SQLite."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    dockerignore = (REPO_ROOT / ".dockerignore").read_text(encoding="utf-8")
+    sqlite_builder_section = dockerfile.split("AS sqlite-builder", 1)[1]
+    sqlite_builder_section = sqlite_builder_section.split("FROM python", 1)[0]
+    runtime_base_section = dockerfile.split(
+        "FROM python:3.13.13-slim-bookworm AS runtime-base",
+        1,
+    )[1]
+    runtime_base_section = runtime_base_section.split("COPY --from=builder", 1)[0]
+
+    assert 'ARG SQLITE_AUTOCONF_VERSION="3530200"' in dockerfile
+    assert "SQLite source pins are intentionally mirrored" in dockerfile
+    assert "Docker COPY source paths are literal" in dockerfile
+    checksum_parts = (
+        "025328da",
+        "165109f4",
+        "8abccc6e",
+        "74785080",
+        "60804412",
+        "bed2bd81",
+        "d47e98ba",
+        "1b72983b",
+    )
+    for index, checksum_part in enumerate(checksum_parts, start=1):
+        assert f'ARG SQLITE_AUTOCONF_SHA3_256_PART_{index}="{checksum_part}"' in dockerfile
+    assert len("".join(checksum_parts)) == 64
+    assert 'os.environ[f"SQLITE_AUTOCONF_SHA3_256_PART_{index}"]' in sqlite_builder_section
+    assert "urlopen" not in sqlite_builder_section
+    assert "urllib" not in sqlite_builder_section
+    assert "https://sqlite.org" not in sqlite_builder_section
+    assert "COPY build/docker-sources/sqlite-autoconf-3530200.tar.gz" in sqlite_builder_section
+    assert "!build/docker-sources/sqlite-autoconf-*.tar.gz" in dockerignore
+    assert "sha3_256(payload).hexdigest()" in sqlite_builder_section
+    assert "SQLite source SHA3 mismatch" in sqlite_builder_section
+    assert "./configure --prefix=/usr/local --disable-static --enable-shared" in dockerfile
+    assert "COPY --from=sqlite-builder /usr/local/lib/libsqlite3.so*" in runtime_base_section
+    assert "/etc/ld.so.conf.d/00-pulseplate-local-sqlite.conf" in runtime_base_section
+    assert "ldconfig" in runtime_base_section
+    assert "import sqlite3" in runtime_base_section
+    assert "expected >= 3.53.2" in runtime_base_section
+
+
+def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
+    """Docker source-artifact manifest pins approved SQLite source with SHA3 parts."""
+    manifest = json.loads(
+        (REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text(encoding="utf-8")
+    )
+    artifacts = manifest["artifacts"]
+    assert manifest["schema_version"] == 1
+    assert manifest["review_by"] == "2026-06-28"
+    assert len(artifacts) == 1
+
+    artifact = artifacts[0]
+    parsed_url = urlparse(artifact["url"])
+    assert artifact["name"] == "sqlite-autoconf"
+    assert artifact["version"] == "3530200"
+    assert artifact["filename"] == "sqlite-autoconf-3530200.tar.gz"
+    assert parsed_url.scheme == "https"
+    assert parsed_url.hostname == "sqlite.org"
+    assert parsed_url.path == "/2026/sqlite-autoconf-3530200.tar.gz"
+    assert artifact["sha3_256_parts"] == [
+        "025328da",
+        "165109f4",
+        "8abccc6e",
+        "74785080",
+        "60804412",
+        "bed2bd81",
+        "d47e98ba",
+        "1b72983b",
+    ]
+    assert len("".join(artifact["sha3_256_parts"])) == 64
+
+
+def test_docker_source_artifact_loader_rejects_stale_review_dates(tmp_path: Path) -> None:
+    manifest_path = _write_docker_source_manifest(
+        tmp_path,
+        _docker_source_manifest(review_by="2026-06-13"),
+    )
+
+    with pytest.raises(RuntimeError, match="review_by is stale"):
+        docker_sources.load_manifest(manifest_path, today=date(2026, 6, 14))
+
+
+def test_docker_source_artifact_loader_rejects_unsafe_source_metadata(tmp_path: Path) -> None:
+    bad_host_manifest = _write_docker_source_manifest(
+        tmp_path,
+        _docker_source_manifest(url="https://example.com/sqlite-autoconf-3530200.tar.gz"),
+    )
+    with pytest.raises(RuntimeError, match="source URL must use https"):
+        docker_sources.load_manifest(bad_host_manifest, today=date(2026, 6, 14))
+
+    bad_filename_manifest = _write_docker_source_manifest(
+        tmp_path,
+        _docker_source_manifest(filename="../sqlite-autoconf-3530200.tar.gz"),
+    )
+    with pytest.raises(RuntimeError, match="safe basename"):
+        docker_sources.load_manifest(bad_filename_manifest, today=date(2026, 6, 14))
+
+
+def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b"verified sqlite source artifact"
+    manifest_path = _write_docker_source_manifest(
+        tmp_path, _docker_source_manifest(payload=payload)
+    )
+    artifact = docker_sources.load_manifest(manifest_path, today=date(2026, 6, 14))[0]
+    output_dir = tmp_path / "docker-sources"
+    calls: list[tuple[str, int]] = []
+
+    class _Response:
+        def read(self) -> bytes:
+            return payload
+
+    def _urlopen(url: str, *, timeout: int) -> _Response:
+        calls.append((url, timeout))
+        return _Response()
+
+    monkeypatch.setattr(docker_sources, "urlopen", _urlopen)
+    output_path = docker_sources._write_verified_artifact(artifact, output_dir)
+
+    assert output_path == output_dir / "sqlite-autoconf-3530200.tar.gz"
+    assert output_path.read_bytes() == payload
+    assert output_path.stat().st_mode & 0o777 == 0o644
+    assert calls == [("https://sqlite.org/2026/sqlite-autoconf-3530200.tar.gz", 60)]
+
+    def _unexpected_urlopen(_url: str, *, timeout: int) -> _Response:
+        raise AssertionError("verified artifact should be reused without a network call")
+
+    monkeypatch.setattr(docker_sources, "urlopen", _unexpected_urlopen)
+    reused_path = docker_sources._write_verified_artifact(artifact, output_dir)
+
+    assert reused_path == output_path
+    assert output_path.read_bytes() == payload
+
+
+def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _write_docker_source_manifest(
+        tmp_path,
+        _docker_source_manifest(payload=b"expected sqlite source artifact"),
+    )
+    artifact = docker_sources.load_manifest(manifest_path, today=date(2026, 6, 14))[0]
+
+    class _Response:
+        def read(self) -> bytes:
+            return b"tampered sqlite source artifact"
+
+    monkeypatch.setattr(docker_sources, "urlopen", lambda _url, *, timeout: _Response())
+
+    with pytest.raises(RuntimeError, match="SHA3 mismatch"):
+        docker_sources._write_verified_artifact(artifact, tmp_path / "docker-sources")
+
+    assert not (tmp_path / "docker-sources" / "sqlite-autoconf-3530200.tar.gz").exists()
+
+
+def test_docker_build_workflows_prefetch_source_artifacts_before_build() -> None:
+    """Docker workflows prepare source artifacts explicitly before image build actions."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    build_job = workflow["jobs"]["build"]
+    publish_job = workflow["jobs"]["publish"]
+    assert isinstance(build_job, dict)
+    assert isinstance(publish_job, dict)
+
+    for job, build_step_name in (
+        (build_job, "Build Docker image (local, for tests)"),
+        (publish_job, "Build Docker image for publish scan"),
+    ):
+        prepare_step = _step_by_name(job, "Prepare Docker source artifacts")
+        assert "python3 scripts/ci/fetch_docker_source_artifacts.py" in prepare_step["run"]
+        assert _step_index(job, "Prepare Docker source artifacts") < _step_index(
+            job,
+            build_step_name,
+        )
+
+    trivy_workflow = _load_workflow(WORKFLOWS_DIR / "trivy.yml")
+    trivy_job = trivy_workflow["jobs"]["build"]
+    assert isinstance(trivy_job, dict)
+    trivy_prepare_step = _step_by_name(trivy_job, "Prepare Docker source artifacts")
+    assert "python3 scripts/ci/fetch_docker_source_artifacts.py" in trivy_prepare_step["run"]
+    assert _step_index(trivy_job, "Prepare Docker source artifacts") < _step_index(
+        trivy_job,
+        "Build Docker image (production target)",
+    )
+
+
+def test_makefile_docker_build_targets_prefetch_source_artifacts() -> None:
+    """Local Docker Make targets prepare source artifacts before Docker builds."""
+    makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+
+    assert "docker-source-artifacts: ## Prepare verified Docker source artifacts" in makefile
+    assert "$(DEV_PYTHON) scripts/ci/fetch_docker_source_artifacts.py" in makefile
+    assert (
+        "docker-build: ensure-python-proxy docker-source-artifacts ## Build production Docker image"
+        in makefile
+    )
+    assert (
+        "docker-build-dev: ensure-python-proxy docker-source-artifacts ## Build development Docker image"
+        in makefile
+    )
+
+
+def test_runtime_base_requires_fixed_bookworm_glibc_line() -> None:
+    """Runtime base fails closed if libc stays below the CVE-2025-8058 fix."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    runtime_base_section = dockerfile.split(
+        "FROM python:3.13.13-slim-bookworm AS runtime-base",
+        1,
+    )[1]
+    runtime_base_section = runtime_base_section.split("COPY --from=builder", 1)[0]
+
+    assert "libc-bin" in runtime_base_section
+    assert "libc6" in runtime_base_section
+    assert 'dpkg --compare-versions "${version}" ge "2.36-9+deb12u13"' in runtime_base_section
+    assert "below fixed glibc line 2.36-9+deb12u13" in runtime_base_section
+
+
+def test_docker_runtime_surface_guard_blocks_perl_runtime_packages() -> None:
+    """Docker workflows fail if production keeps Perl runtime packages."""
+    for workflow_name, image_ref in (
+        ("build.yml", "pulseplate:test"),
+        ("trivy.yml", "pulseplate:trivy-scan-${{ github.sha }}"),
+    ):
+        workflow = _load_workflow(WORKFLOWS_DIR / workflow_name)
+        jobs = workflow["jobs"]
+        assert isinstance(jobs, dict)
+        build_job = jobs["build"]
+        assert isinstance(build_job, dict)
+        step = _step_by_name(build_job, "Check Docker runtime dependency surface")
+        run_script = step["run"]
+        assert isinstance(run_script, str)
+
+        assert f"--image {image_ref}" in run_script
+        assert "--blocked-debian-package apt" in run_script
+        assert "--blocked-debian-package gpgv" in run_script
+        assert "--blocked-debian-package libgnutls30" in run_script
+        assert "--blocked-debian-package libsqlite3-0" in run_script
+        assert "--blocked-debian-package perl-base" in run_script
+        assert "--blocked-debian-prefix perl-modules-" in run_script
 
 
 def test_docker_entrypoint_keeps_bodyfat_hidden_but_routable() -> None:
