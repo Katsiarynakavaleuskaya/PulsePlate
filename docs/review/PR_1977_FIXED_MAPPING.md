@@ -40,6 +40,11 @@ Evidence: The CodeRabbit walkthrough/docstring warning is advisory; the new favi
 Reason: The repo does not enforce CodeRabbit's standalone docstring coverage warning as a PR-specific blocker for this narrow route extraction.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#issuecomment-4702933387
 
+Disposition: FIXED
+Commit: 20e1a3142
+Evidence: `docs/review/PR_1977_FIXED_MAPPING.md` now includes an unchecked `## Merge-readiness Checklist` before the fixed mapping section.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#pullrequestreview-4493537527 -> 20e1a3142
+
 Disposition: NOT-A-BUG
 Evidence: The Codex review body contains no concrete file/line finding or requested change; it is an automated review notification only.
 Reason: There is no actionable item to fix or defer in that review body.
