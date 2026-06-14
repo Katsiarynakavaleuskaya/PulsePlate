@@ -60,6 +60,16 @@ Commit: ae6e31d98891922feb8fecedff4951c68284f9b3
 Evidence: `scripts/orchestration/experiment_slack_kpp_renderer.py` returns `""` for zero-or-smaller limits, clips `_SLACK_TRUNCATION_MARKER` when the requested limit is shorter than the marker, and preserves body-plus-marker truncation for normal Slack limits.
 Evidence: `tests/test_experiment_slack_kpp_renderer.py` covers helper limits `0`, `1`, `len(marker)-1`, `len(marker)`, and `len(marker)+1`, plus oversized artifact/action section rendering.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1927#pullrequestreview-4458577322
+Disposition: NOT-A-BUG
+Evidence: Sourcery's actionable negative-slice inline thread is mapped above to commit `ae6e31d98891922feb8fecedff4951c68284f9b3`; the remaining word/newline-boundary note is optional Slack mrkdwn formatting preservation and is outside this PR's hard section-length delivery-failure scope.
+Reason: The current implementation is correct for PR #1927's contract: never exceed the requested Slack section text bound after redaction.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1927#pullrequestreview-4458593287 -> ae6e31d98891922feb8fecedff4951c68284f9b3
+Disposition: FIXED
+Commit: ae6e31d98891922feb8fecedff4951c68284f9b3
+Evidence: cubic's aggregate review reported the same tiny-limit negative-slice issue as inline thread `discussion_r3380644797`, fixed by the helper guard and deterministic tiny-limit tests.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
