@@ -290,11 +290,12 @@ def test_slack_section_text_respects_tiny_limits(limit: int) -> None:
 
 
 def test_render_bounds_large_artifact_action_section_to_slack_section_limit() -> None:
+    action_required = "Review artifact evidence and keep merge blocked."
     message = render_kpp_block_message(
         kpp_outcome=KPP_FAIL,
         experiment_id="test-001",
         artifact_refs=tuple(f"artifacts/exp/oracle-{index:03d}.json" for index in range(160)),
-        action_required="Review artifact evidence and keep merge blocked. " * 160,
+        action_required=action_required,
     )
 
     parsed = json.loads(message.as_blocks_json())
@@ -308,7 +309,8 @@ def test_render_bounds_large_artifact_action_section_to_slack_section_limit() ->
     assert len(artifact_sections) == 1
     artifact_text = artifact_sections[0]
     assert len(artifact_text) <= SLACK_SECTION_TEXT_LIMIT
-    assert artifact_text.endswith("[truncated=true]")
+    assert f"{_SLACK_TRUNCATION_MARKER}\n\n*Action required:*" in artifact_text
+    assert artifact_text.endswith(action_required)
 
 
 def test_render_custom_action_required() -> None:
