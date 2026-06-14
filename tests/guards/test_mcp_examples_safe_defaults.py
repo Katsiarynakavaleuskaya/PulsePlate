@@ -10,11 +10,27 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTEXT7_PACKAGE = "@upstash/context7-mcp"
 CONTEXT7_PINNED_PACKAGE = "@upstash/context7-mcp@3.1.0"
 EXACT_NUMERIC_VERSION = re.compile(r"\d+\.\d+\.\d+\Z")
+PYTHON_PACKAGE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 CONTEXT7_PACKAGE_TOKEN = re.compile(r"@upstash/context7-mcp(?:@[A-Za-z0-9_.~^<>=!*+-]+)?")
 PLAYWRIGHT_UNRESTRICTED_ENV = "PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS"
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 CURSOR_ENV_READ_COMMANDS = {"awk", "cat", "grep", "head", "less", "more", "rg", "sed", "tail"}
-CURSOR_ENV_REDIRECT_OPERATORS = {"<", ">", ">>", "2>", "2>>", "&>", ">&", "1>", "1>>", "<<", "<<"}
+CURSOR_ENV_INPUT_REDIRECT_OPERATORS = {"<", "0<"}
+CURSOR_ENV_OUTPUT_REDIRECT_OPERATORS = {">", ">>", "2>", "2>>", "&>", ">&", "1>", "1>>"}
+NPM_INSTALL_COMMANDS = {
+    "add",
+    "i",
+    "in",
+    "ins",
+    "inst",
+    "insta",
+    "instal",
+    "install",
+    "isnt",
+    "isnta",
+    "isntal",
+    "isntall",
+}
 
 MCP_EXAMPLE_PATHS = (
     REPO_ROOT / "mcp-config.json",
@@ -56,6 +72,17 @@ def _is_exact_pinned_package_spec(spec: str) -> bool:
     return bool(EXACT_NUMERIC_VERSION.fullmatch(version))
 
 
+def _is_exact_pinned_python_package_spec(spec: str) -> bool:
+    spec_parts = spec.rsplit("==", 1)
+    if len(spec_parts) != 2:
+        return False
+
+    package_name, version = spec_parts
+    if not PYTHON_PACKAGE_NAME.fullmatch(package_name):
+        return False
+    return bool(EXACT_NUMERIC_VERSION.fullmatch(version))
+
+
 def _is_truthy_env_value(value: object) -> bool:
     if isinstance(value, bool):
         return value
@@ -81,7 +108,7 @@ def _npm_install_package_args(line: str) -> list[str]:
         parts = shlex.split(stripped)
     except ValueError:
         return []
-    if len(parts) < 3 or parts[:2] != ["npm", "install"]:
+    if len(parts) < 3 or parts[0] != "npm" or parts[1] not in NPM_INSTALL_COMMANDS:
         return []
 
     packages: list[str] = []
@@ -136,13 +163,23 @@ def _script_line_reads_cursor_env(line: str) -> bool:
         return False
 
     skip_next = False
+    input_redirect = False
     for arg in parts[1:]:
         if skip_next:
+            if input_redirect and _is_cursor_env_path(arg):
+                return True
             skip_next = False
+            input_redirect = False
             continue
-        if arg in CURSOR_ENV_REDIRECT_OPERATORS:
+        if arg in CURSOR_ENV_INPUT_REDIRECT_OPERATORS:
+            skip_next = True
+            input_redirect = True
+            continue
+        if arg in CURSOR_ENV_OUTPUT_REDIRECT_OPERATORS:
             skip_next = True
             continue
+        if arg.startswith("<") and _is_cursor_env_path(arg[1:]):
+            return True
         if _is_cursor_env_path(arg):
             return True
     return False
@@ -180,20 +217,29 @@ def test_mcp_examples_do_not_enable_unrestricted_playwright_file_access() -> Non
     assert playwright_examples > 0, "no governed Playwright MCP examples found"
 
 
-def test_mcp_examples_pin_npx_mcp_packages() -> None:
+def test_mcp_examples_pin_mcp_packages() -> None:
     matches = 0
     for path in MCP_EXAMPLE_PATHS:
         data = _load_json(path)
         for server_name, server_config in data["mcpServers"].items():
-            if server_config.get("command") != "npx":
+            command = server_config.get("command")
+            if command == "npx":
+                matches += 1
+                package_arg = _first_npx_package_arg(server_config.get("args", []))
+                assert package_arg, f"{path}:{server_name} has no npx package arg"
+                assert _is_exact_pinned_package_spec(
+                    package_arg
+                ), f"{path}:{server_name} package is not exactly pinned: {package_arg}"
+                continue
+            if command != "uvx":
                 continue
 
             matches += 1
             package_arg = _first_npx_package_arg(server_config.get("args", []))
-            assert package_arg, f"{path}:{server_name} has no npx package arg"
-            assert _is_exact_pinned_package_spec(
+            assert package_arg, f"{path}:{server_name} has no uvx package arg"
+            assert _is_exact_pinned_python_package_spec(
                 package_arg
-            ), f"{path}:{server_name} package is not exactly pinned: {package_arg}"
+            ), f"{path}:{server_name} Python package is not exactly pinned: {package_arg}"
     for path in OPENCODE_MCP_EXAMPLE_PATHS:
         for server_name, command_args in _opencode_npx_command_args(path):
             matches += 1
@@ -202,7 +248,7 @@ def test_mcp_examples_pin_npx_mcp_packages() -> None:
             assert _is_exact_pinned_package_spec(
                 package_arg
             ), f"{path}:{server_name} package is not exactly pinned: {package_arg}"
-    assert matches > 0, "no governed npx MCP server examples found"
+    assert matches > 0, "no governed npx/uvx MCP server examples found"
 
 
 def test_documented_context7_mcp_examples_pin_local_npx_package() -> None:
@@ -269,12 +315,49 @@ def test_exact_pinned_package_spec_rejects_unpinned_moving_or_range_versions(
     assert not _is_exact_pinned_package_spec(package_spec)
 
 
+@pytest.mark.parametrize(
+    "package_spec",
+    [
+        "mcp-server-openai==0.1.4",
+        "some_tool==1.2.3",
+        "some-tool==1.2.3",
+    ],
+)
+def test_exact_pinned_python_package_spec_accepts_numeric_versions(package_spec: str) -> None:
+    assert _is_exact_pinned_python_package_spec(package_spec)
+
+
+@pytest.mark.parametrize(
+    "package_spec",
+    [
+        "mcp-server-openai",
+        "mcp-server-openai==",
+        "mcp-server-openai==latest",
+        "mcp-server-openai>=0.1.4",
+        "mcp-server-openai~=0.1.4",
+        "mcp-server-openai^0.1.4",
+        "-mcp-server-openai==0.1.4",
+    ],
+)
+def test_exact_pinned_python_package_spec_rejects_unpinned_tags_or_ranges(
+    package_spec: str,
+) -> None:
+    assert not _is_exact_pinned_python_package_spec(package_spec)
+
+
 def test_npx_package_arg_includes_unscoped_packages() -> None:
     assert _first_npx_package_arg(["-y", "some-tool@1.2.3"]) == "some-tool@1.2.3"
 
 
 def test_npm_install_package_args_include_unscoped_packages() -> None:
     assert _npm_install_package_args("npm install -g some-tool@1.2.3") == ["some-tool@1.2.3"]
+
+
+@pytest.mark.parametrize("install_command", ["install", "i", "add", "in", "ins", "inst"])
+def test_npm_install_package_args_include_install_aliases(install_command: str) -> None:
+    assert _npm_install_package_args(f"npm {install_command} -g some-tool@1.2.3") == [
+        "some-tool@1.2.3"
+    ]
 
 
 def test_context7_package_tokens_reject_mixed_pinned_and_unpinned_mentions() -> None:
@@ -292,6 +375,9 @@ def test_context7_package_tokens_reject_mixed_pinned_and_unpinned_mentions() -> 
         "sed -n '1,5p' ~/.cursor/.env",
         "grep OPENAI ~/.cursor/.env",
         "tail -n 5 ${HOME}/.cursor/.env",
+        "cat < ~/.cursor/.env",
+        "sed -n '1,5p' < ~/.cursor/.env",
+        "cat <~/.cursor/.env",
     ],
 )
 def test_cursor_env_reader_detection_rejects_equivalent_dump_commands(line: str) -> None:

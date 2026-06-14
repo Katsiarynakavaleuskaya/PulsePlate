@@ -32,6 +32,7 @@ fi
 cat > ~/.cursor/.env << EOF
 # OpenAI API Configuration
 OPENAI_ADMIN_API_KEY=replace-me
+OPENAI_API_KEY=replace-me
 
 # MCP Configuration
 MCP_ENABLED=true
@@ -48,6 +49,7 @@ echo "🎉 MCP setup complete!"
 echo ""
 echo "Next steps:"
 echo "1. Edit ~/.cursor/.env and add your OpenAI admin API key"
-echo "2. Restart Cursor"
-echo "3. Open Command Palette (Cmd+Shift+P) and run 'MCP: List Tools'"
-echo "4. Verify that OpenAI MCP tools are available"
+echo "2. Add your OpenAI API key if you use the PulsePlate MCP server"
+echo "3. Restart Cursor"
+echo "4. Open Command Palette (Cmd+Shift+P) and run 'MCP: List Tools'"
+echo "5. Verify that OpenAI MCP tools are available"

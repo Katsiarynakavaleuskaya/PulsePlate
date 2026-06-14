@@ -2,7 +2,10 @@
   "mcpServers": {
     "openai": {
       "command": "uvx",
-      "args": ["mcp-server-openai==0.1.4"]
+      "args": ["mcp-server-openai==0.1.4"],
+      "env": {
+        "OPENAI_ADMIN_API_KEY": "replace-me"
+      }
     },
     "pulseplate": {
       "command": "python",
