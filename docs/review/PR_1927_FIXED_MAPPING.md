@@ -72,12 +72,16 @@ Evidence: `tests/test_experiment_slack_kpp_renderer.py` covers helper limits `0`
 - `security-auditor` role pass - no additional auth/rate-limit/runtime controls required for this narrow renderer fix
 - `PYTHONDONTWRITEBYTECODE=1 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_experiment_slack_kpp_renderer.py` - PASS
 - `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python git commit -m "fix(slack): guard KPP section text tiny bounds"` - PASS hooks, including black, ruff, Bandit changed-files, and backend pytest changed-files
+- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` - PASS
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pre_commit run --all-files` - PASS
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python git push` - PASS pre-push hooks, including mypy changed-files, pip-audit, backend pytest pre-push, full-repo Bandit, and docker build test
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1927 --require-auth` - PASS, all 2 resolved review threads have disposition proof and commit-after-comment
 
 ## Merge Readiness
 
 - [ ] Current-head CI terminal success confirmed after this artifact commit.
 - [ ] CodeRabbit / Sourcery / Cubic / Codex review actionables checked and mapped.
-- [ ] Strict review-thread disposition passes with auth.
+- [x] Strict review-thread disposition passes with auth.
 - [ ] Strict merge-readiness guard passes with auth.
 - [ ] Mandatory wait-window after latest bot/review activity completed.
 
