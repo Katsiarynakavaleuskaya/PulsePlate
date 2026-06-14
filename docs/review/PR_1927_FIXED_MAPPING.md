@@ -80,11 +80,11 @@ Evidence: cubic's aggregate review reported the same tiny-limit negative-slice i
 - `qa-engineer-agent` role pass - BLOCKER findings fixed or mapped in this artifact
 - `bug-hunter` role pass - BLOCKER findings fixed or mapped in this artifact
 - `security-auditor` role pass - no additional auth/rate-limit/runtime controls required for this narrow renderer fix
-- `PYTHONDONTWRITEBYTECODE=1 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_experiment_slack_kpp_renderer.py` - PASS
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python git commit -m "fix(slack): guard KPP section text tiny bounds"` - PASS hooks, including black, ruff, Bandit changed-files, and backend pytest changed-files
-- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` - PASS
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pre_commit run --all-files` - PASS
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python git push` - PASS pre-push hooks, including mypy changed-files, pip-audit, backend pytest pre-push, full-repo Bandit, and docker build test
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_experiment_slack_kpp_renderer.py` - PASS
+- `VENV_PYTHON=.venv/bin/python git commit -m "fix(slack): guard KPP section text tiny bounds"` - PASS hooks, including black, ruff, Bandit changed-files, and backend pytest changed-files
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS
+- `VENV_PYTHON=.venv/bin/python .venv/bin/python -m pre_commit run --all-files` - PASS
+- `VENV_PYTHON=.venv/bin/python git push` - PASS pre-push hooks, including mypy changed-files, pip-audit, backend pytest pre-push, full-repo Bandit, and docker build test
 - `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1927 --require-auth` - PASS, all 2 resolved review threads have disposition proof and commit-after-comment
 
 ## Merge Readiness

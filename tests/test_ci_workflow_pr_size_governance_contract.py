@@ -515,12 +515,16 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.6"
     assert frontend_package["overrides"]["ws"] == "8.20.1"
-    assert (
-        frontend_lock["packages"][
-            "node_modules/@bundled-es-modules/glob/node_modules/brace-expansion"
-        ]["version"]
-        == "5.0.6"
+    minimatch_10_brace_expansion_paths = (
+        "node_modules/@bundled-es-modules/glob/node_modules/brace-expansion",
+        "node_modules/glob/node_modules/brace-expansion",
     )
+    minimatch_10_brace_expansion_versions = {
+        frontend_lock["packages"][package_path]["version"]
+        for package_path in minimatch_10_brace_expansion_paths
+        if package_path in frontend_lock["packages"]
+    }
+    assert minimatch_10_brace_expansion_versions == {"5.0.6"}
     assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.20.1"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
     assert "FROM node:24.16.0-bookworm-slim AS frontend-build" in dockerfile
