@@ -22,7 +22,7 @@
     },
     "cloudflare": {
       "type": "local",
-      "command": ["npx", "-y", "@cloudflare/mcp-server-cloudflare"],
+      "command": ["npx", "-y", "@cloudflare/mcp-server-cloudflare@0.2.0"],
       "enabled": false
     }
   }
