@@ -204,6 +204,7 @@ class TestHealthAndMonitoringEndpoints:
         assert route.endpoint.__module__ == "app.routers.favicon"
         assert route.endpoint.__name__ == "favicon"
         assert route.include_in_schema is False
+        assert not route.dependant.dependencies
 
         response = client.get("/favicon.ico")
         assert response.status_code == 204

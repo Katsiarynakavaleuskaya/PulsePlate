@@ -34,7 +34,7 @@ from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import router as fitchef_structured_router
-from app.routers.favicon import router as favicon_router
+from app.routers.favicon import FAVICON_ROUTE_PATH, router as favicon_router
 from app.routers.health import router as health_router
 from app.routers.legal import router as legal_router
 from app.routers.vip_registration import register_vip_routes
@@ -57,7 +57,6 @@ _HEALTH_ROUTE_PATHS: tuple[str, str, str, str] = (
     _HEALTH_DB_ROUTE_PATH,
     _READY_ROUTE_PATH,
 )
-_FAVICON_ROUTE_PATH: str = "/favicon.ico"
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
@@ -229,7 +228,7 @@ def _include_favicon_router_if_needed(target_app: FastAPI) -> None:
     for route in favicon_router.routes:
         path = getattr(route, "path", None)
         methods = getattr(route, "methods", None) or set()
-        if path == _FAVICON_ROUTE_PATH and "GET" in methods:
+        if path == FAVICON_ROUTE_PATH and "GET" in methods:
             expected_route_count += 1
             expected_endpoint = getattr(route, "endpoint", None)
             if getattr(route, "include_in_schema", True):
@@ -239,7 +238,7 @@ def _include_favicon_router_if_needed(target_app: FastAPI) -> None:
         raise RuntimeError("Favicon router does not define the expected route.")
 
     favicon_routes = [
-        route for route in target_app.routes if getattr(route, "path", None) == _FAVICON_ROUTE_PATH
+        route for route in target_app.routes if getattr(route, "path", None) == FAVICON_ROUTE_PATH
     ]
     if not favicon_routes:
         target_app.include_router(favicon_router)

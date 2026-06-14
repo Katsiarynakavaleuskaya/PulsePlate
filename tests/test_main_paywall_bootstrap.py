@@ -68,7 +68,7 @@ def _favicon_stub_router(*, include_in_schema: bool = False) -> APIRouter:
     async def _favicon() -> Response:
         return Response(status_code=204)
 
-    router.get(app_main._FAVICON_ROUTE_PATH, include_in_schema=include_in_schema)(_favicon)
+    router.get(app_main.FAVICON_ROUTE_PATH, include_in_schema=include_in_schema)(_favicon)
     return router
 
 
@@ -88,7 +88,7 @@ def _duplicate_favicon_stub_router() -> APIRouter:
     async def _second_favicon() -> Response:
         return Response(status_code=204)
 
-    router.get(app_main._FAVICON_ROUTE_PATH, include_in_schema=False)(_second_favicon)
+    router.get(app_main.FAVICON_ROUTE_PATH, include_in_schema=False)(_second_favicon)
     return router
 
 
@@ -309,7 +309,7 @@ def test_favicon_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatc
     favicon_routes = [
         route
         for route in app.routes
-        if getattr(route, "path", None) == app_main._FAVICON_ROUTE_PATH
+        if getattr(route, "path", None) == app_main.FAVICON_ROUTE_PATH
         and "GET" in (getattr(route, "methods", None) or set())
     ]
     assert len(favicon_routes) == 1
@@ -323,7 +323,7 @@ def test_favicon_route_registration_rejects_partial_state(
 
     app = FastAPI()
 
-    @app.post(app_main._FAVICON_ROUTE_PATH)
+    @app.post(app_main.FAVICON_ROUTE_PATH)
     async def _existing_favicon_post_route() -> dict[str, str]:
         return {"status": "foreign"}
 
@@ -338,7 +338,7 @@ def test_favicon_route_registration_rejects_foreign_handler(
 
     app = FastAPI()
 
-    @app.get(app_main._FAVICON_ROUTE_PATH, include_in_schema=False)
+    @app.get(app_main.FAVICON_ROUTE_PATH, include_in_schema=False)
     async def _foreign_favicon_route() -> dict[str, str]:
         return {"status": "foreign"}
 
@@ -358,11 +358,11 @@ def test_favicon_route_registration_rejects_visible_existing_canonical_handler(
     route = next(
         route
         for route in app_main.favicon_router.routes
-        if getattr(route, "path", None) == app_main._FAVICON_ROUTE_PATH
+        if getattr(route, "path", None) == app_main.FAVICON_ROUTE_PATH
         and "GET" in (getattr(route, "methods", None) or set())
     )
     app.add_api_route(
-        app_main._FAVICON_ROUTE_PATH,
+        app_main.FAVICON_ROUTE_PATH,
         getattr(route, "endpoint"),
         methods=["GET"],
         include_in_schema=True,
@@ -379,7 +379,7 @@ def test_favicon_route_registration_rejects_malformed_router(
     monkeypatch.setattr(
         app_main,
         "favicon_router",
-        _stub_router(app_main._FAVICON_ROUTE_PATH, include_in_schema=False),
+        _stub_router(app_main.FAVICON_ROUTE_PATH, include_in_schema=False),
     )
 
     with pytest.raises(RuntimeError, match="Favicon router does not define"):

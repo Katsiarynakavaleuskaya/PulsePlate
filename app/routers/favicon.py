@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Response, status
 
+FAVICON_ROUTE_PATH = "/favicon.ico"
+
 router = APIRouter(tags=["favicon"])
 
 
-@router.get("/favicon.ico", include_in_schema=False)
+@router.get(FAVICON_ROUTE_PATH, include_in_schema=False)
 async def favicon() -> Response:
     """Return an empty favicon response for browsers and crawlers."""
 
