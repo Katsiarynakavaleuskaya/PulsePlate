@@ -84,7 +84,7 @@ Then add this to your Codex MCP config:
 
 ```toml
 [mcp_servers.context7]
-args = ["-y", "@upstash/context7-mcp"]
+args = ["-y", "@upstash/context7-mcp@3.1.0"]
 command = "npx"
 startup_timeout_ms = 20_000
 ```
@@ -131,7 +131,7 @@ Example `.cursor/mcp.json` shape:
     },
     "context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": ["-y", "@upstash/context7-mcp@3.1.0"]
     }
   }
 }
@@ -259,7 +259,7 @@ and do not use legacy Chat Completions.
 ## Evidence Commands
 
 ```bash
-npx -y @upstash/context7-mcp --help
+npx -y @upstash/context7-mcp@3.1.0 --help
 chub --help
 chub search openai --json
 chub search responses openai --json
