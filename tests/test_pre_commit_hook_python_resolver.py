@@ -303,6 +303,51 @@ def test_backend_hook_maps_frontend_lockfile_changes_to_governance_tests(
     assert "Backend tests passed" in output
 
 
+def test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    _git(repo, "branch", "-M", "main")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "frontend").mkdir()
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3}\n', encoding="utf-8"
+    )
+    (repo / "frontend" / "package.json").write_text("{}\n", encoding="utf-8")
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    _git(repo, "switch", "--quiet", "-c", "package-lock-all-files")
+    (repo / "frontend" / "package-lock.json").write_text(
+        '{"lockfileVersion":3,"allFiles":1}\n', encoding="utf-8"
+    )
+    _git(repo, "add", "frontend/package-lock.json")
+    _git(repo, "commit", "--quiet", "-m", "update frontend lockfile")
+    calls_file = tmp_path / "pytest-all-files-args.txt"
+    fake_python = tmp_path / "fake-python-all-files"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
+    assert "tests/test_frontend_dependency_guards.py" in called_args
+    assert "tests/test_python_supply_chain_controls.py" in called_args
+    assert "Backend tests passed" in output
+
+
 def test_backend_hook_preserves_upstream_frontend_package_delta(
     tmp_path: Path,
 ) -> None:

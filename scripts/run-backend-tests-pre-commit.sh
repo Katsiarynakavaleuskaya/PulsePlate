@@ -68,8 +68,13 @@ resolve_branch_diff_from_base() {
 }
 
 if [ -n "${PRE_COMMIT:-}" ]; then
-    # Pre-commit hook: check staged files
+    # Pre-commit hook: check staged files. For `pre-commit run --all-files`,
+    # pass_filenames=false means there may be no staged diff, so fall back to
+    # the branch diff to keep manifest governance from going false-green.
     record_changed_files "$(git diff --cached --no-renames --name-only --diff-filter=ACMDT)"
+    if [ -z "$CHANGED_FILES" ]; then
+        resolve_branch_diff_from_base || true
+    fi
 elif [ "$BRANCH_DIFF_MODE" = "1" ]; then
     # Local validation command: diff the current branch against main/master merge-base.
     resolve_branch_diff_from_base || true
