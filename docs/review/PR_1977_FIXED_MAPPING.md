@@ -50,6 +50,16 @@ Evidence: The Codex review body contains no concrete file/line finding or reques
 Reason: There is no actionable item to fix or defer in that review body.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#pullrequestreview-4493539087
 
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor a3528ce8a HEAD` exits 0 locally, and GitHub PR commit history includes `a3528ce8a`.
+Reason: The review comment used stale reviewed-head evidence. The mapped Sourcery fix commit is reachable from current PR head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410201789
+
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor a3528ce8a HEAD` and `git merge-base --is-ancestor 20e1a3142 HEAD` both exit 0 locally, and GitHub PR commit history includes both commits.
+Reason: The review comment used stale reviewed-head evidence. The mapped Sourcery and CodeRabbit governance commits are reachable from current PR head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410225930
+
 ## Premortem Findings
 - PM-001 duplicate/legacy ownership false-green. Disposition: FIXED. Commit: ceb82f8fa. Evidence: `legacy_app.py` no longer defines `@app.get("/favicon.ico")`; `tests/test_app_endpoints_combined.py` asserts canonical `app.routers.favicon` ownership.
 - PM-002 OpenAPI visibility drift. Disposition: FIXED. Commit: ceb82f8fa. Evidence: `app/routers/favicon.py` registers `include_in_schema=False`; endpoint and namespace tests assert `/favicon.ico` is absent from live OpenAPI.
