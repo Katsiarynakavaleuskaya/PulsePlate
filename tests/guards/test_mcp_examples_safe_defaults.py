@@ -1,5 +1,6 @@
 import json
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -13,10 +14,12 @@ PLAYWRIGHT_UNRESTRICTED_ENV = "PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS"
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 
 MCP_EXAMPLE_PATHS = (
+    REPO_ROOT / "mcp-config.json",
     REPO_ROOT / ".cursor/mcp.json.example",
     REPO_ROOT / ".kimi/mcp.json.example",
 )
 GOVERNED_MCP_DOC_PATHS = (REPO_ROOT / "docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md",)
+GOVERNED_MCP_SCRIPT_PATHS = (REPO_ROOT / "mcp-setup.sh",)
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -66,14 +69,53 @@ def _playwright_unrestricted_env_is_truthy(server_config: dict[str, Any]) -> boo
     return _is_truthy_env_value(env.get(PLAYWRIGHT_UNRESTRICTED_ENV))
 
 
+def _npm_install_package_args(line: str) -> list[str]:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return []
+    try:
+        parts = shlex.split(stripped)
+    except ValueError:
+        return []
+    if len(parts) < 3 or parts[:2] != ["npm", "install"]:
+        return []
+
+    packages: list[str] = []
+    skip_next = False
+    options_with_value = {
+        "--cache",
+        "--prefix",
+        "--registry",
+        "--tag",
+        "--userconfig",
+    }
+    for arg in parts[2:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == "--":
+            continue
+        if arg.startswith("-"):
+            if arg in options_with_value:
+                skip_next = True
+            continue
+        packages.append(arg)
+    return packages
+
+
 def test_mcp_examples_do_not_enable_unrestricted_playwright_file_access() -> None:
+    playwright_examples = 0
     for path in MCP_EXAMPLE_PATHS:
         data = _load_json(path)
-        playwright_args = data["mcpServers"]["playwright"]["args"]
-        playwright_config = data["mcpServers"]["playwright"]
+        playwright_config = data["mcpServers"].get("playwright")
+        if playwright_config is None:
+            continue
 
+        playwright_examples += 1
+        playwright_args = playwright_config["args"]
         assert "--allow-unrestricted-file-access" not in playwright_args, path
         assert not _playwright_unrestricted_env_is_truthy(playwright_config), path
+    assert playwright_examples > 0, "no governed Playwright MCP examples found"
 
 
 def test_mcp_examples_pin_npx_mcp_packages() -> None:
@@ -92,11 +134,32 @@ def test_mcp_examples_pin_npx_mcp_packages() -> None:
 
 def test_documented_context7_mcp_examples_pin_local_npx_package() -> None:
     for path in GOVERNED_MCP_DOC_PATHS:
+        matches = 0
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if CONTEXT7_PACKAGE not in line:
                 continue
 
+            matches += 1
             assert CONTEXT7_PINNED_PACKAGE in line, f"{path}:{line_number}: {line}"
+        assert matches > 0, f"{path}: no governed Context7 npx package examples found"
+
+
+def test_mcp_setup_script_pins_npm_install_packages() -> None:
+    for path in GOVERNED_MCP_SCRIPT_PATHS:
+        matches = 0
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for package_arg in _npm_install_package_args(line):
+                matches += 1
+                assert _is_exact_pinned_package_spec(
+                    package_arg
+                ), f"{path}:{line_number}: package is not exactly pinned: {package_arg}"
+        assert matches > 0, f"{path}: no governed npm install package examples found"
+
+
+def test_mcp_setup_script_does_not_print_existing_env_file() -> None:
+    for path in GOVERNED_MCP_SCRIPT_PATHS:
+        script = path.read_text(encoding="utf-8")
+        assert "cat ~/.cursor/.env" not in script
 
 
 @pytest.mark.parametrize(
@@ -137,6 +200,10 @@ def test_exact_pinned_package_spec_rejects_unpinned_moving_or_range_versions(
 
 def test_npx_package_arg_includes_unscoped_packages() -> None:
     assert _first_npx_package_arg(["-y", "some-tool@1.2.3"]) == "some-tool@1.2.3"
+
+
+def test_npm_install_package_args_include_unscoped_packages() -> None:
+    assert _npm_install_package_args("npm install -g some-tool@1.2.3") == ["some-tool@1.2.3"]
 
 
 @pytest.mark.parametrize("value", [True, "1", "true", "TRUE", " yes ", "on", 1])

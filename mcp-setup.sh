@@ -1,8 +1,8 @@
 #!/bin/bash
-# MCP Setup Script for ChatGPT Integration with Cursor
+# MCP Setup Script for OpenAI integration with Cursor
 set -euo pipefail
 
-echo "🔧 Setting up MCP integration for ChatGPT in Cursor..."
+echo "🔧 Setting up OpenAI MCP integration in Cursor..."
 
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
@@ -19,16 +19,11 @@ fi
 
 echo "✅ Node.js and npm are available"
 
-# Install MCP servers
+# Install MCP servers with exact package pins.
 echo "📦 Installing MCP servers..."
 
-# Install ChatGPT MCP server
-echo "Installing ChatGPT MCP server..."
-npm install -g mcp-server-chatgpt
-
-# Install OpenAI MCP server
 echo "Installing OpenAI MCP server..."
-npm install -g mcp-server-openai
+npm install -g mcp-server-openai@0.0.1
 
 # Create MCP configuration directory
 mkdir -p ~/.cursor
@@ -38,9 +33,6 @@ echo "✅ MCP servers installed successfully"
 # Check if .env file already exists
 if [ -f ~/.cursor/.env ]; then
     echo "⚠️  Environment file ~/.cursor/.env already exists!"
-    echo "📋 Current content:"
-    cat ~/.cursor/.env
-    echo ""
     echo "🔄 Creating backup and new template..."
     cp ~/.cursor/.env ~/.cursor/.env.backup.$(date +%Y%m%d_%H%M%S)
     echo "💾 Backup created: ~/.cursor/.env.backup.$(date +%Y%m%d_%H%M%S)"
@@ -50,7 +42,6 @@ fi
 cat > ~/.cursor/.env << EOF
 # OpenAI API Configuration
 OPENAI_API_KEY=your_openai_api_key_here
-CHATGPT_API_KEY=your_openai_api_key_here
 
 # MCP Configuration
 MCP_ENABLED=true
@@ -69,4 +60,4 @@ echo "Next steps:"
 echo "1. Edit ~/.cursor/.env and add your OpenAI API key"
 echo "2. Restart Cursor"
 echo "3. Open Command Palette (Cmd+Shift+P) and run 'MCP: List Tools'"
-echo "4. Verify that ChatGPT tools are available"
+echo "4. Verify that OpenAI MCP tools are available"
