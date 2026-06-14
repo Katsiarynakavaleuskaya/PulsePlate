@@ -54,6 +54,15 @@ def _merge_values(values: List[float], strategy: str = "median") -> float:
     return float(vals[0])
 
 
+def _first_non_empty_metadata(values: Iterable[str | None]) -> str | None:
+    """Preserve the first metadata value seen in the existing source order."""
+
+    for value in values:
+        if value:
+            return value
+    return None
+
+
 def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
     """
     RU: Объединить записи из нескольких источников.
@@ -141,6 +150,9 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
             **{k: round(compat[k], 3) for k in MICROS},
             "flags": list(sorted(all_flags)),
             "price": 0.0,  # Can be populated from OFF later
+            "brand": _first_non_empty_metadata(row.brand for row in rows),
+            "gtin": _first_non_empty_metadata(row.gtin for row in rows),
+            "fdc_id": _first_non_empty_metadata(row.fdc_id for row in rows),
             "source": "MERGED(" + ",".join(sources) + ")",
             "version_date": today,
             "nutrition_inputs": [entry.to_dict() for entry in resolved.raw_inputs],

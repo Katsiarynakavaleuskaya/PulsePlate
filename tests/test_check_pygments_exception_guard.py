@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from email.message import Message
+import sys
 import urllib.error
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -314,6 +315,40 @@ def test_fetch_dependabot_alerts_paginates(monkeypatch: pytest.MonkeyPatch) -> N
     alerts = guard._fetch_dependabot_alerts(repo="owner/repo", token="token")
 
     assert len(alerts) == guard.DEPENDABOT_ALERTS_PER_PAGE + 1
+
+
+def test_main_falls_back_to_public_advisory_when_dependabot_alerts_return_401(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_fetch_dependabot_alerts(*, repo: str, token: str) -> list[dict[str, object]]:
+        raise urllib.error.HTTPError(
+            "https://api.github.com/repos/owner/repo/dependabot/alerts",
+            401,
+            "Unauthorized",
+            Message(),
+            None,
+        )
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("GH_TOKEN", "token")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setattr(sys, "argv", ["check_pygments_exception_guard.py"])
+    monkeypatch.setattr(guard, "_fetch_dependabot_alerts", fake_fetch_dependabot_alerts)
+    monkeypatch.setattr(
+        guard,
+        "_advisory_patched_versions_with_documented_fallback",
+        lambda *, token: set(),
+    )
+    monkeypatch.setattr(
+        guard,
+        "_read_requirement_pins",
+        lambda repo_root: {"requirements.txt": "2.19.2"},
+    )
+    monkeypatch.setattr(guard, "_has_exception_seam", lambda repo_root: True)
+
+    assert guard.main() == 0
+    assert "falling back to the public GHSA advisory" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("status_code", [401, 403])

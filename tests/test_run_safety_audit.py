@@ -28,8 +28,158 @@ def _write_report(path: Path, severities: list[str]) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _write_manifest(root: Path, name: str) -> None:
-    (root / name).write_text("example==1.0.0\n", encoding="utf-8")
+def _write_scan_report(
+    path: Path,
+    severities: list[str],
+    *,
+    ignored: bool = False,
+    package_name: str = "example",
+    raw_spec: str = "example==1.0.0",
+    vulnerable_spec: str = "example==1.0.0",
+    vuln_id: str = "VULN",
+) -> None:
+    payload = {
+        "meta": {"scan_type": "scan"},
+        "scan_results": {
+            "projects": [
+                {
+                    "files": [
+                        {
+                            "location": "requirements.txt",
+                            "results": {
+                                "dependencies": [
+                                    {
+                                        "name": package_name,
+                                        "specifications": [
+                                            {
+                                                "raw": raw_spec,
+                                                "vulnerabilities": {
+                                                    "known_vulnerabilities": [
+                                                        {
+                                                            "id": (
+                                                                f"{vuln_id}-{index}"
+                                                                if vuln_id == "VULN"
+                                                                else vuln_id
+                                                            ),
+                                                            "vulnerable_spec": vulnerable_spec,
+                                                            "CVE": {
+                                                                "cvssv3": {
+                                                                    "base_severity": severity,
+                                                                },
+                                                            },
+                                                            **(
+                                                                {
+                                                                    "ignored": {
+                                                                        "code": "manual",
+                                                                        "reason": "test policy",
+                                                                        "expires": "2026-07-08",
+                                                                    }
+                                                                }
+                                                                if ignored
+                                                                else {}
+                                                            ),
+                                                        }
+                                                        for index, severity in enumerate(
+                                                            severities, start=1
+                                                        )
+                                                    ],
+                                                },
+                                            }
+                                        ],
+                                    }
+                                ],
+                            },
+                        }
+                    ]
+                }
+            ]
+        },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_mixed_repo_policy_scan_report(path: Path) -> None:
+    payload = {
+        "meta": {"scan_type": "scan"},
+        "scan_results": {
+            "projects": [
+                {
+                    "files": [
+                        {
+                            "location": "requirements.txt",
+                            "results": {
+                                "dependencies": [
+                                    {
+                                        "name": "fonttools",
+                                        "specifications": [
+                                            {
+                                                "raw": "fonttools==4.61.1",
+                                                "vulnerabilities": {
+                                                    "known_vulnerabilities": [
+                                                        {
+                                                            "id": "88739",
+                                                            "vulnerable_spec": "<4.62.0",
+                                                            "CVE": {
+                                                                "cvssv3": {
+                                                                    "base_severity": "UNKNOWN",
+                                                                },
+                                                            },
+                                                        },
+                                                        {
+                                                            "id": "ACTIVE-MEDIUM-HIGH-EXPLOIT",
+                                                            "vulnerable_spec": "<4.62.0",
+                                                            "CVE": {
+                                                                "cvssv3": {
+                                                                    "base_severity": "MEDIUM",
+                                                                },
+                                                            },
+                                                        },
+                                                    ],
+                                                },
+                                            }
+                                        ],
+                                    }
+                                ],
+                            },
+                        }
+                    ]
+                }
+            ]
+        },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_manifest(root: Path, name: str, content: str = "example==1.0.0\n") -> None:
+    path = root / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def _write_policy(root: Path, vulnerability_id: str, expires: str = "2099-01-01") -> Path:
+    policy_path = root / "safety-policy.yaml"
+    policy_path.write_text(
+        f"""
+version: "3.0"
+report:
+  dependency-vulnerabilities:
+    enabled: true
+    auto-ignore-in-report:
+      vulnerabilities:
+        "{vulnerability_id}":
+          reason: test waiver
+          expires: "{expires}"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    return policy_path
+
+
+def _report_path_from_scan_command(command: list[str]) -> Path:
+    assert "scan" in command
+    assert "check" not in command
+    assert command[command.index("--save-as") + 1] == "json"
+    return Path(command[command.index("--save-as") + 2])
 
 
 def test_discovers_required_and_optional_manifests(tmp_path: Path) -> None:
@@ -53,6 +203,31 @@ def test_discovery_fails_when_required_manifest_is_missing(tmp_path: Path) -> No
         safety_audit.discover_manifests(tmp_path)
 
 
+def test_prepare_scan_target_rejects_nested_manifest_escape(tmp_path: Path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.txt"
+    outside.write_text("outside==1.0.0\n", encoding="utf-8")
+    _write_manifest(
+        tmp_path,
+        "requirements.txt",
+        "-r nested/constraints.txt\n",
+    )
+    _write_manifest(
+        tmp_path,
+        "nested/constraints.txt",
+        f"-r ../../{outside.name}\n",
+    )
+
+    with pytest.raises(
+        safety_audit.SafetyAuditError,
+        match="Safety manifest reference escapes repo root",
+    ):
+        safety_audit._prepare_scan_target(
+            tmp_path,
+            tmp_path / "requirements.txt",
+            tmp_path / "scan-target",
+        )
+
+
 def test_policy_file_precedence_prefers_yaml_over_toml(tmp_path: Path) -> None:
     (tmp_path / "safety-policy.toml").write_text("[policy]\n", encoding="utf-8")
     (tmp_path / "safety-policy.yaml").write_text("policy: {}\n", encoding="utf-8")
@@ -71,13 +246,17 @@ def test_run_audit_emits_per_manifest_artifacts(
     _write_manifest(tmp_path, "requirements-rag-vector-cpu.txt")
     output_dir = tmp_path / "reports"
     commands: list[list[str]] = []
+    scan_target_files: list[set[str]] = []
 
     def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
         commands.append(command)
-        report_path = Path(command[command.index("--save-json") + 1])
+        target_path = Path(command[command.index("--target") + 1])
+        scan_target_files.append({path.name for path in target_path.rglob("*") if path.is_file()})
+        report_path = _report_path_from_scan_command(command)
         _write_report(report_path, [])
         return SimpleNamespace(returncode=0, stdout="safety output\n", stderr="")
 
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
     monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
     monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
 
@@ -96,11 +275,149 @@ def test_run_audit_emits_per_manifest_artifacts(
         "safety-requirements.log",
         "safety-requirements.txt",
     ]
-    assert any(
-        "requirements-rag-vector-cpu.txt" in str(command_part)
+    assert any("requirements-rag-vector-cpu.txt" in files for files in scan_target_files)
+    assert all("--target" in command for command in commands)
+    assert all(
+        command[:4] == ["/usr/bin/safety", "--stage", "cicd", "--disable-optional-telemetry"]
         for command in commands
-        for command_part in command
     )
+
+
+def test_scan_target_copies_nested_requirement_references(tmp_path: Path) -> None:
+    _write_manifest(
+        tmp_path,
+        "requirements.txt",
+        "-r requirements/base.txt\n-c constraints/global.txt\n",
+    )
+    _write_manifest(
+        tmp_path, "requirements/base.txt", "--constraint nested/pins.txt\nexample==1.0.0\n"
+    )
+    _write_manifest(tmp_path, "requirements/nested/pins.txt", "example==1.0.0\n")
+    _write_manifest(tmp_path, "constraints/global.txt", "example<2\n")
+    target_dir = tmp_path / "scan-target"
+
+    safety_audit._prepare_scan_target(tmp_path, tmp_path / "requirements.txt", target_dir)
+
+    assert (target_dir / "requirements.txt").is_file()
+    assert (target_dir / "requirements/base.txt").is_file()
+    assert (target_dir / "requirements/nested/pins.txt").is_file()
+    assert (target_dir / "constraints/global.txt").is_file()
+
+
+def test_scan_target_handles_cyclic_requirement_references(tmp_path: Path) -> None:
+    _write_manifest(tmp_path, "requirements.txt", "-r requirements/base.txt\n")
+    _write_manifest(tmp_path, "requirements/base.txt", "-r ../requirements.txt\n")
+    target_dir = tmp_path / "scan-target"
+
+    safety_audit._prepare_scan_target(tmp_path, tmp_path / "requirements.txt", target_dir)
+
+    assert (target_dir / "requirements.txt").is_file()
+    assert (target_dir / "requirements/base.txt").is_file()
+
+
+def test_scan_v3_report_high_risk_finding_fails_aggregate(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    _write_scan_report(report_path, ["HIGH"])
+
+    analysis = safety_audit.analyze_report(report_path, summary_path)
+
+    assert analysis.status == safety_audit.PARSE_BLOCKING
+    assert analysis.high_risk_count == 1
+    assert "VULN-1" in summary_path.read_text(encoding="utf-8")
+
+
+def test_scan_v3_ignored_findings_do_not_fail_aggregate(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    _write_scan_report(report_path, ["HIGH"], ignored=True)
+
+    analysis = safety_audit.analyze_report(report_path, summary_path)
+
+    assert analysis.status == safety_audit.PARSE_OK
+    assert analysis.high_risk_count == 0
+    assert "Ignored vulnerabilities: 1" in summary_path.read_text(encoding="utf-8")
+
+
+def test_scan_v3_applies_active_repo_policy_waiver_when_cloud_policy_does_not(
+    tmp_path: Path,
+) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    policy_path = _write_policy(tmp_path, "88739")
+    _write_scan_report(
+        report_path,
+        ["UNKNOWN"],
+        package_name="fonttools",
+        raw_spec="fonttools==4.61.1",
+        vulnerable_spec="<4.62.0",
+        vuln_id="88739",
+    )
+
+    analysis = safety_audit.analyze_report(
+        report_path,
+        summary_path,
+        policy_path=policy_path,
+    )
+
+    assert analysis.status == safety_audit.PARSE_OK
+    assert analysis.high_risk_count == 0
+    assert analysis.repo_policy_ignored_count == 1
+    summary = summary_path.read_text(encoding="utf-8")
+    assert "No vulnerabilities reported by Safety." in summary
+    assert "Ignored vulnerabilities: 1" in summary
+
+
+def test_scan_v3_expired_repo_policy_waiver_stays_blocking(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    policy_path = _write_policy(tmp_path, "88739", expires="2000-01-01")
+    _write_scan_report(
+        report_path,
+        ["UNKNOWN"],
+        package_name="fonttools",
+        raw_spec="fonttools==4.61.1",
+        vulnerable_spec="<4.62.0",
+        vuln_id="88739",
+    )
+
+    analysis = safety_audit.analyze_report(
+        report_path,
+        summary_path,
+        policy_path=policy_path,
+    )
+
+    assert analysis.status == safety_audit.PARSE_BLOCKING
+    assert analysis.high_risk_count == 1
+    assert analysis.repo_policy_ignored_count == 0
+    assert "- [UNKNOWN] fonttools 4.61.1 - 88739" in summary_path.read_text(encoding="utf-8")
+
+
+def test_repo_policy_waivers_skip_toml_policy_files(tmp_path: Path) -> None:
+    policy_path = tmp_path / "safety-policy.toml"
+    policy_path.write_text("not: yaml: report:\n", encoding="utf-8")
+
+    assert safety_audit.repo_policy_waivers(policy_path) == {}
+
+
+def test_repo_policy_parse_errors_write_summary_artifact(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    policy_path = tmp_path / "safety-policy.yaml"
+    policy_path.write_text("[]\n", encoding="utf-8")
+    _write_scan_report(report_path, ["LOW"])
+
+    with pytest.raises(
+        safety_audit.SafetyAuditError,
+        match="Safety policy file must be a YAML mapping",
+    ):
+        safety_audit.analyze_report(
+            report_path,
+            summary_path,
+            policy_path=policy_path,
+        )
+
+    assert "Safety policy file must be a YAML mapping" in summary_path.read_text(encoding="utf-8")
 
 
 def test_cpu_rag_vector_manifest_high_risk_finding_fails_aggregate(tmp_path: Path) -> None:
@@ -130,10 +447,11 @@ def test_run_audit_removes_stale_report_before_safety_execution(
     _write_report(stale_report, [])
 
     def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
-        assert Path(command[command.index("--save-json") + 1]) == stale_report
+        assert _report_path_from_scan_command(command) == stale_report
         assert not stale_report.exists()
         return SimpleNamespace(returncode=64, stdout="", stderr="failed before report\n")
 
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
     monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
     monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
 
@@ -157,7 +475,9 @@ def test_high_risk_findings_fail_aggregate(tmp_path: Path, severity: str) -> Non
 
 
 @pytest.mark.parametrize("severity", ["LOW", "MEDIUM"])
-def test_low_and_medium_findings_warn_without_failing(tmp_path: Path, severity: str) -> None:
+def test_low_and_medium_findings_warn_without_failing_when_safety_exits_zero(
+    tmp_path: Path, severity: str
+) -> None:
     report_path = tmp_path / "safety-requirements.json"
     summary_path = tmp_path / "safety-requirements.txt"
     _write_report(report_path, [severity])
@@ -171,10 +491,88 @@ def test_low_and_medium_findings_warn_without_failing(tmp_path: Path, severity: 
         report_json=report_path,
         report_txt=summary_path,
         console_log=tmp_path / "safety-requirements.log",
-        safety_exit_code=64,
+        safety_exit_code=0,
         analysis=analysis,
     )
     assert safety_audit.exit_code_for_results([result]) == 0
+
+
+@pytest.mark.parametrize("severity", ["LOW", "MEDIUM"])
+def test_low_and_medium_findings_fail_when_safety_exits_nonzero(
+    tmp_path: Path, severity: str
+) -> None:
+    report_path = tmp_path / "safety-requirements.json"
+    summary_path = tmp_path / "safety-requirements.txt"
+    _write_report(report_path, [severity])
+
+    analysis = safety_audit.analyze_report(report_path, summary_path)
+    result = safety_audit.ManifestAuditResult(
+        manifest=tmp_path / "requirements.txt",
+        report_json=report_path,
+        report_txt=summary_path,
+        console_log=tmp_path / "safety-requirements.log",
+        safety_exit_code=64,
+        analysis=analysis,
+    )
+
+    assert analysis.status == safety_audit.PARSE_WARNING
+    assert safety_audit.exit_code_for_results([result]) == 1
+
+
+def test_nonzero_safety_exit_with_repo_policy_waiver_and_active_finding_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    _write_policy(tmp_path, "88739")
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        report_path = _report_path_from_scan_command(command)
+        _write_mixed_repo_policy_scan_report(report_path)
+        return SimpleNamespace(returncode=64, stdout="", stderr="")
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+
+    exit_code = safety_audit.main(["--root", str(tmp_path), "--output-dir", str(tmp_path)])
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "ERROR: Safety scan exited with code 64 for requirements.txt" in output
+    assert "OK: Safety scan passed for requirements.txt after 1 repo-policy waiver(s)" not in output
+
+
+def test_nonzero_safety_exit_with_only_repo_policy_waiver_passes_aggregate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    _write_policy(tmp_path, "88739")
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        report_path = _report_path_from_scan_command(command)
+        _write_scan_report(
+            report_path,
+            ["UNKNOWN"],
+            package_name="fonttools",
+            raw_spec="fonttools==4.61.1",
+            vulnerable_spec="<4.62.0",
+            vuln_id="88739",
+        )
+        return SimpleNamespace(returncode=64, stdout="", stderr="")
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+    results = safety_audit.run_audit(config)
+
+    assert results[0].safety_exit_code == 64
+    assert results[0].analysis.repo_policy_ignored_count == 1
+    assert safety_audit.exit_code_for_results(results) == 0
 
 
 def test_missing_or_empty_report_fails_closed(tmp_path: Path) -> None:
@@ -260,10 +658,11 @@ def test_run_audit_writes_summary_when_report_is_missing(
     _write_manifest(tmp_path, "requirements.txt")
 
     def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
-        report_path = Path(command[command.index("--save-json") + 1])
+        report_path = _report_path_from_scan_command(command)
         assert report_path.name == "safety-requirements.json"
         return SimpleNamespace(returncode=3, stdout="", stderr="no json\n")
 
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
     monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
     monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
     config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
@@ -283,10 +682,11 @@ def test_nonzero_safety_exit_with_empty_report_fails_closed(
     _write_manifest(tmp_path, "requirements.txt")
 
     def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
-        report_path = Path(command[command.index("--save-json") + 1])
+        report_path = _report_path_from_scan_command(command)
         _write_report(report_path, [])
         return SimpleNamespace(returncode=3, stdout="", stderr="tool error\n")
 
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
     monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
     monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
     config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
@@ -298,3 +698,16 @@ def test_nonzero_safety_exit_with_empty_report_fails_closed(
     assert "report contained no parsed vulnerabilities" in (
         tmp_path / "safety-requirements.txt"
     ).read_text(encoding="utf-8")
+
+
+def test_scan_requires_api_key_for_cicd_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    monkeypatch.delenv("SAFETY_API_KEY", raising=False)
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+
+    with pytest.raises(safety_audit.SafetyAuditError, match="SAFETY_API_KEY is required"):
+        safety_audit.run_audit(config)

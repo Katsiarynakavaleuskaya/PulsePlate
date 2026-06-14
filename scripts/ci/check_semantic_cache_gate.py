@@ -39,6 +39,36 @@ DEFAULT_BACKEND_SELECTION_CONTRACT = (
     / "SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
 )
 DEFAULT_BACKEND_SELECTION_SCHEMA = DEFAULT_BACKEND_SELECTION_CONTRACT.with_suffix(".schema.json")
+DEFAULT_CONTEXT_COMPRESSION_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_CONTEXT_COMPRESSION_TELEMETRY.md"
+)
+DEFAULT_CONTEXT_COMPRESSION_SCHEMA = DEFAULT_CONTEXT_COMPRESSION_CONTRACT.with_suffix(
+    ".schema.json"
+)
+DEFAULT_PROVIDER_MODEL_TIER_ROUTING_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_PROVIDER_MODEL_TIER_ROUTING_TELEMETRY.md"
+)
+DEFAULT_PROVIDER_MODEL_TIER_ROUTING_SCHEMA = (
+    DEFAULT_PROVIDER_MODEL_TIER_ROUTING_CONTRACT.with_suffix(".schema.json")
+)
+DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_EMBEDDING_RETRIEVAL_ADMISSION_TELEMETRY.md"
+)
+DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA = (
+    DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT.with_suffix(".schema.json")
+)
 DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT = (
     REPO_ROOT
     / "docs"
@@ -540,6 +570,761 @@ BOUNDED_INSIGHT_REQUIRED_ANCHORS = (
     ("no vector search", re.compile(r"\bsc-g4 blocks:.*vector search\b")),
     ("no provider calls", re.compile(r"\bsc-g4 blocks:.*provider calls\b")),
     ("SC-G5 remains future", re.compile(r"\bsc-g5 backend selection remains future\b")),
+)
+
+CONTEXT_COMPRESSION_REQUIRED_ANCHORS = (
+    ("metadata-only", re.compile(r"\bmetadata-only\b")),
+    ("does not open semantic-cache gate", re.compile(r"\bdoes not open the semantic-cache gate\b")),
+    ("does not implement semantic cache", re.compile(r"\bdoes not implement semantic cache\b")),
+    ("does not serve cached payloads", re.compile(r"\bdoes not serve cached payloads\b")),
+    ("provider calls allowed false", re.compile(r"\bprovider calls allowed: false\b")),
+    ("runtime handoff allowed false", re.compile(r"\bruntime handoff allowed: false\b")),
+    ("authority boundary", re.compile(r"\bauthority boundary\b")),
+    ("required context", re.compile(r"\brequired context\b")),
+    ("token savings are estimates only", re.compile(r"\btoken savings are estimates only\b")),
+    ("downgrade review model", re.compile(r"\bdowngrade the review model\b")),
+)
+
+CONTEXT_COMPRESSION_FORBIDDEN_PATTERNS = (
+    (
+        "runtime serving",
+        re.compile(
+            r"\bcontext compression (?:enables|opens|approves|allows|permits|supports) (?:semantic[- ]cache )?(?:runtime )?serving\b"
+        ),
+    ),
+    ("raw prompt", re.compile(r"\bcontext compression stores raw prompts?\b")),
+    ("raw query", re.compile(r"\bcontext compression stores raw queries\b")),
+    ("raw context", re.compile(r"\bcontext compression stores raw context snippets?\b")),
+    ("raw response", re.compile(r"\bcontext compression stores raw responses?\b")),
+    (
+        "provider calls",
+        re.compile(
+            r"\bcontext compression (?:performs|allows|enables|permits|supports) provider calls\b"
+        ),
+    ),
+    ("Redis", re.compile(r"\bcontext compression (?:approves|supports) redis rollout\b")),
+    ("GPTCache", re.compile(r"\bcontext compression (?:approves|supports) gptcache rollout\b")),
+    ("embeddings", re.compile(r"\bcontext compression (?:enables|supports) embeddings\b")),
+    (
+        "semantic similarity",
+        re.compile(r"\bcontext compression (?:enables|supports) semantic similarity\b"),
+    ),
+    ("vector search", re.compile(r"\bcontext compression (?:enables|supports) vector search\b")),
+    (
+        "GraphRAG runtime",
+        re.compile(r"\bcontext compression (?:enables|supports) graphrag runtime\b"),
+    ),
+    ("production ROI", re.compile(r"\bcontext compression proves production roi\b")),
+    ("production cost", re.compile(r"\bcontext compression proves production cost savings\b")),
+    ("merge readiness", re.compile(r"\bcontext compression proves merge-readiness\b")),
+    ("model downgrade", re.compile(r"\bcontext compression (?:allows|supports) model downgrade\b")),
+)
+
+CONTEXT_COMPRESSION_SCHEMA_CONST_FALSE_FIELDS = (
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_PAYLOADS = (
+    "raw_prompts",
+    "raw_queries",
+    "normalized_queries",
+    "raw_context_snippets",
+    "raw_model_responses",
+    "raw_answers",
+    "provider_payloads",
+    "secrets",
+    "credentials",
+    "local_paths",
+    "account_truth",
+    "health_sensitive_payloads",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_BACKENDS = (
+    "provider_calls",
+    "OpenAPI",
+    "DB",
+    "cache_backend",
+    "Redis",
+    "GPTCache",
+    "embeddings",
+    "semantic_similarity",
+    "vector_search",
+    "GraphRAG_runtime",
+    "runtime_handoff",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_POLICY_DECISIONS = (
+    "billing_decisions",
+    "entitlement_decisions",
+    "account_truth_decisions",
+    "production_cost_claims",
+    "production_roi_claims",
+    "latency_improvement_claims",
+    "quota_improvement_claims",
+    "cache_hit_rate_claims",
+    "merge_readiness_claims",
+    "model_downgrade_decisions",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_UPSTREAM_ASSETS = (
+    "task_packet",
+    "required_context",
+    "candidate_paths",
+    "prompt_module_fingerprints",
+    "source_fingerprints",
+    "semantic_cache_gate_markers",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_PACK_FIELDS = (
+    "context_pack_id",
+    "policy_version",
+    "authority_boundary",
+    "required_context",
+    "selected_context_refs",
+    "omitted_duplicate_refs",
+    "graph_nodes",
+    "graph_edges",
+    "estimate",
+    "reason_codes",
+    "metadata",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_NODE_FIELDS = (
+    "node_id",
+    "node_type",
+    "path",
+    "path_fingerprint",
+    "token_estimate",
+    "required",
+    "metadata",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_EDGE_FIELDS = (
+    "edge_id",
+    "source",
+    "target",
+    "edge_type",
+    "metadata",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_ESTIMATE_FIELDS = (
+    "estimate_id",
+    "baseline_context_chars_estimate",
+    "candidate_context_chars_estimate",
+    "baseline_context_tokens_estimate",
+    "candidate_context_tokens_estimate",
+    "tokens_saved_estimate",
+    "orchestration_fanout_multiplier",
+    "fanout_tokens_saved_estimate",
+    "token_estimate_version",
+    "reason_codes",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_NODE_TYPES = (
+    "changed_file",
+    "contract",
+    "test",
+    "agent_rule",
+    "review_artifact",
+    "roadmap",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_EDGE_TYPES = (
+    "requires",
+    "validates",
+    "constrains",
+    "documents",
+    "reviews",
+)
+CONTEXT_COMPRESSION_SCHEMA_REQUIRED_FIELDS = (
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "telemetry_phase",
+    "authority_boundary",
+    "asset_type",
+    "upstream_assets",
+    "compressed_context_pack_fields",
+    "context_graph_node_fields",
+    "context_graph_edge_fields",
+    "context_compression_estimate_fields",
+    "allowed_node_types",
+    "allowed_edge_types",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
+    "required_followups",
+)
+
+PROVIDER_MODEL_TIER_ROUTING_REQUIRED_ANCHORS = (
+    ("metadata-only", re.compile(r"\bmetadata-only\b")),
+    ("gate status closed", re.compile(r"\bgate status: closed\b")),
+    ("runtime allowed false", re.compile(r"\bruntime allowed: false\b")),
+    ("implementation allowed false", re.compile(r"\bimplementation allowed: false\b")),
+    ("runtime routing allowed false", re.compile(r"\bruntime routing allowed: false\b")),
+    ("provider calls allowed false", re.compile(r"\bprovider calls allowed: false\b")),
+    ("selected route none", re.compile(r"\bselected route: no_runtime_selection\b")),
+    ("telemetry phase", re.compile(r"\btelemetry phase: pr-o3\b")),
+    ("frontier required", re.compile(r"\bfrontier_required\b")),
+    ("provider labels only", re.compile(r"\bprovider labels are labels only\b")),
+    ("no provider-specific pricing", re.compile(r"\bno provider-specific prices\b")),
+    ("no model downgrade", re.compile(r"\bmust not downgrade\b")),
+)
+PROVIDER_MODEL_TIER_ROUTING_FORBIDDEN_PATTERNS = (
+    (
+        "runtime routing",
+        re.compile(
+            r"\bprovider/model-tier routing (?:enables|opens|approves|allows|permits|supports) runtime routing\b"
+        ),
+    ),
+    (
+        "runtime selection",
+        re.compile(r"\bprovider/model-tier routing (?:selects|chooses|routes to)\b"),
+    ),
+    (
+        "provider calls",
+        re.compile(
+            r"\bprovider/model-tier routing (?:performs|allows|enables|permits|supports) provider calls\b"
+        ),
+    ),
+    ("Ollama wiring", re.compile(r"\bprovider/model-tier routing wires ollama\b")),
+    ("Perplexity wiring", re.compile(r"\bprovider/model-tier routing wires perplexity\b")),
+    ("Sonar wiring", re.compile(r"\bprovider/model-tier routing wires sonar\b")),
+    (
+        "model downgrade",
+        re.compile(r"\bprovider/model-tier routing (?:allows|supports) model downgrade\b"),
+    ),
+    ("cheap final review", re.compile(r"\bcheap(?:er)? tiers? (?:handle|run) final review\b")),
+    ("live savings", re.compile(r"\bprovider/model-tier routing proves live savings\b")),
+    ("billing truth", re.compile(r"\bprovider/model-tier routing creates billing truth\b")),
+    (
+        "provider-specific pricing",
+        re.compile(r"\bprovider/model-tier routing encodes provider-specific prices\b"),
+    ),
+    ("cache serving", re.compile(r"\bprovider/model-tier routing enables cache serving\b")),
+    ("embeddings", re.compile(r"\bprovider/model-tier routing enables embeddings\b")),
+    ("GraphRAG runtime", re.compile(r"\bprovider/model-tier routing enables graphrag runtime\b")),
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_CONST_FALSE_FIELDS = (
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_routing_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_PROVIDER_LABELS = (
+    "gpt",
+    "ollama",
+    "perplexity_sonar",
+    "perplexity_agent",
+    "unknown_provider",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_TIER_LABELS = (
+    "frontier_required",
+    "standard_advisory",
+    "local_preprocess_advisory",
+    "search_synthesis_advisory",
+    "unknown_tier",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_TELEMETRY_FIELDS = (
+    "telemetry_id",
+    "telemetry_phase",
+    "policy_snapshot_id",
+    "selected_route",
+    "required_frontier_roles",
+    "candidate_pre_synthesis_roles",
+    "blocked_runtime_roles",
+    "provider_labels",
+    "model_tier_labels",
+    "token_economy_estimate_ids",
+    "reason_codes",
+    "metadata",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_RECORD_FIELDS = (
+    "record_id",
+    "provider_label",
+    "model_tier_label",
+    "allowed_advisory_roles",
+    "blocked_runtime_roles",
+    "quality_floor",
+    "relative_cost_rank",
+    "metadata",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_REASON_CODES = (
+    "gate_closed",
+    "metadata_only",
+    "provider_labels_only",
+    "no_runtime_selection",
+    "frontier_review_preserved",
+    "no_provider_call",
+    "no_cache_serving",
+    "no_embeddings",
+    "no_graphrag_runtime",
+    "estimate_only",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_PAYLOADS = (
+    "raw_prompts",
+    "raw_queries",
+    "normalized_queries",
+    "raw_model_responses",
+    "provider_payloads",
+    "provider_api_payloads",
+    "secrets",
+    "credentials",
+    "local_paths",
+    "account_truth",
+    "billing_truth",
+    "provider_specific_pricing",
+    "health_sensitive_payloads",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_BACKENDS = (
+    "provider_clients",
+    "provider_calls",
+    "Ollama",
+    "Perplexity",
+    "Sonar",
+    "GPT_client",
+    "OpenAPI",
+    "DB",
+    "Redis",
+    "GPTCache",
+    "embeddings",
+    "semantic_similarity",
+    "vector_search",
+    "GraphRAG_runtime",
+    "runtime_router",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_POLICY_DECISIONS = (
+    "runtime_provider_selection",
+    "runtime_model_selection",
+    "final_review_downgrade",
+    "billing_decisions",
+    "entitlement_decisions",
+    "account_truth_decisions",
+    "provider_specific_pricing_truth",
+    "production_cost_claims",
+    "live_savings_claims",
+    "cache_hit_rate_claims",
+)
+PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_FIELDS = (
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "runtime_routing_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+    "telemetry_phase",
+    "authority_boundary",
+    "asset_type",
+    "selected_route",
+    "allowed_provider_labels",
+    "allowed_model_tier_labels",
+    "routing_telemetry_fields",
+    "tier_record_fields",
+    "required_reason_codes",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
+    "required_followups",
+)
+
+EMBEDDING_RETRIEVAL_ADMISSION_REQUIRED_ANCHORS = (
+    ("metadata-only", re.compile(r"\bmetadata-only\b")),
+    ("gate status closed", re.compile(r"\bgate status: closed\b")),
+    ("runtime allowed false", re.compile(r"\bruntime allowed: false\b")),
+    ("implementation allowed false", re.compile(r"\bimplementation allowed: false\b")),
+    ("admission allowed false", re.compile(r"\badmission allowed: false\b")),
+    ("embedding allowed false", re.compile(r"\bembedding allowed: false\b")),
+    (
+        "retrieval runtime allowed false",
+        re.compile(r"\bretrieval runtime allowed: false\b"),
+    ),
+    (
+        "semantic similarity allowed false",
+        re.compile(r"\bsemantic similarity allowed: false\b"),
+    ),
+    ("vector search allowed false", re.compile(r"\bvector search allowed: false\b")),
+    ("provider calls allowed false", re.compile(r"\bprovider calls allowed: false\b")),
+    ("provider wiring allowed false", re.compile(r"\bprovider wiring allowed: false\b")),
+    ("cache read allowed false", re.compile(r"\bcache read allowed: false\b")),
+    ("cache write allowed false", re.compile(r"\bcache write allowed: false\b")),
+    ("serving allowed false", re.compile(r"\bserving allowed: false\b")),
+    ("model downgrade allowed false", re.compile(r"\bmodel downgrade allowed: false\b")),
+    ("pricing truth allowed false", re.compile(r"\bpricing truth allowed: false\b")),
+    ("telemetry phase", re.compile(r"\btelemetry phase: pr-o4\b")),
+    (
+        "selected embedding backend none",
+        re.compile(r"\bselected embedding backend: none\b"),
+    ),
+    (
+        "selected retrieval runtime none",
+        re.compile(r"\bselected retrieval runtime: none\b"),
+    ),
+    (
+        "future gate required",
+        re.compile(r"\bdedicated gate-open pr required: true\b"),
+    ),
+)
+EMBEDDING_RETRIEVAL_ADMISSION_FORBIDDEN_PATTERNS = (
+    (
+        "embeddings",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|opens|approves|allows|permits|supports|generates|"
+            r"stores|uses|runs|performs) embeddings\b"
+        ),
+    ),
+    (
+        "semantic similarity",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|opens|approves|allows|permits|supports|uses|runs|"
+            r"performs) semantic similarity\b"
+        ),
+    ),
+    (
+        "vector search",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|opens|approves|allows|permits|supports|uses|runs|"
+            r"performs) vector search\b"
+        ),
+    ),
+    (
+        "retrieval runtime",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|opens|approves|allows|permits|supports|executes|"
+            r"runs|uses|performs) retrieval runtime\b"
+        ),
+    ),
+    (
+        "provider calls",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:performs|allows|enables|permits|supports|uses|runs) "
+            r"provider calls\b"
+        ),
+    ),
+    (
+        "runtime admission",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:admits|approves|allows|permits|selects|enables) runtime\b"
+        ),
+    ),
+    (
+        "backend selection",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:selects|enables|allows|performs) (?:a )?(?:backend|runtime|retriever)\b"
+        ),
+    ),
+    (
+        "cache serving",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|allows|permits|supports|performs) cache serving\b"
+        ),
+    ),
+    (
+        "cache read",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|allows|permits|supports|performs) cache reads?\b"
+        ),
+    ),
+    (
+        "cache write",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:enables|allows|permits|supports|performs) cache writes?\b"
+        ),
+    ),
+    (
+        "provider wiring",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:wires|enables|allows|uses) (?:ollama|perplexity|sonar|gpt)\b"
+        ),
+    ),
+    (
+        "raw prompt",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) raw prompts?\b"
+        ),
+    ),
+    (
+        "raw query",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) raw queries\b"
+        ),
+    ),
+    (
+        "normalized query",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) normalized queries\b"
+        ),
+    ),
+    (
+        "raw context",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) raw context snippets?\b"
+        ),
+    ),
+    (
+        "raw response",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:stores|persists|keeps|contains|includes|uses) raw responses?\b"
+        ),
+    ),
+    (
+        "live savings",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:proves|claims|reports|guarantees) live savings\b"
+        ),
+    ),
+    (
+        "retrieval quality",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:proves|claims|reports|guarantees) retrieval quality\b"
+        ),
+    ),
+    (
+        "model downgrade",
+        re.compile(
+            r"\b(?:embedding/retrieval admission|pr-o4|this pr|this contract|"
+            r"the telemetry|telemetry|contract) "
+            r"(?:allows|supports|enables|permits) model downgrade\b"
+        ),
+    ),
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_CONST_FALSE_FIELDS = (
+    "runtime_allowed",
+    "implementation_allowed",
+    "admission_allowed",
+    "embedding_allowed",
+    "retrieval_runtime_allowed",
+    "semantic_similarity_allowed",
+    "vector_search_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_REASON_CODES = (
+    "gate_closed",
+    "metadata_only",
+    "admission_deferred",
+    "no_embeddings",
+    "no_vector_search",
+    "no_runtime_retrieval",
+    "no_provider_call",
+    "no_cache_serving",
+    "future_gate_required",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_TELEMETRY_FIELDS = (
+    "telemetry_id",
+    "telemetry_phase",
+    "policy_snapshot_id",
+    "evidence_refs",
+    "candidates",
+    "admission_allowed",
+    "embedding_allowed",
+    "retrieval_runtime_allowed",
+    "semantic_similarity_allowed",
+    "vector_search_allowed",
+    "provider_calls_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "selected_embedding_backend",
+    "selected_retrieval_runtime",
+    "required_followups",
+    "reason_codes",
+    "metadata",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_EVIDENCE_REF_FIELDS = (
+    "ref_id",
+    "ref_type",
+    "source_path",
+    "source_fingerprint",
+    "metadata",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_CANDIDATE_FIELDS = (
+    "candidate_id",
+    "candidate_type",
+    "surface_label",
+    "evidence_ref_ids",
+    "admission_state",
+    "reason_codes",
+    "metadata",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_POLICY_FIELDS = (
+    "policy_id",
+    "policy_version",
+    "authority_boundary",
+    "gate_status",
+    "evidence_ref_types",
+    "candidate_types",
+    "reason_codes",
+    "metadata",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_PAYLOADS = (
+    "raw_prompts",
+    "raw_queries",
+    "normalized_queries",
+    "raw_context_snippets",
+    "raw_model_responses",
+    "raw_answers",
+    "provider_payloads",
+    "embedding_vectors",
+    "retrieval_queries",
+    "similarity_scores",
+    "secrets",
+    "credentials",
+    "local_paths",
+    "account_truth",
+    "billing_truth",
+    "health_sensitive_payloads",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_BACKENDS = (
+    "embedding_models",
+    "embedding_generation",
+    "semantic_similarity",
+    "vector_index",
+    "vector_search",
+    "retrieval_runtime",
+    "GraphRAG_runtime",
+    "provider_clients",
+    "provider_calls",
+    "Ollama",
+    "Perplexity",
+    "Sonar",
+    "GPT_client",
+    "Redis",
+    "GPTCache",
+    "DB",
+    "OpenAPI",
+    "frontend",
+    "iOS",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_POLICY_DECISIONS = (
+    "runtime_admission",
+    "backend_selection",
+    "retrieval_route_selection",
+    "cache_read_decisions",
+    "cache_write_decisions",
+    "serving_decisions",
+    "provider_selection",
+    "model_selection",
+    "final_review_downgrade",
+    "billing_decisions",
+    "entitlement_decisions",
+    "production_cost_claims",
+    "live_savings_claims",
+    "retrieval_quality_claims",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_REF_TYPES = (
+    "changed_file",
+    "contract",
+    "test",
+    "agent_rule",
+    "review_artifact",
+    "roadmap",
+    "orchestration_packet",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_CANDIDATE_TYPES = (
+    "embedding_candidate",
+    "retrieval_candidate",
+    "hybrid_candidate",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_SURFACES = (
+    "orchestration_context",
+    "merge_readiness_context",
+    "prompt_module_registry",
+    "evidence_graph_reference",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_FOLLOWUPS = (
+    "semantic_cache_gate_open_pr",
+    "embedding_runtime_review",
+    "retrieval_runtime_review",
+    "false_hit_harness_review",
+)
+EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_FIELDS = (
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "admission_allowed",
+    "embedding_allowed",
+    "retrieval_runtime_allowed",
+    "semantic_similarity_allowed",
+    "vector_search_allowed",
+    "provider_calls_allowed",
+    "provider_wiring_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "model_downgrade_allowed",
+    "pricing_truth_allowed",
+    "telemetry_phase",
+    "authority_boundary",
+    "asset_type",
+    "selected_embedding_backend",
+    "selected_retrieval_runtime",
+    "telemetry_fields",
+    "candidate_fields",
+    "evidence_ref_fields",
+    "policy_snapshot_fields",
+    "allowed_evidence_ref_types",
+    "allowed_candidate_types",
+    "allowed_surface_labels",
+    "required_reason_codes",
+    "required_followups",
+    "blocked_payloads",
+    "blocked_backends",
+    "blocked_policy_decisions",
 )
 
 BOUNDED_INSIGHT_FORBIDDEN_PATTERNS = (
@@ -2651,6 +3436,486 @@ def validate_semantic_cache_bounded_insight_experiment_contract(text: str) -> li
     return errors
 
 
+def validate_semantic_cache_context_compression_contract(text: str) -> list[str]:
+    """Return stable validation errors for PR-O2 context compression contracts."""
+
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in CONTEXT_COMPRESSION_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"context compression contract missing anchor: {label}")
+
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden context compression claim: {label}"
+        for label, pattern in CONTEXT_COMPRESSION_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
+def _schema_const(properties: dict[str, object], field: str) -> object:
+    field_schema = properties.get(field)
+    if not isinstance(field_schema, dict):
+        return None
+    return field_schema.get("const")
+
+
+def _schema_enum_missing_errors(
+    properties: dict[str, object],
+    field: str,
+    expected_values: tuple[str, ...],
+    prefix: str,
+) -> list[str]:
+    field_schema = properties.get(field)
+    if not isinstance(field_schema, dict):
+        return [f"{prefix}: {field}"]
+    items_schema = field_schema.get("items")
+    if not isinstance(items_schema, dict):
+        return [f"{prefix}: {field}"]
+    enum_values = items_schema.get("enum")
+    if not isinstance(enum_values, list):
+        return [f"{prefix}: {field}"]
+    enum_set = {value for value in enum_values if isinstance(value, str)}
+    return [f"{prefix}: {value}" for value in expected_values if value not in enum_set]
+
+
+def validate_semantic_cache_context_compression_schema(schema_text: str) -> list[str]:
+    """Return stable validation errors for PR-O2 context compression schema."""
+
+    errors: list[str] = []
+    try:
+        schema = json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        return [f"context compression schema invalid JSON: {exc.msg}"]
+    if not isinstance(schema, dict):
+        return ["context compression schema must be an object"]
+    if schema.get("type") != "object":
+        errors.append("context compression schema root type must be object")
+    if schema.get("additionalProperties") is not False:
+        errors.append("context compression schema must forbid additionalProperties")
+    required = schema.get("required")
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("context compression schema required must be a string list")
+        required_set: set[str] = set()
+    else:
+        required_set = set(required)
+    for field in CONTEXT_COMPRESSION_SCHEMA_REQUIRED_FIELDS:
+        if field not in required_set:
+            errors.append(f"context compression schema missing required field: {field}")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return [*errors, "context compression schema missing properties"]
+    if _schema_const(properties, "gate_status") != "closed":
+        errors.append("context compression schema gate_status must be const closed")
+    if _schema_const(properties, "telemetry_phase") != "PR-O2":
+        errors.append("context compression schema telemetry_phase must be const PR-O2")
+    if _schema_const(properties, "authority_boundary") != "metadata_only_non_serving":
+        errors.append(
+            "context compression schema authority_boundary must be const metadata_only_non_serving"
+        )
+    if _schema_const(properties, "asset_type") != "orchestration_context_compression_telemetry":
+        errors.append(
+            "context compression schema asset_type must be const "
+            "orchestration_context_compression_telemetry"
+        )
+    for field in CONTEXT_COMPRESSION_SCHEMA_CONST_FALSE_FIELDS:
+        if _schema_const(properties, field) is not False:
+            errors.append(f"context compression schema {field} must be const false")
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "upstream_assets",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_UPSTREAM_ASSETS,
+            "context compression schema missing upstream asset",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "compressed_context_pack_fields",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_PACK_FIELDS,
+            "context compression schema missing compressed context pack field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "context_graph_node_fields",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_NODE_FIELDS,
+            "context compression schema missing graph node field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "context_graph_edge_fields",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_EDGE_FIELDS,
+            "context compression schema missing graph edge field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "context_compression_estimate_fields",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_ESTIMATE_FIELDS,
+            "context compression schema missing estimate field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_node_types",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_NODE_TYPES,
+            "context compression schema missing allowed node type",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_edge_types",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_EDGE_TYPES,
+            "context compression schema missing allowed edge type",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_payloads",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_PAYLOADS,
+            "context compression schema missing blocked payload",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_backends",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_BACKENDS,
+            "context compression schema missing blocked backend",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_policy_decisions",
+            CONTEXT_COMPRESSION_SCHEMA_REQUIRED_POLICY_DECISIONS,
+            "context compression schema missing blocked policy decision",
+        )
+    )
+    return errors
+
+
+def validate_semantic_cache_provider_model_tier_routing_contract(text: str) -> list[str]:
+    """Return stable validation errors for PR-O3 provider/model-tier telemetry."""
+
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in PROVIDER_MODEL_TIER_ROUTING_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"provider/model-tier routing contract missing anchor: {label}")
+
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden provider/model-tier routing claim: {label}"
+        for label, pattern in PROVIDER_MODEL_TIER_ROUTING_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
+def validate_semantic_cache_provider_model_tier_routing_schema(
+    schema_text: str,
+) -> list[str]:
+    """Return stable validation errors for PR-O3 provider/model-tier schema."""
+
+    errors: list[str] = []
+    try:
+        schema = json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        return [f"provider/model-tier routing schema invalid JSON: {exc.msg}"]
+    if not isinstance(schema, dict):
+        return ["provider/model-tier routing schema must be an object"]
+    if schema.get("type") != "object":
+        errors.append("provider/model-tier routing schema root type must be object")
+    if schema.get("additionalProperties") is not False:
+        errors.append("provider/model-tier routing schema must forbid additionalProperties")
+    required = schema.get("required")
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("provider/model-tier routing schema required must be a string list")
+        required_set: set[str] = set()
+    else:
+        required_set = set(required)
+    for field in PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_FIELDS:
+        if field not in required_set:
+            errors.append(f"provider/model-tier routing schema missing required field: {field}")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return [*errors, "provider/model-tier routing schema missing properties"]
+    if _schema_const(properties, "gate_status") != "closed":
+        errors.append("provider/model-tier routing schema gate_status must be const closed")
+    if _schema_const(properties, "telemetry_phase") != "PR-O3":
+        errors.append("provider/model-tier routing schema telemetry_phase must be const PR-O3")
+    if _schema_const(properties, "authority_boundary") != "metadata_only_non_serving":
+        errors.append(
+            "provider/model-tier routing schema authority_boundary must be const "
+            "metadata_only_non_serving"
+        )
+    if _schema_const(properties, "asset_type") != "provider_model_tier_routing_telemetry":
+        errors.append(
+            "provider/model-tier routing schema asset_type must be const "
+            "provider_model_tier_routing_telemetry"
+        )
+    if _schema_const(properties, "selected_route") != "no_runtime_selection":
+        errors.append(
+            "provider/model-tier routing schema selected_route must be const "
+            "no_runtime_selection"
+        )
+    for field in PROVIDER_MODEL_TIER_ROUTING_SCHEMA_CONST_FALSE_FIELDS:
+        if _schema_const(properties, field) is not False:
+            errors.append(f"provider/model-tier routing schema {field} must be const false")
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_provider_labels",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_PROVIDER_LABELS,
+            "provider/model-tier routing schema missing provider label",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_model_tier_labels",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_TIER_LABELS,
+            "provider/model-tier routing schema missing model tier label",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "routing_telemetry_fields",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_TELEMETRY_FIELDS,
+            "provider/model-tier routing schema missing telemetry field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "tier_record_fields",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_RECORD_FIELDS,
+            "provider/model-tier routing schema missing tier record field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "required_reason_codes",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_REASON_CODES,
+            "provider/model-tier routing schema missing reason code",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_payloads",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_PAYLOADS,
+            "provider/model-tier routing schema missing blocked payload",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_backends",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_BACKENDS,
+            "provider/model-tier routing schema missing blocked backend",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_policy_decisions",
+            PROVIDER_MODEL_TIER_ROUTING_SCHEMA_REQUIRED_POLICY_DECISIONS,
+            "provider/model-tier routing schema missing blocked policy decision",
+        )
+    )
+    return errors
+
+
+def validate_semantic_cache_embedding_retrieval_admission_contract(text: str) -> list[str]:
+    """Return stable validation errors for PR-O4 embedding/retrieval admission."""
+
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in EMBEDDING_RETRIEVAL_ADMISSION_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"embedding/retrieval admission contract missing anchor: {label}")
+
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden embedding/retrieval admission claim: {label}"
+        for label, pattern in EMBEDDING_RETRIEVAL_ADMISSION_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
+def validate_semantic_cache_embedding_retrieval_admission_schema(
+    schema_text: str,
+) -> list[str]:
+    """Return stable validation errors for PR-O4 embedding/retrieval schema."""
+
+    errors: list[str] = []
+    try:
+        schema = json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        return [f"embedding/retrieval admission schema invalid JSON: {exc.msg}"]
+    if not isinstance(schema, dict):
+        return ["embedding/retrieval admission schema must be an object"]
+    if schema.get("type") != "object":
+        errors.append("embedding/retrieval admission schema root type must be object")
+    if schema.get("additionalProperties") is not False:
+        errors.append("embedding/retrieval admission schema must forbid additionalProperties")
+    required = schema.get("required")
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("embedding/retrieval admission schema required must be a string list")
+        required_set: set[str] = set()
+    else:
+        required_set = set(required)
+    for field in EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_FIELDS:
+        if field not in required_set:
+            errors.append(f"embedding/retrieval admission schema missing required field: {field}")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return [*errors, "embedding/retrieval admission schema missing properties"]
+    if _schema_const(properties, "gate_status") != "closed":
+        errors.append("embedding/retrieval admission schema gate_status must be const closed")
+    if _schema_const(properties, "telemetry_phase") != "PR-O4":
+        errors.append("embedding/retrieval admission schema telemetry_phase must be const PR-O4")
+    if _schema_const(properties, "authority_boundary") != "metadata_only_non_serving":
+        errors.append(
+            "embedding/retrieval admission schema authority_boundary must be const "
+            "metadata_only_non_serving"
+        )
+    if _schema_const(properties, "asset_type") != "embedding_retrieval_admission_telemetry":
+        errors.append(
+            "embedding/retrieval admission schema asset_type must be const "
+            "embedding_retrieval_admission_telemetry"
+        )
+    if _schema_const(properties, "selected_embedding_backend") != "none":
+        errors.append(
+            "embedding/retrieval admission schema selected_embedding_backend must be const none"
+        )
+    if _schema_const(properties, "selected_retrieval_runtime") != "none":
+        errors.append(
+            "embedding/retrieval admission schema selected_retrieval_runtime must be const none"
+        )
+    for field in EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_CONST_FALSE_FIELDS:
+        if _schema_const(properties, field) is not False:
+            errors.append(f"embedding/retrieval admission schema {field} must be const false")
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "telemetry_fields",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_TELEMETRY_FIELDS,
+            "embedding/retrieval admission schema missing telemetry field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "candidate_fields",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_CANDIDATE_FIELDS,
+            "embedding/retrieval admission schema missing candidate field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "evidence_ref_fields",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_EVIDENCE_REF_FIELDS,
+            "embedding/retrieval admission schema missing evidence ref field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "policy_snapshot_fields",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_POLICY_FIELDS,
+            "embedding/retrieval admission schema missing policy snapshot field",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_evidence_ref_types",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_REF_TYPES,
+            "embedding/retrieval admission schema missing evidence ref type",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_candidate_types",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_CANDIDATE_TYPES,
+            "embedding/retrieval admission schema missing candidate type",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "allowed_surface_labels",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_SURFACES,
+            "embedding/retrieval admission schema missing surface label",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "required_reason_codes",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_REASON_CODES,
+            "embedding/retrieval admission schema missing reason code",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "required_followups",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_FOLLOWUPS,
+            "embedding/retrieval admission schema missing followup",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_payloads",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_PAYLOADS,
+            "embedding/retrieval admission schema missing blocked payload",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_backends",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_BACKENDS,
+            "embedding/retrieval admission schema missing blocked backend",
+        )
+    )
+    errors.extend(
+        _schema_enum_missing_errors(
+            properties,
+            "blocked_policy_decisions",
+            EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA_REQUIRED_POLICY_DECISIONS,
+            "embedding/retrieval admission schema missing blocked policy decision",
+        )
+    )
+    return errors
+
+
 def validate_semantic_cache_backend_selection_contract(text: str) -> list[str]:
     """Return stable validation errors for unsafe SC-G5 backend selection contracts."""
     errors: list[str] = []
@@ -3605,6 +4870,42 @@ def main(argv: list[str] | None = None) -> int:
         help="SC-G5 backend selection JSON schema to validate.",
     )
     parser.add_argument(
+        "--context-compression-contract",
+        type=Path,
+        default=DEFAULT_CONTEXT_COMPRESSION_CONTRACT,
+        help="PR-O2 context compression markdown document to validate.",
+    )
+    parser.add_argument(
+        "--context-compression-schema",
+        type=Path,
+        default=DEFAULT_CONTEXT_COMPRESSION_SCHEMA,
+        help="PR-O2 context compression JSON schema to validate.",
+    )
+    parser.add_argument(
+        "--provider-model-tier-routing-contract",
+        type=Path,
+        default=DEFAULT_PROVIDER_MODEL_TIER_ROUTING_CONTRACT,
+        help="PR-O3 provider/model-tier routing markdown document to validate.",
+    )
+    parser.add_argument(
+        "--provider-model-tier-routing-schema",
+        type=Path,
+        default=DEFAULT_PROVIDER_MODEL_TIER_ROUTING_SCHEMA,
+        help="PR-O3 provider/model-tier routing JSON schema to validate.",
+    )
+    parser.add_argument(
+        "--embedding-retrieval-admission-contract",
+        type=Path,
+        default=DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_CONTRACT,
+        help="PR-O4 embedding/retrieval admission markdown document to validate.",
+    )
+    parser.add_argument(
+        "--embedding-retrieval-admission-schema",
+        type=Path,
+        default=DEFAULT_EMBEDDING_RETRIEVAL_ADMISSION_SCHEMA,
+        help="PR-O4 embedding/retrieval admission JSON schema to validate.",
+    )
+    parser.add_argument(
         "--philosophy-admission-contract",
         type=Path,
         default=DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT,
@@ -3694,6 +4995,52 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    context_compression_contract = args.context_compression_contract
+    if not context_compression_contract.exists():
+        print(
+            f"ERROR: context compression contract missing: {context_compression_contract}",
+            file=sys.stderr,
+        )
+        return 1
+    context_compression_schema = args.context_compression_schema
+    if not context_compression_schema.exists():
+        print(
+            f"ERROR: context compression schema missing: {context_compression_schema}",
+            file=sys.stderr,
+        )
+        return 1
+    provider_model_tier_routing_contract = args.provider_model_tier_routing_contract
+    if not provider_model_tier_routing_contract.exists():
+        print(
+            "ERROR: provider/model-tier routing contract missing: "
+            f"{provider_model_tier_routing_contract}",
+            file=sys.stderr,
+        )
+        return 1
+    provider_model_tier_routing_schema = args.provider_model_tier_routing_schema
+    if not provider_model_tier_routing_schema.exists():
+        print(
+            "ERROR: provider/model-tier routing schema missing: "
+            f"{provider_model_tier_routing_schema}",
+            file=sys.stderr,
+        )
+        return 1
+    embedding_retrieval_admission_contract = args.embedding_retrieval_admission_contract
+    if not embedding_retrieval_admission_contract.exists():
+        print(
+            "ERROR: embedding/retrieval admission contract missing: "
+            f"{embedding_retrieval_admission_contract}",
+            file=sys.stderr,
+        )
+        return 1
+    embedding_retrieval_admission_schema = args.embedding_retrieval_admission_schema
+    if not embedding_retrieval_admission_schema.exists():
+        print(
+            "ERROR: embedding/retrieval admission schema missing: "
+            f"{embedding_retrieval_admission_schema}",
+            file=sys.stderr,
+        )
+        return 1
 
     philosophy_admission_contract = args.philosophy_admission_contract
     if not philosophy_admission_contract.exists():
@@ -3755,6 +5102,36 @@ def main(argv: list[str] | None = None) -> int:
             contract_text=backend_selection_text,
         )
     )
+    errors.extend(
+        validate_semantic_cache_context_compression_contract(
+            context_compression_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_context_compression_schema(
+            context_compression_schema.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_provider_model_tier_routing_contract(
+            provider_model_tier_routing_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_provider_model_tier_routing_schema(
+            provider_model_tier_routing_schema.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_embedding_retrieval_admission_contract(
+            embedding_retrieval_admission_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_embedding_retrieval_admission_schema(
+            embedding_retrieval_admission_schema.read_text(encoding="utf-8")
+        )
+    )
     philosophy_admission_text = philosophy_admission_contract.read_text(encoding="utf-8")
     errors.extend(validate_philosophy_semantic_cache_admission_contract(philosophy_admission_text))
     errors.extend(
@@ -3809,6 +5186,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"cache observability contract closed: {observability_contract}")
     print(f"bounded insight experiment contract closed: {bounded_insight_contract}")
     print(f"backend selection contract closed: {backend_selection_contract}")
+    print(f"context compression contract closed: {context_compression_contract}")
+    print(f"provider/model-tier routing contract closed: {provider_model_tier_routing_contract}")
+    print(
+        "embedding/retrieval admission contract closed: "
+        f"{embedding_retrieval_admission_contract}"
+    )
     print(f"philosophy admission contract closed: {philosophy_admission_contract}")
     print(f"philosophy admission policy closed: {philosophy_admission_policy}")
     print(f"philosophy admission oracle fixture current: {philosophy_admission_oracle}")

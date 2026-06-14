@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
+import hmac
 import os
 from pathlib import Path
 import re
@@ -28,6 +30,7 @@ from scripts.orchestration.experiment_slack_bridge_constants import (
     LIVE_APPROVAL_SHA256_ENV,
     LIVE_SECRET_PRESENCE_ENV,
     MAX_AUDIT_RETENTION_DAYS,
+    MIN_WORKFLOW_DISPATCH_SECRET_LENGTH,
     OPERATOR_LEDGER_TASK_PACKET_ID_ENV,
     SAFE_BRANCH_RE,
     SAFE_SLACK_ID_RE,
@@ -41,6 +44,8 @@ from scripts.orchestration.experiment_slack_bridge_constants import (
     SLACK_CHANNEL_ALLOWLIST_ENV,
     SLACK_TEAM_ALLOWLIST_ENV,
     SLACK_USER_ALLOWLIST_ENV,
+    WORKFLOW_DISPATCH_APPROVAL_PROOF_ENV,
+    WORKFLOW_DISPATCH_SECRET_ENV,
 )
 from scripts.orchestration.experiment_slack_bridge_models import (
     BridgeConfig,
@@ -139,6 +144,132 @@ def _live_approval_sha256() -> str | None:
     ):
         raise SlackSocketConfigError("Slack live-dispatch approval configuration is invalid.")
     return normalized
+
+
+def _workflow_dispatch_secret() -> str | None:
+    """Read the bridge-to-workflow HMAC secret without making it startup-required."""
+
+    raw = os.environ.get(WORKFLOW_DISPATCH_SECRET_ENV, "")
+    secret = raw.strip()
+    if not secret or secret.lower() == "none":
+        return None
+    if raw != secret or CONTROL_CHAR_RE.search(secret) or "`" in secret:
+        raise SlackSocketConfigError("Slack workflow-dispatch proof configuration is invalid.")
+    return secret
+
+
+def _validate_workflow_dispatch_secret_value(secret: str | None) -> str:
+    if secret is None:
+        raise SlackSocketConfigError(
+            "Slack workflow-dispatch approval proof is missing or invalid."
+        )
+    normalized = secret.strip()
+    if (
+        not normalized
+        or normalized.lower() == "none"
+        or normalized != secret
+        or len(normalized) < MIN_WORKFLOW_DISPATCH_SECRET_LENGTH
+        or CONTROL_CHAR_RE.search(normalized)
+        or "`" in normalized
+    ):
+        raise SlackSocketConfigError(
+            "Slack workflow-dispatch approval proof is missing or invalid."
+        )
+    return normalized
+
+
+def _require_lowercase_sha256(value: str, *, label: str) -> str:
+    normalized = value.strip()
+    if (
+        not normalized
+        or normalized != value
+        or normalized == "none"
+        or CONTROL_CHAR_RE.search(normalized)
+        or "`" in normalized
+        or re.fullmatch(r"[0-9a-f]{64}", normalized) is None
+    ):
+        raise SlackSocketConfigError(f"Slack workflow-dispatch {label} is missing or invalid.")
+    return normalized
+
+
+def _workflow_dispatch_approval_message(
+    *,
+    branch_ref: str,
+    hypothesis_sha256: str,
+    approval_ref: str,
+) -> str:
+    if branch_ref != branch_ref.strip() or not _is_safe_ref(branch_ref):
+        raise SlackSocketConfigError(
+            "Slack workflow-dispatch approval proof is missing or invalid."
+        )
+    hypothesis_digest = _require_lowercase_sha256(
+        hypothesis_sha256,
+        label="hypothesis digest",
+    )
+    approval_digest = _require_lowercase_sha256(approval_ref, label="approval digest")
+    return branch_ref + "\0" + hypothesis_digest + "\0" + approval_digest
+
+
+def _compute_workflow_dispatch_approval_proof(
+    *,
+    branch_ref: str,
+    hypothesis_sha256: str,
+    approval_ref: str,
+    secret: str,
+) -> str:
+    """Return the lowercase HMAC proof binding one live workflow-dispatch tuple."""
+
+    message = _workflow_dispatch_approval_message(
+        branch_ref=branch_ref,
+        hypothesis_sha256=hypothesis_sha256,
+        approval_ref=approval_ref,
+    )
+    secret_value = _validate_workflow_dispatch_secret_value(secret)
+    return hmac.new(
+        secret_value.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _runtime_value(env_name: str, value: str | None) -> str:
+    return value if value is not None else os.environ.get(env_name, "")
+
+
+def _validate_workflow_dispatch_approval_proof(
+    *,
+    branch_ref: str | None = None,
+    hypothesis_sha256: str | None = None,
+    approval_ref: str | None = None,
+    approval_proof: str | None = None,
+    secret: str | None = None,
+) -> dict[str, str]:
+    """Validate the workflow-side proof for one live dispatch without printing values."""
+
+    branch = _runtime_value("EXPERIMENT_SLACK_SOCKET_BRANCH_REF", branch_ref)
+    hypothesis_digest = _runtime_value(
+        "EXPERIMENT_SLACK_SOCKET_HYPOTHESIS_SHA256",
+        hypothesis_sha256,
+    )
+    approval_digest = _runtime_value(LIVE_APPROVAL_SHA256_ENV, approval_ref)
+    proof = _runtime_value(WORKFLOW_DISPATCH_APPROVAL_PROOF_ENV, approval_proof)
+    secret_value = secret if secret is not None else _workflow_dispatch_secret()
+    expected = _compute_workflow_dispatch_approval_proof(
+        branch_ref=branch,
+        hypothesis_sha256=hypothesis_digest,
+        approval_ref=approval_digest,
+        secret=_validate_workflow_dispatch_secret_value(secret_value),
+    )
+    normalized_proof = _require_lowercase_sha256(proof, label="approval proof")
+    if not hmac.compare_digest(expected, normalized_proof):
+        raise SlackSocketConfigError(
+            "Slack workflow-dispatch approval proof is missing or invalid."
+        )
+    return {
+        "approval_proof_status": "valid",
+        "approval_status": "valid",
+        "status": "pass",
+    }
 
 
 def _operator_ledger_task_packet_id() -> str:
@@ -385,6 +516,7 @@ def build_config(
         slack_bot_token=_optional_token(SLACK_BOT_AUTH_ENV),
         github_token=github_auth.token if github_auth is not None else None,
         live_approval_sha256=_live_approval_sha256(),
+        workflow_dispatch_secret=_workflow_dispatch_secret(),
         operator_ledger_task_packet_id=_operator_ledger_task_packet_id(),
         github_dispatch=GitHubDispatchConfig(auth=github_auth, target=github_target),
     )

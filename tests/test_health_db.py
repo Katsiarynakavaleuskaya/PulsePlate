@@ -101,6 +101,22 @@ def test_ready_falls_back_to_unavailable_runtime_when_insight_readiness_raises(
     )
 
 
+def test_health_v1_preserves_health_payload_shape() -> None:
+    """The v1 health alias keeps the same payload shape and stable fields."""
+    with TestClient(cast(ASGIApp, app.app)) as client:
+        health_response = client.get("/health")
+        v1_response = client.get("/api/v1/health")
+
+    assert health_response.status_code == 200
+    assert v1_response.status_code == 200
+    health_payload = health_response.json()
+    v1_payload = v1_response.json()
+    assert set(v1_payload) == set(health_payload)
+    for field in ("status", "version", "git_sha", "environment"):
+        assert v1_payload[field] == health_payload[field]
+    assert isinstance(v1_payload["timestamp"], str)
+
+
 @pytest.mark.parametrize("path", ["/health/db", "/ready"])
 def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
     """RU: Ошибка БД приводит к 503.

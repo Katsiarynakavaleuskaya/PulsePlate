@@ -10,6 +10,8 @@ env:
   PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 on:
+  push:
+    branches: ["main"]
   schedule:
     - cron: '16 15 * * 6'
   workflow_dispatch:
@@ -48,9 +50,10 @@ jobs:
         with:
           context: .
           build-args: |
-            PULSEPLATE_PYTHON_INDEX_URL=${{ env.PULSEPLATE_PYTHON_INDEX_URL }}
-            PULSEPLATE_PYTHON_TRUSTED_HOST=${{ env.PULSEPLATE_PYTHON_TRUSTED_HOST }}
             PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
+          secret-envs: |
+            pp_py_index=PULSEPLATE_PYTHON_INDEX_URL
+            pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST
           platforms: linux/amd64
           push: false
           load: true
@@ -188,6 +191,7 @@ jobs:
           ignore-unfixed: true
           trivyignores: .trivyignore
           ignore-policy: .trivy-ignore-policy.rego
+          exit-code: '1'
           version: v0.69.3
 
       - name: Fail when Trivy SARIF is missing

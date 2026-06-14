@@ -70,13 +70,11 @@ IDEMPOTENCY_KEY_CHECK_NAMESPACE = b"pulseplate-operator-ledger-idempotency-check
 CONTENT_HASH_NAMESPACE = b"pulseplate-operator-ledger-content-v1"
 CONTENT_HASH_ITERATIONS = 1_000
 IDEMPOTENCY_KEY_RE = re.compile(r"^[a-f0-9]{24}$")
-PII_SHAPED_ARTIFACT_RE = re.compile(
-    r"("
-    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
-    r"|"
-    r"(?!\b\d{4}-\d{2}-\d{2}\b)\b\+?\d[\d .()_-]{7,}\d\b"
-    r")"
-)
+EMAIL_SHAPED_ARTIFACT_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PHONE_SHAPED_ARTIFACT_RE = re.compile(r"\b\+?\d[\d .()_-]{7,}\d\b")
+ARTIFACT_DATE_TOKEN_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+MIN_ALLOWED_ARTIFACT_DATE_YEAR = 2000
+MAX_ALLOWED_ARTIFACT_DATE_YEAR = 2099
 LOCAL_PATH_SEGMENT_RE = re.compile(
     r"(^|/)(Users|home|var|opt|tmp|private|Volumes|etc|usr|Library|System)(/|$)"
 )
@@ -214,8 +212,21 @@ REQUIRED_EVENT_FIELDS = frozenset(
     }
 )
 DERIVED_EVENT_FIELDS = frozenset({"content_hash", "idempotency_key", "idempotency_key_check"})
+LEGACY_DERIVED_EVENT_FIELDS = frozenset({"idempotency_key"})
 EVENT_FIELDS = REQUIRED_EVENT_FIELDS | DERIVED_EVENT_FIELDS
+LEGACY_EVENT_FIELDS = REQUIRED_EVENT_FIELDS | LEGACY_DERIVED_EVENT_FIELDS
 IDEMPOTENCY_MATERIAL_FIELDS = (
+    "branch_hash",
+    "command_kind",
+    "event_hash",
+    "human_review_outcome",
+    "hypothesis_hash",
+    "oracle_result_hash",
+    "slack_audit_hash",
+    "status",
+    "task_packet_id",
+)
+LEGACY_SHA256_IDEMPOTENCY_MATERIAL_FIELDS = (
     "branch_hash",
     "command_kind",
     "event_hash",
@@ -306,6 +317,25 @@ def _validate_timestamp(value: Any) -> str:
     return normalized.isoformat()
 
 
+def _is_allowed_artifact_date_token(value: str) -> bool:
+    if ARTIFACT_DATE_TOKEN_RE.fullmatch(value) is None:
+        return False
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return False
+    return MIN_ALLOWED_ARTIFACT_DATE_YEAR <= parsed.year <= MAX_ALLOWED_ARTIFACT_DATE_YEAR
+
+
+def _contains_pii_shaped_artifact_ref(value: str) -> bool:
+    if EMAIL_SHAPED_ARTIFACT_RE.search(value):
+        return True
+    for candidate in PHONE_SHAPED_ARTIFACT_RE.finditer(value):
+        if not _is_allowed_artifact_date_token(candidate.group(0)):
+            return True
+    return False
+
+
 def _validate_hash(value: Any) -> str:
     if value is None:
         return "none"
@@ -354,7 +384,7 @@ def _validate_artifact_ref(value: Any) -> str:
     normalized_ref = normalized.replace("\\", "/")
     if (
         "//" in normalized_ref
-        or PII_SHAPED_ARTIFACT_RE.search(normalized_ref)
+        or _contains_pii_shaped_artifact_ref(normalized_ref)
         or GITHUB_APP_TOKEN_ARTIFACT_RE.search(normalized_ref)
         or LOCAL_PATH_SEGMENT_RE.search(normalized_ref)
         or WINDOWS_DRIVE_SEGMENT_RE.search(normalized_ref)
@@ -416,6 +446,16 @@ def _safe_cli_stdout_payload(rendered: str) -> str:
 
 def _idempotency_material(payload: dict[str, Any]) -> dict[str, Any]:
     return {key: payload[key] for key in IDEMPOTENCY_MATERIAL_FIELDS}
+
+
+def _legacy_sha256_idempotency_material(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: payload[key] for key in LEGACY_SHA256_IDEMPOTENCY_MATERIAL_FIELDS}
+
+
+def _legacy_sha256_idempotency_key(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        _canonical_json_bytes(_legacy_sha256_idempotency_material(payload))
+    ).hexdigest()[:24]
 
 
 def _idempotency_key(payload: dict[str, Any]) -> str:
@@ -1255,11 +1295,15 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.") from exc
     if not isinstance(raw, dict):
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
-    _require_exact_keys(raw, allowed=EVENT_FIELDS)
-    if DERIVED_EVENT_FIELDS - set(raw):
-        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     derived = raw.get("idempotency_key")
     if not isinstance(derived, str) or not IDEMPOTENCY_KEY_RE.fullmatch(derived):
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    if path.stem != derived:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    if set(raw) == LEGACY_EVENT_FIELDS:
+        return _read_legacy_sha256_record(raw, derived)
+    _require_exact_keys(raw, allowed=EVENT_FIELDS)
+    if DERIVED_EVENT_FIELDS - set(raw):
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     content_hash = raw.get("content_hash")
     if not isinstance(content_hash, str) or SHA256_HEX_RE.fullmatch(content_hash) is None:
@@ -1269,8 +1313,6 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
         not isinstance(idempotency_key_check, str)
         or SHA256_HEX_RE.fullmatch(idempotency_key_check) is None
     ):
-        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
-    if path.stem != derived:
         raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
     payload = dict(raw)
     for field in DERIVED_EVENT_FIELDS:
@@ -1283,6 +1325,18 @@ def _read_record(path: Path) -> OperatorLedgerRecord:
     record.payload["content_hash"] = content_hash
     record.payload["idempotency_key"] = derived
     record.payload["idempotency_key_check"] = idempotency_key_check
+    return record
+
+
+def _read_legacy_sha256_record(raw: dict[str, Any], derived: str) -> OperatorLedgerRecord:
+    payload = dict(raw)
+    payload.pop("idempotency_key")
+    record = normalize_operator_ledger_event(payload, derive_idempotency_key=False)
+    if _legacy_sha256_idempotency_key(record.payload) != derived:
+        raise OperatorLedgerError("Existing Experiment operator ledger event is invalid.")
+    record.payload["content_hash"] = _content_hash(record.payload)
+    record.payload["idempotency_key"] = derived
+    record.payload["idempotency_key_check"] = _idempotency_key_check(record.payload, derived)
     return record
 
 

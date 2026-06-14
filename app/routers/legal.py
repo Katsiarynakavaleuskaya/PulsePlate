@@ -6,6 +6,8 @@ EN: Typed helpers for legal/publication payloads.
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
@@ -89,6 +91,19 @@ def build_terms_endpoint_payload() -> TermsResponse:
         effective_date="2026-03-08",
     )
     return response
+
+
+@router.get("/privacy", include_in_schema=False)
+async def privacy() -> dict[str, Any]:
+    """Privacy policy endpoint with explicit pseudonymous data disclosure.
+
+    RU: Эндпоинт политики конфиденциальности с явным раскрытием псевдонимных данных.
+    EN: Privacy policy endpoint with explicit pseudonymous data disclosure.
+    """
+
+    from core.compliance import build_privacy_endpoint_payload
+
+    return cast(dict[str, Any], build_privacy_endpoint_payload())
 
 
 @router.get("/terms", include_in_schema=False, response_model=TermsResponse)

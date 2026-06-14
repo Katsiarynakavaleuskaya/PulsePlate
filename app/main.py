@@ -34,6 +34,7 @@ from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import router as fitchef_structured_router
+from app.routers.health import router as health_router
 from app.routers.legal import router as legal_router
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
@@ -42,7 +43,19 @@ app: FastAPI = _legacy_app
 
 _WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
 _FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
+_PRIVACY_ROUTE_PATH: str = "/privacy"
 _TERMS_ROUTE_PATH: str = "/terms"
+_LEGAL_ROUTE_PATHS: tuple[str, str] = (_PRIVACY_ROUTE_PATH, _TERMS_ROUTE_PATH)
+_HEALTH_ROUTE_PATH: str = "/health"
+_HEALTH_V1_ROUTE_PATH: str = "/api/v1/health"
+_HEALTH_DB_ROUTE_PATH: str = "/health/db"
+_READY_ROUTE_PATH: str = "/ready"
+_HEALTH_ROUTE_PATHS: tuple[str, str, str, str] = (
+    _HEALTH_ROUTE_PATH,
+    _HEALTH_V1_ROUTE_PATH,
+    _HEALTH_DB_ROUTE_PATH,
+    _READY_ROUTE_PATH,
+)
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
@@ -105,6 +118,104 @@ def _assert_no_duplicate_ws_route(target_app: FastAPI | None = None) -> None:
             raise RuntimeError(
                 f"Duplicate {path} route detected. "
                 "Check legacy_app.py or other router registration points."
+            )
+
+
+def _include_legal_router_if_needed(target_app: FastAPI) -> None:
+    """Register legal publication routes as one atomic route family."""
+
+    expected_paths = set(_LEGAL_ROUTE_PATHS)
+    expected_endpoints: dict[str, object] = {}
+    expected_route_counts = dict.fromkeys(expected_paths, 0)
+    for route in legal_router.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        if path in expected_paths and "GET" in methods:
+            expected_route_counts[str(path)] += 1
+            expected_endpoints[str(path)] = getattr(route, "endpoint", None)
+
+    if set(expected_endpoints) != expected_paths or any(
+        count != 1 for count in expected_route_counts.values()
+    ):
+        raise RuntimeError("Legal router does not define the expected route family.")
+
+    legal_paths_present = {path for path in expected_paths if _has_route(target_app, path, "GET")}
+
+    if not legal_paths_present:
+        target_app.include_router(legal_router)
+        return
+
+    if legal_paths_present != expected_paths:
+        existing = ", ".join(sorted(legal_paths_present))
+        missing = ", ".join(sorted(expected_paths - legal_paths_present))
+        raise RuntimeError(
+            "Partial legal route registration detected. "
+            f"Existing: {existing or '<none>'}; missing: {missing or '<none>'}."
+        )
+
+    for path, endpoint in expected_endpoints.items():
+        matching_routes = [
+            route
+            for route in target_app.routes
+            if getattr(route, "path", None) == path
+            and "GET" in (getattr(route, "methods", None) or set())
+        ]
+        if (
+            len(matching_routes) != 1
+            or getattr(matching_routes[0], "endpoint", None) is not endpoint
+        ):
+            raise RuntimeError(f"Duplicate {path} route detected with a different legal handler.")
+
+
+def _include_health_router_if_needed(target_app: FastAPI) -> None:
+    """Register health/readiness routes as one atomic route family."""
+
+    expected_paths = set(_HEALTH_ROUTE_PATHS)
+    expected_endpoints: dict[str, object] = {}
+    expected_route_counts = dict.fromkeys(expected_paths, 0)
+    for route in health_router.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        if path in expected_paths and "GET" in methods:
+            expected_route_counts[str(path)] += 1
+            expected_endpoints[str(path)] = getattr(route, "endpoint", None)
+            if getattr(route, "include_in_schema", True):
+                raise RuntimeError("Health router does not preserve hidden OpenAPI visibility.")
+
+    if set(expected_endpoints) != expected_paths or any(
+        count != 1 for count in expected_route_counts.values()
+    ):
+        raise RuntimeError("Health router does not define the expected route family.")
+
+    health_paths_present = {path for path in expected_paths if _has_route(target_app, path, "GET")}
+
+    if not health_paths_present:
+        target_app.include_router(health_router)
+        return
+
+    if health_paths_present != expected_paths:
+        existing = ", ".join(sorted(health_paths_present))
+        missing = ", ".join(sorted(expected_paths - health_paths_present))
+        raise RuntimeError(
+            "Partial health route registration detected. "
+            f"Existing: {existing or '<none>'}; missing: {missing or '<none>'}."
+        )
+
+    for path, endpoint in expected_endpoints.items():
+        matching_routes = [
+            route
+            for route in target_app.routes
+            if getattr(route, "path", None) == path
+            and "GET" in (getattr(route, "methods", None) or set())
+        ]
+        if (
+            len(matching_routes) != 1
+            or getattr(matching_routes[0], "endpoint", None) is not endpoint
+        ):
+            raise RuntimeError(f"Duplicate {path} route detected with a different health handler.")
+        if getattr(matching_routes[0], "include_in_schema", True):
+            raise RuntimeError(
+                f"Existing {path} route does not preserve hidden OpenAPI visibility."
             )
 
 
@@ -189,8 +300,8 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     if not _has_route(app, _FEEDBACK_ROUTE_PATH, "POST"):
         app.include_router(feedback_router)
 
-    if not _has_route(app, _TERMS_ROUTE_PATH, "GET"):
-        app.include_router(legal_router)
+    _include_health_router_if_needed(app)
+    _include_legal_router_if_needed(app)
 
     register_billing_routes(app)
 

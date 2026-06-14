@@ -97,8 +97,8 @@ async def test_health_prefers_environment_over_app_env(
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("APP_ENV", "local")
 
-    app_module = _reload_legacy_app()
-    response = await app_module.health()
+    health_module = importlib.import_module("app.routers.health")
+    response = await health_module.health()
     assert response["environment"] == "production"
 
 

@@ -11,13 +11,34 @@ These are "easy coverage" tests that cover basic monitoring endpoints and app pa
 import asyncio
 import os
 import sys
+from typing import cast
 from xml.etree import ElementTree
-from fastapi import Request
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import HTTPException
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 import app as apppkg
+from app.routers import health as health_router
+from app.routers.legal import build_terms_endpoint_payload
 from app.bootstrap import public_discovery
+from core.compliance import build_privacy_endpoint_payload
 import pytest
+
+
+def _find_route(client: TestClient, path: str, method: str = "GET") -> APIRoute:
+    app = cast(FastAPI, client.app)
+    matches = [
+        route
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        and route.path == path
+        and method.upper() in (route.methods or set())
+    ]
+    assert len(matches) == 1
+    return matches[0]
 
 
 class TestHealthAndMonitoringEndpoints:
@@ -40,6 +61,59 @@ class TestHealthAndMonitoringEndpoints:
         assert data["status"] == "ok"
         # Verify new fields exist (version, git_sha, timestamp, environment)
         assert {"version", "git_sha", "timestamp", "environment"}.issubset(data.keys())
+
+    def test_health_routes_are_owned_by_canonical_router(self, client: TestClient) -> None:
+        """Operational health/readiness routes are served by app.routers.health."""
+        for path in ("/health", "/api/v1/health", "/health/db", "/ready"):
+            route = _find_route(client, path)
+            assert route.endpoint.__module__ == "app.routers.health"
+
+    def test_health_routes_stay_hidden_from_public_openapi(self, client: TestClient) -> None:
+        """Health/readiness routes remain runtime-only, not public OpenAPI paths."""
+        app = cast(FastAPI, client.app)
+        paths = app.openapi()["paths"]
+
+        assert "/health" not in paths
+        assert "/api/v1/health" not in paths
+        assert "/health/db" not in paths
+        assert "/ready" not in paths
+
+    def test_database_health_rejects_degraded_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DB degraded mode keeps the readiness failure contract."""
+        monkeypatch.setenv("DB_HEALTH_DEGRADED", "1")
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(health_router.database_health(session=cast(Session, object())))
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Database unavailable"
+
+    def test_database_health_rejects_session_without_execute(self) -> None:
+        """DB readiness fails closed when the session cannot execute SQL."""
+
+        class _NoExecuteSession:
+            bind = object()
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(health_router.database_health(session=cast(Session, _NoExecuteSession())))
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Database unavailable"
+
+    def test_database_health_rejects_unbound_session(self) -> None:
+        """DB readiness fails closed when the session has no bound engine."""
+
+        class _UnboundSession:
+            bind = None
+
+            def execute(self, query: object) -> None:
+                raise AssertionError(f"unexpected execute call: {query!r}")
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(health_router.database_health(session=cast(Session, _UnboundSession())))
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Database unavailable"
 
     @pytest.mark.skipif(
         os.getenv("METRICS_ENABLED", "true").lower() != "true",
@@ -130,17 +204,34 @@ class TestHealthAndMonitoringEndpoints:
         assert response.status_code in [200, 204, 404]  # 200 OK is valid for successful favicon
 
     def test_privacy_endpoint(self, client: TestClient) -> None:
-        """Test /privacy endpoint returns privacy policy"""
+        """Test /privacy endpoint returns canonical legal publication payload."""
         response = client.get("/privacy")
         assert response.status_code == 200
-        data = response.json()
-        assert "privacy_policy" in data
-        assert "data_retention" in data
-        assert "contact" in data
-        assert "policy_version" in data
-        assert "providers" in data
-        # Assert structure/keys; avoid brittle exact phrasing
-        assert isinstance(data["privacy_policy"], str)
+        assert response.headers["content-type"].lower().startswith("application/json")
+
+        assert response.json() == jsonable_encoder(build_privacy_endpoint_payload())
+
+    def test_terms_endpoint(self, client: TestClient) -> None:
+        """Test /terms endpoint returns canonical legal publication payload."""
+        response = client.get("/terms")
+        assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
+
+        assert response.json() == build_terms_endpoint_payload().model_dump()
+
+    def test_legal_routes_are_owned_by_canonical_router(self, client: TestClient) -> None:
+        """/privacy and /terms are served by app.routers.legal, not legacy_app."""
+        for path in ("/privacy", "/terms"):
+            route = _find_route(client, path)
+            assert route.endpoint.__module__ == "app.routers.legal"
+
+    def test_legal_routes_stay_hidden_from_public_openapi(self, client: TestClient) -> None:
+        """Legal publication routes remain runtime-only, not public OpenAPI paths."""
+        app = cast(FastAPI, client.app)
+        paths = app.openapi()["paths"]
+
+        assert "/privacy" not in paths
+        assert "/terms" not in paths
 
 
 class TestDebugEndpoint:
@@ -290,5 +381,6 @@ class TestPublicDiscoveryHelpers:
         )
 
         assert response.media_type == "application/xml"
-        assert response.body.startswith(b'<?xml version="1.0" encoding="UTF-8"?>')
-        assert b"https://edge.pulseplate.test/privacy" in response.body
+        body = bytes(response.body)
+        assert body.startswith(b'<?xml version="1.0" encoding="UTF-8"?>')
+        assert b"https://edge.pulseplate.test/privacy" in body

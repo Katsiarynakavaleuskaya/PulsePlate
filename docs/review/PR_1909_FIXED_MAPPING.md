@@ -1,0 +1,50 @@
+# PR 1909 Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#pullrequestreview-4453291366 -> 0c05dbe1c
+Disposition: FIXED
+Commit: 0c05dbe1c
+Evidence: scripts/ci/check_pr_size_governance.py; tests/test_check_pr_size_governance.py
+Reason: Sourcery requested one-time trusted label normalization. The trusted approval constants are now normalized at definition time, and `_has_trusted_approval` assumes normalized event/API labels.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#pullrequestreview-4453316687 -> 0c05dbe1c
+Disposition: FIXED
+Commit: 0c05dbe1c
+Evidence: docs/policy/PR_SCOPE_RULES.md
+Reason: CodeRabbit requested label-backing language in the quick-reference table. The frontend MVP, privileged, and oversized rows now explicitly require trusted label backing for exception approval lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#pullrequestreview-4457736698 -> aed92410e
+Disposition: FIXED
+Commit: aed92410e
+Evidence: scripts/ci/check_pr_size_governance.py; tests/test_check_pr_size_governance.py
+Reason: Cubic identified that a blank `PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT` env override could silently resolve to the process current working directory. The override now strips whitespace and falls back to the script-derived repo root when blank, with regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1909#discussion_r3379897959 -> aed92410e
+Disposition: FIXED
+Commit: aed92410e
+Evidence: scripts/ci/check_pr_size_governance.py; tests/test_check_pr_size_governance.py
+Reason: Line-level Cubic finding fixed by the same blank override fallback and regression test.
+
+## Role Dispatch Evidence
+- Task packet: `artifacts/orchestration/task_packets/cb85ecba0b97.json`.
+- Dispatch manifest: `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/cb85ecba0b97.json --pretty`.
+- Required post-open order executed: `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor -> cursor-specialist-agent -> architecture-specialist`.
+- Codex Security diff scan equivalent: completed by `security-auditor`; findings fixed or dispositioned below.
+
+## Premortem Finding Closure
+- F1 PR-owned guard code can weaken its own scope gate: DEFERRED with blocker rationale to `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr-size-governance-trusted-base-execution`; switching to trusted-base execution inside PR #1909 would require base code to support behavior introduced only by this PR.
+- F2 Event payload/API fallback can refresh body without refreshing labels: FIXED by shared PR metadata fallback for both body and labels.
+- F3 Bot comments remain actionable blockers if not mapped: FIXED by this canonical artifact plus PR-body mirror update.
+- F4 Root policy can drift from `docs/policy/PR_SCOPE_RULES.md`: FIXED by adding trusted-label backing language to root `AGENTS.md` PR scope bullets.
+
+## Evidence
+- `python3 scripts/orchestration/check_preflight.py` PASS at final local HEAD.
+- `python3 scripts/orchestration/check_agent_consistency.py` PASS at final local HEAD.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/test_check_pr_size_governance.py tests/test_ci_workflow_pr_size_governance_contract.py` PASS: 75 tests.
+- `pre-commit run --all-files` PASS.
+- Pre-push hooks PASS: mypy changed files, pip-audit, backend pytest pre-push, full-repo Bandit, Docker build path when applicable.
+- Cubic follow-up fix validation PASS: focused pytest, py_compile, and `pre-commit run --all-files` before commit `aed92410e`.

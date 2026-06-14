@@ -307,6 +307,9 @@ def _validate_token_paths(record: dict[str, Any], errors: list[str]) -> None:
     if not isinstance(values, list):
         return
     for value in values:
+        if not isinstance(value, str) or not value.strip():
+            errors.append("token_mirror_paths_checked must contain only non-empty strings")
+            continue
         if value not in TOKEN_MIRROR_PATHS:
             errors.append(f"unknown token mirror path: {value}")
 

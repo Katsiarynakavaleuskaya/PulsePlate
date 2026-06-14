@@ -31,6 +31,12 @@ Keep developer tooling, CI actions, and workspace recommendations pinned and rev
 
 - default workflow permissions should stay least-privilege (`contents: read` unless stricter access is justified)
 - SBOM generation remains enabled
-- pushed-image Docker lanes must emit `provenance: mode=max` and `sbom: true`
-- CD jobs that create GitHub-signed provenance/SBOM attestations must grant `attestations: write`
-- CD must verify provenance and SPDX SBOM attestations by exact digest before deploy using `scripts/ci/check_docker_provenance_attestation.py`
+- pushed-image Docker BuildKit lanes that receive private package-index inputs
+  through BuildKit secret envs must emit `provenance: mode=min` and `sbom: true`
+- `build.yml` publish must scan the loaded production image before GHCR push,
+  then publish the same scanned tags and create GitHub-signed provenance/SBOM
+  attestations against the pushed digest
+- jobs that create GitHub-signed provenance/SBOM attestations must grant `attestations: write`
+- CD and publish jobs must verify provenance and SPDX SBOM attestations by exact
+  digest before deploy or release-control-plane digest publication using
+  `scripts/ci/check_docker_provenance_attestation.py`
