@@ -4,7 +4,7 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921
 
 Branch: `codex/fix-vulnerability-in-mcp-examples`
 
-Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`
+Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`
 
 Scope: MCP example security defaults, root MCP setup/config examples, governed Context7 runbook pinning, guard coverage, and review-governance closeout only. No backend runtime, OpenAPI, frontend runtime, iOS, database, or product behavior changes.
 
@@ -45,10 +45,20 @@ Disposition: FIXED
 Commit: 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
 Evidence: `tests/guards/test_mcp_examples_safe_defaults.py:135` now counts governed Context7 matches and `tests/guards/test_mcp_examples_safe_defaults.py:144` fails if the runbook has no governed Context7 examples, preventing vacuous pass.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#pullrequestreview-4493009748 -> 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
+Disposition: FIXED
+Commit: 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
+Evidence: CodeRabbit aggregate review `4493009748` reported the same governed Context7 vacuous-pass finding as `#discussion_r3409638961`; `tests/guards/test_mcp_examples_safe_defaults.py:135` counts governed Context7 matches and `tests/guards/test_mcp_examples_safe_defaults.py:144` fails if the runbook has no governed Context7 examples.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643743 -> 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
 Disposition: FIXED
 Commit: 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
 Evidence: `mcp-config.json:5` pins the root OpenAI MCP `npx` package to `mcp-server-openai@0.0.1`; the unpublished `mcp-server-chatgpt` root example was removed after `npm view mcp-server-chatgpt version` returned npm `E404`; `mcp-setup.sh:26` pins the setup helper to `mcp-server-openai@0.0.1`; `tests/guards/test_mcp_examples_safe_defaults.py:16` includes root `mcp-config.json` in governed JSON examples; `tests/guards/test_mcp_examples_safe_defaults.py:147` enforces exact pins for governed setup-script `npm install` package specs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#pullrequestreview-4493037035 -> 9453bbc2db93fd4422ef7952a7a0d78242692343
+Disposition: FIXED
+Commit: 9453bbc2db93fd4422ef7952a7a0d78242692343
+Evidence: CodeRabbit aggregate review `4493037035` reported that `test_mcp_examples_pin_npx_mcp_packages` could pass vacuously if all governed `npx` examples disappeared; `tests/guards/test_mcp_examples_safe_defaults.py:121` now initializes a match counter, `tests/guards/test_mcp_examples_safe_defaults.py:129` increments it for each governed `npx` server, and `tests/guards/test_mcp_examples_safe_defaults.py:135` fails if no governed `npx` MCP server examples are found.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643744
 Disposition: NOT-A-BUG
