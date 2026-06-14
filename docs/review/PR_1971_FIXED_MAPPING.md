@@ -45,6 +45,10 @@ file-type changes, run the cross-surface dependency guards before push.
   `ebe03680ce1981da10352f40c76d677417c97a9f1`
 - Current-head Safety transient follow-up commit:
   `cf81da6b47202a0fe30f3c44cb9d26040d6493e4`
+- Codex all-files staged-manifest follow-up commit:
+  `c4005e9ad3eb2b6e7349f7ca5c4172daf5ae8c47`
+- Review evidence temp-path cleanup commit:
+  `8e6b824b309d6653ad50c19f85b5b148149d67be`
 - Merge-ready follow-up packet:
   `artifacts/orchestration/task_packets/546c70851560.json`
 - Full local `make verify`: intentionally not run under the operator-approved
@@ -91,6 +95,11 @@ file-type changes, run the cross-surface dependency guards before push.
 - Codex connector thread `discussion_r3409642976`: one P2 shallow-checkout
   follow-up on the `pre-commit run --all-files` fix, dispositioned below as
   FIXED.
+- Codex connector thread `discussion_r3409760639`: one P2 staged-file
+  follow-up on the `pre-commit run --all-files` fix, dispositioned below as
+  FIXED.
+- Codex connector thread `discussion_r3409760640`: one P2 review-evidence
+  temp-path finding, dispositioned below as FIXED.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Current-head `CI/security` job `81254358391` failed in Safety dependency
@@ -166,6 +175,19 @@ Commit: cefde212d96cfedbdc9addb209219bcd778a1480
 Evidence: `.github/workflows/ci.yml` now sets `fetch-depth: 0` on the `lint` job checkout before `pre-commit run --all-files --show-diff-on-failure`, so the branch-diff fallback can resolve `origin/main` in CI instead of silently no-oping in a shallow PR checkout. `tests/test_ci_workflow_pr_size_governance_contract.py::test_ci_lint_all_files_pre_commit_uses_full_history_checkout` asserts this workflow contract.
 Evidence: `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py::test_ci_lint_all_files_pre_commit_uses_full_history_checkout tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests` (`2 passed`); `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_pre_commit_hook_python_resolver.py` (`46 passed`); `VENV_PYTHON="$PWD/.venv/bin/python" make validate-changed` (passed).
 Reason: Codex correctly flagged that the prior all-files fallback depended on a base ref that the CI lint checkout did not fetch. Full-history checkout keeps the hook fail-closed for package-manifest branch deltas without weakening the pre-commit gate.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3409760639 -> c4005e9ad3eb2b6e7349f7ca5c4172daf5ae8c47
+Disposition: FIXED
+Commit: c4005e9ad3eb2b6e7349f7ca5c4172daf5ae8c47
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now supplements staged pre-commit changed files with the current branch diff against main/master, so an unrelated staged file cannot hide a committed `frontend/package*.json` branch delta during the mandatory all-files hook run. `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_all_files_keeps_branch_manifest_delta_with_unrelated_staged_file` proves the regression case invokes the three dependency governance tests.
+Evidence: `bash -n scripts/run-backend-tests-pre-commit.sh`; `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_all_files_keeps_branch_manifest_delta_with_unrelated_staged_file tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests` (`2 passed`); `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py` (`19 passed`); `.venv/bin/python -m ruff check tests/test_pre_commit_hook_python_resolver.py`.
+Reason: Codex correctly flagged that the previous all-files fallback still used only the staged diff whenever any unrelated staged file existed. The append-mode branch diff keeps the hook fail-closed for committed frontend manifest deltas without requiring repo Python for unrelated no-op changes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3409760640 -> 8e6b824b309d6653ad50c19f85b5b148149d67be
+Disposition: FIXED
+Commit: 8e6b824b309d6653ad50c19f85b5b148149d67be
+Evidence: `docs/review/PR_1971_FIXED_MAPPING.md` now records the `pulseplate-pr-review` evidence with repo-relative commands and a stable `<local-review-context-json>` placeholder instead of committed machine-local temporary paths. A marker scan for temporary review-context path strings returned no matches after the cleanup.
+Reason: Codex correctly flagged that committed review evidence must not depend on machine-local temporary paths. The artifact now keeps the command proof without host-local path leakage.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600887
 Disposition: NOT-A-BUG
