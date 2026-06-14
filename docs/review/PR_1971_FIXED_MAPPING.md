@@ -49,6 +49,8 @@ file-type changes, run the cross-surface dependency guards before push.
   `c4005e9ad3eb2b6e7349f7ca5c4172daf5ae8c47`
 - Review evidence temp-path cleanup commit:
   `8e6b824b309d6653ad50c19f85b5b148149d67be`
+- Main sync / conflict-resolution merge commit:
+  `aceca4f774d1f0c85e0c11de848d99709a860537`
 - Merge-ready follow-up packet:
   `artifacts/orchestration/task_packets/546c70851560.json`
 - Full local `make verify`: intentionally not run under the operator-approved
@@ -240,6 +242,20 @@ Commit: cf81da6b47202a0fe30f3c44cb9d26040d6493e4
 Evidence: `scripts/ci/run_safety_audit.py` now retries only the narrow Safety service-transient shape: exit code `68`, known Safety service text, parsed `PARSE_OK`, zero high/other active findings, and zero repo-policy-waived findings. `tests/test_run_safety_audit.py` covers successful scan without retry, transient fail then pass, persistent transient fail-closed, active vulnerability with transient exit not retrying, and repo-policy-waived finding not retrying.
 Evidence: `.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py` (`98 passed`); `VENV_PYTHON="$PWD/.venv/bin/python" make validate-changed` (`44 passed`); `.venv/bin/python -m ruff check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed); `.venv/bin/python -m ruff format --check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed).
 Reason: The current-head CI failure was not a new vulnerability or a waiver gap. The downloaded Safety artifact for `requirements-docker-runtime.txt` reported no vulnerabilities, while the raw Safety log contained the service-transient message `Sorry, something went wrong. Our engineers are working quickly to resolve the issue.` The fix keeps real dependency findings fail-closed and avoids adding ignores or extending waivers.
+
+## Main Sync / Conflict Resolution
+
+- Merge source: `origin/main` at
+  `539c424dd5d226e7c33d9f87f2ea01f16968490f`.
+- Merge commit: `aceca4f774d1f0c85e0c11de848d99709a860537`.
+- Conflict scope: `.secrets.baseline` only.
+- Resolution: kept the merged baseline content and resolved the generated
+  `generated_at` field to the `origin/main` side
+  (`2026-06-14T15:18:03Z`).
+- Evidence: `.venv/bin/python -m json.tool .secrets.baseline >/dev/null`;
+  `git diff --check`; merge-commit hooks passed, including
+  `detect-secrets (secrets scan)`, `check for merge conflicts`,
+  `backend tests (pytest, changed files)`, and `commitizen check`.
 
 ## Post-Open Role Review Evidence
 
