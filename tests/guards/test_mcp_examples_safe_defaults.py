@@ -119,17 +119,20 @@ def test_mcp_examples_do_not_enable_unrestricted_playwright_file_access() -> Non
 
 
 def test_mcp_examples_pin_npx_mcp_packages() -> None:
+    matches = 0
     for path in MCP_EXAMPLE_PATHS:
         data = _load_json(path)
         for server_name, server_config in data["mcpServers"].items():
             if server_config.get("command") != "npx":
                 continue
 
+            matches += 1
             package_arg = _first_npx_package_arg(server_config.get("args", []))
             assert package_arg, f"{path}:{server_name} has no npx package arg"
             assert _is_exact_pinned_package_spec(
                 package_arg
             ), f"{path}:{server_name} package is not exactly pinned: {package_arg}"
+    assert matches > 0, "no governed npx MCP server examples found"
 
 
 def test_documented_context7_mcp_examples_pin_local_npx_package() -> None:
