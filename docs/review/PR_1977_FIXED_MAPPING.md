@@ -65,6 +65,11 @@ Evidence: The later Codex review body is an automated summary wrapper for the sa
 Reason: No separate file/line change is requested beyond the resolved reachability thread.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#pullrequestreview-4493565187
 
+Disposition: FIXED
+Commit: 8d5062696
+Evidence: `docs/review/PR_1977_FIXED_MAPPING.md` remaps prior FIXED proof entries to reachable current-head tree proof commit `7e8ff38f3`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410276917 -> 8d5062696
+
 Disposition: NOT-A-BUG
 Evidence: `pulseplate-pr-review` dry-run report `/tmp/pulseplate_pr_1977_review_report.md` reported only an advisory diff-size planning note; this PR is intentionally narrow and test-heavy, with focused pytest, legacy guard, agent consistency, `make validate-changed`, `pre-commit run --all-files`, pre-push hooks, post-open QA/bug/security passes, and Codex Security no-findings scan all completed.
 Reason: The changed-line count is not a functional/security defect and does not require splitting this narrow extraction.
