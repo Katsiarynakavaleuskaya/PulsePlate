@@ -139,7 +139,11 @@ PR or ship the image change without its fail-closed guards.
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/fix-main-trivy-container-cves-oracle-result.json`
+- Not applicable: CI artifact validation cannot read the gitignored local
+  Experiment Runner result; this mapping mirrors the accepted result evidence
+  and the implementation commit carries the required co-author trailer.
+- Local result path:
+  `artifacts/orchestration/experiments/results/fix-main-trivy-container-cves-oracle-result.json`
 - Mode: `oracle_only_governance_reviewer`
 - Status: accepted
 - Co-author required: true; implementation commit includes
