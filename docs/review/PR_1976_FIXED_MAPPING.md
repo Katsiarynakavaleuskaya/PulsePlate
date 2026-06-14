@@ -37,7 +37,7 @@ adding new `.trivyignore` entries.
   code review feedback. Disposition: NOT-A-BUG.
   Evidence: the comment says review could not start because the review limit was
   reached and lists the changed files only.
-- [x] Sourcery review `4492886600` is rate-limit metadata, not actionable code
+- [x] Sourcery review `4493487698` is rate-limit metadata, not actionable code
   review feedback. Disposition: NOT-A-BUG.
   Evidence: the review body says the weekly diff-character rate limit was
   reached and contains no file/thread finding.
