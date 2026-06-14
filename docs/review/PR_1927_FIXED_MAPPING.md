@@ -8,16 +8,19 @@ Date: 2026-06-14
 
 This PR keeps the Slack KPP notification slice narrow. It bounds Experiment
 Runner Slack Block Kit section text, preserves the existing redaction-first
-renderer flow, and adds regression coverage for tiny custom bounds plus the
+renderer flow, keeps action-required guidance visible when artifact references
+are truncated, and adds regression coverage for tiny custom bounds plus the
 artifact/action section path.
 
 ## Scope
 
 - `scripts/orchestration/experiment_slack_kpp_renderer.py` - guard
   `_slack_section_text(...)` when the requested bound is zero or shorter than
-  `_SLACK_TRUNCATION_MARKER`.
+  `_SLACK_TRUNCATION_MARKER`, and reserve section space for required operator
+  action copy before truncating long artifact-reference lists.
 - `tests/test_experiment_slack_kpp_renderer.py` - add deterministic coverage
-  for tiny helper limits and oversized artifact/action section text.
+  for tiny helper limits, oversized artifact/action section text, and preserved
+  action-required copy under artifact truncation.
 - `docs/review/PR_1927_FIXED_MAPPING.md` - canonical review-thread
   disposition artifact for PR #1927.
 
@@ -39,9 +42,15 @@ artifact/action section path.
 
 ## Experiment Runner Evidence
 
-- Not applicable: no Experiment Runner oracle was used for this surgical
-  formatter/review-thread fix; role passes and deterministic local tests shaped
-  the change.
+- Artifact: `artifacts/orchestration/experiments/results/pr1927_slack_kpp_action_required_oracle_result.json`
+- Status: accepted; `mutated_paths=[]`; `source_diff_applied=true`.
+- Oracle commands:
+  - `python3 -m pytest -q -p no:cacheprovider tests/test_experiment_slack_kpp_renderer.py` - PASS
+  - `python3 -m pytest -q -p no:cacheprovider tests/test_ci_workflow_pr_size_governance_contract.py::test_node24_runtime_baseline_surfaces_stay_coherent` - PASS
+- Contribution: oracle-only governance review shaped the action-required Slack
+  KPP fix, commit decision, and merge-disposition evidence.
+- Co-author trailer required and used on commit `aa6807bf3`:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
 
@@ -86,6 +95,8 @@ Evidence: cubic's aggregate review reported the same tiny-limit negative-slice i
 - `VENV_PYTHON=.venv/bin/python .venv/bin/python -m pre_commit run --all-files` - PASS
 - `VENV_PYTHON=.venv/bin/python git push` - PASS pre-push hooks, including mypy changed-files, pip-audit, backend pytest pre-push, full-repo Bandit, and docker build test
 - `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1927 --require-auth` - PASS, all 2 resolved review threads have disposition proof and commit-after-comment
+- `VENV_PYTHON=.venv/bin/python DEV_PYTHON=.venv/bin/python python3 scripts/orchestration/experiment_runner.py --packet artifacts/orchestration/experiments/pr1927-slack-kpp-action-required-oracle-packet.json --output pr1927_slack_kpp_action_required_oracle_result.json --contribution-kind oracle_review --coauthor-required --coauthor-reason "Experiment Runner oracle-only evidence shaped PR 1927 action-required Slack KPP fix and merge-disposition evidence."` - PASS, result accepted
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_experiment_slack_kpp_renderer.py` - PASS after action-required preservation fix
 
 ## Merge Readiness
 
