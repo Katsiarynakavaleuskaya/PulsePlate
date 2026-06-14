@@ -118,7 +118,7 @@ Reason: The connector comment was based on an older reviewed synthetic head; the
 
 - [ ] Current-head CI terminal success confirmed after this artifact commit.
 - [ ] CodeRabbit / Sourcery / Cubic / Codex review actionables checked and mapped.
-- [x] Strict review-thread disposition passes with auth.
+- [ ] Strict review-thread disposition passes with auth.
 - [ ] Strict merge-readiness guard passes with auth.
 - [ ] Mandatory wait-window after latest bot/review activity completed.
 
