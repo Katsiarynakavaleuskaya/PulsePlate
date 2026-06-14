@@ -49,10 +49,46 @@ ACTION_REQUIRED_COPY = "Human review required"
 NO_MERGE_ACTION_COPY = "No merge/deploy/payment action was performed"
 NO_SENSITIVE_DATA_COPY = "No sensitive user data included"
 ARTIFACT_REFERENCE_COPY = "Artifact reference only; raw logs are not posted to Slack"
+SLACK_SECTION_TEXT_LIMIT = 3000
+_SLACK_TRUNCATION_MARKER = " [truncated=true]"
 
 
 class KPPRenderError(RuntimeError):
     """KPP block rendering contract violation."""
+
+
+def _slack_section_text(text: str, *, limit: int = SLACK_SECTION_TEXT_LIMIT) -> str:
+    """Bound Slack section text while preserving already-redacted formatting."""
+
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    if limit <= len(_SLACK_TRUNCATION_MARKER):
+        return _SLACK_TRUNCATION_MARKER[:limit]
+    return text[: limit - len(_SLACK_TRUNCATION_MARKER)].rstrip() + _SLACK_TRUNCATION_MARKER
+
+
+def _artifact_action_section_text(
+    artifact_refs: tuple[str, ...],
+    action_required: str,
+    *,
+    limit: int = SLACK_SECTION_TEXT_LIMIT,
+) -> str:
+    """Bound artifact references without dropping the required operator action."""
+
+    action_suffix = f"\n\n*Action required:*\n{_slack_text(action_required)}"
+    artifact_limit = limit - len(action_suffix)
+    if artifact_limit <= 0:
+        return _slack_section_text(action_suffix.lstrip(), limit=limit)
+
+    artifact_lines = artifact_refs or ("none",)
+    artifact_text = "\n".join(f"- `{_slack_text(line)}`" for line in artifact_lines)
+    artifact_section = _slack_section_text(
+        f"*Artifact/reference:*\n{artifact_text}",
+        limit=artifact_limit,
+    )
+    return f"{artifact_section}{action_suffix}"
 
 
 @dataclass(frozen=True)
@@ -121,7 +157,7 @@ class KPPSlackBlockMessage:
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": (
+                    "text": _slack_section_text(
                         f"*Scope:*\n{_slack_text(self.scope)}\n\n"
                         f"*Evidence summary:*\n{evidence_text}"
                     ),
@@ -129,16 +165,14 @@ class KPPSlackBlockMessage:
             }
         )
 
-        artifact_lines = self.artifact_refs or ("none",)
-        artifact_text = "\n".join(f"- `{_slack_text(line)}`" for line in artifact_lines)
         blocks.append(
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": (
-                        f"*Artifact/reference:*\n{artifact_text}\n\n"
-                        f"*Action required:*\n{_slack_text(self.action_required)}"
+                    "text": _artifact_action_section_text(
+                        self.artifact_refs,
+                        self.action_required,
                     ),
                 },
             }
