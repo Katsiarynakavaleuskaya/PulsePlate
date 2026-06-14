@@ -55,6 +55,11 @@ Disposition: NOT-A-BUG
 Evidence: Local current-head ancestry check returned `ancestor_167_to_head=0` for `git merge-base --is-ancestor 167a551c524d16c169ceec5555dec27fa06f8755 HEAD`, and `HEAD` was `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`; therefore commit `167a551c524d16c169ceec5555dec27fa06f8755` is present in the current PR branch history.
 Reason: The review referenced a stale/non-current reviewed head. The current PR head contains the mapped implementation commit.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409674753
+Disposition: NOT-A-BUG
+Evidence: After `git fetch origin codex/fix-vulnerability-in-mcp-examples`, the remote PR branch head was `89132a0ce71de4e43bff86b337812ef651f8eab6`; `git merge-base --is-ancestor 167a551c524d16c169ceec5555dec27fa06f8755 89132a0ce71de4e43bff86b337812ef651f8eab6` returned `0`, and `git merge-base --is-ancestor 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d 89132a0ce71de4e43bff86b337812ef651f8eab6` returned `0`. GitHub PR API also reported `headRefOid=89132a0ce71de4e43bff86b337812ef651f8eab6`.
+Reason: The review referenced `de1ee831e7f6ec9555221ffa20b7a9aa2cb0d566`, which is not the GitHub PR head for PR #1921. The submitted PR branch contains the mapped proof commits.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643745
 Disposition: NOT-A-BUG
 Evidence: The historical CodeRabbit rate-limit issue comment below is not used as CodeRabbit PASS proof. Merge readiness remains blocked until current-head CodeRabbit reports PASS/no-actionables after the latest push; the fresh CodeRabbit actionable finding is mapped separately at `#discussion_r3409638961`.
