@@ -99,6 +99,20 @@ def test_legacy_growth_guard_rejects_reintroduced_health_routes() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_favicon_route() -> None:
+    source = textwrap.dedent("""
+        @app.get("/favicon.ico")
+        async def favicon():
+            return Response(status_code=204)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: decorator:get:/favicon.ico -> favicon"
+    ]
+
+
 def test_legacy_growth_guard_rejects_new_router_registration() -> None:
     source = "app.include_router(new_router)\n"
 
@@ -415,8 +429,8 @@ def test_legacy_growth_guard_rejects_sensitive_local_assignment_alias_calls(
 
 def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
     source = textwrap.dedent("""
-        @app.get("/favicon.ico", dependencies=[Depends(auth_guard)])
-        def favicon():
+        @app.get("/api/v1/admin/status", dependencies=[Depends(auth_guard)])
+        def admin_status():
             return {"ok": True}
         """)
 
@@ -439,8 +453,8 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
         textwrap.dedent("""
             deps = [Depends(auth_guard)]
 
-            @app.get("/favicon.ico", dependencies=deps)
-            def favicon():
+            @app.get("/api/v1/admin/status", dependencies=deps)
+            def admin_status():
                 return {"ok": True}
             """),
         textwrap.dedent("""
@@ -459,8 +473,8 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
     source += textwrap.dedent("""
 
-        @app.get("/favicon.ico", dependencies=[Depends(api_key_guard)])
-        def favicon():
+        @app.get("/api/v1/admin/status", dependencies=[Depends(api_key_guard)])
+        def admin_status():
             return {"ok": True}
         """)
 
