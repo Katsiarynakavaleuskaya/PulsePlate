@@ -4,7 +4,7 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921
 
 Branch: `codex/fix-vulnerability-in-mcp-examples`
 
-Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`, `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`, `9a77a2ce364a673eeeb675daa2ecc805758bdeb0`, `24f5ca975902eb9137e195df0d1f6052e026d814`
+Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`, `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`, `9a77a2ce364a673eeeb675daa2ecc805758bdeb0`, `24f5ca975902eb9137e195df0d1f6052e026d814`, `96273fc4de06b84a95cfdb4b0ae7eabf91dbaca6`, `a40806190a86300dac80a84f21e0e18ef6564d86`
 
 Scope: MCP example security defaults, root MCP setup/config examples, governed Context7 runbook pinning, guard coverage, and review-governance closeout only. No backend runtime, OpenAPI, frontend runtime, iOS, database, or product behavior changes.
 
@@ -124,6 +124,41 @@ Reason: A skipped/rate-limited CodeRabbit issue comment is governance noise, not
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported a review-skip/rate-limit/credits condition rather than a code finding. This historical issue comment is not counted as CodeRabbit PASS/no-actionables proof; current-head CodeRabbit PASS remains required before merge readiness. The fresh CodeRabbit actionable finding is mapped separately at `#discussion_r3409638961`, and Codex Security local diff scan `/tmp/codex-security-scans/PulsePlate-pr1921-closeout/753508986_20260614T072240Z/report.md` found no reportable security candidates after the patch.
 Reason: A skipped external review is governance noise, not a defect in the MCP example hardening diff and not a substitute for current-head CodeRabbit PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409794129
+Disposition: NOT-A-BUG
+Evidence: The review referenced synthetic connector commit `4b4e32d170e40ae705f2d4a9f06685efe4395ef2`, not the GitHub PR branch head. After post-comment implementation commit `a40806190a86300dac80a84f21e0e18ef6564d86`, the mapped proof commits remain ancestors of the actual PR branch; the strict current-head check wrapper also passed current-head checks for branch head `f99631297c101878f9ee77cb681910e0f602274b` before these new review fixes.
+Reason: Fixed-mapping proof must follow real GitHub PR branch ancestry, not a synthetic reviewed/squashed connector commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409794131 -> a40806190a86300dac80a84f21e0e18ef6564d86
+Disposition: FIXED
+Commit: a40806190a86300dac80a84f21e0e18ef6564d86
+Evidence: `git log -1 --pretty=raw a40806190a86300dac80a84f21e0e18ef6564d86` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on the post-comment implementation commit. Subsequent governance commits for this closeout also preserve the same trailer when they materially carry runner-shaped readiness evidence.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409794132 -> a40806190a86300dac80a84f21e0e18ef6564d86
+Disposition: FIXED
+Commit: a40806190a86300dac80a84f21e0e18ef6564d86
+Evidence: `tests/guards/test_mcp_examples_safe_defaults.py:19` defines the governed npm install aliases, `tests/guards/test_mcp_examples_safe_defaults.py:111` accepts those aliases when parsing setup-script package installs, and `tests/guards/test_mcp_examples_safe_defaults.py:356` covers `npm install`, `npm i`, `npm add`, `npm in`, `npm ins`, and `npm inst`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409794133 -> a40806190a86300dac80a84f21e0e18ef6564d86
+Disposition: FIXED
+Commit: a40806190a86300dac80a84f21e0e18ef6564d86
+Evidence: `mcp-config.json:4` keeps the OpenAI MCP server on `uvx`, `mcp-config.json:5` pins `mcp-server-openai==0.1.4`, and `mcp-config.json:6`-`mcp-config.json:8` passes a non-secret `OPENAI_ADMIN_API_KEY` placeholder through the copyable root config. Generated detect-secrets baseline commit `96273fc4de06b84a95cfdb4b0ae7eabf91dbaca6` records the placeholder false-positive fingerprints at `.secrets.baseline:347`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409794134 -> a40806190a86300dac80a84f21e0e18ef6564d86
+Disposition: FIXED
+Commit: a40806190a86300dac80a84f21e0e18ef6564d86
+Evidence: `tests/guards/test_mcp_examples_safe_defaults.py:75` validates exact Python package specs with `==` and numeric versions, `tests/guards/test_mcp_examples_safe_defaults.py:220` extends the governed MCP package guard to `uvx`, and `tests/guards/test_mcp_examples_safe_defaults.py:321`/`tests/guards/test_mcp_examples_safe_defaults.py:342` cover accepted and rejected Python package pins.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409794135 -> a40806190a86300dac80a84f21e0e18ef6564d86
+Disposition: FIXED
+Commit: a40806190a86300dac80a84f21e0e18ef6564d86
+Evidence: `tests/guards/test_mcp_examples_safe_defaults.py:174` treats input redirects as protected env reads, `tests/guards/test_mcp_examples_safe_defaults.py:181` catches compact `<~/.cursor/.env` redirection, and `tests/guards/test_mcp_examples_safe_defaults.py:378`-`tests/guards/test_mcp_examples_safe_defaults.py:380` cover `cat < ~/.cursor/.env`, `sed ... < ~/.cursor/.env`, and `cat <~/.cursor/.env`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409794136 -> a40806190a86300dac80a84f21e0e18ef6564d86
+Disposition: FIXED
+Commit: a40806190a86300dac80a84f21e0e18ef6564d86
+Evidence: `mcp-setup.sh:34` keeps the non-secret `OPENAI_ADMIN_API_KEY` placeholder for the OpenAI MCP server, `mcp-setup.sh:35` keeps the non-secret `OPENAI_API_KEY` placeholder required by the existing PulsePlate MCP entry, and `mcp-setup.sh:51`-`mcp-setup.sh:52` documents both operator edits.
 
 ## Late Post-Open Premortem
 
