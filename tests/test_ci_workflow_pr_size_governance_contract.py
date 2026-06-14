@@ -867,9 +867,9 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         assert old_sha not in active_workflow_text
 
     forbidden_override_env_vars = (
-        "ACTIONS_ALLOW_USE_UNSECURE_" "NODE_VERSION",
-        "FORCE_JAVASCRIPT_ACTIONS_TO_" "NODE24",
-        "CI_ALLOW_" "MERGE_OVERRIDE",
+        "ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION",
+        "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24",
+        "CI_ALLOW_MERGE_OVERRIDE",
     )
     for env_var in forbidden_override_env_vars:
         assert env_var not in active_workflow_text
@@ -900,16 +900,16 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
 
     expected_docker_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 2,
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 2,
             f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA} # v4.2.0 / Node 24": 1,
-            f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA} " "# v6.1.0 / Node 24": 1,
+            f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA} # v6.1.0 / Node 24": 1,
         },
         CD_WORKFLOW_PATH: {
-            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 2,
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 2,
             f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA} # v4.2.0 / Node 24": 2,
         },
         TRIVY_WORKFLOW_PATH: {
-            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 1,
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 1,
         },
     }
     for workflow_path, expected_counts in expected_docker_lines.items():
@@ -1242,17 +1242,17 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 4,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 4,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v6.4.0 / Node 24": 1,
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 1,
         },
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 1,
         },
         SECURITY_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 1,
         },
     }
     for workflow_path, expected_counts in expected_action_lines.items():
@@ -1315,7 +1315,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {
                 "name": "docker-image-budget-check-build",
-                "path": "docker-image-budget-check.json\n" "docker-image-budget-check.md\n",
+                "path": "docker-image-budget-check.json\ndocker-image-budget-check.md\n",
                 "if-no-files-found": "warn",
                 "retention-days": 14,
             },
@@ -1399,9 +1399,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {
                 "name": "security-reports",
-                "path": (
-                    "bandit-report.json\n" "safety-*.json\n" "safety-*.txt\n" "safety-*.log\n"
-                ),
+                "path": ("bandit-report.json\nsafety-*.json\nsafety-*.txt\nsafety-*.log\n"),
                 "if-no-files-found": "ignore",
             },
             "always()",
@@ -1862,8 +1860,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
             "${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}"
         ),
         "PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST": (
-            "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || "
-            "vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+            "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
         ),
     }
     protected_proxy_script = protected_proxy_step["run"]
