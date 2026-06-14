@@ -41,10 +41,10 @@ adding new `.trivyignore` entries.
   review feedback. Disposition: NOT-A-BUG.
   Evidence: the review body says the weekly diff-character rate limit was
   reached and contains no file/thread finding.
-- [ ] Post-open role loop remains required:
+- [x] Post-open role loop completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan and finding discovery remain required.
-- [ ] `pulseplate-pr-review` remains required.
+- [x] Codex Security diff scan and finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Re-check GitHub review threads and bot actionables after the next push.
 
 ## Fixed in Commit Mapping
@@ -118,7 +118,39 @@ PR or ship the image change without its fail-closed guards.
   contracts.
 - `bug-hunter`: required direct downloader negative tests, stale gpgv
   docs/backlog cleanup, and clearer SQLite source-artifact wording.
-- Post-open role stack remains pending and must be recorded before readiness.
+- Post-open role stack completed and recorded below.
+
+## Post-Open Role Finding Closure
+
+- `agent-coordinator` read-only pass:
+Disposition: NOT-A-BUG.
+Evidence: current head `e2d1b5f1a02241ff0526b1cc7727323ff2ac46ae` matched the expected PR head; current-head checks passed, including `build`, `security-scan`, `lint`, `test-pr (3.13)`, `diff-coverage`, and `validate-assets`; strict wrapper passed with auth.
+Reason: coordinator found no code/security/CI blocker; remaining work was governance completion.
+
+- `qa-engineer-agent` read-only pass:
+Disposition: NOT-A-BUG.
+Evidence: QA verified Docker remediation guardrails in `Dockerfile`, workflow runtime dependency guard wiring in `.github/workflows/build.yml` and `.github/workflows/trivy.yml`, deterministic tests, and current-head checks. Root-venv focused pytest passed after correcting the worktree `.venv` path.
+Reason: QA found no code/test/CI blocker.
+
+- `bug-hunter` read-only pass:
+Disposition: NOT-A-BUG.
+Evidence: local image `pulseplate:trivy-cves-local` passed `scripts/ci/check_docker_runtime_dependency_surface.py`; runtime probe showed SQLite `3.53.2` and Python ssl available; focused PR-worktree pytest passed; strict wrapper passed with auth.
+Reason: bug-hunter found no code/test/CI blocker. Main/nightly `publish` remains the post-merge operational proof because the publish job is skipped on PR events.
+
+- `security-auditor` read-only pass:
+Disposition: NOT-A-BUG.
+Evidence: `python3 scripts/orchestration/check_preflight.py` passed; `gh pr checks 1976 --watch=false` showed current-head checks passing; focused security pytest passed with `85 passed`; `scripts/ci/check_trivy_ignore_policy_expiry.py` passed; local runtime dependency guard on `pulseplate:trivy-cves-local` passed with no blocked Debian packages.
+Reason: security review found no code/security/CI blocker. The emergency SQLite source-build path remains a documented temporary remediation follow-up, not a blocking finding.
+
+- Codex Security diff scan / finding discovery:
+Disposition: NOT-A-BUG.
+Evidence: Codex Security scan id `e2d1b5f1a022_20260614T211225Z` validated `report.md` and rendered `report.html` in the local gitignored scan directory; `work_ledger.jsonl` contains 22 completion receipts for 22 changed files; final result was 0 reportable findings.
+Reason: the plugin rank generator produced 0 rows, so the scan used an explicit manual changed-file worklist from `git diff --name-only origin/main...HEAD` and closed every file with evidence.
+
+- `pulseplate-pr-review` dry-run:
+Disposition: NOT-A-BUG.
+Evidence: local gitignored `pulseplate-pr-review` dry-run report reported one advisory `NEEDS-HUMAN` note for large diff risk only; rerun through the root venv passed `tests/test_pr_review_report.py` with `9 passed`.
+Reason: the large-diff note is covered by the operator-approved privileged scope exception, split rationale, and targeted validation gates already recorded in this artifact and the PR body.
 
 ## Premortem Finding Closure
 
@@ -166,6 +198,12 @@ PR or ship the image change without its fail-closed guards.
 - PASS: local container smoke for `/health`, OpenAPI, and `/api/v1/bodyfat`.
 - PASS: local Trivy 0.69.3 image scan with current `.trivyignore`/Rego:
   0 HIGH/CRITICAL findings.
+- PASS: security-auditor focused pytest:
+  `85 passed`
+- PASS: Codex Security diff scan/finding discovery:
+  22 changed files reviewed, 0 reportable findings, report validated and rendered.
+- PASS: `pulseplate-pr-review` dry-run and calibration:
+  `9 passed`
 - PASS: `make validate-changed` after implementation commit:
   `43 passed`
 - PASS: `PRE_COMMIT_HOME=/tmp/pre-commit-trivy-container-cves pre-commit run --all-files`
@@ -185,9 +223,9 @@ PR or ship the image change without its fail-closed guards.
 
 - [ ] Current-head CI is green for the PR head.
 - [ ] Docker publish/current-head image scan passes on GitHub Actions.
-- [ ] Post-open role loop completed and mapped.
-- [ ] Codex Security diff scan/finding discovery completed and mapped.
-- [ ] `pulseplate-pr-review` completed and mapped.
+- [x] Post-open role loop completed and mapped.
+- [x] Codex Security diff scan/finding discovery completed and mapped.
+- [x] `pulseplate-pr-review` completed and mapped.
 - [ ] No unresolved actionable review threads remain.
 - [ ] No actionable bot comments remain unmapped.
 - [ ] Strict merge-readiness wrapper passes with auth.
