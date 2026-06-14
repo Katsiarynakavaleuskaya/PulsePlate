@@ -46,9 +46,22 @@ record_changed_files() {
     PYTHON_CHANGES=$(printf '%s\n' "$CHANGED_FILES" | grep "\.py$" || true)
 }
 
+append_changed_files() {
+    local incoming
+    incoming=$(printf '%s\n' "$1" | grep -v "^\.claude/" || true)
+    if [ -z "$incoming" ]; then
+        return 0
+    fi
+
+    CHANGED_FILES=$(printf '%s\n%s\n' "$CHANGED_FILES" "$incoming" | sed '/^$/d' | sort -u)
+    PYTHON_CHANGES=$(printf '%s\n' "$CHANGED_FILES" | grep "\.py$" || true)
+}
+
 resolve_branch_diff_from_base() {
+    local mode="${1:-replace}"
     local base_branch
     local base_sha=""
+    local branch_changed_files
 
     log_debug "Trying merge-base branch diff against main/master candidates..."
     for base_branch in origin/main origin/master main master; do
@@ -56,7 +69,12 @@ resolve_branch_diff_from_base() {
         if [ -n "$base_sha" ]; then
             BRANCH_DIFF_BASE_RESOLVED=1
             log_debug "Merge-base with $base_branch: $base_sha"
-            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "$base_sha" HEAD)"
+            branch_changed_files=$(git diff --no-renames --name-only --diff-filter=ACMDT "$base_sha" HEAD)
+            if [ "$mode" = "append" ]; then
+                append_changed_files "$branch_changed_files"
+            else
+                record_changed_files "$branch_changed_files"
+            fi
             if [ -n "$PYTHON_CHANGES" ]; then
                 log_debug "Python changes (via branch diff $base_branch): $PYTHON_CHANGES"
             fi
@@ -74,6 +92,8 @@ if [ -n "${PRE_COMMIT:-}" ]; then
     record_changed_files "$(git diff --cached --no-renames --name-only --diff-filter=ACMDT)"
     if [ -z "$CHANGED_FILES" ]; then
         resolve_branch_diff_from_base || true
+    else
+        resolve_branch_diff_from_base append || true
     fi
 elif [ "$BRANCH_DIFF_MODE" = "1" ]; then
     # Local validation command: diff the current branch against main/master merge-base.
