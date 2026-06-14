@@ -4,11 +4,18 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Pre-open state: no GitHub review threads existed when this artifact was created.
-Post-open role/bot review remains required before merge-readiness checks.
+Post-open Sourcery review comments were fixed in code/tests before thread resolution.
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: `a3528ce8a`
+Evidence: `app/routers/favicon.py` exports `FAVICON_ROUTE_PATH`; `app/main.py` imports and reuses it for bootstrap validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410178548 -> a3528ce8a
+
+Disposition: FIXED
+Commit: `a3528ce8a`
+Evidence: `tests/test_app_endpoints_combined.py` asserts `not route.dependant.dependencies` for `GET /favicon.ico`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1977#discussion_r3410178554 -> a3528ce8a
 
 ## Premortem Findings
 - PM-001 duplicate/legacy ownership false-green. Disposition: FIXED. Commit: `ceb82f8fa`. Evidence: `legacy_app.py` no longer defines `@app.get("/favicon.ico")`; `tests/test_app_endpoints_combined.py` asserts canonical `app.routers.favicon` ownership.
@@ -36,6 +43,7 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` -> pass.
 - `pre-commit run --all-files` -> pass.
 - Pre-push hooks on `git push` -> pass, including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and docker build test.
+- Review-fix validation after Sourcery comments: focused pytest bundle, legacy growth guard, `check_agent_consistency.py`, `make validate-changed`, and `pre-commit run --all-files` -> pass.
 
 ## Machine-Heavy Local Verify Deferral
 Full local `make verify` was intentionally not run per the operator-approved machine-budget constraint for this narrow PR. Current-head CI plus strict merge wrapper remains the heavy signal before merge.
