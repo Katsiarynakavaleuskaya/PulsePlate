@@ -10,8 +10,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTEXT7_PACKAGE = "@upstash/context7-mcp"
 CONTEXT7_PINNED_PACKAGE = "@upstash/context7-mcp@3.1.0"
 EXACT_NUMERIC_VERSION = re.compile(r"\d+\.\d+\.\d+\Z")
+CONTEXT7_PACKAGE_TOKEN = re.compile(r"@upstash/context7-mcp(?:@[A-Za-z0-9_.~^<>=!*+-]+)?")
 PLAYWRIGHT_UNRESTRICTED_ENV = "PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS"
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+CURSOR_ENV_READ_COMMANDS = {"awk", "cat", "grep", "head", "less", "more", "rg", "sed", "tail"}
+CURSOR_ENV_REDIRECT_OPERATORS = {"<", ">", ">>", "2>", "2>>", "&>", ">&", "1>", "1>>", "<<", "<<"}
 
 MCP_EXAMPLE_PATHS = (
     REPO_ROOT / "mcp-config.json",
@@ -104,6 +107,47 @@ def _npm_install_package_args(line: str) -> list[str]:
     return packages
 
 
+def _context7_package_tokens(line: str) -> list[str]:
+    return CONTEXT7_PACKAGE_TOKEN.findall(line)
+
+
+def _is_cursor_env_path(token: str) -> bool:
+    normalized = token.strip("\"'")
+    return normalized in {
+        "~/.cursor/.env",
+        "$HOME/.cursor/.env",
+        "${HOME}/.cursor/.env",
+    }
+
+
+def _script_line_reads_cursor_env(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return False
+    try:
+        parts = shlex.split(stripped, comments=True)
+    except ValueError:
+        return False
+    if not parts:
+        return False
+
+    command = Path(parts[0]).name
+    if command not in CURSOR_ENV_READ_COMMANDS:
+        return False
+
+    skip_next = False
+    for arg in parts[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in CURSOR_ENV_REDIRECT_OPERATORS:
+            skip_next = True
+            continue
+        if _is_cursor_env_path(arg):
+            return True
+    return False
+
+
 def _opencode_npx_command_args(path: Path) -> list[tuple[str, list[str]]]:
     data = _load_json(path)
     mcp_servers = data.get("mcp", {})
@@ -165,30 +209,28 @@ def test_documented_context7_mcp_examples_pin_local_npx_package() -> None:
     for path in GOVERNED_MCP_DOC_PATHS:
         matches = 0
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if CONTEXT7_PACKAGE not in line:
-                continue
-
-            matches += 1
-            assert CONTEXT7_PINNED_PACKAGE in line, f"{path}:{line_number}: {line}"
+            for package_token in _context7_package_tokens(line):
+                matches += 1
+                assert package_token == CONTEXT7_PINNED_PACKAGE, (
+                    f"{path}:{line_number}: Context7 package is not exactly pinned: "
+                    f"{package_token}"
+                )
         assert matches > 0, f"{path}: no governed Context7 npx package examples found"
 
 
-def test_mcp_setup_script_pins_npm_install_packages() -> None:
+def test_mcp_setup_script_does_not_install_unpinned_npm_packages() -> None:
     for path in GOVERNED_MCP_SCRIPT_PATHS:
-        matches = 0
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for package_arg in _npm_install_package_args(line):
-                matches += 1
                 assert _is_exact_pinned_package_spec(
                     package_arg
                 ), f"{path}:{line_number}: package is not exactly pinned: {package_arg}"
-        assert matches > 0, f"{path}: no governed npm install package examples found"
 
 
-def test_mcp_setup_script_does_not_print_existing_env_file() -> None:
+def test_mcp_setup_script_does_not_read_existing_env_file() -> None:
     for path in GOVERNED_MCP_SCRIPT_PATHS:
-        script = path.read_text(encoding="utf-8")
-        assert "cat ~/.cursor/.env" not in script
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            assert not _script_line_reads_cursor_env(line), f"{path}:{line_number}: {line}"
 
 
 @pytest.mark.parametrize(
@@ -233,6 +275,39 @@ def test_npx_package_arg_includes_unscoped_packages() -> None:
 
 def test_npm_install_package_args_include_unscoped_packages() -> None:
     assert _npm_install_package_args("npm install -g some-tool@1.2.3") == ["some-tool@1.2.3"]
+
+
+def test_context7_package_tokens_reject_mixed_pinned_and_unpinned_mentions() -> None:
+    line = 'args = ["-y", "@upstash/context7-mcp@3.1.0", "@upstash/context7-mcp"]'
+    package_tokens = _context7_package_tokens(line)
+    assert package_tokens == ["@upstash/context7-mcp@3.1.0", "@upstash/context7-mcp"]
+    assert any(package_token != CONTEXT7_PINNED_PACKAGE for package_token in package_tokens)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cat ~/.cursor/.env",
+        'cat "$HOME/.cursor/.env"',
+        "sed -n '1,5p' ~/.cursor/.env",
+        "grep OPENAI ~/.cursor/.env",
+        "tail -n 5 ${HOME}/.cursor/.env",
+    ],
+)
+def test_cursor_env_reader_detection_rejects_equivalent_dump_commands(line: str) -> None:
+    assert _script_line_reads_cursor_env(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cat > ~/.cursor/.env << EOF",
+        "cp ~/.cursor/.env ~/.cursor/.env.backup.$(date +%Y%m%d_%H%M%S)",
+        "chmod 600 ~/.cursor/.env",
+    ],
+)
+def test_cursor_env_reader_detection_allows_writes_and_backups(line: str) -> None:
+    assert not _script_line_reads_cursor_env(line)
 
 
 @pytest.mark.parametrize("value", [True, "1", "true", "TRUE", " yes ", "on", 1])

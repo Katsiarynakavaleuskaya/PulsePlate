@@ -1,11 +1,8 @@
 {
   "mcpServers": {
     "openai": {
-      "command": "npx",
-      "args": ["-y", "mcp-server-openai@0.0.1", "stdio"],
-      "env": {
-        "OPENAI_API_KEY": "your_openai_api_key_here"
-      }
+      "command": "uvx",
+      "args": ["mcp-server-openai==0.1.4"]
     },
     "pulseplate": {
       "command": "python",
