@@ -474,9 +474,9 @@ Reason: The current-head CI failure was not a new vulnerability or a waiver gap.
   `bash scripts/ci/pr_scope_guard.sh` (`PR scope guard passed`; file count 9;
   Python files 4; Markdown files 1).
 - PASS after merge-ready `pulseplate-pr-review`:
-  `python3 scripts/orchestration/pr_review_context.py --pr 1971 --output /tmp/pulseplate_pr1971_review_context.json`;
-  `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr1971_review_context.json --format markdown`;
-  `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr1971_review_context.json --format json`.
+  `python3 scripts/orchestration/pr_review_context.py --pr 1971 --output <local-review-context-json>`;
+  `python3 scripts/orchestration/pr_review_report.py --context <local-review-context-json> --format markdown`;
+  `python3 scripts/orchestration/pr_review_report.py --context <local-review-context-json> --format json`.
 - PASS after merge-ready Codex Security diff scan:
   `python3 .../generate_rank_input.py make-diff-rank-input --repo "$PWD" --base origin/main --mode revisions --head HEAD ...`;
   `copy-deep-review-input`; manual full-file review closed 5/5 rows; `python3 .../validate_report_format.py --report-md .../report.md`; `python3 .../render_report_html.py ...`.
