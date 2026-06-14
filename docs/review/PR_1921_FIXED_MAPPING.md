@@ -4,7 +4,7 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921
 
 Branch: `codex/fix-vulnerability-in-mcp-examples`
 
-Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`
+Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`, `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`
 
 Scope: MCP example security defaults, root MCP setup/config examples, governed Context7 runbook pinning, guard coverage, and review-governance closeout only. No backend runtime, OpenAPI, frontend runtime, iOS, database, or product behavior changes.
 
@@ -59,6 +59,21 @@ Evidence: `mcp-config.json:5` pins the root OpenAI MCP `npx` package to `mcp-ser
 Disposition: FIXED
 Commit: 9453bbc2db93fd4422ef7952a7a0d78242692343
 Evidence: CodeRabbit aggregate review `4493037035` reported that `test_mcp_examples_pin_npx_mcp_packages` could pass vacuously if all governed `npx` examples disappeared; `tests/guards/test_mcp_examples_safe_defaults.py:121` now initializes a match counter, `tests/guards/test_mcp_examples_safe_defaults.py:129` increments it for each governed `npx` server, and `tests/guards/test_mcp_examples_safe_defaults.py:135` fails if no governed `npx` MCP server examples are found.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409723246
+Disposition: NOT-A-BUG
+Evidence: The review referenced non-current submitted head `bd7de97570cf133ebea802afe4b4e8e4eb48bebf`. At local PR head `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`, `git merge-base --is-ancestor 167a551c524d16c169ceec5555dec27fa06f8755 HEAD`, `git merge-base --is-ancestor 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d HEAD`, and `git merge-base --is-ancestor 9453bbc2db93fd4422ef7952a7a0d78242692343 HEAD` all returned `0`, proving all mapped FIXED proof commits are ancestors of the current PR branch.
+Reason: The comment evaluated a stale/non-current submitted commit, not the actual PR branch head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409723248 -> 8f5447c6be9f50ce615ab273deaf27017f6a4e0d
+Disposition: FIXED
+Commit: 8f5447c6be9f50ce615ab273deaf27017f6a4e0d
+Evidence: `opencode.json:25` now pins the checked-in Opencode Cloudflare MCP `npx` command to `@cloudflare/mcp-server-cloudflare@0.2.0` after `npm view @cloudflare/mcp-server-cloudflare version` returned `0.2.0`; `tests/guards/test_mcp_examples_safe_defaults.py:21` registers `opencode.json` as a governed MCP example, `tests/guards/test_mcp_examples_safe_defaults.py:107` parses Opencode `mcp.*.command` arrays, and `tests/guards/test_mcp_examples_safe_defaults.py:153` enforces exact pins for those `npx` package args.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409723249 -> 8f5447c6be9f50ce615ab273deaf27017f6a4e0d
+Disposition: FIXED
+Commit: 8f5447c6be9f50ce615ab273deaf27017f6a4e0d
+Evidence: `git log -1 --pretty=raw 8f5447c6be9f50ce615ab273deaf27017f6a4e0d` shows the required trailer `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on the post-comment commit carrying the latest accepted runner-shaped closeout work.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643744
 Disposition: NOT-A-BUG
@@ -117,7 +132,7 @@ Decision: proceed with changes. Findings were fixed before this mapping artifact
 
 Artifact: `artifacts/orchestration/experiments/results/exp-ef5d3fd57aeb.json`
 
-Disposition: accepted oracle-only static review. The artifact sets `coauthor_required=true` with `contribution_kind=commit_decision`, and commits `167a551c524d16c169ceec5555dec27fa06f8755` and `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d` include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Disposition: accepted oracle-only static review. The artifact sets `coauthor_required=true` with `contribution_kind=commit_decision`, and commits `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, and `8f5447c6be9f50ce615ab273deaf27017f6a4e0d` include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 Rejected setup artifacts `exp-12a0b4a5998e` and `exp-885e8677a2c5` were not used as proof; they failed on temporary-checkout venv resolution and shell-quote shape respectively.
 
@@ -147,9 +162,11 @@ Required replacement evidence before merge readiness:
 
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py`
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path mcp-config.json --path mcp-setup.sh --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py`
+- PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path opencode.json --path tests/guards/test_mcp_examples_safe_defaults.py --path docs/review/PR_1921_FIXED_MAPPING.md`
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_mcp_examples_safe_defaults.py` (`37 passed`)
 - PASS: `PYTHONPATH=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr1921-closeout /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q /Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr1921-closeout/tests/guards/test_mcp_examples_safe_defaults.py` from `/tmp` (`37 passed`)
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m black --check tests/guards/test_mcp_examples_safe_defaults.py`
+- PASS: `python3 -m json.tool opencode.json >/dev/null`
 - PASS: `python3 -m json.tool mcp-config.json >/dev/null`
 - PASS: `bash -n mcp-setup.sh`
 - PASS: pre-commit hooks during commits `167a551c524d16c169ceec5555dec27fa06f8755` and `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, including Black, Ruff, detect-secrets, and changed-file backend tests.
