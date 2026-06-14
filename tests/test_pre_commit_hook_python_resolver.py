@@ -229,6 +229,33 @@ def test_backend_hook_honors_skip_tests_before_python_resolution() -> None:
     assert skip_index < resolver_index < pytest_index
 
 
+def test_backend_hook_skips_unrelated_staged_changes_without_repo_python(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "scripts").mkdir()
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "note.md").write_text("docs-only\n", encoding="utf-8")
+    _git(repo, "add", "docs/note.md")
+    env = _clean_hook_env()
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    assert "No Python or cross-surface governance files changed" in output
+
+
 def test_backend_hook_maps_frontend_lockfile_changes_to_governance_tests(
     tmp_path: Path,
 ) -> None:

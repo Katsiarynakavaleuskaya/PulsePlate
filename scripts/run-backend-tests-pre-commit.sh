@@ -23,23 +23,6 @@ if [ "${SKIP_TESTS:-0}" = "1" ]; then
     exit 0
 fi
 
-# Resolve Python through the repo/worktree-aware hook resolver before running
-# syntax or pytest checks. This prevents local hooks from falling back to an
-# ambient PATH interpreter that lacks locked deps such as FastAPI.
-# shellcheck source=scripts/hooks/repo_python.sh
-source "$ROOT_DIR/scripts/hooks/repo_python.sh"
-REPO_PYTHON_BIN="$(resolve_repo_python "$ROOT_DIR")"
-export VENV_PYTHON="$REPO_PYTHON_BIN"
-export PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
-
-if ! "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
-    echo "❌ pytest not available through repo Python: $REPO_PYTHON_BIN" >&2
-    echo "   Run make venv or set absolute VENV_PYTHON to the repo environment." >&2
-    exit 1
-fi
-
-declare -a PYTEST_COMMAND=("$REPO_PYTHON_BIN" -m pytest)
-
 # Debug mode: set PREPUSH_DEBUG=1 to see detailed information
 DEBUG="${PREPUSH_DEBUG:-0}"
 log_debug() {
@@ -47,8 +30,6 @@ log_debug() {
         echo "🔎 [DEBUG] $*" >&2
     fi
 }
-
-log_debug "Using repo Python pytest via: ${PYTEST_COMMAND[*]}"
 
 # Get changed files and derive Python/test-governance triggers
 # For pre-commit: check staged files
@@ -246,6 +227,24 @@ if [ ${#EXTRA_TEST_FILES[@]} -gt 0 ]; then
 fi
 
 if [ ${#TEST_FILES[@]} -gt 0 ]; then
+    # Resolve Python through the repo/worktree-aware hook resolver only after
+    # proving this hook has tests to run. This keeps always_run no-op commits
+    # independent from local virtualenv availability.
+    # shellcheck source=scripts/hooks/repo_python.sh
+    source "$ROOT_DIR/scripts/hooks/repo_python.sh"
+    REPO_PYTHON_BIN="$(resolve_repo_python "$ROOT_DIR")"
+    export VENV_PYTHON="$REPO_PYTHON_BIN"
+    export PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
+
+    if ! "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
+        echo "❌ pytest not available through repo Python: $REPO_PYTHON_BIN" >&2
+        echo "   Run make venv or set absolute VENV_PYTHON to the repo environment." >&2
+        exit 1
+    fi
+
+    declare -a PYTEST_COMMAND=("$REPO_PYTHON_BIN" -m pytest)
+    log_debug "Using repo Python pytest via: ${PYTEST_COMMAND[*]}"
+
     # Deduplicate test files
     declare -a DEDUPED_TEST_FILES=()
     while IFS= read -r test_file; do
