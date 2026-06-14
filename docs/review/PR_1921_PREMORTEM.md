@@ -6,15 +6,21 @@ Frame: it is 48 hours from now and this closeout made the lane worse. We are loo
 
 ## Most Likely Failure
 
-The guard passes locally but still misses a documented unsafe example. This would happen if the test only covered `.cursor` and `.kimi` JSON files while the governed runbook continued to teach unpinned `npx` Context7 usage.
+The guard passes locally but still misses a documented unsafe example. This would happen if the test only covered `.cursor` and `.kimi` JSON files while the governed runbook or root MCP config/setup examples continued to teach unpinned `npx` or `npm install` usage.
 
-Disposition: FIXED in this lane. The runbook Context7 examples are pinned to `@upstash/context7-mcp@3.1.0`, and `tests/guards/test_mcp_examples_safe_defaults.py` now scans the governed runbook path for unpinned Context7 local examples.
+Disposition: FIXED in this lane. The runbook Context7 examples are pinned to `@upstash/context7-mcp@3.1.0`; root MCP config/setup examples are covered by the guard; and `tests/guards/test_mcp_examples_safe_defaults.py` now scans the governed runbook path with non-vacuous coverage.
 
 ## Most Dangerous Failure
 
 A future MCP example reintroduces unrestricted Playwright filesystem access through environment configuration instead of the CLI flag. That bypass would leave the examples appearing deny-by-default while still allowing broad local file access.
 
 Disposition: FIXED in this lane. The guard now rejects truthy `PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS` values in Playwright `env` mappings as well as the unrestricted filesystem CLI flag.
+
+## Most Sensitive Failure
+
+The setup helper prints an existing `~/.cursor/.env` while creating a backup, leaking a local API key into terminal history or logs.
+
+Disposition: FIXED in this lane. The setup helper no longer prints the existing env file, and the guard prevents reintroducing `cat ~/.cursor/.env`.
 
 ## Hidden Assumption
 

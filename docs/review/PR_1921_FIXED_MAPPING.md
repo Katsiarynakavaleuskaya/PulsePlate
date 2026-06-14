@@ -4,9 +4,9 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921
 
 Branch: `codex/fix-vulnerability-in-mcp-examples`
 
-Primary fix commit: `167a551c524d16c169ceec5555dec27fa06f8755`
+Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`
 
-Scope: MCP example security defaults, governed Context7 runbook pinning, guard coverage, and review-governance closeout only. No backend runtime, OpenAPI, frontend runtime, iOS, database, or product behavior changes.
+Scope: MCP example security defaults, root MCP setup/config examples, governed Context7 runbook pinning, guard coverage, and review-governance closeout only. No backend runtime, OpenAPI, frontend runtime, iOS, database, or product behavior changes.
 
 ## Discussion Thread Pass
 
@@ -40,10 +40,30 @@ Disposition: FIXED
 Commit: 167a551c524d16c169ceec5555dec27fa06f8755
 Evidence: Sourcery aggregate feedback about CWD-sensitive pathing and brittle package parsing is covered by `tests/guards/test_mcp_examples_safe_defaults.py:8` repo-root path resolution, `tests/guards/test_mcp_examples_safe_defaults.py:26` package-arg discovery, and the focused `/tmp` CWD pytest run.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409638961 -> 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
+Disposition: FIXED
+Commit: 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
+Evidence: `tests/guards/test_mcp_examples_safe_defaults.py:135` now counts governed Context7 matches and `tests/guards/test_mcp_examples_safe_defaults.py:144` fails if the runbook has no governed Context7 examples, preventing vacuous pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643743 -> 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
+Disposition: FIXED
+Commit: 33e1d2222ee6eaf2a88779327bd5c6ace3388c9d
+Evidence: `mcp-config.json:5` pins the root OpenAI MCP `npx` package to `mcp-server-openai@0.0.1`; the unpublished `mcp-server-chatgpt` root example was removed after `npm view mcp-server-chatgpt version` returned npm `E404`; `mcp-setup.sh:26` pins the setup helper to `mcp-server-openai@0.0.1`; `tests/guards/test_mcp_examples_safe_defaults.py:16` includes root `mcp-config.json` in governed JSON examples; `tests/guards/test_mcp_examples_safe_defaults.py:147` enforces exact pins for governed setup-script `npm install` package specs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643744
+Disposition: NOT-A-BUG
+Evidence: Local current-head ancestry check returned `ancestor_167_to_head=0` for `git merge-base --is-ancestor 167a551c524d16c169ceec5555dec27fa06f8755 HEAD`, and `HEAD` was `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`; therefore commit `167a551c524d16c169ceec5555dec27fa06f8755` is present in the current PR branch history.
+Reason: The review referenced a stale/non-current reviewed head. The current PR head contains the mapped implementation commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409643745
+Disposition: NOT-A-BUG
+Evidence: The historical CodeRabbit rate-limit issue comment below is not used as CodeRabbit PASS proof. Merge readiness remains blocked until current-head CodeRabbit reports PASS/no-actionables after the latest push; the fresh CodeRabbit actionable finding is mapped separately at `#discussion_r3409638961`.
+Reason: A skipped/rate-limited CodeRabbit issue comment is governance noise, not an external-review pass signal. Current-head CodeRabbit status remains a merge-readiness prerequisite.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#issuecomment-4659749243
 Disposition: NOT-A-BUG
-Evidence: CodeRabbit reported a review-skip/rate-limit/credits condition rather than a code finding. Current actionable review findings are mapped above, and Codex Security local diff scan `/tmp/codex-security-scans/PulsePlate-pr1921-closeout/753508986_20260614T072240Z/report.md` found no reportable security candidates after the patch.
-Reason: A skipped external review is governance noise, not a defect in the MCP example hardening diff. Fresh CodeRabbit findings, if later produced, remain blockers until fixed or dispositioned.
+Evidence: CodeRabbit reported a review-skip/rate-limit/credits condition rather than a code finding. This historical issue comment is not counted as CodeRabbit PASS/no-actionables proof; current-head CodeRabbit PASS remains required before merge readiness. The fresh CodeRabbit actionable finding is mapped separately at `#discussion_r3409638961`, and Codex Security local diff scan `/tmp/codex-security-scans/PulsePlate-pr1921-closeout/753508986_20260614T072240Z/report.md` found no reportable security candidates after the patch.
+Reason: A skipped external review is governance noise, not a defect in the MCP example hardening diff and not a substitute for current-head CodeRabbit PASS.
 
 ## Late Post-Open Premortem
 
@@ -52,8 +72,11 @@ Artifact: `docs/review/PR_1921_PREMORTEM.md`
 Decision: proceed with changes. Findings were fixed before this mapping artifact:
 
 - Governed runbook examples could remain unpinned.
+- Governed Context7 runbook coverage could pass vacuously if the examples were removed.
 - Playwright unrestricted filesystem access could be reintroduced through `env`.
 - Scoped-only package parsing could miss unscoped `npx` packages.
+- Root MCP config/setup examples could continue to teach unpinned or unpublished packages.
+- The setup helper could print an existing local `.env` file while replacing it.
 
 ## Role Dispatch Evidence
 
@@ -79,7 +102,7 @@ Decision: proceed with changes. Findings were fixed before this mapping artifact
 
 Artifact: `artifacts/orchestration/experiments/results/exp-ef5d3fd57aeb.json`
 
-Disposition: accepted oracle-only static review. The artifact sets `coauthor_required=true` with `contribution_kind=commit_decision`, and commit `167a551c524d16c169ceec5555dec27fa06f8755` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Disposition: accepted oracle-only static review. The artifact sets `coauthor_required=true` with `contribution_kind=commit_decision`, and commits `167a551c524d16c169ceec5555dec27fa06f8755` and `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d` include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 Rejected setup artifacts `exp-12a0b4a5998e` and `exp-885e8677a2c5` were not used as proof; they failed on temporary-checkout venv resolution and shell-quote shape respectively.
 
@@ -90,6 +113,8 @@ Packet: `artifacts/orchestration/task_packets/7386ce628626.json`
 Starter: `scripts/orchestration/start_pr_lane.sh`
 
 Preflight: `python3 scripts/orchestration/check_preflight.py --mode analyze --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py` passed.
+
+Follow-up preflight: `python3 scripts/orchestration/check_preflight.py --mode analyze --path mcp-config.json --path mcp-setup.sh --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py` passed.
 
 Bootstrap: `python3 scripts/orchestration/task_bootstrap.py --goal "Finish PR #1921 MCP example security hardening and review-governance closeout" --task-class Security --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py --requested-agent agent-coordinator --requested-agent security-auditor --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review --native-bridge-transport codex-native-subagents` produced packet `artifacts/orchestration/task_packets/7386ce628626.json`.
 
@@ -106,12 +131,15 @@ Required replacement evidence before merge readiness:
 ## Local Validation
 
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_mcp_examples_safe_defaults.py` (`34 passed`)
-- PASS: `PYTHONPATH=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr1921-closeout /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q /Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr1921-closeout/tests/guards/test_mcp_examples_safe_defaults.py` from `/tmp` (`34 passed`)
+- PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path mcp-config.json --path mcp-setup.sh --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py`
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_mcp_examples_safe_defaults.py` (`37 passed`)
+- PASS: `PYTHONPATH=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr1921-closeout /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q /Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr1921-closeout/tests/guards/test_mcp_examples_safe_defaults.py` from `/tmp` (`37 passed`)
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m black --check tests/guards/test_mcp_examples_safe_defaults.py`
-- PASS: pre-commit hooks during commit `167a551c524d16c169ceec5555dec27fa06f8755`, including Black, Ruff, detect-secrets, and changed-file backend tests.
+- PASS: `python3 -m json.tool mcp-config.json >/dev/null`
+- PASS: `bash -n mcp-setup.sh`
+- PASS: pre-commit hooks during commits `167a551c524d16c169ceec5555dec27fa06f8755` and `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, including Black, Ruff, detect-secrets, and changed-file backend tests.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
-- PASS: `make validate-changed` (`tests/guards/test_mcp_examples_safe_defaults.py`, `34 passed`)
+- PASS: `make validate-changed` (`tests/guards/test_mcp_examples_safe_defaults.py`, `37 passed`)
 - PASS: `pre-commit run --all-files`
 - PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1921`
 
