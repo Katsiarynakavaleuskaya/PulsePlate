@@ -70,8 +70,10 @@ def _root_context_docker_build_steps(
                 continue
             step_with = step.get("with")
             assert isinstance(step_with, dict)
-            if step_with.get("context", ".") != ".":
-                continue
+            context = step_with.get("context")
+            assert (
+                context == "."
+            ), f"{job_name}/{step.get('name')} must set docker build path context '.'"
             step_name = step.get("name")
             assert isinstance(step_name, str)
             build_steps.append((job_name, job, step_name))
