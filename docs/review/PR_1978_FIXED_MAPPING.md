@@ -50,13 +50,22 @@ provenance, or attestation semantics are changed.
 
 ### Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1978#discussion_r3410388443 -> 50a41bced2985f0facad77dd05aba9555d734d98
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1978#pullrequestreview-4493732314 -> c27f7a6ee3681702df5e32694f3e8584dd515003
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1978#pullrequestreview-4493732314
-Disposition: FIXED / NOT-A-BUG
-Commit: `50a41bced2985f0facad77dd05aba9555d734d98`; `c27f7a6ee3681702df5e32694f3e8584dd515003`
-Evidence: `tests/test_docker_workflow_build_path_contract.py:83` gets `context`; `tests/test_docker_workflow_build_path_contract.py:84` asserts `context == "."`; `tests/test_docker_workflow_build_path_contract.py:19` defines `EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS`; `tests/test_docker_workflow_build_path_contract.py:408` asserts the named contract; focused pytest passed with `17 passed`.
-Reason: Codex inline review and Sourcery's named-constant suggestion were fixed. Sourcery's proposed `continue` for missing Docker build inputs is NOT-A-BUG because missing or non-dict `with` would weaken the reviewed fail-closed contract.
+Disposition: NOT-A-BUG
+Evidence: `tests/test_docker_workflow_build_path_contract.py:78` requires Docker build inputs, and `tests/test_docker_workflow_build_path_contract.py:83` through `tests/test_docker_workflow_build_path_contract.py:86` require explicit `context: .`.
+Reason: Sourcery's proposed `continue` for missing Docker build inputs would weaken the reviewed fail-closed contract.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1978#discussion_r3410388443
+Disposition: FIXED
+Commit: 50a41bced2985f0facad77dd05aba9555d734d98
+Evidence: `tests/test_docker_workflow_build_path_contract.py:83` gets `context`; `tests/test_docker_workflow_build_path_contract.py:84` asserts `context == "."`; focused pytest passed with `17 passed`.
+Reason: the guard no longer treats missing `with.context` as root path context, so a future switch to Docker Git context fails before CD can regress.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1978#pullrequestreview-4493732314
+Disposition: FIXED
+Commit: c27f7a6ee3681702df5e32694f3e8584dd515003
+Evidence: `tests/test_docker_workflow_build_path_contract.py:19` defines `EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS`; `tests/test_docker_workflow_build_path_contract.py:408` asserts that the discovered workflow build steps cover that named contract.
+Reason: Sourcery's maintainability suggestion to stop hardcoding the expected workflow tuples inline was implemented.
 
 ## Role Dispatch Evidence
 
