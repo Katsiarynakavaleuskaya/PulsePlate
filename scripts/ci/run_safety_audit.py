@@ -14,6 +14,7 @@ import shutil
 import subprocess  # nosec B404: Safety CLI execution is the bounded CI audit purpose (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
 import sys
 import tempfile
+import time
 from typing import Any, Mapping, Sequence
 
 REQUIRED_MANIFEST = "requirements.txt"
@@ -30,6 +31,13 @@ PARSE_OK = 0
 PARSE_WARNING = 2
 PARSE_BLOCKING = 10
 PARSE_ERROR = 99
+SAFETY_TRANSIENT_EXIT_CODES = {68}
+SAFETY_TRANSIENT_RETRY_ATTEMPTS = 3
+SAFETY_TRANSIENT_RETRY_DELAY_SECONDS = 5.0
+SAFETY_TRANSIENT_ERROR_MARKERS = (
+    "Sorry, something went wrong.",
+    "Our engineers are working quickly to resolve the issue.",
+)
 
 
 class SafetyAuditError(RuntimeError):
@@ -636,6 +644,29 @@ def _require_scan_auth(stage: str) -> None:
         )
 
 
+def _safety_transient_output(completed: subprocess.CompletedProcess[str]) -> str:
+    return (completed.stdout or "") + (completed.stderr or "")
+
+
+def _should_retry_transient_safety_failure(
+    completed: subprocess.CompletedProcess[str],
+    analysis: SafetyAnalysis,
+) -> bool:
+    """Return whether Safety failed in a retryable service-transient shape."""
+
+    if completed.returncode not in SAFETY_TRANSIENT_EXIT_CODES:
+        return False
+    if (
+        analysis.status != PARSE_OK
+        or analysis.high_risk_count
+        or analysis.other_count
+        or analysis.repo_policy_ignored_count
+    ):
+        return False
+    output = _safety_transient_output(completed)
+    return any(marker in output for marker in SAFETY_TRANSIENT_ERROR_MARKERS)
+
+
 def run_safety_for_manifest(
     *,
     config: SafetyAuditConfig,
@@ -652,34 +683,69 @@ def run_safety_for_manifest(
 
     print(f"Running Safety scan for {manifest.name}")
     _require_scan_auth(config.safety_stage)
-    with tempfile.TemporaryDirectory(prefix=f"pulseplate-safety-{stem}-") as temp_root:
-        scan_target = _prepare_scan_target(config.root, manifest, Path(temp_root))
-        command = [
-            config.safety_binary,
-            "--stage",
-            config.safety_stage,
-            "--disable-optional-telemetry",
-            "scan",
-            "--target",
-            str(scan_target),
-            "--output",
-            "json",
-            "--save-as",
-            "json",
-            str(report_json),
-            *config.policy_file_args,
-        ]
-        completed = subprocess.run(  # nosec B603: argv uses resolved Safety CLI and manifest paths from canonical discovery only (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
-            command,
-            cwd=config.root,
-            capture_output=True,
-            text=True,
-            check=False,
+    attempt_log_chunks: list[str] = []
+    completed: subprocess.CompletedProcess[str] | None = None
+    analysis: SafetyAnalysis | None = None
+    for attempt in range(1, SAFETY_TRANSIENT_RETRY_ATTEMPTS + 1):
+        for artifact_path in (report_json, report_txt):
+            artifact_path.unlink(missing_ok=True)
+        with tempfile.TemporaryDirectory(prefix=f"pulseplate-safety-{stem}-") as temp_root:
+            scan_target = _prepare_scan_target(config.root, manifest, Path(temp_root))
+            command = [
+                config.safety_binary,
+                "--stage",
+                config.safety_stage,
+                "--disable-optional-telemetry",
+                "scan",
+                "--target",
+                str(scan_target),
+                "--output",
+                "json",
+                "--save-as",
+                "json",
+                str(report_json),
+                *config.policy_file_args,
+            ]
+            completed = subprocess.run(  # nosec B603: argv uses resolved Safety CLI and manifest paths from canonical discovery only (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
+                command,
+                cwd=config.root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        attempt_log_chunks.append(
+            f"=== Safety attempt {attempt}/{SAFETY_TRANSIENT_RETRY_ATTEMPTS} "
+            f"({manifest.name}) exit={completed.returncode} ===\n"
         )
-    console_log.write_text((completed.stdout or "") + (completed.stderr or ""), encoding="utf-8")
-    if console_log.stat().st_size > 0:
-        print(f"=== Raw Safety Output ({manifest.name}) ===")
-        print(console_log.read_text(encoding="utf-8"), end="")
+        attempt_log_chunks.append(_safety_transient_output(completed))
+        console_log.write_text("".join(attempt_log_chunks), encoding="utf-8")
+        if console_log.stat().st_size > 0:
+            print(f"=== Raw Safety Output ({manifest.name}) ===")
+            print(console_log.read_text(encoding="utf-8"), end="")
+
+        if not report_json.is_file() or report_json.stat().st_size == 0:
+            break
+
+        analysis = analyze_report(
+            report_json,
+            report_txt,
+            policy_path=_policy_path_from_args(config.policy_file_args),
+        )
+        if not _should_retry_transient_safety_failure(completed, analysis):
+            break
+        if attempt >= SAFETY_TRANSIENT_RETRY_ATTEMPTS:
+            break
+        retry_line = (
+            "Retrying Safety scan after transient service failure "
+            f"for {manifest.name} (attempt {attempt + 1}/{SAFETY_TRANSIENT_RETRY_ATTEMPTS}).\n"
+        )
+        attempt_log_chunks.append(retry_line)
+        console_log.write_text("".join(attempt_log_chunks), encoding="utf-8")
+        print(retry_line, end="")
+        time.sleep(SAFETY_TRANSIENT_RETRY_DELAY_SECONDS)
+
+    if completed is None:
+        raise SafetyAuditError(f"Safety scan did not run for {manifest.name}")
 
     if not report_json.is_file() or report_json.stat().st_size == 0:
         message = (
@@ -689,11 +755,12 @@ def run_safety_for_manifest(
         report_txt.write_text(f"{message}\n", encoding="utf-8")
         raise SafetyAuditError(message, completed.returncode or 1)
 
-    analysis = analyze_report(
-        report_json,
-        report_txt,
-        policy_path=_policy_path_from_args(config.policy_file_args),
-    )
+    if analysis is None:
+        analysis = analyze_report(
+            report_json,
+            report_txt,
+            policy_path=_policy_path_from_args(config.policy_file_args),
+        )
     if (
         completed.returncode != 0
         and analysis.status == PARSE_OK

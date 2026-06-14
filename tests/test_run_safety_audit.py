@@ -283,6 +283,176 @@ def test_run_audit_emits_per_manifest_artifacts(
     )
 
 
+def test_successful_safety_scan_does_not_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    calls = 0
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        report_path = _report_path_from_scan_command(command)
+        _write_scan_report(report_path, [])
+        return SimpleNamespace(returncode=0, stdout="scan ok\n", stderr="")
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+    results = safety_audit.run_audit(config)
+
+    assert calls == 1
+    assert safety_audit.exit_code_for_results(results) == 0
+    assert "Retrying Safety scan" not in (tmp_path / "safety-requirements.log").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_transient_safety_service_failure_retries_then_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    calls = 0
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        report_path = _report_path_from_scan_command(command)
+        _write_scan_report(report_path, [])
+        if calls == 1:
+            return SimpleNamespace(
+                returncode=68,
+                stdout="",
+                stderr=(
+                    "Sorry, something went wrong.\n"
+                    "Our engineers are working quickly to resolve the issue.\n"
+                ),
+            )
+        return SimpleNamespace(returncode=0, stdout="scan ok\n", stderr="")
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+    monkeypatch.setattr(safety_audit.time, "sleep", lambda _: None)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+    results = safety_audit.run_audit(config)
+
+    log_text = (tmp_path / "safety-requirements.log").read_text(encoding="utf-8")
+    assert calls == 2
+    assert safety_audit.exit_code_for_results(results) == 0
+    assert "Retrying Safety scan after transient service failure" in log_text
+    assert "=== Safety attempt 1/3" in log_text
+    assert "=== Safety attempt 2/3" in log_text
+
+
+def test_persistent_transient_safety_service_failure_fails_after_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    calls = 0
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        report_path = _report_path_from_scan_command(command)
+        _write_scan_report(report_path, [])
+        return SimpleNamespace(
+            returncode=68,
+            stdout="",
+            stderr=(
+                "Sorry, something went wrong.\n"
+                "Our engineers are working quickly to resolve the issue.\n"
+            ),
+        )
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+    monkeypatch.setattr(safety_audit.time, "sleep", lambda _: None)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+    with pytest.raises(safety_audit.SafetyAuditError, match="no parsed vulnerabilities"):
+        safety_audit.run_audit(config)
+
+    assert calls == safety_audit.SAFETY_TRANSIENT_RETRY_ATTEMPTS
+
+
+def test_real_safety_vulnerability_does_not_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    calls = 0
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        report_path = _report_path_from_scan_command(command)
+        _write_scan_report(report_path, ["HIGH"])
+        return SimpleNamespace(
+            returncode=68,
+            stdout="",
+            stderr=(
+                "Sorry, something went wrong.\n"
+                "Our engineers are working quickly to resolve the issue.\n"
+            ),
+        )
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+    monkeypatch.setattr(safety_audit.time, "sleep", lambda _: None)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+    results = safety_audit.run_audit(config)
+
+    assert calls == 1
+    assert safety_audit.exit_code_for_results(results) == 1
+
+
+def test_repo_policy_waived_finding_does_not_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    _write_policy(tmp_path, "88739")
+    calls = 0
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        report_path = _report_path_from_scan_command(command)
+        _write_scan_report(
+            report_path,
+            ["UNKNOWN"],
+            package_name="fonttools",
+            raw_spec="fonttools==4.61.1",
+            vulnerable_spec="<4.62.0",
+            vuln_id="88739",
+        )
+        return SimpleNamespace(
+            returncode=68,
+            stdout="",
+            stderr=(
+                "Sorry, something went wrong.\n"
+                "Our engineers are working quickly to resolve the issue.\n"
+            ),
+        )
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+    monkeypatch.setattr(safety_audit.time, "sleep", lambda _: None)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+    results = safety_audit.run_audit(config)
+
+    assert calls == 1
+    assert results[0].analysis.repo_policy_ignored_count == 1
+    assert safety_audit.exit_code_for_results(results) == 0
+
+
 def test_scan_target_copies_nested_requirement_references(tmp_path: Path) -> None:
     _write_manifest(
         tmp_path,
