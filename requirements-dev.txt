@@ -141,7 +141,7 @@ pillow==12.2.0
     #   -r requirements-dev.in
 pip-api==0.0.34
     # via pip-audit
-pip-audit==2.10.0
+pip-audit==2.10.1
     # via -r requirements-dev.in
 pip-requirements-parser==32.0.1
     # via pip-audit
@@ -258,6 +258,10 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
+pip==26.1.2
+    # via
+    #   pip-api
+    #   pip-tools
 setuptools==78.1.1
     # via
     #   -c requirements.txt
