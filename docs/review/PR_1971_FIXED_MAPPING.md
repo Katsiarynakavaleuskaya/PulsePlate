@@ -176,6 +176,12 @@ Disposition: NOT-A-BUG
 Evidence: Current code head before this mapping update is `6bfa5cabaca5a06d5d0145195cd2be160aefc28f`; `git show --no-patch --oneline b4638674f8f67bf27f6c5ec04841ac63382c3eda` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, `475d4459a1f33f2b47d36f062f60bbcfd70435bb`, `e3e95e87e8762b75efc00d67e3030fdfe01290d5`, `9f7eb8357071a7612556e8c7cec8f63b7f7320e2`, `57fd10c730d822d5aa9150780f92e0b452224852`, `b3e7f20ce62093f3dd4e3ae229adcf76213ce594`, and `6bfa5cabaca5a06d5d0145195cd2be160aefc28f` against the current branch head.
 Reason: The comment's reviewed-head premise did not match current repo/GitHub branch truth. The mapped FIXED proofs point to real code/test commits that are ancestors of the PR head; remapping those proofs to a later docs-only head would reduce proof quality.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3409180472 -> be026f44e56fb59ccb31abe0f1717a7239e1d41f
+Disposition: FIXED
+Commit: be026f44e56fb59ccb31abe0f1717a7239e1d41f
+Evidence: `docs/review/PR_1971_FIXED_MAPPING.md` now maps the Safety transient fix to the actual full commit `cf81da6b47202a0fe30f3c44cb9d26040d6493e4`; `git rev-parse cf81da6b4` returned that full SHA, `git merge-base --is-ancestor cf81da6b47202a0fe30f3c44cb9d26040d6493e4 HEAD` passed, and `git show --no-patch --oneline cf81da6b40ea9af8f909a067cf46f0401f15ed88` failed with `fatal: bad object`.
+Reason: Codex correctly flagged the prior Safety mapping proof as invalid because the recorded full SHA did not exist. The mapping now points to the real Safety retry fix commit that is an ancestor of the PR head.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408715140 -> 57fd10c730d822d5aa9150780f92e0b452224852
 Disposition: FIXED
 Commit: 57fd10c730d822d5aa9150780f92e0b452224852
@@ -196,12 +202,6 @@ Commit: cf81da6b47202a0fe30f3c44cb9d26040d6493e4
 Evidence: `scripts/ci/run_safety_audit.py` now retries only the narrow Safety service-transient shape: exit code `68`, known Safety service text, parsed `PARSE_OK`, zero high/other active findings, and zero repo-policy-waived findings. `tests/test_run_safety_audit.py` covers successful scan without retry, transient fail then pass, persistent transient fail-closed, active vulnerability with transient exit not retrying, and repo-policy-waived finding not retrying.
 Evidence: `.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py` (`98 passed`); `VENV_PYTHON="$PWD/.venv/bin/python" make validate-changed` (`44 passed`); `.venv/bin/python -m ruff check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed); `.venv/bin/python -m ruff format --check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed).
 Reason: The current-head CI failure was not a new vulnerability or a waiver gap. The downloaded Safety artifact for `requirements-docker-runtime.txt` reported no vulnerabilities, while the raw Safety log contained the service-transient message `Sorry, something went wrong. Our engineers are working quickly to resolve the issue.` The fix keeps real dependency findings fail-closed and avoids adding ignores or extending waivers.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3409180472 -> be026f44e56fb59ccb31abe0f1717a7239e1d41f
-Disposition: FIXED
-Commit: be026f44e56fb59ccb31abe0f1717a7239e1d41f
-Evidence: `docs/review/PR_1971_FIXED_MAPPING.md` now maps the Safety transient fix to the actual full commit `cf81da6b47202a0fe30f3c44cb9d26040d6493e4`; `git rev-parse cf81da6b4` returned that full SHA, `git merge-base --is-ancestor cf81da6b47202a0fe30f3c44cb9d26040d6493e4 HEAD` passed, and `git show --no-patch --oneline cf81da6b40ea9af8f909a067cf46f0401f15ed88` failed with `fatal: bad object`.
-Reason: Codex correctly flagged the prior Safety mapping proof as invalid because the recorded full SHA did not exist. The mapping now points to the real Safety retry fix commit that is an ancestor of the PR head.
 
 ## Post-Open Role Review Evidence
 
