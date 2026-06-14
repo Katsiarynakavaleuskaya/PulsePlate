@@ -163,9 +163,9 @@ Required replacement evidence before merge readiness:
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py`
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path mcp-config.json --path mcp-setup.sh --path .cursor/mcp.json.example --path .kimi/mcp.json.example --path docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md --path tests/guards/test_mcp_examples_safe_defaults.py`
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path opencode.json --path tests/guards/test_mcp_examples_safe_defaults.py --path docs/review/PR_1921_FIXED_MAPPING.md`
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_mcp_examples_safe_defaults.py` (`37 passed`)
-- PASS: `PYTHONPATH=/Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr1921-closeout /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q /Users/katsiaryna_kavaleuskaya/Developer/PulsePlate-pr1921-closeout/tests/guards/test_mcp_examples_safe_defaults.py` from `/tmp` (`37 passed`)
-- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m black --check tests/guards/test_mcp_examples_safe_defaults.py`
+- PASS: `.venv/bin/python -m pytest -q tests/guards/test_mcp_examples_safe_defaults.py` (`46 passed`)
+- PASS: CWD-independent focused pytest from `/tmp` with repo `PYTHONPATH` and repo-relative test path (`46 passed`)
+- PASS: `.venv/bin/python -m black --check tests/guards/test_mcp_examples_safe_defaults.py`
 - PASS: `python3 -m json.tool opencode.json >/dev/null`
 - PASS: `python3 -m json.tool mcp-config.json >/dev/null`
 - PASS: `bash -n mcp-setup.sh`
