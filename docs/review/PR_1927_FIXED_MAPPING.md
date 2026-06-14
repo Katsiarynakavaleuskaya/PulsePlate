@@ -79,6 +79,22 @@ Disposition: FIXED
 Commit: ae6e31d98891922feb8fecedff4951c68284f9b3
 Evidence: cubic's aggregate review reported the same tiny-limit negative-slice issue as inline thread `discussion_r3380644797`, fixed by the helper guard and deterministic tiny-limit tests.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1927#discussion_r3409748283 -> aa6807bf339650019c2ed8d4ef3ea2ebb36b20d2
+Disposition: FIXED
+Commit: aa6807bf339650019c2ed8d4ef3ea2ebb36b20d2
+Evidence: `scripts/orchestration/experiment_slack_kpp_renderer.py` now renders the artifact/action section through `_artifact_action_section_text(...)`, reserving section space for `*Action required:*` before bounding artifact references.
+Evidence: `tests/test_experiment_slack_kpp_renderer.py` asserts an oversized artifact-reference list stays within `SLACK_SECTION_TEXT_LIMIT`, includes `_SLACK_TRUNCATION_MARKER` before `*Action required:*`, and still ends with the required operator action copy.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1927#discussion_r3409748287 -> de59b52ce65c0e887ce3f3abc43d753928b68f9e
+Disposition: FIXED
+Commit: de59b52ce65c0e887ce3f3abc43d753928b68f9e
+Evidence: The `Experiment Runner Evidence` section now records accepted oracle-only result `artifacts/orchestration/experiments/results/pr1927_slack_kpp_action_required_oracle_result.json`, both oracle commands returning 0, contribution kind `oracle_review`, and the required co-author trailer on commit `aa6807bf3`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1927#discussion_r3409748280
+Disposition: NOT-A-BUG
+Evidence: Current branch history contains `ae6e31d98891922feb8fecedff4951c68284f9b3`; `git merge-base --is-ancestor ae6e31d98891922feb8fecedff4951c68284f9b3 HEAD` returned 0 locally on current head `de59b52ce65c0e887ce3f3abc43d753928b68f9e`.
+Reason: The connector comment was based on an older reviewed synthetic head; the current PR branch contains the mapped fix commit and strict disposition ancestry checks pass for the current branch.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
