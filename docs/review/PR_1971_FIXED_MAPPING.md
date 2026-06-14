@@ -41,8 +41,12 @@ file-type changes, run the cross-surface dependency guards before push.
   `6bfa5cabaca5a06d5d0145195cd2be160aefc28f`
 - Codex lint full-history checkout follow-up commit:
   `cefde212d96cfedbdc9addb209219bcd778a1480`
+- Pre-commit formatting follow-up commit:
+  `ebe03680ce1981da10352f40c76d677417c97a9f1`
 - Current-head Safety transient follow-up commit:
   `cf81da6b47202a0fe30f3c44cb9d26040d6493e4`
+- Merge-ready follow-up packet:
+  `artifacts/orchestration/task_packets/546c70851560.json`
 - Full local `make verify`: intentionally not run under the operator-approved
   emergency narrow-lane scope; this artifact does not claim full local verify.
 
@@ -242,6 +246,26 @@ Reason: The current-head CI failure was not a new vulnerability or a waiver gap.
   are ancestors of current head, and found no P0/P1 security blocker. Existing
   `torch` Dependabot alerts remain separate because GitHub reports
   `first_patched_version: null`.
+- Merge-ready follow-up packet:
+  `artifacts/orchestration/task_packets/546c70851560.json`.
+- Merge-ready follow-up role order:
+  `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Merge-ready follow-up `agent-coordinator`: approved the narrow PR #1971
+  follow-up scope for the lint checkout full-history fix, pre-commit baseline,
+  and governance evidence; no P0 blocker found.
+- Merge-ready follow-up `qa-engineer-agent`: found no P0/P1 acceptance blocker
+  for the lint full-history checkout follow-up. It confirmed the focused
+  workflow contract test, YAML parse proof, clean diff check, and review-thread
+  disposition evidence.
+- Merge-ready follow-up `bug-hunter`: found no P0/P1 bug. It raised only P2
+  follow-ups: formatter drift, final evidence refresh, and the Safety no-report
+  retry branch. The formatter drift was fixed in
+  `ebe03680ce1981da10352f40c76d677417c97a9f1`; the Safety no-report branch was
+  reviewed by security-auditor as intentional fail-closed behavior.
+- Merge-ready follow-up `security-auditor`: found no P0/P1/P2 blocker. It
+  accepted the Safety no-report branch as fail-closed because the script errors
+  when Safety returns no parsed report, and retry remains limited to parsed
+  clean reports with no active or waived findings.
 - Safety transient fix-cycle packet:
   `artifacts/orchestration/task_packets/0ff1bd279cb9.json`.
 - Safety transient role order:
@@ -343,6 +367,13 @@ Reason: The current-head CI failure was not a new vulnerability or a waiver gap.
 - Result: PASS, no reportable diff-scoped security findings. The two
   source-like changed files selected by the scanner each have not-applicable
   receipts; no validation or attack-path candidate remained.
+- Follow-up scan ID: `ebe03680c9c5_20260614T150720Z`.
+- Follow-up result: PASS, no reportable diff-scoped security findings. The
+  current diff scan closed 5/5 worklist rows across `.pre-commit-config.yaml`,
+  `scripts/run-backend-tests-pre-commit.sh`, `.github/workflows/ci.yml`,
+  `scripts/ci/run_safety_audit.py`, and `.secrets.baseline`; the final markdown
+  report validator passed and the HTML report rendered. No candidate reached
+  validation or attack-path analysis.
 
 ## PulsePlate PR Review
 
@@ -359,6 +390,12 @@ Reason: The current-head CI failure was not a new vulnerability or a waiver gap.
   large-diff note is review-planning only and expected for adding focused hook
   regression tests plus the canonical mapping artifact rather than a scope
   expansion.
+- Merge-ready dry-run result: PASS / no deterministic blocker. The report
+  again produced only the advisory `large-diff-risk` note; no security,
+  architecture, QA, or bug-hunter finding required a code change. The note is
+  dispositioned as NOT-A-BUG for this emergency CI/tooling PR because the split
+  rationale and focused deterministic gates are recorded in this artifact and
+  the PR body.
 
 ## Validation Evidence
 
@@ -415,6 +452,34 @@ Reason: The current-head CI failure was not a new vulnerability or a waiver gap.
 - PASS after no-op resolver fix:
   `VENV_PYTHON=.venv/bin/python make validate-changed`
   (`44 passed`).
+- PASS after lint full-history follow-up:
+  `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py::test_ci_lint_all_files_pre_commit_uses_full_history_checkout tests/test_pre_commit_hook_python_resolver.py tests/test_run_safety_audit.py`
+  (`57 passed`).
+- PASS after lint full-history follow-up:
+  `.venv/bin/python -m ruff check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py tests/test_pre_commit_hook_python_resolver.py tests/test_ci_workflow_pr_size_governance_contract.py`.
+- PASS after lint full-history follow-up:
+  `python3 scripts/ci/check_pr_body_phase2_gates.py --pr 1971`;
+  `python3 scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_1971_FIXED_MAPPING.md`;
+  `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1971 --require-auth`
+  (`OK: All 15 resolved review threads have Disposition + proof and commit-after-comment.`).
+- PASS after pre-commit formatter follow-up:
+  `VENV_PYTHON="$PWD/.venv/bin/python" make validate-changed`
+  (`Backend tests passed`; `Diff-based validation completed`).
+- PASS during `chore(pre-commit): format ci governance test` commit:
+  pre-commit hooks for changed files, including `black`, `ruff (lint, local)`,
+  `backend tests (pytest, changed files)`, and `commitizen check`.
+- PASS after mapping/body updates:
+  `pre-commit run --all-files`.
+- PASS after mapping/body updates:
+  `bash scripts/ci/pr_scope_guard.sh` (`PR scope guard passed`; file count 9;
+  Python files 4; Markdown files 1).
+- PASS after merge-ready `pulseplate-pr-review`:
+  `python3 scripts/orchestration/pr_review_context.py --pr 1971 --output /tmp/pulseplate_pr1971_review_context.json`;
+  `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr1971_review_context.json --format markdown`;
+  `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr1971_review_context.json --format json`.
+- PASS after merge-ready Codex Security diff scan:
+  `python3 .../generate_rank_input.py make-diff-rank-input --repo "$PWD" --base origin/main --mode revisions --head HEAD ...`;
+  `copy-deep-review-input`; manual full-file review closed 5/5 rows; `python3 .../validate_report_format.py --report-md .../report.md`; `python3 .../render_report_html.py ...`.
 - NOT RUN: full local `make verify`; intentionally deferred under the
   operator-approved emergency narrow-lane scope.
 
@@ -453,13 +518,13 @@ Reason: The current-head CI failure was not a new vulnerability or a waiver gap.
   strict merge-readiness pass immediately before merge.
 - Completed local/current-head evidence is recorded in the sections above; these
   boxes are not readiness claims.
-- [ ] Post-open required role pass:
+- [x] Post-open required role pass:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan / finding discovery.
-- [ ] `pulseplate-pr-review` after mapping artifact.
-- [ ] PR body Phase2 gate against the final PR body draft.
-- [ ] Scope guard against the final PR body draft and current branch diff.
-- [ ] Final focused local gates after mapping/body updates.
+- [x] Codex Security diff scan / finding discovery.
+- [x] `pulseplate-pr-review` after mapping artifact.
+- [x] PR body Phase2 gate against the final PR body draft.
+- [x] Scope guard against the final PR body draft and current branch diff.
+- [x] Final focused local gates after mapping/body updates.
 - [ ] Current-head CI terminal success.
 - [ ] Strict review-thread disposition with auth.
 - [ ] Strict merge-readiness wrapper with auth.
