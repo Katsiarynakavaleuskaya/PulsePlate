@@ -35,6 +35,8 @@ file-type changes, run the cross-surface dependency guards before push.
   `475d4459a1f33f2b47d36f062f60bbcfd70435bb`
 - Codex type-change / pre-commit invocation follow-up commit:
   `e3e95e87e8762b75efc00d67e3030fdfe01290d5`
+- Codex no-op resolver follow-up commit:
+  `9f7eb8357071a7612556e8c7cec8f63b7f7320e2`
 - Full local `make verify`: intentionally not run under the operator-approved
   emergency narrow-lane scope; this artifact does not claim full local verify.
 
@@ -66,6 +68,10 @@ file-type changes, run the cross-surface dependency guards before push.
   blind spot finding, dispositioned below as FIXED.
 - Codex connector thread `discussion_r3408715140`: one P2 local evidence path
   finding, dispositioned below as FIXED.
+- Codex connector thread `discussion_r3408774155`: one P2 no-op resolver finding,
+  dispositioned below as FIXED.
+- Codex connector thread `discussion_r3408774156`: one P2 mapping-head finding,
+  dispositioned below as NOT-A-BUG with current-head proof.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
@@ -111,6 +117,12 @@ Commit: e3e95e87e8762b75efc00d67e3030fdfe01290d5
 Evidence: `.pre-commit-config.yaml` now sets `always_run: true` on the local `backend-tests` pre-commit hook, while `scripts/run-backend-tests-pre-commit.sh` still no-ops when no Python or mapped cross-surface governance file changed; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_staged_frontend_package_rename_to_governance_tests` proves the invoked script maps staged `git mv frontend/package-lock.json frontend/package-lock.old` to the three governance tests, and `test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests` asserts the hook has `always_run: true`.
 Reason: Codex flagged that pre-commit's own `files` filter could skip the hook before the script sees renamed/deleted manifest source paths.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408774155 -> 9f7eb8357071a7612556e8c7cec8f63b7f7320e2
+Disposition: FIXED
+Commit: 9f7eb8357071a7612556e8c7cec8f63b7f7320e2
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now computes staged/upstream changed files and exits no-op before sourcing `scripts/hooks/repo_python.sh` or checking `pytest --version`; `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_skips_unrelated_staged_changes_without_repo_python` proves a staged docs-only change in a repo without `.venv` exits through the no-op path, while `test_backend_hook_honors_skip_tests_before_python_resolution` preserves the explicit `SKIP_TESTS` early exit ordering.
+Reason: Codex flagged that `always_run: true` could make docs-only commits require a repo Python/pytest even when no Python or governance files changed.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600887
 Disposition: NOT-A-BUG
 Evidence: GitHub GraphQL reported current PR head `931c53f8bb570ff9d082ee187a102d228416850c`; local repo checks `git merge-base --is-ancestor 29b0adf0c314241199d25e160bd57ad63b0e61db HEAD` and `git merge-base --is-ancestor 5bad31fb6db12e758f99a4140343ee18e67623e5 HEAD` both passed. The cited `8a4bd84` object was not present in local repo truth for this branch. The mappings correctly point to the actual fix commits, and those commits are ancestors of current head.
@@ -124,6 +136,11 @@ Reason: The comment's reviewed-head premise did not match GitHub PR head or loca
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408715137
 Disposition: NOT-A-BUG
 Evidence: GitHub API reported current PR head `9b5038d13569fee90ba55c8899996d1ad3267340`, while `git show --no-patch --oneline 8cc6af5d90da8c405bd85ed549c3c2f08977ea91` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, `475d4459a1f33f2b47d36f062f60bbcfd70435bb`, and `b3e7f20ce62093f3dd4e3ae229adcf76213ce594` against the current branch head.
+Reason: The comment's reviewed-head premise did not match GitHub PR head or local branch truth. The mapped commits are real fix commits and remain ancestors of the current PR branch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408774156
+Disposition: NOT-A-BUG
+Evidence: GitHub API reported current PR head `e066b2e4816f76ba01ca2e686d359be483def1a1`, while `git show --no-patch --oneline 6ba3f90e2fab3644dce871fb126ff71fe115cea1` failed with `fatal: bad object`. Local ancestry checks passed for mapped FIXED commits `29b0adf0c314241199d25e160bd57ad63b0e61db`, `5bad31fb6db12e758f99a4140343ee18e67623e5`, `475d4459a1f33f2b47d36f062f60bbcfd70435bb`, `e3e95e87e8762b75efc00d67e3030fdfe01290d5`, `57fd10c730d822d5aa9150780f92e0b452224852`, and `b3e7f20ce62093f3dd4e3ae229adcf76213ce594` against the current branch head.
 Reason: The comment's reviewed-head premise did not match GitHub PR head or local branch truth. The mapped commits are real fix commits and remain ancestors of the current PR branch.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408715140 -> 57fd10c730d822d5aa9150780f92e0b452224852
@@ -311,6 +328,15 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
 - PASS after type-change/pre-commit-invocation fix:
   `VENV_PYTHON=.venv/bin/python make validate-changed`
   (`43 passed`).
+- PASS after no-op resolver fix:
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_skips_unrelated_staged_changes_without_repo_python tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_honors_skip_tests_before_python_resolution`
+  (`2 passed`).
+- PASS after no-op resolver fix:
+  `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py tests/test_ci_workflow_pr_size_governance_contract.py`
+  (`44 passed`).
+- PASS after no-op resolver fix:
+  `VENV_PYTHON=.venv/bin/python make validate-changed`
+  (`44 passed`).
 - NOT RUN: full local `make verify`; intentionally deferred under the
   operator-approved emergency narrow-lane scope.
 
