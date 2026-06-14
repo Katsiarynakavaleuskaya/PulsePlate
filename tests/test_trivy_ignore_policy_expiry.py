@@ -11,44 +11,64 @@ POLICY_PATH = REPO_ROOT / "trivy" / "ignore-policy.rego"
 TRIVYIGNORE_PATH = REPO_ROOT / ".trivyignore"
 SECURITY_DOC_48959_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-48959-perl-base.md"
 SECURITY_DOC_48962_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-48962-perl-base.md"
+SECURITY_DOC_8058_PATH = REPO_ROOT / "docs" / "security" / "CVE-2025-8058-glibc.md"
+SECURITY_DOC_ARCHIVE_TAR_PATH = (
+    REPO_ROOT / "docs" / "security" / "CVE-2026-archive-tar-perl-runtime-removal.md"
+)
+SECURITY_DOC_SQLITE_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-sqlite-runtime-removal.md"
+SECURITY_DOC_GPGV_24882_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24882-gpgv.md"
+SECURITY_DOC_GPGV_24883_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24883-gpgv.md"
 BACKLOG_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+
+REMOVED_PERL_RUNTIME_CVES = (
+    "CVE-2023-31484",
+    "CVE-2023-31486",
+    "CVE-2025-40909",
+    "CVE-2026-48959",
+    "CVE-2026-48962",
+    "CVE-2026-9538",
+    "CVE-2026-42497",
+    "CVE-2026-8376",
+    "CVE-2026-42496",
+)
+REMEDIATED_SQLITE_CVES = (
+    "CVE-2025-7458",
+    "CVE-2025-6965",
+    "CVE-2025-29088",
+    "CVE-2026-11822",
+    "CVE-2026-11824",
+)
+REMOVED_PRODUCTION_TOOLING_CVES = (
+    "CVE-2022-3219",
+    "CVE-2026-24882",
+    "CVE-2026-24883",
+    "CVE-2025-68972",
+    "CVE-2025-68973",
+    "CVE-2025-9820",
+    "CVE-2025-30258",
+)
 
 
 def _policy_text() -> str:
     return POLICY_PATH.read_text(encoding="utf-8")
 
 
-def _cve_2026_48962_policy_block() -> str:
-    text = _policy_text()
-    match = re.search(
-        r"# CVE-2026-48962 \(perl-base / IO::Compress\).*?(?=\n# CVE-|\Z)",
-        text,
-        flags=re.DOTALL,
+def _ledger_perl_entry() -> str:
+    backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
+    ledger_start = backlog_text.index('<a id="ledger-p1-container-perl-cve-remediation"></a>')
+    next_anchor = backlog_text.find("<a id=", ledger_start + 1)
+    ledger_end = next_anchor if next_anchor != -1 else len(backlog_text)
+    return backlog_text[ledger_start:ledger_end]
+
+
+def _ledger_gpgv_entry() -> str:
+    backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
+    ledger_start = backlog_text.index(
+        "- [x] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)"
     )
-    assert match is not None, "missing CVE-2026-48962 perl-base Rego block"
-    return match.group(0)
-
-
-def _cve_2026_48959_policy_block() -> str:
-    text = _policy_text()
-    match = re.search(
-        r"# CVE-2026-48959 \(perl-base / IO::Uncompress::Unzip\).*?(?=\n# CVE-|\Z)",
-        text,
-        flags=re.DOTALL,
-    )
-    assert match is not None, "missing CVE-2026-48959 perl-base Rego block"
-    return match.group(0)
-
-
-def _cve_2026_48959_expected_match(finding: dict[str, object]) -> bool:
-    fixed_version = finding.get("FixedVersion")
-    return (
-        finding.get("VulnerabilityID") == "CVE-2026-48959"
-        and finding.get("PkgName") == "perl-base"
-        and finding.get("InstalledVersion") == "5.36.0-7+deb12u3"
-        and str(finding.get("PkgID", "")).startswith("perl-base@5.36.0-7+deb12u3")
-        and (fixed_version is None or fixed_version == "")
-    )
+    next_item = backlog_text.find("\n- [", ledger_start + 1)
+    ledger_end = next_item if next_item != -1 else len(backlog_text)
+    return backlog_text[ledger_start:ledger_end]
 
 
 def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path: Path) -> None:
@@ -155,126 +175,112 @@ def test_trivy_policy_guard_reports_invalid_file_expiry_dates(tmp_path: Path) ->
     ]
 
 
-def test_cve_2026_48962_policy_is_exact_and_timeboxed() -> None:
-    block = _cve_2026_48962_policy_block()
-
-    assert "# Review-by: 2026-06-27 (manual removal)" in block
-    assert 'input.VulnerabilityID == "CVE-2026-48962"' in block
-    assert 'input.PkgName == "perl-base"' in block
-    assert 'input.InstalledVersion == "5.36.0-7+deb12u3"' in block
-    assert 'startswith(input.PkgID, "perl-base@5.36.0-7+deb12u3")' in block
-    assert "cve_2026_48962_perl_base_fixed_version_unavailable" in block
-    assert "not input.FixedVersion" in block
-    assert 'input.FixedVersion == ""' in block
-    assert "input.FixedVersion == null" in block
-    assert "contains(input.PkgID" not in block
-
+def test_removed_perl_runtime_cves_are_not_suppressed_in_rego_policy() -> None:
     policy = _policy_text()
+
     assert len(re.findall(r"^# Suppression expires:", policy, flags=re.MULTILINE)) == 1
+    for cve in REMOVED_PERL_RUNTIME_CVES + REMEDIATED_SQLITE_CVES + REMOVED_PRODUCTION_TOOLING_CVES:
+        assert cve not in policy
+    assert "perl-base" not in policy
+    assert "perl-modules" not in policy
+    assert "libsqlite3-0" not in policy
 
 
-def test_cve_2026_48959_policy_is_exact_and_timeboxed() -> None:
-    block = _cve_2026_48959_policy_block()
-
-    assert "# Review-by: 2026-06-27 (manual removal)" in block
-    assert 'input.VulnerabilityID == "CVE-2026-48959"' in block
-    assert 'input.PkgName == "perl-base"' in block
-    assert 'input.InstalledVersion == "5.36.0-7+deb12u3"' in block
-    assert 'startswith(input.PkgID, "perl-base@5.36.0-7+deb12u3")' in block
-    assert "cve_2026_48959_perl_base_fixed_version_unavailable" in block
-    assert "not input.FixedVersion" in block
-    assert 'input.FixedVersion == ""' in block
-    assert "input.FixedVersion == null" in block
-    assert "contains(input.PkgID" not in block
-    assert "IO::Uncompress::Unzip" in block
-    assert "File::GlobMapper" not in block
-
-    policy = _policy_text()
-    assert len(re.findall(r"^# Suppression expires:", policy, flags=re.MULTILINE)) == 1
-
-
-def test_cve_2026_48959_policy_canary_cases_are_exact() -> None:
-    block = _cve_2026_48959_policy_block()
-    assert "cve_2026_48959_perl_base_version_match" in block
-    assert "cve_2026_48959_perl_base_pkgid_match" in block
-    assert "cve_2026_48959_perl_base_fixed_version_unavailable" in block
-
-    matching_finding = {
-        "VulnerabilityID": "CVE-2026-48959",
-        "PkgName": "perl-base",
-        "InstalledVersion": "5.36.0-7+deb12u3",
-        "PkgID": "perl-base@5.36.0-7+deb12u3",
-    }
-
-    cases = [
-        (matching_finding, True),
-        ({**matching_finding, "FixedVersion": ""}, True),
-        ({**matching_finding, "FixedVersion": None}, True),
-        ({**matching_finding, "FixedVersion": "5.40.1-8"}, False),
-        ({**matching_finding, "VulnerabilityID": "CVE-2026-48962"}, False),
-        ({**matching_finding, "PkgName": "perl-modules-5.36"}, False),
-        ({**matching_finding, "InstalledVersion": "5.36.0-7+deb12u4"}, False),
-        ({**matching_finding, "PkgID": "perl-modules-5.36@5.36.0-7+deb12u3"}, False),
-    ]
-
-    for finding, expected in cases:
-        assert _cve_2026_48959_expected_match(finding) is expected
-
-
-def test_cve_2026_48962_is_not_broadly_ignored_in_trivyignore() -> None:
+def test_remediated_container_cves_are_not_broadly_ignored_in_trivyignore() -> None:
     trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
 
-    assert "CVE-2026-48962" not in trivyignore
+    assert "CVE-2025-8058" not in trivyignore
+    for cve in REMOVED_PERL_RUNTIME_CVES + REMEDIATED_SQLITE_CVES + REMOVED_PRODUCTION_TOOLING_CVES:
+        assert cve not in trivyignore
+    assert "SQLite" not in trivyignore
+    assert "libsqlite3-0" not in trivyignore
+    assert "gpgv retained as Debian system dependency" not in trivyignore
+    assert "libgnutls30 is installed in the Debian production image" not in trivyignore
 
 
-def test_cve_2026_48959_is_not_broadly_ignored_in_trivyignore() -> None:
-    trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
+def test_perl_runtime_removal_docs_and_backlog_coupling() -> None:
+    doc_48959 = SECURITY_DOC_48959_PATH.read_text(encoding="utf-8")
+    doc_48962 = SECURITY_DOC_48962_PATH.read_text(encoding="utf-8")
+    archive_doc = SECURITY_DOC_ARCHIVE_TAR_PATH.read_text(encoding="utf-8")
+    ledger_entry = _ledger_perl_entry()
 
-    assert "CVE-2026-48959" not in trivyignore
+    for doc_text in (doc_48959, doc_48962, archive_doc):
+        assert "fixed by production package removal" in doc_text
+        assert "perl-base" in doc_text
+        assert "perl-modules-5.36" in doc_text
+        assert "trivy/ignore-policy.rego" in doc_text
+        assert "removed" in doc_text
+        assert "temporary, exact Trivy Rego policy suppression" not in doc_text
+        assert "fixed version remains unavailable" not in doc_text
 
+    for cve in ("CVE-2026-48959", "CVE-2026-48962"):
+        assert cve in doc_48959 + doc_48962
+    for cve in ("CVE-2026-9538", "CVE-2026-42497", "CVE-2026-8376", "CVE-2026-42496"):
+        assert cve in archive_doc
+        assert cve in ledger_entry
 
-def test_cve_2026_48962_doc_and_backlog_coupling() -> None:
-    doc_text = SECURITY_DOC_48962_PATH.read_text(encoding="utf-8")
-    backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
-
-    assert "CVE-2026-48962" in doc_text
-    assert "alert `#602`" in doc_text
-    assert "policy disposition" in doc_text
-    assert "Dockerfile:9" in doc_text
-    assert ".github/workflows/build.yml:422" in doc_text
-    assert "fixed version remains unavailable" in doc_text
-
-    ledger_start = backlog_text.index('<a id="ledger-p1-container-perl-cve-remediation"></a>')
-    next_anchor = backlog_text.find("<a id=", ledger_start + 1)
-    ledger_end = next_anchor if next_anchor != -1 else len(backlog_text)
-    ledger_entry = backlog_text[ledger_start:ledger_end]
-
-    assert "CVE-2026-48962" in ledger_entry
-    assert "alert #602" in ledger_entry
+    assert "Status: In progress" in ledger_entry
+    assert "package removal from the production target" in ledger_entry
+    assert ".trivyignore" in ledger_entry
     assert "trivy/ignore-policy.rego" in ledger_entry
-    assert "docs/security/CVE-2026-48962-perl-base.md" in ledger_entry
 
 
-def test_cve_2026_48959_doc_and_backlog_coupling() -> None:
-    doc_text = SECURITY_DOC_48959_PATH.read_text(encoding="utf-8")
-    backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
+def test_glibc_cve_2025_8058_doc_records_package_update_not_ignore() -> None:
+    doc_text = SECURITY_DOC_8058_PATH.read_text(encoding="utf-8")
 
-    assert "CVE-2026-48959" in doc_text
-    assert "alert `#610`" in doc_text
-    assert "policy disposition" in doc_text
-    assert "Dockerfile:9" in doc_text
-    assert "Dockerfile:121" in doc_text
-    assert ".github/workflows/build.yml:441" in doc_text
-    assert "fixed version remains unavailable" in doc_text
-    assert "IO::Uncompress::Unzip" in doc_text
-    assert "File::GlobMapper" not in doc_text
+    assert "CVE-2025-8058" in doc_text
+    assert "fixed by package update" in doc_text
+    assert "2.36-9+deb12u13" in doc_text
+    assert "Dockerfile" in doc_text
+    assert ".trivyignore" in doc_text
+    assert "removed" in doc_text
 
-    ledger_start = backlog_text.index('<a id="ledger-p1-container-perl-cve-remediation"></a>')
-    next_anchor = backlog_text.find("<a id=", ledger_start + 1)
-    ledger_end = next_anchor if next_anchor != -1 else len(backlog_text)
-    ledger_entry = backlog_text[ledger_start:ledger_end]
 
-    assert "CVE-2026-48959" in ledger_entry
-    assert "alert #610" in ledger_entry
-    assert "trivy/ignore-policy.rego" in ledger_entry
-    assert "docs/security/CVE-2026-48959-perl-base.md" in ledger_entry
+def test_sqlite_runtime_doc_records_source_update_and_package_removal() -> None:
+    doc_text = SECURITY_DOC_SQLITE_PATH.read_text(encoding="utf-8")
+
+    for cve in ("CVE-2026-11822", "CVE-2026-11824"):
+        assert cve in doc_text
+    for prior_cve in ("CVE-2025-7458", "CVE-2025-6965", "CVE-2025-29088"):
+        assert prior_cve in doc_text
+    assert "fixed by source update and production package removal" in doc_text
+    assert "sqlite-autoconf-3530200.tar.gz" in doc_text
+    sqlite_sha3 = "".join(
+        (
+            "025328da",
+            "165109f4",
+            "8abccc6e",
+            "74785080",
+            "60804412",
+            "bed2bd81",
+            "d47e98ba",
+            "1b72983b",
+        )
+    )
+    assert sqlite_sha3 in doc_text
+    assert "libsqlite3-0" in doc_text
+    assert ".trivyignore" in doc_text
+    assert "removed" in doc_text
+
+
+def test_gpgv_docs_and_backlog_record_production_package_removal() -> None:
+    docs_text = "\n".join(
+        (
+            SECURITY_DOC_GPGV_24882_PATH.read_text(encoding="utf-8"),
+            SECURITY_DOC_GPGV_24883_PATH.read_text(encoding="utf-8"),
+        )
+    )
+    ledger_entry = _ledger_gpgv_entry()
+
+    for cve in ("CVE-2026-24882", "CVE-2026-24883"):
+        assert cve in docs_text
+    assert "RESOLVED for the production Docker target by package removal" in docs_text
+    assert "The final `production` Docker target no longer retains `gpgv`" in docs_text
+    assert "old waiver posture" in docs_text
+    assert "Removing `gpgv` would break the base system" not in docs_text
+    assert "Why This CVE is Suppressed" not in docs_text
+
+    assert "Status: Closed by production package removal" in ledger_entry
+    assert "codex/fix-main-trivy-container-cves" in ledger_entry
+    assert "Final production image removes `gpgv`" in ledger_entry
+    assert "do not suppress CVE-2026-24883" in ledger_entry

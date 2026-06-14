@@ -4,6 +4,18 @@
 
 # Centralize pip upgrade range (SoT) to avoid drift across stages.
 ARG PIP_VERSION_RANGE="pip>=26.0,<27.0"
+# SQLite source pins are intentionally mirrored in scripts/ci/docker_source_artifacts.json.
+# Docker COPY source paths are literal, so a SQLite bump must update the manifest,
+# the COPY filename below, and these SHA3 parts together.
+ARG SQLITE_AUTOCONF_VERSION="3530200"
+ARG SQLITE_AUTOCONF_SHA3_256_PART_1="025328da"
+ARG SQLITE_AUTOCONF_SHA3_256_PART_2="165109f4"
+ARG SQLITE_AUTOCONF_SHA3_256_PART_3="8abccc6e"
+ARG SQLITE_AUTOCONF_SHA3_256_PART_4="74785080"
+ARG SQLITE_AUTOCONF_SHA3_256_PART_5="60804412"
+ARG SQLITE_AUTOCONF_SHA3_256_PART_6="bed2bd81"
+ARG SQLITE_AUTOCONF_SHA3_256_PART_7="d47e98ba"
+ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 
 # Stage 1: Build stage
 FROM python:3.13.13-slim-bookworm AS builder
@@ -116,6 +128,59 @@ if importlib.util.find_spec("setuptools") is not None:
     sys.exit(1)
 PY
 
+# Stage 1b: SQLite runtime library stage
+# SECURITY (CVE-2026-11822, CVE-2026-11824):
+# Debian bookworm libsqlite3-0 is currently flagged by Trivy with no fixed
+# package metadata. Build SQLite 3.53.2 from a pre-fetched official autoconf
+# source tarball with SHA3 verification, then copy only the shared runtime
+# library into runtime-base. The tarball is prepared outside Docker by
+# scripts/ci/fetch_docker_source_artifacts.py so Docker builds do not perform
+# hidden live upstream downloads.
+FROM python:3.13.13-slim-bookworm AS sqlite-builder
+
+ARG SQLITE_AUTOCONF_VERSION
+ARG SQLITE_AUTOCONF_SHA3_256_PART_1
+ARG SQLITE_AUTOCONF_SHA3_256_PART_2
+ARG SQLITE_AUTOCONF_SHA3_256_PART_3
+ARG SQLITE_AUTOCONF_SHA3_256_PART_4
+ARG SQLITE_AUTOCONF_SHA3_256_PART_5
+ARG SQLITE_AUTOCONF_SHA3_256_PART_6
+ARG SQLITE_AUTOCONF_SHA3_256_PART_7
+ARG SQLITE_AUTOCONF_SHA3_256_PART_8
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+COPY build/docker-sources/sqlite-autoconf-3530200.tar.gz /tmp/sqlite-autoconf.tar.gz
+
+RUN python - <<'PY'
+from hashlib import sha3_256
+from pathlib import Path
+import os
+import sys
+
+expected = "".join(
+    os.environ[f"SQLITE_AUTOCONF_SHA3_256_PART_{index}"] for index in range(1, 9)
+)
+payload = Path("/tmp/sqlite-autoconf.tar.gz").read_bytes()
+actual = sha3_256(payload).hexdigest()
+if actual != expected:
+    sys.stderr.write(f"SQLite source SHA3 mismatch: expected {expected}, got {actual}\n")
+    sys.exit(1)
+PY
+
+RUN tar -xzf /tmp/sqlite-autoconf.tar.gz -C /tmp \
+    && cd "/tmp/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}" \
+    && ./configure --prefix=/usr/local --disable-static --enable-shared \
+    && make -j"$(nproc)" \
+    && make install \
+    && /usr/local/bin/sqlite3 -version | grep '^3\.53\.2 ' \
+    && rm -rf "/tmp/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}" /tmp/sqlite-autoconf.tar.gz
+
 # Stage 2: Runtime base stage
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
 FROM python:3.13.13-slim-bookworm AS runtime-base
@@ -172,27 +237,45 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Revisit when bookworm publishes a fixed package.
 #
 # Security hardening:
-# Explicitly install libgnutls30, alongside the existing OpenSSL packages, to pull
-# the latest available version from bookworm-security. The
-# python:3.13.13-slim-bookworm base image is expected to ship bookworm-security
-# apt sources; if Debian advances libgnutls30, keep this unpinned install on the
-# newest security package and update the exact-version Rego waiver only after
-# checking the new package's CVE status. A mismatch between image inventory and
-# trivy/ignore-policy.rego is an intentional security-review blocker.
-# libgnutls30 is retained because apt depends on it; installing it here prevents
-# the production image from keeping a stale base-layer GnuTLS package.
-# CVE-2026-33846 is still vulnerable in bookworm-security as of 2026-05-05, so the
-# residual HIGH finding is tracked by a narrow Trivy policy waiver instead of a bare ignore.
-# Do not remove unless Trivy alerts are resolved and the base image consistently ships updated TLS packages.
+# Explicitly install libc6/libc-bin from the current bookworm repositories and
+# fail the build unless the image reaches Debian's fixed line for CVE-2025-8058.
+# Explicitly install libgnutls30, alongside the existing OpenSSL packages, so
+# runtime-base/development layers take Debian's latest available bookworm-security
+# package instead of a stale base-layer copy. The final production target then
+# prunes apt/gpgv/libgnutls30 and the CI runtime surface guard fails closed if
+# that package-manager/GnuTLS surface returns.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
+        libc-bin \
         libc6 \
         libgnutls30 \
         libssl3 \
         openssl \
+    && for package in libc6 libc-bin; do \
+        version="$(dpkg-query -W -f='${Version}' "${package}")"; \
+        if ! dpkg --compare-versions "${version}" ge "2.36-9+deb12u13"; then \
+            echo "${package} ${version} is below fixed glibc line 2.36-9+deb12u13" >&2; \
+            exit 1; \
+        fi; \
+    done \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+COPY --from=sqlite-builder /usr/local/lib/libsqlite3.so* /usr/local/lib/
+RUN printf '%s\n' '/usr/local/lib' > /etc/ld.so.conf.d/00-pulseplate-local-sqlite.conf \
+    && ldconfig \
+    && python - <<'PY'
+import sqlite3
+import sys
+
+version = tuple(int(part) for part in sqlite3.sqlite_version.split("."))
+if version < (3, 53, 2):
+    sys.stderr.write(
+        f"Python sqlite3 loaded SQLite {sqlite3.sqlite_version}, expected >= 3.53.2\n"
+    )
+    sys.exit(1)
+PY
 
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
@@ -264,16 +347,25 @@ if importlib.util.find_spec("pip") is not None:
     sys.exit(1)
 PY
 
-# RU: Убираем package-manager TLS surface только из production; runtime-base/development
-# RU: остаются с apt для dev/staging workflows. apt/gpgv essential для Debian,
-# RU: поэтому удаление намеренно ограничено final production stage и проверяется fail-closed.
-# EN: Remove the package-manager TLS surface only from production; runtime-base/development
-# EN: keep apt for dev/staging workflows. apt/gpgv are Debian-essential, so this
-# EN: removal is intentionally limited to the final production stage and checked fail-closed.
+# RU: Убираем package-manager TLS, Debian SQLite и Perl runtime surface только из production;
+# RU: runtime-base/development остаются с apt для dev/staging workflows. apt/gpgv/perl-base
+# RU: essential для Debian, поэтому удаление намеренно ограничено final production stage
+# RU: и проверяется fail-closed.
+# EN: Remove the package-manager TLS, Debian SQLite, and Perl runtime surface only from
+# EN: production; runtime-base/development keep apt for dev/staging workflows.
+# EN: apt/gpgv/perl-base are Debian-essential, so this removal is intentionally limited
+# EN: to the final production stage and checked fail-closed.
 # SECURITY: production-package-pruning-start
-RUN dpkg --purge --force-depends apt gpgv libgnutls30 \
+RUN perl_module_packages="$(dpkg-query -W -f='${Package}\n' 'perl-modules-*' 2>/dev/null || true)" \
+    && dpkg --purge --force-depends --force-remove-essential \
+        apt \
+        gpgv \
+        libgnutls30 \
+        libsqlite3-0 \
+        perl-base \
+        ${perl_module_packages} \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && for package in apt gpgv libgnutls30; do \
+    && for package in apt gpgv libgnutls30 libsqlite3-0 perl-base ${perl_module_packages}; do \
         status="$(dpkg-query -W -f='${db:Status-Abbrev}' "${package}" 2>/dev/null || true)"; \
         if [ "${status#ii}" != "${status}" ]; then \
             echo "${package} remains installed after production package pruning" >&2; \
@@ -282,10 +374,17 @@ RUN dpkg --purge --force-depends apt gpgv libgnutls30 \
     done \
     && /usr/local/bin/python - <<'PY'
 import ssl
+import sqlite3
 import sys
 
 if not ssl.OPENSSL_VERSION:
     sys.stderr.write("Python ssl module is unavailable after production package pruning\n")
+    sys.exit(1)
+version = tuple(int(part) for part in sqlite3.sqlite_version.split("."))
+if version < (3, 53, 2):
+    sys.stderr.write(
+        f"Python sqlite3 loaded SQLite {sqlite3.sqlite_version}, expected >= 3.53.2\n"
+    )
     sys.exit(1)
 PY
 # SECURITY: production-package-pruning-end

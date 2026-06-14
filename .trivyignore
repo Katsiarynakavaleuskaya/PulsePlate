@@ -11,45 +11,10 @@
 ## confusion - actual base is bookworm. Verify versions before trusting comments.
 ##
 ## DECISION LOG:
-## - CVE-2025-68973 (gpgv armor_filter) accepted as documented risk (no attack surface)
 ## - Base image updated from 3.13.6 to 3.13.13 for latest security patches
-## - gpgv retained as Debian system dependency (removal breaks apt)
+## - Production target prunes package-manager/GnuTLS runtime surface instead of
+##   retaining broad Trivy suppressions for apt/gpgv/libgnutls30.
 ## - All Trivy workflows configured with trivyignores: '.trivyignore'
-##
-## CVE-2025-68972 – gpgv (GnuPG) signed message \\f truncation
-##
-## Trivy reports this against Debian's `gpgv` package. On Debian-based images, `apt` depends on
-## `gpgv` and removing it can break the base system. Our runtime image does not invoke `apt`/`gpgv`
-## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
-
-CVE-2025-68972
-
-## CVE-2025-68973 – gpgv (GnuPG) armor_filter out-of-bounds write
-##
-## Trivy reports this against Debian's `gpgv` package. On Debian-based images, `apt` depends on
-## `gpgv` and removing it can break the base system. Our runtime image does not invoke `apt`/`gpgv`
-## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
-##
-## Vulnerability details:
-## - Out-of-bounds write in `armor_filter` in `g10/armor.c`
-## - Affects GnuPG/gpgv versions 2.2.x (our container has 2.2.40-1.1)
-## - Fixed in 2.2.51+ (ExtendedLTS) but not yet available in Debian bookworm
-##
-## Our application:
-## - Does NOT use gpgv/gnupg for runtime operations
-## - Does NOT process untrusted armored GPG data
-## - Does NOT invoke gpgv command-line tool
-## - Container runs as non-root user with minimal privileges
-##
-## Exploitation requires:
-## - Direct invocation of gpgv with crafted input
-## - Access to run gpgv on attacker-controlled data
-## - Both conditions are NOT met in our deployment model
-##
-## The vulnerability exists in the base OS but has no attack surface in our application.
-## We accept this risk as documented and will monitor for upstream fixes.
-
-CVE-2025-68973
 
 
 ## CVE-2023-45853 – MiniZip in zlib through 1.3
@@ -75,117 +40,6 @@ CVE-2025-68973
 ## explicitly ignore this CVE.
 
 CVE-2023-45853
-
-## CVE-2025-7458 – SQLite integer overflow in sqlite3KeyInfoFromExprList
-##
-## This CVE affects SQLite versions 3.39.2 through 3.41.1. Our application
-## is NOT vulnerable:
-##
-## 1. Docker container (python:3.13-slim) uses SQLite 3.46.1 (verified)
-## 2. Python 3.13 bundles SQLite 3.46.1 (statically linked)
-## 3. Both versions are NEWER than the vulnerable range (3.39.2-3.41.1)
-##
-## Verification:
-##   $ docker run --rm python:3.13-slim python -c "import sqlite3; print(sqlite3.sqlite_version)"
-##   3.46.1
-##
-## The vulnerable range ended at 3.41.1, and we use 3.46.1+, which is
-## 5 minor versions newer. This is a false positive from outdated
-## vulnerability database metadata referencing the system libsqlite3-0
-## package, which Python does not use.
-##
-## Additionally, our application:
-## - Controls all SQL queries via SQLAlchemy ORM (no user SQL execution)
-## - Does not use ORDER BY with large expression counts
-## - Has no attack surface for this specific vulnerability
-
-CVE-2025-7458
-
-## CVE-2025-6965 – SQLite aggregate terms memory corruption
-##
-## This CVE affects SQLite versions before 3.50.2 due to memory corruption
-## when aggregate terms exceed available columns. Our application is SAFE:
-##
-## 1. Docker container (python:3.13-slim) uses SQLite 3.46.1-7 (Debian trixie)
-## 2. Debian Security Tracker confirms 3.46.1-7 is FIXED for trixie
-## 3. Python 3.13 bundles the same patched SQLite 3.46.1
-##
-## Debian Security Status:
-##   bookworm: Fixed in 3.40.1-2+deb12u2 (backported patch)
-##   trixie:   Fixed in 3.46.1-7 (our version) ✅
-##   sid:      Fixed in 3.46.1-8
-##
-## Source: https://security-tracker.debian.org/tracker/CVE-2025-6965
-##
-## Even though 3.46.1 < 3.50.2 numerically, Debian backported the security
-## fix to 3.46.1-7. Trivy metadata incorrectly references the old bookworm
-## version (3.40.1-2+deb12u1) which is not what python:3.13-slim uses.
-##
-## Additionally, our application:
-## - Uses SQLAlchemy ORM (controlled queries)
-## - Does not allow user-provided SQL with complex aggregates
-##   - Has minimal attack surface for this vulnerability
-
-CVE-2025-6965
-
-## CVE-2025-29088 – SQLite 3.49.0 DoS via sqlite3_db_config
-##
-## This CVE affects ONLY SQLite 3.49.0 (fixed in 3.49.1). NOT vulnerable:
-##
-## 1. Container uses SQLite 3.46.1 << 3.49.0 (not in vulnerable range)
-## 2. Python 3.13 bundles SQLite 3.46.1 (not affected)
-## 3. Vulnerability requires specific C API calls (sqlite3_db_config)
-##
-## Vulnerability scope:
-##   - Affects: SQLite 3.49.0 ONLY
-##   - Fixed: SQLite 3.49.1
-##   - Our version: 3.46.1 (3 minor versions older, safe)
-##
-## Technical details:
-##   - DoS via application crash in sqlite3_db_config C API
-##   - Caused by incorrect integer multiplication (sz*nBig not cast to 64-bit)
-##   - Requires direct C API usage with specific argument values
-##   - Does NOT affect SQL queries or Python sqlite3 module usage
-##
-## Our application:
-##   - Uses Python sqlite3 module (high-level API, not C API)
-##   - Does NOT call sqlite3_db_config directly
-##   - Uses SQLAlchemy ORM (abstracted from C API)
-##   - Version 3.46.1 predates vulnerable 3.49.0 release
-##   - Zero exposure to this C API-specific bug
-##
-## This is a version mismatch in Trivy metadata.
-## Our SQLite 3.46.1 << 3.49.0 (vulnerable version).
-
-CVE-2025-29088
-
-## CVE-2025-9820 – GnuTLS GNUTLS-SA-2025-11-18
-##
-## This CVE affects GnuTLS library. Our application does NOT use GnuTLS directly:
-##
-## 1. libgnutls30 is installed in the Debian production image because `apt` depends on it
-## 2. No Python dependencies in requirements.txt reference GnuTLS
-## 3. Python's application TLS uses OpenSSL, not GnuTLS
-##
-## Debian Security Assessment:
-##   - Severity: UNKNOWN (Debian marks as "Minor issue")
-##   - bookworm: <no-dsa> (no security advisory needed)
-##   - trixie: <no-dsa> (no security advisory needed)
-##   - Status: Not deemed critical by Debian Security Team
-##
-## Source: https://security-tracker.debian.org/tracker/CVE-2025-9820
-## Advisory: https://www.gnutls.org/security-new.html#GNUTLS-SA-2025-11-18
-##
-## This is not a phantom package. It is an OS package retained for Debian apt.
-## GnuTLS is not part of our application's Python dependency tree, and Debian
-## marks this CVE as minor with no security advisory required.
-##
-## Our application:
-## - Uses Python's standard ssl module (OpenSSL-based)
-## - Does not import GnuTLS from application code
-## - Does not expose GnuTLS/DTLS runtime protocol handling
-
-CVE-2025-9820
 
 ## CVE-2016-2781 – coreutils chroot TIOCSTI escape (from 2016)
 ##
@@ -259,41 +113,6 @@ CVE-2016-2781
 ##   - Zero attack surface for this build-tool vulnerability
 
 CVE-2022-27943
-
-## CVE-2022-3219 – GnuPG DoS via compressed packets
-##
-## This CVE affects GnuPG signature verification. NOT vulnerable:
-##
-## 1. gpgv/gnupg NOT installed in python:3.13-slim container (verified)
-## 2. Application does NOT use GPG for signature verification
-## 3. No GPG-related dependencies in requirements.txt
-##
-## Debian Security Assessment:
-##   - Severity: LOW
-##   - Urgency: unimportant
-##   - Status: unfixed ("GnuPG upstream is not implementing this change")
-##   - All releases marked vulnerable but won't be fixed
-##
-## Source: https://security-tracker.debian.org/tracker/CVE-2022-3219
-## Upstream: https://dev.gnupg.org/T5993
-##
-## Vulnerability details:
-##   - DoS attack via crafted public keys with many compressed signatures
-##   - Causes resource consumption (CPU spin)
-##   - Does NOT allow code execution or data exfiltration
-##   - GnuPG maintainers chose not to fix (design limitation)
-##
-## Our application:
-##   - Python-only, no cryptographic signature verification
-##   - Does NOT use GPG, PGP, or related tools
-##   - Does NOT process public keys or signatures
-##   - GPG not in dependency tree
-##   - Zero attack surface for GPG-specific DoS
-##
-## This is a phantom dependency or stale scan result.
-## The application has no code path that uses GnuPG.
-
-CVE-2022-3219
 
 ## CVE-2018-6829 – libgcrypt ElGamal cipher semantic security issue (from 2018)
 ##
@@ -474,64 +293,6 @@ CVE-2025-27587
 ## entry can be revisited and potentially removed.
 
 CVE-2025-9232
-
-## CVE-2023-31486 – Perl HTTP::Tiny insecure TLS defaults
-##
-## This CVE affects Perl's HTTP::Tiny module (core since 5.13.9) where,
-## before version 0.083, TLS certificate verification is not enabled
-## by default; callers must opt-in to verify certificates.
-##
-## Package reported by Trivy: perl-base 5.36.0-7+deb12u2 (Debian bookworm).
-##
-## Our application:
-##   - Is written in Python (FastAPI backend), not Perl
-##   - Does NOT use HTTP::Tiny or any Perl-based HTTP client
-##   - Does NOT invoke Perl scripts that perform outbound HTTPS requests
-##   - Uses Python HTTP clients (requests/httpx/etc.) with proper TLS
-##     verification defaults
-##
-## In other words, the vulnerable behavior would only be reachable if:
-##   - We shipped Perl scripts using HTTP::Tiny over HTTPS, AND
-##   - Those scripts relied on default TLS settings, AND
-##   - They contacted attacker-controlled endpoints.
-##
-## None of these conditions apply. Perl is present only as part of the
-## base OS/tooling, not as part of the application runtime that handles
-## user traffic or external integrations.
-##
-## Therefore we treat this as a non-applicable, OS-level tooling issue
-## and ignore it in Trivy to keep security reports focused on real
-## risks for the Python backend.
-
-CVE-2023-31486
-
-## CVE-2023-31484 – Perl CPAN.pm does not verify TLS certificates
-##
-## This CVE affects Perl's CPAN.pm module (before 2.35), which does not
-## verify TLS certificates when downloading distributions over HTTPS.
-##
-## Package reported by Trivy: perl-base 5.36.0-7+deb12u2 (Debian bookworm).
-##
-## Our application:
-##   - Is a Python FastAPI backend, not a Perl application
-##   - Does NOT invoke CPAN.pm or run `cpan` inside containers
-##   - Installs Python dependencies via pip in the builder stage only
-##   - Does NOT download or install Perl distributions at runtime
-##
-## Exploitation requires:
-##   - Actively using CPAN.pm to fetch modules over HTTPS, AND
-##   - Connecting to attacker-controlled endpoints, AND
-##   - Relying on CPAN's default TLS settings
-##
-## None of these apply in our environment. Perl and CPAN.pm are present
-## only as part of the base OS image and are not used for application
-## logic or dependency management.
-##
-## We therefore treat this as a non-applicable tooling CVE and ignore it
-## in Trivy so that security reports remain focused on vulnerabilities
-## that affect the running Python service.
-
-CVE-2023-31484
 
 ## CVE-2025-4802 – glibc static setuid dlopen + LD_LIBRARY_PATH
 ##
@@ -809,41 +570,6 @@ CVE-2025-14104
 
 CVE-2025-9230
 
-## CVE-2025-40909 – Perl threads working directory race condition
-##
-## This CVE affects threaded Perl programs where:
-##   - A directory handle is open at thread creation, and
-##   - Perl temporarily changes the process-wide current working
-##     directory to clone that handle for the new thread, and
-##   - Other threads may observe and act on the transient CWD change.
-##
-## Impact: file operations in other threads may target unintended paths,
-## potentially allowing a local attacker to cause code or file access
-## from unexpected locations.
-##
-## Package reported by Trivy: perl-base 5.36.0-7+deb12u2 (fixed in
-## 5.36.0-7+deb12u3).
-##
-## Our application:
-##   - Is a Python FastAPI backend; we do NOT ship or run Perl code
-##     as part of the application logic.
-##   - Does NOT use Perl threads or multi-threaded Perl scripts.
-##   - Does NOT give shell access or allow arbitrary code execution
-##     inside containers to untrusted users.
-##
-## Exploitation requires:
-##   - A threaded Perl application running within our environment, AND
-##   - A local attacker able to run code in another thread/process, AND
-##   - Careful timing to exploit transient CWD changes for file ops.
-##
-## None of these conditions hold for our service. Perl is present only
-## as part of the base OS image and is not used for request handling or
-## background jobs. We therefore treat CVE-2025-40909 as a non-applicable,
-## OS-level tooling issue and ignore it in Trivy so reports stay focused
-## on vulnerabilities that affect the running Python backend.
-
-CVE-2025-40909
-
 ## CVE-2023-50495 – ncurses _nc_wrap_entry() segmentation fault
 ##
 ## This CVE affects ncurses v6.4-20230418 where crafted terminfo/entry
@@ -996,96 +722,3 @@ CVE-2024-10041
 ## Attack surface: ZERO - no PAM logins, single-user container model.
 
 CVE-2024-22365
-
-## CVE-2025-30258 – GnuPG verification DoS via malicious subkey (MEDIUM)
-##
-## This CVE affects GnuPG <2.5.5 certificate import. NOT vulnerable:
-##
-## 1. gpgv/gnupg NOT installed in python:3.13.13-slim-bookworm (verified)
-## 2. Application does NOT use GPG/PGP signature verification
-## 3. No GPG dependencies in requirements.txt
-##
-## Vulnerability details:
-##   - Importing certificate with crafted subkey data (invalid backsig/usage flags)
-##   - Causes loss of ability to verify signatures from other signing keys
-##   - "Verification DoS" - breaks signature verification functionality
-##
-## Our application:
-##   - GnuPG/gpgv NOT installed (verified via dpkg -l)
-##   - Python-only, no cryptographic signature verification via GPG
-##   - Does NOT import or manage GPG keyrings
-##   - Zero code paths using GnuPG
-##
-## This is a phantom dependency - Trivy reports it but package not installed.
-
-CVE-2025-30258
-
-## CVE-2025-8058 – glibc regcomp double free (MEDIUM)
-##
-## This CVE affects glibc 2.4–2.41 regcomp() function. Application uses
-## vulnerable glibc version but has minimal exposure:
-##
-## Container package: libc6 2.36-9+deb12u10 (bookworm)
-##
-## Vulnerability details:
-##   - Double free in regcomp() if allocation fails
-##   - Triggered by malloc failure or interposed malloc with random failures
-##   - Can allow buffer manipulation depending on regex construction
-##   - Affects all architectures/ABIs
-##
-## Debian Security status:
-##   - bookworm: 2.36-9+deb12u10 currently deployed
-##   - Fixed version: 2.36-9+deb12u13 (available but not yet in base image)
-##   - Status: Fix available, awaiting base image update
-##
-## Why exploitation is unlikely:
-##   - Python's re module uses its own regex engine (PCRE-style), NOT glibc regcomp()
-##   - Application code does NOT call regcomp() directly
-##   - Only OS utilities (shell tools, grep, sed) might use glibc regex
-##   - Container has stable memory allocation (no random malloc failures)
-##   - Exploit requires malloc failure during regex compilation
-##   - Application runtime does not invoke shell tools with user-controlled patterns
-##
-## Mitigation plan:
-##   - Monitor for python:3.13.13-slim-bookworm update with glibc 2.36-9+deb12u13
-##   - Or explicitly upgrade libc6 in Dockerfile: RUN apt-get update && apt-get install -y libc6
-##   - Review this entry at next quarterly review (2026-03-30)
-##
-## Current risk assessment: LOW - vulnerable version present but exploitation
-## requires malloc failure and application does not expose attack surface.
-
-CVE-2025-8058
-
-## CVE-2026-9538, CVE-2026-42497, CVE-2026-8376, CVE-2026-42496 – Perl / Archive::Tar
-##
-## These four CVEs affect perl-base and perl-modules-5.36 (Archive::Tar) in Debian bookworm.
-## Debian Security Tracker explicitly marks bookworm perl 5.36.0-7+deb12u3 as VULNERABLE
-## with no fixed version available in any Debian release (unfixed in unstable).
-##
-## Upstream fixes:
-##   - CVE-2026-9538: Archive::Tar 3.10 (not in Debian)
-##   - CVE-2026-42497 / CVE-2026-42496: Archive::Tar 3.08 (not in Debian)
-##   - CVE-2026-8376: Perl 5.43.10+ (not in Debian)
-##
-## Our application:
-##   - Is a Python FastAPI backend; does NOT ship or execute Perl code
-##   - Does NOT use Archive::Tar for archive extraction
-##   - Does NOT invoke tar, cpan, or any Perl-based tooling at runtime
-##   - Perl is present only as a Debian essential OS package dependency
-##
-## Exploitation requires:
-##   - Processing attacker-controlled tar archives via Archive::Tar, OR
-##   - Compiling attacker-controlled regular expressions on a 32-bit Perl build
-##   - Neither condition is possible in our Python-only runtime
-##
-## Removal condition: Re-evaluate within 90 days. If no upstream Debian fix is
-## available by 2026-08-27, escalate to base-image migration decision
-## (e.g., evaluate python:3.13.x-slim-trixie or distroless alternatives).
-## Do not passively extend beyond 90 days without an active remediation plan.
-## Monitor: https://security-tracker.debian.org/tracker/source-package/perl
-## Review-by: 2026-06-27
-
-CVE-2026-9538
-CVE-2026-42497
-CVE-2026-8376
-CVE-2026-42496

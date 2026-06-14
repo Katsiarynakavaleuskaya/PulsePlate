@@ -23,7 +23,14 @@
 !scripts/ci/
 !scripts/ci/check_python_startup_hooks.py
 !scripts/ci/emergency_python_wheels.json
+!scripts/ci/docker_source_artifacts.json
+!scripts/ci/fetch_docker_source_artifacts.py
 !scripts/ci/install_locked_python_requirements.py
+
+# Pre-fetched, checksum-verified source artifacts used by Docker build stages.
+!build/
+!build/docker-sources/
+!build/docker-sources/sqlite-autoconf-*.tar.gz
 
 # Runtime application directories copied by Dockerfile
 !app/

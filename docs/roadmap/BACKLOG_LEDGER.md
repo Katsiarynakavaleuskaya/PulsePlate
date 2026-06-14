@@ -145,12 +145,23 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Container image Perl / IO::Compress / Archive::Tar CVE remediation (CVE-2026-9538, CVE-2026-42497, CVE-2026-8376, CVE-2026-42496, CVE-2026-48959, CVE-2026-48962)
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: TBD (evaluation deadline 2026-08-27)
-  - Status: Open
+  - Target PR: codex/fix-main-trivy-container-cves
+  - Status: In progress
   - Area: security / container / supply-chain
-  - Reason (EN): Perl-family CVEs are suppressed because Debian bookworm has no actionable upstream fix for the observed image package lines. Four Archive::Tar CVEs are currently tracked in `.trivyignore`; GitHub code-scanning alert #610 reports CVE-2026-48959 and alert #602 reports CVE-2026-48962 against `perl-base 5.36.0-7+deb12u3` with blank fixed versions, covered by exact `trivy/ignore-policy.rego` matching. Our Python-only runtime does not execute Perl, Archive::Tar, IO::Uncompress::Unzip, or IO::Compress/File::GlobMapper on attacker-controlled input, but suppression without a remediation path is technical debt. This item tracks the 90-day re-evaluation trigger mandated by the security fix PRs.
-  - Links: `.trivyignore` (Perl CVE block), `trivy/ignore-policy.rego`, `Dockerfile`, `docs/security/CVE-2026-48959-perl-base.md`, `docs/security/CVE-2026-48962-perl-base.md`, `docs/security/`
-  - DoD: Either (a) Debian bookworm publishes fixed perl-base/perl-modules-5.36 / IO::Compress package lines and the `.trivyignore` / `trivy/ignore-policy.rego` entries are removed, or (b) project migrates to a base image that eliminates Perl from the runtime (e.g., `python:3.13.x-slim-trixie`, `gcr.io/distroless/python3`, or custom minimal image) with passing Trivy scan and green CI.
+  - Reason (EN): Main/nightly Docker Trivy failures now report Perl-family findings against `perl-base` / `perl-modules-5.36`. Debian bookworm does not yet provide a clean package-update path for those Perl findings, so this emergency lane remediates by package removal from the production target instead of extending `.trivyignore` or `trivy/ignore-policy.rego`.
+  - Links: `Dockerfile`, `.github/workflows/build.yml`, `.github/workflows/trivy.yml`, `scripts/ci/check_docker_runtime_dependency_surface.py`, `.trivyignore`, `trivy/ignore-policy.rego`, `docs/security/CVE-2026-48959-perl-base.md`, `docs/security/CVE-2026-48962-perl-base.md`, `docs/security/CVE-2026-archive-tar-perl-runtime-removal.md`
+  - DoD: Production image removes `perl-base` and installed `perl-modules-*`; Docker runtime dependency-surface guard fails if they return; broad `.trivyignore` Perl CVE entries and exact Perl Rego suppressions are removed; current-head Docker build, runtime-surface guard, and Trivy image scan pass before any readiness claim.
+
+<a id="ledger-p1-container-sqlite-cve-remediation"></a>
+- [ ] P1: Container image SQLite CVE remediation (CVE-2026-11822, CVE-2026-11824)
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1
+  - Target PR: codex/fix-main-trivy-container-cves
+  - Status: In progress
+  - Area: security / container / supply-chain
+  - Reason (EN): Main Docker publish Trivy now reports `libsqlite3-0 3.40.1-2+deb12u2` for SQLite CVEs with blank fixed-version metadata. SQLite support is still required by PulsePlate fallback, catalog, and Docker smoke paths, so this emergency lane remediates by explicitly pre-fetching and verifying SQLite 3.53.2 source before Docker build, loading that runtime library, and removing Debian `libsqlite3-0` from the production target instead of adding Trivy suppressions or hidden Dockerfile downloads.
+  - Links: `Dockerfile`, `.dockerignore`, `.github/workflows/build.yml`, `.github/workflows/trivy.yml`, `scripts/ci/docker_source_artifacts.json`, `scripts/ci/fetch_docker_source_artifacts.py`, `scripts/ci/check_docker_runtime_dependency_surface.py`, `.trivyignore`, `trivy/ignore-policy.rego`, `docs/security/CVE-2026-sqlite-runtime-removal.md`
+  - DoD: CI/local Docker lanes run explicit source-artifact preparation before Docker build; Dockerfile performs no live upstream download; production image loads SQLite >=3.53.2 through Python `sqlite3`; production image removes Debian `libsqlite3-0`; Docker runtime dependency-surface guard fails if `libsqlite3-0` returns; broad `.trivyignore` SQLite CVE entries are removed; current-head Docker build/runtime-surface/Trivy image scan pass before any readiness claim.
 
 <a id="ledger-p1-private-pypi-proxy-mirror-parity"></a>
 - [ ] P1: Private PyPI proxy mirror parity and origin stability (packages host only — marketing 521 stays intentional)
@@ -4856,19 +4867,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `pre-commit run --all-files` and `make verify` pass in follow-up PR
   - Blockers: None (deferred by scope, not blocked)
 
-- [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
+- [x] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (follow-up after upstream fix)
-  - Reason: Trivy reports `gpgv` vulnerability (CVE-2026-24883) with no fixed version available as of 2026-01-28; we suppress via `trivy/ignore-policy.rego` with expiry enforcement to keep Trivy's signal actionable. Should remove when Debian publishes a patched package / Trivy metadata updates.
+  - Target PR: `codex/fix-main-trivy-container-cves`
+  - Status: Closed by production package removal. The final `production` Docker target now purges `gpgv`, and CI blocks its return with the Docker runtime dependency-surface guard.
+  - Reason: The previous posture suppressed `gpgv` while waiting for Debian/Trivy metadata. The current production image no longer needs package-manager tooling at runtime, so the safer remediation is removal from the final image instead of retaining a Trivy waiver.
   - Links:
-    - `trivy/ignore-policy.rego` (rule for CVE-2026-24883)
+    - `Dockerfile` (production package pruning)
+    - `scripts/ci/check_docker_runtime_dependency_surface.py`
     - `docs/security/CVE-2026-24883-gpgv.md`
     - `.github/workflows/trivy.yml`
   - DoD:
-    - Debian bookworm publishes a fixed `gpgv` package (or Trivy publishes fixed-version metadata)
-    - Remove CVE-2026-24883 suppression from `trivy/ignore-policy.rego`
-    - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
+    - Final production image removes `gpgv`
+    - CI fails if `gpgv` returns to the production image
+    - `trivy/ignore-policy.rego` and `.trivyignore` do not suppress CVE-2026-24883
+    - `docs/security/CVE-2026-24883-gpgv.md` is marked resolved by production package removal
     - Trivy Code Scanning alerts remain closed on `main`
 
 - [x] Remove Trivy suppression for systemd-family CVE (CVE-2026-29111)
@@ -9921,23 +9935,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [x] No new runtime code required; doc only
 
 
-- [x] Resolve CVE-2026-24882 Trivy alert (accepted risk) (merged 2026-01-28)
+- [x] Resolve CVE-2026-24882 Trivy alert (superseded by production package removal)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-615 (merged)
-  - Status: ✅ Suppression added; monitoring until 2026-04-28 (expiry date)
-  - Reason: GitHub alert #515 reports CVE-2026-24882 (gpgv tpm2daemon buffer overflow) for installed version 2.2.40-1.1. Debian tracker confirms bookworm is vulnerable (no fixed version available). Suppressed as accepted risk (no attack surface: runtime does not invoke gpgv/tpm2daemon, no TPM2-backed keys used).
+  - Target PR: PR-615 (merged); superseded by `codex/fix-main-trivy-container-cves`
+  - Status: Historical suppression posture superseded. The final `production` Docker target now removes `gpgv`, and CI blocks its return with the Docker runtime dependency-surface guard.
+  - Reason: GitHub alert #515 originally reported CVE-2026-24882 (`gpgv` tpm2daemon buffer overflow) for installed version 2.2.40-1.1. PR-615 documented the then-current suppression posture. The current remediation removes `gpgv` from the final production image instead of relying on the historical waiver disposition.
   - Links:
-    - `trivy/ignore-policy.rego` (rule for CVE-2026-24882)
+    - `Dockerfile` (production package pruning)
+    - `scripts/ci/check_docker_runtime_dependency_surface.py`
     - `docs/security/CVE-2026-24882-gpgv.md`
     - GitHub alert #515
     - `.github/workflows/trivy.yml`
     - PR-615 (merged)
   - DoD:
-    - ✅ Suppression added in `trivy/ignore-policy.rego` with expiry 2026-04-28
-    - ✅ Security doc created (`docs/security/CVE-2026-24882-gpgv.md`)
-    - 🔄 Monitor: GitHub alert #515 should auto-resolve after next Trivy scan on `main`
-    - 🔄 Follow-up (after 2026-04-28 or when fixed): Remove suppression when Debian bookworm publishes fixed `gpgv` package (≥ 2.5.17 or backported fix), OR Trivy metadata includes fixed version
+    - Final production image removes `gpgv`
+    - CI fails if `gpgv` returns to the production image
+    - `trivy/ignore-policy.rego` and `.trivyignore` do not suppress CVE-2026-24882
+    - `docs/security/CVE-2026-24882-gpgv.md` is marked resolved by production package removal
 
 
 - [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
