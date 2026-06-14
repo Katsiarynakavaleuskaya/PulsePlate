@@ -5,11 +5,16 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import date, datetime
+import importlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess  # nosec B404: Safety CLI execution is the bounded CI audit purpose (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
 import sys
+import tempfile
+import time
 from typing import Any, Mapping, Sequence
 
 REQUIRED_MANIFEST = "requirements.txt"
@@ -20,10 +25,19 @@ OPTIONAL_MANIFESTS: tuple[str, ...] = (
 )
 HIGH_RISK_SEVERITIES = {"HIGH", "CRITICAL", "UNKNOWN"}
 SAFETY_BINARY = "safety"
+SAFETY_AUTH_ENV = "SAFETY_" + "API_KEY"
+DEFAULT_SAFETY_STAGE = "cicd"
 PARSE_OK = 0
 PARSE_WARNING = 2
 PARSE_BLOCKING = 10
 PARSE_ERROR = 99
+SAFETY_TRANSIENT_EXIT_CODES = {68}
+SAFETY_TRANSIENT_RETRY_ATTEMPTS = 3
+SAFETY_TRANSIENT_RETRY_DELAY_SECONDS = 5.0
+SAFETY_TRANSIENT_ERROR_MARKERS = (
+    "Sorry, something went wrong.",
+    "Our engineers are working quickly to resolve the issue.",
+)
 
 
 class SafetyAuditError(RuntimeError):
@@ -41,6 +55,7 @@ class SafetyAnalysis:
     status: int
     high_risk_count: int
     other_count: int
+    repo_policy_ignored_count: int
     lines: tuple[str, ...]
 
 
@@ -65,6 +80,16 @@ class SafetyAuditConfig:
     manifests: tuple[Path, ...]
     policy_file_args: tuple[str, ...]
     safety_binary: str
+    safety_stage: str
+
+
+@dataclass(frozen=True)
+class RepoPolicyWaiver:
+    """Local repo policy waiver for a Safety vulnerability ID."""
+
+    vulnerability_id: str
+    reason: str
+    expires: date
 
 
 def artifact_stem(manifest: Path) -> str:
@@ -143,6 +168,298 @@ def base_severity(entry: Mapping[str, Any]) -> str:
     return "UNKNOWN"
 
 
+def _version_from_spec(spec: object) -> str:
+    """Best-effort version extraction from a package specification string."""
+
+    if not isinstance(spec, str):
+        return ""
+    for operator in ("===", "==", ">=", "<=", "~=", "!=", ">", "<"):
+        if operator in spec:
+            return spec.split(operator, maxsplit=1)[1].strip()
+    return ""
+
+
+def _vulnerability_id(entry: Mapping[str, Any]) -> str:
+    """Return the stable vulnerability identifier from a normalized entry."""
+
+    return str(entry.get("vuln_id") or entry.get("advisory_id") or "")
+
+
+def _scan_vulnerability_severity(vulnerability: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return a legacy-compatible severity mapping for Safety scan v3 reports."""
+
+    severity = vulnerability.get("severity")
+    if isinstance(severity, Mapping):
+        return severity
+
+    cve = vulnerability.get("CVE") or vulnerability.get("cve")
+    if isinstance(cve, Mapping):
+        cvssv3 = cve.get("cvssv3")
+        if isinstance(cvssv3, Mapping):
+            return {"cvssv3": cvssv3}
+        cvssv2 = cve.get("cvssv2")
+        if isinstance(cvssv2, Mapping):
+            return {"cvssv2": cvssv2}
+
+    ignored = vulnerability.get("ignored")
+    if isinstance(ignored, Mapping):
+        reason = ignored.get("reason")
+        if isinstance(reason, str) and "severity" in reason.lower():
+            return {"severity": reason}
+    return {}
+
+
+def _legacy_entry_from_scan_vulnerability(
+    *,
+    dependency: Mapping[str, Any],
+    specification: Mapping[str, Any],
+    vulnerability: Mapping[str, Any],
+    file_location: str,
+) -> dict[str, Any]:
+    """Convert one Safety scan v3 vulnerability to the legacy parser shape."""
+
+    raw_spec = specification.get("raw") or ""
+    return {
+        "package_name": dependency.get("name") or "<unknown package>",
+        "analyzed_version": _version_from_spec(raw_spec or vulnerability.get("vulnerable_spec")),
+        "vuln_id": vulnerability.get("id") or vulnerability.get("vuln_id") or "",
+        "advisory": vulnerability.get("advisory") or f"Found in {file_location}: {raw_spec}",
+        "severity": _scan_vulnerability_severity(vulnerability),
+    }
+
+
+def _policy_path_from_args(policy_file_args: Sequence[str]) -> Path | None:
+    """Return the configured Safety policy path from command arguments."""
+
+    if "--policy-file" not in policy_file_args:
+        return None
+    index = policy_file_args.index("--policy-file")
+    if index + 1 >= len(policy_file_args):
+        return None
+    return Path(policy_file_args[index + 1])
+
+
+def _parse_policy_expiry(value: object, vulnerability_id: str) -> date:
+    """Parse and validate a repo policy waiver expiry date."""
+
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value)
+        except ValueError as exc:
+            raise SafetyAuditError(
+                f"Safety policy waiver {vulnerability_id} has invalid expires date: {value}",
+                PARSE_ERROR,
+            ) from exc
+    raise SafetyAuditError(
+        f"Safety policy waiver {vulnerability_id} must include an expires date.",
+        PARSE_ERROR,
+    )
+
+
+def repo_policy_waivers(policy_path: Path | None) -> dict[str, RepoPolicyWaiver]:
+    """Load active vulnerability waivers from the repo Safety policy file."""
+
+    if policy_path is None:
+        return {}
+    if policy_path.suffix.lower() not in {".yaml", ".yml"}:
+        return {}
+    try:
+        yaml_module = importlib.import_module("yaml")
+    except ImportError as exc:
+        raise SafetyAuditError(
+            "PyYAML is required to apply repo Safety policy waivers.",
+            PARSE_ERROR,
+        ) from exc
+    safe_load = getattr(yaml_module, "safe_load", None)
+    if not callable(safe_load):
+        raise SafetyAuditError("PyYAML safe_load is unavailable.", PARSE_ERROR)
+    try:
+        payload = safe_load(policy_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise SafetyAuditError(f"Failed to parse Safety policy file: {exc}", PARSE_ERROR) from exc
+
+    if not isinstance(payload, Mapping):
+        raise SafetyAuditError("Safety policy file must be a YAML mapping.", PARSE_ERROR)
+    report = payload.get("report") or {}
+    if not isinstance(report, Mapping):
+        raise SafetyAuditError("Safety policy report section must be a mapping.", PARSE_ERROR)
+    dependency_vulnerabilities = report.get("dependency-vulnerabilities") or {}
+    if not isinstance(dependency_vulnerabilities, Mapping):
+        raise SafetyAuditError(
+            "Safety policy dependency-vulnerabilities section must be a mapping.",
+            PARSE_ERROR,
+        )
+    auto_ignore = dependency_vulnerabilities.get("auto-ignore-in-report") or {}
+    if not isinstance(auto_ignore, Mapping):
+        raise SafetyAuditError(
+            "Safety policy auto-ignore-in-report section must be a mapping.",
+            PARSE_ERROR,
+        )
+    vulnerabilities = auto_ignore.get("vulnerabilities") or {}
+    if not isinstance(vulnerabilities, Mapping):
+        raise SafetyAuditError(
+            "Safety policy auto-ignore-in-report vulnerabilities must be a mapping.",
+            PARSE_ERROR,
+        )
+
+    today = date.today()
+    waivers: dict[str, RepoPolicyWaiver] = {}
+    for raw_vulnerability_id, raw_waiver in vulnerabilities.items():
+        vulnerability_id = str(raw_vulnerability_id)
+        if not isinstance(raw_waiver, Mapping):
+            raise SafetyAuditError(
+                f"Safety policy waiver {vulnerability_id} must be a mapping.",
+                PARSE_ERROR,
+            )
+        reason = raw_waiver.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise SafetyAuditError(
+                f"Safety policy waiver {vulnerability_id} must include a reason.",
+                PARSE_ERROR,
+            )
+        expires = _parse_policy_expiry(raw_waiver.get("expires"), vulnerability_id)
+        if expires >= today:
+            waivers[vulnerability_id] = RepoPolicyWaiver(
+                vulnerability_id=vulnerability_id,
+                reason=reason,
+                expires=expires,
+            )
+    return waivers
+
+
+def _normalize_scan_v3_report(
+    payload: Mapping[str, Any],
+) -> tuple[list[Mapping[str, Any]], list[Mapping[str, Any]]]:
+    """Extract active and ignored vulnerabilities from Safety scan v3 JSON."""
+
+    scan_results = payload.get("scan_results")
+    if not isinstance(scan_results, Mapping):
+        raise SafetyAuditError("Safety scan report missing scan_results object.", PARSE_ERROR)
+
+    projects = scan_results.get("projects")
+    if not isinstance(projects, list):
+        raise SafetyAuditError(
+            "Safety scan report scan_results.projects must be a list.", PARSE_ERROR
+        )
+
+    vulnerabilities: list[Mapping[str, Any]] = []
+    ignored_vulnerabilities: list[Mapping[str, Any]] = []
+    for project in projects:
+        if not isinstance(project, Mapping):
+            raise SafetyAuditError(
+                "Safety scan report project entries must be objects.", PARSE_ERROR
+            )
+        files = project.get("files", [])
+        if files is None:
+            files = []
+        if not isinstance(files, list):
+            raise SafetyAuditError("Safety scan report project files must be a list.", PARSE_ERROR)
+        for scanned_file in files:
+            if not isinstance(scanned_file, Mapping):
+                raise SafetyAuditError(
+                    "Safety scan report file entries must be objects.", PARSE_ERROR
+                )
+            file_location = str(scanned_file.get("location") or "<unknown file>")
+            results = scanned_file.get("results") or {}
+            if not isinstance(results, Mapping):
+                raise SafetyAuditError(
+                    "Safety scan report file results must be objects.", PARSE_ERROR
+                )
+            dependencies = results.get("dependencies", [])
+            if dependencies is None:
+                dependencies = []
+            if not isinstance(dependencies, list):
+                raise SafetyAuditError(
+                    "Safety scan report file dependencies must be a list.",
+                    PARSE_ERROR,
+                )
+            for dependency in dependencies:
+                if not isinstance(dependency, Mapping):
+                    raise SafetyAuditError(
+                        "Safety scan report dependency entries must be objects.",
+                        PARSE_ERROR,
+                    )
+                specifications = dependency.get("specifications", [])
+                if specifications is None:
+                    specifications = []
+                if not isinstance(specifications, list):
+                    raise SafetyAuditError(
+                        "Safety scan report dependency specifications must be a list.",
+                        PARSE_ERROR,
+                    )
+                for specification in specifications:
+                    if not isinstance(specification, Mapping):
+                        raise SafetyAuditError(
+                            "Safety scan report specification entries must be objects.",
+                            PARSE_ERROR,
+                        )
+                    spec_vulnerabilities = specification.get("vulnerabilities") or {}
+                    if not isinstance(spec_vulnerabilities, Mapping):
+                        raise SafetyAuditError(
+                            "Safety scan report specification vulnerabilities must be objects.",
+                            PARSE_ERROR,
+                        )
+                    known = spec_vulnerabilities.get("known_vulnerabilities", [])
+                    if known is None:
+                        known = []
+                    if not isinstance(known, list):
+                        raise SafetyAuditError(
+                            "Safety scan report known_vulnerabilities must be a list.",
+                            PARSE_ERROR,
+                        )
+                    for vulnerability in known:
+                        if not isinstance(vulnerability, Mapping):
+                            raise SafetyAuditError(
+                                "Safety scan vulnerability entries must be objects.",
+                                PARSE_ERROR,
+                            )
+                        entry = _legacy_entry_from_scan_vulnerability(
+                            dependency=dependency,
+                            specification=specification,
+                            vulnerability=vulnerability,
+                            file_location=file_location,
+                        )
+                        if vulnerability.get("ignored"):
+                            ignored_vulnerabilities.append(entry)
+                        else:
+                            vulnerabilities.append(entry)
+
+    return vulnerabilities, ignored_vulnerabilities
+
+
+def normalized_vulnerabilities(
+    payload: Mapping[str, Any],
+) -> tuple[list[Mapping[str, Any]], list[Mapping[str, Any]]]:
+    """Return active and ignored vulnerabilities for supported Safety report schemas."""
+
+    if isinstance(payload.get("scan_results"), Mapping):
+        return _normalize_scan_v3_report(payload)
+
+    vulnerabilities = payload.get("vulnerabilities", [])
+    if vulnerabilities is None:
+        vulnerabilities = []
+    ignored = payload.get("ignored_vulnerabilities", [])
+    if ignored is None:
+        ignored = []
+    if not isinstance(vulnerabilities, list):
+        raise SafetyAuditError("Safety report vulnerabilities field must be a list.", PARSE_ERROR)
+    if not isinstance(ignored, list):
+        raise SafetyAuditError(
+            "Safety report ignored_vulnerabilities field must be a list.", PARSE_ERROR
+        )
+    if not all(isinstance(item, Mapping) for item in vulnerabilities):
+        raise SafetyAuditError("Safety report vulnerability entries must be objects.", PARSE_ERROR)
+    if not all(isinstance(item, Mapping) for item in ignored):
+        raise SafetyAuditError(
+            "Safety report ignored vulnerability entries must be objects.", PARSE_ERROR
+        )
+    return vulnerabilities, ignored
+
+
 def build_summary_lines(
     vulnerabilities: Sequence[Mapping[str, Any]], ignored: Sequence[object]
 ) -> tuple[str, ...]:
@@ -168,7 +485,41 @@ def build_summary_lines(
     return tuple(lines)
 
 
-def analyze_report(report_path: Path, summary_path: Path) -> SafetyAnalysis:
+def _apply_repo_policy_waivers(
+    vulnerabilities: Sequence[Mapping[str, Any]],
+    ignored: Sequence[Mapping[str, Any]],
+    waivers: Mapping[str, RepoPolicyWaiver],
+) -> tuple[list[Mapping[str, Any]], list[Mapping[str, Any]], int]:
+    """Move active Safety findings to ignored when covered by active repo waivers."""
+
+    active: list[Mapping[str, Any]] = []
+    ignored_vulnerabilities = list(ignored)
+    repo_policy_ignored_count = 0
+    for vulnerability in vulnerabilities:
+        waiver = waivers.get(_vulnerability_id(vulnerability))
+        if waiver is None:
+            active.append(vulnerability)
+            continue
+        ignored_vulnerabilities.append(
+            {
+                **vulnerability,
+                "ignored": {
+                    "source": "repo-policy",
+                    "reason": waiver.reason,
+                    "expires": waiver.expires.isoformat(),
+                },
+            }
+        )
+        repo_policy_ignored_count += 1
+    return active, ignored_vulnerabilities, repo_policy_ignored_count
+
+
+def analyze_report(
+    report_path: Path,
+    summary_path: Path,
+    *,
+    policy_path: Path | None = None,
+) -> SafetyAnalysis:
     """Parse one Safety JSON report, write summary text, and return severity status."""
 
     if not report_path.is_file() or report_path.stat().st_size == 0:
@@ -186,25 +537,24 @@ def analyze_report(report_path: Path, summary_path: Path) -> SafetyAnalysis:
         summary_path.write_text(f"{message}\n", encoding="utf-8")
         raise SafetyAuditError(message, PARSE_ERROR)
 
-    vulnerabilities = payload.get("vulnerabilities", [])
-    if vulnerabilities is None:
-        vulnerabilities = []
-    ignored = payload.get("ignored_vulnerabilities", [])
-    if ignored is None:
-        ignored = []
-    if not isinstance(vulnerabilities, list):
-        message = "Safety report vulnerabilities field must be a list."
+    try:
+        vulnerabilities, ignored = normalized_vulnerabilities(payload)
+    except SafetyAuditError as exc:
+        message = str(exc)
         summary_path.write_text(f"{message}\n", encoding="utf-8")
-        raise SafetyAuditError(message, PARSE_ERROR)
-    if not isinstance(ignored, list):
-        message = "Safety report ignored_vulnerabilities field must be a list."
-        summary_path.write_text(f"{message}\n", encoding="utf-8")
-        raise SafetyAuditError(message, PARSE_ERROR)
-    if not all(isinstance(item, Mapping) for item in vulnerabilities):
-        message = "Safety report vulnerability entries must be objects."
-        summary_path.write_text(f"{message}\n", encoding="utf-8")
-        raise SafetyAuditError(message, PARSE_ERROR)
+        raise
 
+    try:
+        waivers = repo_policy_waivers(policy_path)
+        vulnerabilities, ignored, repo_policy_ignored_count = _apply_repo_policy_waivers(
+            vulnerabilities,
+            ignored,
+            waivers,
+        )
+    except SafetyAuditError as exc:
+        message = str(exc)
+        summary_path.write_text(f"{message}\n", encoding="utf-8")
+        raise
     lines = build_summary_lines(vulnerabilities, ignored)
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     high_risk_count = sum(
@@ -221,8 +571,100 @@ def analyze_report(report_path: Path, summary_path: Path) -> SafetyAnalysis:
         status=status,
         high_risk_count=high_risk_count,
         other_count=other_count,
+        repo_policy_ignored_count=repo_policy_ignored_count,
         lines=lines,
     )
+
+
+def _manifest_reference_paths(manifest: Path) -> tuple[Path, ...]:
+    """Return local requirement/constraint files referenced by a manifest."""
+
+    references: list[Path] = []
+    for raw_line in manifest.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if not parts:
+            continue
+        option = parts[0]
+        if option in {"-r", "--requirement", "-c", "--constraint"} and len(parts) >= 2:
+            references.append((manifest.parent / parts[1]).resolve())
+        elif option.startswith(("--requirement=", "--constraint=")):
+            references.append((manifest.parent / option.split("=", 1)[1]).resolve())
+        elif option.startswith(("-r", "-c")) and len(option) > 2:
+            references.append((manifest.parent / option[2:]).resolve())
+    return tuple(references)
+
+
+def _validate_manifest_source(root: Path, source: Path) -> None:
+    if root not in (source, *source.parents):
+        raise SafetyAuditError(f"Safety manifest reference escapes repo root: {source}")
+    if not source.is_file():
+        raise SafetyAuditError(f"Safety manifest reference not found: {source}")
+
+
+def _collect_manifest_paths(
+    root: Path, manifest: Path, seen: set[Path] | None = None
+) -> tuple[Path, ...]:
+    """Return a manifest and all nested requirement/constraint references."""
+
+    resolved_manifest = manifest.resolve()
+    _validate_manifest_source(root, resolved_manifest)
+    visited = set() if seen is None else seen
+    if resolved_manifest in visited:
+        return ()
+    visited.add(resolved_manifest)
+
+    collected = [resolved_manifest]
+    for reference in _manifest_reference_paths(resolved_manifest):
+        collected.extend(_collect_manifest_paths(root, reference, visited))
+    return tuple(collected)
+
+
+def _prepare_scan_target(root: Path, manifest: Path, target_dir: Path) -> Path:
+    """Copy one manifest and its local requirement references into a scan target."""
+
+    root_resolved = root.resolve()
+    paths = _collect_manifest_paths(root_resolved, manifest)
+    for source in paths:
+        destination = target_dir / source.relative_to(root_resolved)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    return target_dir
+
+
+def _require_scan_auth(stage: str) -> None:
+    """Fail before invoking Safety scan when CI authentication is missing."""
+
+    if stage in {"cicd", "production"} and not os.environ.get(SAFETY_AUTH_ENV):
+        raise SafetyAuditError(
+            "SAFETY_API_KEY is required for Safety scan in cicd/production stage. "
+            "Add the GitHub Actions secret and expose it to this job as SAFETY_API_KEY.",
+        )
+
+
+def _safety_transient_output(completed: subprocess.CompletedProcess[str]) -> str:
+    return (completed.stdout or "") + (completed.stderr or "")
+
+
+def _should_retry_transient_safety_failure(
+    completed: subprocess.CompletedProcess[str],
+    analysis: SafetyAnalysis,
+) -> bool:
+    """Return whether Safety failed in a retryable service-transient shape."""
+
+    if completed.returncode not in SAFETY_TRANSIENT_EXIT_CODES:
+        return False
+    if (
+        analysis.status != PARSE_OK
+        or analysis.high_risk_count
+        or analysis.other_count
+        or analysis.repo_policy_ignored_count
+    ):
+        return False
+    output = _safety_transient_output(completed)
+    return any(marker in output for marker in SAFETY_TRANSIENT_ERROR_MARKERS)
 
 
 def run_safety_for_manifest(
@@ -239,28 +681,71 @@ def run_safety_for_manifest(
     for artifact_path in (report_json, report_txt, console_log):
         artifact_path.unlink(missing_ok=True)
 
-    print(f"Running Safety audit for {manifest.name}")
-    command = [
-        config.safety_binary,
-        "check",
-        *config.policy_file_args,
-        "--json",
-        "-r",
-        str(manifest),
-        "--save-json",
-        str(report_json),
-    ]
-    completed = subprocess.run(  # nosec B603: argv uses resolved Safety CLI and manifest paths from canonical discovery only (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
-        command,
-        cwd=config.root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    console_log.write_text((completed.stdout or "") + (completed.stderr or ""), encoding="utf-8")
-    if console_log.stat().st_size > 0:
-        print(f"=== Raw Safety Output ({manifest.name}) ===")
-        print(console_log.read_text(encoding="utf-8"), end="")
+    print(f"Running Safety scan for {manifest.name}")
+    _require_scan_auth(config.safety_stage)
+    attempt_log_chunks: list[str] = []
+    completed: subprocess.CompletedProcess[str] | None = None
+    analysis: SafetyAnalysis | None = None
+    for attempt in range(1, SAFETY_TRANSIENT_RETRY_ATTEMPTS + 1):
+        for artifact_path in (report_json, report_txt):
+            artifact_path.unlink(missing_ok=True)
+        with tempfile.TemporaryDirectory(prefix=f"pulseplate-safety-{stem}-") as temp_root:
+            scan_target = _prepare_scan_target(config.root, manifest, Path(temp_root))
+            command = [
+                config.safety_binary,
+                "--stage",
+                config.safety_stage,
+                "--disable-optional-telemetry",
+                "scan",
+                "--target",
+                str(scan_target),
+                "--output",
+                "json",
+                "--save-as",
+                "json",
+                str(report_json),
+                *config.policy_file_args,
+            ]
+            completed = subprocess.run(  # nosec B603: argv uses resolved Safety CLI and manifest paths from canonical discovery only (remove-by: 2026-07-31, ref: ledger-p1-safety-audit-shared-script-after-pr1479)
+                command,
+                cwd=config.root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        attempt_log_chunks.append(
+            f"=== Safety attempt {attempt}/{SAFETY_TRANSIENT_RETRY_ATTEMPTS} "
+            f"({manifest.name}) exit={completed.returncode} ===\n"
+        )
+        attempt_log_chunks.append(_safety_transient_output(completed))
+        console_log.write_text("".join(attempt_log_chunks), encoding="utf-8")
+        if console_log.stat().st_size > 0:
+            print(f"=== Raw Safety Output ({manifest.name}) ===")
+            print(console_log.read_text(encoding="utf-8"), end="")
+
+        if not report_json.is_file() or report_json.stat().st_size == 0:
+            break
+
+        analysis = analyze_report(
+            report_json,
+            report_txt,
+            policy_path=_policy_path_from_args(config.policy_file_args),
+        )
+        if not _should_retry_transient_safety_failure(completed, analysis):
+            break
+        if attempt >= SAFETY_TRANSIENT_RETRY_ATTEMPTS:
+            break
+        retry_line = (
+            "Retrying Safety scan after transient service failure "
+            f"for {manifest.name} (attempt {attempt + 1}/{SAFETY_TRANSIENT_RETRY_ATTEMPTS}).\n"
+        )
+        attempt_log_chunks.append(retry_line)
+        console_log.write_text("".join(attempt_log_chunks), encoding="utf-8")
+        print(retry_line, end="")
+        time.sleep(SAFETY_TRANSIENT_RETRY_DELAY_SECONDS)
+
+    if completed is None:
+        raise SafetyAuditError(f"Safety scan did not run for {manifest.name}")
 
     if not report_json.is_file() or report_json.stat().st_size == 0:
         message = (
@@ -270,8 +755,17 @@ def run_safety_for_manifest(
         report_txt.write_text(f"{message}\n", encoding="utf-8")
         raise SafetyAuditError(message, completed.returncode or 1)
 
-    analysis = analyze_report(report_json, report_txt)
-    if completed.returncode != 0 and analysis.status == PARSE_OK:
+    if analysis is None:
+        analysis = analyze_report(
+            report_json,
+            report_txt,
+            policy_path=_policy_path_from_args(config.policy_file_args),
+        )
+    if (
+        completed.returncode != 0
+        and analysis.status == PARSE_OK
+        and analysis.repo_policy_ignored_count == 0
+    ):
         message = (
             f"Safety exited with code {completed.returncode} for {manifest.name}, "
             "but the report contained no parsed vulnerabilities."
@@ -300,6 +794,7 @@ def build_config(
     manifest_names: Sequence[str] | None = None,
     policy_file: str | None = None,
     safety_binary: str = SAFETY_BINARY,
+    safety_stage: str = DEFAULT_SAFETY_STAGE,
 ) -> SafetyAuditConfig:
     """Build and validate Safety audit runtime configuration."""
 
@@ -310,6 +805,7 @@ def build_config(
         manifests=discover_manifests(root, manifest_names),
         policy_file_args=policy_args(root, policy_file),
         safety_binary=safety_binary_path(safety_binary),
+        safety_stage=safety_stage,
     )
 
 
@@ -327,10 +823,25 @@ def run_audit(config: SafetyAuditConfig) -> tuple[ManifestAuditResult, ...]:
     return tuple(results)
 
 
+def _nonzero_safety_exit_is_fully_waived(analysis: SafetyAnalysis) -> bool:
+    """Return whether a non-zero Safety exit is fully explained by repo waivers."""
+
+    return (
+        analysis.repo_policy_ignored_count > 0
+        and analysis.high_risk_count == 0
+        and analysis.other_count == 0
+    )
+
+
 def exit_code_for_results(results: Sequence[ManifestAuditResult]) -> int:
     """Return aggregate workflow exit code for parsed Safety results."""
 
     if any(result.analysis.status == PARSE_BLOCKING for result in results):
+        return 1
+    if any(
+        result.safety_exit_code != 0 and not _nonzero_safety_exit_is_fully_waived(result.analysis)
+        for result in results
+    ):
         return 1
     return 0
 
@@ -377,6 +888,12 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=SAFETY_BINARY,
         help="Safety executable name or path.",
     )
+    parser.add_argument(
+        "--safety-stage",
+        default=DEFAULT_SAFETY_STAGE,
+        choices=("development", "cicd", "production"),
+        help="Safety lifecycle stage for scan execution.",
+    )
     return parser.parse_args(argv)
 
 
@@ -393,6 +910,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             manifest_names=args.manifests,
             policy_file=args.policy_file,
             safety_binary=args.safety_binary,
+            safety_stage=args.safety_stage,
         )
         results = run_audit(config)
     except SafetyAuditError as exc:
@@ -402,14 +920,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     exit_code = exit_code_for_results(results)
     for result in results:
         manifest_name = result.manifest.name
-        if result.analysis.status == PARSE_BLOCKING:
+        if result.safety_exit_code != 0 and _nonzero_safety_exit_is_fully_waived(result.analysis):
+            print(
+                "OK: Safety scan passed for "
+                f"{manifest_name} after {result.analysis.repo_policy_ignored_count} "
+                "repo-policy waiver(s)"
+            )
+        elif result.safety_exit_code != 0:
+            print(
+                f"ERROR: Safety scan exited with code {result.safety_exit_code} for {manifest_name}"
+            )
+        elif result.analysis.status == PARSE_BLOCKING:
             print(f"ERROR: Safety found high/critical/unknown vulnerabilities in {manifest_name}")
         elif result.analysis.status == PARSE_WARNING:
             print(
                 f"WARNING: Safety reported vulnerabilities below HIGH severity in {manifest_name}"
             )
         else:
-            print(f"OK: Safety check passed for {manifest_name}")
+            print(f"OK: Safety scan passed for {manifest_name}")
     return exit_code
 
 

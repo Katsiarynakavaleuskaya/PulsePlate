@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Backend tests hook for pre-commit/pre-push
-# Runs pytest for changed Python files
+# Runs pytest for changed Python files plus explicit cross-surface governance triggers
 #
 # Pre-push backend tests (smart diff runner):
 # The pre-push hook runs backend pytest only when Python files changed.
@@ -23,23 +23,6 @@ if [ "${SKIP_TESTS:-0}" = "1" ]; then
     exit 0
 fi
 
-# Resolve Python through the repo/worktree-aware hook resolver before running
-# syntax or pytest checks. This prevents local hooks from falling back to an
-# ambient PATH interpreter that lacks locked deps such as FastAPI.
-# shellcheck source=scripts/hooks/repo_python.sh
-source "$ROOT_DIR/scripts/hooks/repo_python.sh"
-REPO_PYTHON_BIN="$(resolve_repo_python "$ROOT_DIR")"
-export VENV_PYTHON="$REPO_PYTHON_BIN"
-export PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
-
-if ! "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
-    echo "❌ pytest not available through repo Python: $REPO_PYTHON_BIN" >&2
-    echo "   Run make venv or set absolute VENV_PYTHON to the repo environment." >&2
-    exit 1
-fi
-
-declare -a PYTEST_COMMAND=("$REPO_PYTHON_BIN" -m pytest)
-
 # Debug mode: set PREPUSH_DEBUG=1 to see detailed information
 DEBUG="${PREPUSH_DEBUG:-0}"
 log_debug() {
@@ -48,20 +31,37 @@ log_debug() {
     fi
 }
 
-log_debug "Using repo Python pytest via: ${PYTEST_COMMAND[*]}"
-
-# Get changed Python files
+# Get changed files and derive Python/test-governance triggers
 # For pre-commit: check staged files
 # For pre-push: check files in commits that will be pushed
 # For ad-hoc local validation (`make validate-changed`): prefer current branch diff
 # against the nearest main/master merge-base instead of the pushed/unpushed delta.
+CHANGED_FILES=""
 PYTHON_CHANGES=""
 BRANCH_DIFF_MODE="${BRANCH_DIFF_MODE:-0}"
 BRANCH_DIFF_BASE_RESOLVED=0
 
+record_changed_files() {
+    CHANGED_FILES=$(printf '%s\n' "$1" | grep -v "^\.claude/" || true)
+    PYTHON_CHANGES=$(printf '%s\n' "$CHANGED_FILES" | grep "\.py$" || true)
+}
+
+append_changed_files() {
+    local incoming
+    incoming=$(printf '%s\n' "$1" | grep -v "^\.claude/" || true)
+    if [ -z "$incoming" ]; then
+        return 0
+    fi
+
+    CHANGED_FILES=$(printf '%s\n%s\n' "$CHANGED_FILES" "$incoming" | sed '/^$/d' | sort -u)
+    PYTHON_CHANGES=$(printf '%s\n' "$CHANGED_FILES" | grep "\.py$" || true)
+}
+
 resolve_branch_diff_from_base() {
+    local mode="${1:-replace}"
     local base_branch
     local base_sha=""
+    local branch_changed_files
 
     log_debug "Trying merge-base branch diff against main/master candidates..."
     for base_branch in origin/main origin/master main master; do
@@ -69,12 +69,12 @@ resolve_branch_diff_from_base() {
         if [ -n "$base_sha" ]; then
             BRANCH_DIFF_BASE_RESOLVED=1
             log_debug "Merge-base with $base_branch: $base_sha"
-            PYTHON_CHANGES=$(
-                git diff --name-only --diff-filter=ACM "$base_sha" HEAD \
-                    | grep "\.py$" \
-                    | grep -v "^\.claude/" \
-                    || true
-            )
+            branch_changed_files=$(git diff --no-renames --name-only --diff-filter=ACMDT "$base_sha" HEAD)
+            if [ "$mode" = "append" ]; then
+                append_changed_files "$branch_changed_files"
+            else
+                record_changed_files "$branch_changed_files"
+            fi
             if [ -n "$PYTHON_CHANGES" ]; then
                 log_debug "Python changes (via branch diff $base_branch): $PYTHON_CHANGES"
             fi
@@ -86,8 +86,15 @@ resolve_branch_diff_from_base() {
 }
 
 if [ -n "${PRE_COMMIT:-}" ]; then
-    # Pre-commit hook: check staged files
-    PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" | grep -v "^\.claude/" || true)
+    # Pre-commit hook: check staged files. For `pre-commit run --all-files`,
+    # pass_filenames=false means there may be no staged diff, so fall back to
+    # the branch diff to keep manifest governance from going false-green.
+    record_changed_files "$(git diff --cached --no-renames --name-only --diff-filter=ACMDT)"
+    if [ -z "$CHANGED_FILES" ]; then
+        resolve_branch_diff_from_base || true
+    else
+        resolve_branch_diff_from_base append || true
+    fi
 elif [ "$BRANCH_DIFF_MODE" = "1" ]; then
     # Local validation command: diff the current branch against main/master merge-base.
     resolve_branch_diff_from_base || true
@@ -108,32 +115,50 @@ else
         log_debug "Upstream SHA: ${REMOTE_SHA:-<not found>}"
         if [ -n "$REMOTE_SHA" ]; then
             # Compare local HEAD with remote branch (files that will be pushed)
-            PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "$REMOTE_SHA" HEAD)"
             log_debug "Python changes (via upstream): ${PYTHON_CHANGES:-<none>}"
         fi
     fi
 
-    # Fallback: if we couldn't determine remote branch, try common patterns
-    if [ -z "$PYTHON_CHANGES" ]; then
+    # Fallback: if we couldn't determine remote branch, try common patterns.
+    # Preserve package-manifest-only upstream deltas so cross-surface
+    # governance tests are not lost just because no Python files changed.
+    if [ -z "$CHANGED_FILES" ]; then
         # Try origin/current_branch
         REMOTE_BRANCH="origin/${CURRENT_BRANCH}"
         REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
         log_debug "Fallback remote branch: $REMOTE_BRANCH (SHA: ${REMOTE_SHA:-<not found>})"
         if [ -n "$REMOTE_SHA" ]; then
-            PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "$REMOTE_SHA" HEAD)"
             log_debug "Python changes (via fallback remote): ${PYTHON_CHANGES:-<none>}"
         fi
     fi
 
     # Last resort: compare branch diff against main/master using merge-base
-    if [ -z "$PYTHON_CHANGES" ]; then
+    if [ -z "$CHANGED_FILES" ]; then
         resolve_branch_diff_from_base || true
     fi
 fi
 
-if [ -z "$PYTHON_CHANGES" ]; then
+declare -a EXTRA_TEST_FILES=()
+
+add_extra_tests_for_changed_files() {
+    while IFS= read -r file; do
+        case "$file" in
+            frontend/package.json | frontend/package-lock.json)
+                EXTRA_TEST_FILES+=("tests/test_ci_workflow_pr_size_governance_contract.py")
+                EXTRA_TEST_FILES+=("tests/test_frontend_dependency_guards.py")
+                EXTRA_TEST_FILES+=("tests/test_python_supply_chain_controls.py")
+                ;;
+        esac
+    done <<< "$CHANGED_FILES"
+}
+
+add_extra_tests_for_changed_files
+
+if [ -z "$PYTHON_CHANGES" ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
     if [ "$BRANCH_DIFF_MODE" = "1" ] && [ "$BRANCH_DIFF_BASE_RESOLVED" = "1" ]; then
-        echo "ℹ️  No Python files changed on the current branch"
+        echo "ℹ️  No Python or cross-surface governance files changed on the current branch"
         exit 0
     fi
 
@@ -164,21 +189,18 @@ if [ -z "$PYTHON_CHANGES" ]; then
         fi
 
         echo "⚠️  Could not determine changed Python files via upstream/base, checking last ${FALLBACK_DEPTH} commits as safety measure..."
-        PYTHON_CHANGES=$(
-            git diff --name-only --diff-filter=ACM "HEAD~${FALLBACK_DEPTH}" HEAD 2>/dev/null \
-                | grep "\.py$" \
-                | grep -v "^\.claude/" \
-                || true
-        )
+        record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "HEAD~${FALLBACK_DEPTH}" HEAD 2>/dev/null || true)"
+        EXTRA_TEST_FILES=()
+        add_extra_tests_for_changed_files
         log_debug "Python changes (via recent commits fallback, n=${FALLBACK_DEPTH}): ${PYTHON_CHANGES:-<none>}"
-        if [ -z "$PYTHON_CHANGES" ]; then
-            echo "ℹ️  No Python files changed in last ${FALLBACK_DEPTH} commits, skipping backend tests"
+        if [ -z "$PYTHON_CHANGES" ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
+            echo "ℹ️  No Python or cross-surface governance files changed in last ${FALLBACK_DEPTH} commits, skipping backend tests"
             exit 0
         fi
-        echo "ℹ️  Found Python changes in last ${FALLBACK_DEPTH} commits, running tests for safety"
+        echo "ℹ️  Found Python or cross-surface governance changes in last ${FALLBACK_DEPTH} commits, running tests for safety"
     else
         # Pre-commit: no staged Python files, skip
-        echo "ℹ️  No Python files changed"
+        echo "ℹ️  No Python or cross-surface governance files changed"
         exit 0
     fi
 fi
@@ -186,42 +208,68 @@ fi
 # Extract test files that correspond to changed Python files
 declare -a TEST_FILES=()
 
-while IFS= read -r file; do
-    # Per-file test discovery
-    declare -a FOUND_FOR_FILE=()
+if [ -n "$PYTHON_CHANGES" ]; then
+    while IFS= read -r file; do
+        # Per-file test discovery
+        declare -a FOUND_FOR_FILE=()
 
-    # If the file is in tests/ directory, add it directly (but exclude conftest.py)
-    if [[ $file == tests/* ]] && [[ $file == *.py ]] && [[ ! $(basename "$file") == conftest.py ]]; then
-        [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
-    # Otherwise, check if corresponding test file exists
-    elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]] && [[ ! $file == tests/* ]]; then
-        basename=$(basename "$file" .py)
-        dirname=$(dirname "$file")
-        dirname=${dirname#./}
+        # If the file is in tests/ directory, add it directly (but exclude conftest.py)
+        if [[ $file == tests/* ]] && [[ $file == *.py ]] && [[ ! $(basename "$file") == conftest.py ]]; then
+            [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
+        # Otherwise, check if corresponding test file exists
+        elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]] && [[ ! $file == tests/* ]]; then
+            basename=$(basename "$file" .py)
+            dirname=$(dirname "$file")
+            dirname=${dirname#./}
 
-        # Common test file patterns
-        test_patterns=(
-            "tests/test_${basename}.py"
-            "tests/${dirname}/test_${basename}.py"
-            "${dirname}/test_${basename}.py"
-        )
+            # Common test file patterns
+            test_patterns=(
+                "tests/test_${basename}.py"
+                "tests/${dirname}/test_${basename}.py"
+                "${dirname}/test_${basename}.py"
+            )
 
-        for pattern in "${test_patterns[@]}"; do
-            [ -f "$pattern" ] && FOUND_FOR_FILE+=("$pattern") && break
-        done
+            for pattern in "${test_patterns[@]}"; do
+                [ -f "$pattern" ] && FOUND_FOR_FILE+=("$pattern") && break
+            done
 
-        # Fallback: search recursively if no test files found
-        if [ ${#FOUND_FOR_FILE[@]} -eq 0 ]; then
-            test_file=$(find tests -maxdepth 4 -type f -name "test_${basename}.py" -print -quit 2>/dev/null)
-            [ -n "$test_file" ] && [ -f "$test_file" ] && FOUND_FOR_FILE+=("$test_file")
+            # Fallback: search recursively if no test files found
+            if [ ${#FOUND_FOR_FILE[@]} -eq 0 ]; then
+                test_file=$(find tests -maxdepth 4 -type f -name "test_${basename}.py" -print -quit 2>/dev/null)
+                [ -n "$test_file" ] && [ -f "$test_file" ] && FOUND_FOR_FILE+=("$test_file")
+            fi
         fi
-    fi
 
-    # Append per-file results to global TEST_FILES array
-    TEST_FILES+=("${FOUND_FOR_FILE[@]}")
-done <<< "$PYTHON_CHANGES"
+        # Append per-file results to global TEST_FILES array
+        if [ ${#FOUND_FOR_FILE[@]} -gt 0 ]; then
+            TEST_FILES+=("${FOUND_FOR_FILE[@]}")
+        fi
+    done <<< "$PYTHON_CHANGES"
+fi
+
+if [ ${#EXTRA_TEST_FILES[@]} -gt 0 ]; then
+    TEST_FILES+=("${EXTRA_TEST_FILES[@]}")
+fi
 
 if [ ${#TEST_FILES[@]} -gt 0 ]; then
+    # Resolve Python through the repo/worktree-aware hook resolver only after
+    # proving this hook has tests to run. This keeps always_run no-op commits
+    # independent from local virtualenv availability.
+    # shellcheck source=scripts/hooks/repo_python.sh
+    source "$ROOT_DIR/scripts/hooks/repo_python.sh"
+    REPO_PYTHON_BIN="$(resolve_repo_python "$ROOT_DIR")"
+    export VENV_PYTHON="$REPO_PYTHON_BIN"
+    export PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
+
+    if ! "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
+        echo "❌ pytest not available through repo Python: $REPO_PYTHON_BIN" >&2
+        echo "   Run make venv or set absolute VENV_PYTHON to the repo environment." >&2
+        exit 1
+    fi
+
+    declare -a PYTEST_COMMAND=("$REPO_PYTHON_BIN" -m pytest)
+    log_debug "Using repo Python pytest via: ${PYTEST_COMMAND[*]}"
+
     # Deduplicate test files
     declare -a DEDUPED_TEST_FILES=()
     while IFS= read -r test_file; do

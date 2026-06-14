@@ -2,12 +2,42 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 
 import pytest
 
 import scripts.ci.check_pr_size_governance as size_gate
+
+TRUSTED_EMERGENCY = {"operator-approved", "scope/emergency-approved"}
+TRUSTED_PRIVILEGED = {"operator-approved", "scope/privileged-approved"}
+TRUSTED_FRONTEND_MVP = {"operator-approved", "scope/frontend-mvp-approved"}
+TRUSTED_FRONTEND_MIX = {
+    "operator-approved",
+    "scope/frontend-mvp-approved",
+    "scope/frontend-backend-mix-approved",
+}
+
+
+def test_repo_root_can_be_overridden_for_trusted_base_script_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default_root = size_gate.REPO_ROOT
+
+    monkeypatch.setenv("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", str(tmp_path))
+    reloaded_gate = importlib.reload(size_gate)
+
+    assert reloaded_gate.REPO_ROOT == tmp_path.resolve()
+
+    monkeypatch.setenv("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", "   ")
+    reloaded_gate = importlib.reload(reloaded_gate)
+
+    assert reloaded_gate.REPO_ROOT == default_root
+
+    monkeypatch.delenv("PULSEPLATE_SIZE_GOVERNANCE_REPO_ROOT", raising=False)
+    importlib.reload(reloaded_gate)
 
 
 def test_parse_numstat_output_sums_text_rows_and_ignores_binary() -> None:
@@ -171,6 +201,7 @@ def test_frontend_mvp_pr_passes_only_with_approval_and_split_justification() -> 
         counted_files=25,
         pr_body=approved_body,
         changed_files=changed_files,
+        trusted_approvals=TRUSTED_FRONTEND_MVP,
     )
 
     assert exit_code == 0
@@ -214,6 +245,7 @@ def test_frontend_mvp_rejects_backend_api_ai_runtime_mix_without_exception() -> 
         ),
         changed_files=[f"frontend/src/flow/example_{index}.tsx" for index in range(21)]
         + ["app/routers/example.py"],
+        trusted_approvals=TRUSTED_FRONTEND_MVP,
     )
 
     assert exit_code == 1
@@ -262,6 +294,7 @@ def test_frontend_mvp_allows_backend_api_ai_runtime_mix_with_explicit_mix_approv
         ),
         changed_files=[f"frontend/src/flow/example_{index}.tsx" for index in range(21)]
         + ["app/routers/example.py"],
+        trusted_approvals=TRUSTED_FRONTEND_MIX,
     )
 
     assert exit_code == 0
@@ -328,6 +361,7 @@ def test_privileged_pr_over_15_files_passes_with_approved_exception() -> None:
         ),
         changed_files=["scripts/ci/check_pr_size_governance.py"]
         + [f"tests/example_{index}.py" for index in range(15)],
+        trusted_approvals=TRUSTED_PRIVILEGED,
     )
 
     assert exit_code == 0
@@ -409,10 +443,27 @@ def test_operator_exception_allows_unrelated_negation_outside_approval_lines() -
             "\n## Notes\nNo additional exception requested after this PR.\n",
         ),
         changed_files=[f"docs/design/example_{index}.md" for index in range(31)],
+        trusted_approvals=TRUSTED_EMERGENCY,
     )
 
     assert exit_code == 0
     assert any(">30 files" in line and "OK" in line for line in lines)
+
+
+def test_self_attested_pr_body_approvals_do_not_bypass_oversized_guard() -> None:
+    exit_code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=40,
+        counted_files=31,
+        pr_body=_standard_body(
+            "\n## Split Justification\nToo large.\n"
+            "\nOperator approval: approved for emergency CI unblocker.\n"
+            "\nEmergency exception: approved for current CI unblocker.\n",
+        ),
+        changed_files=[f"docs/design/example_{index}.md" for index in range(31)],
+    )
+
+    assert exit_code == 1
+    assert any(">30 files without emergency/operator exception" in line for line in lines)
 
 
 def test_standard_sections_ignore_comments_and_nested_headings() -> None:
@@ -528,6 +579,29 @@ def test_extract_pr_body_missing_body_without_token_does_not_call_network(
     assert size_gate.extract_pr_body(event_path) == ""
 
 
+def test_extract_trusted_approvals_reads_github_event_labels(tmp_path: Path) -> None:
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "pull_request": {
+                    "labels": [
+                        {"name": "Operator-Approved"},
+                        {"name": "scope/emergency-approved"},
+                        {"name": 123},
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert size_gate.extract_trusted_approvals(event_path) == {
+        "operator-approved",
+        "scope/emergency-approved",
+    }
+
+
 def test_extract_pr_body_reads_github_event_payload(tmp_path: Path) -> None:
     event_path = tmp_path / "event.json"
     event_path.write_text(
@@ -576,6 +650,179 @@ def test_extract_pr_body_falls_back_to_api_for_missing_body(
     monkeypatch.setattr(size_gate.urllib.request, "urlopen", fake_urlopen)
 
     assert size_gate.extract_pr_body(event_path) == "## Split Justification\nFrom api."
+
+
+def test_extract_trusted_approvals_falls_back_to_api_for_missing_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "repository": {"full_name": "owner/repo"},
+                "pull_request": {"number": 123},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    class FakeResponse:
+        def __init__(self, payload: str) -> None:
+            self._payload = payload.encode("utf-8")
+
+        def read(self) -> bytes:
+            return self._payload
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover
+            return None
+
+    def fake_urlopen(request, timeout=10):  # pragma: no cover
+        assert request.full_url == "https://api.github.com/repos/owner/repo/pulls/123"
+        return FakeResponse(
+            '{"labels": [{"name": "Operator-Approved"}, ' '{"name": "scope/privileged-approved"}]}'
+        )
+
+    monkeypatch.setattr(size_gate.urllib.request, "urlopen", fake_urlopen)
+
+    assert size_gate.extract_trusted_approvals(event_path) == {
+        "operator-approved",
+        "scope/privileged-approved",
+    }
+
+
+def test_extract_trusted_approvals_unions_live_labels_when_event_labels_are_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "repository": {"full_name": "owner/repo"},
+                "pull_request": {"number": 123, "labels": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    class FakeResponse:
+        def __init__(self, payload: str) -> None:
+            self._payload = payload.encode("utf-8")
+
+        def read(self) -> bytes:
+            return self._payload
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover
+            return None
+
+    def fake_urlopen(request, timeout=10):  # pragma: no cover
+        assert request.full_url == "https://api.github.com/repos/owner/repo/pulls/123"
+        return FakeResponse(
+            '{"labels": [{"name": "scope/operator-approved"}, '
+            '{"name": "scope/privileged-approved"}]}'
+        )
+
+    monkeypatch.setattr(size_gate.urllib.request, "urlopen", fake_urlopen)
+
+    assert size_gate.extract_trusted_approvals(event_path) == {
+        "scope/operator-approved",
+        "scope/privileged-approved",
+    }
+
+
+def test_main_uses_event_labels_for_trusted_scope_approvals(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    event_path = tmp_path / "event.json"
+    approved_body = _standard_body(
+        "\n## Split Justification\nCI policy and tests.\n"
+        "\nOperator approval: approved for privileged CI scope exception.\n"
+        "\nPrivileged scope exception: approved for current CI unblocker.\n",
+    )
+    event_path.write_text(
+        json.dumps(
+            {
+                "pull_request": {
+                    "body": approved_body,
+                    "labels": [
+                        {"name": "operator-approved"},
+                        {"name": "scope/privileged-approved"},
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        size_gate,
+        "collect_numstat_output",
+        lambda *, base_sha, head_sha: "200\t0\tscripts/ci/check_pr_size_governance.py\n",
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_changed_files",
+        lambda *, base_sha, head_sha: ["scripts/ci/check_pr_size_governance.py"]
+        + [f"tests/example_{index}.py" for index in range(15)],
+    )
+
+    exit_code = size_gate.main(
+        ["--base-sha", "base", "--head-sha", "head", "--event-path", str(event_path)]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "OK (privileged CI/security/workflow policy)" in output
+
+
+def test_main_rejects_event_body_approvals_without_trusted_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    event_path = tmp_path / "event.json"
+    self_attested_body = _standard_body(
+        "\n## Split Justification\nCI policy and tests.\n"
+        "\nOperator approval: approved for privileged CI scope exception.\n"
+        "\nPrivileged scope exception: approved for current CI unblocker.\n",
+    )
+    event_path.write_text(
+        json.dumps({"pull_request": {"body": self_attested_body, "labels": []}}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        size_gate,
+        "collect_numstat_output",
+        lambda *, base_sha, head_sha: "200\t0\tscripts/ci/check_pr_size_governance.py\n",
+    )
+    monkeypatch.setattr(
+        size_gate,
+        "collect_changed_files",
+        lambda *, base_sha, head_sha: ["scripts/ci/check_pr_size_governance.py"]
+        + [f"tests/example_{index}.py" for index in range(15)],
+    )
+
+    exit_code = size_gate.main(
+        ["--base-sha", "base", "--head-sha", "head", "--event-path", str(event_path)]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "operator-approved privileged scope exception" in output
 
 
 @pytest.mark.parametrize(

@@ -60,17 +60,22 @@ evidence. Signed provenance restoration then restored deployable image trust on
 pushed-image lanes only:
 
 - keep the current hard-budget contract unchanged
-- restore `provenance: mode=max` on pushed-image lanes in `build.yml` and `cd.yml`
-- emit SPDX SBOM attestations on the same pushed-image lanes
-- verify both provenance and SBOM by exact digest before staging or production deploy
+- keep CD pushed-image BuildKit provenance capped at `provenance: mode=min`
+  while Docker package-index inputs remain BuildKit secret envs
+- keep `build.yml` publish as a scan-before-push lane: load the production image
+  locally, fail closed on Trivy/SARIF, then push the same scanned tags
+- emit GitHub-signed provenance and SPDX SBOM attestations on pushed images
+- verify both provenance and SBOM by exact digest before staging, production
+  deploy, or release-control-plane digest publication
 
 With runtime, budget, provenance, Shared Safety, build-path consolidation, and
 post-consolidation runtime slimming slices landed, `build.yml` now owns the
 canonical PR-time production image validation path: runtime dependency surface,
 telemetry, hard budget, container health, and OpenAPI compatibility smoke checks
-run against the same loaded `target: production` image. The scheduled/manual
-`trivy.yml` lane remains out-of-band image-security evidence, and pushed-image
-provenance/SBOM contracts remain isolated to publish/deploy paths.
+run against the same loaded `target: production` image. The `main`/schedule/manual
+`trivy.yml` lane remains out-of-band image-security evidence outside ordinary
+PR merge truth, and pushed-image provenance/SBOM contracts remain isolated to
+publish/deploy paths.
 
 ## Baseline source rule
 
@@ -152,8 +157,8 @@ Build the production target:
 ```bash
 docker build \
   --target production \
-  --build-arg PULSEPLATE_PYTHON_INDEX_URL="$PULSEPLATE_PYTHON_INDEX_URL" \
-  --build-arg PULSEPLATE_PYTHON_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" \
+  --secret id=pp_py_index,env=PULSEPLATE_PYTHON_INDEX_URL \
+  --secret id=pp_py_host,env=PULSEPLATE_PYTHON_TRUSTED_HOST \
   --build-arg PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt \
   -t pulseplate:runtime-slim .
 ```

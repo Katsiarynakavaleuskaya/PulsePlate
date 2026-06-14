@@ -67,6 +67,7 @@ def _manifest_payload() -> dict[str, Any]:
             "schema_version": release_manifest.RAG_GATE_SCHEMA_VERSION,
             "rag_gate_result_hash": "e" * 64,
             "eval_artifact_hash": "f" * 64,
+            "git_sha": "a" * 40,
             "release_decision": "PASS",
             "source_artifacts": [
                 {

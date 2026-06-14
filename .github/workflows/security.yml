@@ -40,7 +40,7 @@ jobs:
           if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
             pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
           fi
-          python -m pip install "${pip_index_args[@]}" "bandit==1.8.6" "safety>=3.7.0" -c constraints.txt
+          python -m pip install "${pip_index_args[@]}" "safety>=3.7.0" -c constraints.txt
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
@@ -92,6 +92,8 @@ jobs:
           fi
 
       - name: Run Safety (dependency audit with policy)
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           set -euo pipefail
           python3 scripts/ci/run_safety_audit.py

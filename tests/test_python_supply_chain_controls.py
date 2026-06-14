@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 import scripts.ci.install_locked_python_requirements as locked_installer
+from scripts.ci.check_docker_provenance_attestation import SBOM_PREDICATE_TYPE
 from tests.runtime_toolchain_versions import CANONICAL_PYTHON
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,7 @@ APPROVED_TRUSTED_HOST_EXPRESSION = (
     "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
 )
 PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
+PINNED_CHECKOUT_ACTION = "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
 
 
 def _load_workflow(path: str) -> dict[str, object]:
@@ -71,6 +73,33 @@ def _workflow_step_by_name(path: str, job_name: str, step_name: str) -> dict[str
         if step.get("name") == step_name:
             return step
     raise AssertionError(f"Missing step {step_name!r} for {path}:{job_name}")
+
+
+def _pushed_docker_steps_with_secret_index_args() -> tuple[dict[str, object], ...]:
+    """Return pushed Docker build steps that receive private index inputs."""
+
+    return (
+        _workflow_step_by_name(
+            ".github/workflows/cd.yml",
+            "build",
+            "Build & Push image (staging)",
+        ),
+        _workflow_step_by_name(
+            ".github/workflows/cd.yml",
+            "build-production",
+            "Build & Push image (production)",
+        ),
+    )
+
+
+def _build_publish_scan_step_with_secret_index_args() -> dict[str, object]:
+    """Return the build.yml publish image build that feeds the fail-closed scan."""
+
+    return _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "publish",
+        "Build Docker image for publish scan",
+    )
 
 
 def _workflow_step_names(path: str, job_name: str) -> list[str]:
@@ -315,10 +344,44 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
         if step.get("name") == "Install security tooling"
     )
     install_script = install_step["run"]
-    assert '"bandit==1.8.6"' in install_script
+    assert "bandit==" not in install_script
     assert '"safety>=3.7.0"' in install_script
     assert 'python -m pip install "${pip_index_args[@]}"' in install_script
     assert "-c constraints.txt" in install_script
+
+
+def test_ci_security_job_installs_safety_through_locked_installer() -> None:
+    install_step = next(
+        step
+        for step in _workflow_steps(".github/workflows/ci.yml", "security")
+        if step.get("name") == "Install Safety"
+    )
+    install_script = install_step["run"]
+
+    assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--python-executable python" not in install_script
+    assert "--requirements-file requirements-security.txt" in install_script
+    assert "--install-mode direct-proxy" in install_script
+    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
+    assert "python -m pip install" not in install_script
+
+
+def test_security_requirements_pin_safety_and_regex_floor() -> None:
+    requirements_text = (REPO_ROOT / "requirements-security.txt").read_text(encoding="utf-8")
+    emergency_manifest = json.loads(
+        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
+    )
+
+    assert "safety==3.8.1" in requirements_text
+    assert "pyyaml==6.0.3" in requirements_text
+    assert "regex==2026.5.9" in requirements_text
+    assert any(
+        artifact.get("package") == "regex"
+        and artifact.get("version") == "2026.5.9"
+        and artifact.get("filename", "").endswith("manylinux_2_28_x86_64.whl")
+        and "sha256_parts" in artifact
+        for artifact in emergency_manifest["artifacts"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -335,6 +398,13 @@ def test_nightly_workflow_jobs_use_runtime_dev_direct_proxy_setup(job_name: str)
         "install_locked_python_requirements.py" not in step.get("run", "")
         for step in _workflow_steps(".github/workflows/nightly.yml", job_name)
     )
+
+
+def test_ci_main_full_suite_checkout_uses_pinned_checkout_action() -> None:
+    """Ensure the main CI diagnostic job keeps the immutable checkout action pin."""
+    checkout_step = _workflow_step_by_name(".github/workflows/ci.yml", "test-main", "Checkout")
+
+    assert checkout_step["uses"] == PINNED_CHECKOUT_ACTION
 
 
 def test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job() -> None:
@@ -407,9 +477,10 @@ def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> 
     assert "CODECOV_TOKEN" not in build_env
     assert "secrets.CODECOV_TOKEN" not in str(build_step)
     assert build_env["CODECOV_BUNDLE_ANALYSIS"] == (
-        "${{ github.event_name == 'push' && github.ref == "
-        "'refs/heads/main' && 'true' || 'false' }}"
+        "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'true' || 'false' }}"
     )
+    assert "@codecov/vite-plugin" not in vite_config
+    assert "codecovVitePlugin" not in vite_config
     assert "uploadToken" not in vite_config
     assert "process.env.CODECOV_TOKEN" not in vite_config
 
@@ -513,7 +584,7 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
         build_workflow, "build", "Build Docker image (local, for tests)"
     )
     publish_build_args = _build_args_for_step(
-        build_workflow, "publish", "Build and push Docker image"
+        build_workflow, "publish", "Build Docker image for publish scan"
     )
     cd_staging_build_args = _build_args_for_step(
         cd_workflow, "build", "Build & Push image (staging)"
@@ -531,6 +602,30 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     assert expected_arg in cd_staging_build_args
     assert expected_arg in cd_production_build_args
     assert expected_arg in trivy_build_args
+
+
+def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args() -> None:
+    publish_scan_step = _build_publish_scan_step_with_secret_index_args()
+    publish_scan_with = publish_scan_step["with"]
+    publish_scan_build_args = publish_scan_with["build-args"]
+    publish_scan_secret_envs = publish_scan_with["secret-envs"]
+
+    assert publish_scan_with["push"] is False
+    assert publish_scan_with["load"] is True
+    assert publish_scan_with["provenance"] is False
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in publish_scan_build_args
+    assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in publish_scan_build_args
+    assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in publish_scan_secret_envs
+    assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in publish_scan_secret_envs
+
+    for step in _pushed_docker_steps_with_secret_index_args():
+        assert step["with"]["provenance"] == "mode=min"
+        build_args = step["with"]["build-args"]
+        assert "PULSEPLATE_PYTHON_INDEX_URL" not in build_args
+        assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in build_args
+        build_secret_envs = step["with"]["secret-envs"]
+        assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in build_secret_envs
+        assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in build_secret_envs
 
 
 def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:
@@ -649,17 +744,36 @@ def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None
         ".github/workflows/ci.yml",
         ".github/workflows/security.yml",
     )
+    safety_audit_text = (REPO_ROOT / "scripts" / "ci" / "run_safety_audit.py").read_text(
+        encoding="utf-8"
+    )
 
     for workflow_path in workflow_paths:
         workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+        step_name = (
+            "Dependency audit with Safety"
+            if workflow_path.endswith("ci.yml")
+            else "Run Safety (dependency audit with policy)"
+        )
+        job_name = "security" if workflow_path.endswith("ci.yml") else "bandit"
+        safety_step = _workflow_step_by_name(workflow_path, job_name, step_name)
 
         assert "python3 scripts/ci/run_safety_audit.py" in workflow_text
+        assert safety_step["env"]["SAFETY_API_KEY"] == "${{ secrets.SAFETY_API_KEY }}"
         assert "safety-*.json" in workflow_text
         assert "safety-*.txt" in workflow_text
         assert "safety-*.log" in workflow_text
         assert 'manifests=("requirements.txt")' not in workflow_text
         assert 'cp "${report_json}" safety-report.json' not in workflow_text
         assert ".github/scripts/parse-safety-report.py" not in workflow_text
+
+    assert '"scan"' in safety_audit_text
+    assert '"check"' not in safety_audit_text
+    assert "SAFETY_API_KEY" in safety_audit_text
+
+    nightly_text = (REPO_ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
+    assert "safety check --json" not in nightly_text
+    assert "SAFETY_API_KEY" in nightly_text
 
 
 def test_requirements_lock_excludes_optional_rag_vector_stack() -> None:
@@ -801,6 +915,35 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
     )
 
 
+def test_pushed_docker_builds_do_not_use_max_provenance_with_secret_index_args() -> None:
+    """Max-mode BuildKit provenance can expose secret-derived build arguments."""
+
+    publish_scan_step = _build_publish_scan_step_with_secret_index_args()
+    publish_scan_with = publish_scan_step["with"]
+    publish_scan_build_args = publish_scan_with["build-args"]
+    publish_scan_secret_envs = publish_scan_with["secret-envs"]
+
+    assert publish_scan_with["push"] is False
+    assert publish_scan_with["load"] is True
+    assert publish_scan_with["provenance"] is False
+    assert "PULSEPLATE_PYTHON_INDEX_URL" not in publish_scan_build_args
+    assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in publish_scan_build_args
+    assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in publish_scan_secret_envs
+    assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in publish_scan_secret_envs
+
+    for step in _pushed_docker_steps_with_secret_index_args():
+        step_with = step["with"]
+        build_args = step_with["build-args"]
+        secret_envs = step_with["secret-envs"]
+
+        assert step_with["push"] is True
+        assert step_with["provenance"] == "mode=min"
+        assert "PULSEPLATE_PYTHON_INDEX_URL" not in build_args
+        assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in build_args
+        assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in secret_envs
+        assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in secret_envs
+
+
 def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes() -> None:
     build_workflow = _load_workflow(".github/workflows/build.yml")
     cd_workflow = _load_workflow(".github/workflows/cd.yml")
@@ -810,20 +953,17 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         "build",
         "Build Docker image (local, for tests)",
     )
-    publish_step = _workflow_step_by_name(
+    publish_scan_step = _build_publish_scan_step_with_secret_index_args()
+    publish_push_step = _workflow_step_by_name(
         ".github/workflows/build.yml",
         "publish",
-        "Build and push Docker image",
+        "Push scanned Docker image",
     )
-    staging_step = _workflow_step_by_name(
-        ".github/workflows/cd.yml",
-        "build",
-        "Build & Push image (staging)",
-    )
-    production_step = _workflow_step_by_name(
-        ".github/workflows/cd.yml",
-        "build-production",
-        "Build & Push image (production)",
+    pushed_steps = _pushed_docker_steps_with_secret_index_args()
+    publish_sbom_step = _workflow_step_by_name(
+        ".github/workflows/build.yml",
+        "publish",
+        "Attest Docker image SBOM",
     )
     staging_verify_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
@@ -870,13 +1010,23 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     assert local_build_step["with"]["load"] is True
     assert local_build_step["with"]["provenance"] is False
+    assert publish_scan_step["with"]["load"] is True
+    assert publish_scan_step["with"]["push"] is False
+    assert publish_scan_step["with"]["provenance"] is False
+    assert publish_push_step["id"] == "docker-build-push"
+    assert "docker image push" in publish_push_step["run"]
+    assert "digest=${digest}" in publish_push_step["run"]
     assert cd_workflow["jobs"]["build"]["permissions"]["attestations"] == "write"
     assert cd_workflow["jobs"]["build-production"]["permissions"]["attestations"] == "write"
 
-    for step in (publish_step, staging_step, production_step):
+    for step in pushed_steps:
         assert step["with"]["push"] is True
-        assert step["with"]["provenance"] == "mode=max"
+        assert step["with"]["provenance"] == "mode=min"
         assert step["with"]["sbom"] is True
+        assert "PULSEPLATE_PYTHON_INDEX_URL" not in step["with"]["build-args"]
+        assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in step["with"]["build-args"]
+        assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in step["with"]["secret-envs"]
+        assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in step["with"]["secret-envs"]
 
     for provenance_step in (staging_provenance_step, production_provenance_step):
         assert provenance_step["uses"].startswith(
@@ -887,11 +1037,25 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     for sbom_step in (staging_sbom_step, production_sbom_step):
         assert sbom_step["uses"].startswith(
-            "actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb"
+            "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
         )
         assert sbom_step["with"]["push-to-registry"] is True
-        assert sbom_step["with"]["sbom-path"] == "docker-image-sbom.spdx.json"
+        assert sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
+        assert sbom_step["with"]["predicate-path"] == "docker-image-sbom.spdx.json"
+        assert "sbom-path" not in sbom_step["with"]
         assert sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+
+    assert publish_sbom_step["uses"].startswith(
+        "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
+    )
+    assert publish_sbom_step["with"]["push-to-registry"] is True
+    assert publish_sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
+    assert publish_sbom_step["with"]["predicate-path"] == "sbom.spdx.json"
+    assert "sbom-path" not in publish_sbom_step["with"]
+    assert (
+        publish_sbom_step["with"]["subject-digest"]
+        == "${{ steps.docker-build-push.outputs.digest }}"
+    )
 
     for verify_step in (staging_verify_step, production_verify_step):
         verify_script = verify_step["run"]

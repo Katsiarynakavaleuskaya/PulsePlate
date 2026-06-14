@@ -59,6 +59,8 @@ Production components require authorized access.
 
 Authorized maintainers and reviewers should start with [`AGENTS.md`](./AGENTS.md), [`RUNBOOK_AGENT.md`](./RUNBOOK_AGENT.md), and [`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`](./docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md). Those files are the repo-governed entrypoint for contribution, review, and merge-readiness work without exposing public bootstrap or deployment instructions here.
 
+For local devcontainer work, keep bootstrap manual after workspace trust and pass only the package proxy variables (`PULSEPLATE_PYTHON_INDEX_URL` and optional `PULSEPLATE_PYTHON_TRUSTED_HOST`); do not import the full application `.env` or enable host Docker access in the default devcontainer. See [`CONTRIBUTING.md`](./CONTRIBUTING.md#dev-container-recommended).
+
 ## Access and Licensing
 
 PulsePlate is **proprietary software**. All rights reserved.

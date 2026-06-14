@@ -11,6 +11,7 @@ import pytest
 
 import scripts.orchestration.experiment_bootstrap as experiment_bootstrap
 from scripts.orchestration.experiment_contract import (
+    validate_creative_research_origin,
     validate_cv_context,
     validate_experiment_packet,
 )
@@ -52,6 +53,14 @@ def _cv_context() -> dict[str, Any]:
             "consent_policy": "explicit_opt_in",
             "deletion_policy": "delete_on_request",
         },
+    }
+
+
+def _origin() -> dict[str, str]:
+    return {
+        "bundle_id": "creative-research-valid",
+        "candidate_id": "hyp-batch",
+        "promotion_decision": "promote",
     }
 
 
@@ -184,7 +193,49 @@ def test_build_experiment_packet_keeps_non_cv_packets_backward_compatible() -> N
     )
 
     assert "cv_context" not in packet
+    assert "creative_research_origin" not in packet
     assert packet["runner_mode"] == "candidate_patch"
+
+
+def test_build_experiment_packet_adds_normalized_creative_research_origin() -> None:
+    """Bootstrap should accept valid optional origin metadata and normalize it."""
+
+    packet = build_experiment_packet(
+        decision_question="Bootstrap creative research provenance for promotion",
+        task_class="Experimentation",
+        mutable_paths=["core/rag/vector_rag.py"],
+        oracle_commands=["pytest -q tests/test_philosophical_runtime.py"],
+        metrics=["val_bpb"],
+        negative_controls=["oracle file unchanged", "no forbidden path mutation"],
+        promotion_target="pr_packet",
+        creative_research_origin={
+            "bundle_id": " creative-research-valid ",
+            "candidate_id": " hyp-batch ",
+            "promotion_decision": " Promote ",
+        },
+    )
+
+    assert packet["creative_research_origin"] == _origin()
+    assert validate_experiment_packet(packet)["creative_research_origin"] == _origin()
+
+
+def test_build_experiment_packet_rejects_partial_creative_research_origin() -> None:
+    """Function input for origin metadata is all-or-none via exact key validation."""
+
+    with pytest.raises(ValueError, match="unsupported fields"):
+        build_experiment_packet(
+            decision_question="Bootstrap creative research provenance for promotion",
+            task_class="Experimentation",
+            mutable_paths=["core/rag/vector_rag.py"],
+            oracle_commands=["pytest -q tests/test_philosophical_runtime.py"],
+            metrics=["val_bpb"],
+            negative_controls=["oracle file unchanged", "no forbidden path mutation"],
+            promotion_target="pr_packet",
+            creative_research_origin={
+                "bundle_id": "creative-research-valid",
+                "candidate_id": "hyp-batch",
+            },
+        )
 
 
 def test_build_experiment_packet_emits_oracle_only_runner_mode() -> None:
@@ -406,7 +457,127 @@ def test_main_writes_oracle_only_runner_mode(
     output = json.loads(captured.out)
     packet = json.loads((repo_root / output["output"]).read_text(encoding="utf-8"))
     assert output["runner_mode"] == "oracle_only_governance_reviewer"
+    assert "creative_research_origin" not in output
     assert packet["runner_mode"] == "oracle_only_governance_reviewer"
+
+
+def test_main_writes_creative_research_origin_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """CLI should emit valid optional creative_research_origin metadata."""
+
+    repo_root = tmp_path.resolve()
+    experiment_dir = (repo_root / "artifacts" / "orchestration" / "experiments").resolve()
+    monkeypatch.setattr(experiment_bootstrap, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(experiment_bootstrap, "EXPERIMENT_PACKET_DIR", experiment_dir)
+
+    exit_code = main(
+        [
+            "--decision-question",
+            "Bootstrap creative research provenance for promotion",
+            "--mutable-path",
+            "core/rag/vector_rag.py",
+            "--oracle-command",
+            "pytest -q tests/test_philosophical_runtime.py",
+            "--metric",
+            "val_bpb",
+            "--negative-control",
+            "oracle file unchanged",
+            "--negative-control",
+            "no forbidden path mutation",
+            "--promotion-target",
+            "pr_packet",
+            "--creative-research-bundle-id",
+            "creative-research-valid",
+            "--creative-research-candidate-id",
+            "hyp-batch",
+            "--creative-research-promotion-decision",
+            "promote",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    output = json.loads(captured.out)
+    packet = json.loads((repo_root / output["output"]).read_text(encoding="utf-8"))
+    assert output["creative_research_origin"] == _origin()
+    assert packet["creative_research_origin"] == _origin()
+
+
+def test_main_rejects_partial_creative_research_origin_metadata(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI origin flags should fail cleanly unless all three are present."""
+
+    exit_code = main(
+        [
+            "--decision-question",
+            "Bootstrap creative research provenance for promotion",
+            "--mutable-path",
+            "core/rag/vector_rag.py",
+            "--oracle-command",
+            "pytest -q tests/test_philosophical_runtime.py",
+            "--metric",
+            "val_bpb",
+            "--negative-control",
+            "oracle file unchanged",
+            "--negative-control",
+            "no forbidden path mutation",
+            "--promotion-target",
+            "pr_packet",
+            "--creative-research-bundle-id",
+            "creative-research-valid",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "creative research origin flags are all-or-none" in captured.out
+
+
+def test_main_rejects_invalid_creative_research_origin_before_packet_write(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """CLI should reject unsafe all-flag origin metadata before writing packets."""
+
+    repo_root = tmp_path.resolve()
+    experiment_dir = (repo_root / "artifacts" / "orchestration" / "experiments").resolve()
+    monkeypatch.setattr(experiment_bootstrap, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(experiment_bootstrap, "EXPERIMENT_PACKET_DIR", experiment_dir)
+
+    exit_code = main(
+        [
+            "--decision-question",
+            "Bootstrap creative research provenance for promotion",
+            "--mutable-path",
+            "core/rag/vector_rag.py",
+            "--oracle-command",
+            "pytest -q tests/test_philosophical_runtime.py",
+            "--metric",
+            "val_bpb",
+            "--negative-control",
+            "oracle file unchanged",
+            "--negative-control",
+            "no forbidden path mutation",
+            "--promotion-target",
+            "pr_packet",
+            "--creative-research-bundle-id",
+            "../escape",
+            "--creative-research-candidate-id",
+            "hyp-batch",
+            "--creative-research-promotion-decision",
+            "promote",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "safe local identifier" in captured.out
+    assert not experiment_dir.exists()
 
 
 def test_validate_experiment_packet_requires_cv_context_for_cv_lane() -> None:
@@ -869,6 +1040,98 @@ def test_compute_experiment_id_changes_with_oracle_only_runner_mode() -> None:
     )
 
     assert candidate_id != oracle_only_id
+
+
+def test_compute_experiment_id_changes_with_creative_research_origin() -> None:
+    """Origin metadata must affect ids only when the optional block is present."""
+
+    base_kwargs = {
+        "decision_question": "Bootstrap creative research provenance for promotion",
+        "task_class": "Experimentation",
+        "mutable_paths": ["core/rag/vector_rag.py"],
+        "immutable_oracles": [
+            {
+                "command": "pytest -q tests/test_philosophical_runtime.py",
+                "expected_signal": "must pass",
+            }
+        ],
+        "metrics": {
+            "primary": "val_bpb",
+            "secondary": [],
+            "baseline_reference": "current-main",
+            "acceptance_threshold": "strict_improvement",
+        },
+        "negative_controls": ["oracle file unchanged", "no forbidden path mutation"],
+        "promotion_target": "pr_packet",
+        "budgets": {
+            "wall_clock_seconds": 300,
+            "retry_budget": 1,
+            "max_changed_files": 3,
+            "network_budget": 0,
+            "benchmark_budget": 1,
+            "test_budget": 2,
+        },
+        "stop_condition": "Stop on timeout.",
+    }
+
+    no_origin_id = compute_experiment_id(**base_kwargs)
+    with_origin_id = compute_experiment_id(
+        creative_research_origin=_origin(),
+        **base_kwargs,
+    )
+    with_raw_origin_id = compute_experiment_id(
+        creative_research_origin={
+            "bundle_id": " creative-research-valid ",
+            "candidate_id": " hyp-batch ",
+            "promotion_decision": " PROMOTE ",
+        },
+        **base_kwargs,
+    )
+    variant_origin_id = compute_experiment_id(
+        creative_research_origin={**_origin(), "promotion_decision": "defer"},
+        **base_kwargs,
+    )
+
+    assert no_origin_id != with_origin_id
+    assert with_origin_id == with_raw_origin_id
+    assert with_origin_id != variant_origin_id
+
+
+def test_validate_creative_research_origin_normalizes_values() -> None:
+    """Shared origin validation should strip IDs and normalize decisions."""
+
+    assert (
+        validate_creative_research_origin(
+            {
+                "bundle_id": " creative-research-valid ",
+                "candidate_id": " hyp-batch ",
+                "promotion_decision": " PROMOTE ",
+            }
+        )
+        == _origin()
+    )
+
+
+def test_validate_experiment_packet_rejects_invalid_creative_research_origin() -> None:
+    """Packet validation should fail closed before promotion sees unsafe origin IDs."""
+
+    packet = build_experiment_packet(
+        decision_question="Bootstrap creative research provenance for promotion",
+        task_class="Experimentation",
+        mutable_paths=["core/rag/vector_rag.py"],
+        oracle_commands=["pytest -q tests/test_philosophical_runtime.py"],
+        metrics=["val_bpb"],
+        negative_controls=["oracle file unchanged", "no forbidden path mutation"],
+        promotion_target="pr_packet",
+    )
+    packet["creative_research_origin"] = {
+        "bundle_id": "../escape",
+        "candidate_id": "hyp-batch",
+        "promotion_decision": "promote",
+    }
+
+    with pytest.raises(ValueError, match="safe local identifier"):
+        validate_experiment_packet(packet)
 
 
 def test_validate_cv_context_rejects_missing_dataset() -> None:

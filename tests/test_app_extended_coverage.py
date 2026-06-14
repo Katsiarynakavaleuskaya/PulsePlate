@@ -702,6 +702,14 @@ class TestRestaurantShadowReadCoverageTail:
     EN: Re-run canonical restaurant B3 tests inside the CI-visible route suite.
     """
 
+    def setup_method(self) -> None:
+        restaurant_router_tests.restaurants._shadow_read_circuit_open_until.clear()
+        restaurant_pg_tests.restaurant_postgres_read.reset_restaurant_postgres_runtime_cache()
+
+    def teardown_method(self) -> None:
+        restaurant_router_tests.restaurants._shadow_read_circuit_open_until.clear()
+        restaurant_pg_tests.restaurant_postgres_read.reset_restaurant_postgres_runtime_cache()
+
     def test_restaurant_postgres_build_engine_tail(self, monkeypatch: pytest.MonkeyPatch) -> None:
         restaurant_pg_tests.test_build_pg_engine_sets_bounded_connect_timeout(monkeypatch)
 
@@ -736,10 +744,35 @@ class TestRestaurantShadowReadCoverageTail:
     def test_restaurant_postgres_search_lifecycle_tail(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        restaurant_pg_tests.test_search_restaurants_pg_builds_reflects_and_disposes(monkeypatch)
+        restaurant_pg_tests.test_search_restaurants_pg_builds_reflects_and_keeps_engine_cached(
+            monkeypatch
+        )
 
     def test_restaurant_postgres_menu_lifecycle_tail(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        restaurant_pg_tests.test_get_restaurant_menu_pg_builds_reflects_and_disposes(monkeypatch)
+        restaurant_pg_tests.test_get_restaurant_menu_pg_builds_reflects_and_keeps_engine_cached(
+            monkeypatch
+        )
+
+    def test_restaurant_postgres_menu_fetch_error_cache_drop_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_pg_tests.test_get_restaurant_menu_pg_drops_cached_runtime_on_fetch_error(
+            monkeypatch
+        )
+
+    def test_restaurant_postgres_search_cache_reuse_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_pg_tests.test_search_restaurants_pg_reuses_cached_engine_and_schema_validation(
+            monkeypatch
+        )
+
+    def test_restaurant_postgres_reset_runtime_cache_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_pg_tests.test_reset_restaurant_postgres_runtime_cache_disposes_cached_engine(
+            monkeypatch
+        )
 
     def test_restaurant_shadow_numeric_tail(self) -> None:
         restaurant_parity_tests.test_normalize_numeric_handles_none_invalid_and_fractional_values()
@@ -804,6 +837,39 @@ class TestRestaurantShadowReadCoverageTail:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         restaurant_router_tests.test_shadow_wrapper_fails_open_when_postgres_menu_errors(
+            monkeypatch, caplog
+        )
+
+    def test_restaurant_router_shadow_success_preserves_newer_circuit_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_read_success_does_not_close_newer_failure_circuit(
+            monkeypatch
+        )
+
+    def test_restaurant_router_shadow_success_closes_older_circuit_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_read_success_closes_older_failure_circuit(monkeypatch)
+
+    def test_restaurant_router_shadow_failure_keeps_longer_circuit_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_read_failure_does_not_shorten_newer_circuit(monkeypatch)
+
+    def test_restaurant_router_shadow_menu_circuit_skip_tail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_skips_postgres_menu_when_circuit_open(
+            monkeypatch
+        )
+
+    def test_restaurant_router_shadow_search_circuit_skip_tail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        restaurant_router_tests.test_shadow_wrapper_opens_circuit_after_search_failure(
             monkeypatch, caplog
         )
 

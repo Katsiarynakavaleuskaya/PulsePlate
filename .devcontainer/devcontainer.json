@@ -9,14 +9,14 @@
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
       "version": "24"
-    },
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    }
   },
   "containerEnv": {
     "PULSEPLATE_IN_CONTAINER": "1",
-    "PYTHONPATH": "/workspaces/PulsePlate"
+    "PYTHONPATH": "/workspaces/PulsePlate",
+    "PULSEPLATE_PYTHON_INDEX_URL": "${localEnv:PULSEPLATE_PYTHON_INDEX_URL}",
+    "PULSEPLATE_PYTHON_TRUSTED_HOST": "${localEnv:PULSEPLATE_PYTHON_TRUSTED_HOST}"
   },
-  "postCreateCommand": "make devcontainer-bootstrap",
   "postStartCommand": "git config --global --add safe.directory /workspaces/PulsePlate",
   "forwardPorts": [
     8001,

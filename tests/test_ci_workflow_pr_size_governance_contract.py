@@ -515,16 +515,20 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.6"
     assert frontend_package["overrides"]["ws"] == "8.20.1"
-    minimatch_10_brace_expansion_paths = (
-        "node_modules/@bundled-es-modules/glob/node_modules/brace-expansion",
-        "node_modules/glob/node_modules/brace-expansion",
-    )
-    minimatch_10_brace_expansion_versions = {
-        frontend_lock["packages"][package_path]["version"]
-        for package_path in minimatch_10_brace_expansion_paths
-        if package_path in frontend_lock["packages"]
+    packages = frontend_lock["packages"]
+    minimatch_10_paths = {
+        str(package_path)
+        for package_path, package_info in packages.items()
+        if str(package_path).endswith("node_modules/minimatch")
+        and str(package_info["version"]).startswith("10.")
     }
-    assert minimatch_10_brace_expansion_versions == {"5.0.6"}
+    assert minimatch_10_paths, "frontend lockfile must retain a minimatch 10.x subtree"
+    for minimatch_path in minimatch_10_paths:
+        brace_path = minimatch_path.removesuffix("node_modules/minimatch") + (
+            "node_modules/brace-expansion"
+        )
+        assert packages[brace_path]["version"] == "5.0.6"
+    assert packages["node_modules/brace-expansion"]["version"] == "2.0.3"
     assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.20.1"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
     assert "FROM node:24.16.0-bookworm-slim AS frontend-build" in dockerfile
@@ -546,6 +550,23 @@ def _extract_shell_conditional_block(
     return branch_tail.split(end_anchor, maxsplit=1)[0]
 
 
+def test_pr_size_governance_reruns_when_trusted_approval_labels_change() -> None:
+    """Trusted scope labels must trigger fresh PR-size governance event payloads."""
+
+    workflow = _load_ci_workflow()
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+    pull_request_section = on_section["pull_request"]
+    assert isinstance(pull_request_section, dict)
+    event_types = pull_request_section["types"]
+    assert isinstance(event_types, list)
+
+    assert "labeled" in event_types
+    assert "unlabeled" in event_types
+
+
 def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     """Guard against merge-SHA inflation in PR-size governance diff calculation."""
 
@@ -562,6 +583,7 @@ def test_pr_size_governance_uses_pull_request_head_sha() -> None:
     assert "python3 scripts/ci/check_pr_size_governance.py \\" in pr_scope_guard_section
     assert '--base-sha "${{ github.event.pull_request.base.sha }}" \\' in pr_scope_guard_section
     assert '--head-sha "${{ github.event.pull_request.head.sha }}" \\' in pr_scope_guard_section
+    assert '--event-path "$GITHUB_EVENT_PATH"' in pr_scope_guard_section
     assert '--head-sha "${{ github.sha }}" \\' not in pr_scope_guard_section
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pr_scope_guard_section
@@ -845,9 +867,9 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         assert old_sha not in active_workflow_text
 
     forbidden_override_env_vars = (
-        "ACTIONS_ALLOW_USE_UNSECURE_" "NODE_VERSION",
-        "FORCE_JAVASCRIPT_ACTIONS_TO_" "NODE24",
-        "CI_ALLOW_" "MERGE_OVERRIDE",
+        "ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION",
+        "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24",
+        "CI_ALLOW_MERGE_OVERRIDE",
     )
     for env_var in forbidden_override_env_vars:
         assert env_var not in active_workflow_text
@@ -878,16 +900,16 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
 
     expected_docker_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 2,
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 2,
             f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA} # v4.2.0 / Node 24": 1,
-            f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA} " "# v6.1.0 / Node 24": 1,
+            f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA} # v6.1.0 / Node 24": 1,
         },
         CD_WORKFLOW_PATH: {
-            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 2,
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 2,
             f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA} # v4.2.0 / Node 24": 2,
         },
         TRIVY_WORKFLOW_PATH: {
-            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} " "# v4.1.0 / Node 24": 1,
+            f"docker/setup-buildx-action@{DOCKER_SETUP_BUILDX_NODE24_SHA} # v4.1.0 / Node 24": 1,
         },
     }
     for workflow_path, expected_counts in expected_docker_lines.items():
@@ -955,20 +977,6 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         (
             ".github/workflows/build.yml",
             "publish",
-            "Log in to GHCR",
-            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA}",
-            {
-                "registry": "${{ env.REGISTRY }}",
-                "username": "${{ github.repository_owner }}",
-                "password": "${{ secrets.GITHUB_TOKEN }}",
-            },
-            None,
-            None,
-            None,
-        ),
-        (
-            ".github/workflows/build.yml",
-            "publish",
             "Extract metadata",
             f"docker/metadata-action@{DOCKER_METADATA_NODE24_SHA}",
             {
@@ -981,6 +989,20 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                     "type=semver,pattern={{major}}.{{minor}}\n"
                     "type=raw,value=latest,enable={{is_default_branch}}\n"
                 ),
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Log in to GHCR",
+            f"docker/login-action@{DOCKER_LOGIN_NODE24_SHA}",
+            {
+                "registry": "${{ env.REGISTRY }}",
+                "username": "${{ github.repository_owner }}",
+                "password": "${{ secrets.GITHUB_TOKEN }}",
             },
             None,
             None,
@@ -1077,7 +1099,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "ignore-policy": ".trivy-ignore-policy.rego",
                 "scanners": "vuln",
                 "format": "sarif",
-                "output": "trivy-results.sarif",
+                "output": "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif",
                 "severity": "CRITICAL,HIGH",
                 "limit-severities-for-sarif": True,
                 "exit-code": "1",
@@ -1091,7 +1113,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         (
             ".github/workflows/build.yml",
             "publish",
-            "Run Trivy vulnerability scanner (image scan, report-only)",
+            "Run Trivy vulnerability scanner (image scan, fail-closed)",
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
             {
                 "scan-type": "image",
@@ -1104,12 +1126,12 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "severity": "CRITICAL,HIGH",
                 "limit-severities-for-sarif": True,
                 "trivyignores": ".trivyignore",
-                "exit-code": "0",
+                "exit-code": "1",
                 "version": "v0.69.3",
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
-            True,
+            None,
         ),
         (
             ".github/workflows/trivy.yml",
@@ -1129,6 +1151,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "ignore-unfixed": True,
                 "trivyignores": ".trivyignore",
                 "ignore-policy": ".trivy-ignore-policy.rego",
+                "exit-code": "1",
                 "version": "v0.69.3",
             },
             None,
@@ -1136,6 +1159,56 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
+
+
+def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
+    workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    prepare_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Prepare Trivy SARIF output path and ignore policy",
+    )
+    scanner_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Run Trivy vulnerability scanner (filesystem scan)",
+    )
+    sarif_check_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Check Trivy filesystem SARIF output",
+    )
+    upload_step = _job_step_by_name(
+        workflow,
+        job_id="security-scan",
+        step_name="Upload Trivy scan results to GitHub Security tab",
+    )
+
+    prepare_run = str(prepare_step["run"])
+    assert "rm -rf -- trivy-results.sarif" in prepare_run
+    assert 'rm -rf "${RUNNER_TEMP}/pulseplate-trivy"' in prepare_run
+    assert 'mkdir -p "${RUNNER_TEMP}/pulseplate-trivy"' in prepare_run
+    assert scanner_step["with"]["exit-code"] == "1"
+    assert scanner_step.get("continue-on-error") is None
+    assert scanner_step["with"]["output"] == (
+        "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif"
+    )
+
+    sarif_check_run = str(sarif_check_step["run"])
+    assert sarif_check_step["id"] == "trivy_fs_sarif"
+    assert sarif_check_step["if"] == "${{ always() }}"
+    assert 'sarif_path="${RUNNER_TEMP}/pulseplate-trivy/trivy-results.sarif"' in sarif_check_run
+    assert 'if [ -s "$sarif_path" ]; then' in sarif_check_run
+    assert 'cp -- "$sarif_path" trivy-results.sarif' in sarif_check_run
+    assert 'echo "present=true" >> "${GITHUB_OUTPUT}"' in sarif_check_run
+    assert 'echo "present=false" >> "${GITHUB_OUTPUT}"' in sarif_check_run
+
+    assert upload_step["if"] == (
+        "${{ always() && steps.trivy_fs_sarif.outputs.present == 'true' }}"
+    )
+    assert upload_step["uses"].startswith("github/codeql-action/upload-sarif@")
+    assert upload_step["continue-on-error"] is True
+    assert upload_step["with"]["sarif_file"] == "trivy-results.sarif"
 
 
 def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
@@ -1169,17 +1242,17 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 4,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 4,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v6.4.0 / Node 24": 1,
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 1,
         },
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 1,
         },
         SECURITY_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} " "# v7.0.1 / Node 24": 1,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 1,
         },
     }
     for workflow_path, expected_counts in expected_action_lines.items():
@@ -1242,7 +1315,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {
                 "name": "docker-image-budget-check-build",
-                "path": "docker-image-budget-check.json\n" "docker-image-budget-check.md\n",
+                "path": "docker-image-budget-check.json\ndocker-image-budget-check.md\n",
                 "if-no-files-found": "warn",
                 "retention-days": 14,
             },
@@ -1260,10 +1333,9 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 "path": (
                     "release-control-plane-build-sources/artifact_digest.txt\n"
                     "release-control-plane-build-sources/sbom_digest.txt\n"
+                    "release-control-plane-build-sources/attestation_check_digest.txt\n"
                     "release-control-plane-build-sources/provenance_digest.txt\n"
                     "release-control-plane-build-sources/attestation_status.txt\n"
-                    "docker-provenance-attestation-check.json\n"
-                    "docker-provenance-attestation-check.md\n"
                 ),
                 "if-no-files-found": "error",
                 "retention-days": 14,
@@ -1327,9 +1399,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {
                 "name": "security-reports",
-                "path": (
-                    "bandit-report.json\n" "safety-*.json\n" "safety-*.txt\n" "safety-*.log\n"
-                ),
+                "path": ("bandit-report.json\nsafety-*.json\nsafety-*.txt\nsafety-*.log\n"),
                 "if-no-files-found": "ignore",
             },
             "always()",
@@ -1714,6 +1784,21 @@ def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:
     _assert_contains_all_tokens(contract_text, contract_tokens)
 
 
+def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
+    workflow = _load_ci_workflow()
+
+    checkout_step = _job_step_by_name(workflow, job_id="lint", step_name="Checkout")
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["with"]["fetch-depth"] == 0
+
+    pre_commit_step = _job_step_by_name(
+        workflow,
+        job_id="lint",
+        step_name="Pre-commit (lint/format/security quick checks)",
+    )
+    assert "pre-commit run --all-files" in pre_commit_step["run"]
+
+
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
@@ -1728,6 +1813,67 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(test_main_if, str)
     assert "github.ref == 'refs/heads/main'" in test_main_if
     assert "needs.changes.outputs.run_main_ci_diagnostic == 'true'" in test_main_if
+
+    permissions = test_main["permissions"]
+    assert permissions == {"contents": "read", "actions": "read"}
+
+    test_main_env = test_main["env"]
+    assert test_main_env == {
+        "PULSEPLATE_PYTHON_INDEX_URL": "",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST": "",
+    }
+
+    steps = test_main["steps"]
+    assert isinstance(steps, list)
+    step_names = [step["name"] for step in steps]
+    assert step_names.index("Resolve PR diagnostic package proxy") < step_names.index(
+        "Setup Python environment"
+    )
+    assert step_names.index("Resolve protected package proxy") < step_names.index(
+        "Setup Python environment"
+    )
+
+    pr_proxy_step = next(
+        step for step in steps if step["name"] == "Resolve PR diagnostic package proxy"
+    )
+    assert pr_proxy_step["if"] == "github.event_name == 'pull_request'"
+    assert pr_proxy_step["env"] == {
+        "PULSEPLATE_PR_PYTHON_INDEX_URL": "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}",
+        "PULSEPLATE_PR_PYTHON_TRUSTED_HOST": ("${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"),
+    }
+    pr_proxy_script = pr_proxy_step["run"]
+    assert "secrets." not in pr_proxy_script
+    assert "PULSEPLATE_PR_PYTHON_INDEX_URL" in pr_proxy_script
+    assert 'if [[ -z "$resolved_index" ]]; then' in pr_proxy_script
+    assert "Set repository variable PULSEPLATE_PYTHON_INDEX_URL" in pr_proxy_script
+    assert "exit 1" in pr_proxy_script
+    assert "*$'\\n'*|*$'\\r'*)" in pr_proxy_script
+    assert "must be single-line values" in pr_proxy_script
+    assert "$GITHUB_ENV" in pr_proxy_script
+
+    protected_proxy_step = next(
+        step for step in steps if step["name"] == "Resolve protected package proxy"
+    )
+    assert protected_proxy_step["if"] == "github.event_name != 'pull_request'"
+    assert protected_proxy_step["env"] == {
+        "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL": (
+            "${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+        ),
+        "PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST": (
+            "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+        ),
+    }
+    protected_proxy_script = protected_proxy_step["run"]
+    assert "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL" in protected_proxy_script
+    assert 'if [[ -z "$resolved_index" ]]; then' in protected_proxy_script
+    assert "Set PULSEPLATE_PYTHON_INDEX_URL secret or repository variable" in (
+        protected_proxy_script
+    )
+    assert "exit 1" in protected_proxy_script
+    assert "*$'\\n'*|*$'\\r'*)" in protected_proxy_script
+    assert "must be single-line values" in protected_proxy_script
+    assert "$GITHUB_ENV" in protected_proxy_script
+
     matrix = test_main["strategy"]["matrix"]["include"]
     assert isinstance(matrix, list)
 
@@ -1736,6 +1882,8 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
+    assert "https://pypi.org/simple" not in test_main_section
+    assert "pypi.org" not in test_main_section
     assert (
         "python-version: ${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || "
         "matrix.python-version }}"
