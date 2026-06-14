@@ -39,6 +39,8 @@ file-type changes, run the cross-surface dependency guards before push.
   `9f7eb8357071a7612556e8c7cec8f63b7f7320e2`
 - Codex all-files pre-commit follow-up commit:
   `6bfa5cabaca5a06d5d0145195cd2be160aefc28f`
+- Codex lint full-history checkout follow-up commit:
+  `cefde212d96cfedbdc9addb209219bcd778a1480`
 - Current-head Safety transient follow-up commit:
   `cf81da6b47202a0fe30f3c44cb9d26040d6493e4`
 - Full local `make verify`: intentionally not run under the operator-approved
@@ -82,6 +84,9 @@ file-type changes, run the cross-surface dependency guards before push.
   dispositioned below as NOT-A-BUG with current-head proof.
 - Codex connector thread `discussion_r3409110370`: one P2 `pre-commit
   run --all-files` false-green finding, dispositioned below as FIXED.
+- Codex connector thread `discussion_r3409642976`: one P2 shallow-checkout
+  follow-up on the `pre-commit run --all-files` fix, dispositioned below as
+  FIXED.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
 - Current-head `CI/security` job `81254358391` failed in Safety dependency
@@ -150,6 +155,13 @@ Commit: 6bfa5cabaca5a06d5d0145195cd2be160aefc28f
 Evidence: `scripts/run-backend-tests-pre-commit.sh` now falls back from an empty staged pre-commit diff to the branch diff against main/master, which covers clean-checkout `pre-commit run --all-files` when `pass_filenames: false` hides file arguments. `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests` proves a committed `frontend/package-lock.json` branch delta with an empty staged diff still invokes the three dependency governance tests.
 Evidence: `bash -n scripts/run-backend-tests-pre-commit.sh && .venv/bin/python -m py_compile tests/test_pre_commit_hook_python_resolver.py`; `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py` (`18 passed`); `.venv/bin/python -m ruff check tests/test_pre_commit_hook_python_resolver.py`; `.venv/bin/python -m ruff format --check tests/test_pre_commit_hook_python_resolver.py`.
 Reason: Codex correctly flagged that mandatory `pre-commit run --all-files` could otherwise inspect only staged files and no-op in a clean checkout of a branch containing frontend dependency manifest changes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3409642976 -> cefde212d96cfedbdc9addb209219bcd778a1480
+Disposition: FIXED
+Commit: cefde212d96cfedbdc9addb209219bcd778a1480
+Evidence: `.github/workflows/ci.yml` now sets `fetch-depth: 0` on the `lint` job checkout before `pre-commit run --all-files --show-diff-on-failure`, so the branch-diff fallback can resolve `origin/main` in CI instead of silently no-oping in a shallow PR checkout. `tests/test_ci_workflow_pr_size_governance_contract.py::test_ci_lint_all_files_pre_commit_uses_full_history_checkout` asserts this workflow contract.
+Evidence: `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py::test_ci_lint_all_files_pre_commit_uses_full_history_checkout tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_all_files_frontend_package_delta_to_governance_tests` (`2 passed`); `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_pre_commit_hook_python_resolver.py` (`46 passed`); `VENV_PYTHON="$PWD/.venv/bin/python" make validate-changed` (passed).
+Reason: Codex correctly flagged that the prior all-files fallback depended on a base ref that the CI lint checkout did not fetch. Full-history checkout keeps the hook fail-closed for package-manifest branch deltas without weakening the pre-commit gate.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3408600887
 Disposition: NOT-A-BUG
