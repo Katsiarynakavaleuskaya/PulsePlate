@@ -48,6 +48,8 @@ file-type changes, run the cross-surface dependency guards before push.
   changes look great.
 - CodeRabbit review `4491964765`: one low-value but actionable consistency
   nitpick, dispositioned below.
+- CodeRabbit review `4492249397`: one low-value test-helper extraction nitpick,
+  dispositioned below as NOT-A-BUG.
 - Codex connector review `4491966692`: one P2 actionable false-green finding,
   dispositioned below.
 - Codex connector thread `discussion_r3408566375`: one P2 actionable deletion
@@ -86,6 +88,11 @@ Disposition: FIXED
 Commit: 29b0adf0c314241199d25e160bd57ad63b0e61db
 Evidence: `tests/test_pre_commit_hook_python_resolver.py` now passes `encoding="utf-8"` on the frontend JSON `write_text(...)` calls covered by the CodeRabbit nitpick; `rg -n "write_text\\(" tests/test_pre_commit_hook_python_resolver.py` shows the remaining single-line writes use explicit encoding where file text is written.
 Reason: CodeRabbit requested explicit encoding consistency in the new hook tests. The current head has that consistency.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#pullrequestreview-4492249397
+Disposition: NOT-A-BUG
+Evidence: The duplicated setup in `tests/test_pre_commit_hook_python_resolver.py` is intentional for this emergency guard PR because each test is a self-contained temporary git scenario with staged, upstream, deletion, rename, type-change, and no-venv no-op behavior. The focused guard suite passed after the final no-op resolver change: `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py tests/test_ci_workflow_pr_size_governance_contract.py` (`44 passed`).
+Reason: Extracting shared helpers is a style refactor, not a correctness issue. It would widen this CI hotfix beyond the reviewed guard behavior and reduce the immediate auditability of distinct git-state reproductions.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#pullrequestreview-4491966692 -> 29b0adf0c314241199d25e160bd57ad63b0e61db
 Disposition: FIXED
