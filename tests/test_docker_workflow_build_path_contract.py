@@ -16,6 +16,13 @@ from scripts.ci import fetch_docker_source_artifacts as docker_sources
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
+    ("build.yml", "build", "Build Docker image (local, for tests)"),
+    ("build.yml", "publish", "Build Docker image for publish scan"),
+    ("trivy.yml", "build", "Build Docker image (production target)"),
+    ("cd.yml", "build", "Build & Push image (staging)"),
+    ("cd.yml", "build-production", "Build & Push image (production)"),
+}
 
 
 def _load_workflow(path: Path) -> dict[str, object]:
@@ -69,7 +76,10 @@ def _root_context_docker_build_steps(
             if not (isinstance(uses, str) and uses.startswith("docker/build-push-action@")):
                 continue
             step_with = step.get("with")
-            assert isinstance(step_with, dict)
+            assert isinstance(
+                step_with,
+                dict,
+            ), f"{job_name}/{step.get('name')} must define docker build inputs"
             context = step_with.get("context")
             assert (
                 context == "."
@@ -395,13 +405,7 @@ def test_docker_build_workflows_prefetch_source_artifacts_before_build() -> None
             )
             checked_steps.add((workflow_name, job_name, build_step_name))
 
-    assert {
-        ("build.yml", "build", "Build Docker image (local, for tests)"),
-        ("build.yml", "publish", "Build Docker image for publish scan"),
-        ("trivy.yml", "build", "Build Docker image (production target)"),
-        ("cd.yml", "build", "Build & Push image (staging)"),
-        ("cd.yml", "build-production", "Build & Push image (production)"),
-    } <= checked_steps
+    assert EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS <= checked_steps
 
 
 def test_makefile_docker_build_targets_prefetch_source_artifacts() -> None:
