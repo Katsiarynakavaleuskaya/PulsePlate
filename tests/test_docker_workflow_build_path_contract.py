@@ -16,6 +16,13 @@ from scripts.ci import fetch_docker_source_artifacts as docker_sources
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
+    ("build.yml", "build", "Build Docker image (local, for tests)"),
+    ("build.yml", "publish", "Build Docker image for publish scan"),
+    ("trivy.yml", "build", "Build Docker image (production target)"),
+    ("cd.yml", "build", "Build & Push image (staging)"),
+    ("cd.yml", "build-production", "Build & Push image (production)"),
+}
 
 
 def _load_workflow(path: Path) -> dict[str, object]:
@@ -48,6 +55,39 @@ def _step_by_name(job: dict[str, object], step_name: str) -> dict[str, object]:
 
 def _step_index(job: dict[str, object], step_name: str) -> int:
     return _step_names(job).index(step_name)
+
+
+def _root_context_docker_build_steps(
+    workflow: dict[str, object],
+) -> list[tuple[str, dict[str, object], str]]:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    build_steps: list[tuple[str, dict[str, object], str]] = []
+    for job_name, job in jobs.items():
+        assert isinstance(job_name, str)
+        if not isinstance(job, dict):
+            continue
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            assert isinstance(step, dict)
+            uses = step.get("uses")
+            if not (isinstance(uses, str) and uses.startswith("docker/build-push-action@")):
+                continue
+            step_with = step.get("with")
+            assert isinstance(
+                step_with,
+                dict,
+            ), f"{job_name}/{step.get('name')} must define docker build inputs"
+            context = step_with.get("context")
+            assert (
+                context == "."
+            ), f"{job_name}/{step.get('name')} must set docker build path context '.'"
+            step_name = step.get("name")
+            assert isinstance(step_name, str)
+            build_steps.append((job_name, job, step_name))
+    return build_steps
 
 
 def _docker_source_manifest(
@@ -349,32 +389,23 @@ def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
 
 def test_docker_build_workflows_prefetch_source_artifacts_before_build() -> None:
     """Docker workflows prepare source artifacts explicitly before image build actions."""
-    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
-    build_job = workflow["jobs"]["build"]
-    publish_job = workflow["jobs"]["publish"]
-    assert isinstance(build_job, dict)
-    assert isinstance(publish_job, dict)
+    checked_steps: set[tuple[str, str, str]] = set()
 
-    for job, build_step_name in (
-        (build_job, "Build Docker image (local, for tests)"),
-        (publish_job, "Build Docker image for publish scan"),
-    ):
-        prepare_step = _step_by_name(job, "Prepare Docker source artifacts")
-        assert "python3 scripts/ci/fetch_docker_source_artifacts.py" in prepare_step["run"]
-        assert _step_index(job, "Prepare Docker source artifacts") < _step_index(
-            job,
-            build_step_name,
-        )
+    for workflow_name in ("build.yml", "trivy.yml", "cd.yml"):
+        workflow = _load_workflow(WORKFLOWS_DIR / workflow_name)
+        for job_name, job, build_step_name in _root_context_docker_build_steps(workflow):
+            prepare_step = _step_by_name(job, "Prepare Docker source artifacts")
+            prepare_run = prepare_step["run"]
+            assert isinstance(prepare_run, str)
+            assert "set -euo pipefail" in prepare_run
+            assert "python3 scripts/ci/fetch_docker_source_artifacts.py" in prepare_run
+            assert _step_index(job, "Prepare Docker source artifacts") < _step_index(
+                job,
+                build_step_name,
+            )
+            checked_steps.add((workflow_name, job_name, build_step_name))
 
-    trivy_workflow = _load_workflow(WORKFLOWS_DIR / "trivy.yml")
-    trivy_job = trivy_workflow["jobs"]["build"]
-    assert isinstance(trivy_job, dict)
-    trivy_prepare_step = _step_by_name(trivy_job, "Prepare Docker source artifacts")
-    assert "python3 scripts/ci/fetch_docker_source_artifacts.py" in trivy_prepare_step["run"]
-    assert _step_index(trivy_job, "Prepare Docker source artifacts") < _step_index(
-        trivy_job,
-        "Build Docker image (production target)",
-    )
+    assert EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS <= checked_steps
 
 
 def test_makefile_docker_build_targets_prefetch_source_artifacts() -> None:
