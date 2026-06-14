@@ -1786,6 +1786,21 @@ def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:
     _assert_contains_all_tokens(contract_text, contract_tokens)
 
 
+def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
+    workflow = _load_ci_workflow()
+
+    checkout_step = _job_step_by_name(workflow, job_id="lint", step_name="Checkout")
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["with"]["fetch-depth"] == 0
+
+    pre_commit_step = _job_step_by_name(
+        workflow,
+        job_id="lint",
+        step_name="Pre-commit (lint/format/security quick checks)",
+    )
+    assert "pre-commit run --all-files" in pre_commit_step["run"]
+
+
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
