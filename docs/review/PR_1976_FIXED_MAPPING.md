@@ -45,7 +45,9 @@ adding new `.trivyignore` entries.
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - [x] Codex Security diff scan and finding discovery completed.
 - [x] `pulseplate-pr-review` completed.
-- [ ] Re-check GitHub review threads and bot actionables after the next push.
+- [x] GitHub review threads and bot actionables checked for the current head:
+  CodeRabbit/Sourcery are rate-limit metadata only, Codecov reports all
+  modified coverable lines covered, and no inline review comments are open.
 
 ## Fixed in Commit Mapping
 
@@ -144,7 +146,11 @@ Reason: security review found no code/security/CI blocker. The emergency SQLite 
 
 - Codex Security diff scan / finding discovery:
 Disposition: NOT-A-BUG.
-Evidence: Codex Security scan id `e2d1b5f1a022_20260614T211225Z` validated `report.md` and rendered `report.html` in the local gitignored scan directory; `work_ledger.jsonl` contains 22 completion receipts for 22 changed files; final result was 0 reportable findings.
+Evidence: Codex Security scan directory
+`/tmp/codex-security-scans/fix-main-trivy-container-cves/e2d1b5f1_20260614T213319Z`
+validated `report.md` and rendered `report.html`; `work_ledger.jsonl`
+contains 22 completion receipts for 22 changed files; final result was
+0 reportable findings.
 Reason: the plugin rank generator produced 0 rows, so the scan used an explicit manual changed-file worklist from `git diff --name-only origin/main...HEAD` and closed every file with evidence.
 
 - `pulseplate-pr-review` dry-run:
@@ -166,8 +172,9 @@ Reason: the large-diff note is covered by the operator-approved privileged scope
 - `PM-1976-003` Production pruning breaks runtime.
   Disposition: MITIGATED.
   Evidence: local Docker production build, runtime surface check, container
-  smoke, and local Trivy scan passed. Current-head Docker publish remains
-  required before merge-readiness discussion.
+  smoke, local Trivy scan, and PR current-head Docker build/security-scan
+  passed. The real `publish` job is skipped on PR events and remains the
+  post-merge main/nightly operational proof.
 
 ## Experiment Runner Evidence
 
@@ -201,7 +208,11 @@ Reason: the large-diff note is covered by the operator-approved privileged scope
 - PASS: security-auditor focused pytest:
   `85 passed`
 - PASS: Codex Security diff scan/finding discovery:
-  22 changed files reviewed, 0 reportable findings, report validated and rendered.
+  22 changed files reviewed, 0 reportable findings, report validated and
+  rendered at
+  `/tmp/codex-security-scans/fix-main-trivy-container-cves/e2d1b5f1_20260614T213319Z/report.md`
+  and
+  `/tmp/codex-security-scans/fix-main-trivy-container-cves/e2d1b5f1_20260614T213319Z/report.html`.
 - PASS: `pulseplate-pr-review` dry-run and calibration:
   `9 passed`
 - PASS: `make validate-changed` after implementation commit:
@@ -221,14 +232,22 @@ Reason: the large-diff note is covered by the operator-approved privileged scope
 
 ## Merge Readiness
 
-- [ ] Current-head CI is green for the PR head.
-- [ ] Docker publish/current-head image scan passes on GitHub Actions.
+- [x] Current-head CI is green for the PR head checked before this mapping
+  refresh: `gh pr checks 1976 --watch=false`.
+- [x] PR-event Docker build/security-scan passes on GitHub Actions. The
+  workflow `publish` job is intentionally skipped on PR events and remains the
+  post-merge main/nightly operational proof.
 - [x] Post-open role loop completed and mapped.
 - [x] Codex Security diff scan/finding discovery completed and mapped.
 - [x] `pulseplate-pr-review` completed and mapped.
-- [ ] No unresolved actionable review threads remain.
-- [ ] No actionable bot comments remain unmapped.
-- [ ] Strict merge-readiness wrapper passes with auth.
-- [ ] Mandatory wait-window elapsed after latest bot/review activity.
+- [x] No unresolved actionable review threads remain in GitHub review-comment
+  API output.
+- [x] No actionable bot comments remain unmapped; CodeRabbit and Sourcery are
+  rate-limit metadata, and Codecov reports all modified coverable lines covered.
+- [ ] Strict merge-readiness wrapper passes with auth after this mapping/body
+  refresh commit.
+- [ ] Mandatory wait-window elapsed after latest bot/review activity and this
+  mapping/body refresh commit.
 
-This PR is not merge-ready yet.
+Readiness claim is pending only the final strict wrapper/current-head rerun
+after this mapping/body refresh commit.
