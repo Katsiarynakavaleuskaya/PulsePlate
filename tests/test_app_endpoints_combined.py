@@ -199,9 +199,18 @@ class TestHealthAndMonitoringEndpoints:
         }
 
     def test_favicon_endpoint(self, client: TestClient) -> None:
-        """Test /favicon.ico returns 200 OK, 204 No Content, or 404 if not found"""
+        """Runtime favicon is canonical, empty, and hidden from public OpenAPI."""
+        route = _find_route(client, "/favicon.ico")
+        assert route.endpoint.__module__ == "app.routers.favicon"
+        assert route.endpoint.__name__ == "favicon"
+        assert route.include_in_schema is False
+
         response = client.get("/favicon.ico")
-        assert response.status_code in [200, 204, 404]  # 200 OK is valid for successful favicon
+        assert response.status_code == 204
+        assert response.content == b""
+
+        app = cast(FastAPI, client.app)
+        assert "/favicon.ico" not in app.openapi()["paths"]
 
     def test_privacy_endpoint(self, client: TestClient) -> None:
         """Test /privacy endpoint returns canonical legal publication payload."""

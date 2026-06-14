@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Response
 import pytest
 from typing import Generator
 
@@ -62,6 +62,16 @@ def _health_stub_router(*, include_in_schema: bool = False) -> APIRouter:
     return router
 
 
+def _favicon_stub_router(*, include_in_schema: bool = False) -> APIRouter:
+    router = APIRouter()
+
+    async def _favicon() -> Response:
+        return Response(status_code=204)
+
+    router.get(app_main._FAVICON_ROUTE_PATH, include_in_schema=include_in_schema)(_favicon)
+    return router
+
+
 def _duplicate_health_stub_router() -> APIRouter:
     router = _health_stub_router()
 
@@ -69,6 +79,16 @@ def _duplicate_health_stub_router() -> APIRouter:
         return {"status": "/health-duplicate"}
 
     router.get("/health", include_in_schema=False)(_second_health)
+    return router
+
+
+def _duplicate_favicon_stub_router() -> APIRouter:
+    router = _favicon_stub_router()
+
+    async def _second_favicon() -> Response:
+        return Response(status_code=204)
+
+    router.get(app_main._FAVICON_ROUTE_PATH, include_in_schema=False)(_second_favicon)
     return router
 
 
@@ -92,6 +112,7 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "register_pro_contract_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_billing_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "feedback_router", _stub_router("/api/v1/feedback/rag"))
+    monkeypatch.setattr(app_main, "favicon_router", _favicon_stub_router())
     monkeypatch.setattr(app_main, "health_router", _health_stub_router())
     monkeypatch.setattr(app_main, "legal_router", _legal_stub_router())
     monkeypatch.setattr(app_main, "cbt_insight_router", _stub_router("/api/v1/pro/cbt/insight"))
@@ -274,6 +295,114 @@ def test_health_route_registration_rejects_duplicate_canonical_router_paths(
     monkeypatch.setattr(app_main, "health_router", _duplicate_health_stub_router())
 
     with pytest.raises(RuntimeError, match="Health router does not define"):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_favicon_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    _bootstrap_temp_app(app)
+    _bootstrap_temp_app(app)
+
+    favicon_routes = [
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == app_main._FAVICON_ROUTE_PATH
+        and "GET" in (getattr(route, "methods", None) or set())
+    ]
+    assert len(favicon_routes) == 1
+    assert getattr(favicon_routes[0], "include_in_schema", True) is False
+
+
+def test_favicon_route_registration_rejects_partial_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    @app.post(app_main._FAVICON_ROUTE_PATH)
+    async def _existing_favicon_post_route() -> dict[str, str]:
+        return {"status": "foreign"}
+
+    with pytest.raises(RuntimeError, match="Partial favicon route registration detected"):
+        _bootstrap_temp_app(app)
+
+
+def test_favicon_route_registration_rejects_foreign_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    @app.get(app_main._FAVICON_ROUTE_PATH, include_in_schema=False)
+    async def _foreign_favicon_route() -> dict[str, str]:
+        return {"status": "foreign"}
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate /favicon.ico route detected with a different favicon handler",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_favicon_route_registration_rejects_visible_existing_canonical_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+    route = next(
+        route
+        for route in app_main.favicon_router.routes
+        if getattr(route, "path", None) == app_main._FAVICON_ROUTE_PATH
+        and "GET" in (getattr(route, "methods", None) or set())
+    )
+    app.add_api_route(
+        app_main._FAVICON_ROUTE_PATH,
+        getattr(route, "endpoint"),
+        methods=["GET"],
+        include_in_schema=True,
+    )
+
+    with pytest.raises(RuntimeError, match="hidden OpenAPI visibility"):
+        _bootstrap_temp_app(app)
+
+
+def test_favicon_route_registration_rejects_malformed_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "favicon_router",
+        _stub_router(app_main._FAVICON_ROUTE_PATH, include_in_schema=False),
+    )
+
+    with pytest.raises(RuntimeError, match="Favicon router does not define"):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_favicon_route_registration_rejects_openapi_visible_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(app_main, "favicon_router", _favicon_stub_router(include_in_schema=True))
+
+    with pytest.raises(RuntimeError, match="hidden OpenAPI visibility"):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_favicon_route_registration_rejects_duplicate_canonical_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(app_main, "favicon_router", _duplicate_favicon_stub_router())
+
+    with pytest.raises(RuntimeError, match="Favicon router does not define"):
         _bootstrap_temp_app(FastAPI())
 
 

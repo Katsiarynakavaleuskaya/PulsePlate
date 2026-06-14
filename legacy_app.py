@@ -1438,14 +1438,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 # ---------- Core logic ----------
 
 
-# ---------- Misc routes ----------
-
-
-@app.get("/favicon.ico")
-async def favicon() -> Response:
-    return Response(status_code=204)
-
-
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])
 async def cleanup_expired_logs(
     data_class: Optional[str] = None,

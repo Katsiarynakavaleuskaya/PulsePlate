@@ -67,6 +67,14 @@ def test_runtime_keeps_legacy_routes_and_ws_for_transition_window() -> None:
     assert "/api/v1/users/{user_id}" in runtime_paths
 
 
+def test_favicon_runtime_route_stays_hidden_from_openapi_schema() -> None:
+    runtime_paths = _runtime_paths()
+    paths = set(_openapi_paths())
+
+    assert "/favicon.ico" in runtime_paths
+    assert "/favicon.ico" not in paths
+
+
 def test_users_routes_are_hidden_from_schema_at_registration_level() -> None:
     users_routes = [
         route for route in app.routes if str(getattr(route, "path", "")).startswith("/api/v1/users")

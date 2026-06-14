@@ -34,6 +34,7 @@ from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import router as fitchef_structured_router
+from app.routers.favicon import router as favicon_router
 from app.routers.health import router as health_router
 from app.routers.legal import router as legal_router
 from app.routers.vip_registration import register_vip_routes
@@ -56,6 +57,7 @@ _HEALTH_ROUTE_PATHS: tuple[str, str, str, str] = (
     _HEALTH_DB_ROUTE_PATH,
     _READY_ROUTE_PATH,
 )
+_FAVICON_ROUTE_PATH: str = "/favicon.ico"
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
@@ -219,6 +221,51 @@ def _include_health_router_if_needed(target_app: FastAPI) -> None:
             )
 
 
+def _include_favicon_router_if_needed(target_app: FastAPI) -> None:
+    """Register the runtime-only favicon endpoint once."""
+
+    expected_endpoint: object | None = None
+    expected_route_count = 0
+    for route in favicon_router.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        if path == _FAVICON_ROUTE_PATH and "GET" in methods:
+            expected_route_count += 1
+            expected_endpoint = getattr(route, "endpoint", None)
+            if getattr(route, "include_in_schema", True):
+                raise RuntimeError("Favicon router does not preserve hidden OpenAPI visibility.")
+
+    if expected_route_count != 1 or expected_endpoint is None:
+        raise RuntimeError("Favicon router does not define the expected route.")
+
+    favicon_routes = [
+        route for route in target_app.routes if getattr(route, "path", None) == _FAVICON_ROUTE_PATH
+    ]
+    if not favicon_routes:
+        target_app.include_router(favicon_router)
+        return
+
+    matching_routes = [
+        route for route in favicon_routes if "GET" in (getattr(route, "methods", None) or set())
+    ]
+    if not matching_routes:
+        raise RuntimeError("Partial favicon route registration detected.")
+
+    if (
+        len(favicon_routes) != 1
+        or len(matching_routes) != 1
+        or getattr(matching_routes[0], "endpoint", None) is not expected_endpoint
+    ):
+        raise RuntimeError(
+            "Duplicate /favicon.ico route detected with a different favicon handler."
+        )
+
+    if getattr(matching_routes[0], "include_in_schema", True):
+        raise RuntimeError(
+            "Existing /favicon.ico route does not preserve hidden OpenAPI visibility."
+        )
+
+
 def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     """Hide legacy users CRUD from the public OpenAPI contract.
 
@@ -302,6 +349,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     _include_health_router_if_needed(app)
     _include_legal_router_if_needed(app)
+    _include_favicon_router_if_needed(app)
 
     register_billing_routes(app)
 
