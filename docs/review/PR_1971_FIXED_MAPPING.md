@@ -89,8 +89,7 @@ file-type changes, run the cross-surface dependency guards before push.
   `requirements-docker-runtime.txt` while the parsed report contained no
   vulnerabilities. This is dispositioned below as FIXED.
 - Codex connector thread `discussion_r3409180472`: one P2 Safety mapping proof
-  finding. The underlying artifact SHA was corrected in the follow-up artifact
-  commit and is mapped below after that commit exists.
+  finding, dispositioned below as FIXED with artifact-fix proof.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
   comments were returned by PR review/comment APIs.
 - Final current-head review-thread, bot actionable, and strict disposition
@@ -197,6 +196,12 @@ Commit: cf81da6b47202a0fe30f3c44cb9d26040d6493e4
 Evidence: `scripts/ci/run_safety_audit.py` now retries only the narrow Safety service-transient shape: exit code `68`, known Safety service text, parsed `PARSE_OK`, zero high/other active findings, and zero repo-policy-waived findings. `tests/test_run_safety_audit.py` covers successful scan without retry, transient fail then pass, persistent transient fail-closed, active vulnerability with transient exit not retrying, and repo-policy-waived finding not retrying.
 Evidence: `.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py` (`98 passed`); `VENV_PYTHON="$PWD/.venv/bin/python" make validate-changed` (`44 passed`); `.venv/bin/python -m ruff check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed); `.venv/bin/python -m ruff format --check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed).
 Reason: The current-head CI failure was not a new vulnerability or a waiver gap. The downloaded Safety artifact for `requirements-docker-runtime.txt` reported no vulnerabilities, while the raw Safety log contained the service-transient message `Sorry, something went wrong. Our engineers are working quickly to resolve the issue.` The fix keeps real dependency findings fail-closed and avoids adding ignores or extending waivers.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1971#discussion_r3409180472 -> be026f44e56fb59ccb31abe0f1717a7239e1d41f
+Disposition: FIXED
+Commit: be026f44e56fb59ccb31abe0f1717a7239e1d41f
+Evidence: `docs/review/PR_1971_FIXED_MAPPING.md` now maps the Safety transient fix to the actual full commit `cf81da6b47202a0fe30f3c44cb9d26040d6493e4`; `git rev-parse cf81da6b4` returned that full SHA, `git merge-base --is-ancestor cf81da6b47202a0fe30f3c44cb9d26040d6493e4 HEAD` passed, and `git show --no-patch --oneline cf81da6b40ea9af8f909a067cf46f0401f15ed88` failed with `fatal: bad object`.
+Reason: Codex correctly flagged the prior Safety mapping proof as invalid because the recorded full SHA did not exist. The mapping now points to the real Safety retry fix commit that is an ancestor of the PR head.
 
 ## Post-Open Role Review Evidence
 
