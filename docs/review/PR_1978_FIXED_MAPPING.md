@@ -19,7 +19,7 @@ provenance, or attestation semantics are changed.
 - Branch: `codex/fix-cd-docker-source-artifact-prep`
 - Base at PR open: `84f3fa02e15ef61a6847aa5a4c2941d4ac7d957a`
 - Initial implementation commit: `0936fbe946c5b522af1cafa3698faf5741fa4607`
-- Current head at mapping creation:
+- Implementation head before mapping artifact:
   `c27f7a6ee3681702df5e32694f3e8584dd515003`
 - Packet: `artifacts/orchestration/task_packets/2ed6a60cee46.json`
 - Premortem artifact:
@@ -177,7 +177,7 @@ secret-envs, SBOM, provenance, and attestation semantics are unchanged.
 
 Merge readiness is not claimed by this artifact alone. Required remaining proof:
 
-- current-head PR CI for `c27f7a6ee3681702df5e32694f3e8584dd515003`;
+- current-head PR CI for the latest pushed head;
 - PR-body Phase2 and mapping guards after this artifact is committed and the PR
   body mirror is refreshed;
 - strict merge-readiness wrapper with GitHub auth;
