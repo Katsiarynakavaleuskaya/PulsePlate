@@ -37,6 +37,8 @@ file-type changes, run the cross-surface dependency guards before push.
   `e3e95e87e8762b75efc00d67e3030fdfe01290d5`
 - Codex no-op resolver follow-up commit:
   `9f7eb8357071a7612556e8c7cec8f63b7f7320e2`
+- Current-head Safety transient follow-up commit:
+  `cf81da6b40ea9af8f909a067cf46f0401f15ed88`
 - Full local `make verify`: intentionally not run under the operator-approved
   emergency narrow-lane scope; this artifact does not claim full local verify.
 
@@ -76,6 +78,10 @@ file-type changes, run the cross-surface dependency guards before push.
   dispositioned below as NOT-A-BUG with current-head proof.
 - Codecov issue comment `4699631451`: all modified and coverable lines are
   covered; no action required.
+- Current-head `CI/security` job `81254358391` failed in Safety dependency
+  audit because Safety CLI returned exit `68` with service-transient text for
+  `requirements-docker-runtime.txt` while the parsed report contained no
+  vulnerabilities. This is dispositioned below as FIXED.
 - Cubic external check is `neutral/skipping`; no inline/actionable Cubic review
   comments were returned by PR review/comment APIs.
 - Final current-head review-thread, bot actionable, and strict disposition
@@ -162,6 +168,15 @@ Commit: b3e7f20ce62093f3dd4e3ae229adcf76213ce594
 Evidence: The `Security-Auditor Role Pass Evidence` section records a read-only PulsePlate `security-auditor` role pass using `.cursor/agents/security-auditor.md`, the dispatch manifest order, changed-surface review, command-injection/secret-exposure checks, open code-scanning and secret-scanning alert checks, and targeted tests. No autonomous subagent transport was used after the earlier subagent safety concern.
 Reason: Codex flagged that the artifact previously recorded the post-fix security-auditor pass as not run. The pass is now completed and documented with evidence.
 
+## Current-Head CI Failure Closure
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/27490437868/job/81254358391 -> cf81da6b40ea9af8f909a067cf46f0401f15ed88
+Disposition: FIXED
+Commit: cf81da6b40ea9af8f909a067cf46f0401f15ed88
+Evidence: `scripts/ci/run_safety_audit.py` now retries only the narrow Safety service-transient shape: exit code `68`, known Safety service text, parsed `PARSE_OK`, zero high/other active findings, and zero repo-policy-waived findings. `tests/test_run_safety_audit.py` covers successful scan without retry, transient fail then pass, persistent transient fail-closed, active vulnerability with transient exit not retrying, and repo-policy-waived finding not retrying.
+Evidence: `.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py` (`98 passed`); `VENV_PYTHON="$PWD/.venv/bin/python" make validate-changed` (`44 passed`); `.venv/bin/python -m ruff check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed); `.venv/bin/python -m ruff format --check scripts/ci/run_safety_audit.py tests/test_run_safety_audit.py` (passed).
+Reason: The current-head CI failure was not a new vulnerability or a waiver gap. The downloaded Safety artifact for `requirements-docker-runtime.txt` reported no vulnerabilities, while the raw Safety log contained the service-transient message `Sorry, something went wrong. Our engineers are working quickly to resolve the issue.` The fix keeps real dependency findings fail-closed and avoids adding ignores or extending waivers.
+
 ## Post-Open Role Review Evidence
 
 - `agent-coordinator`: scope locked to the main CI fallout and the four changed
@@ -189,6 +204,24 @@ Reason: Codex flagged that the artifact previously recorded the post-fix securit
   are ancestors of current head, and found no P0/P1 security blocker. Existing
   `torch` Dependabot alerts remain separate because GitHub reports
   `first_patched_version: null`.
+- Safety transient fix-cycle packet:
+  `artifacts/orchestration/task_packets/0ff1bd279cb9.json`.
+- Safety transient role order:
+  `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Safety transient `agent-coordinator`: approved only the narrow post-open CI
+  reliability fix: bounded retry for Safety service-transient failures, no
+  dependency bumps, no new suppressions, no waiver extensions, and no policy
+  relaxation.
+- Safety transient `qa-engineer-agent`: found one P2 test gap where the
+  active-vulnerability no-retry test used a non-transient exit; fixed before
+  commit by exercising `exit=68` plus transient text plus a HIGH finding.
+- Safety transient `bug-hunter`: found no blocker; suggested a non-blocking
+  repo-policy-waived no-retry case, which was added before commit.
+- Safety transient `security-auditor`: found no P0/P1/P2 blocker. The pass
+  confirmed retry is bounded to exit `68`, transient markers, parsed clean
+  reports, and zero active/waived findings; stale JSON/TXT artifacts are removed
+  before each attempt; subprocess execution remains argv-based with the
+  resolved Safety binary.
 
 ## Security-Auditor Role Pass Evidence
 
