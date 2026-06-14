@@ -4,7 +4,7 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921
 
 Branch: `codex/fix-vulnerability-in-mcp-examples`
 
-Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`, `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`, `9a77a2ce364a673eeeb675daa2ecc805758bdeb0`, `24f5ca975902eb9137e195df0d1f6052e026d814`, `96273fc4de06b84a95cfdb4b0ae7eabf91dbaca6`, `a40806190a86300dac80a84f21e0e18ef6564d86`
+Primary fix commits: `167a551c524d16c169ceec5555dec27fa06f8755`, `33e1d2222ee6eaf2a88779327bd5c6ace3388c9d`, `9453bbc2db93fd4422ef7952a7a0d78242692343`, `8f5447c6be9f50ce615ab273deaf27017f6a4e0d`, `9a77a2ce364a673eeeb675daa2ecc805758bdeb0`, `24f5ca975902eb9137e195df0d1f6052e026d814`, `96273fc4de06b84a95cfdb4b0ae7eabf91dbaca6`, `a40806190a86300dac80a84f21e0e18ef6564d86`, `3ecc764f48925991e2b46fbedca604b733da3d43`
 
 Scope: MCP example security defaults, root MCP setup/config examples, governed Context7 runbook pinning, guard coverage, and review-governance closeout only. No backend runtime, OpenAPI, frontend runtime, iOS, database, or product behavior changes.
 
@@ -159,6 +159,16 @@ Evidence: `tests/guards/test_mcp_examples_safe_defaults.py:174` treats input red
 Disposition: FIXED
 Commit: a40806190a86300dac80a84f21e0e18ef6564d86
 Evidence: `mcp-setup.sh:34` keeps the non-secret `OPENAI_ADMIN_API_KEY` placeholder for the OpenAI MCP server, `mcp-setup.sh:35` keeps the non-secret `OPENAI_API_KEY` placeholder required by the existing PulsePlate MCP entry, and `mcp-setup.sh:51`-`mcp-setup.sh:52` documents both operator edits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409827508
+Disposition: NOT-A-BUG
+Evidence: The review referenced synthetic connector commit `08764ebbd9ee96ff8b358c37a8a5e025314f11e4`, whose only parent is base `849df58f8945fc8386ef09ebf1650d4421533bdd`. The actual GitHub PR branch head after the mapped closeout fixes is `3ecc764f48925991e2b46fbedca604b733da3d43`, which contains the listed proof commits in branch ancestry and is the head used by current-head CI and the strict merge wrapper.
+Reason: A connector-generated reviewed/squashed commit is not the PR branch ancestry source of truth and cannot be used as the commit-after-comment target for this branch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1921#discussion_r3409827510
+Disposition: NOT-A-BUG
+Evidence: The review referenced synthetic connector commit `08764ebbd9ee96ff8b358c37a8a5e025314f11e4`, not the PR branch head. `git log -1 --pretty=raw 3ecc764f48925991e2b46fbedca604b733da3d43` shows the required `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on the post-comment governance commit carrying Experiment Runner-shaped readiness evidence.
+Reason: The Experiment Runner attribution invariant applies to the actual public PR branch commits; the connector's synthetic reviewed commit is not a merge/readiness proof commit.
 
 ## Late Post-Open Premortem
 
