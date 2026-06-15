@@ -70,6 +70,25 @@ reports no patched version.
     `transformers==5.12.0` deltas and the emergency-fallback governance that
     raw #1975 did not include.
 - Replacement PR #1983 review threads: none at artifact creation time.
+- Post-open Codex review:
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537483`
+    - Disposition: FIXED.
+    - Commit: `f31420e3607d78622418efe9111b04ede41651a3`
+    - Evidence: raw #1975 replacement proof now points at real branch ancestor
+      `d1ac585edc1b0eae6c4370e438c6d3b98f1d679c`, not sibling
+      `e834962f3b3733afafac0a26b0a7d607e912078a`.
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537495`
+    - Disposition: FIXED.
+    - Commit: `f31420e3607d78622418efe9111b04ede41651a3`
+    - Evidence: validation now records the real approved-proxy
+      `pip download --no-deps transformers==5.12.0` wheel probe instead of
+      relying only on installer preflight.
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537498`
+    - Disposition: FIXED.
+    - Commit: `f31420e3607d78622418efe9111b04ede41651a3`
+    - Evidence: Experiment Runner attribution evidence now refers to the real
+      branch commit range `origin/main..HEAD`, whose commits carry the
+      canonical trailer.
 
 ## Fixed in Commit Mapping
 
@@ -82,6 +101,13 @@ Disposition: FIXED
 Commit: d1ac585edc1b0eae6c4370e438c6d3b98f1d679c
 Evidence: this replacement PR carries the intended `transformers==5.12.0` deltas and the emergency-fallback governance that raw #1975 did not include; `d1ac585edc1b0eae6c4370e438c6d3b98f1d679c` is an ancestor of the current PR branch and includes the dependency/fallback/mapping stack.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975 -> d1ac585edc1b0eae6c4370e438c6d3b98f1d679c
+
+Disposition: FIXED
+Commit: f31420e3607d78622418efe9111b04ede41651a3
+Evidence: mapping evidence now points at a real PR-branch ancestor, fallback retirement validation records the approved-proxy `pip download --no-deps transformers==5.12.0` probe, and Experiment Runner attribution evidence is aligned with the real branch commit range.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537483 -> f31420e3607d78622418efe9111b04ede41651a3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537495 -> f31420e3607d78622418efe9111b04ede41651a3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537498 -> f31420e3607d78622418efe9111b04ede41651a3
 
 ## Validation
 
