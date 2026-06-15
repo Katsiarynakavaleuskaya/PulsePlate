@@ -58,7 +58,7 @@
   privacy, quota, provider, export, or bootstrap regressions on head
   `8f5f9c070`.
 - Codex Security diff scan: NOT-A-BUG. Evidence:
-  `/tmp/codex-security-scans/extract-bmi-plan-compat-routes-from-legacy/8f5f9c07091a_20260615T150753Z/report.md`
+  `/tmp/codex-security-scans/extract-bmi-plan-compat-routes-from-legacy/8f5f9c07091a_20260615T150604Z/report.md`
   reports zero candidates across the five diff-scoped source rows.
 - `pulseplate-pr-review` large-diff advisory: NOT-A-BUG. Evidence: the diff is
   intentionally one coherent route-family extraction, stays scoped to exactly
