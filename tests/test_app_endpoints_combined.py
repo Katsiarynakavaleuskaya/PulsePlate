@@ -463,8 +463,7 @@ class TestAdminOperationsService:
 
         assert admin_operations_service._resolve_scheduler_getter() is _fallback_getter
 
-    @pytest.mark.asyncio
-    async def test_admin_status_success_generic_failure_and_http_exception(
+    def test_admin_status_success_generic_failure_and_http_exception(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -479,27 +478,26 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_available)
 
-        assert await admin_operations_service.admin_status() == {
+        assert asyncio.run(admin_operations_service.admin_status()) == {
             "status": "ok",
             "scheduler": "available",
         }
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_missing)
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.admin_status()
+            asyncio.run(admin_operations_service.admin_status())
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "Scheduler unavailable"
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _raise_http_exception)
 
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.admin_status()
+            asyncio.run(admin_operations_service.admin_status())
 
         assert exc_info.value.status_code == 418
         assert exc_info.value.detail == "scheduler rejected"
 
-    @pytest.mark.asyncio
-    async def test_database_status_success_and_failure(
+    def test_database_status_success_and_failure(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -515,20 +513,19 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
 
-        response = await admin_operations_service.get_database_status()
+        response = asyncio.run(admin_operations_service.get_database_status())
         assert response.status_code == 200
         assert response.body == b'{"status":"ok"}'
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_failure)
 
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.get_database_status()
+            asyncio.run(admin_operations_service.get_database_status())
 
         assert exc_info.value.status_code == 500
         assert "db status unavailable" in str(exc_info.value.detail)
 
-    @pytest.mark.asyncio
-    async def test_force_database_update_success_and_failure(
+    def test_force_database_update_success_and_failure(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -556,7 +553,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
 
-        response = await admin_operations_service.force_database_update(source="usda")
+        response = asyncio.run(admin_operations_service.force_database_update(source="usda"))
         assert response.status_code == 200
         assert b'"Force update completed for usda"' in response.body
         assert b'"records_added":1' in response.body
@@ -564,13 +561,12 @@ class TestAdminOperationsService:
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_failure)
 
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.force_database_update(source="usda")
+            asyncio.run(admin_operations_service.force_database_update(source="usda"))
 
         assert exc_info.value.status_code == 500
         assert "force failed" in str(exc_info.value.detail)
 
-    @pytest.mark.asyncio
-    async def test_check_for_updates_success_and_error_paths(
+    def test_check_for_updates_success_and_error_paths(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -595,7 +591,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
 
-        response = await admin_operations_service.check_for_updates()
+        response = asyncio.run(admin_operations_service.check_for_updates())
         assert response.status_code == 200
         assert b'"total_sources_with_updates":1' in response.body
 
@@ -606,25 +602,24 @@ class TestAdminOperationsService:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.check_for_updates()
+            asyncio.run(admin_operations_service.check_for_updates())
 
         assert exc_info.value.status_code == 500
         assert "check_for_updates not supported" in str(exc_info.value.detail)
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_none)
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.check_for_updates()
+            asyncio.run(admin_operations_service.check_for_updates())
         assert exc_info.value.status_code == 500
         assert "Scheduler resolved to None" in str(exc_info.value.detail)
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _raise_http_exception)
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.check_for_updates()
+            asyncio.run(admin_operations_service.check_for_updates())
         assert exc_info.value.status_code == 409
         assert exc_info.value.detail == "updates rejected"
 
-    @pytest.mark.asyncio
-    async def test_rollback_database_success_and_error_paths(
+    def test_rollback_database_success_and_error_paths(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -659,7 +654,7 @@ class TestAdminOperationsService:
             "_get_scheduler",
             lambda: _scheduler_with_manager(_SyncRollbackManager()),
         )
-        assert await admin_operations_service.rollback_database("usda", "1.0.0") == {
+        assert asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0")) == {
             "message": "Successfully rolled back usda to version 1.0.0",
             "success": True,
         }
@@ -669,14 +664,14 @@ class TestAdminOperationsService:
             "_get_scheduler",
             lambda: _scheduler_with_manager(_AwaitableRollbackManager()),
         )
-        assert await admin_operations_service.rollback_database("usda", "1.0.0") == {
+        assert asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0")) == {
             "message": "Successfully rolled back usda to version 1.0.0",
             "success": True,
         }
 
         monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_none)
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.rollback_database("usda", "1.0.0")
+            asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0"))
         assert exc_info.value.status_code == 500
         assert "could not get scheduler" in str(exc_info.value.detail)
 
@@ -686,7 +681,7 @@ class TestAdminOperationsService:
             lambda: _scheduler_with_manager(None),
         )
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.rollback_database("usda", "1.0.0")
+            asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0"))
         assert exc_info.value.status_code == 500
         assert "No update manager available" in str(exc_info.value.detail)
 
@@ -696,7 +691,7 @@ class TestAdminOperationsService:
             lambda: _scheduler_with_manager(SimpleNamespace()),
         )
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.rollback_database("usda", "1.0.0")
+            asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0"))
         assert exc_info.value.status_code == 500
         assert "not supported" in str(exc_info.value.detail)
 
@@ -706,7 +701,7 @@ class TestAdminOperationsService:
             lambda: _scheduler_with_manager(_RaisingRollbackManager()),
         )
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.rollback_database("usda", "1.0.0")
+            asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0"))
         assert exc_info.value.status_code == 500
         assert "Rollback failed" in str(exc_info.value.detail)
 
@@ -716,7 +711,7 @@ class TestAdminOperationsService:
             lambda: _scheduler_with_manager(_FalseRollbackManager()),
         )
         with pytest.raises(HTTPException) as exc_info:
-            await admin_operations_service.rollback_database("usda", "1.0.0")
+            asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0"))
         assert exc_info.value.status_code == 500
         assert "Rollback operation failed for usda" in str(exc_info.value.detail)
 
