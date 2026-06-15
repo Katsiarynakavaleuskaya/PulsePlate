@@ -44,7 +44,13 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 871ef359f
+Evidence: `docs/review/PR_1982_FIXED_MAPPING.md`; `docs/review/PR_BMI_PLAN_COMPAT_ROUTE_EXTRACTION_PREMORTEM.md`
+Reason: Removed developer-local `/Users/...` paths from changed docs evidence, made the Experiment Runner trailer evidence point to reachable implementation commit `7562b86d5`, and made the QA FIXED proof cite reachable commit `8f5f9c07091a517a0c06c88cfbd8838648b4212c`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3414513741 -> 871ef359f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3414639093 -> 871ef359f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3414639099 -> 871ef359f
 
 ## Role Review Finding Disposition
 
