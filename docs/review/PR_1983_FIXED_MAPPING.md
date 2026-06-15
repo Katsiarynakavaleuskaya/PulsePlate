@@ -137,9 +137,22 @@ Evidence: post-open PASS evidence now records `git merge-base --is-ancestor 141b
 
 Disposition: NOT-A-BUG
 Evidence: PR #1983 merge-readiness proof is evaluated against the real GitHub branch head `0470ee1395456d80b8cf33e093d56f6a112cfc16`, not Codex connector synthetic reviewed SHAs `31fead4` or `7c6384f`; `git merge-base --is-ancestor d1ac585edc1b0eae6c4370e438c6d3b98f1d679c HEAD` passes locally, and every authored branch commit in `origin/main..HEAD` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The comment compares proof and trailer evidence to Codex connector synthetic reviewed commits, while repo governance validates the real PR branch head and authored branch commits.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414659593
+
+Disposition: NOT-A-BUG
+Evidence: PR #1983 merge-readiness proof is evaluated against the real GitHub branch head `0470ee1395456d80b8cf33e093d56f6a112cfc16`, not Codex connector synthetic reviewed SHAs `31fead4` or `7c6384f`; `git merge-base --is-ancestor d1ac585edc1b0eae6c4370e438c6d3b98f1d679c HEAD` passes locally, and every authored branch commit in `origin/main..HEAD` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The comment compares proof and trailer evidence to Codex connector synthetic reviewed commits, while repo governance validates the real PR branch head and authored branch commits.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414659596
+
+Disposition: NOT-A-BUG
+Evidence: PR #1983 merge-readiness proof is evaluated against the real GitHub branch head `0470ee1395456d80b8cf33e093d56f6a112cfc16`, not Codex connector synthetic reviewed SHAs `31fead4` or `7c6384f`; `git merge-base --is-ancestor d1ac585edc1b0eae6c4370e438c6d3b98f1d679c HEAD` passes locally, and every authored branch commit in `origin/main..HEAD` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The comment compares proof and trailer evidence to Codex connector synthetic reviewed commits, while repo governance validates the real PR branch head and authored branch commits.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414730751
+
+Disposition: NOT-A-BUG
+Evidence: PR #1983 merge-readiness proof is evaluated against the real GitHub branch head `0470ee1395456d80b8cf33e093d56f6a112cfc16`, not Codex connector synthetic reviewed SHAs `31fead4` or `7c6384f`; `git merge-base --is-ancestor d1ac585edc1b0eae6c4370e438c6d3b98f1d679c HEAD` passes locally, and every authored branch commit in `origin/main..HEAD` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The comment compares proof and trailer evidence to Codex connector synthetic reviewed commits, while repo governance validates the real PR branch head and authored branch commits.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414730759
 
 ## Validation
