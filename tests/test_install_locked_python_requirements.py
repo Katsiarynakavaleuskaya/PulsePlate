@@ -524,7 +524,7 @@ def test_repo_transformers_emergency_fallback_is_retired_after_proxy_sync() -> N
         assert len(requirement_versions) == 1
         observed_versions.update(requirement_versions)
 
-    assert len(observed_versions) == 1
+    assert observed_versions == {"5.12.0"}
 
 
 def test_repo_sentence_transformers_emergency_fallback_matches_rag_vector_surfaces() -> None:

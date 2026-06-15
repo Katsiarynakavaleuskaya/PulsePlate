@@ -11,7 +11,7 @@ reports no patched version.
 ## Lane Start Provenance
 
 - Branch: `codex/rag-vector-transformers-1975`
-- Start packet: `artifacts/orchestration/task_packets/7c87d51844b6.json`
+- Packet: `artifacts/orchestration/task_packets/7c87d51844b6.json`
 - Pre-open role order executed:
   `agent-coordinator -> security-auditor -> qa-engineer-agent -> dev-operator -> architecture-specialist`
 - Implementation commit:
@@ -37,8 +37,7 @@ reports no patched version.
 
 - Packet:
   `artifacts/orchestration/experiments/rag-vector-transformers-1975-oracle-packet-v2.json`
-- Result:
-  `artifacts/orchestration/experiments/results/rag-vector-transformers-1975-oracle-result-v2.json`
+- Artifact: `artifacts/orchestration/experiments/results/rag-vector-transformers-1975-oracle-result-v2.json`
 - Mode: `oracle_only_governance_reviewer`
 - Status: accepted.
 - Oracle commands: 4/4 passed.
@@ -48,6 +47,9 @@ reports no patched version.
   `e834962f3b3733afafac0a26b0a7d607e912078a`.
 
 ## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 - Raw Dependabot #1975 invalid-assignee bot comment:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975#issuecomment-4700568423`
@@ -59,7 +61,7 @@ reports no patched version.
     replacement PR.
 - Raw Dependabot #1975:
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975`
-  - Disposition: SUPERSEDED.
+  - Disposition: FIXED.
   - Commit:
     `e834962f3b3733afafac0a26b0a7d607e912078a`
   - Evidence: this replacement PR carries the intended
@@ -67,12 +69,17 @@ reports no patched version.
     raw #1975 did not include.
 - Replacement PR #1983 review threads: none at artifact creation time.
 
-### Fixed in Commit Mapping
+## Fixed in Commit Mapping
 
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975#issuecomment-4700568423`
-  -> `e34a357f25d2aba717465c675595581e64301126`
-- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975`
-  -> `e834962f3b3733afafac0a26b0a7d607e912078a`
+Disposition: FIXED
+Commit: e34a357f25d2aba717465c675595581e64301126
+Evidence: PR #1981 removed the invalid `.github/dependabot.yml` assignee config on `main`; that commit is reachable from the base of this replacement PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975#issuecomment-4700568423 -> e34a357f25d2aba717465c675595581e64301126
+
+Disposition: FIXED
+Commit: e834962f3b3733afafac0a26b0a7d607e912078a
+Evidence: this replacement PR carries the intended `transformers==5.12.0` deltas and the emergency-fallback governance that raw #1975 did not include.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975 -> e834962f3b3733afafac0a26b0a7d607e912078a
 
 ## Validation
 
