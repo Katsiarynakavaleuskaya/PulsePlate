@@ -8,6 +8,7 @@ PR-456 Commit 3: Verify that /bmi and /api/v1/bmi delegate to canonical handler.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -303,7 +304,6 @@ def test_bmi_endpoint_v1_athlete_note_appends_waist_risk_notes_and_unknown_categ
     assert data["note"] == f"{t('en', 'advice_athlete_bmi')} | Extra waist note"
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("legacy_name", "service_name", "payload"),
     [
@@ -312,7 +312,7 @@ def test_bmi_endpoint_v1_athlete_note_appends_waist_risk_notes_and_unknown_categ
         ("bmi_endpoint_v1", "bmi_endpoint_v1", {"route": "bmi-v1"}),
     ],
 )
-async def test_legacy_bmi_direct_call_shims_delegate_to_canonical_services(
+def test_legacy_bmi_direct_call_shims_delegate_to_canonical_services(
     monkeypatch: pytest.MonkeyPatch,
     legacy_name: str,
     service_name: str,
@@ -327,6 +327,6 @@ async def test_legacy_bmi_direct_call_shims_delegate_to_canonical_services(
     request = object()
     monkeypatch.setattr(bmi_compat_service, service_name, _fake_service)
 
-    result = await getattr(legacy_app, legacy_name)(request)
+    result = asyncio.run(getattr(legacy_app, legacy_name)(request))
 
     assert result == {"payload": payload, "request": request}

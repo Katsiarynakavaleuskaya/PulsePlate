@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import ast
 from pathlib import Path
 import sys
@@ -293,8 +294,7 @@ def test_localized_legacy_result_preserves_pregnancy_note() -> None:
     assert result["group"] == "pregnant"
 
 
-@pytest.mark.asyncio
-async def test_plan_endpoint_preserves_pregnant_russian_premium_shape(
+def test_plan_endpoint_preserves_pregnant_russian_premium_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def _fake_bmi_handler(_: dict[str, Any]) -> dict[str, Any]:
@@ -302,14 +302,16 @@ async def test_plan_endpoint_preserves_pregnant_russian_premium_shape(
 
     monkeypatch.setattr(bmi_compat_service, "bmi_calculate_handler", _fake_bmi_handler)
 
-    result = await bmi_compat_service.plan_endpoint(
-        BMIRequest(
-            weight_kg=70.0,
-            height_m=1.75,
-            gender="female",
-            pregnant=True,
-            premium=True,
-            lang="ru",
+    result = asyncio.run(
+        bmi_compat_service.plan_endpoint(
+            BMIRequest(
+                weight_kg=70.0,
+                height_m=1.75,
+                gender="female",
+                pregnant=True,
+                premium=True,
+                lang="ru",
+            )
         )
     )
 
@@ -318,8 +320,7 @@ async def test_plan_endpoint_preserves_pregnant_russian_premium_shape(
     assert result["summary"] == "Персональный план (MVP)"
 
 
-@pytest.mark.asyncio
-async def test_plan_endpoint_preserves_english_premium_shape(
+def test_plan_endpoint_preserves_english_premium_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def _fake_bmi_handler(_: dict[str, Any]) -> dict[str, Any]:
@@ -327,8 +328,10 @@ async def test_plan_endpoint_preserves_english_premium_shape(
 
     monkeypatch.setattr(bmi_compat_service, "bmi_calculate_handler", _fake_bmi_handler)
 
-    result = await bmi_compat_service.plan_endpoint(
-        BMIRequest(weight_kg=70.0, height_m=1.75, premium=True, lang="en")
+    result = asyncio.run(
+        bmi_compat_service.plan_endpoint(
+            BMIRequest(weight_kg=70.0, height_m=1.75, premium=True, lang="en")
+        )
     )
 
     assert result["category"] == "Normal weight"
