@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi.testclient import TestClient
+import pytest
 
 import app.main as app_main
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router
@@ -82,19 +83,58 @@ def test_bmi_compat_router_does_not_import_legacy_app() -> None:
     assert violations == []
 
 
-def test_bmi_compat_routes_remain_public_with_bad_api_key(client: TestClient) -> None:
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        (
+            "/bmi",
+            {
+                "weight_kg": 70.0,
+                "height_m": 1.75,
+                "age": 30,
+                "gender": "male",
+                "pregnant": "no",
+                "athlete": "no",
+                "lang": "en",
+            },
+        ),
+        (
+            "/plan",
+            {
+                "weight_kg": 70.0,
+                "height_m": 1.75,
+                "age": 30,
+                "gender": "male",
+                "pregnant": "no",
+                "athlete": "no",
+                "lang": "en",
+            },
+        ),
+        (
+            "/api/v1/bmi",
+            {
+                "weight_kg": 70.0,
+                "height_cm": 175.0,
+                "age": 30,
+                "gender": "male",
+                "pregnant": "no",
+                "athlete": "no",
+                "lang": "en",
+            },
+        ),
+    ],
+)
+@pytest.mark.parametrize("headers", [{}, {"X-API-Key": "bad"}])
+def test_bmi_compat_routes_remain_public_with_or_without_bad_api_key(
+    client: TestClient,
+    path: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+) -> None:
     response = client.post(
-        "/api/v1/bmi",
-        headers={"X-API-Key": "bad"},
-        json={
-            "weight_kg": 70.0,
-            "height_cm": 175.0,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "lang": "en",
-        },
+        path,
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 200

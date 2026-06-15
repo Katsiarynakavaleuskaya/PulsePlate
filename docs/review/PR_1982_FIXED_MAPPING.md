@@ -2,9 +2,9 @@
 
 ## Lane Start Provenance
 
-- Starter: `scripts/orchestration/start_pr_lane.sh`
-- Task packet: `artifacts/orchestration/task_packets/af6261186dc5.json`
+- Packet: `artifacts/orchestration/task_packets/af6261186dc5.json`
 - Branch: `codex/extract-bmi-plan-compat-routes-from-legacy`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
 - Role order executed pre-open:
   `agent-coordinator -> backend-engineer -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter`
 
@@ -17,6 +17,8 @@
 
 ## Experiment Runner Evidence
 
+- Artifact:
+  `artifacts/orchestration/experiments/results/bmi_plan_compat_oracle_result_committed.json`
 - Packet:
   `artifacts/orchestration/experiments/bmi_plan_compat_oracle_packet_committed.json`
 - Result:
@@ -31,6 +33,8 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Initial PR open: no review threads were present at artifact creation.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
   pending.
@@ -40,12 +44,7 @@
 
 ## Fixed in Commit Mapping
 
-No review threads have been resolved.
-
-Implementation commit:
-
-- Local route extraction, OpenAPI parity, fail-closed bootstrap, legacy guard
-  shrink, premortem, and focused tests -> `7562b86d5`
+- No actionable review comments
 
 ## Local Validation Evidence
 
