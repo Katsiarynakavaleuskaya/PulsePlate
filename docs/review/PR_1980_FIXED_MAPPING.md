@@ -188,6 +188,12 @@ Reason: Not an actionable code review.
 - PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1980`.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`.
+- PASS: reproduced CI `diff-coverage` locally with coverage over
+  `tests/test_main_paywall_bootstrap.py`, `tests/test_app_endpoints_combined.py`,
+  and `tests/test_legacy_app_diff_coverage.py`; `diff-cover coverage.xml
+  --compare-branch origin/main --fail-under 97 ...` reported 100% coverage for
+  `app/main.py`, `app/routers/admin_operations.py`,
+  `app/services/admin_operations.py`, and `legacy_app.py`.
 - PASS during push hooks: mypy, pip-audit, backend pre-push pytest,
   full-repo Bandit, and Docker build test.
 - Deferred: full local `make verify` under the operator-approved

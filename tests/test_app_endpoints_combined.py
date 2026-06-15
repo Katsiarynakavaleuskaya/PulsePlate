@@ -11,7 +11,8 @@ These are "easy coverage" tests that cover basic monitoring endpoints and app pa
 import asyncio
 import os
 import sys
-from typing import cast
+from types import SimpleNamespace
+from typing import Any, cast
 from xml.etree import ElementTree
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -23,6 +24,7 @@ from sqlalchemy.orm import Session
 import app as apppkg
 from app.routers import health as health_router
 from app.routers.admin_operations import ADMIN_OPERATION_ROUTE_SPECS
+from app.services import admin_operations as admin_operations_service
 from app.routers.legal import build_terms_endpoint_payload
 from app.bootstrap import public_discovery
 from core.compliance import build_privacy_endpoint_payload
@@ -303,6 +305,421 @@ class TestDebugEndpoint:
 
         for path, _method in ADMIN_OPERATION_ROUTE_SPECS:
             assert path not in paths
+
+
+class TestAdminOperationsService:
+    """Focused service coverage for canonical hidden admin/debug route logic."""
+
+    def test_cleanup_logs_route_accepts_valid_api_key(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("API_KEY", "test_key")
+
+        class _RetentionManager:
+            def cleanup_expired_logs(self, data_class=None) -> int:
+                assert data_class is None
+                return 5
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_retention_manager",
+            lambda: _RetentionManager(),
+        )
+
+        response = client.post(
+            "/admin/logs/cleanup",
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "success",
+            "deleted_files": 5,
+            "data_class": "ALL",
+            "message": "Deleted 5 expired log file(s)",
+        }
+
+        invalid_response = client.post(
+            "/admin/logs/cleanup",
+            headers={"X-API-Key": "test_key"},
+            params={"data_class": "UNKNOWN"},
+        )
+        assert invalid_response.status_code == 200
+        assert invalid_response.json()["status"] == "error"
+        assert invalid_response.json()["data_class"] == "UNKNOWN"
+
+    def test_admin_operation_route_wrappers_delegate_to_services(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("API_KEY", "test_key")
+
+        async def _admin_status() -> dict[str, str]:
+            return {"status": "ok", "scheduler": "available"}
+
+        async def _get_database_status():
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse({"db": "ok"})
+
+        async def _force_database_update(*, source: str | None = None):
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse({"source": source})
+
+        async def _check_for_updates():
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse({"updates": True})
+
+        async def _rollback_database(*, source: str, target_version: str) -> dict[str, Any]:
+            return {"source": source, "target_version": target_version, "success": True}
+
+        monkeypatch.setattr(admin_operations_service, "admin_status", _admin_status)
+        monkeypatch.setattr(admin_operations_service, "get_database_status", _get_database_status)
+        monkeypatch.setattr(
+            admin_operations_service, "force_database_update", _force_database_update
+        )
+        monkeypatch.setattr(admin_operations_service, "check_for_updates", _check_for_updates)
+        monkeypatch.setattr(admin_operations_service, "rollback_database", _rollback_database)
+
+        headers = {"X-API-Key": "test_key"}
+
+        assert client.get("/api/v1/admin/status", headers=headers).json() == {
+            "status": "ok",
+            "scheduler": "available",
+        }
+        assert client.get("/api/v1/admin/db-status", headers=headers).json() == {"db": "ok"}
+        assert client.post(
+            "/api/v1/admin/force-update",
+            headers=headers,
+            params={"source": "usda"},
+        ).json() == {"source": "usda"}
+        assert client.get("/api/v1/admin/check-updates", headers=headers).json() == {
+            "updates": True
+        }
+        assert client.post(
+            "/api/v1/admin/rollback",
+            headers=headers,
+            params={"source": "usda", "target_version": "1.0.0"},
+        ).json() == {"source": "usda", "target_version": "1.0.0", "success": True}
+
+    @pytest.mark.asyncio
+    async def test_scheduler_getter_selection_default_and_import_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        async def _default_getter() -> object:
+            return object()
+
+        async def _patched_legacy_getter() -> object:
+            return object()
+
+        patched_legacy_module = SimpleNamespace(
+            get_update_scheduler=_patched_legacy_getter,
+            _DEFAULT_GET_UPDATE_SCHEDULER=_default_getter,
+        )
+        legacy_module = SimpleNamespace(
+            get_update_scheduler=_default_getter,
+            _DEFAULT_GET_UPDATE_SCHEDULER=_default_getter,
+        )
+
+        assert (
+            admin_operations_service._select_scheduler_getter_from_modules(
+                patched_legacy_module,
+                SimpleNamespace(),
+                SimpleNamespace(),
+            )
+            is _patched_legacy_getter
+        )
+        assert (
+            admin_operations_service._select_scheduler_getter_from_modules(
+                legacy_module,
+                SimpleNamespace(),
+                SimpleNamespace(),
+            )
+            is _default_getter
+        )
+        assert (
+            admin_operations_service._select_scheduler_getter_from_modules(
+                SimpleNamespace(_DEFAULT_GET_UPDATE_SCHEDULER=None),
+                SimpleNamespace(),
+                SimpleNamespace(),
+            )
+            is None
+        )
+
+        import core.food_apis.scheduler as scheduler_mod
+
+        def _fallback_getter() -> object:
+            return object()
+
+        monkeypatch.setattr(scheduler_mod, "get_update_scheduler", _fallback_getter)
+        monkeypatch.setitem(sys.modules, "legacy_app", SimpleNamespace())
+        monkeypatch.setitem(sys.modules, "app", SimpleNamespace())
+        monkeypatch.setitem(sys.modules, "app_module", SimpleNamespace())
+
+        assert admin_operations_service._resolve_scheduler_getter() is _fallback_getter
+
+    @pytest.mark.asyncio
+    async def test_admin_status_success_generic_failure_and_http_exception(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        async def _scheduler_available() -> object:
+            return object()
+
+        async def _scheduler_missing() -> None:
+            return None
+
+        async def _raise_http_exception() -> object:
+            raise HTTPException(status_code=418, detail="scheduler rejected")
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_available)
+
+        assert await admin_operations_service.admin_status() == {
+            "status": "ok",
+            "scheduler": "available",
+        }
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_missing)
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.admin_status()
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Scheduler unavailable"
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _raise_http_exception)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.admin_status()
+
+        assert exc_info.value.status_code == 418
+        assert exc_info.value.detail == "scheduler rejected"
+
+    @pytest.mark.asyncio
+    async def test_database_status_success_and_failure(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class _Scheduler:
+            def get_status(self) -> dict[str, str]:
+                return {"status": "ok"}
+
+        async def _get_scheduler_success() -> _Scheduler:
+            return _Scheduler()
+
+        async def _get_scheduler_failure() -> object:
+            raise RuntimeError("db status unavailable")
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
+
+        response = await admin_operations_service.get_database_status()
+        assert response.status_code == 200
+        assert response.body == b'{"status":"ok"}'
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_failure)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.get_database_status()
+
+        assert exc_info.value.status_code == 500
+        assert "db status unavailable" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_force_database_update_success_and_failure(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class _Scheduler:
+            async def force_update(self, source: str | None = None) -> dict[str, Any]:
+                assert source == "usda"
+                return {
+                    "usda": SimpleNamespace(
+                        success=True,
+                        old_version="1.0.0",
+                        new_version="1.0.1",
+                        records_added=1,
+                        records_updated=2,
+                        records_removed=0,
+                        duration_seconds=0.25,
+                        errors=[],
+                    )
+                }
+
+        async def _get_scheduler_success() -> _Scheduler:
+            return _Scheduler()
+
+        async def _get_scheduler_failure() -> object:
+            raise RuntimeError("force failed")
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
+
+        response = await admin_operations_service.force_database_update(source="usda")
+        assert response.status_code == 200
+        assert b'"Force update completed for usda"' in response.body
+        assert b'"records_added":1' in response.body
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_failure)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.force_database_update(source="usda")
+
+        assert exc_info.value.status_code == 500
+        assert "force failed" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_check_for_updates_success_and_error_paths(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class _UpdateManager:
+            async def check_for_updates(self) -> dict[str, bool]:
+                return {"usda": True, "off": False}
+
+        class _Scheduler:
+            update_manager = _UpdateManager()
+
+        async def _get_scheduler_success() -> _Scheduler:
+            return _Scheduler()
+
+        async def _get_scheduler_without_manager() -> object:
+            return SimpleNamespace(update_manager=None)
+
+        async def _get_scheduler_none() -> None:
+            return None
+
+        async def _raise_http_exception() -> object:
+            raise HTTPException(status_code=409, detail="updates rejected")
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
+
+        response = await admin_operations_service.check_for_updates()
+        assert response.status_code == 200
+        assert b'"total_sources_with_updates":1' in response.body
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "_get_scheduler",
+            _get_scheduler_without_manager,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.check_for_updates()
+
+        assert exc_info.value.status_code == 500
+        assert "check_for_updates not supported" in str(exc_info.value.detail)
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_none)
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.check_for_updates()
+        assert exc_info.value.status_code == 500
+        assert "Scheduler resolved to None" in str(exc_info.value.detail)
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _raise_http_exception)
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.check_for_updates()
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.detail == "updates rejected"
+
+    @pytest.mark.asyncio
+    async def test_rollback_database_success_and_error_paths(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class _SyncRollbackManager:
+            def rollback_database(self, source: str, target_version: str) -> bool:
+                assert (source, target_version) == ("usda", "1.0.0")
+                return True
+
+        class _FalseRollbackManager:
+            def rollback_database(self, source: str, target_version: str) -> bool:
+                return False
+
+        class _RaisingRollbackManager:
+            def rollback_database(self, source: str, target_version: str) -> bool:
+                raise RuntimeError("rollback boom")
+
+        class _AwaitableRollbackManager:
+            def rollback_database(self, source: str, target_version: str) -> object:
+                async def _success() -> bool:
+                    return True
+
+                return _success()
+
+        async def _scheduler_with_manager(manager: object) -> object:
+            return SimpleNamespace(update_manager=manager)
+
+        async def _scheduler_none() -> None:
+            return None
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "_get_scheduler",
+            lambda: _scheduler_with_manager(_SyncRollbackManager()),
+        )
+        assert await admin_operations_service.rollback_database("usda", "1.0.0") == {
+            "message": "Successfully rolled back usda to version 1.0.0",
+            "success": True,
+        }
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "_get_scheduler",
+            lambda: _scheduler_with_manager(_AwaitableRollbackManager()),
+        )
+        assert await admin_operations_service.rollback_database("usda", "1.0.0") == {
+            "message": "Successfully rolled back usda to version 1.0.0",
+            "success": True,
+        }
+
+        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_none)
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.rollback_database("usda", "1.0.0")
+        assert exc_info.value.status_code == 500
+        assert "could not get scheduler" in str(exc_info.value.detail)
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "_get_scheduler",
+            lambda: _scheduler_with_manager(None),
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.rollback_database("usda", "1.0.0")
+        assert exc_info.value.status_code == 500
+        assert "No update manager available" in str(exc_info.value.detail)
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "_get_scheduler",
+            lambda: _scheduler_with_manager(SimpleNamespace()),
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.rollback_database("usda", "1.0.0")
+        assert exc_info.value.status_code == 500
+        assert "not supported" in str(exc_info.value.detail)
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "_get_scheduler",
+            lambda: _scheduler_with_manager(_RaisingRollbackManager()),
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.rollback_database("usda", "1.0.0")
+        assert exc_info.value.status_code == 500
+        assert "Rollback failed" in str(exc_info.value.detail)
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "_get_scheduler",
+            lambda: _scheduler_with_manager(_FalseRollbackManager()),
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_operations_service.rollback_database("usda", "1.0.0")
+        assert exc_info.value.status_code == 500
+        assert "Rollback operation failed for usda" in str(exc_info.value.detail)
 
 
 class TestAppPackageShimEdges:

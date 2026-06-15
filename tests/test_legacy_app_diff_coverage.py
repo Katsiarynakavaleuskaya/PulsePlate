@@ -14,9 +14,11 @@ from typing import Any, Callable
 
 import pytest
 from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
+from app.services import admin_operations as admin_operations_service
 from app.routers import health as health_router
 import legacy_app
 
@@ -119,6 +121,83 @@ async def test_get_update_scheduler_late_getter_path(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(sched, "get_update_scheduler", _late_getter)
     res = await legacy_app.get_update_scheduler()
     assert res is not None
+
+
+@pytest.mark.asyncio
+async def test_admin_operations_legacy_compatibility_shims_delegate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy direct-call admin/debug helpers delegate to canonical service functions."""
+
+    calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+
+    async def _cleanup_expired_logs(*, data_class: str | None = None) -> dict[str, Any]:
+        calls.append(("cleanup", (), {"data_class": data_class}))
+        return {"status": "success", "data_class": data_class}
+
+    async def _admin_status() -> dict[str, str]:
+        calls.append(("admin_status", (), {}))
+        return {"status": "ok", "scheduler": "available"}
+
+    async def _debug_env() -> JSONResponse:
+        calls.append(("debug", (), {}))
+        return JSONResponse({"debug": "ok"})
+
+    async def _get_database_status() -> JSONResponse:
+        calls.append(("db_status", (), {}))
+        return JSONResponse({"db": "ok"})
+
+    async def _force_database_update(*, source: str | None = None) -> JSONResponse:
+        calls.append(("force", (), {"source": source}))
+        return JSONResponse({"source": source})
+
+    async def _check_for_updates() -> JSONResponse:
+        calls.append(("updates", (), {}))
+        return JSONResponse({"updates": True})
+
+    async def _rollback_database(*, source: str, target_version: str) -> dict[str, Any]:
+        calls.append(("rollback", (), {"source": source, "target_version": target_version}))
+        return {"success": True}
+
+    monkeypatch.setattr(
+        admin_operations_service,
+        "cleanup_expired_logs",
+        _cleanup_expired_logs,
+    )
+    monkeypatch.setattr(admin_operations_service, "admin_status", _admin_status)
+    monkeypatch.setattr(admin_operations_service, "debug_env", _debug_env)
+    monkeypatch.setattr(admin_operations_service, "get_database_status", _get_database_status)
+    monkeypatch.setattr(admin_operations_service, "force_database_update", _force_database_update)
+    monkeypatch.setattr(admin_operations_service, "check_for_updates", _check_for_updates)
+    monkeypatch.setattr(admin_operations_service, "rollback_database", _rollback_database)
+
+    cleanup_payload = await legacy_app.cleanup_expired_logs(data_class="PUBLIC")
+    admin_status_payload = await legacy_app.admin_status()
+    debug_response = await legacy_app.debug_env()
+    db_status_response = await legacy_app.get_database_status()
+    force_response = await legacy_app.force_database_update(source="usda")
+    updates_response = await legacy_app.check_for_updates()
+    rollback_payload = await legacy_app.rollback_database(
+        source="usda",
+        target_version="1.0.0",
+    )
+
+    assert cleanup_payload == {"status": "success", "data_class": "PUBLIC"}
+    assert admin_status_payload == {"status": "ok", "scheduler": "available"}
+    assert debug_response.body == b'{"debug":"ok"}'
+    assert db_status_response.body == b'{"db":"ok"}'
+    assert force_response.body == b'{"source":"usda"}'
+    assert updates_response.body == b'{"updates":true}'
+    assert rollback_payload == {"success": True}
+    assert calls == [
+        ("cleanup", (), {"data_class": "PUBLIC"}),
+        ("admin_status", (), {}),
+        ("debug", (), {}),
+        ("db_status", (), {}),
+        ("force", (), {"source": "usda"}),
+        ("updates", (), {}),
+        ("rollback", (), {"source": "usda", "target_version": "1.0.0"}),
+    ]
 
 
 def test_configure_session_bindings_sets_sessionlocal_when_none(

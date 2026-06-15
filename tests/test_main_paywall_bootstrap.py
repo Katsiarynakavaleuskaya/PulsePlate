@@ -128,6 +128,70 @@ def _duplicate_admin_operations_stub_router() -> APIRouter:
     return router
 
 
+def _admin_operations_stub_router_with_unrelated_path() -> APIRouter:
+    router = _admin_operations_stub_router()
+
+    async def _unrelated_handler() -> dict[str, str]:
+        return {"status": "unrelated"}
+
+    router.get("/api/v1/unrelated-admin-probe", include_in_schema=False)(_unrelated_handler)
+    return router
+
+
+def _admin_operations_stub_router_with_combined_methods() -> APIRouter:
+    router = APIRouter()
+    combined_path, combined_method = app_main._ADMIN_OPERATION_ROUTE_SPECS[0]
+
+    for path, method in app_main._ADMIN_OPERATION_ROUTE_SPECS:
+
+        async def _admin_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        methods = [method]
+        if path == combined_path:
+            methods.append("POST" if combined_method == "GET" else "GET")
+        router.add_api_route(
+            path,
+            _admin_handler,
+            methods=methods,
+            include_in_schema=False,
+        )
+
+    return router
+
+
+def _app_with_admin_routes_and_extra_method(*, combined_route: bool) -> FastAPI:
+    app = FastAPI()
+    extra_path, extra_method = app_main._ADMIN_OPERATION_ROUTE_SPECS[0]
+
+    for path, method in app_main._ADMIN_OPERATION_ROUTE_SPECS:
+
+        async def _admin_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        app.add_api_route(path, _admin_handler, methods=[method], include_in_schema=False)
+
+    async def _extra_method_handler() -> dict[str, str]:
+        return {"status": "extra-method"}
+
+    if combined_route:
+        app.add_api_route(
+            extra_path,
+            _extra_method_handler,
+            methods=[extra_method, "POST" if extra_method == "GET" else "GET"],
+            include_in_schema=False,
+        )
+    else:
+        app.add_api_route(
+            extra_path,
+            _extra_method_handler,
+            methods=["POST" if extra_method == "GET" else "GET"],
+            include_in_schema=False,
+        )
+
+    return app
+
+
 def _duplicate_privacy_legal_stub_router() -> APIRouter:
     router = _legal_stub_router()
 
@@ -562,6 +626,56 @@ def test_admin_operations_route_registration_rejects_malformed_router(
         _bootstrap_temp_app(FastAPI())
 
 
+def test_admin_operations_route_registration_allows_router_with_unrelated_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "admin_operations_router",
+        _admin_operations_stub_router_with_unrelated_path(),
+    )
+
+    app = _bootstrap_temp_app(FastAPI())
+
+    assert any(
+        getattr(route, "path", None) == "/api/v1/unrelated-admin-probe" for route in app.routes
+    )
+
+
+def test_admin_operations_route_registration_rejects_router_wrong_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    wrong_path, wrong_method = app_main._ADMIN_OPERATION_ROUTE_SPECS[0]
+    monkeypatch.setattr(
+        app_main,
+        "admin_operations_router",
+        _admin_operations_stub_router(
+            method_overrides={
+                wrong_path: "POST" if wrong_method == "GET" else "GET",
+            },
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Admin operations router does not define"):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_admin_operations_route_registration_rejects_router_combined_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "admin_operations_router",
+        _admin_operations_stub_router_with_combined_methods(),
+    )
+
+    with pytest.raises(RuntimeError, match="Admin operations router does not define"):
+        _bootstrap_temp_app(FastAPI())
+
+
 def test_admin_operations_route_registration_rejects_openapi_visible_router(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -588,6 +702,24 @@ def test_admin_operations_route_registration_rejects_duplicate_canonical_router_
 
     with pytest.raises(RuntimeError, match="Admin operations router does not define"):
         _bootstrap_temp_app(FastAPI())
+
+
+def test_admin_operations_route_registration_rejects_existing_wrong_method_after_full_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="Partial admin operations route registration detected"):
+        _bootstrap_temp_app(_app_with_admin_routes_and_extra_method(combined_route=False))
+
+
+def test_admin_operations_route_registration_rejects_existing_combined_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="Partial admin operations route registration detected"):
+        _bootstrap_temp_app(_app_with_admin_routes_and_extra_method(combined_route=True))
 
 
 @pytest.mark.parametrize("existing_path", ["/privacy", "/terms"])
