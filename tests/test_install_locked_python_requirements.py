@@ -421,10 +421,10 @@ def test_repo_ruff_private_proxy_pin_is_not_stale_emergency_fallback() -> None:
     requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
     requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
     requirements_lock_txt = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
-
-    assert _compatible_release_version(requirements_dev_in, "ruff") == "0.15.16"
-    assert ("ruff", "0.15.16") in _exact_requirement_pairs(requirements_dev_txt)
-    assert ("ruff", "0.15.16") in _exact_requirement_pairs(requirements_lock_txt)
+    expected_ruff_version = _compatible_release_version(requirements_dev_in, "ruff")
+    assert expected_ruff_version is not None
+    assert ("ruff", expected_ruff_version) in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("ruff", expected_ruff_version) in _exact_requirement_pairs(requirements_lock_txt)
     assert not any(package == "ruff" for package, _version in artifacts)
 
 
@@ -445,22 +445,22 @@ def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() 
     requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
     requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
     requirements_lock_txt = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
-
+    expected_ruff_version = _compatible_release_version(requirements_dev_in, "ruff")
+    assert expected_ruff_version is not None
     assert _minimum_requirement_version(constraints_text, "black") == "26.5.1"
     assert _minimum_requirement_version(constraints_text, "mypy") == "2.1.0"
-    assert _minimum_requirement_version(constraints_text, "ruff") == "0.15.16"
+    assert _minimum_requirement_version(constraints_text, "ruff") == expected_ruff_version
     assert _minimum_requirement_version(requirements_all_text, "black") == "26.5.1"
     assert _minimum_requirement_version(requirements_all_text, "mypy") == "2.1.0"
-    assert _minimum_requirement_version(requirements_all_text, "ruff") == "0.15.16"
+    assert _minimum_requirement_version(requirements_all_text, "ruff") == expected_ruff_version
 
     assert _compatible_release_version(requirements_dev_in, "black") == "26.5.1"
-    assert _compatible_release_version(requirements_dev_in, "ruff") == "0.15.16"
     assert ("mypy", "2.1.0") in _exact_requirement_pairs(requirements_dev_in)
     assert ("black", "26.5.1") in _exact_requirement_pairs(requirements_dev_txt)
     assert ("mypy", "2.1.0") in _exact_requirement_pairs(requirements_dev_txt)
-    assert ("ruff", "0.15.16") in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("ruff", expected_ruff_version) in _exact_requirement_pairs(requirements_dev_txt)
     assert ("librt", "0.11.0") in _exact_requirement_pairs(requirements_dev_txt)
-    assert ("ruff", "0.15.16") in _exact_requirement_pairs(requirements_lock_txt)
+    assert ("ruff", expected_ruff_version) in _exact_requirement_pairs(requirements_lock_txt)
 
     assert ("mypy", "2.1.0") in artifacts
     assert not any(package == "ruff" for package, _version in artifacts)
