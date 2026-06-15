@@ -40,7 +40,7 @@
   completed.
 - [x] Codex Security diff scan / finding discovery completed.
 - [x] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit/Sourcery/Cubic comments pending disposition after they run.
+- [x] CodeRabbit/Sourcery/Cubic comments disposition recorded for current actionable bot comments.
 
 ## Fixed in Commit Mapping
 
@@ -51,6 +51,21 @@ Reason: Removed developer-local `/Users/...` paths from changed docs evidence, m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3414513741 -> 871ef359f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3414639093 -> 871ef359f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3414639099 -> 871ef359f
+
+
+Disposition: NOT-A-BUG
+Evidence: `PATH=.venv/bin:$PATH make openapi-check` passed with no generated OpenAPI/client diff; the lane contract requires no public OpenAPI drift except preserving `/api/v1/bmi` visibility. Adding `response_model` to the public compatibility endpoint would intentionally change the response schema rather than preserve legacy parity.
+Reason: BMI compatibility endpoints intentionally preserve the legacy dict response shape and OpenAPI parity for this extraction PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3415098777
+
+Disposition: FIXED
+Commit: 9847488b3
+Evidence: `legacy_app.py` records explicit BMI compat re-export references; `tests/test_bmi_compat_router.py` asserts JSON content type before parsing OpenAPI; `tests/test_no_legacy_bmi_helpers_request_path.py` includes `app/schemas/bmi_compat.py` in request-path guard coverage.
+Reason: Addressed CodeRabbit re-export/test guard findings while preserving no-OpenAPI-drift behavior for the response-model request.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3415098782 -> 9847488b3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3415098786 -> 9847488b3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#discussion_r3415098790 -> 9847488b3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1982#pullrequestreview-4499335902 -> 9847488b3
 
 ## Role Review Finding Disposition
 
