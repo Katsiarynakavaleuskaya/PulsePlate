@@ -36,15 +36,34 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Initial PR open: no review threads were present at artifact creation.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
-  pending.
-- [ ] Codex Security diff scan / finding discovery pending.
-- [ ] `pulseplate-pr-review` pending.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
+  completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit/Sourcery/Cubic comments pending disposition after they run.
 
 ## Fixed in Commit Mapping
 
 - No actionable review comments
+
+## Role Review Finding Disposition
+
+- `qa-engineer-agent`: FIXED in `8f5f9c070`. Evidence:
+  `tests/test_bmi_compat_router.py` covers all three public/no-auth routes
+  with no credentials and a bad API key; this artifact and the PR body were
+  repaired to satisfy Phase2 parser requirements.
+- `bug-hunter`: NOT-A-BUG. Evidence: post-open pass reported no actionable
+  findings on head `8f5f9c070`.
+- `security-auditor`: NOT-A-BUG. Evidence: post-open pass found no auth,
+  privacy, quota, provider, export, or bootstrap regressions on head
+  `8f5f9c070`.
+- Codex Security diff scan: NOT-A-BUG. Evidence:
+  `/tmp/codex-security-scans/extract-bmi-plan-compat-routes-from-legacy/8f5f9c07091a_20260615T150753Z/report.md`
+  reports zero candidates across the five diff-scoped source rows.
+- `pulseplate-pr-review` large-diff advisory: NOT-A-BUG. Evidence: the diff is
+  intentionally one coherent route-family extraction, stays scoped to exactly
+  `POST /bmi`, `POST /plan`, and `POST /api/v1/bmi`, and targeted gates plus
+  `make validate-changed` passed.
 
 ## Local Validation Evidence
 
@@ -62,6 +81,10 @@
   PASS after commit.
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`
   PASS.
+- `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_compat_router.py tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_no_legacy_bmi_helpers_request_path.py`
+  PASS during post-open security-auditor pass.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_pr_review_report.py -q`
+  PASS during `pulseplate-pr-review`.
 - Push hooks PASS: changed-file mypy, backend pre-push tests, full-repo
   Bandit, Docker build test.
 
@@ -78,9 +101,9 @@ disposition, and strict merge-readiness checks.
   focused pytest, OpenAPI check, `make validate-changed`, pre-commit, and push
   hooks completed locally.
 - [x] Numbered fixed-mapping artifact created.
-- [ ] Post-open role-agent review sequence pending.
-- [ ] Codex Security diff scan / finding discovery pending.
-- [ ] `pulseplate-pr-review` pending.
+- [x] Post-open role-agent review sequence completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current-head CI and external bot review pending.
 - [ ] Every actionable review or bot comment must be fixed or dispositioned.
 - [ ] Strict merge-readiness check with `--require-auth` pending.
