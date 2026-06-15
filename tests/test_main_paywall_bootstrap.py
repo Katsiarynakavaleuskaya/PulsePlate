@@ -166,6 +166,63 @@ def _duplicate_bmi_compat_stub_router() -> APIRouter:
     return router
 
 
+def _bmi_compat_stub_router_with_unrelated_path() -> APIRouter:
+    router = _bmi_compat_stub_router()
+
+    async def _unrelated_handler() -> dict[str, str]:
+        return {"status": "unrelated"}
+
+    router.get("/api/v1/unrelated-bmi-compat-probe", include_in_schema=False)(_unrelated_handler)
+    return router
+
+
+def _bmi_compat_stub_router_with_combined_methods() -> APIRouter:
+    router = APIRouter()
+    combined_path, combined_method, combined_include = app_main._BMI_COMPAT_ROUTE_SPECS[0]
+
+    for path, method, include_in_schema in app_main._BMI_COMPAT_ROUTE_SPECS:
+
+        async def _bmi_compat_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        methods = [method]
+        if path == combined_path:
+            methods.append("GET" if combined_method == "POST" else "POST")
+        router.add_api_route(
+            path,
+            _bmi_compat_handler,
+            methods=methods,
+            include_in_schema=combined_include if path == combined_path else include_in_schema,
+        )
+    return router
+
+
+def _app_with_bmi_compat_routes_and_extra_method(*, combined_route: bool) -> FastAPI:
+    app = FastAPI()
+    extra_path, extra_method, extra_include = app_main._BMI_COMPAT_ROUTE_SPECS[0]
+
+    for path, method, include_in_schema in app_main._BMI_COMPAT_ROUTE_SPECS:
+
+        async def _bmi_compat_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        app.add_api_route(
+            path, _bmi_compat_handler, methods=[method], include_in_schema=include_in_schema
+        )
+
+    async def _extra_method_handler() -> dict[str, str]:
+        return {"status": "extra-method"}
+
+    extra_methods = [extra_method, "GET"] if combined_route else ["GET"]
+    app.add_api_route(
+        extra_path,
+        _extra_method_handler,
+        methods=extra_methods,
+        include_in_schema=extra_include,
+    )
+    return app
+
+
 def _admin_operations_stub_router_with_unrelated_path() -> APIRouter:
     router = _admin_operations_stub_router()
 
@@ -817,6 +874,96 @@ def test_bmi_compat_route_registration_rejects_wrong_method(
 
     with pytest.raises(RuntimeError, match="Partial BMI compatibility route registration detected"):
         _bootstrap_temp_app(app)
+
+
+def test_bmi_compat_route_registration_rejects_wrong_method_in_canonical_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    path, method, _include_in_schema = app_main._BMI_COMPAT_ROUTE_SPECS[0]
+    wrong_method = "GET" if method == "POST" else "POST"
+    monkeypatch.setattr(
+        app_main,
+        "bmi_compat_router",
+        _bmi_compat_stub_router(method_overrides={path: wrong_method}),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="BMI compatibility router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_bmi_compat_route_registration_allows_unrelated_canonical_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "bmi_compat_router",
+        _bmi_compat_stub_router_with_unrelated_path(),
+    )
+
+    app = _bootstrap_temp_app(FastAPI())
+
+    assert any(
+        getattr(route, "path", None) == "/api/v1/unrelated-bmi-compat-probe" for route in app.routes
+    )
+
+
+def test_bmi_compat_route_registration_rejects_combined_methods_in_canonical_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "bmi_compat_router",
+        _bmi_compat_stub_router_with_combined_methods(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="BMI compatibility router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_bmi_compat_route_registration_rejects_existing_wrong_method_after_full_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="Partial BMI compatibility route registration detected"):
+        _bootstrap_temp_app(_app_with_bmi_compat_routes_and_extra_method(combined_route=False))
+
+
+def test_bmi_compat_route_registration_rejects_existing_combined_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="Partial BMI compatibility route registration detected"):
+        _bootstrap_temp_app(_app_with_bmi_compat_routes_and_extra_method(combined_route=True))
+
+
+def test_bmi_compat_route_registration_rejects_existing_openapi_visibility_drift() -> None:
+    app = FastAPI()
+    app.include_router(app_main.bmi_compat_router)
+    path, method, include_in_schema = app_main._BMI_COMPAT_ROUTE_SPECS[0]
+    matching_route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    )
+    matching_route.include_in_schema = not include_in_schema
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve BMI compatibility OpenAPI visibility",
+    ):
+        app_main._include_bmi_compat_router_if_needed(app)
 
 
 def test_bmi_compat_route_registration_rejects_foreign_handlers(

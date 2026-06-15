@@ -301,3 +301,32 @@ def test_bmi_endpoint_v1_athlete_note_appends_waist_risk_notes_and_unknown_categ
     assert data["group"] == "athlete"
     assert data["athlete"] is True
     assert data["note"] == f"{t('en', 'advice_athlete_bmi')} | Extra waist note"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("legacy_name", "service_name", "payload"),
+    [
+        ("bmi_endpoint", "bmi_endpoint", {"route": "bmi"}),
+        ("plan_endpoint", "plan_endpoint", {"route": "plan"}),
+        ("bmi_endpoint_v1", "bmi_endpoint_v1", {"route": "bmi-v1"}),
+    ],
+)
+async def test_legacy_bmi_direct_call_shims_delegate_to_canonical_services(
+    monkeypatch: pytest.MonkeyPatch,
+    legacy_name: str,
+    service_name: str,
+    payload: dict[str, str],
+) -> None:
+    import app.services.bmi_compat as bmi_compat_service
+    import legacy_app
+
+    async def _fake_service(req: object) -> dict[str, object]:
+        return {"payload": payload, "request": req}
+
+    request = object()
+    monkeypatch.setattr(bmi_compat_service, service_name, _fake_service)
+
+    result = await getattr(legacy_app, legacy_name)(request)
+
+    assert result == {"payload": payload, "request": request}

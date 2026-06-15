@@ -68,11 +68,6 @@ def add_visualization_if_requested(result: dict[str, Any], req: BMIRequest) -> N
                 "error": "Visualization not available - generation failed",
                 "available": False,
             }
-    elif not MATPLOTLIB_AVAILABLE:
-        result["visualization"] = {
-            "error": "Visualization not available - matplotlib not installed",
-            "available": False,
-        }
 
 
 def _localized_legacy_bmi_result(

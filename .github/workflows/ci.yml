@@ -763,6 +763,7 @@ jobs:
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
+                  tests/test_bmi_compat_router.py \
                   tests/core/ai/test_bounded_insight_semantic_cache.py \
                   tests/core/ai/test_cache_observability.py \
                   tests/core/ai/test_exact_fuzzy_cache.py \
@@ -777,6 +778,7 @@ jobs:
                   tests/test_foods_router_coverage_boost.py \
                   tests/test_judgment_core.py \
                   tests/test_judgment_eval_contract.py \
+                  tests/test_legacy_bmi_shims.py \
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
@@ -1040,6 +1042,7 @@ jobs:
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
+                  tests/test_bmi_compat_router.py \
                   tests/core/ai/test_bounded_insight_semantic_cache.py \
                   tests/core/ai/test_cache_observability.py \
                   tests/core/ai/test_exact_fuzzy_cache.py \
@@ -1054,6 +1057,7 @@ jobs:
                   tests/test_foods_router_coverage_boost.py \
                   tests/test_judgment_core.py \
                   tests/test_judgment_eval_contract.py \
+                  tests/test_legacy_bmi_shims.py \
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \

@@ -1652,6 +1652,8 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane(
     assert test_pr_groups == test_feature_groups
     assert set(ci_risk_profile.ALL_RISK_GROUPS).issubset(test_pr_groups)
     assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
+    assert "tests/test_bmi_compat_router.py" in test_pr_groups["route_contract_safety"]
+    assert "tests/test_legacy_bmi_shims.py" in test_pr_groups["route_contract_safety"]
 
 
 def test_pr_contract_risk_suite_disables_xdist_plugin_under_coverage() -> None:
