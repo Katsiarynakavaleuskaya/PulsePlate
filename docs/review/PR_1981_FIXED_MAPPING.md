@@ -5,7 +5,9 @@
 Replacement PR for raw Dependabot PRs #1972, #1973, and #1974. This lane refreshes Python testing / quality / dev-tool pins while preserving the full lock graph, removing the invalid Dependabot assignee config, and keeping #1975 / RAG-vector plus torch alerts #160-#162 out of scope.
 
 Operator approval: approved
-Privileged scope exception: approved for this 16-file dependency/tooling lane because the extra files are mandatory governance or generated security artifacts: `docs/review/PR_1981_FIXED_MAPPING.md` for Phase2 mapping and `.secrets.baseline` for detect-secrets line-number drift after removing the retired pytest emergency wheel artifact.
+Privileged scope exception: approved for dependency tooling lane generated baseline and mapping artifact.
+
+Rationale: the 16-file count includes mandatory governance and generated security artifacts: `docs/review/PR_1981_FIXED_MAPPING.md` for Phase2 mapping and `.secrets.baseline` for detect-secrets line-number drift after removing the retired pytest emergency wheel artifact.
 
 Implementing commit:
 
@@ -38,6 +40,13 @@ Pre-existing Dependabot comments superseded by this replacement PR:
   - Commit: `e34a357f25d2aba717465c675595581e64301126`
   - Evidence: `.github/dependabot.yml:8` now goes directly from `open-pull-requests-limit` to `commit-message`; the invalid `assignees` block was removed.
 
+Post-open Codex review:
+
+- `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1981#discussion_r3413175721`
+  - Disposition: FIXED
+  - Commit: `f5482ba1999ab6d1452884b7644be13fe751bea6`
+  - Evidence: `scripts/ci/emergency_python_wheels.json` no longer carries the immediately expiring pytest fallback; approved proxy preflight and focused supply-chain tests passed after the removal.
+
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
@@ -46,6 +55,7 @@ Commit: e34a357f25d2aba717465c675595581e64301126
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1972#issuecomment-4700551979 -> e34a357f25d2aba717465c675595581e64301126
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1973#issuecomment-4700554400 -> e34a357f25d2aba717465c675595581e64301126
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1974#issuecomment-4700556503 -> e34a357f25d2aba717465c675595581e64301126
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1981#discussion_r3413175721 -> f5482ba1999ab6d1452884b7644be13fe751bea6
 
 ## Dependency Delta Proof
 
