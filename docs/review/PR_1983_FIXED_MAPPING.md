@@ -113,13 +113,27 @@ Torch remains out of scope for PR #1983 until GitHub/Safety/upstream/private
 index exposes a real patched version or a separate PR replaces/disables the
 optional vector profile.
 
+## Post-Open Review Closure
+
+- PASS after fix: `qa-engineer-agent` found Phase2 parser-shape blockers and
+  a test gap. Commit `141b1a21960cf393431aea5365d008b137d6033b` repaired the
+  parser-safe artifact/body mirror and made the guard assert exact
+  `transformers==5.12.0`.
+- PASS: `bug-hunter` found no regressions or false-green findings after
+  `141b1a21960cf393431aea5365d008b137d6033b`.
+- PASS: `security-auditor` found no supply-chain/security findings after
+  `141b1a21960cf393431aea5365d008b137d6033b`.
+- PASS: Codex Security diff scan / finding discovery completed with 9/9
+  explicit worklist receipts and no candidate findings:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/pr1983_141b1a21960c_20260615T150718Z/report.md`.
+- PASS: `pulseplate-pr-review` dry-run report produced no deterministic
+  findings:
+  `/tmp/pulseplate_pr1983_review_report.md`.
+- PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1983 --body "$(gh pr view 1983 --repo Katsiarynakavaleuskaya/PulsePlate --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required`.
+- PASS: `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1983 --require-auth`.
+
 ## Merge Readiness
 
-Not ready yet. Required post-open work remains:
-
-- Run post-open `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Run Codex Security diff scan / finding discovery.
-- Run `pulseplate-pr-review`.
-- Confirm no unresolved review threads and no unmapped actionable bot comments.
-- Confirm current-head CI parity and strict `check_merge_ready.py --require-auth`.
-- Observe the mandatory wait-window after latest review/bot activity.
+Not ready yet. Required current-head CI, strict merge-readiness auth check, and
+mandatory wait-window still need final confirmation after the latest push and
+bot activity.
