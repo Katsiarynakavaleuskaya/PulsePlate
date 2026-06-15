@@ -64,6 +64,26 @@ Disposition: NOT-A-BUG
 Evidence: Codex connector review contains the automated review header and reviewed commit metadata only; it does not include an actionable code or docs finding.
 Reason: no fix is required for metadata-only review output.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411139936 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411139941 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411146058 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411146060 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411146062 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411146064 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411203628 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411203632 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411203635 -> 2153e4a12174bb719fa44b6f8391d349b042c173
+Disposition: FIXED
+Commit: 2153e4a12174bb719fa44b6f8391d349b042c173
+Evidence: `docs/review/PR_1979_FIXED_MAPPING.md` now uses completed checkbox labels, `Phase 2`, canonical `Packet:` provenance, valid disposition blocks instead of stale no-actionable text, a reachable CodeRabbit proof SHA, raw hex `Commit:` values, and precise Experiment Runner trailer evidence.
+Reason: the mapped comments requested parser-safe governance text, reachable/raw commit proof, and accurate Experiment Runner attribution evidence.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411146066
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411146069
+Disposition: NOT-A-BUG
+Evidence: Current PR history contains `ea74f14fb2d6c9d7d4efff268f624a2334f7c84f`, and `git merge-base --is-ancestor ea74f14fb2d6c9d7d4efff268f624a2334f7c84f HEAD` returns success. `git log --format=%B origin/main..HEAD` shows the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on every material PR commit.
+Reason: these comments referenced stale reviewed-head ancestry/metadata; the current branch contains the cited implementation proof commit and the required Experiment Runner attribution trailer.
+
 ## Role Dispatch Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
