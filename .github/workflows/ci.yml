@@ -826,6 +826,7 @@ jobs:
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
           python -m coverage run --append -m pytest -q \
+            -p no:xdist \
             "${SELECTED_TARGETS[@]}" \
             --junitxml=tests/contract-results.xml \
             -o junit_family=legacy

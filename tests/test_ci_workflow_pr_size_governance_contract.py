@@ -1654,6 +1654,18 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane(
     assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
 
 
+def test_pr_contract_risk_suite_disables_xdist_plugin_under_coverage() -> None:
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(
+        workflow,
+        job_id="test-pr",
+        step_name="Contract and risk suites",
+    )
+    run_script = step["run"]
+    assert isinstance(run_script, str)
+    assert "python -m coverage run --append -m pytest -q \\\n  -p no:xdist" in run_script
+
+
 def test_ci_workflow_declares_canonical_main_and_feature_push_jobs() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
