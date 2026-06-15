@@ -100,6 +100,11 @@ Commit: 4a650a5f2457d4a6292b5082c4dfaf72b143832a
 Evidence: tests/test_app_endpoints_combined.py explicitly enables ENABLE_DEBUG_ENDPOINT for the debug happy path.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1980#discussion_r3412526373 -> 4a650a5f2457d4a6292b5082c4dfaf72b143832a
 
+Disposition: FIXED
+Commit: 4a650a5f2457d4a6292b5082c4dfaf72b143832a
+Evidence: CodeRabbit review summary aggregated the three actionable inline comments mapped above; the same post-comment fix commit addresses scheduler alias resolution, JSON Content-Type assertions, and deterministic debug endpoint gating.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1980#pullrequestreview-4496262009 -> 4a650a5f2457d4a6292b5082c4dfaf72b143832a
+
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit issue comment is walkthrough and pre-merge checklist metadata; actionable file comments are mapped above.
 Reason: No additional code action beyond the mapped review comments.
