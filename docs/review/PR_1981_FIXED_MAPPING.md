@@ -78,7 +78,7 @@ Negative controls:
 
 - PM-1981-001: Lockfiles update but emergency fallback manifest stays on `pytest 9.0.3` or carries an immediately expiring replacement.
   - Disposition: FIXED
-  - Commit: `e34a357f25d2aba717465c675595581e64301126`
+  - Commit: `f5482ba1999ab6d1452884b7644be13fe751bea6`
   - Evidence: `scripts/ci/emergency_python_wheels.json` removes the pytest fallback after approved proxy validation for `pytest==9.1.0`; `REQUIREMENTS.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and focused tests stay aligned.
 - PM-1981-002: `pip-tools --allow-unsafe` reintroduces a forbidden `pip==...` pin.
   - Disposition: FIXED
@@ -90,7 +90,7 @@ Negative controls:
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/exp-700647086d5e.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-3f84655ac268.json`
 - Result: accepted
 - Runner mode: `oracle_only_governance_reviewer`
 - Shared tree untouched: `true`
