@@ -40,6 +40,12 @@ Pre-existing Dependabot comments superseded by this replacement PR:
   - Commit: `e34a357f25d2aba717465c675595581e64301126`
   - Evidence: `.github/dependabot.yml:8` now goes directly from `open-pull-requests-limit` to `commit-message`; the invalid `assignees` block was removed.
 
+Supersession closeout:
+
+- PR #1972 closed as superseded by #1981; branch `dependabot/pip/testing-912befbf98` deleted.
+- PR #1973 closed as superseded by #1981; branch `dependabot/pip/quality-65aa614161` deleted.
+- PR #1974 closed as superseded by #1981; branch `dependabot/pip/dev-tools-35ffa26218` deleted.
+
 Post-open Codex review:
 
 - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1981#discussion_r3413175721`
@@ -51,10 +57,14 @@ Post-open Codex review:
 
 Disposition: FIXED
 Commit: e34a357f25d2aba717465c675595581e64301126
-
+Evidence: `.github/dependabot.yml:8` removes the invalid Dependabot `assignees` block while the replacement PR carries the intended dependency deltas from #1972, #1973, and #1974.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1972#issuecomment-4700551979 -> e34a357f25d2aba717465c675595581e64301126
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1973#issuecomment-4700554400 -> e34a357f25d2aba717465c675595581e64301126
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1974#issuecomment-4700556503 -> e34a357f25d2aba717465c675595581e64301126
+
+Disposition: FIXED
+Commit: f5482ba1999ab6d1452884b7644be13fe751bea6
+Evidence: `scripts/ci/emergency_python_wheels.json` no longer carries the immediately expiring pytest fallback; approved proxy preflight and focused supply-chain tests passed after the removal.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1981#discussion_r3413175721 -> f5482ba1999ab6d1452884b7644be13fe751bea6
 
 ## Dependency Delta Proof
@@ -100,6 +110,14 @@ Negative controls:
   - `python3 scripts/ci/install_locked_python_requirements.py --preflight-only --index-url https://packages.pulseplate.app/root/pypi/+simple/`
 - Co-author: Not applicable; the artifact is evidence-only and did not materially shape the committed code/test/doc decisions.
 
+## Post-Open Review Closure
+
+- PASS: `qa-engineer-agent` found the pytest fallback expiry and Phase2/parser risks; the fallback was removed and the mapping artifact repaired.
+- PASS: `bug-hunter` found stale mapping evidence for PM-1981-001; the evidence was refreshed to commit `f5482ba1999ab6d1452884b7644be13fe751bea6`.
+- PASS: `security-auditor` found no supply-chain/security blockers after the parser-safe mapping repair; remaining readiness risk is current-head CI / bot-governance only.
+- PASS: Codex Security diff scan / finding discovery at `/tmp/codex-security-scans/BMI-App_2025_clean/pr1981_ef3afc6ef2e6_20260615T120425Z/report.md`; 16/16 worklist receipts completed and candidate ledger is empty.
+- PASS: `pulseplate-pr-review` dry-run report at `/tmp/pulseplate_pr1981_review_report.md` produced no deterministic findings; `tests/test_pr_review_report.py` and `tests/test_pr_review_context.py` passed.
+
 ## Validation
 
 Local narrow gates:
@@ -112,6 +130,8 @@ Local narrow gates:
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS during push: pre-push hooks, including `pip-audit`, backend pre-push pytest, full-repo Bandit, and docker build test.
+- PASS: `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1981 --require-auth`
+- PASS: `. .venv/bin/activate && python -m pytest -q tests/test_pr_review_report.py tests/test_pr_review_context.py`
 
 Deferred heavy gate:
 
@@ -119,12 +139,9 @@ Deferred heavy gate:
 
 ## Merge Readiness
 
-Not ready at artifact creation. Required before merge:
+Not ready at latest artifact update. Required before merge:
 
-- Post-open role pass: `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Codex Security diff scan / finding discovery.
-- `pulseplate-pr-review`.
-- Current-head CI parity, including PR body / merge-readiness gates.
+- Current-head CI parity on the latest pushed commit, including PR body / merge-readiness gates.
 - Strict `check_merge_ready.py --require-auth`.
-- No unresolved review threads or unmapped actionable bot comments.
+- No unresolved review threads or unmapped actionable bot comments; CodeRabbit's rate-limit notice is mapped as NOT-A-BUG unless new actionable comments appear.
 - Mandatory wait-window after latest review activity.
