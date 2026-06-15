@@ -42,8 +42,9 @@ churn and adds `pip==26.1.2`.
   inline findings; dispositioned below as NOT-A-BUG.
 - Post-open role loop completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Codex Security diff scan / finding discovery and `pulseplate-pr-review`
-  remain required.
+- CodeRabbit CLI review completed with 0 issues.
+- Codex Security diff scan / finding discovery completed with no findings.
+- `pulseplate-pr-review` dry-run completed with no deterministic findings.
 
 ### Fixed in Commit Mapping
 
@@ -152,6 +153,25 @@ validation bundle required for the operator-approved exception.
   - `python3 -m pytest -q tests/test_install_locked_python_requirements.py -k 'ruff_private_proxy_pin or quality_tooling_profile'`
   - `python3 -m pytest -q tests/test_dependency_security_guard.py -k repo_managed_lock_surfaces_do_not_pin_pip`
 
+## Post-Open Review Evidence
+
+- PASS: `coderabbit review --agent -t committed -c AGENTS.md`
+  (`review_completed`, `findings: 0`)
+- PASS: Codex Security diff scan / finding discovery
+  - Scan artifact:
+    `/tmp/codex-security-scans/BMI-App_2025_clean/746014b7059fe226dcc8bb72eccd3bfeda04f629_20260615T052340Z`
+  - Report:
+    `/tmp/codex-security-scans/BMI-App_2025_clean/746014b7059fe226dcc8bb72eccd3bfeda04f629_20260615T052340Z/report.md`
+  - HTML:
+    `/tmp/codex-security-scans/BMI-App_2025_clean/746014b7059fe226dcc8bb72eccd3bfeda04f629_20260615T052340Z/report.html`
+  - Coverage: 2/2 diff-scoped files have `work_ledger.jsonl` completion
+    receipts; no candidate findings were opened.
+- PASS: `python3 scripts/orchestration/pr_review_context.py --pr 1979 --output /tmp/pulseplate_pr1979_review_context.json`
+- PASS: `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr1979_review_context.json --format markdown --packet-path artifacts/orchestration/task_packets/17a037545574.json --output /tmp/pulseplate_pr1979_review_report.md`
+- PASS: `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr1979_review_context.json --format json --packet-path artifacts/orchestration/task_packets/17a037545574.json --output /tmp/pulseplate_pr1979_review_report.json`
+- PASS: `.venv/bin/python -m pytest -q tests/test_pr_review_report.py`
+  (`9 passed`)
+
 ## Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
@@ -169,13 +189,15 @@ validation bundle required for the operator-approved exception.
 - PASS: `pre-commit run --all-files`
 - PASS during push hooks: `pip-audit`, backend pre-push pytest, and full-repo
   Bandit.
+- PASS: PR body Phase 2 parser guard after post-open mapping updates:
+  `python3 scripts/ci/check_pr_body_phase2_gates.py --body /tmp/pr1979-body-current.md --pr-number 1979 --commit-range origin/main..HEAD`
+- PASS: PR size governance:
+  `python3 scripts/ci/check_pr_size_governance.py --base-sha eabf69ecc8ed288c718239d09579fd61f4cd879a --head-sha 746014b7059fe226dcc8bb72eccd3bfeda04f629 --body "$(cat /tmp/pr1979-body-current.md)"`
 
 ## Merge Readiness
 
 Merge readiness is not claimed by this artifact alone. Required remaining proof:
 
-- Codex Security diff scan / finding discovery;
-- `pulseplate-pr-review`;
 - current-head PR CI for the latest pushed head;
 - PR-body Phase 2 and mapping guards after this artifact is committed and the PR
   body mirror is refreshed;
