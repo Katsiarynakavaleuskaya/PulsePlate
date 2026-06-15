@@ -89,9 +89,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
     {
         LegacyFact("decorator", "middleware", "http", "csp_nonce_middleware"),
         LegacyFact("decorator", "middleware", "http", "log_requests"),
-        LegacyFact("decorator", "post", "/bmi", "bmi_endpoint"),
-        LegacyFact("decorator", "post", "/plan", "plan_endpoint"),
-        LegacyFact("decorator", "post", "/api/v1/bmi", "bmi_endpoint_v1"),
         LegacyFact("decorator", "post", "/api/v1/insight", "insight_v1_route"),
         LegacyFact("decorator", "post", "/insight", "insight_route"),
         LegacyFact("decorator", "post", "/api/v1/premium/plate", "api_premium_plate"),

@@ -64,6 +64,8 @@ class TestAppOpenAPICoverage:
 
         # Проверяем канонические публичные пути (bmi/billing/pro/vip)
         assert "/api/v1/bmi" in paths
+        assert "/bmi" not in paths
+        assert "/plan" not in paths
         assert "/api/v1/billing/apple/verify-receipt" in paths
         assert "/api/v1/pro/meal/weekly" in paths
         assert "/api/v1/pro/nutrition/daily" in paths
