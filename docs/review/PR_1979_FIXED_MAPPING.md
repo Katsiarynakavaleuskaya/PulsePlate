@@ -84,6 +84,16 @@ Disposition: NOT-A-BUG
 Evidence: Current PR history contains `ea74f14fb2d6c9d7d4efff268f624a2334f7c84f`, and `git merge-base --is-ancestor ea74f14fb2d6c9d7d4efff268f624a2334f7c84f HEAD` returns success. `git log --format=%B origin/main..HEAD` shows the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on every material PR commit.
 Reason: these comments referenced stale reviewed-head ancestry/metadata; the current branch contains the cited implementation proof commit and the required Experiment Runner attribution trailer.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411263520
+Disposition: NOT-A-BUG
+Evidence: `gh pr view 1979 --json headRefOid` reports `680f526c969d8a0daf777424a2d507f56fe13922`, and `git ls-remote origin refs/pull/1979/head` reports the same SHA. From the PR branch, `git merge-base --is-ancestor acb6d162abc370469a55fb36cc5f3b7752186a70 HEAD` and `git merge-base --is-ancestor 2153e4a12174bb719fa44b6f8391d349b042c173 HEAD` both return success.
+Reason: the comment cited stale reviewed-head `f78be22d71d91f1a8bd3d3e04af7d61fff403d1b`, which is not the current GitHub PR head; the mapped FIXED proof commits are reachable from the current PR branch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#discussion_r3411263524
+Disposition: NOT-A-BUG
+Evidence: `git log --format=%H%n%B origin/main..HEAD` shows the canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on every material PR commit, including the latest mapping/proof commits.
+Reason: the comment cited stale reviewed-head `f78be22d71d91f1a8bd3d3e04af7d61fff403d1b`; the current PR branch satisfies the Experiment Runner attribution invariant.
+
 ## Role Dispatch Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
