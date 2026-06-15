@@ -148,6 +148,9 @@ optional vector profile.
   a test gap. Commit `141b1a21960cf393431aea5365d008b137d6033b` repaired the
   parser-safe artifact/body mirror and made the guard assert exact
   `transformers==5.12.0`.
+  Current branch containment was rechecked after the post-open review:
+  `git merge-base --is-ancestor 141b1a21960cf393431aea5365d008b137d6033b HEAD`
+  passed at head `d4b4e77df481bd55f642e66c64f72e6c22390b6e`.
 - PASS: `bug-hunter` found no regressions or false-green findings after
   `141b1a21960cf393431aea5365d008b137d6033b`.
 - PASS: `security-auditor` found no supply-chain/security findings after
