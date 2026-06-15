@@ -500,9 +500,15 @@ def test_repo_dev_quality_emergency_wheels_are_selected_from_active_manifest(
     assert not any(filename.startswith("ruff-") for _url, filename, _sha256 in observed_downloads)
 
 
-def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> None:
-    expected_version = _active_manifest_artifact_version("transformers")
+def test_repo_transformers_emergency_fallback_is_retired_after_proxy_sync() -> None:
+    fallback_versions = [
+        item["version"].strip()
+        for item in _repo_active_emergency_artifacts()
+        if item["package"] == "transformers"
+    ]
+    assert not fallback_versions
 
+    observed_versions: set[str] = set()
     for requirement_path in (
         "requirements-rag-vector.in",
         "requirements-rag-vector.txt",
@@ -510,7 +516,15 @@ def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> N
         "requirements-rag-vector-cpu.txt",
     ):
         requirement_text = (REPO_ROOT / requirement_path).read_text(encoding="utf-8")
-        assert ("transformers", expected_version) in _exact_requirement_pairs(requirement_text)
+        requirement_versions = {
+            version
+            for package, version in _exact_requirement_pairs(requirement_text)
+            if package == "transformers"
+        }
+        assert len(requirement_versions) == 1
+        observed_versions.update(requirement_versions)
+
+    assert observed_versions == {"5.12.0"}
 
 
 def test_repo_sentence_transformers_emergency_fallback_matches_rag_vector_surfaces() -> None:

@@ -222,14 +222,6 @@
             "filename": "types_pyyaml-6.0.12.20260408-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/1c/f0/c391068b86abb708882c6d75a08cd7d25b2c7227dab527b3a3685a3c635b/types_pyyaml-6.0.12.20260408-py3-none-any.whl",
             "sha256": "fbc42037d12159d9c801ebfcc79ebd28335a7c13b08a4cfbc6916df78fee9384"
-        },
-        {
-            "package": "transformers",
-            "version": "5.10.2",
-            "expires_at": "2026-06-15",
-            "filename": "transformers-5.10.2-py3-none-any.whl",
-            "url": "https://files.pythonhosted.org/packages/73/6f/e1564b0cc182afa05e219a8e09a8e770ffaab879b6b824b56c819bd221da/transformers-5.10.2-py3-none-any.whl",
-            "sha256": "8a669db546f82c7c3618cb46ceb0f0afd89292bc70f319c058f8332ec63e268d"
         }
     ]
 }
