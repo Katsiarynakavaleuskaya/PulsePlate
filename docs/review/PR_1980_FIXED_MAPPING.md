@@ -69,10 +69,14 @@ and client changes are out of scope.
 - [x] Fixed in commit mapping completed
 - Post-open `qa-engineer-agent` pass completed and produced actionable
   CodeRabbit/parser findings now mapped below.
-- Remaining post-open role loop is still pending:
-  `bug-hunter -> security-auditor`.
-- Codex Security diff scan / finding discovery and `pulseplate-pr-review` are
-  still pending.
+- Post-open `bug-hunter` pass completed with PASS: no actionable P0/P1 bug
+  remains in the PR diff, and the three CodeRabbit fixes are addressed.
+- Post-open `security-auditor` pass completed with PASS: no actionable
+  security/auth/secret/OpenAPI exposure issue remains in the PR diff.
+- Codex Security diff scan / finding discovery completed with no reportable
+  findings.
+- `pulseplate-pr-review` completed with one advisory large-diff planning note,
+  dispositioned as NOT-A-BUG below.
 - GitHub review threads must not be resolved until the mapped fix commit is
   pushed and the strict disposition guard is rerun.
 
@@ -121,6 +125,54 @@ Reason: Not an actionable code review.
   premortem closure above.
 - `bug-hunter`: found no concrete blocking runtime regression after fixes.
 
+## Post-Open Role Review Evidence
+
+- `qa-engineer-agent`: HOLD until CodeRabbit/parser fixes were applied.
+  Disposition: FIXED by commit
+  `4a650a5f2457d4a6292b5082c4dfaf72b143832a` for scheduler alias seam,
+  JSON Content-Type assertions, and deterministic `/debug_env` happy path;
+  fixed mapping/parser shape was corrected in commit
+  `fbabe5ef8557070619d6a80270cfe8f66df433cb`.
+- `bug-hunter`: PASS. Evidence: confirmed no actionable P0/P1 bug remains,
+  all seven admin/debug runtime routes are canonical, hidden from OpenAPI, and
+  the three CodeRabbit fixes are addressed. Focused probe and pytest passed.
+- `security-auditor`: PASS. Evidence: confirmed six protected operational
+  routes use API-key dependency, `/debug_env` is env-gated with limited payload,
+  live OpenAPI has no leaks, and scheduler seam remains server-internal.
+
+## Codex Security Diff Scan / Finding Discovery
+
+- Skill: `codex-security:security-diff-scan`.
+- Scope: PR diff `origin/main...HEAD` for source-like changed files:
+  `app/main.py`, `app/routers/admin_operations.py`,
+  `app/services/admin_operations.py`, and `legacy_app.py`.
+- Scan directory:
+  `/tmp/codex-security-scans/extract-admin-debug-operational-routes-from-legacy/pr-1980-admin-debug-operational-routes-fbabe5ef8`.
+- Markdown report:
+  `/tmp/codex-security-scans/extract-admin-debug-operational-routes-from-legacy/pr-1980-admin-debug-operational-routes-fbabe5ef8/report.md`.
+- HTML report:
+  `/tmp/codex-security-scans/extract-admin-debug-operational-routes-from-legacy/pr-1980-admin-debug-operational-routes-fbabe5ef8/report.html`.
+- Work ledger:
+  `/tmp/codex-security-scans/extract-admin-debug-operational-routes-from-legacy/pr-1980-admin-debug-operational-routes-fbabe5ef8/artifacts/02_discovery/work_ledger.jsonl`.
+- Result: PASS, no reportable findings. Every `deep_review_input.csv` row has
+  a completion receipt, discovery emitted no candidates, and the final markdown
+  report passed `validate_report_format.py`.
+
+## PulsePlate PR Review
+
+- Skill: `pulseplate-pr-review`.
+- Context: `/tmp/pulseplate_pr_1980_review_context.json`.
+- Markdown report: `/tmp/pulseplate_pr_1980_review_report.md`.
+- JSON report: `/tmp/pulseplate_pr_1980_review_report.json`.
+- Finding: one advisory `note` for large-diff review planning because the diff
+  exceeds the 800 changed-line threshold.
+- Disposition: NOT-A-BUG.
+- Evidence: this PR is intentionally the bounded seven-route admin/debug
+  operational extraction slice. The line count is dominated by targeted route
+  extraction, bootstrap fail-closed tests, legacy guard shrink, focused endpoint
+  tests, and this canonical review artifact. Focused local gates,
+  post-open role reviews, Codex Security, and `make validate-changed` passed.
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`.
@@ -130,6 +182,7 @@ Reason: Not an actionable code review.
   after CodeRabbit/QA fixes.
 - PASS: `.venv/bin/python scripts/ci/check_legacy_growth_guard.py`.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
+- PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1980`.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`.
 - PASS during push hooks: mypy, pip-audit, backend pre-push pytest,
@@ -143,10 +196,10 @@ Reason: Not an actionable code review.
 Not merge-ready yet. Required before merge:
 
 - [ ] Current-head required CI green with no pending required jobs.
-- [ ] Remaining post-open role loop completed:
-  `bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Post-open role loop completed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit, Sourcery, Cubic, and human/bot comments have no unresolved
   actionable items, or every item is dispositioned above.
 - [ ] `check_merge_ready.py --require-auth` passes after latest review activity.
