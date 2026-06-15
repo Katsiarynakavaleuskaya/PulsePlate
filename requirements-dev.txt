@@ -63,7 +63,7 @@ distlib==0.4.0
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
-faker==40.21.0
+faker==40.23.0
     # via -r requirements-dev.in
 filelock==3.24.3
     # via
@@ -141,7 +141,7 @@ pillow==12.2.0
     #   -r requirements-dev.in
 pip-api==0.0.34
     # via pip-audit
-pip-audit==2.10.0
+pip-audit==2.10.1
     # via -r requirements-dev.in
 pip-requirements-parser==32.0.1
     # via pip-audit
@@ -183,7 +183,7 @@ pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
-pytest==9.0.3
+pytest==9.1.0
     # via
     #   -r requirements-dev.in
     #   pytest-asyncio
@@ -224,7 +224,7 @@ rich==14.3.3
     # via
     #   bandit
     #   pip-audit
-ruff==0.15.16
+ruff==0.15.17
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via

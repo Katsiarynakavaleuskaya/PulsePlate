@@ -22,7 +22,7 @@
 **`requirements-dev.txt`** - Development and testing tools
 ```bash
 -r requirements.txt  # Includes all production deps
-pytest==9.0.3
+pytest==9.1.0
 pytest-cov==7.0.0
 ...
 ```
@@ -30,13 +30,13 @@ pytest-cov==7.0.0
 **`requirements-all.txt`** - All dependencies (prod + dev)
 ```bash
 -r requirements.txt  # Includes production deps
-pytest>=8.3         # Dev tools with minimum versions
+pytest>=9.1.0      # Dev tools with minimum versions
 ...
 ```
 
 **`constraints.txt`** - Minimum and bounded versions for reproducible dev resolution
 ```bash
-pytest>=9.0.3
+pytest>=9.1.0
 black>=26.5.0
 ...
 ```
