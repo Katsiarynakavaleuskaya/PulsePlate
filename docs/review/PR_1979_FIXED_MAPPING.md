@@ -34,14 +34,34 @@ churn and adds `pip==26.1.2`.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- No actionable review comments
-- Post-open review loop remains required:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`, followed by Codex
-  Security diff scan / finding discovery and `pulseplate-pr-review`.
+- Sourcery review `4494544909`: rate-limit metadata, not actionable code
+  review feedback; dispositioned below as NOT-A-BUG.
+- CodeRabbit review `4494573487`: three actionable mapping text findings;
+  dispositioned below as FIXED.
+- Codex connector review `4494581350`: review metadata with no actionable
+  inline findings; dispositioned below as NOT-A-BUG.
+- Post-open role loop completed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Codex Security diff scan / finding discovery and `pulseplate-pr-review`
+  remain required.
 
 ### Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#pullrequestreview-4494544909
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported weekly diff-character rate limiting and did not return an actionable code or documentation finding.
+Reason: rate-limit metadata does not require a code change.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#pullrequestreview-4494573487 -> 159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd
+Disposition: FIXED
+Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Evidence: `docs/review/PR_1979_FIXED_MAPPING.md` now uses exact completed checkbox labels, `Phase 2`, and clearer QA role wording.
+Reason: CodeRabbit requested parser-safe checkbox wording plus two mapping text cleanup items.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#pullrequestreview-4494581350
+Disposition: NOT-A-BUG
+Evidence: Codex connector review contains the automated review header and reviewed commit metadata only; it does not include an actionable code or docs finding.
+Reason: no fix is required for metadata-only review output.
 
 ## Role Dispatch Evidence
 
@@ -64,6 +84,38 @@ churn and adds `pip==26.1.2`.
   post-open review loop.
 - `architecture-specialist`: confirmed `requirements-dev.in` is the source
   surface and generated/constraint files are parity surfaces.
+
+## Post-Open Role Finding Closure
+
+- `agent-coordinator` post-open pass:
+Disposition: FIXED
+Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Evidence: PR body now uses exact `## Tests`, exact completed checkboxes, exact
+`- No actionable review comments`, Experiment Runner `Artifact:`, and lane
+`Packet:` fields. This mapping artifact now uses exact parser-safe labels and a
+real mapping commit SHA.
+
+- `qa-engineer-agent` post-open pass:
+Disposition: FIXED
+Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Evidence: QA accepted the implementation and identified the same parser-shape
+and CodeRabbit mapping text nits. The parser-shape and wording fixes are now in
+this artifact and PR body.
+
+- `bug-hunter` post-open pass:
+Disposition: FIXED
+Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Evidence: bug-hunter found no implementation regression and called out the same
+mapping/body parser defects. The exact `Packet:`, checkbox, no-actionable,
+`Artifact:`, `Phase 2`, and QA wording fixes are now applied.
+
+- `security-auditor` post-open pass:
+Disposition: FIXED
+Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Evidence: security-auditor accepted the supply-chain boundary and found the bad
+mapping SHA plus parser-invalid governance text. This artifact now cites the
+real mapping commit `ea52cf7cfced59f1b35f683d3cd02f9ac164dc77` and parser-safe
+labels.
 
 ## Premortem Finding Closure
 
@@ -122,8 +174,6 @@ validation bundle required for the operator-approved exception.
 
 Merge readiness is not claimed by this artifact alone. Required remaining proof:
 
-- post-open role loop:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`;
 - Codex Security diff scan / finding discovery;
 - `pulseplate-pr-review`;
 - current-head PR CI for the latest pushed head;
