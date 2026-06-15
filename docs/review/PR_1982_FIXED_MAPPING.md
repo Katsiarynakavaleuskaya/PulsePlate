@@ -28,7 +28,7 @@
   `python3 -m pytest -q tests/test_bmi_compat_router.py tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/test_legacy_bmi_shims.py tests/test_plan_delegation_proof.py tests/test_main_paywall_bootstrap.py tests/test_no_legacy_bmi_helpers_request_path.py`
 - Oracle result: return code 0, `shared_tree_untouched=true`,
   `contribution_kind=oracle_review`, `coauthor_required=true`.
-- Commit trailer included:
+- Commit trailer included in reachable implementation commit `7562b86d5`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Discussion Thread Pass
@@ -48,15 +48,16 @@
 
 ## Role Review Finding Disposition
 
-- `qa-engineer-agent`: FIXED in `8f5f9c070`. Evidence:
+- `qa-engineer-agent`: FIXED in reachable commit
+  `8f5f9c07091a517a0c06c88cfbd8838648b4212c`. Evidence:
   `tests/test_bmi_compat_router.py` covers all three public/no-auth routes
   with no credentials and a bad API key; this artifact and the PR body were
   repaired to satisfy Phase2 parser requirements.
 - `bug-hunter`: NOT-A-BUG. Evidence: post-open pass reported no actionable
-  findings on head `8f5f9c070`.
+  findings on reachable head `8f5f9c07091a517a0c06c88cfbd8838648b4212c`.
 - `security-auditor`: NOT-A-BUG. Evidence: post-open pass found no auth,
-  privacy, quota, provider, export, or bootstrap regressions on head
-  `8f5f9c070`.
+  privacy, quota, provider, export, or bootstrap regressions on reachable head
+  `8f5f9c07091a517a0c06c88cfbd8838648b4212c`.
 - Codex Security diff scan: NOT-A-BUG. Evidence:
   `/tmp/codex-security-scans/extract-bmi-plan-compat-routes-from-legacy/8f5f9c07091a_20260615T150604Z/report.md`
   reports zero candidates across the five diff-scoped source rows.
@@ -69,21 +70,21 @@
 
 - `python3 scripts/orchestration/check_preflight.py` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/check_legacy_growth_guard.py`
+- `.venv/bin/python scripts/ci/check_legacy_growth_guard.py`
   PASS.
-- `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/test_legacy_bmi_shims.py tests/test_plan_delegation_proof.py tests/test_bmi_compat_router.py tests/test_main_paywall_bootstrap.py tests/test_app_public_surface.py tests/test_app_openapi_coverage.py tests/test_app_creation_coverage.py tests/test_app_endpoints_combined.py tests/test_no_bmi_math_outside_core.py tests/test_no_legacy_bmi_helpers_request_path.py`
+- `PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/test_legacy_bmi_shims.py tests/test_plan_delegation_proof.py tests/test_bmi_compat_router.py tests/test_main_paywall_bootstrap.py tests/test_app_public_surface.py tests/test_app_openapi_coverage.py tests/test_app_creation_coverage.py tests/test_app_endpoints_combined.py tests/test_no_bmi_math_outside_core.py tests/test_no_legacy_bmi_helpers_request_path.py`
   PASS.
-- `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_plan_contract_regression.py tests/test_bmi_canonical_guard.py tests/edges/test_app_branches.py`
+- `PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_plan_contract_regression.py tests/test_bmi_canonical_guard.py tests/edges/test_app_branches.py`
   PASS.
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make openapi-check`
+- `PATH=.venv/bin:$PATH make openapi-check`
   PASS, no generated OpenAPI/client diff.
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make validate-changed`
+- `VENV_PYTHON=.venv/bin/python PATH=.venv/bin:$PATH make validate-changed`
   PASS after commit.
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`
+- `PATH=.venv/bin:$PATH pre-commit run --all-files`
   PASS.
-- `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_compat_router.py tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_no_legacy_bmi_helpers_request_path.py`
+- `PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_bmi_compat_router.py tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_no_legacy_bmi_helpers_request_path.py`
   PASS during post-open security-auditor pass.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_pr_review_report.py -q`
+- `.venv/bin/python -m pytest tests/test_pr_review_report.py -q`
   PASS during `pulseplate-pr-review`.
 - Push hooks PASS: changed-file mypy, backend pre-push tests, full-repo
   Bandit, Docker build test.

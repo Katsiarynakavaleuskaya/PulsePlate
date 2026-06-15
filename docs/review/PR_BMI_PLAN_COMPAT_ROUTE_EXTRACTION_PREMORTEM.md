@@ -77,7 +77,7 @@ Evidence:
   `tests/test_openapi_namespace_guards.py`, and
   `tests/test_app_openapi_coverage.py` assert `/bmi` and `/plan` remain absent
   from public OpenAPI.
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make openapi-check`
+- `PATH=.venv/bin:$PATH make openapi-check`
   passed and reported no generated OpenAPI/client diff.
 
 ### PM-BMI-COMPAT-003: `/api/v1/bmi` OpenAPI contract drifts
@@ -174,7 +174,7 @@ Evidence:
   decorator facts from the legacy allowlist.
 - `tests/test_legacy_growth_guard.py` rejects reintroduced `/bmi`, `/plan`, and
   `/api/v1/bmi` decorators.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/check_legacy_growth_guard.py`
+- `.venv/bin/python scripts/ci/check_legacy_growth_guard.py`
   passed.
 
 ### PM-BMI-COMPAT-007: Raw `legacy_app:app` serving loses route decorators
