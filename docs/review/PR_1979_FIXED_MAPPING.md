@@ -20,8 +20,8 @@ churn and adds `pip==26.1.2`.
 - Initial implementation commit:
   `ea74f14fb2d6c9d7d4efff268f624a2334f7c84f`
 - Initial mapping artifact commit:
-  `ea52cf7cfb6758163b5c66f3e5c440b42a64f0a8`
-- Task packet: `artifacts/orchestration/task_packets/1a8d6fe97dcc.json`
+  `ea52cf7cfced59f1b35f683d3cd02f9ac164dc77`
+- Packet: `artifacts/orchestration/task_packets/1a8d6fe97dcc.json`
 - Experiment Runner packet:
   `artifacts/orchestration/experiments/exp-9bd8f13b42ee.json`
 - Experiment Runner accepted result:
@@ -32,16 +32,16 @@ churn and adds `pip==26.1.2`.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass initialized.
-- [x] Fixed in commit mapping initialized.
-- No actionable review comments yet.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- No actionable review comments
 - Post-open review loop remains required:
   `qa-engineer-agent -> bug-hunter -> security-auditor`, followed by Codex
   Security diff scan / finding discovery and `pulseplate-pr-review`.
 
 ### Fixed in Commit Mapping
 
-- No actionable review comments yet.
+- No actionable review comments
 
 ## Role Dispatch Evidence
 
@@ -54,7 +54,7 @@ churn and adds `pip==26.1.2`.
   `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor -> cursor-specialist-agent -> architecture-specialist`.
 - `agent-coordinator`: blocked raw #1973 and required separate guard-compat
   work because the Dependabot branch carries resolver churn and `pip==26.1.2`.
-- `qa-engineer-agent`: accepted deriving ruff from `requirements-dev.in` and
+- `qa-engineer-agent`: accepted ruff derivation from `requirements-dev.in` and
   required focused dependency guard coverage.
 - `bug-hunter`: required existing parsers instead of ad hoc regexes and no new
   stale ruff literal.
@@ -84,7 +84,7 @@ passed with `scripts/ci/install_locked_python_requirements.py --preflight-only`.
 
 - PM-003: Machine-heavy validation deferral could be under-documented.
 Disposition: FIXED
-Commit: `ea52cf7cfb6758163b5c66f3e5c440b42a64f0a8`
+Commit: `ea52cf7cfced59f1b35f683d3cd02f9ac164dc77`
 Evidence: this artifact records the local `make verify` deferral and the focused
 validation bundle required for the operator-approved exception.
 
@@ -127,7 +127,7 @@ Merge readiness is not claimed by this artifact alone. Required remaining proof:
 - Codex Security diff scan / finding discovery;
 - `pulseplate-pr-review`;
 - current-head PR CI for the latest pushed head;
-- PR-body Phase2 and mapping guards after this artifact is committed and the PR
+- PR-body Phase 2 and mapping guards after this artifact is committed and the PR
   body mirror is refreshed;
 - strict merge-readiness wrapper with GitHub auth;
 - no unresolved review threads or actionable bot comments;
