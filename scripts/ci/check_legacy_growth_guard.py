@@ -74,7 +74,7 @@ SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
     "subscription": 0,
 }
 SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
-    "api_key": 21,
+    "api_key": 15,
     "auth": 0,
     "billing": 0,
     "entitlement": 0,
@@ -87,10 +87,8 @@ SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
 
 ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
     {
-        LegacyFact("decorator", "get", "/api/v1/admin/status", "admin_status"),
         LegacyFact("decorator", "middleware", "http", "csp_nonce_middleware"),
         LegacyFact("decorator", "middleware", "http", "log_requests"),
-        LegacyFact("decorator", "post", "/admin/logs/cleanup", "cleanup_expired_logs"),
         LegacyFact("decorator", "post", "/bmi", "bmi_endpoint"),
         LegacyFact("decorator", "post", "/plan", "plan_endpoint"),
         LegacyFact("decorator", "post", "/api/v1/bmi", "bmi_endpoint_v1"),
@@ -103,11 +101,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("decorator", "post", "/api/v1/premium/targets", "api_who_targets"),
         LegacyFact("decorator", "post", "/api/v1/premium/plan/week", "api_weekly_menu"),
         LegacyFact("decorator", "post", "/api/v1/premium/gaps", "api_nutrient_gaps"),
-        LegacyFact("decorator", "get", "/debug_env", "debug_env"),
-        LegacyFact("decorator", "get", "/api/v1/admin/db-status", "get_database_status"),
-        LegacyFact("decorator", "post", "/api/v1/admin/force-update", "force_database_update"),
-        LegacyFact("decorator", "get", "/api/v1/admin/check-updates", "check_for_updates"),
-        LegacyFact("decorator", "post", "/api/v1/admin/rollback", "rollback_database"),
         LegacyFact(
             "decorator",
             "get",

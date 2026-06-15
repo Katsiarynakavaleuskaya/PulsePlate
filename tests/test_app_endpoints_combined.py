@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import app as apppkg
 from app.routers import health as health_router
+from app.routers.admin_operations import ADMIN_OPERATION_ROUTE_SPECS
 from app.routers.legal import build_terms_endpoint_payload
 from app.bootstrap import public_discovery
 from core.compliance import build_privacy_endpoint_payload
@@ -249,31 +250,53 @@ class TestDebugEndpoint:
 
     def test_debug_env_endpoint(self, client: TestClient) -> None:
         """Test /debug_env returns environment info"""
+        route = _find_route(client, "/debug_env")
+        assert route.endpoint.__module__ == "app.routers.admin_operations"
+        assert getattr(route, "include_in_schema", True) is False
+
         response = client.get("/debug_env")
         assert response.status_code == 200
         data = response.json()
-        # Should contain meaningful debug information
-        assert isinstance(data, dict)
-        assert len(data) > 0, "Debug endpoint should return non-empty data"
+        assert set(data) == {
+            "FEATURE_INSIGHT",
+            "LLM_PROVIDER",
+            "PERPLEXITY_MODEL",
+            "PERPLEXITY_ENDPOINT",
+            "insight_enabled",
+        }
 
-        # Check for essential debug key categories (flexible assertions)
-        debug_keys = set(data.keys())
+    def test_debug_env_fails_closed_in_production_like_env(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("ENABLE_DEBUG_ENDPOINT", raising=False)
 
-        # Ensure at least one feature flag exists
-        feature_flags = [key for key in debug_keys if key.startswith("FEATURE_")]
-        assert len(feature_flags) > 0, "Expected at least one FEATURE_* flag in debug data"
+        response = client.get("/debug_env")
 
-        # Ensure LLM provider configuration exists
-        llm_keys = [
-            key for key in debug_keys if "PROVIDER" in key or "MODEL" in key or "ENDPOINT" in key
-        ]
-        assert (
-            len(llm_keys) > 0
-        ), "Expected at least one LLM-related key (PROVIDER/MODEL/ENDPOINT) in debug data"
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Not found"}
 
-        # Ensure insight functionality flag exists
-        insight_keys = [key for key in debug_keys if "insight" in key.lower()]
-        assert len(insight_keys) > 0, "Expected at least one insight-related key in debug data"
+    def test_admin_debug_operational_routes_are_owned_by_canonical_router(
+        self,
+        client: TestClient,
+    ) -> None:
+        for path, method in ADMIN_OPERATION_ROUTE_SPECS:
+            route = _find_route(client, path, method)
+            assert route.endpoint.__module__ == "app.routers.admin_operations"
+            assert getattr(route, "include_in_schema", True) is False
+
+    def test_admin_debug_operational_routes_stay_hidden_from_public_openapi(
+        self,
+        client: TestClient,
+    ) -> None:
+        app = cast(FastAPI, client.app)
+        paths = app.openapi()["paths"]
+
+        for path, _method in ADMIN_OPERATION_ROUTE_SPECS:
+            assert path not in paths
 
 
 class TestAppPackageShimEdges:

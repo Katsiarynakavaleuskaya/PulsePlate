@@ -72,6 +72,28 @@ def _favicon_stub_router(*, include_in_schema: bool = False) -> APIRouter:
     return router
 
 
+def _admin_operations_stub_router(
+    *,
+    include_in_schema: bool = False,
+    omit: frozenset[str] = frozenset(),
+    method_overrides: dict[str, str] | None = None,
+) -> APIRouter:
+    router = APIRouter()
+    overrides = method_overrides or {}
+
+    for path, method in app_main._ADMIN_OPERATION_ROUTE_SPECS:
+        if path in omit:
+            continue
+        route_method = overrides.get(path, method).lower()
+
+        async def _admin_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        getattr(router, route_method)(path, include_in_schema=include_in_schema)(_admin_handler)
+
+    return router
+
+
 def _duplicate_health_stub_router() -> APIRouter:
     router = _health_stub_router()
 
@@ -89,6 +111,20 @@ def _duplicate_favicon_stub_router() -> APIRouter:
         return Response(status_code=204)
 
     router.get(app_main.FAVICON_ROUTE_PATH, include_in_schema=False)(_second_favicon)
+    return router
+
+
+def _duplicate_admin_operations_stub_router() -> APIRouter:
+    router = _admin_operations_stub_router()
+    duplicate_path, duplicate_method = app_main._ADMIN_OPERATION_ROUTE_SPECS[0]
+
+    async def _second_admin_handler() -> dict[str, str]:
+        return {"status": "duplicate"}
+
+    getattr(router, duplicate_method.lower())(
+        duplicate_path,
+        include_in_schema=False,
+    )(_second_admin_handler)
     return router
 
 
@@ -112,6 +148,7 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "register_pro_contract_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_billing_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "feedback_router", _stub_router("/api/v1/feedback/rag"))
+    monkeypatch.setattr(app_main, "admin_operations_router", _admin_operations_stub_router())
     monkeypatch.setattr(app_main, "favicon_router", _favicon_stub_router())
     monkeypatch.setattr(app_main, "health_router", _health_stub_router())
     monkeypatch.setattr(app_main, "legal_router", _legal_stub_router())
@@ -403,6 +440,153 @@ def test_favicon_route_registration_rejects_duplicate_canonical_router_paths(
     monkeypatch.setattr(app_main, "favicon_router", _duplicate_favicon_stub_router())
 
     with pytest.raises(RuntimeError, match="Favicon router does not define"):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_admin_operations_route_registration_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    _bootstrap_temp_app(app)
+    _bootstrap_temp_app(app)
+
+    for path, method in app_main._ADMIN_OPERATION_ROUTE_SPECS:
+        admin_routes = [
+            route
+            for route in app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        assert len(admin_routes) == 1
+        assert getattr(admin_routes[0], "include_in_schema", True) is False
+
+
+@pytest.mark.parametrize(
+    "existing_path",
+    [path for path, _method in app_main._ADMIN_OPERATION_ROUTE_SPECS],
+)
+def test_admin_operations_route_registration_rejects_partial_state(
+    monkeypatch: pytest.MonkeyPatch,
+    existing_path: str,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    @app.get(existing_path, include_in_schema=False)
+    async def _existing_admin_route() -> dict[str, str]:
+        return {"status": existing_path}
+
+    with pytest.raises(RuntimeError, match="Partial admin operations route registration detected"):
+        _bootstrap_temp_app(app)
+
+
+def test_admin_operations_route_registration_rejects_wrong_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    @app.post("/debug_env", include_in_schema=False)
+    async def _wrong_method_admin_route() -> dict[str, str]:
+        return {"status": "wrong-method"}
+
+    with pytest.raises(RuntimeError, match="Partial admin operations route registration detected"):
+        _bootstrap_temp_app(app)
+
+
+def test_admin_operations_route_registration_rejects_foreign_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    async def _foreign_admin_route() -> dict[str, str]:
+        return {"status": "foreign"}
+
+    for path, method in app_main._ADMIN_OPERATION_ROUTE_SPECS:
+        app.add_api_route(
+            path,
+            _foreign_admin_route,
+            methods=[method],
+            include_in_schema=False,
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate .* route detected with a different admin operations handler",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_admin_operations_route_registration_rejects_visible_existing_canonical_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+    expected_specs = set(app_main._ADMIN_OPERATION_ROUTE_SPECS)
+    for route in app_main.admin_operations_router.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        for expected_path, expected_method in expected_specs:
+            if path == expected_path and expected_method in methods:
+                app.add_api_route(
+                    str(path),
+                    getattr(route, "endpoint"),
+                    methods=[expected_method],
+                    include_in_schema=True,
+                )
+
+    with pytest.raises(RuntimeError, match="hidden OpenAPI visibility"):
+        _bootstrap_temp_app(app)
+
+
+def test_admin_operations_route_registration_rejects_malformed_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    omitted_path, _method = app_main._ADMIN_OPERATION_ROUTE_SPECS[0]
+    monkeypatch.setattr(
+        app_main,
+        "admin_operations_router",
+        _admin_operations_stub_router(omit=frozenset({omitted_path})),
+    )
+
+    with pytest.raises(RuntimeError, match="Admin operations router does not define"):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_admin_operations_route_registration_rejects_openapi_visible_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "admin_operations_router",
+        _admin_operations_stub_router(include_in_schema=True),
+    )
+
+    with pytest.raises(RuntimeError, match="hidden OpenAPI visibility"):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_admin_operations_route_registration_rejects_duplicate_canonical_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "admin_operations_router",
+        _duplicate_admin_operations_stub_router(),
+    )
+
+    with pytest.raises(RuntimeError, match="Admin operations router does not define"):
         _bootstrap_temp_app(FastAPI())
 
 

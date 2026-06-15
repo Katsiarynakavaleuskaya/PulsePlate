@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from app.main import app
+from app.routers.admin_operations import ADMIN_OPERATION_ROUTE_SPECS
 
 ALLOWED_PREFIXES: tuple[str, ...] = (
     "/api/v1/billing/",
@@ -73,6 +74,15 @@ def test_favicon_runtime_route_stays_hidden_from_openapi_schema() -> None:
 
     assert "/favicon.ico" in runtime_paths
     assert "/favicon.ico" not in paths
+
+
+def test_admin_debug_runtime_routes_stay_hidden_from_openapi_schema() -> None:
+    runtime_paths = _runtime_paths()
+    paths = set(_openapi_paths())
+
+    for route_path, _method in ADMIN_OPERATION_ROUTE_SPECS:
+        assert route_path in runtime_paths
+        assert route_path not in paths
 
 
 def test_users_routes_are_hidden_from_schema_at_registration_level() -> None:
