@@ -53,9 +53,9 @@ Disposition: NOT-A-BUG
 Evidence: Sourcery reported weekly diff-character rate limiting and did not return an actionable code or documentation finding.
 Reason: rate-limit metadata does not require a code change.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#pullrequestreview-4494573487 -> 159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1979#pullrequestreview-4494573487 -> acb6d162abc370469a55fb36cc5f3b7752186a70
 Disposition: FIXED
-Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Commit: acb6d162abc370469a55fb36cc5f3b7752186a70
 Evidence: `docs/review/PR_1979_FIXED_MAPPING.md` now uses exact completed checkbox labels, `Phase 2`, and clearer QA role wording.
 Reason: CodeRabbit requested parser-safe checkbox wording plus two mapping text cleanup items.
 
@@ -76,7 +76,7 @@ Reason: no fix is required for metadata-only review output.
 - `agent-coordinator`: blocked raw #1973 and required separate guard-compat
   work because the Dependabot branch carries resolver churn and `pip==26.1.2`.
 - `qa-engineer-agent`: accepted ruff derivation from `requirements-dev.in` and
-  required focused dependency guard coverage.
+  required dependency guard coverage to remain focused.
 - `bug-hunter`: required existing parsers instead of ad hoc regexes and no new
   stale ruff literal.
 - `security-auditor`: required no changes to manifests, lockfiles, emergency
@@ -90,7 +90,7 @@ Reason: no fix is required for metadata-only review output.
 
 - `agent-coordinator` post-open pass:
 Disposition: FIXED
-Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Commit: 159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd
 Evidence: PR body now uses exact `## Tests`, exact completed checkboxes, exact
 `- No actionable review comments`, Experiment Runner `Artifact:`, and lane
 `Packet:` fields. This mapping artifact now uses exact parser-safe labels and a
@@ -98,21 +98,21 @@ real mapping commit SHA.
 
 - `qa-engineer-agent` post-open pass:
 Disposition: FIXED
-Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Commit: 159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd
 Evidence: QA accepted the implementation and identified the same parser-shape
 and CodeRabbit mapping text nits. The parser-shape and wording fixes are now in
 this artifact and PR body.
 
 - `bug-hunter` post-open pass:
 Disposition: FIXED
-Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Commit: 159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd
 Evidence: bug-hunter found no implementation regression and called out the same
 mapping/body parser defects. The exact `Packet:`, checkbox, no-actionable,
 `Artifact:`, `Phase 2`, and QA wording fixes are now applied.
 
 - `security-auditor` post-open pass:
 Disposition: FIXED
-Commit: `159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd`
+Commit: 159544c599e4b15ae65dc5ed6b0d74a57e7dd5bd
 Evidence: security-auditor accepted the supply-chain boundary and found the bad
 mapping SHA plus parser-invalid governance text. This artifact now cites the
 real mapping commit `ea52cf7cfced59f1b35f683d3cd02f9ac164dc77` and parser-safe
@@ -122,7 +122,7 @@ labels.
 
 - PM-001: Deriving from generated lockfiles could bless resolver churn.
 Disposition: FIXED
-Commit: `ea74f14fb2d6c9d7d4efff268f624a2334f7c84f`
+Commit: ea74f14fb2d6c9d7d4efff268f624a2334f7c84f
 Evidence: `tests/test_install_locked_python_requirements.py` derives
 `expected_ruff_version` from `requirements-dev.in` and compares other ruff
 surfaces to that value.
@@ -130,14 +130,14 @@ surfaces to that value.
 - PM-002: Guard change could weaken emergency fallback or private-index
 guarantees.
 Disposition: FIXED
-Commit: `ea74f14fb2d6c9d7d4efff268f624a2334f7c84f`
+Commit: ea74f14fb2d6c9d7d4efff268f624a2334f7c84f
 Evidence: the ruff emergency fallback assertion remains in
 `tests/test_install_locked_python_requirements.py`; private-index preflight
 passed with `scripts/ci/install_locked_python_requirements.py --preflight-only`.
 
 - PM-003: Machine-heavy validation deferral could be under-documented.
 Disposition: FIXED
-Commit: `ea52cf7cfced59f1b35f683d3cd02f9ac164dc77`
+Commit: ea52cf7cfced59f1b35f683d3cd02f9ac164dc77
 Evidence: this artifact records the local `make verify` deferral and the focused
 validation bundle required for the operator-approved exception.
 
@@ -147,7 +147,7 @@ validation bundle required for the operator-approved exception.
 - Mode: `oracle_only_governance_reviewer`
 - Status: accepted
 - Contribution: `oracle_review`
-- Co-author required: true; implementation commit includes
+- Co-author required: true; all material PR commits include
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 - Accepted oracle commands:
   - `python3 -m pytest -q tests/test_install_locked_python_requirements.py -k 'ruff_private_proxy_pin or quality_tooling_profile'`
@@ -192,7 +192,7 @@ validation bundle required for the operator-approved exception.
 - PASS: PR body Phase 2 parser guard after post-open mapping updates:
   `python3 scripts/ci/check_pr_body_phase2_gates.py --body /tmp/pr1979-body-current.md --pr-number 1979 --commit-range origin/main..HEAD`
 - PASS: PR size governance:
-  `python3 scripts/ci/check_pr_size_governance.py --base-sha eabf69ecc8ed288c718239d09579fd61f4cd879a --head-sha 746014b7059fe226dcc8bb72eccd3bfeda04f629 --body "$(cat /tmp/pr1979-body-current.md)"`
+  `python3 scripts/ci/check_pr_size_governance.py --base-sha eabf69ecc8ed288c718239d09579fd61f4cd879a --head-sha acb6d162abc370469a55fb36cc5f3b7752186a70 --body "$(cat /tmp/pr1979-body-current.md)"`
 
 ## Merge Readiness
 
