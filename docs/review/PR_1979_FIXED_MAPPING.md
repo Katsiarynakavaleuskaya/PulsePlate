@@ -19,6 +19,8 @@ churn and adds `pip==26.1.2`.
 - Base at branch start: `eabf69ecc8ed288c718239d09579fd61f4cd879a`
 - Initial implementation commit:
   `ea74f14fb2d6c9d7d4efff268f624a2334f7c84f`
+- Initial mapping artifact commit:
+  `ea52cf7cfb6758163b5c66f3e5c440b42a64f0a8`
 - Task packet: `artifacts/orchestration/task_packets/1a8d6fe97dcc.json`
 - Experiment Runner packet:
   `artifacts/orchestration/experiments/exp-9bd8f13b42ee.json`
@@ -82,7 +84,7 @@ passed with `scripts/ci/install_locked_python_requirements.py --preflight-only`.
 
 - PM-003: Machine-heavy validation deferral could be under-documented.
 Disposition: FIXED
-Commit: mapping artifact commit for this file
+Commit: `ea52cf7cfb6758163b5c66f3e5c440b42a64f0a8`
 Evidence: this artifact records the local `make verify` deferral and the focused
 validation bundle required for the operator-approved exception.
 
