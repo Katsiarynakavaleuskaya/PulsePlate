@@ -407,8 +407,7 @@ class TestAdminOperationsService:
             params={"source": "usda", "target_version": "1.0.0"},
         ).json() == {"source": "usda", "target_version": "1.0.0", "success": True}
 
-    @pytest.mark.asyncio
-    async def test_scheduler_getter_selection_default_and_import_fallback(
+    def test_scheduler_getter_selection_default_and_import_fallback(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
