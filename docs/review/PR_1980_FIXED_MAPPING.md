@@ -62,6 +62,9 @@ and client changes are out of scope.
 - Accepted oracle commands:
   - `python3 scripts/ci/check_legacy_growth_guard.py`
   - `python3 scripts/orchestration/check_agent_consistency.py`
+- PR body mirror note: the Experiment Runner artifact line must stay
+  parser-safe as `Artifact: artifacts/orchestration/experiments/results/exp-71172ed5d6c9.json`
+  with no trailing punctuation after the artifact path.
 
 ## Discussion Thread Pass
 
