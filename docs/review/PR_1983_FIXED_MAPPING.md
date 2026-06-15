@@ -46,7 +46,9 @@ reports no patched version.
 - Co-author trailer required and used on the real branch commit range
   `origin/main..HEAD`; `git log --format=%B origin/main..HEAD` shows the
   canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
-  trailer on every branch commit.
+  trailer on every branch commit. Codex connector reviewed SHAs such as
+  `31fead4` and `7c6384f` are synthetic review artifacts, not authored branch
+  commits used for merge-readiness proof.
 
 ## Discussion Thread Pass
 
@@ -95,6 +97,19 @@ reports no patched version.
     - Evidence: post-open PASS evidence now records the branch containment
       check proving `141b1a21960cf393431aea5365d008b137d6033b` is in the
       current PR branch ancestry.
+  - Synthetic reviewed-commit ancestry/attribution comments:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414659593`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414659596`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414730751`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414730759`
+    - Disposition: NOT-A-BUG.
+    - Evidence: GitHub PR `headRefOid` is
+      `0470ee1395456d80b8cf33e093d56f6a112cfc16`; local ancestry checks prove
+      the mapped proof commits are ancestors of that real branch head, and
+      `git log --format=%B origin/main..HEAD` shows the canonical Experiment
+      Runner trailer on every authored branch commit. The Codex connector
+      reviewed SHAs `31fead4` and `7c6384f` are synthetic review artifacts and
+      are not the merge-readiness source of truth.
 
 ## Fixed in Commit Mapping
 
@@ -119,6 +134,13 @@ Disposition: FIXED
 Commit: 393f69cea3e86b6c00baf35749967a0c251810d3
 Evidence: post-open PASS evidence now records `git merge-base --is-ancestor 141b1a21960cf393431aea5365d008b137d6033b HEAD` as passing at a current PR branch head, proving the QA fix commit is contained in this branch.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414587421 -> 393f69cea3e86b6c00baf35749967a0c251810d3
+
+Disposition: NOT-A-BUG
+Evidence: PR #1983 merge-readiness proof is evaluated against the real GitHub branch head `0470ee1395456d80b8cf33e093d56f6a112cfc16`, not Codex connector synthetic reviewed SHAs `31fead4` or `7c6384f`; `git merge-base --is-ancestor d1ac585edc1b0eae6c4370e438c6d3b98f1d679c HEAD` passes locally, and every authored branch commit in `origin/main..HEAD` carries `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414659593
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414659596
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414730751
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414730759
 
 ## Validation
 
