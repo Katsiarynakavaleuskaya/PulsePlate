@@ -61,13 +61,6 @@
             "sha256": "eedf4b74eda2b5a4b2b2fb4c006d6295df3bf29e459e198c90ea48e130dc75c3"
         },
         {
-            "package": "pytest",
-            "version": "9.1.0",
-            "filename": "pytest-9.1.0-py3-none-any.whl",
-            "url": "https://files.pythonhosted.org/packages/8b/5a/ba30a81239b909821b3153e303e7def45178bf353da4f72380e6c5e8793b/pytest-9.1.0-py3-none-any.whl",
-            "sha256": "8ebb0e7888bdf2bdfc602ec51f8f62d50200af37356c74e503c79a94f5c81f32"
-        },
-        {
             "package": "pip",
             "version": "26.1.1",
             "expires_at": "2026-06-15",

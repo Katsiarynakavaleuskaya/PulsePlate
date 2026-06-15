@@ -4,6 +4,9 @@
 
 Replacement PR for raw Dependabot PRs #1972, #1973, and #1974. This lane refreshes Python testing / quality / dev-tool pins while preserving the full lock graph, removing the invalid Dependabot assignee config, and keeping #1975 / RAG-vector plus torch alerts #160-#162 out of scope.
 
+Operator approval: approved
+Privileged scope exception: approved for this 16-file dependency/tooling lane because the extra files are mandatory governance or generated security artifacts: `docs/review/PR_1981_FIXED_MAPPING.md` for Phase2 mapping and `.secrets.baseline` for detect-secrets line-number drift after removing the retired pytest emergency wheel artifact.
+
 Implementing commit:
 
 - `e34a357f25d2aba717465c675595581e64301126` - `chore(deps): refresh python tooling pins`
@@ -53,7 +56,7 @@ Commit: e34a357f25d2aba717465c675595581e64301126
 - `requirements-test.txt` contains `pytest==9.1.0` and `faker==40.23.0`.
 - `requirements-ci-lite.txt` contains `pytest==9.1.0`.
 - `requirements-dev.txt` and `requirements-lock.txt` contain only the intended direct-tooling pin deltas for `faker`, `pip-audit`, `pytest`, and `ruff`.
-- `scripts/ci/emergency_python_wheels.json:64` through `scripts/ci/emergency_python_wheels.json:68` tracks the active `pytest 9.1.0` emergency artifact and SHA256.
+- `scripts/ci/emergency_python_wheels.json` no longer carries a pytest emergency artifact because the approved private proxy serves `pytest==9.1.0` directly.
 - `tests/test_python_supply_chain_controls.py:491` asserts the test profile uses `pytest==9.1.0`.
 
 Negative controls:
@@ -63,10 +66,10 @@ Negative controls:
 
 ## Premortem Closure
 
-- PM-1981-001: Lockfiles update but emergency fallback manifest stays on `pytest 9.0.3`.
+- PM-1981-001: Lockfiles update but emergency fallback manifest stays on `pytest 9.0.3` or carries an immediately expiring replacement.
   - Disposition: FIXED
   - Commit: `e34a357f25d2aba717465c675595581e64301126`
-  - Evidence: `scripts/ci/emergency_python_wheels.json:64`, `REQUIREMENTS.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and focused tests.
+  - Evidence: `scripts/ci/emergency_python_wheels.json` removes the pytest fallback after approved proxy validation for `pytest==9.1.0`; `REQUIREMENTS.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and focused tests stay aligned.
 - PM-1981-002: `pip-tools --allow-unsafe` reintroduces a forbidden `pip==...` pin.
   - Disposition: FIXED
   - Commit: `e34a357f25d2aba717465c675595581e64301126`
