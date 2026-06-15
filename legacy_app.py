@@ -91,6 +91,12 @@ from app.services.bmi_compat import (
     add_visualization_if_requested,
     generate_bmi_visualization,
 )
+
+_BMI_COMPAT_REEXPORTS = (
+    MATPLOTLIB_AVAILABLE,
+    add_visualization_if_requested,
+    generate_bmi_visualization,
+)
 from core.fingerprint_security import _client_fingerprint
 from core.log_retention import (
     DATA_CLASS_PSEUDONYMOUS,

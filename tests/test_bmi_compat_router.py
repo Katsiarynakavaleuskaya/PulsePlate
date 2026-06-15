@@ -56,6 +56,7 @@ def test_bmi_compat_routes_have_canonical_owner_and_no_duplicates() -> None:
 def test_bmi_compat_openapi_visibility_is_stable(client: TestClient) -> None:
     response = client.get("/openapi.json")
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     paths = response.json()["paths"]
 
     assert "/bmi" not in paths

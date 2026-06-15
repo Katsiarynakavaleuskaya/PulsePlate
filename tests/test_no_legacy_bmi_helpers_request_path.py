@@ -16,6 +16,7 @@ REQUEST_PATH_FILES = [
     Path("legacy_app.py"),
     Path("app/routers/bmi.py"),
     Path("app/routers/bmi_compat.py"),
+    Path("app/schemas/bmi_compat.py"),
     Path("app/services/bmi_compat.py"),
 ]
 
