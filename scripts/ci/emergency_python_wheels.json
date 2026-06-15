@@ -62,10 +62,10 @@
         },
         {
             "package": "pytest",
-            "version": "9.0.3",
-            "filename": "pytest-9.0.3-py3-none-any.whl",
-            "url": "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl",
-            "sha256": "2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9"
+            "version": "9.1.0",
+            "filename": "pytest-9.1.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/8b/5a/ba30a81239b909821b3153e303e7def45178bf353da4f72380e6c5e8793b/pytest-9.1.0-py3-none-any.whl",
+            "sha256": "8ebb0e7888bdf2bdfc602ec51f8f62d50200af37356c74e503c79a94f5c81f32"
         },
         {
             "package": "pip",
