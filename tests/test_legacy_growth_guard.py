@@ -113,6 +113,56 @@ def test_legacy_growth_guard_rejects_reintroduced_favicon_route() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_admin_debug_routes() -> None:
+    source = textwrap.dedent("""
+        @app.get("/debug_env")
+        async def debug_env():
+            return {"ok": True}
+
+        @app.get("/api/v1/admin/status")
+        async def admin_status():
+            return {"ok": True}
+
+        @app.post("/admin/logs/cleanup")
+        async def cleanup_expired_logs():
+            return {"ok": True}
+
+        @app.get("/api/v1/admin/db-status")
+        async def get_database_status():
+            return {"ok": True}
+
+        @app.post("/api/v1/admin/force-update")
+        async def force_database_update():
+            return {"ok": True}
+
+        @app.get("/api/v1/admin/check-updates")
+        async def check_for_updates():
+            return {"ok": True}
+
+        @app.post("/api/v1/admin/rollback")
+        async def rollback_database():
+            return {"ok": True}
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/admin/check-updates -> check_for_updates",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/admin/db-status -> get_database_status",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/admin/status -> admin_status",
+        "legacy_app.py: unexpected legacy route growth: decorator:get:/debug_env -> debug_env",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:post:/admin/logs/cleanup -> cleanup_expired_logs",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:post:/api/v1/admin/force-update -> force_database_update",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:post:/api/v1/admin/rollback -> rollback_database",
+    ]
+
+
 def test_legacy_growth_guard_rejects_new_router_registration() -> None:
     source = "app.include_router(new_router)\n"
 
@@ -429,8 +479,8 @@ def test_legacy_growth_guard_rejects_sensitive_local_assignment_alias_calls(
 
 def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
     source = textwrap.dedent("""
-        @app.get("/api/v1/admin/status", dependencies=[Depends(auth_guard)])
-        def admin_status():
+        @app.post("/bmi", dependencies=[Depends(auth_guard)])
+        def bmi_endpoint():
             return {"ok": True}
         """)
 
@@ -453,8 +503,8 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
         textwrap.dedent("""
             deps = [Depends(auth_guard)]
 
-            @app.get("/api/v1/admin/status", dependencies=deps)
-            def admin_status():
+            @app.post("/bmi", dependencies=deps)
+            def bmi_endpoint():
                 return {"ok": True}
             """),
         textwrap.dedent("""
@@ -473,14 +523,14 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
     source += textwrap.dedent("""
 
-        @app.get("/api/v1/admin/status", dependencies=[Depends(api_key_guard)])
-        def admin_status():
+        @app.post("/bmi", dependencies=[Depends(api_key_guard)])
+        def bmi_endpoint():
             return {"ok": True}
         """)
 
     errors = legacy_guard.validate_legacy_growth(source)
 
-    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 22 > 21"]
+    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 16 > 15"]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:

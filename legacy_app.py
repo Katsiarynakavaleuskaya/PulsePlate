@@ -907,48 +907,12 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)) -> str:
 # (moved to top with other imports)
 
 
-@app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
 async def admin_status() -> Dict[str, str]:
-    """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
+    """Compatibility shim for direct imports; route ownership is canonical."""
 
-    Uses dynamic resolution for get_update_scheduler so tests can patch it easily.
-    """
-    try:
-        import inspect as _inspect
-        import sys as _sys
+    from app.services.admin_operations import admin_status as _admin_status
 
-        _pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
-
-        patched_global = globals().get("get_update_scheduler", _DEFAULT_GET_UPDATE_SCHEDULER)
-        pkg_getter = getattr(_pkg, "get_update_scheduler", None)
-
-        # RU: Если тесты пропатчили legacy_app.get_update_scheduler — он должен иметь приоритет.
-        # EN: If tests patched legacy_app.get_update_scheduler, it must take precedence.
-        if patched_global is not _DEFAULT_GET_UPDATE_SCHEDULER:
-            _getter = patched_global
-        elif pkg_getter is not None and pkg_getter is not _DEFAULT_GET_UPDATE_SCHEDULER:
-            _getter = pkg_getter
-        else:
-            _getter = _DEFAULT_GET_UPDATE_SCHEDULER
-        scheduler = None
-        if callable(_getter):
-            _res = _getter()
-            scheduler = await _res if _inspect.isawaitable(_res) else _res
-
-        if scheduler is None:
-            raise HTTPException(
-                status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Scheduler unavailable",
-            )
-        return {"status": "ok", "scheduler": "available"}
-    except HTTPException:
-        # Re-raise explicit HTTP errors
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Scheduler unavailable",
-        ) from e
+    return await _admin_status()
 
 
 # Include API routers
@@ -1438,50 +1402,14 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 # ---------- Core logic ----------
 
 
-@app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])
 async def cleanup_expired_logs(
     data_class: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Cleanup expired log files based on retention policy.
+    """Compatibility shim for direct imports; route ownership is canonical."""
 
-    RU: Очистка истекших лог-файлов на основе политики хранения.
-    EN: Cleanup expired log files based on retention policy.
+    from app.services.admin_operations import cleanup_expired_logs as _cleanup_expired_logs
 
-    Requires API key authentication. This endpoint enforces the data retention
-    policy by deleting logs that have exceeded their retention period.
-
-    Args:
-        data_class: Optional data classification to filter by (PSEUDONYMOUS, PUBLIC, SENSITIVE).
-                   If None, processes all classifications.
-        api_key: API key for authentication (via dependency)
-
-    Returns:
-        Dictionary with cleanup results
-    """
-    retention_manager = get_retention_manager()
-
-    # Map input string to DataClass Enum if provided, else None
-    data_class_enum = None
-    if data_class is not None:
-        try:
-            data_class_enum = DataClass(data_class)
-        except ValueError:
-            return {
-                "status": "error",
-                "deleted_files": 0,
-                "data_class": data_class,
-                "message": f"Invalid data_class: '{data_class}'. Must be one of: "
-                f"{', '.join([e.value for e in DataClass])}",
-            }
-
-    deleted_count = retention_manager.cleanup_expired_logs(data_class=data_class_enum)
-
-    return {
-        "status": "success",
-        "deleted_files": deleted_count,
-        "data_class": data_class or "ALL",
-        "message": f"Deleted {deleted_count} expired log file(s)",
-    }
+    return await _cleanup_expired_logs(data_class=data_class)
 
 
 # ---------- v0 endpoints (bmi/plan) ----------
@@ -4393,21 +4321,12 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
         ) from e
 
 
-@app.get("/debug_env")
 async def debug_env() -> JSONResponse:
-    # Gate /debug_env to avoid leaking environment details in production
-    debug_flag = _is_truthy(os.getenv("ENABLE_DEBUG_ENDPOINT"))
-    if not is_explicit_developer_env() and not debug_flag:
-        raise HTTPException(status_code=404, detail="Not found")
-    data = {
-        "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
-        "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
-        "PERPLEXITY_MODEL": os.getenv("PERPLEXITY_MODEL", ""),
-        "PERPLEXITY_ENDPOINT": os.getenv("PERPLEXITY_ENDPOINT", ""),
-    }
-    flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
-    data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})
-    return JSONResponse(content=data)
+    """Compatibility shim for direct imports; route ownership is canonical."""
+
+    from app.services.admin_operations import debug_env as _debug_env
+
+    return await _debug_env()
 
 
 # ========================================
@@ -4415,202 +4334,36 @@ async def debug_env() -> JSONResponse:
 # ========================================
 
 
-@app.get("/api/v1/admin/db-status", dependencies=[Depends(_get_api_key_dynamic)])
 async def get_database_status() -> JSONResponse:
-    """
-    RU: Получить статус всех баз данных и планировщика обновлений.
-    EN: Get status of all databases and update scheduler.
+    """Compatibility shim for direct imports; route ownership is canonical."""
 
-    Returns information about:
-    - Database versions and last update times
-    - Update scheduler status
-    - Retry counts and error states
-    - Data integrity checksums
-    """
-    try:
-        # Resolve getter dynamically to respect runtime patches in tests
-        import sys as _sys
+    from app.services.admin_operations import get_database_status as _get_database_status
 
-        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
-        logger.debug(f"get_database_status using getter: {_getter!r}")
-        scheduler = await _getter()
-        status = scheduler.get_status()
-        return JSONResponse(content=status)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get database status: {str(e)}"
-        ) from e
+    return await _get_database_status()
 
 
-@app.post("/api/v1/admin/force-update", dependencies=[Depends(_get_api_key_dynamic)])
 async def force_database_update(source: Optional[str] = None) -> JSONResponse:
-    """
-    RU: Принудительно запустить обновление баз данных.
-    EN: Force immediate database update.
+    """Compatibility shim for direct imports; route ownership is canonical."""
 
-    Args:
-        source: Optional specific source to update ("usda", "openfoodfacts")
-                If None, updates all sources
+    from app.services.admin_operations import force_database_update as _force_database_update
 
-    Returns:
-        Update results with statistics on records changed
-    """
-    try:
-        import sys as _sys
-
-        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
-        logger.debug(f"force_database_update using getter: {_getter!r}")
-        scheduler = await _getter()
-        results = await scheduler.force_update(source)
-
-        # Format response
-        response: Dict[str, Any] = {
-            "message": f"Force update completed for {source or 'all sources'}",
-            "results": {},
-        }
-
-        for src, result in results.items():
-            response["results"][src] = {
-                "success": result.success,
-                "old_version": result.old_version,
-                "new_version": result.new_version,
-                "records_added": result.records_added,
-                "records_updated": result.records_updated,
-                "records_removed": result.records_removed,
-                "duration_seconds": result.duration_seconds,
-                "errors": result.errors,
-            }
-
-        return JSONResponse(content=response)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Force update failed: {str(e)}") from e
+    return await _force_database_update(source=source)
 
 
-@app.get("/api/v1/admin/check-updates", dependencies=[Depends(_get_api_key_dynamic)])
 async def check_for_updates() -> JSONResponse:
-    """
-    RU: Проверить наличие доступных обновлений без их установки.
-    EN: Check for available updates without installing them.
+    """Compatibility shim for direct imports; route ownership is canonical."""
 
-    Returns:
-        Dictionary showing which sources have updates available
-    """
-    try:
-        import sys as _sys
-        import inspect as _inspect
+    from app.services.admin_operations import check_for_updates as _check_for_updates
 
-        _pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
-        patched_global = globals().get("get_update_scheduler", _DEFAULT_GET_UPDATE_SCHEDULER)
-        pkg_override = getattr(_pkg, "get_update_scheduler", None)
-        if pkg_override is not None and pkg_override is not _DEFAULT_GET_UPDATE_SCHEDULER:
-            _getter = pkg_override
-        else:
-            _getter = patched_global or _DEFAULT_GET_UPDATE_SCHEDULER
-
-        scheduler = None
-        if callable(_getter):
-            result = _getter()
-            scheduler = await result if _inspect.isawaitable(result) else result
-
-        if scheduler is None:
-            raise RuntimeError("Scheduler resolved to None")
-
-        update_manager = getattr(scheduler, "update_manager", None)
-        if update_manager is None or not hasattr(update_manager, "check_for_updates"):
-            raise RuntimeError("Update manager missing or check_for_updates not supported")
-
-        available_updates = await update_manager.check_for_updates()
-
-        updates_available = available_updates or {}
-        total_sources_with_updates = sum(1 for v in updates_available.values() if bool(v))
-
-        response = {
-            "message": "Update check completed",
-            "updates_available": updates_available,
-            "total_sources_with_updates": int(total_sources_with_updates),
-        }
-
-        return JSONResponse(content=response)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Update check failed")
-        raise HTTPException(status_code=500, detail=f"Update check failed: {str(e)}") from e
+    return await _check_for_updates()
 
 
-@app.post("/api/v1/admin/rollback", dependencies=[Depends(_get_api_key_dynamic)])
 async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
-    """Rollback database to a specific version.
+    """Compatibility shim for direct imports; route ownership is canonical."""
 
-    Args:
-        source: Data source name ("usda", "openfoodfacts")
-        target_version: Version to rollback to
+    from app.services.admin_operations import rollback_database as _rollback_database
 
-    Returns:
-        Success status and rollback details
-    """
-    try:
-        import inspect as _inspect
-        import sys as _sys
-
-        # Rely on the currently imported get_update_scheduler to honor test patches
-        app_mod = _sys.modules.get("app")
-        _getter = getattr(app_mod, "get_update_scheduler", get_update_scheduler)
-        scheduler = None
-        _res = _getter()
-        scheduler = await _res if _inspect.isawaitable(_res) else _res
-        if scheduler is None:
-            raise ValueError("Scheduler returned None")
-    except Exception as e:
-        logger.exception("Rollback: could not get scheduler")
-        # Avoid leaking internal exception details in user-facing response
-        error_detail = "Rollback operation failed: could not get scheduler"
-        raise HTTPException(status_code=500, detail=error_detail) from e
-
-    # Gracefully handle missing update manager to satisfy direct function tests
-    update_manager = getattr(scheduler, "update_manager", None)
-    if update_manager is None:
-        raise HTTPException(
-            status_code=500,
-            detail="No update manager available; rollback operation failed",
-        )
-
-    rollback_callable = getattr(update_manager, "rollback_database", None)
-    if rollback_callable is None or not callable(rollback_callable):
-        raise HTTPException(
-            status_code=500,
-            detail="Rollback operation not supported by update manager",
-        )
-
-    try:
-        import inspect as _inspect
-
-        if _inspect.iscoroutinefunction(rollback_callable):
-            success = await rollback_callable(source, target_version)
-        else:
-            success = await run_in_threadpool(rollback_callable, source, target_version)
-
-        # AsyncMock may return an awaitable even when not detected as coroutinefunction
-        if _inspect.isawaitable(success):
-            success = await success
-    except Exception as e:
-        logger.exception("Rollback callable raised")
-        # Use generic error message to avoid leaking sensitive internal details,
-        # while still including a stable phrase for tests and operators.
-        error_msg = "Rollback operation failed; Rollback failed; see server logs for details"
-        raise HTTPException(status_code=500, detail=error_msg) from e
-
-    if success:
-        return {
-            "message": f"Successfully rolled back {source} to version {target_version}",
-            "success": True,
-        }
-
-    # Rollback returned False - this is an error condition
-    error_detail = f"Rollback operation failed for {source} to version {target_version}"
-    raise HTTPException(status_code=500, detail=error_detail)
+    return await _rollback_database(source=source, target_version=target_version)
 
 
 _APP_PACKAGE_REF: Optional[ModuleType] = sys.modules.get("app")
