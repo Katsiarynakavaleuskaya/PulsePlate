@@ -89,6 +89,12 @@ reports no patched version.
     - Evidence: Experiment Runner attribution evidence now refers to the real
       branch commit range `origin/main..HEAD`, whose commits carry the
       canonical trailer.
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414587421`
+    - Disposition: FIXED.
+    - Commit: `393f69cea3e86b6c00baf35749967a0c251810d3`
+    - Evidence: post-open PASS evidence now records the branch containment
+      check proving `141b1a21960cf393431aea5365d008b137d6033b` is in the
+      current PR branch ancestry.
 
 ## Fixed in Commit Mapping
 
@@ -108,6 +114,11 @@ Evidence: mapping evidence now points at a real PR-branch ancestor, fallback ret
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537483 -> f31420e3607d78622418efe9111b04ede41651a3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537495 -> f31420e3607d78622418efe9111b04ede41651a3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414537498 -> f31420e3607d78622418efe9111b04ede41651a3
+
+Disposition: FIXED
+Commit: 393f69cea3e86b6c00baf35749967a0c251810d3
+Evidence: post-open PASS evidence now records `git merge-base --is-ancestor 141b1a21960cf393431aea5365d008b137d6033b HEAD` as passing at a current PR branch head, proving the QA fix commit is contained in this branch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1983#discussion_r3414587421 -> 393f69cea3e86b6c00baf35749967a0c251810d3
 
 ## Validation
 
