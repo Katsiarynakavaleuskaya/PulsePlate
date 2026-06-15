@@ -113,6 +113,47 @@ def test_legacy_growth_guard_rejects_reintroduced_favicon_route() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                @app.post("/bmi")
+                async def bmi_endpoint():
+                    return {"ok": True}
+                """),
+            "legacy_app.py: unexpected legacy route growth: decorator:post:/bmi -> bmi_endpoint",
+        ),
+        (
+            textwrap.dedent("""
+                @app.post("/plan")
+                async def plan_endpoint():
+                    return {"ok": True}
+                """),
+            "legacy_app.py: unexpected legacy route growth: decorator:post:/plan -> plan_endpoint",
+        ),
+        (
+            textwrap.dedent("""
+                @app.post("/api/v1/bmi")
+                async def bmi_endpoint_v1():
+                    return {"ok": True}
+                """),
+            (
+                "legacy_app.py: unexpected legacy route growth: "
+                "decorator:post:/api/v1/bmi -> bmi_endpoint_v1"
+            ),
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_reintroduced_bmi_plan_routes(
+    source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [expected]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_admin_debug_routes() -> None:
     source = textwrap.dedent("""
         @app.get("/debug_env")
@@ -479,8 +520,8 @@ def test_legacy_growth_guard_rejects_sensitive_local_assignment_alias_calls(
 
 def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
     source = textwrap.dedent("""
-        @app.post("/bmi", dependencies=[Depends(auth_guard)])
-        def bmi_endpoint():
+        @app.post("/api/v1/insight", dependencies=[Depends(auth_guard)])
+        def insight_v1_route():
             return {"ok": True}
         """)
 
@@ -503,8 +544,8 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
         textwrap.dedent("""
             deps = [Depends(auth_guard)]
 
-            @app.post("/bmi", dependencies=deps)
-            def bmi_endpoint():
+            @app.post("/api/v1/insight", dependencies=deps)
+            def insight_v1_route():
                 return {"ok": True}
             """),
         textwrap.dedent("""
@@ -523,8 +564,8 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
     source += textwrap.dedent("""
 
-        @app.post("/bmi", dependencies=[Depends(api_key_guard)])
-        def bmi_endpoint():
+        @app.post("/api/v1/insight", dependencies=[Depends(api_key_guard)])
+        def insight_v1_route():
             return {"ok": True}
         """)
 

@@ -34,6 +34,7 @@ from app.routers.admin_operations import (
     ADMIN_OPERATION_ROUTE_SPECS,
     router as admin_operations_router,
 )
+from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router as bmi_compat_router
 from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
@@ -67,6 +68,10 @@ _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/p
 _PAYWALL_EVENTS_ROUTE_PATH: str = "/api/v1/internal/paywall/events"
 _ADMIN_OPERATION_ROUTE_SPECS: tuple[tuple[str, str], ...] = tuple(
     (path, method.upper()) for path, method in ADMIN_OPERATION_ROUTE_SPECS
+)
+_BMI_COMPAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in BMI_COMPAT_ROUTE_SPECS
 )
 
 
@@ -355,6 +360,99 @@ def _include_admin_operations_router_if_needed(target_app: FastAPI) -> None:
             )
 
 
+def _include_bmi_compat_router_if_needed(target_app: FastAPI) -> None:
+    """Register BMI compatibility routes as one atomic route family."""
+
+    expected_specs = {(path, method) for path, method, _include in _BMI_COMPAT_ROUTE_SPECS}
+    expected_paths = {path for path, _method in expected_specs}
+    expected_methods_by_path = {path: method for path, method in expected_specs}
+    expected_visibility = {
+        (path, method): include_in_schema
+        for path, method, include_in_schema in _BMI_COMPAT_ROUTE_SPECS
+    }
+    expected_endpoints: dict[tuple[str, str], object] = {}
+    expected_route_counts: dict[tuple[str, str], int] = {spec: 0 for spec in expected_specs}
+
+    for route in bmi_compat_router.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        if path not in expected_paths:
+            continue
+        expected_method = expected_methods_by_path[str(path)]
+        if expected_method not in methods:
+            raise RuntimeError(
+                "BMI compatibility router does not define the expected route family."
+            )
+        unexpected_methods = set(methods) - {expected_method, "HEAD", "OPTIONS"}
+        if unexpected_methods:
+            raise RuntimeError(
+                "BMI compatibility router does not define the expected route family."
+            )
+        spec = (str(path), expected_method)
+        expected_route_counts[spec] += 1
+        expected_endpoints[spec] = getattr(route, "endpoint", None)
+        if getattr(route, "include_in_schema", True) is not expected_visibility[spec]:
+            raise RuntimeError("BMI compatibility router does not preserve OpenAPI visibility.")
+
+    if set(expected_endpoints) != expected_specs or any(
+        count != 1 for count in expected_route_counts.values()
+    ):
+        raise RuntimeError("BMI compatibility router does not define the expected route family.")
+
+    bmi_compat_routes = [
+        route for route in target_app.routes if getattr(route, "path", None) in expected_paths
+    ]
+    if not bmi_compat_routes:
+        target_app.include_router(bmi_compat_router)
+        return
+
+    bmi_compat_paths_present = {
+        str(getattr(route, "path", ""))
+        for route in bmi_compat_routes
+        if expected_methods_by_path[str(getattr(route, "path", ""))]
+        in (getattr(route, "methods", None) or set())
+    }
+    if bmi_compat_paths_present != expected_paths:
+        existing = ", ".join(sorted(bmi_compat_paths_present))
+        missing = ", ".join(sorted(expected_paths - bmi_compat_paths_present))
+        raise RuntimeError(
+            "Partial BMI compatibility route registration detected. "
+            f"Existing: {existing or '<none>'}; missing: {missing or '<none>'}."
+        )
+
+    for route in bmi_compat_routes:
+        path = str(getattr(route, "path", ""))
+        methods = getattr(route, "methods", None) or set()
+        expected_method = expected_methods_by_path[path]
+        if expected_method not in methods:
+            raise RuntimeError("Partial BMI compatibility route registration detected.")
+        unexpected_methods = set(methods) - {expected_method, "HEAD", "OPTIONS"}
+        if unexpected_methods:
+            raise RuntimeError("Partial BMI compatibility route registration detected.")
+
+    for (path, method), endpoint in expected_endpoints.items():
+        matching_routes = [
+            route
+            for route in target_app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        if (
+            len(matching_routes) != 1
+            or getattr(matching_routes[0], "endpoint", None) is not endpoint
+        ):
+            raise RuntimeError(
+                f"Duplicate {path} route detected with a different BMI compatibility handler."
+            )
+        if (
+            getattr(matching_routes[0], "include_in_schema", True)
+            is not expected_visibility[(path, method)]
+        ):
+            raise RuntimeError(
+                f"Existing {path} route does not preserve BMI compatibility OpenAPI visibility."
+            )
+
+
 def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     """Hide legacy users CRUD from the public OpenAPI contract.
 
@@ -440,6 +538,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_legal_router_if_needed(app)
     _include_favicon_router_if_needed(app)
     _include_admin_operations_router_if_needed(app)
+    _include_bmi_compat_router_if_needed(app)
 
     register_billing_routes(app)
 

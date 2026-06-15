@@ -1,7 +1,7 @@
 # 📊 PulsePlate — Canonical Product Tier Map (v1)
 
 **Status:** Canonical (audit-driven, based on actual codebase)
-**Last updated:** 2026-03-13
+**Last updated:** 2026-06-15
 **Canonical reference (derived from code):** `app/middleware/api_tiers.py`, `app/routers/*.py`, `legacy_app.py`
 
 ---
@@ -37,8 +37,8 @@
 
 | Тип            | Endpoint                | Статус      | Код-доказательство                          |
 | -------------- | ----------------------- | ----------- | ------------------------------------------- |
-| BMI calculate  | `/api/v1/bmi/calculate` | ✅ canonical | `app/routers/bmi_pro.py` (но FREE, не PRO)  |
-| BMI legacy     | `/bmi`, `/api/v1/bmi`   | ⚠️ shim     | `legacy_app.py:2097, 2316`                  |
+| BMI calculate  | `/api/v1/bmi/calculate` | ✅ canonical | `app/routers/bmi.py`                        |
+| BMI compat     | `/bmi`, `/plan`, `/api/v1/bmi` | ⚠️ shim | `app/routers/bmi_compat.py`                 |
 | Foods          | `/api/v1/foods/*`       | ✅ canonical | `app/routers/foods.py`                      |
 | Recipes        | `/api/v1/recipes/*`     | ✅ canonical | `app/routers/recipes.py`                     |
 | Users          | `/api/v1/users/*`       | ✅ canonical | `app/routers/users.py`                      |
@@ -190,10 +190,11 @@
 
 ### Что сюда относится
 
-- `legacy_app.py` endpoints
+- `legacy_app.py` compatibility shims and remaining legacy-owned endpoints
 - `/premium_*` (без `/api/v1/`)
-- `/plan`, `/api/nutrition/{date}`
-- `/bmi`, `/premium_bmr`
+- `/api/nutrition/{date}`
+- `/bmi`, `/plan`, `/api/v1/bmi` (canonical compatibility owner: `app/routers/bmi_compat.py`)
+- `/premium_bmr`
 
 ### Назначение
 

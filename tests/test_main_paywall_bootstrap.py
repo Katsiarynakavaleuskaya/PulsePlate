@@ -94,6 +94,30 @@ def _admin_operations_stub_router(
     return router
 
 
+def _bmi_compat_stub_router(
+    *,
+    omit: frozenset[str] = frozenset(),
+    method_overrides: dict[str, str] | None = None,
+    include_overrides: dict[str, bool] | None = None,
+) -> APIRouter:
+    router = APIRouter()
+    method_override_map = method_overrides or {}
+    include_override_map = include_overrides or {}
+
+    for path, method, include_in_schema in app_main._BMI_COMPAT_ROUTE_SPECS:
+        if path in omit:
+            continue
+        route_method = method_override_map.get(path, method).lower()
+        route_include = include_override_map.get(path, include_in_schema)
+
+        async def _bmi_compat_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        getattr(router, route_method)(path, include_in_schema=route_include)(_bmi_compat_handler)
+
+    return router
+
+
 def _duplicate_health_stub_router() -> APIRouter:
     router = _health_stub_router()
 
@@ -125,6 +149,20 @@ def _duplicate_admin_operations_stub_router() -> APIRouter:
         duplicate_path,
         include_in_schema=False,
     )(_second_admin_handler)
+    return router
+
+
+def _duplicate_bmi_compat_stub_router() -> APIRouter:
+    router = _bmi_compat_stub_router()
+    duplicate_path, duplicate_method, duplicate_include = app_main._BMI_COMPAT_ROUTE_SPECS[0]
+
+    async def _second_bmi_compat_handler() -> dict[str, str]:
+        return {"status": "duplicate"}
+
+    getattr(router, duplicate_method.lower())(
+        duplicate_path,
+        include_in_schema=duplicate_include,
+    )(_second_bmi_compat_handler)
     return router
 
 
@@ -213,6 +251,7 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "register_billing_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "feedback_router", _stub_router("/api/v1/feedback/rag"))
     monkeypatch.setattr(app_main, "admin_operations_router", _admin_operations_stub_router())
+    monkeypatch.setattr(app_main, "bmi_compat_router", _bmi_compat_stub_router())
     monkeypatch.setattr(app_main, "favicon_router", _favicon_stub_router())
     monkeypatch.setattr(app_main, "health_router", _health_stub_router())
     monkeypatch.setattr(app_main, "legal_router", _legal_stub_router())
@@ -720,6 +759,117 @@ def test_admin_operations_route_registration_rejects_existing_combined_methods(
 
     with pytest.raises(RuntimeError, match="Partial admin operations route registration detected"):
         _bootstrap_temp_app(_app_with_admin_routes_and_extra_method(combined_route=True))
+
+
+def test_bmi_compat_route_registration_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    _bootstrap_temp_app(app)
+    _bootstrap_temp_app(app)
+
+    for path, method, include_in_schema in app_main._BMI_COMPAT_ROUTE_SPECS:
+        matching_routes = [
+            route
+            for route in app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        assert len(matching_routes) == 1
+        assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
+
+
+def test_bmi_compat_route_registration_rejects_partial_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    path, method, include_in_schema = app_main._BMI_COMPAT_ROUTE_SPECS[0]
+
+    async def _existing_bmi_compat_route() -> dict[str, str]:
+        return {"status": "partial"}
+
+    getattr(app, method.lower())(path, include_in_schema=include_in_schema)(
+        _existing_bmi_compat_route
+    )
+
+    with pytest.raises(RuntimeError, match="Partial BMI compatibility route registration detected"):
+        _bootstrap_temp_app(app)
+
+
+def test_bmi_compat_route_registration_rejects_wrong_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    path, method, include_in_schema = app_main._BMI_COMPAT_ROUTE_SPECS[0]
+
+    async def _wrong_method_bmi_compat_route() -> dict[str, str]:
+        return {"status": "wrong-method"}
+
+    wrong_method = "GET" if method == "POST" else "POST"
+    getattr(app, wrong_method.lower())(path, include_in_schema=include_in_schema)(
+        _wrong_method_bmi_compat_route
+    )
+
+    with pytest.raises(RuntimeError, match="Partial BMI compatibility route registration detected"):
+        _bootstrap_temp_app(app)
+
+
+def test_bmi_compat_route_registration_rejects_foreign_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+
+    for path, method, include_in_schema in app_main._BMI_COMPAT_ROUTE_SPECS:
+
+        async def _foreign_bmi_compat_route(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        getattr(app, method.lower())(path, include_in_schema=include_in_schema)(
+            _foreign_bmi_compat_route
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate .* route detected with a different BMI compatibility handler",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_bmi_compat_route_registration_rejects_openapi_visibility_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    path, _method, include_in_schema = app_main._BMI_COMPAT_ROUTE_SPECS[0]
+    monkeypatch.setattr(
+        app_main,
+        "bmi_compat_router",
+        _bmi_compat_stub_router(include_overrides={path: not include_in_schema}),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="BMI compatibility router does not preserve OpenAPI visibility",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_bmi_compat_route_registration_rejects_duplicate_canonical_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(app_main, "bmi_compat_router", _duplicate_bmi_compat_stub_router())
+
+    with pytest.raises(
+        RuntimeError,
+        match="BMI compatibility router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
 
 
 @pytest.mark.parametrize("existing_path", ["/privacy", "/terms"])
