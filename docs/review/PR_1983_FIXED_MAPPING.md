@@ -43,8 +43,10 @@ reports no patched version.
 - Oracle commands: 4/4 passed.
 - `mutated_paths=[]`
 - `shared_tree_untouched=true`
-- Co-author trailer required and used on
-  `e834962f3b3733afafac0a26b0a7d607e912078a`.
+- Co-author trailer required and used on the real branch commit range
+  `origin/main..HEAD`; `git log --format=%B origin/main..HEAD` shows the
+  canonical `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+  trailer on every branch commit.
 
 ## Discussion Thread Pass
 
@@ -63,7 +65,7 @@ reports no patched version.
   `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975`
   - Disposition: FIXED.
   - Commit:
-    `e834962f3b3733afafac0a26b0a7d607e912078a`
+    `d1ac585edc1b0eae6c4370e438c6d3b98f1d679c`
   - Evidence: this replacement PR carries the intended
     `transformers==5.12.0` deltas and the emergency-fallback governance that
     raw #1975 did not include.
@@ -77,9 +79,9 @@ Evidence: PR #1981 removed the invalid `.github/dependabot.yml` assignee config 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975#issuecomment-4700568423 -> e34a357f25d2aba717465c675595581e64301126
 
 Disposition: FIXED
-Commit: e834962f3b3733afafac0a26b0a7d607e912078a
-Evidence: this replacement PR carries the intended `transformers==5.12.0` deltas and the emergency-fallback governance that raw #1975 did not include.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975 -> e834962f3b3733afafac0a26b0a7d607e912078a
+Commit: d1ac585edc1b0eae6c4370e438c6d3b98f1d679c
+Evidence: this replacement PR carries the intended `transformers==5.12.0` deltas and the emergency-fallback governance that raw #1975 did not include; `d1ac585edc1b0eae6c4370e438c6d3b98f1d679c` is an ancestor of the current PR branch and includes the dependency/fallback/mapping stack.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1975 -> d1ac585edc1b0eae6c4370e438c6d3b98f1d679c
 
 ## Validation
 
@@ -97,6 +99,7 @@ Evidence: this replacement PR carries the intended `transformers==5.12.0` deltas
 - `pre-commit run --all-files`: PASS.
 - Pre-push hooks: PASS, including `pip-audit`, backend tests, Bandit, and
   Docker build test.
+- `python3 -m pip download --isolated --index-url "$PULSEPLATE_PYTHON_INDEX_URL" --only-binary=:all: --no-deps --dest "$tmp_wheelhouse" transformers==5.12.0`: PASS; the approved private proxy downloaded `transformers-5.12.0-py3-none-any.whl`.
 
 ## Security Notes
 
