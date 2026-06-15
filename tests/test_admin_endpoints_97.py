@@ -32,6 +32,27 @@ def client(app: FastAPI):
 class TestAdminEndpoints:
     """Тесты admin endpoints - ключ к 97%"""
 
+    def test_scheduler_resolver_preserves_app_module_alias_seam(self) -> None:
+        async def _default_get_update_scheduler() -> object:
+            return object()
+
+        async def _app_module_get_update_scheduler() -> object:
+            return object()
+
+        legacy_module = SimpleNamespace(
+            get_update_scheduler=_default_get_update_scheduler,
+            _DEFAULT_GET_UPDATE_SCHEDULER=_default_get_update_scheduler,
+        )
+        app_module_alias = SimpleNamespace(get_update_scheduler=_app_module_get_update_scheduler)
+
+        getter = admin_operations_service._select_scheduler_getter_from_modules(
+            legacy_module,
+            None,
+            app_module_alias,
+        )
+
+        assert getter is _app_module_get_update_scheduler
+
     def test_admin_routes_reject_missing_or_invalid_api_key(
         self,
         client: TestClient,
@@ -112,18 +133,23 @@ class TestAdminEndpoints:
         )
 
         assert status_response.status_code == 200
+        assert status_response.headers.get("content-type", "").startswith("application/json")
         assert status_response.json() == {"status": "ok", "scheduler": "available"}
         assert db_status_response.status_code == 200
+        assert db_status_response.headers.get("content-type", "").startswith("application/json")
         assert db_status_response.json() == {"status": "ok"}
         assert force_response.status_code == 200
+        assert force_response.headers.get("content-type", "").startswith("application/json")
         assert force_response.json()["results"]["usda"]["success"] is True
         assert updates_response.status_code == 200
+        assert updates_response.headers.get("content-type", "").startswith("application/json")
         assert updates_response.json() == {
             "message": "Update check completed",
             "updates_available": {"usda": True, "openfoodfacts": False},
             "total_sources_with_updates": 1,
         }
         assert rollback_response.status_code == 200
+        assert rollback_response.headers.get("content-type", "").startswith("application/json")
         assert rollback_response.json() == {
             "message": "Successfully rolled back usda to version 1.0.0",
             "success": True,
@@ -155,6 +181,7 @@ class TestAdminEndpoints:
         )
 
         assert response.status_code == 200
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert response.json() == {
             "status": "success",
             "deleted_files": 3,
@@ -176,6 +203,7 @@ class TestAdminEndpoints:
         )
 
         assert response.status_code == 200
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert response.json() == {
             "status": "error",
             "deleted_files": 0,

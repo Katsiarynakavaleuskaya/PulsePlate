@@ -22,23 +22,43 @@ logger = logging.getLogger(__name__)
 SchedulerGetter = Callable[[], Any]
 
 
-def _resolve_scheduler_getter() -> SchedulerGetter:
-    """Resolve the update scheduler seam while preserving legacy test patches."""
-
-    legacy_mod = sys.modules.get("legacy_app")
-    app_mod = sys.modules.get("app")
+def _select_scheduler_getter_from_modules(
+    legacy_mod: Any,
+    app_mod: Any,
+    app_module_mod: Any,
+) -> SchedulerGetter | None:
+    """Select a patched scheduler getter from legacy/app module aliases."""
 
     legacy_getter = getattr(legacy_mod, "get_update_scheduler", None)
     default_getter = getattr(legacy_mod, "_DEFAULT_GET_UPDATE_SCHEDULER", None)
     if callable(legacy_getter) and legacy_getter is not default_getter:
         return cast(SchedulerGetter, legacy_getter)
 
-    app_getter = getattr(app_mod, "get_update_scheduler", None)
-    if callable(app_getter) and app_getter is not default_getter:
-        return cast(SchedulerGetter, app_getter)
+    for candidate_mod in (app_mod, app_module_mod):
+        app_getter = getattr(candidate_mod, "get_update_scheduler", None)
+        if callable(app_getter) and app_getter is not default_getter:
+            return cast(SchedulerGetter, app_getter)
 
     if callable(default_getter):
         return cast(SchedulerGetter, default_getter)
+
+    return None
+
+
+def _resolve_scheduler_getter() -> SchedulerGetter:
+    """Resolve the update scheduler seam while preserving legacy test patches."""
+
+    legacy_mod = sys.modules.get("legacy_app")
+    app_mod = sys.modules.get("app")
+    app_module_mod = sys.modules.get("app_module")
+
+    selected_getter = _select_scheduler_getter_from_modules(
+        legacy_mod,
+        app_mod,
+        app_module_mod,
+    )
+    if selected_getter is not None:
+        return selected_getter
 
     from core.food_apis.scheduler import get_update_scheduler as scheduler_getter
 

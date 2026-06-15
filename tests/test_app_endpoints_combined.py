@@ -248,8 +248,14 @@ class TestHealthAndMonitoringEndpoints:
 class TestDebugEndpoint:
     """Test debug endpoints for development"""
 
-    def test_debug_env_endpoint(self, client: TestClient) -> None:
+    def test_debug_env_endpoint(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test /debug_env returns environment info"""
+        monkeypatch.setenv("ENABLE_DEBUG_ENDPOINT", "true")
+
         route = _find_route(client, "/debug_env")
         assert route.endpoint.__module__ == "app.routers.admin_operations"
         assert getattr(route, "include_in_schema", True) is False
