@@ -31,6 +31,16 @@ REQUIREMENT_SURFACES = (
     REPO_ROOT / "constraints.txt",
 )
 
+CURRENT_SAFETY_RUNTIME_FLOORS = {
+    "cryptography": "48.0.1",
+    "python-multipart": "0.0.31",
+    "starlette": "1.3.1",
+}
+
+CURRENT_BLOCKED_VERSION_SPECIFIERS = {
+    "python-multipart": "<0.0.31",
+}
+
 PIP_DIRECTIVE_PREFIXES = (
     "-i ",
     "--index-url ",
@@ -373,14 +383,14 @@ def test_dependency_security_schema_is_stable_and_sorted() -> None:
                 )
 
 
-def test_dependency_security_schema_tracks_june_2026_safety_floors() -> None:
-    """Guard the exact Safety floors that restored main security CI."""
+def test_dependency_security_schema_tracks_current_safety_runtime_floors() -> None:
+    """Guard current Safety floor rotations in one intentionally updated map."""
     schema = _load_schema(SCHEMA_PATH)
 
-    assert schema["min_versions"]["cryptography"] == "48.0.1"
-    assert schema["min_versions"]["python-multipart"] == "0.0.31"
-    assert schema["min_versions"]["starlette"] == "1.3.1"
-    assert "<0.0.31" in schema["blocked_versions"]["python-multipart"]
+    for package, floor in CURRENT_SAFETY_RUNTIME_FLOORS.items():
+        assert schema["min_versions"][package] == floor
+    for package, specifier in CURRENT_BLOCKED_VERSION_SPECIFIERS.items():
+        assert specifier in schema["blocked_versions"][package]
 
 
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)

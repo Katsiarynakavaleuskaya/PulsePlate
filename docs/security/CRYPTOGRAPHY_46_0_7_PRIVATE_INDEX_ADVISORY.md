@@ -10,9 +10,13 @@ This note originally tracked the temporary approved-index fallback for
 Current repo truth:
 
 - minimum floor: `cryptography>=48.0.1`
+  (`requirements.in:44`, `requirements-dev.in:21`)
 - pinned runtime/dev/lock version: `cryptography==48.0.1`
+  (`requirements.txt:35`, `requirements-dev.txt:50`,
+  `requirements-lock.txt:76`)
 - emergency fallback: exact `cryptography==48.0.1` Linux x86_64 wheels in
-  `scripts/ci/emergency_python_wheels.json`
+  `scripts/ci/emergency_python_wheels.json:8` and
+  `scripts/ci/emergency_python_wheels.json:15`
 - removal backlog:
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-sync`
 
