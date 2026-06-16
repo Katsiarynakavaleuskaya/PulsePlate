@@ -82,12 +82,19 @@ Reason: Fixed the CodeRabbit merge-readiness checklist finding and low-value rea
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1984#discussion_r3419061121 -> 8e300e3daa6b5a2e0f9bbd1f64ed2fc220478a6c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1984#pullrequestreview-4504377032 -> 8e300e3daa6b5a2e0f9bbd1f64ed2fc220478a6c
 
+Disposition: FIXED
+Commit: 32bbff22ed9488b391d2f2480d876fcb9860dcf8
+Evidence: `docs/security/SFTY-20260615-python-runtime-floors.md` and this artifact now separate target-wheel rotation from the active exact fallback manifest TTL renewal under `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity`.
+Reason: Fixed the security-auditor blocker that fallback-scope evidence could imply only `cryptography` and `python-multipart` metadata changed.
+
 ## Role Review Finding Disposition
 
 - `qa-engineer-agent`: FIXED for Docs Phase1, Phase2 parser, and Sourcery mapping blockers. Evidence: `python3 scripts/ci/check_docs_phase1_gates.py --files ...` PASS, `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1984 --body "$(gh pr view 1984 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` PASS, and Sourcery review `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1984#pullrequestreview-4504293768` mapped to commit `254e9752265152032d4604f53f2524cba1935f83`.
 - `qa-engineer-agent`: NOT-A-BUG for dependency/lock drift and machine-heavy validation budget. Evidence: QA pass confirmed dependency/lock drift is controlled and local focused gates are appropriate, while current-head CI `CI / security` remains required before merge readiness.
 - `bug-hunter`: FIXED for the CodeRabbit merge-readiness checklist blocker. Evidence: `docs/review/PR_1984_FIXED_MAPPING.md` now uses unchecked Merge Readiness checkboxes and maps both CodeRabbit URLs to commit `8e300e3daa6b5a2e0f9bbd1f64ed2fc220478a6c`.
 - `bug-hunter`: NOT-A-BUG for dependency/lock drift and docs/parser stability. Evidence: bug-hunter confirmed the dependency hotfix diff is controlled, Docs Phase1 passed, and Phase2 passed after QA follow-up.
+- `security-auditor`: FIXED for fallback manifest scope evidence. Evidence: commit `32bbff22ed9488b391d2f2480d876fcb9860dcf8` clarifies that target wheels were rotated while the still-active exact fallback manifest TTL was renewed under the existing private-index mirror-lag ledger item.
+- `security-auditor`: NOT-A-BUG for dependency floors/pins and secrets baseline. Evidence: security-auditor confirmed the floors/pins are controlled and `.secrets.baseline` changed only hashed fingerprints and timestamp, with no plaintext `secret_value` fields.
 
 ## Dependency Delta Proof
 
