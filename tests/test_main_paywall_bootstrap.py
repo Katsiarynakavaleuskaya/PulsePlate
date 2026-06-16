@@ -1334,6 +1334,30 @@ def test_legacy_export_alias_route_registration_allows_unrelated_router_paths(
     )
 
 
+def test_legacy_export_alias_route_registration_allows_reloaded_canonical_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
+    app = FastAPI()
+    app.include_router(app_main._build_legacy_export_aliases_router())
+    monkeypatch.setattr(
+        app_main,
+        "legacy_export_aliases_router",
+        app_main._build_legacy_export_aliases_router(),
+    )
+
+    app_main._include_legacy_export_alias_router_if_needed(app)
+
+    for path, method, _include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
+        matching_routes = [
+            route
+            for route in app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        assert len(matching_routes) == 1
+
+
 def test_legacy_export_alias_route_registration_rejects_foreign_handlers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

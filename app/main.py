@@ -126,6 +126,16 @@ def _build_legacy_export_aliases_router() -> APIRouter:
 legacy_export_aliases_router = _build_legacy_export_aliases_router()
 
 
+def _is_same_legacy_export_alias_endpoint(existing: object, expected: object) -> bool:
+    if existing is expected:
+        return True
+    return (
+        getattr(existing, "__module__", None) == "app.routers.legacy_export_aliases"
+        and getattr(existing, "__module__", None) == getattr(expected, "__module__", None)
+        and getattr(existing, "__name__", None) == getattr(expected, "__name__", None)
+    )
+
+
 def _has_route(
     target_app: FastAPI,
     path: str,
@@ -584,9 +594,9 @@ def _include_legacy_export_alias_router_if_needed(target_app: FastAPI) -> None:
             if getattr(route, "path", None) == path
             and method in (getattr(route, "methods", None) or set())
         ]
-        if (
-            len(matching_routes) != 1
-            or getattr(matching_routes[0], "endpoint", None) is not endpoint
+        if len(matching_routes) != 1 or not _is_same_legacy_export_alias_endpoint(
+            getattr(matching_routes[0], "endpoint", None),
+            endpoint,
         ):
             raise RuntimeError(
                 f"Duplicate {path} route detected with a different legacy export alias handler."
