@@ -23,6 +23,7 @@
 - [x] Discussion-thread pass completed.
 - [x] Fixed in commit mapping completed.
 - [x] Initial PR open: no review threads existed at artifact creation.
+- [x] Sourcery post-open review fixed in `0a20a9764`.
 
 ## Fixed in Commit Mapping
 
@@ -31,6 +32,12 @@ Commit: 2e72dfa20
 Evidence: `app/main.py` now treats pre-existing canonical `app.routers.legacy_export_aliases` endpoints with the same function name as idempotent after reload, while still rejecting foreign duplicate handlers; `tests/test_main_paywall_bootstrap.py` covers reloaded canonical handlers; `tests/test_legacy_export_aliases.py` resolves the current `legacy_app` module after purge/reload.
 Reason: Fixes post-merge main CI failures from run `27649033733`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1987 -> 2e72dfa20
+
+Disposition: FIXED
+Commit: 0a20a9764
+Evidence: `app/main.py` derives the accepted legacy export alias module name from `app.routers.legacy_export_aliases` and explicitly rejects non-callable endpoint candidates before comparing module and function names.
+Reason: Addresses Sourcery review feedback about avoiding a hard-coded module string and making endpoint equivalence more defensive.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1987#pullrequestreview-4510864368 -> 0a20a9764
 
 ## Local Validation Evidence
 
