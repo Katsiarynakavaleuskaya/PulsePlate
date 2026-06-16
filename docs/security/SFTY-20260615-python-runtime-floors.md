@@ -51,6 +51,12 @@ or planning engines.
   `cryptography==48.0.1` Linux x86_64 wheels and the exact
   `python-multipart==0.0.31` pure wheel, each pinned by `sha256`, with a
   short expiry of `2026-06-30`.
+- Active fallback manifest renewal:
+  `scripts/ci/emergency_python_wheels.json:4` renews the still-active exact
+  fallback manifest TTL to `2026-06-30` under the existing
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity`
+  tracking item. This is a time-boxed private-index mirror-lag bridge for the
+  enumerated exact wheels, not a broad public-index bypass.
 
 ## Validation
 

@@ -102,9 +102,14 @@ Reason: Fixed the CodeRabbit merge-readiness checklist finding and low-value rea
   `starlette==1.3.1`.
 - Negative control: no repo-managed retained `pip==...` lock pin in
   `requirements-dev.txt` or `requirements-lock.txt`.
-- Emergency fallback metadata updated only for exact `cryptography 48.0.1`
-  and `python-multipart 0.0.31` wheels; no `starlette` fallback added because
-  local dependency sync resolved it without a proxy miss.
+- Emergency fallback target wheels were rotated to exact
+  `cryptography 48.0.1` and `python-multipart 0.0.31` artifacts.
+- The still-active exact fallback manifest TTL was renewed to `2026-06-30`
+  under `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity`;
+  this preserves the existing enumerated private-index mirror-lag bridge and
+  does not add a broad public-index bypass.
+- No `starlette` fallback was added because local dependency sync resolved it
+  without a proxy miss.
 
 ## Local Validation Evidence
 
