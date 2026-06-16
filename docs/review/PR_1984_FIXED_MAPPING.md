@@ -2,7 +2,7 @@
 
 ## Lane Start Provenance
 
-- Packet: `artifacts/orchestration/task_packets/e783c0240b3a.json`
+Packet: `artifacts/orchestration/task_packets/e783c0240b3a.json`
 - Branch: `codex/fix-main-safety-security-deps-after-pr1982`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Base: `origin/main` at PR #1982 merge commit `e2b8fbae5`.
@@ -29,6 +29,7 @@
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/main-safety-deps-hotfix-oracle-full-packet.json`
+Artifact: `artifacts/orchestration/experiments/results/exp-03780de8d42f.json`
 - Result: `artifacts/orchestration/experiments/results/exp-03780de8d42f.json`
 - Status: accepted.
 - Runner mode: `oracle_only_governance_reviewer`.
@@ -44,8 +45,9 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Initial PR open: no review threads existed at artifact creation.
-- [x] Fixed in commit mapping artifact created.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
   pending.
 - [ ] Codex Security diff scan / finding discovery pending.
@@ -58,16 +60,8 @@
 
 Disposition: FIXED
 Commit: 93575bfe58d1953aa8a1ceacb2021913c280c822
-Evidence: `requirements.in`, `requirements-ci-lite.in`,
-`requirements-dev.in`, `requirements-docker-runtime.in`, `constraints.txt`,
-all regenerated lock surfaces, `tests/fixtures/dependency_security_schema.json`,
-`tests/test_dependency_security_guard.py`,
-`docs/security/SFTY-20260615-python-runtime-floors.md`, and
-`scripts/ci/emergency_python_wheels.json`.
-Reason: Restores current `main` CI security by raising Safety-blocked Python
-runtime dependency floors, regenerating the affected lock surfaces, guarding
-against reintroduction of vulnerable floors, and refreshing exact emergency
-fallback metadata for private-index lag.
+Evidence: `requirements.in`, `requirements-ci-lite.in`, `requirements-dev.in`, `requirements-docker-runtime.in`, `constraints.txt`, all regenerated lock surfaces, `tests/fixtures/dependency_security_schema.json`, `tests/test_dependency_security_guard.py`, `docs/security/SFTY-20260615-python-runtime-floors.md`, and `scripts/ci/emergency_python_wheels.json`.
+Reason: Restores current `main` CI security by raising Safety-blocked Python runtime dependency floors, regenerating the affected lock surfaces, guarding against reintroduction of vulnerable floors, and refreshing exact emergency fallback metadata for private-index lag.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1984 -> 93575bfe58d1953aa8a1ceacb2021913c280c822
 
 ## Dependency Delta Proof
