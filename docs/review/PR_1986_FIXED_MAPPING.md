@@ -57,10 +57,12 @@
 - [x] Post-open `qa-engineer-agent` pass completed: no P0/P1/P2 findings.
 - [x] Post-open `bug-hunter` pass completed: P2 findings fixed in
   `ec29bb994`.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
-  pending.
-- [ ] Codex Security diff scan / finding discovery pending.
-- [ ] `pulseplate-pr-review` pending.
+- [x] Post-open `security-auditor` pass completed: no findings.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
+  completed.
+- [x] Codex Security diff scan / finding discovery completed: no findings.
+- [x] `pulseplate-pr-review` completed; advisory large-diff note dispositioned
+  as covered by targeted gate evidence.
 - [ ] New CodeRabbit/Sourcery/Cubic comments must be fixed or dispositioned
   before merge readiness.
 
@@ -100,6 +102,52 @@ Validation: `.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py
 tests/test_main_paywall_bootstrap.py tests/test_legacy_export_aliases.py`;
 `python3 scripts/ci/check_legacy_growth_guard.py`; `pre-commit run --all-files`.
 
+### security-auditor
+
+Disposition: NOT-A-BUG
+Evidence: Post-open security-auditor pass reported no findings for auth,
+export rate-limit, OpenAPI visibility, feature-gate, helper-rebinding,
+partial-registration, and security-governance surfaces.
+Validation: `python3 scripts/orchestration/check_preflight.py`;
+`. .venv/bin/activate && PYTHONDONTWRITEBYTECODE=1 pytest -q -p no:cacheprovider
+tests/test_legacy_export_aliases.py tests/test_main_paywall_bootstrap.py
+tests/test_legacy_growth_guard.py tests/test_rate_limit_llm_and_exports_api.py`;
+`PYTHONDONTWRITEBYTECODE=1 python3 scripts/ci/check_legacy_growth_guard.py`;
+`git diff --check origin/main...HEAD`;
+`PYTHONDONTWRITEBYTECODE=1 python3 scripts/ci/check_artifact_reader_contracts.py`.
+
+## Codex Security Diff Scan
+
+Disposition: NOT-A-BUG
+Evidence: Codex Security diff scan for head
+`e53aebb10186ae33cdb77c5c5b4a15affadd7bac` completed with no reportable
+findings.
+Artifacts: `/tmp/codex-security-scans/BMI-App_2025_clean/e53aebb10186_20260616T185449Z/report.md`;
+`/tmp/codex-security-scans/BMI-App_2025_clean/e53aebb10186_20260616T185449Z/report.html`.
+Coverage: all four deep-review rows have work-ledger closure receipts:
+`app/main.py`, `app/routers/legacy_export_aliases.py`, `legacy_app.py`, and
+`scripts/ci/check_legacy_growth_guard.py`.
+Validation: `python3 <codex-security>/scripts/validate_report_format.py
+--report-md /tmp/codex-security-scans/BMI-App_2025_clean/e53aebb10186_20260616T185449Z/report.md`;
+HTML rendered with the Codex Security inlined template.
+Goal usage: Codex Security scan goal completed with `tokensUsed=61951` and
+`timeUsedSeconds=328`.
+
+## pulseplate-pr-review
+
+Disposition: NOT-A-BUG
+Evidence: `/tmp/pulseplate_pr1986_review.md` and
+`/tmp/pulseplate_pr1986_review.json` completed. The only finding was an
+advisory `note` for large-diff review risk: 1026 changed lines exceeded the
+800-line dry-run threshold.
+Reason: The PR has an explicit coherent-slice rationale, documented out-of-scope
+boundaries, role-agent review, Codex Security no-findings evidence, and passing
+targeted validation. The note is review-planning evidence, not a code defect or
+merge-readiness claim.
+Validation: `python3 scripts/orchestration/check_agent_consistency.py`;
+`. .venv/bin/activate && python -m pytest tests/test_pr_review_report.py
+tests/test_pr_review_context.py -q`; `make validate-changed`.
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path legacy_app.py --path app/main.py --path app/routers/legacy_export_aliases.py --path scripts/ci/check_legacy_growth_guard.py --path tests/test_legacy_export_aliases.py --path tests/test_main_paywall_bootstrap.py --path tests/test_legacy_growth_guard.py --path tests/test_rate_limit_llm_and_exports_api.py`
@@ -114,6 +162,11 @@ tests/test_main_paywall_bootstrap.py tests/test_legacy_export_aliases.py`;
 - PASS during commit/push hooks: changed-file mypy, pip-audit, backend
   pre-push tests, full-repo Bandit, and docker build test.
 - PASS: Experiment Runner oracle-only evidence listed above.
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS:
+  `. .venv/bin/activate && python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
+- PASS: Codex Security report validation and HTML render for
+  `/tmp/codex-security-scans/BMI-App_2025_clean/e53aebb10186_20260616T185449Z/report.md`.
 
 ## Security Notes
 
@@ -136,10 +189,9 @@ Not ready at artifact creation. Required before merge:
 
 - [x] Numbered fixed-mapping artifact created.
 - [x] PR body mirror updated to point to this artifact.
-- [ ] Post-open role-agent review sequence completed: `security-auditor` still
-  pending.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Post-open role-agent review sequence completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit/Sourcery/Cubic actionable comments fixed or dispositioned.
 - [ ] Current-head CI parity on latest pushed commit.
 - [ ] Strict merge-readiness check with `--require-auth`.
