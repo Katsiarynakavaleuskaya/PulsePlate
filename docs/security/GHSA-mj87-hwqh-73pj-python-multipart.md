@@ -1,10 +1,17 @@
 # GHSA-mj87-hwqh-73pj - python-multipart pre-push unblock
 
+## Status
+
+This historical unblock note is superseded for current dependency-floor truth.
+The repo now requires `python-multipart>=0.0.31` after the June 2026 Safety
+findings documented in
+`docs/security/SFTY-20260615-python-runtime-floors.md`.
+
 ## Summary
 
 - Advisory: `GHSA-mj87-hwqh-73pj`
 - Package: `python-multipart`
-- Fixed floor adopted by this repo: `python-multipart>=0.0.26`
+- Historical floor adopted by this unblock: `python-multipart>=0.0.26`
 - Tracked repo surfaces remediated by this unblock:
   - `requirements.in`
   - `requirements-ci-lite.in`

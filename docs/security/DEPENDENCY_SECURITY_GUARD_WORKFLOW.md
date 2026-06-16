@@ -17,7 +17,7 @@ The guard runs as part of `make verify` and validates the canonical 5 shared req
 ```json
 {
   "min_versions": {
-    "cryptography": "46.0.7",
+    "cryptography": "48.0.1",
     "pillow": "12.2.0"
   },
   "blocked_packages": [],
@@ -117,22 +117,22 @@ make verify
 
 ### Example 1: Minimum Version Floor (cryptography CVE)
 
-**Scenario:** CVE-2026-26007 fixed in cryptography 46.0.7 and GHSA-whj4-6x5x-4v2j fixed in pillow 12.2.0
+**Scenario:** Safety June 2026 findings require cryptography 48.0.1 and GHSA-whj4-6x5x-4v2j fixed in pillow 12.2.0
 
 **Schema update:**
 ```json
 {
   "min_versions": {
-    "cryptography": "46.0.7",
+    "cryptography": "48.0.1",
     "pillow": "12.2.0"
   }
 }
 ```
 
 **Requirement updates:**
-- `requirements.in`: `cryptography>=46.0.7,<47.0.0` and `pillow>=12.2.0,<13.0.0`
-- `requirements-dev.in`: `cryptography>=46.0.7`
-- `constraints.txt`: `cryptography>=46.0.7` and `pillow>=12.2.0`
+- `requirements.in`: `cryptography>=48.0.1,<49.0.0` and `pillow>=12.2.0,<13.0.0`
+- `requirements-dev.in`: `cryptography>=48.0.1,<49.0.0`
+- `constraints.txt`: `cryptography>=48.0.1` and `pillow>=12.2.0`
 - Regenerate locks
 
 ### Example 2: Blocked Package

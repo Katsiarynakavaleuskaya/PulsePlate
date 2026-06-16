@@ -1,11 +1,11 @@
 {
   "min_versions": {
-    "cryptography": "46.0.7",
+    "cryptography": "48.0.1",
     "mako": "1.3.12",
     "pillow": "12.2.0",
-    "python-multipart": "0.0.27",
+    "python-multipart": "0.0.31",
     "requests": "2.33.0",
-    "starlette": "1.0.1"
+    "starlette": "1.3.1"
   },
   "blocked_packages": [],
   "blocked_versions": {
@@ -17,7 +17,7 @@
       "<=26.0.1"
     ],
     "python-multipart": [
-      "<0.0.27"
+      "<0.0.31"
     ]
   }
 }
