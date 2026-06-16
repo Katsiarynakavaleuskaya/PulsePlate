@@ -11471,6 +11471,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       introduced in the same PR
 
 
+<a id="ledger-p1-storybook-ws-ghsa-96hv"></a>
+- [ ] P1: Remediate Storybook `ws` audit finding (`GHSA-96hv-2xvq-fx4p`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / frontend tooling remediation)
+  - Target PR: next frontend dependency lane after
+    `codex/fix-frontend-dompurify-js-yaml-alerts`
+  - Status: Opened from PR1 local audit residual on 2026-06-16
+  - Reason: The `dompurify` / `js-yaml` remediation lane intentionally stays
+    scoped to Dependabot alerts `#164`-`#171`, but
+    `npm audit --audit-level=moderate --package-lock-only` still reports
+    `ws` `GHSA-96hv-2xvq-fx4p` through Storybook at `8.20.1` with a fixed
+    range above the current override. This must be handled in a separate
+    frontend tooling dependency PR rather than hidden by target-package audit
+    evidence.
+  - Links:
+    - `frontend/package.json`
+    - `frontend/package-lock.json`
+    - Advisory: `GHSA-96hv-2xvq-fx4p`
+  - DoD:
+    - Storybook's resolved `ws` dependency is outside the vulnerable range
+    - `npm audit --audit-level=moderate --package-lock-only` no longer reports
+      `ws` / Storybook
+    - frontend build and `npm run test:ci` pass
+    - no unrelated frontend runtime or OpenAPI type-generation churn is included
+
+
 <a id="ledger-p1-remove-pygments-pip-audit-ignore"></a>
 - [ ] P1: Remove temporary Pygments pip-audit ignore when patched release exists
   - Owner: @katsiaryna_kavaleuskaya
