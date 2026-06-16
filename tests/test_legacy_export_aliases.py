@@ -90,6 +90,34 @@ def test_legacy_export_alias_daily_csv_preserves_response_headers(
     assert response.content == b"Meal,Food Item\nA,B\n"
 
 
+@pytest.mark.parametrize(
+    ("helper_name", "path", "content"),
+    [
+        ("export_weekly_plan_csv", "/api/v1/premium/exports/week/test_plan.csv", b"weekly,csv"),
+        ("export_daily_plan_pdf", "/api/v1/premium/exports/day/test_plan.pdf", b"%PDF daily"),
+        ("export_weekly_plan_pdf", "/api/v1/premium/exports/week/test_plan.pdf", b"%PDF weekly"),
+    ],
+)
+def test_legacy_export_alias_get_routes_delegate_to_current_helper(
+    monkeypatch: pytest.MonkeyPatch,
+    helper_name: str,
+    path: str,
+    content: bytes,
+) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+
+    async def _patched_export(_plan_id: str) -> Response:
+        return Response(content=content, media_type="application/octet-stream")
+
+    monkeypatch.setattr(legacy_app, helper_name, _patched_export)
+    client = TestClient(app_main.app)
+
+    response = client.get(path, headers={"X-API-Key": "test_key"})
+
+    assert response.status_code == 200
+    assert response.content == content
+
+
 def test_legacy_export_alias_generic_pdf_preserves_empty_payload_400(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, FastAPI, Response
+from fastapi.testclient import TestClient
 import pytest
 from typing import Generator
 
@@ -257,6 +258,16 @@ def _legacy_export_alias_stub_router_with_combined_methods() -> APIRouter:
             methods=methods,
             include_in_schema=combined_include if path == combined_path else include_in_schema,
         )
+    return router
+
+
+def _legacy_export_alias_stub_router_with_unrelated_path() -> APIRouter:
+    router = _legacy_export_alias_stub_router()
+
+    async def _unrelated_handler() -> dict[str, str]:
+        return {"status": "unrelated"}
+
+    router.get("/api/v1/unrelated-legacy-export-probe", include_in_schema=False)(_unrelated_handler)
     return router
 
 
@@ -1157,6 +1168,47 @@ def test_legacy_export_alias_route_registration_skips_when_disabled(
         ]
 
 
+def test_build_legacy_export_aliases_router_returns_empty_router_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", False)
+
+    router = app_main._build_legacy_export_aliases_router()
+
+    assert router.routes == []
+
+
+def test_build_legacy_export_aliases_router_rejects_missing_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
+    monkeypatch.setattr(app_main._legacy_module, "export_weekly_plan_pdf", None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Legacy export aliases are enabled, but required helpers are unavailable",
+    ):
+        app_main._build_legacy_export_aliases_router()
+
+
+def test_build_legacy_export_aliases_router_rejects_helper_missing_after_build(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
+    router = app_main._build_legacy_export_aliases_router()
+    monkeypatch.setattr(app_main._legacy_module, "export_weekly_plan_pdf", None)
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    with pytest.raises(RuntimeError, match="Legacy export helper is unavailable"):
+        client.get(
+            "/api/v1/premium/exports/week/unavailable.pdf",
+            headers={"X-API-Key": "test_key"},
+        )
+
+
 def test_legacy_export_alias_route_registration_rejects_partial_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1262,6 +1314,24 @@ def test_legacy_export_alias_route_registration_rejects_existing_combined_method
         _bootstrap_temp_app(
             _app_with_legacy_export_alias_routes_and_extra_method(combined_route=True)
         )
+
+
+def test_legacy_export_alias_route_registration_allows_unrelated_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "legacy_export_aliases_router",
+        _legacy_export_alias_stub_router_with_unrelated_path(),
+    )
+
+    app = _bootstrap_temp_app(FastAPI())
+
+    assert any(
+        getattr(route, "path", None) == "/api/v1/unrelated-legacy-export-probe"
+        for route in app.routes
+    )
 
 
 def test_legacy_export_alias_route_registration_rejects_foreign_handlers(

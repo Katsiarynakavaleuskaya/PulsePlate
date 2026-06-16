@@ -173,6 +173,10 @@ tests/test_pr_review_context.py -q`; `make validate-changed`.
   `. .venv/bin/activate && python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
 - PASS: Codex Security report validation and HTML render for
   `/tmp/codex-security-scans/BMI-App_2025_clean/e53aebb10186_20260616T185449Z/report.md`.
+- PASS after current-head CI diff-coverage remediation:
+  `. .venv/bin/activate && coverage erase && coverage run -m pytest -q tests/test_legacy_export_aliases.py tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_rate_limit_llm_and_exports_api.py && coverage xml && diff-cover coverage.xml --compare-branch=origin/main --fail-under=97 ...`
+  reported `app/main.py (100%)`, `app/routers/legacy_export_aliases.py (100%)`,
+  `Missing: 0 lines`, `Coverage: 100%`.
 
 ## Security Notes
 
