@@ -11,6 +11,9 @@ Packet: `artifacts/orchestration/task_packets/63a747529fee.json`
   `agent-coordinator -> security-auditor -> frontend-engineer -> qa-engineer-agent -> bug-hunter -> architecture-specialist -> cursor-specialist-agent -> web-research-agent`
 - Operator override: `main` was accepted for PR start while current-head jobs
   were pending without a new failed job.
+- Operator approval: approved for frontend dependency security evidence lane.
+- Frontend/backend mix approval: approved for frontend dependency manifests
+  with security evidence docs.
 
 ## Scope Boundary
 
@@ -22,6 +25,9 @@ Packet: `artifacts/orchestration/task_packets/63a747529fee.json`
   Storybook `ws` remediation, backend runtime behavior, OpenAPI changes,
   frontend UI behavior, iOS/macOS, legacy routes, BMI/planning, FoodDB,
   premium, exports, and insight routes.
+- Scope-governance proof: PR body records `Operator approval: approved` and
+  `Frontend/backend mix approval: approved`; PR labels include
+  `scope/operator-approved` and `scope/frontend-backend-mix-approved`.
 
 ## Premortem Closure
 
