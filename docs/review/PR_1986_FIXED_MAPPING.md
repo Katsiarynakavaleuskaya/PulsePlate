@@ -63,7 +63,7 @@
 - [x] Codex Security diff scan / finding discovery completed: no findings.
 - [x] `pulseplate-pr-review` completed; advisory large-diff note dispositioned
   as covered by targeted gate evidence.
-- [ ] New CodeRabbit/Sourcery/Cubic comments must be fixed or dispositioned
+- [x] New CodeRabbit/Sourcery/Cubic comments fixed or dispositioned
   before merge readiness.
 
 ## Fixed in Commit Mapping
@@ -73,6 +73,12 @@ Commit: 34086db39
 Evidence: `app/routers/legacy_export_aliases.py`, `app/main.py`, `legacy_app.py`, `scripts/ci/check_legacy_growth_guard.py`, and focused tests preserve auth, rate-limit metadata, feature gating, hidden OpenAPI visibility, response parity, and route-level helper rebinding.
 Reason: Implements the PR scope before review threads existed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1986 -> 34086db39
+
+Disposition: FIXED
+Commit: ec29bb994
+Evidence: `scripts/ci/check_legacy_growth_guard.py` lowers the API-key app-surface ceiling, `tests/test_legacy_growth_guard.py` proves one new API-key dependency now fails, `tests/test_main_paywall_bootstrap.py` uses the opposite invalid-state method, and `tests/test_legacy_export_aliases.py` asserts JSON content type before parsing the 400 payload.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1986#discussion_r3423091627 -> ec29bb994
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1986#pullrequestreview-4509209449 -> ec29bb994
 
 ## Post-Open Role Pass Closure
 
@@ -192,7 +198,7 @@ Not ready at artifact creation. Required before merge:
 - [x] Post-open role-agent review sequence completed.
 - [x] Codex Security diff scan / finding discovery completed.
 - [x] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit/Sourcery/Cubic actionable comments fixed or dispositioned.
+- [x] CodeRabbit/Sourcery/Cubic actionable comments fixed or dispositioned.
 - [ ] Current-head CI parity on latest pushed commit.
 - [ ] Strict merge-readiness check with `--require-auth`.
 - [ ] No unresolved actionable review or bot comments.
