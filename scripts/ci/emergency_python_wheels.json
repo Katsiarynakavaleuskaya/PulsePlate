@@ -1,22 +1,22 @@
 {
     "schema_version": 1,
-    "generated_at": "2026-05-21",
-    "expires_at": "2026-06-15",
+    "generated_at": "2026-06-16",
+    "expires_at": "2026-06-30",
     "reason": "Time-boxed mirror-lag bridge for the EXACT listed wheels only (manylinux x86_64 or pure wheel where applicable). NOT a generic Cloudflare 521 / proxy-outage fallback: if the approved private proxy is fully unhealthy, any locked install needing a wheel not enumerated in this manifest will still fail. Recovery is infra-owned: see RUNBOOK_AGENT.md (`Python private index proxy (PULSEPLATE_PYTHON_INDEX_URL) triage`) and BACKLOG_LEDGER.md (`ledger-p1-private-pypi-proxy-mirror-parity`).",
     "artifacts": [
         {
             "package": "cryptography",
-            "version": "46.0.7",
-            "filename": "cryptography-46.0.7-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-            "url": "https://files.pythonhosted.org/packages/4a/9a/1765afe9f572e239c3469f2cb429f3ba7b31878c893b246b4b2994ffe2fe/cryptography-46.0.7-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-            "sha256": "5ad9ef796328c5e3c4ceed237a183f5d41d21150f972455a9d926593a1dcb308"
+            "version": "48.0.1",
+            "filename": "cryptography-48.0.1-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/9c/87/c85d147b53323c7eb4d850920c8901377323c2a0ff8d79c262d4fee89aa2/cryptography-48.0.1-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            "sha256": "f0d27a5696721ef7a672b8c810f6aded391058e0b9486e63e6d93baf765da691"
         },
         {
             "package": "cryptography",
-            "version": "46.0.7",
-            "filename": "cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
-            "url": "https://files.pythonhosted.org/packages/c7/0b/333ddab4270c4f5b972f980adef4faa66951a4aaf646ca067af597f15563/cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl",
-            "sha256": "42a1e5f98abb6391717978baf9f90dc28a743b7d9be7f0751a6f56a75d14065b"
+            "version": "48.0.1",
+            "filename": "cryptography-48.0.1-cp311-abi3-manylinux_2_34_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/9f/13/8b765e2e12b07c74941caadb9d1c8fdc006c4dfbf2b8f2d610519758954d/cryptography-48.0.1-cp311-abi3-manylinux_2_34_x86_64.whl",
+            "sha256": "0ee6ea481db1ab889cba043ec1eda17bb9c1ea79db6722f779c3667f9f70322f"
         },
         {
             "package": "pillow",
@@ -63,7 +63,7 @@
         {
             "package": "pip",
             "version": "26.1.1",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "pip-26.1.1-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/3a/eb/fea4d1d51c49832120f7f285d07306db3960f423a2612c6057caf3e8196f/pip-26.1.1-py3-none-any.whl",
             "sha256": "99cb1c2899893b075ff56e4ed0af55669a955b49ad7fb8d8603ecdaf4ed653fb"
@@ -92,7 +92,7 @@
         {
             "package": "protobuf",
             "version": "6.33.5",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl",
             "url": "https://files.pythonhosted.org/packages/9b/53/a9443aa3ca9ba8724fdfa02dd1887c1bcd8e89556b715cfbacca6b63dbec/protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl",
             "sha256": "cbf16ba3350fb7b889fca858fb215967792dc125b35c7976ca4818bee3521cf0"
@@ -100,7 +100,7 @@
         {
             "package": "wrapt",
             "version": "2.0.1",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "wrapt-2.0.1-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/15/d1/b51471c11592ff9c012bd3e2f7334a6ff2f42a7aed2caffcf0bdddc9cb89/wrapt-2.0.1-py3-none-any.whl",
             "sha256": "4d2ce1bf1a48c5277d7969259232b57645aae5686dba1eaeade39442277afbca"
@@ -115,7 +115,7 @@
         {
             "package": "aiosqlite",
             "version": "0.22.1",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "aiosqlite-0.22.1-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/00/b7/e3bf5133d697a08128598c8d0abc5e16377b51465a33756de24fa7dee953/aiosqlite-0.22.1-py3-none-any.whl",
             "sha256": "21c002eb13823fad740196c5a2e9d8e62f6243bd9e7e4a1f87fb5e44ecb4fceb"
@@ -123,7 +123,7 @@
         {
             "package": "alembic",
             "version": "1.18.4",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "alembic-1.18.4-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/d2/29/6533c317b74f707ea28f8d633734dbda2119bbadfc61b2f3640ba835d0f7/alembic-1.18.4-py3-none-any.whl",
             "sha256": "a5ed4adcf6d8a4cb575f3d759f071b03cd6e5c7618eb796cb52497be25bfe19a"
@@ -131,7 +131,7 @@
         {
             "package": "annotated-doc",
             "version": "0.0.4",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "annotated_doc-0.0.4-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/1e/d3/26bf1008eb3d2daa8ef4cacc7f3bfdc11818d111f7e2d0201bc6e3b49d45/annotated_doc-0.0.4-py3-none-any.whl",
             "sha256": "571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320"
@@ -139,7 +139,7 @@
         {
             "package": "annotated-types",
             "version": "0.7.0",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "annotated_types-0.7.0-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/78/b6/6307fbef88d9b5ee7421e68d78a9f162e0da4900bc5f5793f6d3d0e34fb8/annotated_types-0.7.0-py3-none-any.whl",
             "sha256": "1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53"
@@ -147,7 +147,7 @@
         {
             "package": "anyio",
             "version": "4.12.0",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "anyio-4.12.0-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/7f/9c/36c5c37947ebfb8c7f22e0eb6e4d188ee2d53aa3880f3f2744fb894f0cb1/anyio-4.12.0-py3-none-any.whl",
             "sha256": "dad2376a628f98eeca4881fc56cd06affd18f659b17a747d3ff0307ced94b1bb"
@@ -155,7 +155,7 @@
         {
             "package": "bandit",
             "version": "1.9.4",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "bandit-1.9.4-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/05/a4/a26d5b25671d27e03afb5401a0be5899d94ff8fab6a698b1ac5be3ec29ef/bandit-1.9.4-py3-none-any.whl",
             "sha256": "f89ffa663767f5a0585ea075f01020207e966a9c0f2b9ef56a57c7963a3f6f8e"
@@ -163,7 +163,7 @@
         {
             "package": "certifi",
             "version": "2026.1.4",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "certifi-2026.1.4-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/e6/ad/3cc14f097111b4de0040c83a525973216457bbeeb63739ef1ed275c1c021/certifi-2026.1.4-py3-none-any.whl",
             "sha256": "9943707519e4add1115f44c2bc244f782c0249876bf51b6599fee1ffbedd685c"
@@ -171,22 +171,22 @@
         {
             "package": "mako",
             "version": "1.3.12",
-            "expires_at": "2026-05-17",
+            "expires_at": "2026-06-30",
             "filename": "mako-1.3.12-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/bc/b1/a0ec7a5a9db730a08daef1fdfb8090435b82465abbf758a596f0ea88727e/mako-1.3.12-py3-none-any.whl",
             "sha256": "8f61569480282dbf557145ce441e4ba888be453c30989f879f0d652e39f53ea9"
         },
         {
             "package": "python-multipart",
-            "version": "0.0.27",
-            "filename": "python_multipart-0.0.27-py3-none-any.whl",
-            "url": "https://files.pythonhosted.org/packages/99/78/4126abcbdbd3c559d43e0db7f7b9173fc6befe45d39a2856cc0b8ec2a5a6/python_multipart-0.0.27-py3-none-any.whl",
-            "sha256": "6fccfad17a27334bd0193681b369f476eda3409f17381a2d65aa7df3f7275645"
+            "version": "0.0.31",
+            "filename": "python_multipart-0.0.31-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/5e/1e/7f7f299527a5a8ad90acd5f2f78dfa6c8495c6301a3205106ea68a84de96/python_multipart-0.0.31-py3-none-any.whl",
+            "sha256": "8408153d68a9773291fc1da39a8b85a50044bddbabd2dd72e9229776b7b15e28"
         },
         {
             "package": "requests",
             "version": "2.33.0",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "requests-2.33.0-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/56/5d/c814546c2333ceea4ba42262d8c4d55763003e767fa169adc693bd524478/requests-2.33.0-py3-none-any.whl",
             "sha256": "3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b"
@@ -194,7 +194,7 @@
         {
             "package": "regex",
             "version": "2026.5.9",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "regex-2026.5.9-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
             "url": "https://files.pythonhosted.org/packages/30/e1/c93444052cf41581f3c884ab3fb5823daf0992f11cd4388d4275ca610558/regex-2026.5.9-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
             "sha256_parts": [
@@ -211,7 +211,7 @@
         {
             "package": "sentence-transformers",
             "version": "5.5.1",
-            "expires_at": "2026-06-15",
+            "expires_at": "2026-06-30",
             "filename": "sentence_transformers-5.5.1-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/bf/03/ee99a6b030e7a2e056547729f8a4709dd93e13d9c6f07590f74c395c4017/sentence_transformers-5.5.1-py3-none-any.whl",
             "sha256": "4fe11d433badc5282d32f7fc08bc714216b7a5aca426f9df77a45a554756deb7"

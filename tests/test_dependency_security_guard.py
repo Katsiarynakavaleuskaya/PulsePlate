@@ -274,12 +274,12 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
 def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
     """
     Regression: constraint-style surface effective min must include both >= and ==.
-    A file with both cryptography>=46.0.7 and cryptography==3.4.8 must yield
+    A file with both cryptography>=48.0.1 and cryptography==3.4.8 must yield
     effective min 3.4.8 so the guard fails (low pin cannot bypass).
     """
     fake_constraints = tmp_path / "constraints.txt"
     fake_constraints.write_text(
-        "cryptography>=46.0.7\ncryptography==3.4.8\n",
+        "cryptography>=48.0.1\ncryptography==3.4.8\n",
         encoding="utf-8",
     )
     effective = _effective_min_version_in_file(fake_constraints, "cryptography")
@@ -287,7 +287,7 @@ def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
     assert effective == Version(
         "3.4.8"
     ), "Constraint surface must take min over all lines; lower == must not be ignored."
-    required_min = Version("46.0.7")
+    required_min = Version("48.0.1")
     assert effective < required_min, "Guard should fail when a lower pin exists."
 
 
@@ -371,6 +371,16 @@ def test_dependency_security_schema_is_stable_and_sorted() -> None:
                     f"Schema blocked_versions[{pkg!r}] specifiers must be sorted "
                     "to keep diffs clean."
                 )
+
+
+def test_dependency_security_schema_tracks_june_2026_safety_floors() -> None:
+    """Guard the exact Safety floors that restored main security CI."""
+    schema = _load_schema(SCHEMA_PATH)
+
+    assert schema["min_versions"]["cryptography"] == "48.0.1"
+    assert schema["min_versions"]["python-multipart"] == "0.0.31"
+    assert schema["min_versions"]["starlette"] == "1.3.1"
+    assert "<0.0.31" in schema["blocked_versions"]["python-multipart"]
 
 
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)

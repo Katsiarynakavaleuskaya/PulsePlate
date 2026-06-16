@@ -315,7 +315,7 @@ def test_private_index_project_health_accepts_underscore_wheel_name(
 
         def getresponse(self) -> _FakeSimpleIndexResponse:
             return _FakeSimpleIndexResponse(
-                body=b'<html><a href="python_multipart-0.0.27-py3-none-any.whl">wheel</a></html>'
+                body=b'<html><a href="python_multipart-0.0.31-py3-none-any.whl">wheel</a></html>'
             )
 
         def close(self) -> None:
@@ -355,7 +355,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "wrapt",
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
-    assert ("python-multipart", "0.0.27") in requirements_ci_lite_pins
+    assert ("python-multipart", "0.0.31") in requirements_ci_lite_pins
 
 
 def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
