@@ -45,6 +45,7 @@ from app.routers.fitchef_structured import router as fitchef_structured_router
 from app.routers.favicon import FAVICON_ROUTE_PATH, router as favicon_router
 from app.routers.health import router as health_router
 from app.routers.legal import router as legal_router
+from app.routers import legacy_export_aliases as legacy_export_aliases_module
 from app.routers.legacy_export_aliases import (
     LEGACY_EXPORT_ALIAS_ROUTE_SPECS,
     build_legacy_export_aliases_router,
@@ -129,9 +130,12 @@ legacy_export_aliases_router = _build_legacy_export_aliases_router()
 def _is_same_legacy_export_alias_endpoint(existing: object, expected: object) -> bool:
     if existing is expected:
         return True
+    if not callable(existing) or not callable(expected):
+        return False
+    expected_module = getattr(expected, "__module__", None)
     return (
-        getattr(existing, "__module__", None) == "app.routers.legacy_export_aliases"
-        and getattr(existing, "__module__", None) == getattr(expected, "__module__", None)
+        expected_module == legacy_export_aliases_module.__name__
+        and getattr(existing, "__module__", None) == expected_module
         and getattr(existing, "__name__", None) == getattr(expected, "__name__", None)
     )
 
