@@ -54,6 +54,9 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Initial PR open: no review threads existed at artifact creation.
+- [x] Post-open `qa-engineer-agent` pass completed: no P0/P1/P2 findings.
+- [x] Post-open `bug-hunter` pass completed: P2 findings fixed in
+  `ec29bb994`.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
   pending.
 - [ ] Codex Security diff scan / finding discovery pending.
@@ -68,6 +71,34 @@ Commit: 34086db39
 Evidence: `app/routers/legacy_export_aliases.py`, `app/main.py`, `legacy_app.py`, `scripts/ci/check_legacy_growth_guard.py`, and focused tests preserve auth, rate-limit metadata, feature gating, hidden OpenAPI visibility, response parity, and route-level helper rebinding.
 Reason: Implements the PR scope before review threads existed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1986 -> 34086db39
+
+## Post-Open Role Pass Closure
+
+### qa-engineer-agent
+
+Disposition: NOT-A-BUG
+Evidence: Post-open QA pass reported no P0/P1/P2 findings and judged the local
+validation plan adequate for this narrow PR, excluding current-head CI/review
+status.
+Reason: Optional hardening for additional GET-alias 200-to-429 tests was not
+blocking because the diff already covers all five aliases for route ownership,
+API-key dependency, hidden runtime OpenAPI visibility, 429 metadata, `request:
+Request`, missing-key rejection, disabled export behavior, helper rebinding,
+bootstrap failure modes, and legacy-growth guard shrinkage.
+
+### bug-hunter
+
+Disposition: FIXED
+Commit: ec29bb994
+Evidence: `scripts/ci/check_legacy_growth_guard.py` lowers the API-key app-surface
+ceiling to the new post-extraction baseline, `tests/test_legacy_growth_guard.py`
+proves one new API-key dependency now fails, `tests/test_main_paywall_bootstrap.py`
+uses the opposite method for legacy export alias invalid-state fixtures, and
+`tests/test_legacy_export_aliases.py` asserts JSON content type before parsing
+the 400 payload.
+Validation: `.venv/bin/python -m pytest -q tests/test_legacy_growth_guard.py
+tests/test_main_paywall_bootstrap.py tests/test_legacy_export_aliases.py`;
+`python3 scripts/ci/check_legacy_growth_guard.py`; `pre-commit run --all-files`.
 
 ## Local Validation Evidence
 
@@ -105,7 +136,8 @@ Not ready at artifact creation. Required before merge:
 
 - [x] Numbered fixed-mapping artifact created.
 - [x] PR body mirror updated to point to this artifact.
-- [ ] Post-open role-agent review sequence completed.
+- [ ] Post-open role-agent review sequence completed: `security-auditor` still
+  pending.
 - [ ] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit/Sourcery/Cubic actionable comments fixed or dispositioned.
