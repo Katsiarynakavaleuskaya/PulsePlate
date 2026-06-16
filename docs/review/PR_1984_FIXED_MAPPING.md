@@ -48,8 +48,8 @@ Artifact: `artifacts/orchestration/experiments/results/exp-03780de8d42f.json`
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Initial PR open: no review threads existed at artifact creation.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
-  pending.
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [ ] Post-open `bug-hunter -> security-auditor` pass pending.
 - [ ] Codex Security diff scan / finding discovery pending.
 - [ ] CodeRabbit review pending when authenticated.
 - [ ] `pulseplate-pr-review` pending.
@@ -63,6 +63,22 @@ Commit: 93575bfe58d1953aa8a1ceacb2021913c280c822
 Evidence: `requirements.in`, `requirements-ci-lite.in`, `requirements-dev.in`, `requirements-docker-runtime.in`, `constraints.txt`, all regenerated lock surfaces, `tests/fixtures/dependency_security_schema.json`, `tests/test_dependency_security_guard.py`, `docs/security/SFTY-20260615-python-runtime-floors.md`, and `scripts/ci/emergency_python_wheels.json`.
 Reason: Restores current `main` CI security by raising Safety-blocked Python runtime dependency floors, regenerating the affected lock surfaces, guarding against reintroduction of vulnerable floors, and refreshing exact emergency fallback metadata for private-index lag.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1984 -> 93575bfe58d1953aa8a1ceacb2021913c280c822
+
+Disposition: FIXED
+Commit: b2f5345618dcf6e29d65fad8ce6da1b911e88302
+Evidence: `docs/review/PR_1984_FIXED_MAPPING.md` uses exact Phase2 checklist labels, parser-safe single-line disposition fields, `Packet: ...`, and `Artifact: ...`; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1984 --body "$(gh pr view 1984 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` passed locally after the correction.
+Reason: Fixed the QA-identified Phase2 canonical mapping and PR-body parser failures.
+
+Disposition: FIXED
+Commit: 254e9752265152032d4604f53f2524cba1935f83
+Evidence: `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md`, `docs/security/CVE-2026-26007-cryptography.md`, `docs/security/CVE-2026-40347-python-multipart.md`, and `docs/security/SFTY-20260615-python-runtime-floors.md` now include `file:line` anchors; `tests/test_dependency_security_guard.py` uses `CURRENT_SAFETY_RUNTIME_FLOORS` and `test_dependency_security_schema_tracks_current_safety_runtime_floors`; `docs/security/SFTY-20260615-python-runtime-floors.md` marks `run_safety_audit.py` as `SAFETY_API_KEY` auth-gated; Docs Phase1 and dependency guard focused tests passed locally.
+Reason: Fixed the QA Docs Phase1 blocker and the Sourcery comments about hard-coded dated floor-test naming and misleading local Safety validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1984#pullrequestreview-4504293768 -> 254e9752265152032d4604f53f2524cba1935f83
+
+## Role Review Finding Disposition
+
+- `qa-engineer-agent`: FIXED for Docs Phase1, Phase2 parser, and Sourcery mapping blockers. Evidence: `python3 scripts/ci/check_docs_phase1_gates.py --files ...` PASS, `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1984 --body "$(gh pr view 1984 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` PASS, and Sourcery review `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1984#pullrequestreview-4504293768` mapped to commit `254e9752265152032d4604f53f2524cba1935f83`.
+- `qa-engineer-agent`: NOT-A-BUG for dependency/lock drift and machine-heavy validation budget. Evidence: QA pass confirmed dependency/lock drift is controlled and local focused gates are appropriate, while current-head CI `CI / security` remains required before merge readiness.
 
 ## Dependency Delta Proof
 
@@ -85,8 +101,11 @@ Reason: Restores current `main` CI security by raising Safety-blocked Python run
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS: `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md docs/security/CVE-2026-26007-cryptography.md docs/security/CVE-2026-40347-python-multipart.md docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md docs/security/GHSA-mj87-hwqh-73pj-python-multipart.md docs/security/SFTY-20260615-python-runtime-floors.md docs/review/PR_MAIN_SAFETY_DEPENDENCY_HOTFIX_PREMORTEM.md docs/review/PR_1984_FIXED_MAPPING.md docs/roadmap/BACKLOG_LEDGER.md`
+- PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1984 --body "$(gh pr view 1984 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required`
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py tests/test_python_supply_chain_controls.py`
+- PASS: `.venv/bin/python -m pytest -q tests/test_dependency_security_guard.py`
 - PASS: focused emergency-wheel/install guard subset.
 - PASS: focused Starlette/FastAPI runtime smoke subset covering health,
   WebSocket security, realtime WebSocket security, pro-session cookie auth, and
