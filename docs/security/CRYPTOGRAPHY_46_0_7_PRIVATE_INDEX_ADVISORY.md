@@ -28,7 +28,7 @@ generic public-index bypass.
 
 - Do not repin below `48.0.1` to make CI green.
 - Do not add Safety ignores or waivers for `SFTY-20260615-96125`.
-- Do not add broad `--extra-index-url` or unrestricted public PyPI installs.
+- Avoid broad `--extra-index-url` or unrestricted public PyPI installs.
 - Do not widen this manifest into a generic package bypass lane.
 
 ## References

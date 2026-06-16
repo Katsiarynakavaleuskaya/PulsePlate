@@ -133,13 +133,13 @@ checks with auth, and the wait-window.
 
 Not ready at latest artifact update. Required before merge:
 
-- Numbered fixed-mapping artifact committed and PR body mirror updated.
-- Post-open role-agent review sequence completed.
-- Codex Security diff scan / finding discovery completed.
-- CodeRabbit/Sourcery/Cubic actionable comments fixed or dispositioned.
-- `pulseplate-pr-review` completed.
-- Current-head CI parity on latest pushed commit, especially repaired
+- [ ] Numbered fixed-mapping artifact committed and PR body mirror updated.
+- [ ] Post-open role-agent review sequence completed.
+- [ ] Codex Security diff scan / finding discovery completed.
+- [ ] CodeRabbit/Sourcery/Cubic actionable comments fixed or dispositioned.
+- [ ] `pulseplate-pr-review` completed.
+- [ ] Current-head CI parity on latest pushed commit, especially repaired
   `CI / security` Safety job.
-- Strict merge-readiness check with `--require-auth`.
-- No unresolved actionable review or bot comments.
-- Mandatory wait-window after latest bot/review activity.
+- [ ] Strict merge-readiness check with `--require-auth`.
+- [ ] No unresolved actionable review or bot comments.
+- [ ] Mandatory wait-window after latest bot/review activity.
