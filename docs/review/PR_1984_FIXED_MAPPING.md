@@ -49,10 +49,10 @@ Artifact: `artifacts/orchestration/experiments/results/exp-03780de8d42f.json`
 - [x] Fixed in commit mapping completed
 - [x] Initial PR open: no review threads existed at artifact creation.
 - [x] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter -> security-auditor` pass pending.
-- [ ] Codex Security diff scan / finding discovery pending.
-- [ ] CodeRabbit review pending when authenticated.
-- [ ] `pulseplate-pr-review` pending.
+- [x] Post-open `bug-hunter -> security-auditor` pass completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] CodeRabbit review completed when authenticated.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current actionable bot/review comments must be fixed or dispositioned
   before merge readiness.
 
@@ -95,6 +95,8 @@ Reason: Fixed the security-auditor blocker that fallback-scope evidence could im
 - `bug-hunter`: NOT-A-BUG for dependency/lock drift and docs/parser stability. Evidence: bug-hunter confirmed the dependency hotfix diff is controlled, Docs Phase1 passed, and Phase2 passed after QA follow-up.
 - `security-auditor`: FIXED for fallback manifest scope evidence. Evidence: commit `32bbff22ed9488b391d2f2480d876fcb9860dcf8` clarifies that target wheels were rotated while the still-active exact fallback manifest TTL was renewed under the existing private-index mirror-lag ledger item.
 - `security-auditor`: NOT-A-BUG for dependency floors/pins and secrets baseline. Evidence: security-auditor confirmed the floors/pins are controlled and `.secrets.baseline` changed only hashed fingerprints and timestamp, with no plaintext `secret_value` fields.
+- `Codex Security diff scan`: NOT-A-BUG. Evidence: `/tmp/codex-security-scans/fix-main-safety-security-deps-after-pr1982/f133d34cc3a6_20260616T101205Z/report.md` reports no findings after reviewing all 24 changed files; report format validation passed with `python3 /Users/katsiaryna_kavaleuskaya/.codex/plugins/cache/openai-curated-remote/codex-security/0.1.8/skills/security-diff-scan/scripts/validate_report_format.py --report-md .../report.md`.
+- `pulseplate-pr-review`: NOT-A-BUG for the advisory large-diff note. Evidence: `/tmp/pulseplate_pr1984_review_report.md` flags only a review-planning note to confirm split rationale and targeted gates; this artifact documents the atomic split rationale, `make validate-changed` passed, and `.venv/bin/python -m pytest tests/test_pr_review_report.py -q` passed.
 
 ## Dependency Delta Proof
 
@@ -141,6 +143,11 @@ Reason: Fixed the security-auditor blocker that fallback-scope evidence could im
 - PASS: `pre-commit run --all-files`
 - PASS during commit/push hooks: backend changed-file pytest, pre-push backend
   pytest, `pip-audit`, full-repo Bandit, and docker build test.
+- PASS: Codex Security diff scan / finding discovery report generation and
+  report-format validation for the current diff.
+- PASS: `pulseplate-pr-review` dry-run report generated; advisory large-diff
+  note dispositioned as review-planning evidence, not a code/security finding.
+- PASS: `.venv/bin/python -m pytest tests/test_pr_review_report.py -q`
 
 ## Machine-Heavy Verification Deferral
 
@@ -156,9 +163,9 @@ Not ready at latest artifact update. Required before merge:
 
 - [ ] Numbered fixed-mapping artifact committed and PR body mirror updated.
 - [ ] Post-open role-agent review sequence completed.
-- [ ] Codex Security diff scan / finding discovery completed.
+- [x] Codex Security diff scan / finding discovery completed.
 - [ ] CodeRabbit/Sourcery/Cubic actionable comments fixed or dispositioned.
-- [ ] `pulseplate-pr-review` completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current-head CI parity on latest pushed commit, especially repaired
   `CI / security` Safety job.
 - [ ] Strict merge-readiness check with `--require-auth`.
