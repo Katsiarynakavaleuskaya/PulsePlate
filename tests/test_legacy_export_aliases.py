@@ -103,6 +103,7 @@ def test_legacy_export_alias_generic_pdf_preserves_empty_payload_400(
     )
 
     assert response.status_code == 400
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json()["detail"] == "Empty export payload"
 
 

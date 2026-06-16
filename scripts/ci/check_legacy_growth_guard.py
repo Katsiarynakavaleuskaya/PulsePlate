@@ -74,7 +74,7 @@ SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
     "subscription": 0,
 }
 SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
-    "api_key": 15,
+    "api_key": 10,
     "auth": 0,
     "billing": 0,
     "entitlement": 0,

@@ -306,7 +306,8 @@ def _app_with_legacy_export_alias_routes_and_extra_method(*, combined_route: boo
     async def _extra_method_handler() -> dict[str, str]:
         return {"status": "extra-method"}
 
-    extra_methods = [extra_method, "GET"] if combined_route else ["GET"]
+    opposite_method = "POST" if extra_method == "GET" else "GET"
+    extra_methods = [extra_method, opposite_method] if combined_route else [opposite_method]
     app.add_api_route(
         extra_path,
         _extra_method_handler,
@@ -1242,7 +1243,7 @@ def test_legacy_export_alias_route_registration_rejects_existing_wrong_method_af
 
     with pytest.raises(
         RuntimeError,
-        match="Duplicate .* route detected with a different legacy export alias handler",
+        match="Partial legacy export alias route registration detected",
     ):
         _bootstrap_temp_app(
             _app_with_legacy_export_alias_routes_and_extra_method(combined_route=False)
@@ -1256,7 +1257,7 @@ def test_legacy_export_alias_route_registration_rejects_existing_combined_method
 
     with pytest.raises(
         RuntimeError,
-        match="Duplicate .* route detected with a different legacy export alias handler",
+        match="Partial legacy export alias route registration detected",
     ):
         _bootstrap_temp_app(
             _app_with_legacy_export_alias_routes_and_extra_method(combined_route=True)
