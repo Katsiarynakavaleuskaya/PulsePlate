@@ -44,6 +44,7 @@ Reason: Addresses Sourcery review feedback about avoiding a hard-coded module st
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path app/main.py --path tests/test_main_paywall_bootstrap.py --path tests/test_legacy_export_aliases.py`
 - PASS: `python3 scripts/orchestration/task_bootstrap.py --goal "Stabilize post-merge main CI by making legacy export alias router idempotent across app.main reload/module purge" --task-class Bugfix --pr-phase pre_open --path app/main.py --path tests/test_main_paywall_bootstrap.py --path tests/test_legacy_export_aliases.py --requested-agent agent-coordinator --requested-agent qa-engineer-agent --requested-agent bug-hunter --requested-agent security-auditor`
 - PASS: `. .venv/bin/activate && pytest -q tests/test_legacy_export_aliases.py tests/test_main_paywall_bootstrap.py tests/test_module_purge.py::test_purge_modules_respects_exclusions_and_removes_only_targets tests/test_coverage_final_push.py::TestFinalCoveragePush::test_vip_import_fallbacks`
+- PASS: `. .venv/bin/activate && pytest -q tests/test_main_paywall_bootstrap.py::test_legacy_export_alias_endpoint_equivalence_rejects_non_callables tests/test_main_paywall_bootstrap.py::test_legacy_export_alias_route_registration_allows_reloaded_canonical_handlers tests/test_main_paywall_bootstrap.py::test_legacy_export_alias_route_registration_rejects_foreign_handlers`
 - PASS: `python3 scripts/ci/check_legacy_growth_guard.py`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
@@ -51,6 +52,9 @@ Reason: Addresses Sourcery review feedback about avoiding a hard-coded module st
   tests, full-repo Bandit, and docker build test.
 - PR body mirror updated from `## Tests / Validation` to exact `## Tests`
   after `pr_scope_guard` reported the parser contract mismatch.
+- CI run `27654219927` initially failed `diff-coverage` on
+  `app/main.py:134`; `tests/test_main_paywall_bootstrap.py` now covers the
+  non-callable guard branch.
 
 ## Security Notes
 

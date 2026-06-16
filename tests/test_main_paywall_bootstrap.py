@@ -1358,6 +1358,17 @@ def test_legacy_export_alias_route_registration_allows_reloaded_canonical_handle
         assert len(matching_routes) == 1
 
 
+def test_legacy_export_alias_endpoint_equivalence_rejects_non_callables() -> None:
+    expected_endpoint = next(
+        route.endpoint
+        for route in app_main.legacy_export_aliases_router.routes
+        if getattr(route, "path", None) == app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0][0]
+    )
+
+    assert not app_main._is_same_legacy_export_alias_endpoint(None, expected_endpoint)
+    assert not app_main._is_same_legacy_export_alias_endpoint(expected_endpoint, None)
+
+
 def test_legacy_export_alias_route_registration_rejects_foreign_handlers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
