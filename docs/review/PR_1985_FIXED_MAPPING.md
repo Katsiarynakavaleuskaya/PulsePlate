@@ -3,6 +3,7 @@
 ## Lane Start Provenance
 
 Packet: `artifacts/orchestration/task_packets/63a747529fee.json`
+- Post-open packet: `artifacts/orchestration/task_packets/39f82da35c37.json`
 - Branch: `codex/fix-frontend-dompurify-js-yaml-alerts`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Base: `origin/main` at `46d93e628444a5ef70e9283152297e98bb42a4e1`.
@@ -68,12 +69,12 @@ Packet: `artifacts/orchestration/task_packets/63a747529fee.json`
 
 - [x] Discussion-thread pass completed for initial PR open.
 - [x] Fixed in commit mapping completed
-- [ ] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] CodeRabbit review completed when authenticated.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
+- [x] Post-open `security-auditor` pass completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] CodeRabbit review completed when authenticated.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current actionable bot/review comments must be fixed or dispositioned
   before merge readiness.
 
@@ -89,6 +90,45 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-storybook-ws-ghsa-96hv`
 Evidence: `cd frontend && npm audit --audit-level=moderate --package-lock-only` reports only the out-of-scope Storybook `ws` advisory `GHSA-96hv-2xvq-fx4p`; target packages `dompurify`, `js-yaml`, `jspdf`, and `@redocly/openapi-core` are absent from the audit vulnerability set after this change.
 Reason: The `ws` finding is not part of Dependabot alerts #164-#171 and needs a separate frontend tooling dependency lane to avoid broad Storybook churn in this PR.
+
+## Role Review Finding Disposition
+
+- `qa-engineer-agent`: PASS on the dependency-remediation surface and FIXED for
+  local path hygiene before commit. Evidence: QA confirmed scoped lockfile
+  changes, all-entry `js-yaml` guard coverage, registry provenance, documented
+  `ws` deferral, and scope-governance labels/body. QA flagged local absolute
+  paths in the uncommitted mapping update; those paths were removed before this
+  artifact update.
+- `bug-hunter`: PASS on nested lock-entry risk, npm override semantics,
+  lockfile churn, residual audit wording, scope-governance proof, and
+  parser/local docs checks. Evidence: bug-hunter confirmed the only remaining
+  blockers were uncommitted mapping/body parity and current-head readiness, not
+  dependency-security logic.
+- `security-auditor`: PASS with no security-blocking findings. Evidence:
+  security-auditor confirmed override floors, npm registry-backed lock
+  provenance, deterministic guard coverage, no audit overclaim, live scope
+  labels/body, Codex Security zero-findings evidence, CodeRabbit NOT-A-BUG
+  disposition, and no absolute local path leakage.
+- `Codex Security diff scan`: NOT-A-BUG. Evidence:
+  scan bundle
+  `codex-security-scans/fix-frontend-dompurify-js-yaml-alerts/bcf82a26ebef_20260616T182320Z`
+  reports zero findings after reviewing the diff-scoped manifests, guard test,
+  docs, backlog, and mapping artifact; report-format validation passed.
+- `CodeRabbit CLI`: NOT-A-BUG for the minor suggestion to replace
+  `.venv/bin/python -m pytest -q tests/test_frontend_dependency_guards.py`
+  with `python3 -m pytest ...` in
+  `docs/security/GHSA-39q2-94rc-95cp-dompurify.md`. Evidence:
+  `AGENTS.md` states direct local pytest runs outside Make should use the repo
+  virtualenv, `AGENTS.md` also says to use `.venv/bin/python` for repo Python
+  commands and coordinator bootstrap, and `Makefile` defines
+  `VENV_PYTHON ?= .venv/bin/python`. Reason: the documented validation command
+  intentionally matches repo Python gate conventions and the operator-approved
+  PR validation plan.
+- `pulseplate-pr-review`: NOT-A-BUG for the advisory large-diff note. Evidence:
+  local report `pulseplate_pr1985_review_report.md` flags only review-planning evidence
+  for a diff above the 300-line review-risk threshold; this artifact documents
+  the split rationale and scope exception, `make validate-changed` passed, and
+  `.venv/bin/python -m pytest tests/test_pr_review_report.py -q` passed.
 
 ## Dependency Delta Proof
 
@@ -141,10 +181,10 @@ checks with auth, and the wait-window.
 Not ready at latest artifact update. Required before merge:
 
 - [ ] Numbered fixed-mapping artifact committed and PR body mirror updated.
-- [ ] Post-open role-agent review sequence completed.
-- [ ] Codex Security diff scan / finding discovery completed.
+- [x] Post-open role-agent review sequence completed.
+- [x] Codex Security diff scan / finding discovery completed.
 - [ ] CodeRabbit/Sourcery/Cubic actionable comments fixed or dispositioned.
-- [ ] `pulseplate-pr-review` completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current-head CI parity on latest pushed commit.
 - [ ] Strict merge-readiness check with `--require-auth`.
 - [ ] No unresolved actionable review or bot comments.
