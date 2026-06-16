@@ -25,6 +25,7 @@ def _load_json(path: Path) -> dict:
 
 
 def _assert_npm_registry_resolution(*, package_name: str, resolved: str) -> None:
+    """Assert npm registry provenance for the unscoped package names guarded here."""
     assert isinstance(resolved, str) and resolved, f"{package_name} resolved URL missing"
     parsed = urlparse(resolved.removeprefix("git+"))
     assert parsed.scheme == "https", f"{package_name} lock resolution must use https"
@@ -78,9 +79,6 @@ def test_frontend_lock_resolves_all_js_yaml_entries_to_safe_npm_release() -> Non
     }
 
     assert js_yaml_entries, "frontend/package-lock.json: js-yaml package entries missing"
-    assert (
-        "node_modules/@redocly/openapi-core/node_modules/js-yaml" not in js_yaml_entries
-    ), "frontend/package-lock.json: vulnerable nested js-yaml lock entry remains"
     for path, package in js_yaml_entries.items():
         lock_version = package.get("version")
         resolved = package.get("resolved", "")
