@@ -154,6 +154,49 @@ def test_legacy_growth_guard_rejects_reintroduced_bmi_plan_routes(
     assert errors == [expected]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_export_alias_routes() -> None:
+    source = textwrap.dedent("""
+        @app.get("/api/v1/premium/exports/day/{plan_id}.csv")
+        async def export_daily_plan_csv_route():
+            return Response()
+
+        @app.post("/api/v1/export/pdf")
+        async def export_pdf_generic_route():
+            return Response()
+
+        @app.get("/api/v1/premium/exports/week/{plan_id}.csv")
+        async def export_weekly_plan_csv_route():
+            return Response()
+
+        @app.get("/api/v1/premium/exports/day/{plan_id}.pdf")
+        async def export_daily_plan_pdf_route():
+            return Response()
+
+        @app.get("/api/v1/premium/exports/week/{plan_id}.pdf")
+        async def export_weekly_plan_pdf_route():
+            return Response()
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/premium/exports/day/{plan_id}.csv -> "
+        "export_daily_plan_csv_route",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/premium/exports/day/{plan_id}.pdf -> "
+        "export_daily_plan_pdf_route",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/premium/exports/week/{plan_id}.csv -> "
+        "export_weekly_plan_csv_route",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/premium/exports/week/{plan_id}.pdf -> "
+        "export_weekly_plan_pdf_route",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:post:/api/v1/export/pdf -> export_pdf_generic_route",
+    ]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_admin_debug_routes() -> None:
     source = textwrap.dedent("""
         @app.get("/debug_env")
@@ -562,12 +605,12 @@ def test_legacy_growth_guard_rejects_sensitive_dependency_aliases(source: str) -
 
 def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline() -> None:
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
-    source += textwrap.dedent("""
+    source += "\n".join(textwrap.dedent("""
 
         @app.post("/api/v1/insight", dependencies=[Depends(api_key_guard)])
         def insight_v1_route():
             return {"ok": True}
-        """)
+        """) for _index in range(6))
 
     errors = legacy_guard.validate_legacy_growth(source)
 

@@ -1,0 +1,168 @@
+from __future__ import annotations
+
+import inspect
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+from fastapi import Response
+from fastapi.testclient import TestClient
+import pytest
+
+import app as app_pkg
+import app.main as app_main
+import legacy_app
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _matching_routes(path: str, method: str) -> list[object]:
+    return [
+        route
+        for route in app_main.app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    ]
+
+
+def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> None:
+    openapi_paths = app_main.app.openapi().get("paths", {})
+
+    for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
+        matching_routes = _matching_routes(path, method)
+
+        assert len(matching_routes) == 1
+        route = matching_routes[0]
+        endpoint = getattr(route, "endpoint", None)
+        assert getattr(endpoint, "__module__", "") == "app.routers.legacy_export_aliases"
+        assert getattr(route, "include_in_schema", True) is include_in_schema
+        assert path not in openapi_paths
+        assert 429 in getattr(route, "responses", {})
+        assert "request" in inspect.signature(endpoint).parameters
+        assert any(
+            getattr(dependency, "dependency", None) is legacy_app._get_api_key_dynamic
+            for dependency in getattr(route, "dependencies", [])
+        )
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "kwargs"),
+    [
+        ("get", "/api/v1/premium/exports/day/auth.csv", {}),
+        ("get", "/api/v1/premium/exports/week/auth.csv", {}),
+        ("get", "/api/v1/premium/exports/day/auth.pdf", {}),
+        ("get", "/api/v1/premium/exports/week/auth.pdf", {}),
+        ("post", "/api/v1/export/pdf", {"json": {"meals": []}}),
+    ],
+)
+def test_legacy_export_aliases_reject_missing_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    path: str,
+    kwargs: dict[str, object],
+) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+    client = TestClient(app_main.app)
+
+    response = getattr(client, method)(path, **kwargs)
+
+    assert response.status_code == 403
+
+
+def test_legacy_export_alias_daily_csv_preserves_response_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setattr(app_pkg, "to_csv_day", lambda _plan: b"Meal,Food Item\nA,B\n")
+    monkeypatch.setattr(legacy_app, "to_csv_day", lambda _plan: b"Meal,Food Item\nA,B\n")
+    client = TestClient(app_main.app)
+
+    response = client.get(
+        "/api/v1/premium/exports/day/test_plan.csv",
+        headers={"X-API-Key": "test_key"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("text/csv")
+    assert "daily_plan_test_plan.csv" in response.headers.get("content-disposition", "")
+    assert response.content == b"Meal,Food Item\nA,B\n"
+
+
+def test_legacy_export_alias_generic_pdf_preserves_empty_payload_400(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+    client = TestClient(app_main.app)
+
+    response = client.post(
+        "/api/v1/export/pdf",
+        headers={"X-API-Key": "test_key"},
+        json={},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Empty export payload"
+
+
+def test_legacy_export_alias_route_resolves_rebound_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+
+    async def _patched_export_pdf_generic(_payload: dict[str, object]) -> Response:
+        return Response(content=b"%PDF patched", media_type="application/pdf")
+
+    monkeypatch.setattr(legacy_app, "export_pdf_generic", _patched_export_pdf_generic)
+    client = TestClient(app_main.app)
+
+    response = client.post(
+        "/api/v1/export/pdf",
+        headers={"X-API-Key": "test_key"},
+        json={"meals": []},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"%PDF patched"
+    assert response.headers.get("content-type") == "application/pdf"
+
+
+def test_legacy_export_aliases_absent_when_export_gate_is_disabled() -> None:
+    code = """
+import json
+import app.main as app_main
+
+counts = {}
+for path, method, _include in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
+    counts[f"{method} {path}"] = sum(
+        1
+        for route in app_main.app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    )
+print(json.dumps({"enabled": app_main._legacy_module.EXPORTS_ENABLED, "counts": counts}))
+"""
+    env = os.environ.copy()
+    for key in ("CI", "DEBUG", "ENVIRONMENT", "FEATURE_EXPORTS", "TESTING"):
+        env.pop(key, None)
+    env["APP_ENV"] = "local"
+    env["PYTEST_CURRENT_TEST"] = "skip-dotenv-for-export-gate-probe"
+
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload == {
+        "enabled": False,
+        "counts": {
+            f"{method} {path}": 0
+            for path, method, _include in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS
+        },
+    }
