@@ -49,6 +49,8 @@ Reason: Addresses Sourcery review feedback about avoiding a hard-coded module st
 - PASS: `pre-commit run --all-files`
 - PASS during commit/push hooks: changed-file mypy, pip-audit, backend
   tests, full-repo Bandit, and docker build test.
+- PR body mirror updated from `## Tests / Validation` to exact `## Tests`
+  after `pr_scope_guard` reported the parser contract mismatch.
 
 ## Security Notes
 
@@ -64,7 +66,8 @@ Reason: Addresses Sourcery review feedback about avoiding a hard-coded module st
 Not ready at artifact creation. Required before merge:
 
 - [x] Numbered fixed-mapping artifact created.
-- [ ] PR body mirror updated to point to this artifact.
+- [x] PR body mirror updated to point to this artifact and include exact
+  `## Scope`, `## Out of Scope`, and `## Tests` headings.
 - [ ] Current-head CI parity on latest pushed commit.
 - [ ] Strict merge-readiness check with `--require-auth`.
 - [ ] No unresolved actionable review or bot comments.
