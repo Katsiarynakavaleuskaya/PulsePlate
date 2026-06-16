@@ -91,6 +91,12 @@ Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-storybook-ws-ghsa-96hv`
 Evidence: `cd frontend && npm audit --audit-level=moderate --package-lock-only` reports only the out-of-scope Storybook `ws` advisory `GHSA-96hv-2xvq-fx4p`; target packages `dompurify`, `js-yaml`, `jspdf`, and `@redocly/openapi-core` are absent from the audit vulnerability set after this change.
 Reason: The `ws` finding is not part of Dependabot alerts #164-#171 and needs a separate frontend tooling dependency lane to avoid broad Storybook churn in this PR.
 
+Disposition: FIXED
+Commit: 6540cc347acf578315c402ec47bfa1c0b9e481f7
+Evidence: `tests/test_frontend_dependency_guards.py` now relies on the all-entry `js-yaml` version/provenance invariant instead of a Redocly-specific nested-path absence assertion, and `_assert_npm_registry_resolution` documents that it is for the unscoped package names guarded here.
+Reason: Addresses Sourcery review feedback about avoiding dependency-layout coupling and clarifying the helper's unscoped package-name assumption.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1985#pullrequestreview-4506749080 -> 6540cc347acf578315c402ec47bfa1c0b9e481f7
+
 ## Role Review Finding Disposition
 
 - `qa-engineer-agent`: PASS on the dependency-remediation surface and FIXED for
