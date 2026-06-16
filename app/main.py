@@ -6,7 +6,10 @@ Keep imports deterministic: do NOT use importlib exec_module, do NOT mutate sys.
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from typing import Any, Awaitable, Callable, cast
+
+import legacy_app as _legacy_module
+from fastapi import APIRouter, FastAPI
 from fastapi.responses import HTMLResponse
 
 from legacy_app import (
@@ -42,6 +45,10 @@ from app.routers.fitchef_structured import router as fitchef_structured_router
 from app.routers.favicon import FAVICON_ROUTE_PATH, router as favicon_router
 from app.routers.health import router as health_router
 from app.routers.legal import router as legal_router
+from app.routers.legacy_export_aliases import (
+    LEGACY_EXPORT_ALIAS_ROUTE_SPECS,
+    build_legacy_export_aliases_router,
+)
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
 
@@ -73,6 +80,50 @@ _BMI_COMPAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in BMI_COMPAT_ROUTE_SPECS
 )
+_LEGACY_EXPORT_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in LEGACY_EXPORT_ALIAS_ROUTE_SPECS
+)
+
+
+def _build_legacy_export_aliases_router() -> APIRouter:
+    if not getattr(_legacy_module, "EXPORTS_ENABLED", False):
+        return APIRouter()
+
+    required_symbol_names = (
+        "_get_api_key_dynamic",
+        "export_daily_plan_csv",
+        "export_pdf_generic",
+        "export_weekly_plan_csv",
+        "export_daily_plan_pdf",
+        "export_weekly_plan_pdf",
+    )
+    missing = sorted(
+        name for name in required_symbol_names if not callable(getattr(_legacy_module, name, None))
+    )
+    if missing:
+        raise RuntimeError(
+            "Legacy export aliases are enabled, but required helpers are unavailable: "
+            + ", ".join(missing)
+        )
+
+    def legacy_export_handler(name: str) -> Callable[..., Awaitable[Any]]:
+        handler = getattr(_legacy_module, name, None)
+        if not callable(handler):
+            raise RuntimeError(f"Legacy export helper is unavailable: {name}")
+        return cast(Callable[..., Awaitable[Any]], handler)
+
+    return build_legacy_export_aliases_router(
+        api_key_dependency=getattr(_legacy_module, "_get_api_key_dynamic"),
+        export_daily_plan_csv=lambda: legacy_export_handler("export_daily_plan_csv"),
+        export_pdf_generic=lambda: legacy_export_handler("export_pdf_generic"),
+        export_weekly_plan_csv=lambda: legacy_export_handler("export_weekly_plan_csv"),
+        export_daily_plan_pdf=lambda: legacy_export_handler("export_daily_plan_pdf"),
+        export_weekly_plan_pdf=lambda: legacy_export_handler("export_weekly_plan_pdf"),
+    )
+
+
+legacy_export_aliases_router = _build_legacy_export_aliases_router()
 
 
 def _has_route(
@@ -453,6 +504,102 @@ def _include_bmi_compat_router_if_needed(target_app: FastAPI) -> None:
             )
 
 
+def _include_legacy_export_alias_router_if_needed(target_app: FastAPI) -> None:
+    """Register legacy export aliases as one hidden atomic route family."""
+
+    if not getattr(_legacy_module, "EXPORTS_ENABLED", False):
+        return
+
+    expected_specs = {(path, method) for path, method, _include in _LEGACY_EXPORT_ALIAS_ROUTE_SPECS}
+    expected_paths = {path for path, _method in expected_specs}
+    expected_methods_by_path = {path: method for path, method in expected_specs}
+    expected_visibility = {
+        (path, method): include_in_schema
+        for path, method, include_in_schema in _LEGACY_EXPORT_ALIAS_ROUTE_SPECS
+    }
+    expected_endpoints: dict[tuple[str, str], object] = {}
+    expected_route_counts: dict[tuple[str, str], int] = {spec: 0 for spec in expected_specs}
+
+    for route in legacy_export_aliases_router.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        if path not in expected_paths:
+            continue
+        expected_method = expected_methods_by_path[str(path)]
+        if expected_method not in methods:
+            raise RuntimeError(
+                "Legacy export alias router does not define the expected route family."
+            )
+        unexpected_methods = set(methods) - {expected_method, "HEAD", "OPTIONS"}
+        if unexpected_methods:
+            raise RuntimeError(
+                "Legacy export alias router does not define the expected route family."
+            )
+        spec = (str(path), expected_method)
+        expected_route_counts[spec] += 1
+        expected_endpoints[spec] = getattr(route, "endpoint", None)
+        if getattr(route, "include_in_schema", True) is not expected_visibility[spec]:
+            raise RuntimeError("Legacy export alias router does not preserve OpenAPI visibility.")
+
+    if set(expected_endpoints) != expected_specs or any(
+        count != 1 for count in expected_route_counts.values()
+    ):
+        raise RuntimeError("Legacy export alias router does not define the expected route family.")
+
+    legacy_export_alias_routes = [
+        route for route in target_app.routes if getattr(route, "path", None) in expected_paths
+    ]
+    if not legacy_export_alias_routes:
+        target_app.include_router(legacy_export_aliases_router)
+        return
+
+    legacy_export_alias_paths_present = {
+        str(getattr(route, "path", ""))
+        for route in legacy_export_alias_routes
+        if expected_methods_by_path[str(getattr(route, "path", ""))]
+        in (getattr(route, "methods", None) or set())
+    }
+    if legacy_export_alias_paths_present != expected_paths:
+        existing = ", ".join(sorted(legacy_export_alias_paths_present))
+        missing = ", ".join(sorted(expected_paths - legacy_export_alias_paths_present))
+        raise RuntimeError(
+            "Partial legacy export alias route registration detected. "
+            f"Existing: {existing or '<none>'}; missing: {missing or '<none>'}."
+        )
+
+    for route in legacy_export_alias_routes:
+        path = str(getattr(route, "path", ""))
+        methods = getattr(route, "methods", None) or set()
+        expected_method = expected_methods_by_path[path]
+        if expected_method not in methods:
+            raise RuntimeError("Partial legacy export alias route registration detected.")
+        unexpected_methods = set(methods) - {expected_method, "HEAD", "OPTIONS"}
+        if unexpected_methods:
+            raise RuntimeError("Partial legacy export alias route registration detected.")
+
+    for (path, method), endpoint in expected_endpoints.items():
+        matching_routes = [
+            route
+            for route in target_app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        if (
+            len(matching_routes) != 1
+            or getattr(matching_routes[0], "endpoint", None) is not endpoint
+        ):
+            raise RuntimeError(
+                f"Duplicate {path} route detected with a different legacy export alias handler."
+            )
+        if (
+            getattr(matching_routes[0], "include_in_schema", True)
+            is not expected_visibility[(path, method)]
+        ):
+            raise RuntimeError(
+                f"Existing {path} route does not preserve legacy export alias OpenAPI visibility."
+            )
+
+
 def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     """Hide legacy users CRUD from the public OpenAPI contract.
 
@@ -539,6 +686,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_favicon_router_if_needed(app)
     _include_admin_operations_router_if_needed(app)
     _include_bmi_compat_router_if_needed(app)
+    _include_legacy_export_alias_router_if_needed(app)
 
     register_billing_routes(app)
 

@@ -154,6 +154,49 @@ def test_legacy_growth_guard_rejects_reintroduced_bmi_plan_routes(
     assert errors == [expected]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_export_alias_routes() -> None:
+    source = textwrap.dedent("""
+        @app.get("/api/v1/premium/exports/day/{plan_id}.csv")
+        async def export_daily_plan_csv_route():
+            return Response()
+
+        @app.post("/api/v1/export/pdf")
+        async def export_pdf_generic_route():
+            return Response()
+
+        @app.get("/api/v1/premium/exports/week/{plan_id}.csv")
+        async def export_weekly_plan_csv_route():
+            return Response()
+
+        @app.get("/api/v1/premium/exports/day/{plan_id}.pdf")
+        async def export_daily_plan_pdf_route():
+            return Response()
+
+        @app.get("/api/v1/premium/exports/week/{plan_id}.pdf")
+        async def export_weekly_plan_pdf_route():
+            return Response()
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/premium/exports/day/{plan_id}.csv -> "
+        "export_daily_plan_csv_route",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/premium/exports/day/{plan_id}.pdf -> "
+        "export_daily_plan_pdf_route",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/premium/exports/week/{plan_id}.csv -> "
+        "export_weekly_plan_csv_route",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/premium/exports/week/{plan_id}.pdf -> "
+        "export_weekly_plan_pdf_route",
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:post:/api/v1/export/pdf -> export_pdf_generic_route",
+    ]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_admin_debug_routes() -> None:
     source = textwrap.dedent("""
         @app.get("/debug_env")
@@ -571,7 +614,7 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
 
     errors = legacy_guard.validate_legacy_growth(source)
 
-    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 16 > 15"]
+    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 11 > 10"]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:
