@@ -32,11 +32,35 @@
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#pullrequestreview-4516481618
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#pullrequestreview-4516545531
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428869504
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428869542
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922972
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922995
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922999
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428923022
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428923042
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428923049
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `scripts/ci/summarize_bandit_report.py` uses `_severity_sort_key`, preserves `.github/workflows` bucketing, and escapes Bandit-derived raw display fields; `scripts/ci_bandit.sh` passes `--fail-on-high`; `tests/test_summarize_bandit_report.py` covers severity ordering, `.github/workflows` bucketing, workflow-command injection, and non-strict wrapper HIGH failure; `tests/guards/test_security_devtooling_regression_guards.py` asserts `--github-annotations` workflow wiring; `docs/review/PR_1990_FIXED_MAPPING.md` includes the required discussion checkboxes and merge-readiness checklist shape.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#pullrequestreview-4516481618 -> d4cafeadc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#pullrequestreview-4516545531 -> d4cafeadc
-Disposition: FIXED
-Commit: d4cafeadc
-Evidence: `scripts/ci/summarize_bandit_report.py` uses `_severity_sort_key`, preserves `.github/workflows` bucketing, and escapes Bandit-derived raw display fields; `scripts/ci_bandit.sh` passes `--fail-on-high`; `tests/test_summarize_bandit_report.py` covers severity ordering, `.github/workflows` bucketing, workflow-command injection, and non-strict wrapper HIGH failure; `tests/guards/test_security_devtooling_regression_guards.py` asserts `--github-annotations` workflow wiring.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428869504 -> d4cafeadc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428869542 -> d4cafeadc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922972 -> 637f49c2d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922995 -> 637f49c2d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922999 -> 637f49c2d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428923022 -> d4cafeadc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428923042 -> d4cafeadc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428923049 -> d4cafeadc
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#pullrequestreview-4519106700
+Disposition: NOT-A-BUG
+Evidence: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1990 --body "$(gh pr view 1990 --json body --jq .body)" --commit-range origin/main..HEAD` passes with the canonical parser-safe artifact shape.
+Reason: The duplicate CodeRabbit review suggested per-entry nested inline detail, but the canonical mapping parser rejects nested bullet detail inside `## Fixed in Commit Mapping`; the parser-safe section already lists each URL and the disposition/proof block required by repo governance.
 
 ## Local Role Finding Disposition
 
