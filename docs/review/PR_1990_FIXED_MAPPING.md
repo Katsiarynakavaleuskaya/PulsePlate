@@ -24,9 +24,10 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- Post-open role order executed through `qa-engineer-agent` and `bug-hunter`.
-- `security-auditor`, Codex Security diff scan, and `pulseplate-pr-review`
-  remain required before merge readiness.
+- Post-open role order executed through `qa-engineer-agent`, `bug-hunter`, and
+  `security-auditor`.
+- Codex Security diff scan and `pulseplate-pr-review` completed after review
+  fixes were pushed.
 - Codex connector review had no actionable finding in its review body.
 
 ## Fixed in Commit Mapping
@@ -50,6 +51,14 @@ Evidence: `scripts/ci/summarize_bandit_report.py` uses `_severity_sort_key`, pre
   Evidence: malformed, missing, or unsupported Bandit `issue_severity` values
   now fail closed before HIGH counts are reported; regressions cover missing
   and unsupported severity values.
+- `pulseplate-pr-review`: NOT-A-BUG.
+  Evidence: dry-run report flagged only advisory large-diff review risk. Scope
+  remained one coherent CI/security tooling lane, full local `make verify` is
+  operator-deferred, and required narrow gates plus pre-push hooks passed.
+- Codex Security diff scan: NOT-A-BUG.
+  Evidence: diff scan report
+  `/tmp/codex-security-scans/bandit-lower-severity-inventory-baseline/541546e53f90_20260617T194529Z/report.md`
+  reviewed 11/11 diff/supporting files with no surviving reportable findings.
 
 ## Premortem Closure
 
@@ -108,10 +117,18 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5662555828dd.json`
 - PASS: `make validate-changed`
 - PASS:
   `PATH=".../.venv/bin:$PATH" bash scripts/ci_bandit.sh --exclude "tests,tests_strict,htmlcov,.git,.venv,venv,node_modules,.mypy_cache,.pytest_cache" --output /tmp/bandit-report.json`
-  - 0 HIGH findings and 37,577 below-HIGH grouped findings
+  - 0 HIGH findings and 37,598 below-HIGH grouped findings
 - PASS: `pre-commit run --all-files`
 - PASS: push hooks, including backend pre-push tests, full-repo Bandit
   pre-push, and docker build test
+- PASS: Codex Security diff scan
+  - Report:
+    `/tmp/codex-security-scans/bandit-lower-severity-inventory-baseline/541546e53f90_20260617T194529Z/report.md`
+  - HTML:
+    `/tmp/codex-security-scans/bandit-lower-severity-inventory-baseline/541546e53f90_20260617T194529Z/report.html`
+- PASS: `pulseplate-pr-review` dry run
+  - Finding: advisory large-diff review risk only; dispositioned as
+    NOT-A-BUG with narrow scope and gate evidence.
 
 ## Machine-Heavy Deferral
 
@@ -131,7 +148,7 @@ added.
 
 - [ ] Current-head PR CI complete and passing.
 - [ ] No unresolved actionable review or bot comments.
-- [ ] Post-open `security-auditor` pass complete.
-- [ ] Codex Security diff scan and `pulseplate-pr-review` complete.
+- [x] Post-open `security-auditor` pass complete.
+- [x] Codex Security diff scan and `pulseplate-pr-review` complete.
 - [ ] Strict merge-readiness with auth passes.
 - [ ] Mandatory wait-window satisfied.
