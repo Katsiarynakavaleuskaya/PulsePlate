@@ -29,6 +29,8 @@ from scripts.evals import judgment_validity
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKEFILE = REPO_ROOT / "Makefile"
+CI_WORKFLOW = REPO_ROOT / ".github/workflows/ci.yml"
+SECURITY_WORKFLOW = REPO_ROOT / ".github/workflows/security.yml"
 PYTHON_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/python-dependency-submission.yml"
 NPM_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/npm-dependency-submission.yml"
 PIP_AUDIT_HELPER = REPO_ROOT / "scripts/ci_pip_audit.sh"
@@ -48,6 +50,50 @@ SECURITY_DEPENDENCY_LOCKFILES: tuple[str, ...] = tuple(
 PYTORCH_JIT_SAFETY_ID = "SFTY-20250331-30014"
 PYTORCH_JIT_CVE_ID = "CVE-2025-3000"
 PYTORCH_JIT_WAIVER_REMOVE_BY = "2026-07-17"
+BANDIT_SUMMARY_HELPER = "python3 scripts/ci/summarize_bandit_report.py"
+CI_BANDIT_EXCLUDES = {
+    "tests",
+    "tests_strict",
+    "htmlcov",
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+    ".mypy_cache",
+    ".pytest_cache",
+}
+SECURITY_BANDIT_EXCLUDES = {
+    "tests",
+    "test_cache",
+    "cache",
+    "frontend/build",
+    "htmlcov",
+    "releases",
+    "data",
+    "external",
+    "node_modules",
+    "dist",
+    "build",
+    ".venv",
+}
+FORBIDDEN_BANDIT_EXCLUDES = {
+    "app",
+    "app/",
+    "app/**",
+    "app/security",
+    "app/security/",
+    "app/security/**",
+    "core",
+    "core/",
+    "core/**",
+    "scripts",
+    "scripts/",
+    "scripts/**",
+    "scripts/ci",
+    "scripts/ci/",
+    "scripts/ci/**",
+    "legacy_app.py",
+}
 
 
 def _binary(name: str) -> str:
@@ -114,6 +160,18 @@ def _job_named_step(workflow: dict[str, Any], *, job_id: str, step_name: str) ->
 def _csv_values(value: object) -> set[str]:
     assert isinstance(value, str), "expected comma-separated string"
     return {item.strip() for item in value.split(",") if item.strip()}
+
+
+def _shell_assignment_values(script: str, variable_name: str) -> set[str]:
+    match = re.search(rf'^\s*{re.escape(variable_name)}="([^"]*)"', script, flags=re.MULTILINE)
+    assert match, f"missing shell assignment: {variable_name}"
+    return _csv_values(match.group(1))
+
+
+def _bandit_exclude_values(script: str) -> set[str]:
+    match = re.search(r'--exclude\s+"([^"]+)"', script)
+    assert match, "missing Bandit --exclude argument"
+    return _csv_values(match.group(1))
 
 
 def _function_source(module_path: Path, function_name: str) -> str:
@@ -392,6 +450,74 @@ def test_pytorch_jit_cve_waiver_evidence_is_scoped_and_current() -> None:
         "none",
     ):
         assert stable_marker in advisory_text
+
+
+def test_ci_security_job_uses_shared_bandit_summary_helper() -> None:
+    workflow = _workflow(CI_WORKFLOW)
+    scan_step = _job_named_step(
+        workflow,
+        job_id="security",
+        step_name="Security scan with Bandit",
+    )
+    gate_step = _job_named_step(
+        workflow,
+        job_id="security",
+        step_name="Enforce Bandit HIGH severity gate",
+    )
+    scan_script = scan_step["run"]
+    gate_script = gate_step["run"]
+
+    assert "bandit-report.json" in scan_script
+    assert BANDIT_SUMMARY_HELPER in gate_script
+    assert "--report bandit-report.json" in gate_script
+    assert "--fail-on-high" in gate_script
+    assert "json.loads" not in gate_script
+    assert "jq " not in gate_script
+    assert "continue-on-error" not in gate_script
+
+
+def test_security_scan_workflow_uses_shared_bandit_summary_helper() -> None:
+    workflow = _workflow(SECURITY_WORKFLOW)
+    bandit_step = _job_named_step(
+        workflow,
+        job_id="bandit",
+        step_name="Run Bandit (security lint)",
+    )
+    bandit_script = bandit_step["run"]
+
+    assert "bandit-report.json" in bandit_script
+    assert BANDIT_SUMMARY_HELPER in bandit_script
+    assert "--report bandit-report.json" in bandit_script
+    assert "--fail-on-high" in bandit_script
+    assert 'select(.issue_severity == "HIGH")' not in bandit_script
+    assert "|| true" not in bandit_script
+    assert "continue-on-error" not in bandit_script
+
+
+def test_bandit_excludes_do_not_widen_in_ci_workflow() -> None:
+    workflow = _workflow(CI_WORKFLOW)
+    scan_step = _job_named_step(
+        workflow,
+        job_id="security",
+        step_name="Security scan with Bandit",
+    )
+    excludes = _shell_assignment_values(scan_step["run"], "EXCLUDES")
+
+    assert excludes == CI_BANDIT_EXCLUDES
+    assert excludes.isdisjoint(FORBIDDEN_BANDIT_EXCLUDES)
+
+
+def test_bandit_excludes_do_not_widen_in_security_workflow() -> None:
+    workflow = _workflow(SECURITY_WORKFLOW)
+    bandit_step = _job_named_step(
+        workflow,
+        job_id="bandit",
+        step_name="Run Bandit (security lint)",
+    )
+    excludes = _bandit_exclude_values(bandit_step["run"])
+
+    assert excludes == SECURITY_BANDIT_EXCLUDES
+    assert excludes.isdisjoint(FORBIDDEN_BANDIT_EXCLUDES)
 
 
 def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:

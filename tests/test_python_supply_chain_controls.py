@@ -919,6 +919,36 @@ def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None
     assert "SAFETY_API_KEY" in nightly_text
 
 
+def test_bandit_high_gate_uses_shared_summary_helper_without_inline_parsers() -> None:
+    workflow_paths = (
+        ".github/workflows/ci.yml",
+        ".github/workflows/security.yml",
+    )
+    summary_helper_text = (REPO_ROOT / "scripts" / "ci" / "summarize_bandit_report.py").read_text(
+        encoding="utf-8"
+    )
+
+    for workflow_path in workflow_paths:
+        workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+        step_name = (
+            "Enforce Bandit HIGH severity gate"
+            if workflow_path.endswith("ci.yml")
+            else "Run Bandit (security lint)"
+        )
+        job_name = "security" if workflow_path.endswith("ci.yml") else "bandit"
+        bandit_step = _workflow_step_by_name(workflow_path, job_name, step_name)
+        bandit_script = str(bandit_step["run"])
+
+        assert "python3 scripts/ci/summarize_bandit_report.py" in workflow_text
+        assert "--report bandit-report.json" in bandit_script
+        assert "--fail-on-high" in bandit_script
+        assert 'select(.issue_severity == "HIGH")' not in workflow_text
+        assert "json.loads(report.read_text())" not in bandit_script
+
+    assert "issue_severity" in summary_helper_text
+    assert "fail_on_high" in summary_helper_text
+
+
 def test_requirements_lock_excludes_optional_rag_vector_stack() -> None:
     requirements_lock = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
 

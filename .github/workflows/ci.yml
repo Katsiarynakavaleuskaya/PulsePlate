@@ -486,38 +486,10 @@ jobs:
       - name: Enforce Bandit HIGH severity gate
         run: |
           set -euo pipefail
-
-          if [ ! -f bandit-report.json ]; then
-            echo "❌ Bandit report not found"
-            exit 1
-          fi
-
-          read -r total_findings high_severity_findings <<EOF
-          $(python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          report = Path("bandit-report.json")
-          data = json.loads(report.read_text())
-          results = data.get("results", [])
-          high = sum(1 for item in results if item.get("issue_severity") == "HIGH")
-          print(len(results), high)
-          PY
-          )
-          EOF
-
-          if [ "$high_severity_findings" -gt 0 ]; then
-            echo "❌ Found $high_severity_findings HIGH severity security issues in Bandit report"
-            echo "::error::Bandit found $high_severity_findings HIGH severity issues that must be addressed"
-            exit 1
-          fi
-
-          if [ "$total_findings" -gt 0 ]; then
-            echo "⚠️ Bandit reported $total_findings findings below HIGH severity"
-            echo "::warning::Bandit reported findings below HIGH severity – review bandit-report.json"
-          else
-            echo "✅ No HIGH severity issues found in Bandit report"
-          fi
+          python3 scripts/ci/summarize_bandit_report.py \
+            --report bandit-report.json \
+            --fail-on-high \
+            --github-annotations
 
       - name: Install Safety
         run: |

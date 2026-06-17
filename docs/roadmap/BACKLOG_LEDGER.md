@@ -3829,6 +3829,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Guard no longer uses allowlist (or allowlist file removed)
 
 
+<a id="ledger-p1-bandit-lower-severity-remediation"></a>
+- [ ] P1: Phase 2 — Remediate Bandit lower-severity findings by rule family
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-BANDIT-LOWER-SEVERITY-REMEDIATION
+  - Area: security / CI / static analysis
+  - Finding Type: Bandit LOW/MEDIUM inventory follow-up
+  - Reason: PR3 adds deterministic grouped inventory for Bandit findings below
+    HIGH severity while keeping HIGH fail-closed. The inventory is not a
+    suppression mechanism and does not tighten the merge gate to MEDIUM yet;
+    remediation should proceed in narrow follow-up PRs by Bandit rule id and
+    path bucket.
+  - Links:
+    - `docs/security/BANDIT_LOWER_SEVERITY_INVENTORY.md`
+    - `scripts/ci/summarize_bandit_report.py`
+    - `.github/workflows/ci.yml` (`Enforce Bandit HIGH severity gate`)
+  - DoD:
+    - One rule family or path bucket remediated per PR unless coordinator opens
+      a broader lane
+    - No broad `# nosec` additions; every unavoidable suppression follows root
+      `AGENTS.md` nosec policy
+    - MEDIUM gate tightening considered only after grouped inventory shrinks to
+      an actionable baseline
+
+
 <a id="ledger-p1-compose-v2-migration"></a>
 - [x] P1: Migrate command surface to `docker compose` v2 only
   - Owner: @katsiaryna_kavaleuskaya
