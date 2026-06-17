@@ -55,6 +55,11 @@ Disposition: FIXED
 Commit: 8ee7b117f
 Evidence: `tests/test_python_supply_chain_controls.py` catches `InvalidRequirement`; `tests/guards/test_security_devtooling_regression_guards.py` checks stable advisory markers instead of full literal phrases.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1989#issuecomment-4727078656 -> 137362472
+Disposition: FIXED
+Commit: 137362472
+Evidence: `tests/test_python_supply_chain_controls.py` uses parser-backed canonical package-name checks across default `.in` and `.txt` surfaces and adds a bypass regression for case, compatible-release specs, direct references, and non-requirement lines.
+
 ## Premortem
 
 - Local artifact:
