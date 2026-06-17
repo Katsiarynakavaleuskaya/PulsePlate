@@ -710,20 +710,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Retire PyTorch TorchScript CVE-2025-3000 Safety waiver for optional vector profile
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain / optional RAG-vector profile)
-  - Target PR: TBD (land by 2026-07-11 or earlier if fixed torch builds are available)
+  - Target PR: PR2 security-alert sequence (land by 2026-07-17 or earlier if fixed torch builds are available)
   - Area: security / CI / dependencies / RAG-vector
-  - Reason (EN): PR #1925 current-head CI started failing Safety on
-    `SFTY-20250331-30014` / `CVE-2025-3000` for `torch==2.11.0` and
-    `torch==2.11.0+cpu` in optional RAG/vector manifests. Safety 3.8.1 reports
-    no fixed version for the advisory, while default production and Docker
-    runtime manifests pass Safety without torch. The waiver is scoped to the
-    optional vector profile and must be retired when a fixed build, upstream
+  - Reason (EN): Recheck on 2026-06-17 found GitHub Advisory
+    `GHSA-rrmf-rvhw-rf47` and Safety `SFTY-20250331-30014` still marking
+    `torch <=2.12.0` as affected by `CVE-2025-3000`, with no patched torch
+    release available; PyPI latest torch was `2.12.0`. PulsePlate pins
+    `torch==2.11.0` / `torch==2.11.0+cpu` only in optional RAG/vector
+    manifests. `requirements.txt`, `requirements-ci-lite.txt`,
+    `requirements-docker-runtime.txt`, and `requirements-lock.txt` have no
+    direct `torch` pin, so any CI-lite Dependabot alert is dependency graph lag
+    unless a future diff reintroduces torch there. The waiver remains scoped to
+    optional RAG/vector and must be retired when a fixed build, upstream
     advisory correction, or vector-profile replacement is available.
   - Links:
     - `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md:1`
-    - `safety-policy.yaml:18`
+    - `safety-policy.yaml:16`
     - `requirements-rag-vector.txt:162`
     - `requirements-rag-vector-cpu.txt:119`
+    - `requirements-ci-lite.txt`: no direct `torch` pin
   - DoD:
     - Re-check Safety, OSV, GitHub Advisory Database, and PyTorch upstream for
       fixed-version truth before changing pins.
