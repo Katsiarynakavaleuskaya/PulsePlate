@@ -8,6 +8,8 @@ import re
 from pathlib import Path
 import subprocess
 
+from packaging.requirements import Requirement
+from packaging.version import Version
 import pytest
 import yaml
 
@@ -35,7 +37,37 @@ APPROVED_TRUSTED_HOST_EXPRESSION = (
     "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
 )
 PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
+PIP_REQUIREMENT_DIRECTIVE_PREFIXES = (
+    "-i ",
+    "--index-url ",
+    "--extra-index-url ",
+    "-f ",
+    "--find-links ",
+    "-r ",
+    "--requirement ",
+    "-c ",
+    "--constraint ",
+)
 PINNED_CHECKOUT_ACTION = "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+OPTIONAL_VECTOR_STACK_PACKAGES = (
+    "pgvector",
+    "sentence-transformers",
+    "torch",
+    "transformers",
+)
+DEFAULT_INSTALL_REQUIREMENT_FILES = (
+    "requirements.txt",
+    "requirements-ci-lite.txt",
+    "requirements-docker-runtime.txt",
+    "requirements-lock.txt",
+    "requirements-test.txt",
+)
+OPTIONAL_VECTOR_REQUIREMENT_FILES = (
+    "requirements-rag-vector.in",
+    "requirements-rag-vector.txt",
+    "requirements-rag-vector-cpu.in",
+    "requirements-rag-vector-cpu.txt",
+)
 
 
 def _load_workflow(path: str) -> dict[str, object]:
@@ -106,6 +138,23 @@ def _workflow_step_names(path: str, job_name: str) -> list[str]:
     """Return display names for a workflow job's steps."""
 
     return [str(step["name"]) for step in _workflow_steps(path, job_name)]
+
+
+def _requirement_package_versions(path: Path, package_name: str) -> set[str]:
+    """Return exact or minimum package versions declared in a requirement surface."""
+
+    versions: set[str] = set()
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line or line.startswith(PIP_REQUIREMENT_DIRECTIVE_PREFIXES):
+            continue
+        requirement = Requirement(line)
+        if requirement.name != package_name:
+            continue
+        for specifier in requirement.specifier:
+            if specifier.operator in {"==", ">="}:
+                versions.add(specifier.version)
+    return versions
 
 
 def test_dependency_security_schema_blocks_known_bad_litellm_versions() -> None:
@@ -345,9 +394,36 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
     )
     install_script = install_step["run"]
     assert "bandit==" not in install_script
-    assert '"safety>=3.7.0"' in install_script
+    assert '"safety>=3.8.1"' in install_script
     assert 'python -m pip install "${pip_index_args[@]}"' in install_script
     assert "-c constraints.txt" in install_script
+
+
+def test_constraints_keep_dependency_security_floors_aligned() -> None:
+    constraints_path = REPO_ROOT / "constraints.txt"
+    requirements_in = REPO_ROOT / "requirements.in"
+    requirements_ci_lite_in = REPO_ROOT / "requirements-ci-lite.in"
+
+    constraints_text = constraints_path.read_text(encoding="utf-8")
+    assert "flake8 removed in favor of ruff" not in constraints_text
+    assert "replaces flake8" not in constraints_text
+    assert _requirement_package_versions(constraints_path, "safety") == {"3.8.1"}
+
+    constraints_pyarrow = _requirement_package_versions(constraints_path, "pyarrow")
+    assert constraints_pyarrow == {"20.0.0"}
+    assert constraints_pyarrow == _requirement_package_versions(requirements_in, "pyarrow")
+    assert constraints_pyarrow == _requirement_package_versions(
+        requirements_ci_lite_in,
+        "pyarrow",
+    )
+    for lock_surface in (
+        REPO_ROOT / "requirements.txt",
+        REPO_ROOT / "requirements-ci-lite.txt",
+        REPO_ROOT / "requirements-lock.txt",
+    ):
+        pinned_versions = _requirement_package_versions(lock_surface, "pyarrow")
+        assert pinned_versions
+        assert all(Version(version) >= Version("20.0.0") for version in pinned_versions)
 
 
 def test_ci_security_job_installs_safety_through_locked_installer() -> None:
@@ -560,6 +636,29 @@ def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> N
     assert "transformers==" in requirements_rag_vector
     assert "torch==" in requirements_rag_vector
     assert "pgvector==" in requirements_rag_vector
+
+
+def test_torch_and_vector_stack_stay_optional_to_rag_vector_profiles() -> None:
+    for requirement_file in DEFAULT_INSTALL_REQUIREMENT_FILES:
+        requirement_text = (REPO_ROOT / requirement_file).read_text(encoding="utf-8")
+        disallowed_packages = (
+            OPTIONAL_VECTOR_STACK_PACKAGES
+            if requirement_file != "requirements-test.txt"
+            else ("sentence-transformers", "torch", "transformers")
+        )
+        for package in disallowed_packages:
+            assert f"{package}==" not in requirement_text
+            assert f"{package}>=" not in requirement_text
+
+    observed_torch_versions: set[str] = set()
+    for requirement_file in OPTIONAL_VECTOR_REQUIREMENT_FILES:
+        requirement_path = REPO_ROOT / requirement_file
+        requirement_text = requirement_path.read_text(encoding="utf-8")
+        for package in OPTIONAL_VECTOR_STACK_PACKAGES:
+            assert f"{package}==" in requirement_text
+        observed_torch_versions.update(_requirement_package_versions(requirement_path, "torch"))
+
+    assert observed_torch_versions == {"2.11.0", "2.11.0+cpu"}
 
 
 def test_production_target_docker_workflows_use_runtime_requirements_profile() -> None:

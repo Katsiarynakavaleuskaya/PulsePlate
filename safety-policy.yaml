@@ -8,9 +8,10 @@
 # Advisory: docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md
 #
 # SFTY-20250331-30014 / CVE-2025-3000 (PyTorch torch.jit.script memory
-# corruption): optional RAG/vector manifests pin torch while Safety reports no
-# fixed version. Remove by 2026-07-11 or earlier when a fixed torch build,
-# upstream correction, or vector-profile replacement is available.
+# corruption): optional RAG/vector manifests pin torch while GitHub Advisory,
+# Safety, and PyPI checks on 2026-06-17 show no fixed torch build. Remove by
+# 2026-07-17 or earlier when a fixed torch build, upstream correction, or
+# vector-profile replacement is available.
 # Advisory: docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md
 
 version: "3.0"
@@ -39,7 +40,7 @@ report:
           reason: >-
             Optional RAG/vector torch.jit.script advisory; remove when
             docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md is closed.
-          expires: "2026-07-11"
+          expires: "2026-07-17"
       cvss-severity: []
 
 fail-scan-with-exit-code:

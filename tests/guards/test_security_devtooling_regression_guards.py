@@ -45,6 +45,9 @@ SECURITY_DEPENDENCY_PROFILE_FILES: tuple[str, ...] = (
 SECURITY_DEPENDENCY_LOCKFILES: tuple[str, ...] = tuple(
     name for name in SECURITY_DEPENDENCY_PROFILE_FILES if name.endswith(".txt")
 )
+PYTORCH_JIT_SAFETY_ID = "SFTY-20250331-30014"
+PYTORCH_JIT_CVE_ID = "CVE-2025-3000"
+PYTORCH_JIT_WAIVER_REMOVE_BY = "2026-07-17"
 
 
 def _binary(name: str) -> str:
@@ -358,6 +361,32 @@ def test_dependency_profiles_are_covered_by_all_security_surfaces() -> None:
         assert profile.backend_shared is True
         assert profile.run_backend_blocking is True
         assert profile.run_security is True
+
+
+def test_pytorch_jit_cve_waiver_evidence_is_scoped_and_current() -> None:
+    safety_policy = yaml.safe_load((REPO_ROOT / "safety-policy.yaml").read_text(encoding="utf-8"))
+    assert isinstance(safety_policy, dict)
+    vulnerabilities = safety_policy["report"]["dependency-vulnerabilities"][
+        "auto-ignore-in-report"
+    ]["vulnerabilities"]
+    torch_waiver = vulnerabilities[PYTORCH_JIT_SAFETY_ID]
+
+    assert torch_waiver["expires"] == PYTORCH_JIT_WAIVER_REMOVE_BY
+
+    advisory_text = (REPO_ROOT / "docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md").read_text(
+        encoding="utf-8"
+    )
+    backlog_text = (REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md").read_text(encoding="utf-8")
+
+    for evidence_text in (advisory_text, backlog_text):
+        assert PYTORCH_JIT_SAFETY_ID in evidence_text
+        assert PYTORCH_JIT_CVE_ID in evidence_text
+        assert PYTORCH_JIT_WAIVER_REMOVE_BY in evidence_text
+        assert "optional RAG/vector" in evidence_text
+
+    assert "requirements-ci-lite.txt`: no direct `torch` pin" in advisory_text
+    assert "requirements-lock.txt`: no direct `torch` pin" in advisory_text
+    assert "Patched versions: none" in advisory_text
 
 
 def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:

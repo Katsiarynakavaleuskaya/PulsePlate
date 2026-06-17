@@ -2,33 +2,41 @@
 
 ## Summary
 
-Safety 3.8.1 flags `torch` in the optional RAG/vector manifests for
+Safety flags `torch` in the optional RAG/vector manifests for
 `SFTY-20250331-30014` / `CVE-2025-3000`. The advisory concerns
 `torch.jit.script` memory corruption. PulsePlate keeps `torch` out of the
-default production and Docker runtime manifests; the finding is limited to the
-optional vector profile.
+default production, CI-lite, Docker runtime, and full lock manifests; the
+finding is limited to the optional vector profile.
 
 ## Governance
 
 - **Owner:** @katsiaryna_kavaleuskaya
-- **Remove-by:** 2026-07-11
+- **Remove-by:** 2026-07-17
 - **Backlog:** `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
 - **Safety policy:** `safety-policy.yaml`
+- **Last checked:** 2026-06-17
 
 ## Current Repo State
 
-- `requirements.txt`: Safety PASS in PR #1925 current-head CI.
-- `requirements-docker-runtime.txt`: Safety PASS in PR #1925 current-head CI.
+- `requirements.txt`: no direct `torch` pin.
+- `requirements-ci-lite.txt`: no direct `torch` pin; any GitHub alert on this
+  file is treated as dependency-graph lag unless a future diff reintroduces
+  torch here.
+- `requirements-docker-runtime.txt`: no direct `torch` pin.
+- `requirements-lock.txt`: no direct `torch` pin.
 - `requirements-rag-vector.txt`: Safety flags `torch==2.11.0`.
 - `requirements-rag-vector-cpu.txt`: Safety flags `torch==2.11.0+cpu`.
-- Safety 3.8.1 reports no fixed version for this advisory in the PR #1925 CI log.
+- GitHub Advisory `GHSA-rrmf-rvhw-rf47`: affected `torch <= 2.12.0`.
+  Patched versions: none.
+- PyPI latest `torch` release checked on 2026-06-17: `2.12.0`.
+- Safety `SFTY-20250331-30014`: affected versions `<=2.12.0`.
 
 ## Evidence Anchors
 
 - `requirements-rag-vector.txt:162`
 - `requirements-rag-vector-cpu.txt:119`
-- `safety-policy.yaml:23`
-- `docs/roadmap/BACKLOG_LEDGER.md:665`
+- `safety-policy.yaml:16`
+- `docs/roadmap/BACKLOG_LEDGER.md:709`
 
 ## Exposure Assessment
 
@@ -53,4 +61,5 @@ artifacts, or routes user-controlled data into TorchScript compilation.
 - CVE: `https://www.cve.org/CVERecord?id=CVE-2025-3000`
 - NVD: `https://nvd.nist.gov/vuln/detail/CVE-2025-3000`
 - GitHub Advisory Database: `https://github.com/advisories/GHSA-rrmf-rvhw-rf47`
-- Safety entry: `https://getsafety.com/v/SFTY-20250331-30014/97c`
+- Safety entry: `https://getsafety.com/vulnerabilities/SFTY-20250331-30014`
+- PyPI torch: `https://pypi.org/project/torch/`
