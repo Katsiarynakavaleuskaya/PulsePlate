@@ -63,6 +63,11 @@ Disposition: FIXED
 Commit: 137362472
 Evidence: `tests/test_python_supply_chain_controls.py` uses parser-backed canonical package-name checks across default `.in` and `.txt` surfaces and adds a bypass regression for case, compatible-release specs, direct references, and non-requirement lines.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1989#discussion_r3427944464
+Disposition: NOT-A-BUG
+Evidence: `find artifacts/orchestration/experiments -maxdepth 5 -type f` shows the Experiment Runner packet at `artifacts/orchestration/experiments/artifacts/orchestration/experiments/torch-cve-2025-3000-vector-policy-oracle-packet.json`; the suggested single-prefix path does not exist in the emitted local artifact tree.
+Reason: The duplicated-looking prefix is the actual path emitted by the Experiment Runner CLI for this lane, so changing the mapping to the suggested path would make the provenance reference less accurate.
+
 ## Premortem
 
 - Local artifact:
