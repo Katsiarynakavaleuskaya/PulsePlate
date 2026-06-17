@@ -56,6 +56,17 @@ Reason: Addresses Sourcery review feedback about avoiding a hard-coded module st
   `app/main.py:134`; `tests/test_main_paywall_bootstrap.py` now covers the
   non-callable guard branch.
 
+## Experiment Runner Evidence
+
+- Artifact: `artifacts/orchestration/experiments/results/exp-3ff29cb73495.json`
+- PASS: oracle-only governance reviewer accepted the PR #1987 evidence packet.
+- PASS: oracle `python -m pytest -q tests/test_legacy_export_aliases.py tests/test_main_paywall_bootstrap.py`
+  returned 0 in the runner checkout.
+- PASS: oracle `python scripts/ci/check_legacy_growth_guard.py` returned 0 in
+  the runner checkout.
+- Result metadata: `mutated_paths: []`, `shared_tree_untouched: true`,
+  `promotion_ready: false`, `coauthor_required: true`.
+
 ## Security Notes
 
 - No auth, API-key, feature-gate, response, or rate-limit behavior changes.
