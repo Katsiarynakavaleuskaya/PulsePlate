@@ -81,6 +81,30 @@ def test_malformed_schema_fails_closed(tmp_path: Path) -> None:
     assert ".results` must be a list" in result.stdout
 
 
+def test_missing_finding_severity_fails_closed(tmp_path: Path) -> None:
+    report = tmp_path / "bandit-report.json"
+    finding = _finding(severity="LOW")
+    del finding["issue_severity"]
+    _write_report(report, [finding])
+
+    result = _run_helper(report, "--fail-on-high")
+
+    assert result.returncode == 2
+    assert "missing string `issue_severity`" in result.stdout
+    assert "HIGH severity findings: 0" not in result.stdout
+
+
+def test_unknown_finding_severity_fails_closed(tmp_path: Path) -> None:
+    report = tmp_path / "bandit-report.json"
+    _write_report(report, [_finding(severity="CRITICAL")])
+
+    result = _run_helper(report, "--fail-on-high")
+
+    assert result.returncode == 2
+    assert "unsupported `issue_severity`: CRITICAL" in result.stdout
+    assert "HIGH severity findings: 0" not in result.stdout
+
+
 def test_high_severity_findings_fail_even_with_lower_findings(tmp_path: Path) -> None:
     report = tmp_path / "bandit-report.json"
     _write_report(

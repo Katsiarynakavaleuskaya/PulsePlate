@@ -10,7 +10,8 @@ from pathlib import Path
 import sys
 from typing import Any, Iterable, Mapping, NamedTuple, Sequence
 
-SEVERITY_ORDER = {"HIGH": 0, "MEDIUM": 1, "LOW": 2, "UNDEFINED": 3, "UNKNOWN": 4}
+SEVERITY_ORDER = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+VALID_SEVERITIES = frozenset(SEVERITY_ORDER)
 
 
 class BanditReportError(ValueError):
@@ -51,6 +52,19 @@ def _normalize_label(value: object, *, fallback: str = "UNKNOWN") -> str:
         return fallback
     normalized = value.strip().upper()
     return normalized or fallback
+
+
+def _severity_label(value: object) -> str:
+    if not isinstance(value, str):
+        raise BanditReportError("Bandit report finding missing string `issue_severity`")
+    normalized = value.strip().upper()
+    if normalized not in VALID_SEVERITIES:
+        allowed = ", ".join(sorted(VALID_SEVERITIES))
+        raise BanditReportError(
+            f"Bandit report finding has unsupported `issue_severity`: {normalized or '<empty>'}. "
+            f"Allowed: {allowed}"
+        )
+    return normalized
 
 
 def _line_number(value: object) -> int:
@@ -109,7 +123,7 @@ def _load_report(path: Path) -> list[Mapping[str, Any]]:
 def _finding(item: Mapping[str, Any]) -> Finding:
     filename = str(item.get("filename") or "<unknown>")
     return Finding(
-        severity=_normalize_label(item.get("issue_severity"), fallback="UNKNOWN"),
+        severity=_severity_label(item.get("issue_severity")),
         confidence=_normalize_label(item.get("issue_confidence"), fallback="UNKNOWN"),
         test_id=str(item.get("test_id") or "UNKNOWN").strip() or "UNKNOWN",
         filename=filename,
