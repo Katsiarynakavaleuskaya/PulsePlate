@@ -46,6 +46,10 @@ Evidence: `scripts/ci/summarize_bandit_report.py` uses `_severity_sort_key`, pre
   Evidence: non-strict wrapper HIGH failure, Bandit-derived raw output command
   injection, `.github/workflows` path bucketing, docs Phase1 anchors, and
   parser-safe mapping/body shape were fixed or are fixed in this mapping update.
+- `security-auditor`: FIXED by `d6a0e6e31`.
+  Evidence: malformed, missing, or unsupported Bandit `issue_severity` values
+  now fail closed before HIGH counts are reported; regressions cover missing
+  and unsupported severity values.
 
 ## Premortem Closure
 
@@ -93,7 +97,10 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5662555828dd.json`
   - 69 tests
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_summarize_bandit_report.py tests/guards/test_security_devtooling_regression_guards.py tests/test_python_supply_chain_controls.py`
-  - 82 tests
+  - 84 tests
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_summarize_bandit_report.py`
+  - 15 tests
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_summarize_bandit_report.py tests/guards/test_security_devtooling_regression_guards.py -k 'bandit or summarize'`
   - 17 tests
