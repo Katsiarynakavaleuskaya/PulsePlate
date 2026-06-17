@@ -10,6 +10,7 @@ import subprocess
 
 from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 import pytest
 import yaml
@@ -57,8 +58,11 @@ OPTIONAL_VECTOR_STACK_PACKAGES = (
     "transformers",
 )
 DEFAULT_INSTALL_REQUIREMENT_FILES = (
+    "requirements.in",
     "requirements.txt",
+    "requirements-ci-lite.in",
     "requirements-ci-lite.txt",
+    "requirements-docker-runtime.in",
     "requirements-docker-runtime.txt",
     "requirements-lock.txt",
     "requirements-test.txt",
@@ -144,6 +148,7 @@ def _workflow_step_names(path: str, job_name: str) -> list[str]:
 def _requirement_package_versions(path: Path, package_name: str) -> set[str]:
     """Return exact or minimum package versions declared in a requirement surface."""
 
+    canonical_package_name = canonicalize_name(package_name)
     versions: set[str] = set()
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.split("#", 1)[0].strip()
@@ -153,12 +158,48 @@ def _requirement_package_versions(path: Path, package_name: str) -> set[str]:
             requirement = Requirement(line)
         except InvalidRequirement:
             continue
-        if requirement.name != package_name:
+        if canonicalize_name(requirement.name) != canonical_package_name:
             continue
         for specifier in requirement.specifier:
             if specifier.operator in {"==", ">="}:
                 versions.add(specifier.version)
     return versions
+
+
+def _requirement_package_names(path: Path) -> set[str]:
+    """Return canonical package names declared in a requirement surface."""
+
+    package_names: set[str] = set()
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line or line.startswith(PIP_REQUIREMENT_DIRECTIVE_PREFIXES):
+            continue
+        try:
+            requirement = Requirement(line)
+        except InvalidRequirement:
+            continue
+        package_names.add(canonicalize_name(requirement.name))
+    return package_names
+
+
+def test_requirement_parser_canonicalizes_names_and_skips_non_requirements(tmp_path: Path) -> None:
+    requirements_path = tmp_path / "requirements.txt"
+    requirements_path.write_text(
+        "\n".join(
+            (
+                "--extra-index-url https://download.pytorch.org/whl/cpu",
+                "Torch~=2.11",
+                "sentence-transformers @ https://example.invalid/sentence.whl",
+                "-e git+https://example.invalid/repo.git#egg=ignored",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    package_names = _requirement_package_names(requirements_path)
+    assert "torch" in package_names
+    assert "sentence-transformers" in package_names
+    assert "ignored" not in package_names
 
 
 def test_dependency_security_schema_blocks_known_bad_litellm_versions() -> None:
@@ -644,22 +685,21 @@ def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> N
 
 def test_torch_and_vector_stack_stay_optional_to_rag_vector_profiles() -> None:
     for requirement_file in DEFAULT_INSTALL_REQUIREMENT_FILES:
-        requirement_text = (REPO_ROOT / requirement_file).read_text(encoding="utf-8")
+        package_names = _requirement_package_names(REPO_ROOT / requirement_file)
         disallowed_packages = (
             OPTIONAL_VECTOR_STACK_PACKAGES
             if requirement_file != "requirements-test.txt"
             else ("sentence-transformers", "torch", "transformers")
         )
         for package in disallowed_packages:
-            assert f"{package}==" not in requirement_text
-            assert f"{package}>=" not in requirement_text
+            assert canonicalize_name(package) not in package_names
 
     observed_torch_versions: set[str] = set()
     for requirement_file in OPTIONAL_VECTOR_REQUIREMENT_FILES:
         requirement_path = REPO_ROOT / requirement_file
-        requirement_text = requirement_path.read_text(encoding="utf-8")
+        package_names = _requirement_package_names(requirement_path)
         for package in OPTIONAL_VECTOR_STACK_PACKAGES:
-            assert f"{package}==" in requirement_text
+            assert canonicalize_name(package) in package_names
         observed_torch_versions.update(_requirement_package_versions(requirement_path, "torch"))
 
     assert observed_torch_versions == {"2.11.0", "2.11.0+cpu"}
