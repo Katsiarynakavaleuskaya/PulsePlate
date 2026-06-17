@@ -29,9 +29,12 @@ def _matching_routes(path: str, method: str) -> list[object]:
 
 def _is_legacy_api_key_dependency(dependency: object) -> bool:
     callable_dependency = getattr(dependency, "dependency", None)
+    resolved_module = (
+        inspect.getmodule(callable_dependency) if callable(callable_dependency) else None
+    )
     return (
         callable(callable_dependency)
-        and getattr(callable_dependency, "__module__", "") == "legacy_app"
+        and getattr(resolved_module, "__name__", "") == legacy_app.__name__
         and getattr(callable_dependency, "__name__", "") == "_get_api_key_dynamic"
     )
 
@@ -50,7 +53,12 @@ def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> Non
         assert path not in openapi_paths
         assert 429 in getattr(route, "responses", {})
         assert "request" in inspect.signature(endpoint).parameters
-        assert any(_is_legacy_api_key_dependency(dependency) for dependency in route.dependencies)
+        assert any(
+            _is_legacy_api_key_dependency(dependency) for dependency in route.dependencies
+        ), (
+            f"Expected legacy API-key dependency on {method} {path}, "
+            f"got {[getattr(dependency, 'dependency', dependency) for dependency in route.dependencies]}"
+        )
 
 
 @pytest.mark.parametrize(
