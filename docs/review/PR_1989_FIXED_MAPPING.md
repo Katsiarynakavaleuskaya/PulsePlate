@@ -2,6 +2,7 @@
 
 ## Lane Start Provenance
 
+- Packet: `artifacts/orchestration/task_packets/341a9a60ff26.json`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Branch: `codex/resolve-torch-cve-2025-3000-vector-profile`
 - Bootstrap packet: `artifacts/orchestration/task_packets/341a9a60ff26.json`
@@ -39,6 +40,8 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - No review threads existed at PR open.
 - Post-open review passes are still required before merge readiness:
   `qa-engineer-agent -> bug-hunter -> security-auditor`, then Codex Security
@@ -47,8 +50,10 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review threads were resolved before this artifact was created.
-- Initial implementation evidence: `ab866229b`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1989#pullrequestreview-4513245105 -> 8ee7b117f
+Disposition: FIXED
+Commit: 8ee7b117f
+Evidence: `tests/test_python_supply_chain_controls.py` catches `InvalidRequirement`; `tests/guards/test_security_devtooling_regression_guards.py` checks stable advisory markers instead of full literal phrases.
 
 ## Premortem
 
@@ -61,10 +66,8 @@
 
 ## Experiment Runner Evidence
 
-- Packet:
-  `artifacts/orchestration/experiments/artifacts/orchestration/experiments/torch-cve-2025-3000-vector-policy-oracle-packet.json`
-- Result:
-  `artifacts/orchestration/experiments/results/torch-cve-2025-3000-vector-policy-oracle-result.json`
+- Packet: `artifacts/orchestration/experiments/artifacts/orchestration/experiments/torch-cve-2025-3000-vector-policy-oracle-packet.json`
+- Artifact: `artifacts/orchestration/experiments/results/torch-cve-2025-3000-vector-policy-oracle-result.json`
 - Mode: `oracle_only_governance_reviewer`
 - Status: `accepted`; `mutated_paths=[]`; oracle commands passed.
 - Contribution: `oracle_review`; implementation commit `ab866229b` includes:
