@@ -179,7 +179,7 @@ added.
 
 - [ ] Current-head PR CI complete and passing.
 - [ ] No unresolved actionable review or bot comments.
-- [x] Post-open `security-auditor` pass complete.
-- [x] Codex Security diff scan and `pulseplate-pr-review` complete.
+- [ ] Post-open `security-auditor` pass complete.
+- [ ] Codex Security diff scan and `pulseplate-pr-review` complete.
 - [ ] Strict merge-readiness with auth passes.
 - [ ] Mandatory wait-window satisfied.
