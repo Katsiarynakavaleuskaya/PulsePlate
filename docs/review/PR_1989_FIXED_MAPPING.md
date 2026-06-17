@@ -43,10 +43,13 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - No review threads existed at PR open.
-- Post-open review passes are still required before merge readiness:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`, then Codex Security
-  diff scan when available, CodeRabbit/actionable bot review disposition, and
-  `pulseplate-pr-review`.
+- Post-open role order executed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Codex Security diff scan completed with no findings.
+- `pulseplate-pr-review` completed with one advisory large-diff planning note;
+  disposition below.
+- CodeRabbit was still pending at the latest artifact update; no actionable
+  CodeRabbit finding was available to map.
 
 ## Fixed in Commit Mapping
 
@@ -78,6 +81,18 @@ Evidence: `tests/test_python_supply_chain_controls.py` uses parser-backed canoni
 - Contribution: `oracle_review`; implementation commit `ab866229b` includes:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
+## PulsePlate Review Disposition
+
+- Tool: `pulseplate-pr-review`
+- Finding: advisory `large-diff-risk`
+- Disposition: NOT-A-BUG
+- Evidence: Diff is intentionally docs/guards-heavy for a security evidence
+  lane; scoped local gates include `make validate-changed` and focused
+  supply-chain/security-devtooling tests. No product runtime, OpenAPI, legacy,
+  frontend, iOS, or broad lock-regeneration files are touched.
+- Reason: The advisory is review-planning evidence, not a code defect or
+  merge-blocking finding.
+
 ## Tests
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
@@ -91,6 +106,10 @@ Evidence: `tests/test_python_supply_chain_controls.py` uses parser-backed canoni
 - PASS: `pre-commit run --all-files`
 - PASS during push: pre-push hooks including backend pytest, pip-audit, and
   full-repo Bandit pre-push.
+- PASS: `pulseplate-pr-review` dry-run completed; advisory large-diff risk
+  dispositioned as `NOT-A-BUG` above.
+- PASS: Codex Security diff scan completed with no findings; report:
+  `/tmp/codex-security-scans/resolve-torch-cve-2025-3000-vector-profile/d72d2a53b529_20260617T115720Z/report.md`.
 
 ## Machine-Heavy Deferral
 
@@ -101,8 +120,11 @@ Evidence: `tests/test_python_supply_chain_controls.py` uses parser-backed canoni
 
 ## Merge Readiness
 
-- Not merge-ready at artifact creation time.
-- Required before merge: post-open role passes, Codex Security diff scan when
-  available, CodeRabbit/actionable bot disposition, `pulseplate-pr-review`,
-  current-head CI, strict merge-readiness with auth, wait-window, local `main`
-  sync, and lane-local cleanup.
+- Not merge-ready at latest artifact update because current-head CI and
+  CodeRabbit were still pending.
+- Superseded CI run `27686954746` contains cancelled `coverage-pr` and
+  `diff-coverage` rows after a newer CI run started; those cancelled rows are
+  stale and are not current-head failures.
+- Required before merge: CodeRabbit/actionable bot disposition, current-head CI,
+  strict merge-readiness with auth, wait-window, local `main` sync, and
+  lane-local cleanup.
