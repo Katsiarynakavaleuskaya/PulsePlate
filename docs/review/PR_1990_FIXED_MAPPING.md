@@ -36,6 +36,7 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#pullrequestreview-4516545531
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428869504
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428869542
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428892178
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922972
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922995
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922999
@@ -50,6 +51,7 @@ Evidence: `scripts/ci/summarize_bandit_report.py` uses `_severity_sort_key`, pre
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#pullrequestreview-4516545531 -> d4cafeadc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428869504 -> d4cafeadc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428869542 -> d4cafeadc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428892178 -> d4cafeadc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922972 -> 637f49c2d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922995 -> 637f49c2d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3428922999 -> 637f49c2d
@@ -61,6 +63,11 @@ Evidence: `scripts/ci/summarize_bandit_report.py` uses `_severity_sort_key`, pre
 Disposition: NOT-A-BUG
 Evidence: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1990 --body "$(gh pr view 1990 --json body --jq .body)" --commit-range origin/main..HEAD` passes with the canonical parser-safe artifact shape.
 Reason: The duplicate CodeRabbit review suggested per-entry nested inline detail, but the canonical mapping parser rejects nested bullet detail inside `## Fixed in Commit Mapping`; the parser-safe section already lists each URL and the disposition/proof block required by repo governance.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#discussion_r3431071358
+Disposition: NOT-A-BUG
+Evidence: local `git merge-base --is-ancestor d4cafeadc HEAD` and `git merge-base --is-ancestor 637f49c2d HEAD` both returned `0` on PR head `2d7362d26961e3121a8456c8354a911c1e645ffc`; local `git cat-file -t 61de4d77` found no such object in this PR checkout.
+Reason: The comment evaluates a synthetic squash-preview SHA, while repo merge-readiness and disposition guards evaluate the committed PR branch history and exact per-thread mappings.
 
 ## Local Role Finding Disposition
 
