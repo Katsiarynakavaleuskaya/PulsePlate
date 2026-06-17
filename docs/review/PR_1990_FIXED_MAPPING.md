@@ -69,6 +69,11 @@ Disposition: NOT-A-BUG
 Evidence: local `git merge-base --is-ancestor d4cafeadc HEAD` and `git merge-base --is-ancestor 637f49c2d HEAD` both returned `0` on PR head `2d7362d26961e3121a8456c8354a911c1e645ffc`; local `git cat-file -t 61de4d77` found no such object in this PR checkout.
 Reason: The comment evaluates a synthetic squash-preview SHA, while repo merge-readiness and disposition guards evaluate the committed PR branch history and exact per-thread mappings.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1990#pullrequestreview-4519210929 -> 957af236e
+Disposition: FIXED
+Commit: 957af236e
+Evidence: `docs/review/PR_1990_FIXED_MAPPING.md` now keeps the Merge Readiness checklist items unchecked until the final merge cycle. The same review's nested inline-proof suggestion is NOT-A-BUG because `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1990 --body "$(gh pr view 1990 --json body --jq .body)" --commit-range origin/main..HEAD` passes only with the canonical parser-safe mapping shape.
+
 ## Local Role Finding Disposition
 
 - `qa-engineer-agent`: FIXED by `d4cafeadc`.
