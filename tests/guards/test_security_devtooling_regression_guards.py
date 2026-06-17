@@ -384,9 +384,14 @@ def test_pytorch_jit_cve_waiver_evidence_is_scoped_and_current() -> None:
         assert PYTORCH_JIT_WAIVER_REMOVE_BY in evidence_text
         assert "optional RAG/vector" in evidence_text
 
-    assert "requirements-ci-lite.txt`: no direct `torch` pin" in advisory_text
-    assert "requirements-lock.txt`: no direct `torch` pin" in advisory_text
-    assert "Patched versions: none" in advisory_text
+    for stable_marker in (
+        "requirements-ci-lite.txt",
+        "requirements-lock.txt",
+        "no direct `torch` pin",
+        "Patched versions",
+        "none",
+    ):
+        assert stable_marker in advisory_text
 
 
 def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:

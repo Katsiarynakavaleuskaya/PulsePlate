@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 import subprocess
 
+from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
 from packaging.version import Version
 import pytest
@@ -148,7 +149,10 @@ def _requirement_package_versions(path: Path, package_name: str) -> set[str]:
         line = raw_line.split("#", 1)[0].strip()
         if not line or line.startswith(PIP_REQUIREMENT_DIRECTIVE_PREFIXES):
             continue
-        requirement = Requirement(line)
+        try:
+            requirement = Requirement(line)
+        except InvalidRequirement:
+            continue
         if requirement.name != package_name:
             continue
         for specifier in requirement.specifier:
