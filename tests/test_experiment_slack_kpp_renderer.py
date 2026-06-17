@@ -47,7 +47,7 @@ SECURITY_SENSITIVE_OUTCOME_CASES = tuple(sorted(SECURITY_SENSITIVE_OUTCOMES))
     "raw, expected",
     [
         ("Hello world", "Hello world"),
-        ("xoxb-1234567890-abcdef", "[redacted-secret]"),
+        ("xoxb-1234567890-abcdef", "[redacted-secret]"),  # pragma: allowlist secret
         ("ghp_abcdefghijklmnopqrstuvwxyz1234", "[redacted-secret]"),  # pragma: allowlist secret
         (
             "https://hooks.slack.com/services/T123/B456/xxx",  # pragma: allowlist secret
@@ -381,7 +381,7 @@ def test_json_no_raw_secrets() -> None:
         kpp_outcome=KPP_FAIL,
         experiment_id="test-001",
         evidence_summary=(
-            "xoxb-1234567890-secret-token",
+            "xoxb-1234567890-secret-token",  # pragma: allowlist secret
             "/Users/alice/local/path",
         ),
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import importlib
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,7 @@ def _matching_routes(path: str, method: str) -> list[object]:
 
 
 def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> None:
+    current_legacy_app = importlib.import_module("legacy_app")
     openapi_paths = app_main.app.openapi().get("paths", {})
 
     for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
@@ -42,7 +44,7 @@ def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> Non
         assert 429 in getattr(route, "responses", {})
         assert "request" in inspect.signature(endpoint).parameters
         assert any(
-            getattr(dependency, "dependency", None) is legacy_app._get_api_key_dynamic
+            getattr(dependency, "dependency", None) is current_legacy_app._get_api_key_dynamic
             for dependency in getattr(route, "dependencies", [])
         )
 
