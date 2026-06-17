@@ -41,14 +41,11 @@ jobs:
             pip_index_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
           fi
           python -m pip install "${pip_index_args[@]}" "safety>=3.8.1" -c constraints.txt
-          if ! command -v jq >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
-            sudo rm -rf /var/lib/apt/lists/*
-          fi
 
       - name: Run Bandit (security lint)
         run: |
+          set -euo pipefail
+
           bandit_exit_code=0
           # Main repository scan (production code) - no B101 skip
           bandit -q -r . \
@@ -77,18 +74,14 @@ jobs:
           fi
 
           echo "=== Bandit Report Analysis ==="
-          high_severity_count=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-report.json 2>/dev/null || echo "0")
-          if [ "$high_severity_count" -gt 0 ]; then
-            echo "❌ Found $high_severity_count HIGH severity security issues in Bandit report"
-            echo "::error::Bandit found $high_severity_count HIGH severity issues that must be addressed"
-            exit 1
-          fi
+          python3 scripts/ci/summarize_bandit_report.py \
+            --report bandit-report.json \
+            --fail-on-high \
+            --github-annotations
 
-          if [ "$bandit_exit_code" -eq 1 ] || [ "$bandit_tests_exit" -eq 1 ] || [ "$bandit_tests_strict_exit" -eq 1 ]; then
-            echo "⚠️  Bandit reported issues below HIGH severity (exit codes: main=$bandit_exit_code, tests=$bandit_tests_exit, tests_strict=$bandit_tests_strict_exit)"
-            echo "::warning::Bandit reported issues below HIGH severity – review bandit-report.json and test scan output"
-          else
-            echo "✅ No HIGH severity issues found in Bandit report"
+          if [ "$bandit_tests_exit" -eq 1 ] || [ "$bandit_tests_strict_exit" -eq 1 ]; then
+            echo "⚠️  Bandit reported issues in test scan output (exit codes: tests=$bandit_tests_exit, tests_strict=$bandit_tests_strict_exit)"
+            echo "::warning::Bandit reported issues in test scan output – review the Bandit log"
           fi
 
       - name: Run Safety (dependency audit with policy)

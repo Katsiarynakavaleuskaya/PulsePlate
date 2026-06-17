@@ -43,6 +43,8 @@ if ! command -v bandit >/dev/null 2>&1; then
   exit 0
 fi
 
+SUMMARY_HELPER="scripts/ci/summarize_bandit_report.py"
+
 echo "[ci_bandit] Running Bandit scan (strict=${STRICT})..." >&2
 
 # Run bandit recursively; in non-strict mode do not fail pipeline on findings
@@ -50,6 +52,21 @@ set +e
 bandit -r . -x "$EXCLUDES" -f json -o "$OUTPUT" "${BANDIT_ARGS[@]}"
 RC=$?
 set -e
+
+if [[ $RC -gt 1 ]]; then
+  echo "[ci_bandit] Bandit failed to complete successfully (exit code: $RC)" >&2
+  exit "$RC"
+fi
+
+if [[ -f "$SUMMARY_HELPER" ]]; then
+  SUMMARY_RC=0
+  python3 "$SUMMARY_HELPER" --report "$OUTPUT" --fail-on-high --github-annotations || SUMMARY_RC=$?
+  if [[ $SUMMARY_RC -ne 0 ]]; then
+    exit "$SUMMARY_RC"
+  fi
+else
+  echo "[ci_bandit] $SUMMARY_HELPER not found; skipping grouped summary" >&2
+fi
 
 if [[ "$STRICT" == "true" ]]; then
   if [[ $RC -ne 0 ]]; then
