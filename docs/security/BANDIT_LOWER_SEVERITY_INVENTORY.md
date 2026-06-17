@@ -12,6 +12,11 @@ PR3 adds deterministic grouping for the existing Bandit JSON report. The grouped
 summary is advisory evidence only: it does not suppress findings, add `# nosec`,
 or change the HIGH severity merge gate.
 
+Evidence anchors: `.github/workflows/ci.yml:489` invokes the shared helper with
+`--fail-on-high`, `scripts/ci/summarize_bandit_report.py:252` keeps the helper
+exit gate centralized, and `tests/test_summarize_bandit_report.py:220` covers
+workflow-command injection in Bandit-derived output.
+
 The summary groups below-HIGH findings by:
 
 - Bandit rule id.

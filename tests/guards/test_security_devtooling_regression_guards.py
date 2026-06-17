@@ -471,6 +471,7 @@ def test_ci_security_job_uses_shared_bandit_summary_helper() -> None:
     assert BANDIT_SUMMARY_HELPER in gate_script
     assert "--report bandit-report.json" in gate_script
     assert "--fail-on-high" in gate_script
+    assert "--github-annotations" in gate_script
     assert "json.loads" not in gate_script
     assert "jq " not in gate_script
     assert "continue-on-error" not in gate_script
@@ -489,6 +490,7 @@ def test_security_scan_workflow_uses_shared_bandit_summary_helper() -> None:
     assert BANDIT_SUMMARY_HELPER in bandit_script
     assert "--report bandit-report.json" in bandit_script
     assert "--fail-on-high" in bandit_script
+    assert "--github-annotations" in bandit_script
     assert 'select(.issue_severity == "HIGH")' not in bandit_script
     assert "|| true" not in bandit_script
     assert "continue-on-error" not in bandit_script

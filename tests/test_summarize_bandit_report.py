@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -161,6 +162,37 @@ def test_summary_output_is_deterministically_sorted(tmp_path: Path) -> None:
     assert first.stdout.index("scripts/a.py:1") < first.stdout.index("scripts/z.py:2")
 
 
+def test_equal_count_summary_groups_follow_severity_order(tmp_path: Path) -> None:
+    report = tmp_path / "bandit-report.json"
+    _write_report(
+        report,
+        [
+            _finding(severity="LOW", test_id="B101", filename="app/low.py"),
+            _finding(severity="MEDIUM", test_id="B602", filename="app/medium.py"),
+        ],
+    )
+
+    result = _run_helper(report, "--fail-on-high")
+
+    assert result.returncode == 0
+    assert result.stdout.index("MEDIUM | HIGH confidence | B602") < result.stdout.index(
+        "LOW | HIGH confidence | B101"
+    )
+
+
+def test_github_workflow_path_bucket_is_reachable(tmp_path: Path) -> None:
+    report = tmp_path / "bandit-report.json"
+    _write_report(
+        report,
+        [_finding(severity="LOW", test_id="B101", filename="./.github/workflows/ci.yml")],
+    )
+
+    result = _run_helper(report, "--fail-on-high")
+
+    assert result.returncode == 0
+    assert "LOW | HIGH confidence | B101 | github/workflows: 1" in result.stdout
+
+
 def test_github_annotation_escapes_bandit_control_characters(tmp_path: Path) -> None:
     report = tmp_path / "bandit-report.json"
     _write_report(
@@ -183,3 +215,105 @@ def test_github_annotation_escapes_bandit_control_characters(tmp_path: Path) -> 
     assert "%0A" in annotation
     assert "\n::warning:: injected" not in annotation
     assert "\rline" not in annotation
+
+
+def test_bandit_derived_raw_output_cannot_emit_workflow_commands(tmp_path: Path) -> None:
+    report = tmp_path / "bandit-report.json"
+    _write_report(
+        report,
+        [
+            _finding(
+                severity="HIGH",
+                test_id="B999\n::error:: injected",
+                filename="app/security/high.py\n::add-mask::secret",
+                issue_text="high\n::warning:: injected",
+            ),
+            _finding(
+                severity="LOW",
+                test_id="B101\n::warning:: injected",
+                filename="tests/low.py",
+            ),
+        ],
+    )
+
+    result = _run_helper(report, "--fail-on-high")
+
+    assert result.returncode == 1
+    command_lines = [
+        line
+        for line in result.stdout.splitlines()
+        if line.startswith(("::warning:: injected", "::error:: injected", "::add-mask::"))
+    ]
+    assert command_lines == []
+
+
+def _write_fake_bandit(fake_bin: Path, *, severity: str) -> None:
+    fake_bin.mkdir()
+    fake_bandit = fake_bin / "bandit"
+    fake_bandit.write_text(
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+output=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o)
+      output="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -z "$output" ]]; then
+  exit 2
+fi
+cat > "$output" <<'JSON'
+{{"results":[{{"filename":"app/security/example.py","issue_confidence":"HIGH","issue_severity":"{severity}","issue_text":"fake finding","line_number":1,"test_id":"B999"}}]}}
+JSON
+exit 1
+""",
+        encoding="utf-8",
+    )
+    fake_bandit.chmod(0o755)
+
+
+def _run_ci_bandit_with_fake_bandit(
+    tmp_path: Path, *, severity: str
+) -> subprocess.CompletedProcess[str]:
+    fake_bin = tmp_path / "fake-bin"
+    _write_fake_bandit(fake_bin, severity=severity)
+    env = {
+        **os.environ,
+        "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+    }
+    return subprocess.run(
+        [
+            "bash",
+            "scripts/ci_bandit.sh",
+            "--exclude",
+            "tests",
+            "--output",
+            str(tmp_path / "bandit-report.json"),
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def test_ci_bandit_wrapper_fails_high_findings_in_non_strict_mode(tmp_path: Path) -> None:
+    result = _run_ci_bandit_with_fake_bandit(tmp_path, severity="HIGH")
+
+    assert result.returncode == 1
+    assert "::error::Bandit found 1 HIGH severity issue" in result.stdout
+
+
+def test_ci_bandit_wrapper_keeps_lower_findings_warning_only(tmp_path: Path) -> None:
+    result = _run_ci_bandit_with_fake_bandit(tmp_path, severity="LOW")
+
+    assert result.returncode == 0
+    assert "::warning::Bandit reported 1 findings below HIGH severity" in result.stdout
+    assert "continuing (non-strict)" in result.stderr

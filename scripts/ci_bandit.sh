@@ -60,7 +60,7 @@ fi
 
 if [[ -f "$SUMMARY_HELPER" ]]; then
   SUMMARY_RC=0
-  python3 "$SUMMARY_HELPER" --report "$OUTPUT" --github-annotations || SUMMARY_RC=$?
+  python3 "$SUMMARY_HELPER" --report "$OUTPUT" --fail-on-high --github-annotations || SUMMARY_RC=$?
   if [[ $SUMMARY_RC -ne 0 ]]; then
     exit "$SUMMARY_RC"
   fi

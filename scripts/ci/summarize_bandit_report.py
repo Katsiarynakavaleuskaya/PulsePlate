@@ -38,6 +38,10 @@ def _github_escape(value: str) -> str:
     return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
+def _display_escape(value: str) -> str:
+    return _github_escape(value)
+
+
 def _annotation(kind: str, message: str) -> str:
     return f"::{kind}::{_github_escape(message)}"
 
@@ -58,7 +62,9 @@ def _line_number(value: object) -> int:
 
 
 def _path_bucket(filename: str) -> str:
-    normalized = filename.replace("\\", "/").lstrip("./")
+    normalized = filename.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
     if normalized == "legacy_app.py":
         return "legacy_app"
     if normalized.startswith("app/security/"):
@@ -128,23 +134,31 @@ def _finding_sort_key(finding: Finding) -> tuple[tuple[int, str], str, str, str,
     )
 
 
-def _group_sort_key(item: tuple[GroupKey, Sequence[Finding]]) -> tuple[int, str, str, str, str]:
+def _group_sort_key(
+    item: tuple[GroupKey, Sequence[Finding]],
+) -> tuple[int, tuple[int, str], str, str, str]:
     key, findings = item
     return (
         -len(findings),
-        key.severity,
+        _severity_sort_key(key.severity),
         key.test_id,
         key.confidence,
         key.path_bucket,
     )
 
 
-def _format_location(finding: Finding) -> str:
+def _maybe_display_escape(value: str, *, escape_display: bool) -> str:
+    return _display_escape(value) if escape_display else value
+
+
+def _format_location(finding: Finding, *, escape_display: bool = True) -> str:
     suffix = f":{finding.line_number}" if finding.line_number else ""
-    return f"{finding.filename}{suffix}"
+    return f"{_maybe_display_escape(finding.filename, escape_display=escape_display)}{suffix}"
 
 
-def _summary_lines(findings: Sequence[Finding], *, top: int, samples: int) -> list[str]:
+def _summary_lines(
+    findings: Sequence[Finding], *, top: int, samples: int, escape_display: bool = True
+) -> list[str]:
     lower_findings = [finding for finding in findings if finding.severity != "HIGH"]
     if not lower_findings:
         return []
@@ -163,11 +177,17 @@ def _summary_lines(findings: Sequence[Finding], *, top: int, samples: int) -> li
     lines = ["Bandit lower-severity grouped inventory:"]
     for key, grouped_findings in sorted(grouped.items(), key=_group_sort_key)[:top]:
         sorted_findings = sorted(grouped_findings, key=_finding_sort_key)
-        examples = ", ".join(_format_location(finding) for finding in sorted_findings[:samples])
+        examples = ", ".join(
+            _format_location(finding, escape_display=escape_display)
+            for finding in sorted_findings[:samples]
+        )
         lines.append(
             "- "
-            f"{key.severity} | {key.confidence} confidence | {key.test_id} | "
-            f"{key.path_bucket}: {len(sorted_findings)}"
+            f"{_maybe_display_escape(key.severity, escape_display=escape_display)} | "
+            f"{_maybe_display_escape(key.confidence, escape_display=escape_display)} confidence | "
+            f"{_maybe_display_escape(key.test_id, escape_display=escape_display)} | "
+            f"{_maybe_display_escape(key.path_bucket, escape_display=escape_display)}: "
+            f"{len(sorted_findings)}"
             f" (examples: {examples})"
         )
     return lines
@@ -205,18 +225,25 @@ def _print_analysis(
         )[:samples]:
             print(
                 "- "
-                f"{finding.test_id} | {finding.confidence} confidence | "
-                f"{_format_location(finding)} | {finding.issue_text}"
+                f"{_display_escape(finding.test_id)} | "
+                f"{_display_escape(finding.confidence)} confidence | "
+                f"{_format_location(finding)} | {_display_escape(finding.issue_text)}"
             )
 
     if below_high_count:
-        group_lines = _summary_lines(findings, top=top, samples=samples)
-        warning_summary = "; ".join(line.removeprefix("- ") for line in group_lines[1:4])
+        display_group_lines = _summary_lines(findings, top=top, samples=samples)
+        annotation_group_lines = _summary_lines(
+            findings,
+            top=top,
+            samples=samples,
+            escape_display=False,
+        )
+        warning_summary = "; ".join(line.removeprefix("- ") for line in annotation_group_lines[1:4])
         message = f"Bandit reported {below_high_count} findings below HIGH severity" + (
             f": {warning_summary}" if warning_summary else ""
         )
         print(_annotation("warning", message) if github_annotations else f"WARNING: {message}")
-        for line in group_lines:
+        for line in display_group_lines:
             print(line)
     elif not high_count:
         print("No HIGH severity issues found in Bandit report")
