@@ -31,6 +31,13 @@ Evidence: `tests/test_legacy_export_aliases.py` now accepts the stable `legacy_a
 Reason: Fixes post-merge main CI failure from run `27657385344`, `test-main (3.11, 60)`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1988 -> faac8b570
 
+Disposition: FIXED
+Commit: 312bfbac773b077ec83f8f42bc9595fcdb154faa
+Evidence: `tests/test_legacy_export_aliases.py` now resolves the dependency module with `inspect.getmodule(...)` against `legacy_app.__name__` and includes method/path/dependency details in the failure message; `pytest -q tests/test_legacy_export_aliases.py`, `make validate-changed`, and `pre-commit run --all-files` pass.
+Reason: Addresses Sourcery review feedback on robust module matching and assertion diagnostics.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1988#discussion_r3425005305 -> 312bfbac773b077ec83f8f42bc9595fcdb154faa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1988#pullrequestreview-4511526104 -> 312bfbac773b077ec83f8f42bc9595fcdb154faa
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py --mode analyze --path tests/test_legacy_export_aliases.py`
@@ -41,6 +48,10 @@ Reason: Fixes post-merge main CI failure from run `27657385344`, `test-main (3.1
 - PASS: `.venv/bin/black --check tests/test_legacy_export_aliases.py`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
+- PASS after Sourcery fix: `. .venv/bin/activate && pytest -q tests/test_legacy_export_aliases.py`
+- PASS after Sourcery fix: `.venv/bin/black tests/test_legacy_export_aliases.py && .venv/bin/ruff check tests/test_legacy_export_aliases.py`
+- PASS after Sourcery fix: `make validate-changed`
+- PASS after Sourcery fix: `pre-commit run --all-files`
 - PASS during push hooks: pip-audit, backend tests, full-repo Bandit, and docker
   build test.
 
@@ -61,7 +72,7 @@ commit decision.
 Not ready at artifact creation. Required before merge:
 
 - [x] Numbered fixed-mapping artifact created.
-- [ ] PR body mirror updated to point to this artifact and include exact
+- [x] PR body mirror updated to point to this artifact and include exact
   `## Scope`, `## Out of Scope`, and `## Tests` headings.
 - [ ] Current-head CI parity on latest pushed commit.
 - [ ] Strict merge-readiness check with `--require-auth`.
