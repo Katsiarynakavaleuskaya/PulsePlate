@@ -339,13 +339,12 @@ def test_web_session_cookie_remains_insecure_in_explicit_local_env(
     assert web_session._is_secure_cookie_environment() is False
 
 
-def test_synthetic_production_invariant_ci_checks() -> None:
-    previous_limiter = rate_limit.limiter
-    rate_limit.limiter = _FakeLimiter()
-    try:
-        run_synthetic_production_checks()
-    finally:
-        rate_limit.limiter = previous_limiter
+def test_synthetic_production_invariant_ci_checks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rate_limit, "limiter", _FakeLimiter())
+
+    run_synthetic_production_checks()
 
 
 def test_synthetic_ci_checker_covers_all_invariant_flag_constants() -> None:
