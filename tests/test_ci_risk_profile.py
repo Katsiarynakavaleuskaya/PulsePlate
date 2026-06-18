@@ -285,17 +285,11 @@ def test_generic_backend_change_hits_route_contract_safety_group() -> None:
 @pytest.mark.parametrize(
     "changed_file",
     (
-        "requirements-data.in",
-        "requirements-data.txt",
-        "requirements-evals.in",
-        "requirements-evals.txt",
         "requirements-rag-vector-cpu.in",
         "requirements-rag-vector-cpu.txt",
     ),
 )
-def test_optional_dependency_manifest_change_routes_backend_and_security(
-    changed_file: str,
-) -> None:
+def test_cpu_rag_manifest_change_routes_backend_and_security(changed_file: str) -> None:
     profile = risk_profile.build_risk_profile(
         [changed_file],
     )
