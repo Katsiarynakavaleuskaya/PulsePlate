@@ -109,9 +109,18 @@ before resolution.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: 8c7e51f37
+Evidence: `app/security/production_invariants.py`
+Evidence: `scripts/ci/check_production_runtime_invariants.py`
+Evidence: `tests/test_production_runtime_invariants.py::test_synthetic_ci_checker_covers_all_invariant_flag_constants`
+Reason: Sourcery review surfaced synthetic invariant drift and duplicate startup-helper concerns; the drift was fixed and the duplicate helper concern is covered by idempotent startup behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1992#pullrequestreview-4524528879 -> 8c7e51f37
+
+Disposition: FIXED
 Commit: 43c116bc4
 Evidence: `tests/test_production_runtime_invariants.py::test_synthetic_production_invariant_ci_checks`
 Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py` -> PASS
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1992#pullrequestreview-4524586993 -> 43c116bc4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1992#discussion_r3435535472 -> 43c116bc4
 
 Disposition: FIXED
@@ -119,6 +128,7 @@ Commit: b2ea2e419
 Evidence: `app/security/rate_limit.py`
 Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py` -> PASS
 Evidence: `.venv/bin/python -m mypy app/security/rate_limit.py` -> PASS
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1992#pullrequestreview-4524729900 -> b2ea2e419
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1992#discussion_r3435660191 -> b2ea2e419
 
 ## Deferred / Follow-Ups
