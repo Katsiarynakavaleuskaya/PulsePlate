@@ -15,6 +15,12 @@ manifests=("requirements.txt")
 if [[ -f "requirements-docker-runtime.txt" ]]; then
   manifests+=("requirements-docker-runtime.txt")
 fi
+if [[ -f "requirements-data.txt" ]]; then
+  manifests+=("requirements-data.txt")
+fi
+if [[ -f "requirements-evals.txt" ]]; then
+  manifests+=("requirements-evals.txt")
+fi
 if [[ -f "requirements-rag-vector.txt" ]]; then
   manifests+=("requirements-rag-vector.txt")
 fi

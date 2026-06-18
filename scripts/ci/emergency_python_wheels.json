@@ -1,6 +1,6 @@
 {
     "schema_version": 1,
-    "generated_at": "2026-06-16",
+    "generated_at": "2026-06-18",
     "expires_at": "2026-06-30",
     "reason": "Time-boxed mirror-lag bridge for the EXACT listed wheels only (manylinux x86_64 or pure wheel where applicable). NOT a generic Cloudflare 521 / proxy-outage fallback: if the approved private proxy is fully unhealthy, any locked install needing a wheel not enumerated in this manifest will still fail. Recovery is infra-owned: see RUNBOOK_AGENT.md (`Python private index proxy (PULSEPLATE_PYTHON_INDEX_URL) triage`) and BACKLOG_LEDGER.md (`ledger-p1-private-pypi-proxy-mirror-parity`).",
     "artifacts": [
@@ -67,6 +67,23 @@
             "filename": "pip-26.1.1-py3-none-any.whl",
             "url": "https://files.pythonhosted.org/packages/3a/eb/fea4d1d51c49832120f7f285d07306db3960f423a2612c6057caf3e8196f/pip-26.1.1-py3-none-any.whl",
             "sha256": "99cb1c2899893b075ff56e4ed0af55669a955b49ad7fb8d8603ecdaf4ed653fb"
+        },
+        {
+            "package": "setuptools",
+            "version": "78.1.1",
+            "expires_at": "2026-06-30",
+            "filename": "setuptools-78.1.1-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/90/99/158ad0609729111163fc1f674a5a42f2605371a4cf036d0441070e2f7455/setuptools-78.1.1-py3-none-any.whl",
+            "sha256_parts": [
+                "c3a9c421",
+                "1ff4c309",
+                "edb8b8c4",
+                "f1cbfa7a",
+                "e324c4ba",
+                "9f91ff25",
+                "4e3d305b",
+                "9fd54561"
+            ]
         },
         {
             "package": "faker",

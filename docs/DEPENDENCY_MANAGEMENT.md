@@ -11,6 +11,8 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements-docker-runtime.in` - Docker production runtime dependencies (high-level)
 - `requirements-rag-vector.in` - Optional vector/ML runtime dependencies (high-level)
 - `requirements-rag-vector-cpu.in` - Optional vector/ML runtime dependencies without CUDA (local-only, high-level)
+- `requirements-data.in` - Offline data-build dependencies (local/manual, high-level)
+- `requirements-evals.in` - Offline eval dependencies (local/manual, high-level)
 - `requirements.txt` - Compiled production dependencies with exact versions (auto-generated)
 - `requirements-docker-runtime.txt` - Compiled Docker production runtime dependencies with exact versions (auto-generated)
 - `requirements-dev.txt` - Compiled development dependencies with exact versions (auto-generated)
@@ -18,10 +20,15 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements-ci-lite.txt` - Compiled lightweight CI/control-plane dependencies (auto-generated)
 - `requirements-rag-vector.txt` - Compiled optional vector/ML runtime dependencies (auto-generated)
 - `requirements-rag-vector-cpu.txt` - Compiled optional vector/ML runtime dependencies without CUDA (auto-generated, local-only)
+- `requirements-data.txt` - Compiled offline data-build dependencies with exact versions (auto-generated, local/manual)
+- `requirements-evals.txt` - Compiled offline eval dependencies with exact versions (auto-generated, local/manual)
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
 
 `requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the heavy vector/ML runtime packages remain isolated in `requirements-rag-vector.txt`.
 `requirements-docker-runtime.txt` is the backend image contract for production-target Docker builds and excludes CI-only tooling.
+`requirements-data.txt` and `requirements-evals.txt` are local/manual offline
+profiles only. They are not shared GitHub Actions `requirements-profile` values
+and must not be installed by runtime, Docker, or generic CI lanes.
 
 ## CI Install Profiles
 
@@ -48,6 +55,33 @@ cannot cover the selected target without the `rag-vector` profile. Postgres
 vector test coverage remains in `requirements-test.txt` via `pgvector`; that is
 test tooling, not permission to install the optional ML runtime stack in generic
 CI lanes.
+
+## Local Manual Eval/Data Profiles
+
+`requirements-data.in` owns offline data-build dependencies for snapshot
+builders such as `scripts/build_food_db.py` and `scripts/build_recipe_db.py`.
+The compiled `requirements-data.txt` profile includes `pandas` plus explicit
+Parquet writer support through `pyarrow`, without changing the existing
+runtime, Docker, or CI-lite dependency ownership for `pyarrow`.
+
+`requirements-evals.in` owns offline eval dependencies for the local RAGAS
+companion runner. The compiled `requirements-evals.txt` profile includes
+`ragas` and `datasets`, but those packages must remain lazy-imported and must
+not become runtime, Docker, or generic CI dependencies. Keep `ragas<1.0` until
+`evals/ragas/run_ragas_eval.py` migrates from the current v0.4-compatible
+`evaluate` and module-level metric imports to the v1-compatible RAGAS API.
+
+Regenerate these local/manual profiles through the approved local package-proxy
+environment:
+
+```bash
+.venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url --output-file=requirements-data.txt requirements-data.in
+.venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url --output-file=requirements-evals.txt requirements-evals.in
+```
+
+These profiles are offline support surfaces. They do not change OpenAPI,
+provider behavior, RAG runtime behavior, semantic-cache policy, FoodDB runtime
+cutover, or legacy route ownership.
 
 ### About constraints.txt
 
@@ -118,12 +152,16 @@ If you need vector/ML runtime tooling on a machine without CUDA support, use the
 pip-sync requirements-rag-vector-cpu.txt
 ```
 
-### Security coverage registry for optional RAG/vector profiles
+### Security coverage registry for optional/manual dependency profiles
 
-Optional RAG/vector dependency profiles are high-risk supply-chain surfaces even
-when they are local-only or excluded from default runtime installs. The current
-security coverage registry is:
+Optional/manual dependency profiles are supply-chain surfaces even when they are
+local-only or excluded from default runtime installs. The current security
+coverage registry is:
 
+- `requirements-data.in`
+- `requirements-data.txt`
+- `requirements-evals.in`
+- `requirements-evals.txt`
 - `requirements-rag-vector.in`
 - `requirements-rag-vector.txt`
 - `requirements-rag-vector-cpu.in`
@@ -132,10 +170,12 @@ security coverage registry is:
 Every file in this registry must be covered consistently by Python dependency
 submission path filters and CI risk-profile routing. Every compiled lockfile in
 this registry must also be covered by the shared Safety audit helper and the
-pip-audit helper. The guard
-`tests/guards/test_security_devtooling_regression_guards.py` fails if a future
-`requirements-rag-vector*` profile is added without updating all security
-surfaces.
+pip-audit helper. The supply-chain guard in
+`tests/test_python_supply_chain_controls.py` fails if the local/manual eval/data
+profiles drift from those security surfaces. This registry does not make
+`requirements-data.txt` or `requirements-evals.txt` shared install profiles;
+they remain local/manual offline profiles and stay out of runtime, Docker, and
+generic CI installs.
 
 Canonical contract for shared CI/Docker/bootstrap paths:
 
@@ -203,6 +243,10 @@ pip-compile requirements-dev.in --upgrade -o requirements-dev.txt
 # Update optional vector/ML runtime dependencies
 pip-compile requirements-rag-vector.in --upgrade -o requirements-rag-vector.txt
 pip-compile requirements-rag-vector-cpu.in --upgrade -o requirements-rag-vector-cpu.txt
+
+# Recompile local/manual data and eval profiles
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-data.txt requirements-data.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-evals.txt requirements-evals.in
 
 # Install updated dependencies
 pip-sync requirements-dev.txt
