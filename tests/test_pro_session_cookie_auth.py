@@ -14,7 +14,11 @@ from starlette.requests import Request
 import app.routers.pro_session as pro_session_mod
 from app.main import app as main_app
 from app.middleware.api_tiers import AuthSource, SubscriptionTier, TEST_KEY_PRO, TierAuthContext
-from app.security.web_session import WEB_SESSION_COOKIE_NAME, issue_web_session
+from app.security.web_session import (
+    WEB_SESSION_COOKIE_NAME,
+    issue_web_session,
+    set_web_session_cookie,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -66,6 +70,22 @@ def test_exchange_success_sets_hardened_cookie(
     assert "Path=/" in set_cookie
     assert "samesite=lax" in set_cookie.lower()
     assert "secure" not in set_cookie.lower()
+
+
+def test_set_web_session_cookie_uses_environment_production_for_secure_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ENVIRONMENT=production should enable Secure even when APP_ENV is local."""
+
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("DEBUG", "false")
+
+    response = Response()
+    set_web_session_cookie(response=response, token="session-token", ttl_seconds=60)
+
+    set_cookie = response.headers.get("set-cookie", "")
+    assert "secure" in set_cookie.lower()
 
 
 def test_exchange_fail_invalid_key(isolated_client: TestClient) -> None:

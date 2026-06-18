@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import pytest
 from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
 
 import app
 import core.db as core_db
 from app.bootstrap import startup_guards as bootstrap_guards
+from app.security import rate_limit
 from tests.helpers.fast_update_stubs import patch_background_update_callables
 
 
@@ -160,10 +162,15 @@ async def test_lifespan_requires_valid_pro_llm_monthly_limit(
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("TESTING", "false")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
     monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
-    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET", "apple-shared-secret-for-tests"
+    )  # pragma: allowlist secret
+    monkeypatch.setenv(
+        "SERVER_SALT", "StrongServerSaltForTests123456789!"
+    )  # pragma: allowlist secret
     monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "invalid")
 
     with pytest.raises(RuntimeError, match="PRO_LLM_INSIGHT_REQUESTS_PER_MONTH"):
@@ -185,12 +192,23 @@ async def test_lifespan_accepts_valid_pro_llm_monthly_limit(
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("TESTING", "false")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
     monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
     monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
     monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+    monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
     monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+    monkeypatch.setenv("PRIVATE_EXPORTS_ENABLED", "true")
+    monkeypatch.setenv(
+        "EXPORT_TOKEN_SECRET", "export-token-secret-for-tests"
+    )  # pragma: allowlist secret
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://db/pulseplate")
+    monkeypatch.setattr(rate_limit, "limiter", SimpleNamespace(enabled=True))
+    monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
+    monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
 
     async with app.lifespan(app.app):
         pass
@@ -237,13 +255,17 @@ async def test_lifespan_requires_database_url_in_production_like_env(
         )
         monkeypatch.setenv("ENVIRONMENT", runtime_env)
         monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("TESTING", "false")
         monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
         monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+        monkeypatch.setenv("API_KEY_REQUIRED", "true")
         monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
         monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
         monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
         monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        monkeypatch.setenv("PRIVATE_EXPORTS_ENABLED", "true")
+        monkeypatch.setenv("EXPORT_TOKEN_SECRET", "export-token-secret-for-tests")
         monkeypatch.delenv("DATABASE_URL", raising=False)
         monkeypatch.delenv("DB_FALLBACK_URL", raising=False)
 

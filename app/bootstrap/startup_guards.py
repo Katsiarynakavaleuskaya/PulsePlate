@@ -12,6 +12,7 @@ from app.security.llm_monthly_quota import (
     require_pro_llm_monthly_limit,
     require_vip_llm_monthly_limit,
 )
+from app.security.production_invariants import assert_production_runtime_invariants
 from app.security.server_salt import require_server_salt
 from settings import (
     get_runtime_env_name,
@@ -54,3 +55,4 @@ def run_startup_guards() -> None:
     validate_apple_receipt_verification_config()
     validate_api_key_toggle_guard()
     _require_subscription_db_in_production_like_env()
+    assert_production_runtime_invariants()

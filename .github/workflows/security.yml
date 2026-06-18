@@ -42,6 +42,11 @@ jobs:
           fi
           python -m pip install "${pip_index_args[@]}" "safety>=3.8.1" -c constraints.txt
 
+      - name: Production runtime invariant guard
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_production_runtime_invariants.py --synthetic-production
+
       - name: Run Bandit (security lint)
         run: |
           set -euo pipefail

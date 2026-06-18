@@ -472,6 +472,11 @@ jobs:
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
+      - name: Production runtime invariant guard
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_production_runtime_invariants.py --synthetic-production
+
       - name: Security scan with Bandit
         run: |
           set -e
