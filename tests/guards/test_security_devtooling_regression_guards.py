@@ -519,6 +519,13 @@ def test_security_workflows_run_production_runtime_invariant_guard() -> None:
         assert "continue-on-error" not in script
 
 
+def test_ci_route_contract_suite_covers_production_runtime_invariants() -> None:
+    workflow_text = CI_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "route_contract_safety)" in workflow_text
+    assert "tests/test_production_runtime_invariants.py" in workflow_text
+
+
 def test_bandit_excludes_do_not_widen_in_ci_workflow() -> None:
     workflow = _workflow(CI_WORKFLOW)
     scan_step = _job_named_step(
