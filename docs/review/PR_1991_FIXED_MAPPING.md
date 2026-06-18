@@ -83,6 +83,8 @@ RAG runtime ownership.
   Report: `/tmp/codex-security-scans/BMI-App_2025_clean/8d5df6b0a_20260618T065434Z/report.md`.
 - `pulseplate-pr-review`: completed; advisory large-diff-risk accepted because
   the large diff is dominated by compiled lock content and focused gates passed.
+- Post-push CodeRabbit/Codex review pass found two actionables; both were fixed
+  in commit `41831d5da902f6f3fe6bf6e3a208715b0bb69242` and mapped below.
 - Current-head CI, strict disposition, and strict merge-readiness checks remain
   pending after this governance update is pushed.
 
@@ -107,6 +109,14 @@ Evidence: `tests/test_python_supply_chain_controls.py` defines `_requirement_ent
 Reason: CodeRabbit's type-hint finding self-corrected in the review body; the current code already has the requested type annotations.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522137731
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#discussion_r3433544084
+
+Disposition: FIXED
+Commit: 41831d5da902f6f3fe6bf6e3a208715b0bb69242
+Evidence: `requirements-evals.in`, `docs/DEPENDENCY_MANAGEMENT.md`, `docs/evals/RAGAS_SETUP.md`, `evals/AGENTS.md`, `tests/test_python_supply_chain_controls.py`, and this artifact's `## Merge Readiness` checklist.
+Reason: Adds `ragas<1.0` as a RAGAS v0.4 compatibility bound until the offline runner migrates to the v1-compatible API, and keeps the merge-readiness checklist unchecked until final gates actually pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522555948 -> 41831d5da902f6f3fe6bf6e3a208715b0bb69242
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522588294 -> 41831d5da902f6f3fe6bf6e3a208715b0bb69242
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#discussion_r3433887265 -> 41831d5da902f6f3fe6bf6e3a208715b0bb69242
 
 ## Local Validation Evidence
 
@@ -134,6 +144,10 @@ Reason: CodeRabbit's type-hint finding self-corrected in the review body; the cu
   (`164 passed`, existing Starlette/httpx deprecation warning)
 - PASS: `.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
   (`13 passed`, existing Starlette/httpx deprecation warning)
+- PASS: `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py`
+  (`56 passed`, existing Starlette/httpx deprecation warning)
+- PASS: `.venv/bin/python -m pytest -q tests/evals`
+  (`216 passed`, existing Starlette/httpx deprecation warning)
 - PASS: Codex Security diff scan / finding discovery for local head
   `8d5df6b0a6b2b4e562dd5df17060136777b4ca73`, with 6/6 worklist
   rows covered and no findings.
