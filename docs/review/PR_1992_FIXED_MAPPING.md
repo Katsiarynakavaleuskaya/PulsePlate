@@ -92,9 +92,19 @@ Post-open `qa-engineer-agent` findings:
     startup behavior while the new invariant guard adds stricter production
     posture checks.
 
+Post-open `bug-hunter` findings:
+
+- Rate-limit app wiring can still false-green if the call-site is removed:
+  FIXED
+  - Commit: `828fcbc0e`
+  - Evidence: `app/security/rate_limit.py`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_rate_limit_readiness_rejects_unwired_app_in_production`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
+
 Post-open governance still required:
 
-- `bug-hunter`
 - `security-auditor`
 - Codex Security diff scan when available
 - CodeRabbit when authenticated
@@ -118,6 +128,13 @@ Post-open governance still required:
     `tests/test_production_runtime_invariants.py::test_synthetic_ci_checker_covers_all_invariant_flag_constants`
   - Evidence: `scripts/ci/check_production_runtime_invariants.py`
   - Evidence: `app/security/production_invariants.py`
+- Post-open bug-hunter app-wiring fix: `828fcbc0e`
+  - Evidence: `app/security/rate_limit.py`
+  - Evidence: `scripts/ci/check_production_runtime_invariants.py`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_rate_limit_readiness_rejects_unwired_app_in_production`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
 
 ## Deferred / Follow-Ups
 
