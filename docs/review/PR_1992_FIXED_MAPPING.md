@@ -152,6 +152,10 @@ Post-open CodeRabbit findings:
   - Evidence:
     `tests/test_production_runtime_invariants.py::test_synthetic_production_invariant_ci_checks`
   - Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py`
+- Missing inline comment for intentional `app=None` fallback: FIXED
+  - Commit: `b2ea2e419`
+  - Evidence: `app/security/rate_limit.py`
+  - Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py`
 
 Post-open governance still required:
 
@@ -200,6 +204,8 @@ Post-open governance still required:
 - CodeRabbit synthetic limiter test cleanup: `43c116bc4`
   - Evidence:
     `tests/test_production_runtime_invariants.py::test_synthetic_production_invariant_ci_checks`
+- CodeRabbit app-none fallback comment: `b2ea2e419`
+  - Evidence: `app/security/rate_limit.py`
 
 ## Deferred / Follow-Ups
 
