@@ -42,7 +42,7 @@ def _require_subscription_db_in_production_like_env() -> None:
     )
 
 
-def run_startup_guards() -> None:
+def run_startup_guards(app: object | None = None) -> None:
     """Execute startup-time hard guards before the app serves traffic.
 
     RU: Выполняет обязательные startup guards до начала обработки запросов.
@@ -55,4 +55,4 @@ def run_startup_guards() -> None:
     validate_apple_receipt_verification_config()
     validate_api_key_toggle_guard()
     _require_subscription_db_in_production_like_env()
-    assert_production_runtime_invariants()
+    assert_production_runtime_invariants(app=app)

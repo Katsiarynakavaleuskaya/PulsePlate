@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 from unittest.mock import AsyncMock, patch
-from types import SimpleNamespace
 
 import app
 import core.db as core_db
@@ -206,10 +205,14 @@ async def test_lifespan_accepts_valid_pro_llm_monthly_limit(
         "EXPORT_TOKEN_SECRET", "export-token-secret-for-tests"
     )  # pragma: allowlist secret
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://db/pulseplate")
-    monkeypatch.setattr(rate_limit, "limiter", SimpleNamespace(enabled=True))
-    monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
-    monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
-    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
+    monkeypatch.setattr(
+        rate_limit,
+        "_is_rate_limiting_wired_for_app",
+        lambda target_app: target_app is app.app,
+    )
+    monkeypatch.setattr(rate_limit, "_rate_limiting_enabled", lambda: True)
+    if rate_limit.limiter is not None:
+        rate_limit.limiter.enabled = True
 
     async with app.lifespan(app.app):
         pass

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 
@@ -50,8 +53,7 @@ def _set_rate_limit_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(rate_limit, "limiter", _FakeLimiter())
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
-    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
-    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", {1})
 
 
 def test_production_runtime_invariants_accept_safe_profile(
@@ -168,12 +170,14 @@ def test_startup_guards_call_production_invariants(
         lambda: None,
     )
 
-    def _record_call() -> None:
-        called["value"] = True
+    def _record_call(*, app: object | None = None) -> None:
+        called["value"] = app is sentinel_app
 
     monkeypatch.setattr(startup_guards, "assert_production_runtime_invariants", _record_call)
 
-    startup_guards.run_startup_guards()
+    sentinel_app = object()
+
+    startup_guards.run_startup_guards(sentinel_app)
 
     assert called["value"] is True
 
@@ -233,7 +237,7 @@ def test_rate_limit_readiness_rejects_disabled_limiter_in_production(
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
     monkeypatch.setattr(rate_limit, "_rate_limiting_enabled", lambda: False)
-    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", {1})
 
     with pytest.raises(RuntimeError, match="Rate limiting must be enabled"):
         rate_limit.require_rate_limiting_ready_for_production()
@@ -247,7 +251,7 @@ def test_rate_limit_readiness_does_not_mutate_limiter_state(
     monkeypatch.setattr(rate_limit, "limiter", fake_limiter)
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
-    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", {1})
 
     with pytest.raises(RuntimeError, match="Rate limiting must be enabled"):
         rate_limit.require_rate_limiting_ready_for_production()
@@ -262,17 +266,18 @@ def test_rate_limit_readiness_rejects_unwired_app_in_production(
     monkeypatch.setattr(rate_limit, "limiter", _FakeLimiter())
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
-    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", False)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    app = FastAPI()
 
     with pytest.raises(RuntimeError, match="wired into the FastAPI app"):
-        rate_limit.require_rate_limiting_ready_for_production()
+        rate_limit.require_rate_limiting_ready_for_production(app=app)
 
 
 def test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TESTING", "false")
-    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", False)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
     app = FastAPI()
 
     rate_limit.wire_rate_limiting(app)
@@ -280,7 +285,28 @@ def test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware(
     assert app.state.limiter is rate_limit.limiter
     assert rate_limit.RateLimitExceeded in app.exception_handlers
     assert any(middleware.cls is rate_limit.SlowAPIMiddleware for middleware in app.user_middleware)
-    assert rate_limit._rate_limiting_app_wired is True
+    assert id(app) in rate_limit._rate_limiting_wired_app_ids
+    rate_limit.require_rate_limiting_ready_for_production(app=app)
+
+
+def test_legacy_app_wires_rate_limiting_to_serving_app_call_site() -> None:
+    module = ast.parse(Path("legacy_app.py").read_text(encoding="utf-8"))
+
+    assert any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "app.security.rate_limit"
+        and any(alias.name == "wire_rate_limiting" for alias in node.names)
+        for node in ast.walk(module)
+    )
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "wire_rate_limiting"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Name)
+        and node.args[0].id == "app"
+        for node in ast.walk(module)
+    )
 
 
 def test_rate_limit_readiness_allows_local_noop(

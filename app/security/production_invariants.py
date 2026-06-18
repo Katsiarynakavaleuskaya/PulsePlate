@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -106,7 +107,7 @@ def _require_private_exports_enabled() -> None:
         )
 
 
-def assert_production_runtime_invariants() -> None:
+def assert_production_runtime_invariants(app: Any | None = None) -> None:
     """Fail closed when production/staging runtime posture is unsafe."""
 
     if not is_production_like_env():
@@ -119,7 +120,7 @@ def assert_production_runtime_invariants() -> None:
     validate_apple_receipt_verification_config()
     _require_private_exports_enabled()
     _require_production_database_url()
-    require_rate_limiting_ready_for_production()
+    require_rate_limiting_ready_for_production(app=app)
 
 
 __all__ = [

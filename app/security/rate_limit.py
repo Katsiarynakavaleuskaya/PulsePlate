@@ -217,7 +217,7 @@ except ImportError:  # pragma: no cover - optional dependency
     SlowAPIMiddleware = None  # type: ignore[misc,assignment]
     _rate_limit_exceeded_handler = None  # type: ignore[assignment]
 
-_rate_limiting_app_wired = False
+_rate_limiting_wired_app_ids: set[int] = set()
 
 
 def _rate_limit_exceeded_json_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -292,12 +292,22 @@ def wire_rate_limiting(app: FastAPI) -> None:
     if SlowAPIMiddleware is not None:
         app.add_middleware(SlowAPIMiddleware)
 
-    global _rate_limiting_app_wired
-    _rate_limiting_app_wired = True
+    _rate_limiting_wired_app_ids.add(id(app))
     logger.info("Rate limiting enabled (slowapi)")
 
 
-def require_rate_limiting_ready_for_production() -> None:
+def _is_rate_limiting_wired_for_app(app: FastAPI | None) -> bool:
+    if app is None:
+        return bool(_rate_limiting_wired_app_ids)
+    return (
+        id(app) in _rate_limiting_wired_app_ids
+        and getattr(app.state, "limiter", None) is limiter
+        and RateLimitExceeded in app.exception_handlers
+        and any(middleware.cls is SlowAPIMiddleware for middleware in app.user_middleware)
+    )
+
+
+def require_rate_limiting_ready_for_production(app: FastAPI | None = None) -> None:
     """Fail closed when production/staging cannot enforce rate limits."""
 
     from settings import is_production_like_env, is_truthy_env_var
@@ -318,7 +328,7 @@ def require_rate_limiting_ready_for_production() -> None:
         )
     if not _rate_limiting_enabled() or not getattr(limiter, "enabled", True):
         raise RuntimeError("Rate limiting must be enabled in production/staging environments.")
-    if not _rate_limiting_app_wired:
+    if not _is_rate_limiting_wired_for_app(app):
         raise RuntimeError(
             "SlowAPI rate limiting must be wired into the FastAPI app before serving "
             "production/staging traffic."

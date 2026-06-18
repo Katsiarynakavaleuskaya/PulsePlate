@@ -93,9 +93,11 @@ _UNSAFE_TRUE_FLAG_OVERRIDES = {flag: {flag: "false"} for flag in PRODUCTION_TRUE
 
 def _expect_pass() -> None:
     with _patched_env(_safe_production_env()):
+        app = None
         if rate_limit.limiter is not None:
-            rate_limit.wire_rate_limiting(FastAPI())
-        assert_production_runtime_invariants()
+            app = FastAPI()
+            rate_limit.wire_rate_limiting(app)
+        assert_production_runtime_invariants(app=app)
 
 
 def _expect_failure(name: str, **overrides: str) -> None:
@@ -112,7 +114,7 @@ def run_synthetic_production_checks() -> None:
 
     limiter = rate_limit.limiter
     previous_limiter_enabled = getattr(limiter, "enabled", None)
-    previous_app_wired = getattr(rate_limit, "_rate_limiting_app_wired", False)
+    previous_wired_app_ids = set(rate_limit._rate_limiting_wired_app_ids)
     try:
         if limiter is not None:
             limiter.enabled = True
@@ -128,7 +130,8 @@ def run_synthetic_production_checks() -> None:
     finally:
         if limiter is not None and previous_limiter_enabled is not None:
             limiter.enabled = previous_limiter_enabled
-        rate_limit._rate_limiting_app_wired = previous_app_wired
+        rate_limit._rate_limiting_wired_app_ids.clear()
+        rate_limit._rate_limiting_wired_app_ids.update(previous_wired_app_ids)
 
 
 def main() -> int:
