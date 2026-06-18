@@ -213,8 +213,8 @@ def _requirement_entries(path: Path) -> list[Requirement]:
             continue
         try:
             requirements.append(Requirement(line))
-        except InvalidRequirement:
-            continue
+        except InvalidRequirement as exc:
+            raise AssertionError(f"{path.name}: invalid requirement entry: {line}") from exc
     return requirements
 
 
@@ -782,7 +782,15 @@ def test_eval_and_data_dependency_profiles_are_compiled_and_pinned() -> None:
         assert "PULSEPLATE_PYTHON_INDEX_URL" not in lock_text
         assert str(REPO_ROOT) not in lock_text
         assert "/Users/" not in lock_text
+        assert "http://" not in lock_text
         assert "https://" not in lock_text
+        assert "ssh://" not in lock_text
+        assert "file://" not in lock_text
+        assert "git+" not in lock_text
+        assert " @ " not in lock_text
+        assert "--find-links" not in lock_text
+        assert "--editable" not in lock_text
+        assert "\n-e " not in lock_text
         assert all(_requirement_is_exact_pin(requirement) for requirement in requirements)
 
 
@@ -931,8 +939,12 @@ def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:
 def test_dependency_submission_workflow_tracks_runtime_and_optional_manifests() -> None:
     workflow_events = _workflow_events(".github/workflows/python-dependency-submission.yml")
     expected_paths = {
+        "requirements-data.in",
+        "requirements-data.txt",
         "requirements-docker-runtime.in",
         "requirements-docker-runtime.txt",
+        "requirements-evals.in",
+        "requirements-evals.txt",
         "requirements-rag-vector.in",
         "requirements-rag-vector.txt",
         "requirements-rag-vector-cpu.in",
@@ -958,6 +970,10 @@ def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
     assert "python3 scripts/ci/run_safety_audit.py" in security_text
     assert "requirements-docker-runtime.txt" in safety_audit_text
     assert "requirements-docker-runtime.txt" in ci_pip_audit_text
+    assert "requirements-data.txt" in safety_audit_text
+    assert "requirements-data.txt" in ci_pip_audit_text
+    assert "requirements-evals.txt" in safety_audit_text
+    assert "requirements-evals.txt" in ci_pip_audit_text
     assert "requirements-rag-vector.txt" in safety_audit_text
     assert "requirements-rag-vector.txt" in ci_pip_audit_text
     assert "requirements-rag-vector-cpu.txt" in safety_audit_text
@@ -997,6 +1013,8 @@ fi
     for manifest in (
         "requirements.txt",
         "requirements-docker-runtime.txt",
+        "requirements-data.txt",
+        "requirements-evals.txt",
         "requirements-rag-vector.txt",
         "requirements-rag-vector-cpu.txt",
     ):
@@ -1004,11 +1022,11 @@ fi
 
     env = os.environ.copy()
     env["CI"] = "1"
-    env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+    env["PATH"] = os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin"))
     env["PIP_AUDIT_LOG"] = str(log_path)
 
     result = subprocess.run(
-        [str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
+        ["/bin/bash", str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
         cwd=tmp_path,
         env=env,
         text=True,
@@ -1021,7 +1039,17 @@ fi
         "-r requirements-rag-vector-cpu.txt -f json -o pip-audit-requirements-rag-vector-cpu.json"
         in log_path.read_text(encoding="utf-8")
     )
+    assert (
+        "-r requirements-data.txt -f json -o pip-audit-requirements-data.json"
+        in log_path.read_text(encoding="utf-8")
+    )
+    assert (
+        "-r requirements-evals.txt -f json -o pip-audit-requirements-evals.json"
+        in log_path.read_text(encoding="utf-8")
+    )
     assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
+    assert (tmp_path / "pip-audit-requirements-data.json").exists()
+    assert (tmp_path / "pip-audit-requirements-evals.json").exists()
 
 
 def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None:
@@ -1107,6 +1135,10 @@ def test_ci_risk_profile_tracks_runtime_and_optional_manifests() -> None:
 
     assert '"requirements-docker-runtime.in"' in risk_profile_text
     assert '"requirements-docker-runtime.txt"' in risk_profile_text
+    assert '"requirements-data.in"' in risk_profile_text
+    assert '"requirements-data.txt"' in risk_profile_text
+    assert '"requirements-evals.in"' in risk_profile_text
+    assert '"requirements-evals.txt"' in risk_profile_text
     assert '"requirements-rag-vector.in"' in risk_profile_text
     assert '"requirements-rag-vector.txt"' in risk_profile_text
     assert '"requirements-rag-vector-cpu.in"' in risk_profile_text

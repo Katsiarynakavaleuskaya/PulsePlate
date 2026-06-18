@@ -150,12 +150,16 @@ If you need vector/ML runtime tooling on a machine without CUDA support, use the
 pip-sync requirements-rag-vector-cpu.txt
 ```
 
-### Security coverage registry for optional RAG/vector profiles
+### Security coverage registry for optional/manual dependency profiles
 
-Optional RAG/vector dependency profiles are high-risk supply-chain surfaces even
-when they are local-only or excluded from default runtime installs. The current
-security coverage registry is:
+Optional/manual dependency profiles are supply-chain surfaces even when they are
+local-only or excluded from default runtime installs. The current security
+coverage registry is:
 
+- `requirements-data.in`
+- `requirements-data.txt`
+- `requirements-evals.in`
+- `requirements-evals.txt`
 - `requirements-rag-vector.in`
 - `requirements-rag-vector.txt`
 - `requirements-rag-vector-cpu.in`
@@ -166,8 +170,10 @@ submission path filters and CI risk-profile routing. Every compiled lockfile in
 this registry must also be covered by the shared Safety audit helper and the
 pip-audit helper. The guard
 `tests/guards/test_security_devtooling_regression_guards.py` fails if a future
-`requirements-rag-vector*` profile is added without updating all security
-surfaces.
+optional/manual dependency profile is added without updating all security
+surfaces. This registry does not make `requirements-data.txt` or
+`requirements-evals.txt` shared install profiles; they remain local/manual
+offline profiles and stay out of runtime, Docker, and generic CI installs.
 
 Canonical contract for shared CI/Docker/bootstrap paths:
 

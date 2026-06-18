@@ -185,6 +185,8 @@ def _report_path_from_scan_command(command: list[str]) -> Path:
 def test_discovers_required_and_optional_manifests(tmp_path: Path) -> None:
     _write_manifest(tmp_path, "requirements.txt")
     _write_manifest(tmp_path, "requirements-docker-runtime.txt")
+    _write_manifest(tmp_path, "requirements-data.txt")
+    _write_manifest(tmp_path, "requirements-evals.txt")
     _write_manifest(tmp_path, "requirements-rag-vector.txt")
     _write_manifest(tmp_path, "requirements-rag-vector-cpu.txt")
 
@@ -193,6 +195,8 @@ def test_discovers_required_and_optional_manifests(tmp_path: Path) -> None:
     assert [manifest.name for manifest in manifests] == [
         "requirements.txt",
         "requirements-docker-runtime.txt",
+        "requirements-data.txt",
+        "requirements-evals.txt",
         "requirements-rag-vector.txt",
         "requirements-rag-vector-cpu.txt",
     ]
@@ -243,6 +247,8 @@ def test_run_audit_emits_per_manifest_artifacts(
 ) -> None:
     _write_manifest(tmp_path, "requirements.txt")
     _write_manifest(tmp_path, "requirements-docker-runtime.txt")
+    _write_manifest(tmp_path, "requirements-data.txt")
+    _write_manifest(tmp_path, "requirements-evals.txt")
     _write_manifest(tmp_path, "requirements-rag-vector-cpu.txt")
     output_dir = tmp_path / "reports"
     commands: list[list[str]] = []
@@ -265,9 +271,15 @@ def test_run_audit_emits_per_manifest_artifacts(
 
     assert safety_audit.exit_code_for_results(results) == 0
     assert sorted(path.name for path in output_dir.glob("safety-*")) == [
+        "safety-requirements-data.json",
+        "safety-requirements-data.log",
+        "safety-requirements-data.txt",
         "safety-requirements-docker-runtime.json",
         "safety-requirements-docker-runtime.log",
         "safety-requirements-docker-runtime.txt",
+        "safety-requirements-evals.json",
+        "safety-requirements-evals.log",
+        "safety-requirements-evals.txt",
         "safety-requirements-rag-vector-cpu.json",
         "safety-requirements-rag-vector-cpu.log",
         "safety-requirements-rag-vector-cpu.txt",
@@ -276,6 +288,8 @@ def test_run_audit_emits_per_manifest_artifacts(
         "safety-requirements.txt",
     ]
     assert any("requirements-rag-vector-cpu.txt" in files for files in scan_target_files)
+    assert any("requirements-data.txt" in files for files in scan_target_files)
+    assert any("requirements-evals.txt" in files for files in scan_target_files)
     assert all("--target" in command for command in commands)
     assert all(
         command[:4] == ["/usr/bin/safety", "--stage", "cicd", "--disable-optional-telemetry"]

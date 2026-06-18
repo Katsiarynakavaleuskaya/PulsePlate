@@ -39,6 +39,10 @@ DOCS_LEAKAGE_GUARD_BASE_ENV = "PULSEPLATE_DOCS_LEAKAGE_GUARD_BASE"
 DOCS_LEAKAGE_GUARD_FETCH_DEPTH = "200"
 
 SECURITY_DEPENDENCY_PROFILE_FILES: tuple[str, ...] = (
+    "requirements-data.in",
+    "requirements-data.txt",
+    "requirements-evals.in",
+    "requirements-evals.txt",
     "requirements-rag-vector.in",
     "requirements-rag-vector.txt",
     "requirements-rag-vector-cpu.in",
@@ -390,10 +394,17 @@ def test_makefile_compose_project_name_override_is_preserved(tmp_path: Path) -> 
     assert _make_print_compose_project_name(tmp_path, env) == "custom"
 
 
-def test_optional_rag_vector_dependency_profiles_have_canonical_security_registry() -> None:
+def test_optional_dependency_profiles_have_canonical_security_registry() -> None:
     discovered = {
         path.name
-        for pattern in ("requirements-rag-vector*.in", "requirements-rag-vector*.txt")
+        for pattern in (
+            "requirements-data.in",
+            "requirements-data.txt",
+            "requirements-evals.in",
+            "requirements-evals.txt",
+            "requirements-rag-vector*.in",
+            "requirements-rag-vector*.txt",
+        )
         for path in REPO_ROOT.glob(pattern)
     }
 
