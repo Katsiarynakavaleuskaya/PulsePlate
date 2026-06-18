@@ -5,5 +5,6 @@
 -c requirements.txt
 
 # Heavy eval dependencies are lazy-imported by evals/ragas/run_ragas_eval.py.
-ragas
+# Keep RAGAS below v1 until the companion runner migrates from v0.4-compatible imports.
+ragas<1.0
 datasets

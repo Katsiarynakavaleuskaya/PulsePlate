@@ -141,12 +141,12 @@ Reason: CodeRabbit's type-hint finding self-corrected in the review body; the cu
 ## Merge Readiness
 
 - [ ] Current-head CI terminal success confirmed after governance update push.
-- [x] Post-open `qa-engineer-agent` pass completed.
-- [x] Post-open `bug-hunter` pass completed.
-- [x] Post-open `security-auditor` pass completed.
-- [x] Codex Security diff scan / finding discovery completed.
-- [x] `pulseplate-pr-review` completed.
-- [x] CodeRabbit / Sourcery / Cubic actionables checked and mapped or
+- [ ] Post-open `qa-engineer-agent` pass completed.
+- [ ] Post-open `bug-hunter` pass completed.
+- [ ] Post-open `security-auditor` pass completed.
+- [ ] Codex Security diff scan / finding discovery completed.
+- [ ] `pulseplate-pr-review` completed.
+- [ ] CodeRabbit / Sourcery / Cubic actionables checked and mapped or
   dispositioned on the current head.
 - [ ] Strict review-thread disposition passes with auth.
 - [ ] Strict merge-readiness guard passes with auth.

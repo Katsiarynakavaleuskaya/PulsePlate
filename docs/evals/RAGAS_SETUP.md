@@ -35,6 +35,8 @@
 - Do not add `ragas` or `datasets` to `requirements.txt` or `requirements-dev.txt`
 - Keep high-level eval declarations in `requirements-evals.in` and exact pins in
   compiled `requirements-evals.txt`
+- Keep `ragas<1.0` until `evals/ragas/run_ragas_eval.py` migrates from the
+  current v0.4-compatible imports to the v1-compatible RAGAS API
 - Keep `ragas` imports lazy inside the runner entrypoint
 - Do not call live providers or runtime routes from this lane
 - The CLI fails closed when known live LLM/embedding provider credential

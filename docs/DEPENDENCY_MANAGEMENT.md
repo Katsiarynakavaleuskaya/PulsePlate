@@ -67,7 +67,9 @@ runtime, Docker, or CI-lite dependency ownership for `pyarrow`.
 `requirements-evals.in` owns offline eval dependencies for the local RAGAS
 companion runner. The compiled `requirements-evals.txt` profile includes
 `ragas` and `datasets`, but those packages must remain lazy-imported and must
-not become runtime, Docker, or generic CI dependencies.
+not become runtime, Docker, or generic CI dependencies. Keep `ragas<1.0` until
+`evals/ragas/run_ragas_eval.py` migrates from the current v0.4-compatible
+`evaluate` and module-level metric imports to the v1-compatible RAGAS API.
 
 Regenerate these local/manual profiles through the approved local package-proxy
 environment:

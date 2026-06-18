@@ -764,6 +764,14 @@ def test_eval_and_data_dependency_profiles_are_compiled_and_pinned() -> None:
     eval_input = REPO_ROOT / "requirements-evals.in"
     assert _requirement_package_names(data_input) >= {"pandas", "pyarrow"}
     assert _requirement_package_names(eval_input) >= {"ragas", "datasets"}
+    eval_requirements = {
+        canonicalize_name(requirement.name): requirement
+        for requirement in _requirement_entries(eval_input)
+    }
+    assert any(
+        specifier.operator == "<" and Version(specifier.version) == Version("1.0")
+        for specifier in eval_requirements["ragas"].specifier
+    )
     assert "\n-c requirements.txt\n" in f"\n{data_input.read_text(encoding='utf-8')}\n"
     assert "\n-c requirements.txt\n" in f"\n{eval_input.read_text(encoding='utf-8')}\n"
 
@@ -838,6 +846,7 @@ def test_dependency_docs_describe_eval_and_data_profiles_as_local_manual() -> No
     assert "pandas" in dependency_docs
     assert "pyarrow" in dependency_docs
     assert "ragas" in dependency_docs
+    assert "ragas<1.0" in dependency_docs
     assert "datasets" in dependency_docs
     assert (
         ".venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url "
@@ -849,9 +858,11 @@ def test_dependency_docs_describe_eval_and_data_profiles_as_local_manual() -> No
     ) in dependency_docs
     assert "requirements-evals.in" in evals_agents
     assert "requirements-evals.txt" in evals_agents
+    assert "ragas<1.0" in evals_agents
     assert "lazy-imported" in evals_agents
     assert "requirements-evals.in" in ragas_setup
     assert "requirements-evals.txt" in ragas_setup
+    assert "ragas<1.0" in ragas_setup
     assert "--no-emit-index-url --output-file=requirements-evals.txt" in ragas_setup
 
 
