@@ -14,7 +14,7 @@ finding is limited to the optional vector profile.
 - **Remove-by:** 2026-07-17
 - **Backlog:** `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
 - **Safety policy:** `safety-policy.yaml`
-- **Last checked:** 2026-06-17
+- **Last checked:** 2026-06-18
 
 ## Current Repo State
 
@@ -28,7 +28,10 @@ finding is limited to the optional vector profile.
 - `requirements-rag-vector-cpu.txt`: Safety flags `torch==2.11.0+cpu`.
 - GitHub Advisory `GHSA-rrmf-rvhw-rf47`: affected `torch <= 2.12.0`.
   Patched versions: none.
-- PyPI latest `torch` release checked on 2026-06-17: `2.12.0`.
+- PyPI latest `torch` release observed on 2026-06-18: `2.12.1`, but the
+  GitHub Advisory Database still reports patched versions as none for
+  `GHSA-rrmf-rvhw-rf47`. Do not treat a newer release as fixed until advisory
+  and private-index evidence agree.
 - Safety `SFTY-20250331-30014`: affected versions `<=2.12.0`.
 
 ## Evidence Anchors

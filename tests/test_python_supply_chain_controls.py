@@ -84,9 +84,15 @@ LOCAL_MANUAL_EVAL_DATA_LOCKFILES = (
     "requirements-evals.txt",
 )
 LOCAL_MANUAL_EVAL_DATA_PACKAGES = (
-    "ragas",
+    "diskcache",
     "datasets",
+    "ragas",
     "pandas",
+)
+DISABLED_RAGAS_EVAL_PACKAGES = (
+    "diskcache",
+    "datasets",
+    "ragas",
 )
 DEFAULT_AND_TOOLING_REQUIREMENT_FILES = DEFAULT_INSTALL_REQUIREMENT_FILES + (
     "requirements-dev.in",
@@ -763,17 +769,15 @@ def test_eval_and_data_dependency_profiles_are_compiled_and_pinned() -> None:
     data_input = REPO_ROOT / "requirements-data.in"
     eval_input = REPO_ROOT / "requirements-evals.in"
     assert _requirement_package_names(data_input) >= {"pandas", "pyarrow"}
-    assert _requirement_package_names(eval_input) >= {"ragas", "datasets"}
-    eval_requirements = {
-        canonicalize_name(requirement.name): requirement
-        for requirement in _requirement_entries(eval_input)
-    }
-    assert any(
-        specifier.operator == "<" and Version(specifier.version) == Version("1.0")
-        for specifier in eval_requirements["ragas"].specifier
+    assert _requirement_package_names(eval_input).isdisjoint(
+        {canonicalize_name(package) for package in DISABLED_RAGAS_EVAL_PACKAGES}
     )
     assert "\n-c requirements.txt\n" in f"\n{data_input.read_text(encoding='utf-8')}\n"
-    assert "\n-c requirements.txt\n" in f"\n{eval_input.read_text(encoding='utf-8')}\n"
+    eval_input_text = eval_input.read_text(encoding="utf-8")
+    assert "\n-c requirements.txt\n" not in f"\n{eval_input_text}\n"
+    assert "GHSA-95ww-475f-pr4f" in eval_input_text
+    assert "GHSA-w8v5-vhqr-4h9v" in eval_input_text
+    assert "disabled" in eval_input_text
 
     for lockfile, source_file in expected_sources.items():
         lock_path = REPO_ROOT / lockfile
@@ -784,7 +788,10 @@ def test_eval_and_data_dependency_profiles_are_compiled_and_pinned() -> None:
         assert "--allow-unsafe --no-emit-index-url" in lock_text
         assert f"--output-file={lockfile}" in lock_text
         assert source_file in lock_text
-        assert requirements
+        if lockfile == "requirements-evals.txt":
+            assert not requirements
+        else:
+            assert requirements
         assert "--index-url" not in lock_text
         assert "--extra-index-url" not in lock_text
         assert "PULSEPLATE_PYTHON_INDEX_URL" not in lock_text
@@ -845,9 +852,10 @@ def test_dependency_docs_describe_eval_and_data_profiles_as_local_manual() -> No
     assert "scripts/build_recipe_db.py" in dependency_docs
     assert "pandas" in dependency_docs
     assert "pyarrow" in dependency_docs
-    assert "ragas" in dependency_docs
-    assert "ragas<1.0" in dependency_docs
-    assert "datasets" in dependency_docs
+    assert "RAGAS native execution is disabled" in dependency_docs
+    assert "GHSA-95ww-475f-pr4f" in dependency_docs
+    assert "GHSA-w8v5-vhqr-4h9v" in dependency_docs
+    assert "diskcache" in dependency_docs.casefold()
     assert (
         ".venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url "
         "--output-file=requirements-data.txt requirements-data.in"
@@ -858,11 +866,13 @@ def test_dependency_docs_describe_eval_and_data_profiles_as_local_manual() -> No
     ) in dependency_docs
     assert "requirements-evals.in" in evals_agents
     assert "requirements-evals.txt" in evals_agents
-    assert "ragas<1.0" in evals_agents
+    assert "RAGAS native execution is disabled" in evals_agents
     assert "lazy-imported" in evals_agents
     assert "requirements-evals.in" in ragas_setup
     assert "requirements-evals.txt" in ragas_setup
-    assert "ragas<1.0" in ragas_setup
+    assert "RAGAS native execution is disabled" in ragas_setup
+    assert "GHSA-95ww-475f-pr4f" in ragas_setup
+    assert "GHSA-w8v5-vhqr-4h9v" in ragas_setup
     assert "--no-emit-index-url --output-file=requirements-evals.txt" in ragas_setup
 
 
@@ -965,6 +975,79 @@ def test_dependency_submission_workflow_tracks_runtime_and_optional_manifests() 
     for event_name in ("push", "pull_request"):
         event_paths = set(workflow_events[event_name]["paths"])
         assert expected_paths <= event_paths
+
+
+def test_python_dependency_submission_uses_profile_scoped_graph_roots() -> None:
+    workflow = _load_workflow(".github/workflows/python-dependency-submission.yml")
+    jobs = workflow["jobs"]
+    action = "advanced-security/component-detection-dependency-submission-action@" + "".join(
+        (
+            "b876b8cc",
+            "341a5397",
+            "0394b33e",
+            "a0ca4e86",
+            "c25542de",
+        )
+    )
+
+    pr_validation_job = jobs["dependency-submission-pr-validation"]
+    assert pr_validation_job["if"] == "github.event_name == 'pull_request'"
+    assert pr_validation_job["permissions"] == {"contents": "read"}
+    assert "dependency submission API" in pr_validation_job["steps"][0]["run"]
+
+    expected_jobs = {
+        "runtime-dependency-submission": {
+            "correlator": "python-dependency-submission-runtime",
+            "root": "pulseplate-python-runtime-dependency-root",
+            "must_copy": ("requirements-ci-lite.txt", "requirements-docker-runtime.txt"),
+            "must_not_copy": ("requirements-evals.txt", "requirements-rag-vector.txt"),
+        },
+        "eval-data-dependency-submission": {
+            "correlator": "python-dependency-submission-eval-data",
+            "root": "pulseplate-python-eval-data-dependency-root",
+            "must_copy": ("requirements-data.txt", "requirements-evals.txt"),
+            "must_not_copy": ("requirements-ci-lite.txt", "requirements-rag-vector.txt"),
+        },
+        "rag-vector-dependency-submission": {
+            "correlator": "python-dependency-submission-rag-vector",
+            "root": "pulseplate-python-rag-vector-dependency-root",
+            "must_copy": ("requirements-rag-vector.txt", "requirements-rag-vector-cpu.txt"),
+            "must_not_copy": ("requirements-ci-lite.txt", "requirements-evals.txt"),
+        },
+    }
+    observed_correlators: set[str] = set()
+
+    for job_name, expectation in expected_jobs.items():
+        job = jobs[job_name]
+        assert job["if"] == "github.event_name != 'pull_request'"
+        checkout_step = next(
+            step for step in job["steps"] if step.get("uses") == PINNED_CHECKOUT_ACTION
+        )
+        assert checkout_step["with"] == {"persist-credentials": False}
+        prepare_step = next(
+            step for step in job["steps"] if step.get("name", "").startswith("Prepare ")
+        )
+        prepare_script = prepare_step["run"]
+        assert expectation["root"] in prepare_script
+        for manifest in expectation["must_copy"]:
+            assert manifest in prepare_script
+        for manifest in expectation["must_not_copy"]:
+            assert manifest not in prepare_script
+
+        submit_step = next(step for step in job["steps"] if step.get("uses") == action)
+        submit_with = submit_step["with"]
+        observed_correlators.add(submit_with["correlator"])
+        assert submit_with["correlator"] == expectation["correlator"]
+        assert submit_with["filePath"] == f"${{{{ runner.temp }}}}/{expectation['root']}"
+        assert submit_with["detectorsCategories"] == "Pip"
+        assert submit_with["detectorArgs"] == "Pip=EnableIfDefaultOff,SimplePip=EnableIfDefaultOff"
+
+    assert observed_correlators == {
+        "python-dependency-submission-runtime",
+        "python-dependency-submission-eval-data",
+        "python-dependency-submission-rag-vector",
+    }
+    assert "python-dependency-submission" not in observed_correlators
 
 
 def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:

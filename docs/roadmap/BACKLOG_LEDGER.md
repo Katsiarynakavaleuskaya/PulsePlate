@@ -712,12 +712,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (supply-chain / optional RAG-vector profile)
   - Target PR: PR2 security-alert sequence (land by 2026-07-17 or earlier if fixed torch builds are available)
   - Area: security / CI / dependencies / RAG-vector
-  - Reason (EN): Recheck on 2026-06-17 found GitHub Advisory
+  - Reason (EN): Recheck on 2026-06-18 found GitHub Advisory
     `GHSA-rrmf-rvhw-rf47` and Safety `SFTY-20250331-30014` still marking
     `torch <=2.12.0` as affected by `CVE-2025-3000`, with no patched torch
-    release available; PyPI latest torch was `2.12.0`. PulsePlate pins
-    `torch==2.11.0` / `torch==2.11.0+cpu` only in optional RAG/vector
-    manifests. `requirements.txt`, `requirements-ci-lite.txt`,
+    release listed in advisory metadata. PyPI has a newer `torch 2.12.1`
+    release, but it is not treated as fixed until advisory and approved
+    private-index evidence agree. PulsePlate pins `torch==2.11.0` /
+    `torch==2.11.0+cpu` only in optional RAG/vector manifests.
+    `requirements.txt`, `requirements-ci-lite.txt`,
     `requirements-docker-runtime.txt`, and `requirements-lock.txt` have no
     direct `torch` pin, so any CI-lite Dependabot alert is dependency graph lag
     unless a future diff reintroduces torch there. The waiver remains scoped to
@@ -739,6 +741,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       new remove-by date.
     - Remove `SFTY-20250331-30014` from `safety-policy.yaml` and close this
       ledger item in the same PR.
+
+<a id="ledger-p1-restore-ragas-companion-safe-deps"></a>
+- [ ] P1: Restore native RAGAS companion after safe dependency path exists
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (eval tooling / dependency security)
+  - Target PR: TBD after RAGAS / DiskCache advisories expose a patched path or
+    after the companion runner migrates to a replacement eval stack
+  - Area: evals / RAG release gates companion / dependency security
+  - Reason (EN): The consolidated dependency-security lane disables tracked
+    `ragas`, `datasets`, and transitive `diskcache` eval dependencies because
+    `GHSA-95ww-475f-pr4f` and `GHSA-w8v5-vhqr-4h9v` have no patched dependency
+    path. The local RAGAS runner remains importable and report-only, but native
+    RAGAS execution must stay disabled until the dependency path is safe.
+  - Links:
+    - `requirements-evals.in`
+    - `requirements-evals.txt`
+    - `docs/evals/RAGAS_SETUP.md`
+    - `evals/AGENTS.md`
+  - DoD:
+    - Re-check RAGAS, DiskCache, GitHub Advisory Database, OSV, and the approved
+      private Python index for patched-version truth before reintroducing pins.
+    - Either restore native RAGAS with safe locked dependencies and focused
+      runner tests, or migrate the companion runner to a replacement eval stack
+      without changing production runtime behavior.
+    - Keep `evals/` offline-only and subordinate to
+      `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`.
 
 <a id="ledger-p1-cryptography-private-index-sync"></a>
 - [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
@@ -11508,9 +11536,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remediate Storybook `ws` audit finding (`GHSA-96hv-2xvq-fx4p`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency security / frontend tooling remediation)
-  - Target PR: next frontend dependency lane after
-    `codex/fix-frontend-dompurify-js-yaml-alerts`
-  - Status: Opened from PR1 local audit residual on 2026-06-16
+  - Target PR: current consolidated dependency-security PR (PR-TBD)
+  - Status: In progress in the consolidated dependency-security lane opened
+    from the 2026-06-18 alert surge; originally opened from PR1 local audit
+    residual on 2026-06-16.
   - Reason: The `dompurify` / `js-yaml` remediation lane intentionally stays
     scoped to Dependabot alerts `#164`-`#171`, but
     `npm audit --audit-level=moderate --package-lock-only` still reports

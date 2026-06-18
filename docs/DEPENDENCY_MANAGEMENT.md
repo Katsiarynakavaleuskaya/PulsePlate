@@ -64,12 +64,13 @@ The compiled `requirements-data.txt` profile includes `pandas` plus explicit
 Parquet writer support through `pyarrow`, without changing the existing
 runtime, Docker, or CI-lite dependency ownership for `pyarrow`.
 
-`requirements-evals.in` owns offline eval dependencies for the local RAGAS
-companion runner. The compiled `requirements-evals.txt` profile includes
-`ragas` and `datasets`, but those packages must remain lazy-imported and must
-not become runtime, Docker, or generic CI dependencies. Keep `ragas<1.0` until
-`evals/ragas/run_ragas_eval.py` migrates from the current v0.4-compatible
-`evaluate` and module-level metric imports to the v1-compatible RAGAS API.
+`requirements-evals.in` owns the tracked offline eval dependency surface for
+the local RAGAS companion runner. RAGAS native execution is disabled while
+`GHSA-95ww-475f-pr4f` (RAGAS) and `GHSA-w8v5-vhqr-4h9v` (DiskCache) have no
+patched dependency path. The compiled `requirements-evals.txt` profile is
+therefore intentionally empty of `ragas`, `datasets`, and `diskcache` pins while
+the runner remains importable, report-only, and fail-closed when native RAGAS
+dependencies are unavailable.
 
 Regenerate these local/manual profiles through the approved local package-proxy
 environment:

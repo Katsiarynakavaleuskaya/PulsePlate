@@ -657,6 +657,109 @@ def test_npm_dependency_submission_covers_root_and_frontend_lockfiles() -> None:
     assert {"node_modules", "worktrees", ".venv"}.issubset(frontend_exclusions)
 
 
+def test_python_dependency_submission_uses_profile_scoped_lockfile_roots() -> None:
+    workflow = _workflow(PYTHON_DEPENDENCY_SUBMISSION)
+    events = _workflow_events(PYTHON_DEPENDENCY_SUBMISSION)
+
+    assert "pull_request_target" not in events
+    assert workflow["permissions"] == {"contents": "write", "id-token": "write"}
+
+    for event in ("push", "pull_request"):
+        event_block = events[event]
+        assert isinstance(event_block, dict), f"{event} block must be a mapping"
+        paths = set(event_block["paths"])
+        assert {
+            "requirements-ci-lite.txt",
+            "requirements-data.txt",
+            "requirements-evals.txt",
+            "requirements-rag-vector.txt",
+            "requirements-rag-vector-cpu.txt",
+            ".github/workflows/python-dependency-submission.yml",
+        }.issubset(paths)
+
+    action = "advanced-security/component-detection-dependency-submission-action@" + "".join(
+        (
+            "b876b8cc",
+            "341a5397",
+            "0394b33e",
+            "a0ca4e86",
+            "c25542de",
+        )
+    )
+    checkout_action = "actions/checkout@" + "".join(
+        (
+            "de0fac2e",
+            "4500dabe",
+            "0009e672",
+            "14ff5f54",
+            "47ce83dd",
+        )
+    )
+
+    jobs = workflow["jobs"]
+    pr_validation_job = jobs["dependency-submission-pr-validation"]
+    assert pr_validation_job["if"] == "github.event_name == 'pull_request'"
+    assert pr_validation_job["permissions"] == {"contents": "read"}
+    assert "dependency submission API" in pr_validation_job["steps"][0]["run"]
+
+    expected_jobs = {
+        "runtime-dependency-submission": (
+            "python-dependency-submission-runtime",
+            "pulseplate-python-runtime-dependency-root",
+            {"requirements-ci-lite.txt", "requirements-docker-runtime.txt", "requirements.txt"},
+            {"requirements-evals.txt", "requirements-rag-vector.txt"},
+        ),
+        "eval-data-dependency-submission": (
+            "python-dependency-submission-eval-data",
+            "pulseplate-python-eval-data-dependency-root",
+            {"requirements-data.txt", "requirements-evals.txt"},
+            {"requirements-ci-lite.txt", "requirements-rag-vector.txt"},
+        ),
+        "rag-vector-dependency-submission": (
+            "python-dependency-submission-rag-vector",
+            "pulseplate-python-rag-vector-dependency-root",
+            {"requirements-rag-vector.txt", "requirements-rag-vector-cpu.txt"},
+            {"requirements-ci-lite.txt", "requirements-evals.txt"},
+        ),
+    }
+    observed_correlators: set[str] = set()
+
+    for job_name, (
+        correlator,
+        graph_root,
+        expected_copies,
+        forbidden_copies,
+    ) in expected_jobs.items():
+        job = jobs[job_name]
+        assert job["if"] == "github.event_name != 'pull_request'"
+        assert job["timeout-minutes"] == ("${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}")
+        checkout = _job_action_step(workflow, job_id=job_name, action_name=checkout_action)
+        submit = _job_action_step(workflow, job_id=job_name, action_name=action)
+        prepare = next(step for step in job["steps"] if step.get("name", "").startswith("Prepare "))
+        prepare_script = str(prepare["run"])
+        submit_with = submit["with"]
+
+        assert checkout["with"] == {"persist-credentials": False}
+        assert graph_root in prepare_script
+        for manifest in expected_copies:
+            assert manifest in prepare_script
+        for manifest in forbidden_copies:
+            assert manifest not in prepare_script
+
+        observed_correlators.add(submit_with["correlator"])
+        assert submit_with["correlator"] == correlator
+        assert submit_with["filePath"] == f"${{{{ runner.temp }}}}/{graph_root}"
+        assert submit_with["detectorsCategories"] == "Pip"
+        assert submit_with["detectorArgs"] == "Pip=EnableIfDefaultOff,SimplePip=EnableIfDefaultOff"
+        assert "frontend" not in _csv_values(submit_with["directoryExclusionList"])
+
+    assert observed_correlators == {
+        "python-dependency-submission-runtime",
+        "python-dependency-submission-eval-data",
+        "python-dependency-submission-rag-vector",
+    }
+
+
 def test_judgment_validity_sidecars_only_use_symlink_safe_writer() -> None:
     module_path = REPO_ROOT / "scripts/evals/judgment_validity.py"
     writer_source = _function_source(module_path, "write_judgment_validity_sidecar")
