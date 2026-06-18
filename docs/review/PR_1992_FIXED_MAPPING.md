@@ -69,6 +69,23 @@ Attribution:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` because the
   accepted oracle-only result materially shaped validation and commit decision.
 
+## Codex Security Diff Scan
+
+Scan directory:
+`/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z`
+
+Disposition: PASS / no reportable findings
+
+Evidence:
+
+- Final markdown:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z/report.md`
+- Final HTML:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z/report.html`
+- Work ledger:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z/artifacts/02_discovery/work_ledger.jsonl`
+- Report validator: PASS
+
 ## Discussion Thread Pass
 
 No GitHub review threads existed at PR open.
@@ -116,11 +133,22 @@ Post-open `security-auditor` findings:
   - Evidence:
     `tests/test_production_runtime_invariants.py::test_legacy_app_wires_rate_limiting_to_serving_app_call_site`
 
+Post-open `pulseplate-pr-review` findings:
+
+- Large diff review-risk note over threshold: NOT-A-BUG
+  - Evidence: `/tmp/pulseplate_pr1992_review_report.md`
+  - Evidence: `make validate-changed` passed after committed diff selection
+  - Reason: The diff is larger than the advisory threshold because this PR adds
+    the runtime guard, synthetic CI guard, workflow wiring, deterministic tests,
+    security evidence, and required review-governance artifacts in one
+    coordinator-owned security lane. Scope stayed bounded to production runtime
+    invariants and did not include dependency/RAG/legacy extraction/FoodDB/auth
+    rewrite/OpenAPI/frontend/iOS/macOS work.
+
 Post-open governance still required:
 
 - Codex Security diff scan when available
 - CodeRabbit when authenticated
-- `pulseplate-pr-review`
 
 ## Fixed in Commit Mapping
 
@@ -156,6 +184,11 @@ Post-open governance still required:
     `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
   - Evidence:
     `tests/test_production_runtime_invariants.py::test_legacy_app_wires_rate_limiting_to_serving_app_call_site`
+- PulsePlate PR review large-diff note: NOT-A-BUG
+  - Evidence: `/tmp/pulseplate_pr1992_review_report.md`
+  - Evidence: `make validate-changed`
+  - Reason: Advisory review-planning note, not a behavioral defect; split
+    rationale and local gate evidence are documented above.
 
 ## Deferred / Follow-Ups
 
