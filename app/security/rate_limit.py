@@ -297,6 +297,8 @@ def wire_rate_limiting(app: FastAPI) -> None:
 
 
 def _is_rate_limiting_wired_for_app(app: FastAPI | None) -> bool:
+    # app=None is reserved for focused tests/CI that validate the other
+    # production invariants with a pre-populated wired-app receipt.
     if app is None:
         return bool(_rate_limiting_wired_app_ids)
     return (
