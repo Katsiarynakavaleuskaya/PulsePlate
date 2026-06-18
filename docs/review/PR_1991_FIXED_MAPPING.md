@@ -18,9 +18,9 @@ RAG runtime ownership.
   `docs/DEPENDENCY_MANAGEMENT.md`, `docs/evals/RAGAS_SETUP.md`,
   `evals/AGENTS.md`, `tests/test_python_supply_chain_controls.py`,
   `.github/workflows/python-dependency-submission.yml`,
+  `.secrets.baseline`, `scripts/ci/emergency_python_wheels.json`,
   `scripts/ci/ci_risk_profile.py`, `scripts/ci/run_safety_audit.py`,
-  `scripts/ci_pip_audit.sh`, `tests/test_ci_risk_profile.py`, and
-  `tests/test_run_safety_audit.py`.
+  and `scripts/ci_pip_audit.sh`.
 
 ## Premortem Closure
 
@@ -85,6 +85,11 @@ RAG runtime ownership.
   the large diff is dominated by compiled lock content and focused gates passed.
 - Post-push CodeRabbit/Codex review pass found two actionables; both were fixed
   in commit `41831d5da902f6f3fe6bf6e3a208715b0bb69242` and mapped below.
+- Current-head CI found a Python 3.11 `ci-lite` setup failure because the
+  approved package proxy did not yet mirror the exact `setuptools==78.1.1`
+  unsafe pin. Commit `191217ff48d393315fe23deac900b044426f5623` adds a
+  time-boxed exact-wheel fallback and the required detect-secrets baseline
+  update without changing runtime/Docker ownership.
 - Current-head CI, strict disposition, and strict merge-readiness checks remain
   pending after this governance update is pushed.
 
@@ -98,7 +103,7 @@ Reason: Adds compiled local/manual eval and data dependency locks, documents own
 
 Disposition: FIXED
 Commit: 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
-Evidence: `.github/workflows/python-dependency-submission.yml`, `scripts/ci/ci_risk_profile.py`, `scripts/ci/run_safety_audit.py`, `scripts/ci_pip_audit.sh`, `tests/test_ci_risk_profile.py`, `tests/test_run_safety_audit.py`, and `tests/test_python_supply_chain_controls.py`.
+Evidence: `.github/workflows/python-dependency-submission.yml`, `scripts/ci/ci_risk_profile.py`, `scripts/ci/run_safety_audit.py`, `scripts/ci_pip_audit.sh`, and `tests/test_python_supply_chain_controls.py`.
 Reason: Covers eval/data lockfiles in dependency-security routing and audit helpers, and extends direct URL/path/VCS/editable lockfile guards.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522122111 -> 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#discussion_r3433531112 -> 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
@@ -117,6 +122,11 @@ Reason: Adds `ragas<1.0` as a RAGAS v0.4 compatibility bound until the offline r
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522555948 -> 41831d5da902f6f3fe6bf6e3a208715b0bb69242
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522588294 -> 41831d5da902f6f3fe6bf6e3a208715b0bb69242
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#discussion_r3433887265 -> 41831d5da902f6f3fe6bf6e3a208715b0bb69242
+
+Disposition: FIXED
+Commit: 191217ff48d393315fe23deac900b044426f5623
+Evidence: `scripts/ci/emergency_python_wheels.json` and `.secrets.baseline`.
+Reason: Current-head `test-main (3.11, 60)` failed in `Setup Python environment` because the private package proxy lacked `setuptools==78.1.1`; the commit adds the exact sha256-verified fallback wheel with the existing 2026-06-30 TTL and commits the hook-generated detect-secrets baseline line updates.
 
 ## Local Validation Evidence
 
@@ -148,6 +158,10 @@ Reason: Adds `ragas<1.0` as a RAGAS v0.4 compatibility bound until the offline r
   (`56 passed`, existing Starlette/httpx deprecation warning)
 - PASS: `.venv/bin/python -m pytest -q tests/evals`
   (`216 passed`, existing Starlette/httpx deprecation warning)
+- PASS: `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py::test_repo_emergency_manifest_tracks_current_active_fallback_set tests/test_install_locked_python_requirements.py::test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected`
+  (`2 passed`, existing Starlette/httpx deprecation warning)
+- PASS: `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py tests/test_ci_risk_profile.py`
+  (`109 passed`, existing Starlette/httpx deprecation warning)
 - PASS: Codex Security diff scan / finding discovery for local head
   `8d5df6b0a6b2b4e562dd5df17060136777b4ca73`, with 6/6 worklist
   rows covered and no findings.
