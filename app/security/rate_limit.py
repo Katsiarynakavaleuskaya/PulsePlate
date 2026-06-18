@@ -217,6 +217,8 @@ except ImportError:  # pragma: no cover - optional dependency
     SlowAPIMiddleware = None  # type: ignore[misc,assignment]
     _rate_limit_exceeded_handler = None  # type: ignore[assignment]
 
+_rate_limiting_app_wired = False
+
 
 def _rate_limit_exceeded_json_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return JSON error envelope for 429 rate limit exceeded.
@@ -290,6 +292,8 @@ def wire_rate_limiting(app: FastAPI) -> None:
     if SlowAPIMiddleware is not None:
         app.add_middleware(SlowAPIMiddleware)
 
+    global _rate_limiting_app_wired
+    _rate_limiting_app_wired = True
     logger.info("Rate limiting enabled (slowapi)")
 
 
@@ -314,6 +318,11 @@ def require_rate_limiting_ready_for_production() -> None:
         )
     if not _rate_limiting_enabled() or not getattr(limiter, "enabled", True):
         raise RuntimeError("Rate limiting must be enabled in production/staging environments.")
+    if not _rate_limiting_app_wired:
+        raise RuntimeError(
+            "SlowAPI rate limiting must be wired into the FastAPI app before serving "
+            "production/staging traffic."
+        )
 
 
 LimitValue = str | Callable[[], str]

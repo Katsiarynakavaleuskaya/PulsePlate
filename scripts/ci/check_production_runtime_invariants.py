@@ -10,6 +10,8 @@ from contextlib import contextmanager
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
+from fastapi import FastAPI
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -91,6 +93,8 @@ _UNSAFE_TRUE_FLAG_OVERRIDES = {flag: {flag: "false"} for flag in PRODUCTION_TRUE
 
 def _expect_pass() -> None:
     with _patched_env(_safe_production_env()):
+        if rate_limit.limiter is not None:
+            rate_limit.wire_rate_limiting(FastAPI())
         assert_production_runtime_invariants()
 
 
@@ -108,6 +112,7 @@ def run_synthetic_production_checks() -> None:
 
     limiter = rate_limit.limiter
     previous_limiter_enabled = getattr(limiter, "enabled", None)
+    previous_app_wired = getattr(rate_limit, "_rate_limiting_app_wired", False)
     try:
         if limiter is not None:
             limiter.enabled = True
@@ -123,6 +128,7 @@ def run_synthetic_production_checks() -> None:
     finally:
         if limiter is not None and previous_limiter_enabled is not None:
             limiter.enabled = previous_limiter_enabled
+        rate_limit._rate_limiting_app_wired = previous_app_wired
 
 
 def main() -> int:

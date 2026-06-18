@@ -50,6 +50,8 @@ def _set_rate_limit_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(rate_limit, "limiter", _FakeLimiter())
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
+    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
 
 
 def test_production_runtime_invariants_accept_safe_profile(
@@ -231,6 +233,7 @@ def test_rate_limit_readiness_rejects_disabled_limiter_in_production(
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
     monkeypatch.setattr(rate_limit, "_rate_limiting_enabled", lambda: False)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
 
     with pytest.raises(RuntimeError, match="Rate limiting must be enabled"):
         rate_limit.require_rate_limiting_ready_for_production()
@@ -244,6 +247,7 @@ def test_rate_limit_readiness_does_not_mutate_limiter_state(
     monkeypatch.setattr(rate_limit, "limiter", fake_limiter)
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
+    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
 
     with pytest.raises(RuntimeError, match="Rate limiting must be enabled"):
         rate_limit.require_rate_limiting_ready_for_production()
@@ -251,10 +255,24 @@ def test_rate_limit_readiness_does_not_mutate_limiter_state(
     assert fake_limiter.enabled is False
 
 
+def test_rate_limit_readiness_rejects_unwired_app_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_safe_production_env(monkeypatch)
+    monkeypatch.setattr(rate_limit, "limiter", _FakeLimiter())
+    monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
+    monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
+    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", False)
+
+    with pytest.raises(RuntimeError, match="wired into the FastAPI app"):
+        rate_limit.require_rate_limiting_ready_for_production()
+
+
 def test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", False)
     app = FastAPI()
 
     rate_limit.wire_rate_limiting(app)
@@ -262,6 +280,7 @@ def test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware(
     assert app.state.limiter is rate_limit.limiter
     assert rate_limit.RateLimitExceeded in app.exception_handlers
     assert any(middleware.cls is rate_limit.SlowAPIMiddleware for middleware in app.user_middleware)
+    assert rate_limit._rate_limiting_app_wired is True
 
 
 def test_rate_limit_readiness_allows_local_noop(

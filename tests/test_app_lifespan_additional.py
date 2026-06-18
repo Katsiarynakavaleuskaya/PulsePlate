@@ -209,6 +209,7 @@ async def test_lifespan_accepts_valid_pro_llm_monthly_limit(
     monkeypatch.setattr(rate_limit, "limiter", SimpleNamespace(enabled=True))
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
+    monkeypatch.setattr(rate_limit, "_rate_limiting_app_wired", True)
 
     async with app.lifespan(app.app):
         pass
