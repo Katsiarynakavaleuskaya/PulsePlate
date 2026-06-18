@@ -217,6 +217,8 @@ except ImportError:  # pragma: no cover - optional dependency
     SlowAPIMiddleware = None  # type: ignore[misc,assignment]
     _rate_limit_exceeded_handler = None  # type: ignore[assignment]
 
+_rate_limiting_wired_app_ids: set[int] = set()
+
 
 def _rate_limit_exceeded_json_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return JSON error envelope for 429 rate limit exceeded.
@@ -290,7 +292,49 @@ def wire_rate_limiting(app: FastAPI) -> None:
     if SlowAPIMiddleware is not None:
         app.add_middleware(SlowAPIMiddleware)
 
+    _rate_limiting_wired_app_ids.add(id(app))
     logger.info("Rate limiting enabled (slowapi)")
+
+
+def _is_rate_limiting_wired_for_app(app: FastAPI | None) -> bool:
+    # app=None is reserved for focused tests/CI that validate the other
+    # production invariants with a pre-populated wired-app receipt.
+    if app is None:
+        return bool(_rate_limiting_wired_app_ids)
+    return (
+        id(app) in _rate_limiting_wired_app_ids
+        and getattr(app.state, "limiter", None) is limiter
+        and RateLimitExceeded in app.exception_handlers
+        and any(middleware.cls is SlowAPIMiddleware for middleware in app.user_middleware)
+    )
+
+
+def require_rate_limiting_ready_for_production(app: FastAPI | None = None) -> None:
+    """Fail closed when production/staging cannot enforce rate limits."""
+
+    from settings import is_production_like_env, is_truthy_env_var
+
+    if not is_production_like_env():
+        return
+    if is_truthy_env_var("TESTING", "false"):
+        raise RuntimeError(
+            "TESTING must be false in production/staging environments; "
+            "it can disable rate limiting."
+        )
+    if limiter is None:
+        raise RuntimeError("SlowAPI limiter is required in production/staging environments.")
+    if RateLimitExceeded is None or SlowAPIMiddleware is None:
+        raise RuntimeError(
+            "SlowAPI middleware and exception handler are required in "
+            "production/staging environments."
+        )
+    if not _rate_limiting_enabled() or not getattr(limiter, "enabled", True):
+        raise RuntimeError("Rate limiting must be enabled in production/staging environments.")
+    if not _is_rate_limiting_wired_for_app(app):
+        raise RuntimeError(
+            "SlowAPI rate limiting must be wired into the FastAPI app before serving "
+            "production/staging traffic."
+        )
 
 
 LimitValue = str | Callable[[], str]
@@ -328,6 +372,7 @@ __all__ = [
     "rate_limit_client_key",
     "wire_rate_limiting",
     "limit_if_available",
+    "require_rate_limiting_ready_for_production",
     "RATE_LIMIT_429_RESPONSES",
     "RateLimitErrorResponse",
     "RATE_LIMIT_INSIGHT",

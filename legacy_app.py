@@ -518,7 +518,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # RU: Делегируем startup hard guards в bootstrap seam, чтобы legacy layer оставался thin.
     # EN: Delegate startup hard guards to bootstrap seam to keep legacy layer thin.
-    run_startup_guards()
+    run_startup_guards(app)
 
     try:
         init_db()

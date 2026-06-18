@@ -472,6 +472,11 @@ jobs:
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
+      - name: Production runtime invariant guard
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_production_runtime_invariants.py --synthetic-production
+
       - name: Security scan with Bandit
         run: |
           set -e
@@ -755,6 +760,7 @@ jobs:
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
+                  tests/test_production_runtime_invariants.py \
                   tests/test_pro_vip_route_dependency_guard.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
@@ -1034,6 +1040,7 @@ jobs:
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
+                  tests/test_production_runtime_invariants.py \
                   tests/test_pro_vip_route_dependency_guard.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \

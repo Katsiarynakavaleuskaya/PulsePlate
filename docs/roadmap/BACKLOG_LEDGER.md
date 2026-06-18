@@ -2152,8 +2152,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Release environment security contract for `API_KEY_REQUIRED` and tier-gating env truth
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-RELEASE-ENV-SECURITY-CONTRACT
-  - Status: 📋 Planned
+  - Target PR: `codex/add-production-runtime-invariant-guards`
+  - Status: 🚧 In progress via production runtime invariant guard PR
   - Area: deploy / security / release operations
   - Finding Type: runtime env contract gap
   - Reason (EN): Repo docs describe `API_KEY_REQUIRED` and related auth/tier env flags, but there is no canonical release contract that makes staging/production values explicit and auditable. Without that contract, a release can drift into a weaker env posture than local docs imply.
@@ -2162,6 +2162,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docker-compose.yaml`
     - `README.md`
     - `docs/deploy/OVERVIEW.md`
+    - `docs/security/PRODUCTION_RUNTIME_INVARIANTS.md`
+    - `app/security/production_invariants.py`
+    - `scripts/ci/check_production_runtime_invariants.py`
   - DoD:
     - Canonical release-env doc defines expected values for `API_KEY_REQUIRED` and other auth/tier-critical env flags across local, staging, and production
     - Verification path for staging/prod env truth is documented and linked from release runbooks

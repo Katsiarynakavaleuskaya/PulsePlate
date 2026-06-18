@@ -51,6 +51,9 @@ PYTORCH_JIT_SAFETY_ID = "SFTY-20250331-30014"
 PYTORCH_JIT_CVE_ID = "CVE-2025-3000"
 PYTORCH_JIT_WAIVER_REMOVE_BY = "2026-07-17"
 BANDIT_SUMMARY_HELPER = "python3 scripts/ci/summarize_bandit_report.py"
+PRODUCTION_RUNTIME_INVARIANT_HELPER = (
+    "python3 scripts/ci/check_production_runtime_invariants.py --synthetic-production"
+)
 CI_BANDIT_EXCLUDES = {
     "tests",
     "tests_strict",
@@ -494,6 +497,33 @@ def test_security_scan_workflow_uses_shared_bandit_summary_helper() -> None:
     assert 'select(.issue_severity == "HIGH")' not in bandit_script
     assert "|| true" not in bandit_script
     assert "continue-on-error" not in bandit_script
+
+
+def test_security_workflows_run_production_runtime_invariant_guard() -> None:
+    for workflow_path, job_id in (
+        (CI_WORKFLOW, "security"),
+        (SECURITY_WORKFLOW, "bandit"),
+    ):
+        workflow = _workflow(workflow_path)
+        step = _job_named_step(
+            workflow,
+            job_id=job_id,
+            step_name="Production runtime invariant guard",
+        )
+        script = step["run"]
+
+        assert PRODUCTION_RUNTIME_INVARIANT_HELPER in script
+        assert "set -euo pipefail" in script
+        assert "|| true" not in script
+        assert "continue-on-error" not in step
+        assert "continue-on-error" not in script
+
+
+def test_ci_route_contract_suite_covers_production_runtime_invariants() -> None:
+    workflow_text = CI_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "route_contract_safety)" in workflow_text
+    assert "tests/test_production_runtime_invariants.py" in workflow_text
 
 
 def test_bandit_excludes_do_not_widen_in_ci_workflow() -> None:
