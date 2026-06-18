@@ -1,4 +1,4 @@
-# PR 1992 Fixed Mapping
+# PR 1992 Fixed in Commit Mapping
 
 PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1992
 
@@ -10,6 +10,22 @@ This PR adds fail-closed production runtime invariant guards for existing
 security posture assumptions without dependency updates, legacy extraction,
 OpenAPI changes, FoodDB/data migration, auth rewrite, frontend, iOS, or macOS
 runtime changes.
+
+## Scope
+
+- Add `app/security/production_invariants.py` for production/staging posture checks.
+- Add production fail-closed rate-limit readiness checks in
+  `app/security/rate_limit.py`.
+- Wire startup guards through `app/bootstrap/startup_guards.py` and pass the
+  serving FastAPI app from `legacy_app.py`.
+- Align secure-cookie production detection in `app/security/web_session.py`.
+- Add synthetic CI coverage, focused tests, and security evidence.
+
+## Out Of Scope
+
+Dependency updates, RAG/vector/torch alert handling, legacy route extraction,
+FoodDB/data migration, entitlement/auth architecture rewrite, OpenAPI changes,
+frontend, iOS, macOS, pyproject/uv migration, and runtime feature behavior.
 
 ## Operator Exceptions
 
@@ -26,186 +42,84 @@ runtime changes.
 - `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py tests/guards/test_security_devtooling_regression_guards.py tests/test_pro_session_cookie_auth.py tests/test_app_lifespan_additional.py tests/test_plan_export_additional.py tests/test_python_supply_chain_controls.py tests/test_app_public_surface.py tests/test_app_openapi_coverage.py tests/test_app_creation_coverage.py tests/test_openapi_namespace_guards.py tests/test_app_endpoints_combined.py` -> PASS
 - `.venv/bin/python scripts/ci/check_production_runtime_invariants.py --synthetic-production` -> PASS
 - `.venv/bin/python -m mypy app/security/production_invariants.py app/security/rate_limit.py app/security/web_session.py app/bootstrap/startup_guards.py scripts/ci/check_production_runtime_invariants.py` -> PASS
-- `make validate-changed` -> PASS; selected changed Python tests after commit
+- `make validate-changed` -> PASS
 - `pre-commit run --all-files` -> PASS
-- pre-push hooks -> PASS, including changed-file mypy, pip-audit, pre-push
+- Pre-push hooks -> PASS, including changed-file mypy, pip-audit, pre-push
   backend tests, full-repo Bandit, and docker build test
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/3112b85f242c.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Pre-open role order executed:
+  `agent-coordinator -> security-auditor -> backend-engineer -> qa-engineer-agent -> bug-hunter -> architecture-specialist`
+- Post-open role order executed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff scan -> pulseplate-pr-review`
 
 ## Premortem
 
 Artifact: `docs/review/PRODUCTION_RUNTIME_INVARIANTS_PREMORTEM.md`
 
-Dispositions:
+Disposition summary:
 
-- False-green startup/workflow guard risk: FIXED
-  - Evidence: `app/bootstrap/startup_guards.py`
-  - Evidence: `tests/test_production_runtime_invariants.py`
-  - Evidence: `tests/guards/test_security_devtooling_regression_guards.py`
-- Readiness guard mutation / malformed DB URL risk: FIXED
-  - Evidence: `app/security/rate_limit.py`
-  - Evidence: `app/security/production_invariants.py`
-  - Evidence: `tests/test_production_runtime_invariants.py`
-- Export placeholder hidden assumption risk: FIXED
-  - Evidence: `app/security/production_invariants.py`
-  - Evidence: `tests/test_production_runtime_invariants.py`
+- False-green startup/workflow guard risk: FIXED.
+- Readiness guard mutation / malformed DB URL risk: FIXED.
+- Export placeholder hidden assumption risk: FIXED.
 
-## Experiment Runner
+Evidence: `app/bootstrap/startup_guards.py`,
+`app/security/production_invariants.py`, `app/security/rate_limit.py`,
+`tests/test_production_runtime_invariants.py`, and
+`tests/guards/test_security_devtooling_regression_guards.py`.
 
-Packet: `artifacts/orchestration/experiments/production-runtime-invariants-oracle.json`
+## Experiment Runner Evidence
 
-Result: `artifacts/orchestration/experiments/results/production-runtime-invariants-oracle-result.json`
-
-Disposition: ACCEPTED
-
-Evidence:
-
-- Oracle 1 focused pytest -> PASS
-- Oracle 2 synthetic production invariant script -> PASS
-- Oracle 3 focused mypy -> PASS
-
-Attribution:
-
-- Commit `f45139cfb` includes
+- Packet: `artifacts/orchestration/experiments/production-runtime-invariants-oracle.json`
+- Artifact:
+  `artifacts/orchestration/experiments/results/production-runtime-invariants-oracle-result.json`
+- Status: accepted.
+- Oracle evidence: focused pytest passed, synthetic production invariant script
+  passed, and focused mypy passed.
+- Attribution: commit `f45139cfb` includes
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` because the
   accepted oracle-only result materially shaped validation and commit decision.
 
-## Codex Security Diff Scan
+## Post-Open Review Evidence
 
-Scan directory:
-`/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z`
-
-Disposition: PASS / no reportable findings
-
-Evidence:
-
-- Final markdown:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z/report.md`
-- Final HTML:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z/report.html`
-- Work ledger:
-  `/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z/artifacts/02_discovery/work_ledger.jsonl`
-- Report validator: PASS
+- `qa-engineer-agent`: FIXED valid app-wiring coverage and synthetic flag-drift
+  findings in `8c7e51f37`.
+- `bug-hunter`: FIXED app-wiring false-green risk in `828fcbc0e`.
+- `security-auditor`: FIXED global marker vs app-specific wiring risk in
+  `a8bffffe7`.
+- `pulseplate-pr-review`: NOT-A-BUG for large-diff advisory note. The scope is
+  bounded to one coordinator-owned production invariant lane, and
+  `make validate-changed` passed.
+- Codex Security diff scan: PASS / no reportable findings. Report directory:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/0b7fdef76_20260618T120841Z`.
+- CodeRabbit: two actionable findings fixed and resolved; see canonical mapping
+  entries below.
 
 ## Discussion Thread Pass
 
-No GitHub review threads existed at PR open.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-Post-open `qa-engineer-agent` findings:
-
-- Rate-limit readiness app-wiring coverage gap: FIXED
-  - Commit: `8c7e51f37`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
-- Synthetic CI helper drift against invariant flag constants: FIXED
-  - Commit: `8c7e51f37`
-  - Evidence: `app/security/production_invariants.py`
-  - Evidence: `scripts/ci/check_production_runtime_invariants.py`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_synthetic_ci_checker_covers_all_invariant_flag_constants`
-- Duplicate startup helper calls concern: NOT-A-BUG
-  - Evidence: `app/bootstrap/startup_guards.py`
-  - Evidence: `app/security/production_invariants.py`
-  - Reason: The calls are idempotent and intentionally preserve existing
-    startup behavior while the new invariant guard adds stricter production
-    posture checks.
-
-Post-open `bug-hunter` findings:
-
-- Rate-limit app wiring can still false-green if the call-site is removed:
-  FIXED
-  - Commit: `828fcbc0e`
-  - Evidence: `app/security/rate_limit.py`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_rate_limit_readiness_rejects_unwired_app_in_production`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
-
-Post-open `security-auditor` findings:
-
-- Rate-limit wiring marker is global, not app-specific: FIXED
-  - Commit: `a8bffffe7`
-  - Evidence: `app/security/rate_limit.py`
-  - Evidence: `app/security/production_invariants.py`
-  - Evidence: `app/bootstrap/startup_guards.py`
-  - Evidence: `legacy_app.py`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_legacy_app_wires_rate_limiting_to_serving_app_call_site`
-
-Post-open `pulseplate-pr-review` findings:
-
-- Large diff review-risk note over threshold: NOT-A-BUG
-  - Evidence: `/tmp/pulseplate_pr1992_review_report.md`
-  - Evidence: `make validate-changed` passed after committed diff selection
-  - Reason: The diff is larger than the advisory threshold because this PR adds
-    the runtime guard, synthetic CI guard, workflow wiring, deterministic tests,
-    security evidence, and required review-governance artifacts in one
-    coordinator-owned security lane. Scope stayed bounded to production runtime
-    invariants and did not include dependency/RAG/legacy extraction/FoodDB/auth
-    rewrite/OpenAPI/frontend/iOS/macOS work.
-
-Post-open CodeRabbit findings:
-
-- Manual limiter save/restore in synthetic invariant test: FIXED
-  - Commit: `43c116bc4`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_synthetic_production_invariant_ci_checks`
-  - Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py`
-- Missing inline comment for intentional `app=None` fallback: FIXED
-  - Commit: `b2ea2e419`
-  - Evidence: `app/security/rate_limit.py`
-  - Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py`
-
-Post-open governance still required:
-
-- Codex Security diff scan when available
-- CodeRabbit when authenticated
+All actionable review threads are recorded below with disposition and proof
+before resolution.
 
 ## Fixed in Commit Mapping
 
-- Initial implementation: `f45139cfb`
-  - Evidence: `app/security/production_invariants.py`
-  - Evidence: `app/security/rate_limit.py`
-  - Evidence: `app/security/web_session.py`
-  - Evidence: `app/bootstrap/startup_guards.py`
-  - Evidence: `scripts/ci/check_production_runtime_invariants.py`
-  - Evidence: `.github/workflows/ci.yml`
-  - Evidence: `.github/workflows/security.yml`
-  - Evidence: `tests/test_production_runtime_invariants.py`
-- Post-open QA gap fixes: `8c7e51f37`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_synthetic_ci_checker_covers_all_invariant_flag_constants`
-  - Evidence: `scripts/ci/check_production_runtime_invariants.py`
-  - Evidence: `app/security/production_invariants.py`
-- Post-open bug-hunter app-wiring fix: `828fcbc0e`
-  - Evidence: `app/security/rate_limit.py`
-  - Evidence: `scripts/ci/check_production_runtime_invariants.py`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_rate_limit_readiness_rejects_unwired_app_in_production`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
-- Post-open security app-specific wiring fix: `a8bffffe7`
-  - Evidence: `app/security/rate_limit.py`
-  - Evidence: `app/security/production_invariants.py`
-  - Evidence: `app/bootstrap/startup_guards.py`
-  - Evidence: `legacy_app.py`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_legacy_app_wires_rate_limiting_to_serving_app_call_site`
-- PulsePlate PR review large-diff note: NOT-A-BUG
-  - Evidence: `/tmp/pulseplate_pr1992_review_report.md`
-  - Evidence: `make validate-changed`
-  - Reason: Advisory review-planning note, not a behavioral defect; split
-    rationale and local gate evidence are documented above.
-- CodeRabbit synthetic limiter test cleanup: `43c116bc4`
-  - Evidence:
-    `tests/test_production_runtime_invariants.py::test_synthetic_production_invariant_ci_checks`
-- CodeRabbit app-none fallback comment: `b2ea2e419`
-  - Evidence: `app/security/rate_limit.py`
+Disposition: FIXED
+Commit: 43c116bc4
+Evidence: `tests/test_production_runtime_invariants.py::test_synthetic_production_invariant_ci_checks`
+Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py` -> PASS
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1992#discussion_r3435535472 -> 43c116bc4
+
+Disposition: FIXED
+Commit: b2ea2e419
+Evidence: `app/security/rate_limit.py`
+Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py` -> PASS
+Evidence: `.venv/bin/python -m mypy app/security/rate_limit.py` -> PASS
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1992#discussion_r3435660191 -> b2ea2e419
 
 ## Deferred / Follow-Ups
 
@@ -215,12 +129,11 @@ Post-open governance still required:
 
 ## Merge Readiness
 
-Status: NOT READY at artifact creation.
+Status: NOT READY while current-head PR CI is pending or failing.
 
 Required before merge:
 
 - Current-head PR CI parity.
 - No unresolved actionable human or bot review comments.
-- Post-open role passes and security review complete.
 - Strict merge-readiness with auth.
 - Mandatory wait-window after latest review/bot activity.

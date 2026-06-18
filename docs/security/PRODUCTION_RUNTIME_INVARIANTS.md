@@ -42,6 +42,15 @@ The script builds an in-memory synthetic production profile, verifies it passes,
 then verifies representative unsafe toggles fail closed. It does not print
 secret values or database URLs.
 
+Evidence anchors:
+
+- `app/security/production_invariants.py:110` defines the production runtime
+  invariant entrypoint.
+- `app/security/rate_limit.py:312` defines the production rate-limit readiness
+  guard.
+- `scripts/ci/check_production_runtime_invariants.py:112` runs the synthetic
+  safe/unsafe posture checks used by CI.
+
 ## Rollback
 
 If a deployment fails this guard, fix the runtime environment rather than
