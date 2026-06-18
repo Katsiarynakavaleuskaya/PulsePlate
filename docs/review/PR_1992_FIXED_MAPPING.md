@@ -71,11 +71,29 @@ Attribution:
 
 ## Discussion Thread Pass
 
-No review threads existed at PR open.
+No GitHub review threads existed at PR open.
+
+Post-open `qa-engineer-agent` findings:
+
+- Rate-limit readiness app-wiring coverage gap: FIXED
+  - Commit: `8c7e51f37`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
+- Synthetic CI helper drift against invariant flag constants: FIXED
+  - Commit: `8c7e51f37`
+  - Evidence: `app/security/production_invariants.py`
+  - Evidence: `scripts/ci/check_production_runtime_invariants.py`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_synthetic_ci_checker_covers_all_invariant_flag_constants`
+- Duplicate startup helper calls concern: NOT-A-BUG
+  - Evidence: `app/bootstrap/startup_guards.py`
+  - Evidence: `app/security/production_invariants.py`
+  - Reason: The calls are idempotent and intentionally preserve existing
+    startup behavior while the new invariant guard adds stricter production
+    posture checks.
 
 Post-open governance still required:
 
-- `qa-engineer-agent`
 - `bug-hunter`
 - `security-auditor`
 - Codex Security diff scan when available
@@ -93,6 +111,13 @@ Post-open governance still required:
   - Evidence: `.github/workflows/ci.yml`
   - Evidence: `.github/workflows/security.yml`
   - Evidence: `tests/test_production_runtime_invariants.py`
+- Post-open QA gap fixes: `8c7e51f37`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_synthetic_ci_checker_covers_all_invariant_flag_constants`
+  - Evidence: `scripts/ci/check_production_runtime_invariants.py`
+  - Evidence: `app/security/production_invariants.py`
 
 ## Deferred / Follow-Ups
 
