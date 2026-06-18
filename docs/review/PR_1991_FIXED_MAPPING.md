@@ -16,7 +16,12 @@ RAG runtime ownership.
 - Scope: `requirements-data.in`, `requirements-data.txt`,
   `requirements-evals.in`, `requirements-evals.txt`,
   `docs/DEPENDENCY_MANAGEMENT.md`, `docs/evals/RAGAS_SETUP.md`,
-  `evals/AGENTS.md`, and `tests/test_python_supply_chain_controls.py`.
+  `evals/AGENTS.md`, `tests/test_python_supply_chain_controls.py`,
+  `.github/workflows/python-dependency-submission.yml`,
+  `scripts/ci/ci_risk_profile.py`, `scripts/ci/run_safety_audit.py`,
+  `scripts/ci_pip_audit.sh`,
+  `tests/guards/test_security_devtooling_regression_guards.py`,
+  `tests/test_ci_risk_profile.py`, and `tests/test_run_safety_audit.py`.
 
 ## Premortem Closure
 
@@ -34,8 +39,9 @@ RAG runtime ownership.
 - `PM-PR1-003`: adding `pyarrow` to the data profile could be mistaken for a
   runtime ownership change. Disposition: NOT-A-BUG. Evidence:
   `docs/DEPENDENCY_MANAGEMENT.md` states the data profile preserves existing
-  runtime/CI ownership, and this diff has no Dockerfile, workflow, runtime
-  app/core, OpenAPI, legacy route, or `requirements-rag-vector*` changes.
+  runtime/CI ownership, and this diff has no Dockerfile, runtime app/core,
+  OpenAPI, legacy route, provider, or `requirements-rag-vector*` changes. The
+  workflow/script changes are dependency-security coverage only.
 
 ## Experiment Runner Evidence
 
@@ -65,9 +71,21 @@ RAG runtime ownership.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- No review threads were present to resolve at initial PR open.
-- Post-open role passes, bot comments, current-head CI, strict disposition, and
-  strict merge-readiness checks remain pending before any merge-readiness claim.
+- Initial PR-open thread pass found no existing review threads.
+- Post-open review comments from Sourcery, CodeRabbit, and Codex were checked
+  against current code and are mapped below.
+- Post-open `qa-engineer-agent` pass: PASS after commit
+  `8d5df6b0a6b2b4e562dd5df17060136777b4ca73`.
+- Post-open `bug-hunter` pass: PASS after commit
+  `8d5df6b0a6b2b4e562dd5df17060136777b4ca73`.
+- Post-open `security-auditor` pass: PASS after commit
+  `8d5df6b0a6b2b4e562dd5df17060136777b4ca73`.
+- Codex Security diff scan / finding discovery: PASS, no findings.
+  Report: `/tmp/codex-security-scans/BMI-App_2025_clean/8d5df6b0a_20260618T065434Z/report.md`.
+- `pulseplate-pr-review`: completed; advisory large-diff-risk accepted because
+  the large diff is dominated by compiled lock content and focused gates passed.
+- Current-head CI, strict disposition, and strict merge-readiness checks remain
+  pending after this governance update is pushed.
 
 ## Fixed in Commit Mapping
 
@@ -76,6 +94,20 @@ Commit: ffd1341b16c4ee77f7b3c4607d9c8bcbc1a5cdbf
 Evidence: `requirements-data.in`, `requirements-data.txt`, `requirements-evals.in`, `requirements-evals.txt`, `docs/DEPENDENCY_MANAGEMENT.md`, `docs/evals/RAGAS_SETUP.md`, `evals/AGENTS.md`, and `tests/test_python_supply_chain_controls.py`.
 Reason: Adds compiled local/manual eval and data dependency locks, documents ownership boundaries, and guards against runtime/Docker/CI-lite leakage.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991 -> ffd1341b16c4ee77f7b3c4607d9c8bcbc1a5cdbf
+
+Disposition: FIXED
+Commit: 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
+Evidence: `.github/workflows/python-dependency-submission.yml`, `scripts/ci/ci_risk_profile.py`, `scripts/ci/run_safety_audit.py`, `scripts/ci_pip_audit.sh`, `tests/guards/test_security_devtooling_regression_guards.py`, `tests/test_ci_risk_profile.py`, `tests/test_run_safety_audit.py`, and `tests/test_python_supply_chain_controls.py`.
+Reason: Covers eval/data lockfiles in dependency-security routing and audit helpers, and extends direct URL/path/VCS/editable lockfile guards.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522122111 -> 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#discussion_r3433531112 -> 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#discussion_r3433563105 -> 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
+
+Disposition: NOT-A-BUG
+Evidence: `tests/test_python_supply_chain_controls.py` defines `_requirement_entries(path: Path) -> list[Requirement]` and `_requirement_is_exact_pin(requirement: Requirement) -> bool`; affected test functions also use `-> None`.
+Reason: CodeRabbit's type-hint finding self-corrected in the review body; the current code already has the requested type annotations.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522137731
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#discussion_r3433544084
 
 ## Local Validation Evidence
 
@@ -97,16 +129,25 @@ Reason: Adds compiled local/manual eval and data dependency locks, documents own
 - PASS: Experiment Runner oracle artifact
   `artifacts/orchestration/experiments/results/exp-787b8e706155.json`
   accepted
+- PASS: focused security/dependency bundle after commit
+  `8d5df6b0a6b2b4e562dd5df17060136777b4ca73`:
+  `.venv/bin/python -m pytest -q tests/test_ci_risk_profile.py tests/guards/test_security_devtooling_regression_guards.py tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py`
+  (`164 passed`, existing Starlette/httpx deprecation warning)
+- PASS: `.venv/bin/python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
+  (`13 passed`, existing Starlette/httpx deprecation warning)
+- PASS: Codex Security diff scan / finding discovery for local head
+  `8d5df6b0a6b2b4e562dd5df17060136777b4ca73`, with 6/6 worklist
+  rows covered and no findings.
 
 ## Merge Readiness
 
-- [ ] Current-head CI terminal success confirmed.
-- [ ] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit / Sourcery / Cubic actionables checked and mapped or
+- [ ] Current-head CI terminal success confirmed after governance update push.
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
+- [x] Post-open `security-auditor` pass completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
+- [x] CodeRabbit / Sourcery / Cubic actionables checked and mapped or
   dispositioned on the current head.
 - [ ] Strict review-thread disposition passes with auth.
 - [ ] Strict merge-readiness guard passes with auth.
