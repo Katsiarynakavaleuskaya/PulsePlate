@@ -33,6 +33,8 @@
 ## Hard Rules
 - Do not import `evals/` from `app/`, `core/`, `frontend/`, or `ios/`
 - Do not add `ragas` or `datasets` to `requirements.txt` or `requirements-dev.txt`
+- Keep high-level eval declarations in `requirements-evals.in` and exact pins in
+  compiled `requirements-evals.txt`
 - Keep `ragas` imports lazy inside the runner entrypoint
 - Do not call live providers or runtime routes from this lane
 - The CLI fails closed when known live LLM/embedding provider credential
@@ -69,7 +71,12 @@ Notes:
 - Only synthetic or curated content is allowed in the committed dataset.
 
 ## Installation
+Install the local/manual eval profile only when running this offline companion
+lane. If dependency inputs changed, regenerate the lock first through the
+approved local package-proxy environment:
+
 ```bash
+.venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url --output-file=requirements-evals.txt requirements-evals.in
 pip install -r requirements-evals.txt
 ```
 

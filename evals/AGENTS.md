@@ -9,7 +9,7 @@ It must never become part of request-path runtime.
 ## Hard rules
 - Do not import from `evals/` inside `app/`, `core/`, `frontend/`, or `ios/`
 - Heavy eval dependencies (`ragas`, `datasets`, future judge libs) must be lazy-imported inside CLI entrypoints
-- Do not add eval dependencies to `requirements.txt` or `requirements-dev.txt`; keep them in `requirements-evals.txt`
+- Do not add eval dependencies to `requirements.txt` or `requirements-dev.txt`; keep high-level declarations in `requirements-evals.in` and exact pins in compiled `requirements-evals.txt`
 - Generated reports are local artifacts and must not be committed
 - Bootstrap eval PRs are report-only by default
 - Semantic cache, graph retrieval, and provider behavior changes are out of scope for eval bootstrap PRs

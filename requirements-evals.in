@@ -1,0 +1,9 @@
+# Offline eval profile for local RAGAS companion reports.
+#
+# Local/manual only: do not install from runtime, Docker, or generic CI profiles.
+
+-c requirements.txt
+
+# Heavy eval dependencies are lazy-imported by evals/ragas/run_ragas_eval.py.
+ragas
+datasets

@@ -1,0 +1,12 @@
+# Offline data-build profile for food and recipe snapshot builders.
+#
+# Local/manual only: do not install from runtime, Docker, or generic CI profiles.
+
+-c requirements.txt
+
+# CSV -> Parquet/SQLite builders in scripts/build_food_db.py and scripts/build_recipe_db.py.
+pandas
+
+# Keep Parquet writer support explicit for local data-build lanes while preserving
+# current runtime/CI ownership in requirements.in and requirements-ci-lite.in.
+pyarrow>=20.0.0,<25.0.0
