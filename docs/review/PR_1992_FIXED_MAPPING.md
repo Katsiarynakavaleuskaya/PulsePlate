@@ -145,6 +145,14 @@ Post-open `pulseplate-pr-review` findings:
     invariants and did not include dependency/RAG/legacy extraction/FoodDB/auth
     rewrite/OpenAPI/frontend/iOS/macOS work.
 
+Post-open CodeRabbit findings:
+
+- Manual limiter save/restore in synthetic invariant test: FIXED
+  - Commit: `43c116bc4`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_synthetic_production_invariant_ci_checks`
+  - Evidence: `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py`
+
 Post-open governance still required:
 
 - Codex Security diff scan when available
@@ -189,6 +197,9 @@ Post-open governance still required:
   - Evidence: `make validate-changed`
   - Reason: Advisory review-planning note, not a behavioral defect; split
     rationale and local gate evidence are documented above.
+- CodeRabbit synthetic limiter test cleanup: `43c116bc4`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_synthetic_production_invariant_ci_checks`
 
 ## Deferred / Follow-Ups
 
