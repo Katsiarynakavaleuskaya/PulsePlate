@@ -14,7 +14,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.security.production_invariants import assert_production_runtime_invariants
+from app.security.production_invariants import (
+    PRODUCTION_FALSE_FLAGS,
+    PRODUCTION_TRUE_FLAGS,
+    assert_production_runtime_invariants,
+)
 from app.security import rate_limit
 
 _MANAGED_ENV = (
@@ -81,12 +85,8 @@ def _safe_production_env(**overrides: str) -> dict[str, str]:
     return env
 
 
-# fmt: off
-UNSAFE_DEV_KEY_OVERRIDE = {"ALLOW_DEV_API_KEY": "true"}  # pragma: allowlist secret
-UNSAFE_ANONYMOUS_KEYS_OVERRIDE = {"ALLOW_ANONYMOUS_API_KEYS": "true"}  # pragma: allowlist secret
-UNSAFE_API_KEY_REQUIRED_OVERRIDE = {"API_KEY_REQUIRED": "false"}  # pragma: allowlist secret
-UNSAFE_SUBSCRIPTION_DB_OVERRIDE = {"SUBSCRIPTION_DB_ENABLED": "false"}
-# fmt: on
+_UNSAFE_FALSE_FLAG_OVERRIDES = {flag: {flag: "true"} for flag in PRODUCTION_FALSE_FLAGS}
+_UNSAFE_TRUE_FLAG_OVERRIDES = {flag: {flag: "false"} for flag in PRODUCTION_TRUE_FLAGS}
 
 
 def _expect_pass() -> None:
@@ -112,15 +112,12 @@ def run_synthetic_production_checks() -> None:
         if limiter is not None:
             limiter.enabled = True
         _expect_pass()
-        _expect_failure("debug flag", DEBUG="true")
-        _expect_failure("testing flag", TESTING="true")
-        _expect_failure("dev key toggle", **UNSAFE_DEV_KEY_OVERRIDE)
-        _expect_failure("anonymous key toggle", **UNSAFE_ANONYMOUS_KEYS_OVERRIDE)
-        _expect_failure("api requirement disabled", **UNSAFE_API_KEY_REQUIRED_OVERRIDE)
-        _expect_failure("subscription db disabled", **UNSAFE_SUBSCRIPTION_DB_OVERRIDE)
-        _expect_failure("test routes enabled", ENABLE_TEST_ROUTES="1")
-        _expect_failure("debug endpoint enabled", ENABLE_DEBUG_ENDPOINT="true")
-        _expect_failure("metrics test bypass enabled", METRICS_TEST_BYPASS="true")
+        for flag in PRODUCTION_FALSE_FLAGS:
+            override = _UNSAFE_FALSE_FLAG_OVERRIDES[flag]
+            _expect_failure(f"{flag} enabled", **override)
+        for flag in PRODUCTION_TRUE_FLAGS:
+            override = _UNSAFE_TRUE_FLAG_OVERRIDES[flag]
+            _expect_failure(f"{flag} disabled", **override)
         _expect_failure("private exports disabled", PRIVATE_EXPORTS_ENABLED="false")
         _expect_failure("sqlite database url", DATABASE_URL="sqlite:///cache/app.db")
     finally:

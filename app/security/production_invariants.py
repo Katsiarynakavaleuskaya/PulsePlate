@@ -18,8 +18,8 @@ from settings import (
     validate_apple_receipt_verification_config,
 )
 
-_PRODUCTION_TRUE_FLAGS = ("API_KEY_REQUIRED", "SUBSCRIPTION_DB_ENABLED")
-_PRODUCTION_FALSE_FLAGS = (
+PRODUCTION_TRUE_FLAGS = ("API_KEY_REQUIRED", "SUBSCRIPTION_DB_ENABLED")
+PRODUCTION_FALSE_FLAGS = (
     "ALLOW_DEV_API_KEY",
     "ALLOW_ANONYMOUS_API_KEYS",
     "DEBUG",
@@ -46,7 +46,7 @@ def _runtime_env_label() -> str:
 def _require_truthy_env_flags() -> None:
     """Require production/staging flags that must be explicitly enabled."""
 
-    missing = [flag for flag in _PRODUCTION_TRUE_FLAGS if not is_truthy_env_var(flag, "false")]
+    missing = [flag for flag in PRODUCTION_TRUE_FLAGS if not is_truthy_env_var(flag, "false")]
     if missing:
         joined = ", ".join(missing)
         raise RuntimeError(
@@ -58,7 +58,7 @@ def _require_truthy_env_flags() -> None:
 def _reject_truthy_env_flags() -> None:
     """Reject dev/test/debug escape hatches in production/staging."""
 
-    invalid = [flag for flag in _PRODUCTION_FALSE_FLAGS if is_truthy_env_var(flag, "false")]
+    invalid = [flag for flag in PRODUCTION_FALSE_FLAGS if is_truthy_env_var(flag, "false")]
     if invalid:
         joined = ", ".join(invalid)
         raise RuntimeError(
@@ -122,4 +122,8 @@ def assert_production_runtime_invariants() -> None:
     require_rate_limiting_ready_for_production()
 
 
-__all__ = ["assert_production_runtime_invariants"]
+__all__ = [
+    "PRODUCTION_FALSE_FLAGS",
+    "PRODUCTION_TRUE_FLAGS",
+    "assert_production_runtime_invariants",
+]

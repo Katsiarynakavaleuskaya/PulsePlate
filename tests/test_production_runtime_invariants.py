@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import pytest
+from fastapi import FastAPI
 
 from app.bootstrap import startup_guards
 from app.security import production_invariants, rate_limit, web_session
-from scripts.ci.check_production_runtime_invariants import run_synthetic_production_checks
+from scripts.ci.check_production_runtime_invariants import (
+    _UNSAFE_FALSE_FLAG_OVERRIDES,
+    _UNSAFE_TRUE_FLAG_OVERRIDES,
+    run_synthetic_production_checks,
+)
 
 
 class _FakeLimiter:
@@ -246,6 +251,19 @@ def test_rate_limit_readiness_does_not_mutate_limiter_state(
     assert fake_limiter.enabled is False
 
 
+def test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "false")
+    app = FastAPI()
+
+    rate_limit.wire_rate_limiting(app)
+
+    assert app.state.limiter is rate_limit.limiter
+    assert rate_limit.RateLimitExceeded in app.exception_handlers
+    assert any(middleware.cls is rate_limit.SlowAPIMiddleware for middleware in app.user_middleware)
+
+
 def test_rate_limit_readiness_allows_local_noop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -283,3 +301,8 @@ def test_synthetic_production_invariant_ci_checks() -> None:
         run_synthetic_production_checks()
     finally:
         rate_limit.limiter = previous_limiter
+
+
+def test_synthetic_ci_checker_covers_all_invariant_flag_constants() -> None:
+    assert set(_UNSAFE_FALSE_FLAG_OVERRIDES) == set(production_invariants.PRODUCTION_FALSE_FLAGS)
+    assert set(_UNSAFE_TRUE_FLAG_OVERRIDES) == set(production_invariants.PRODUCTION_TRUE_FLAGS)
