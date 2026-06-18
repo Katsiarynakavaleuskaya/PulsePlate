@@ -103,9 +103,21 @@ Post-open `bug-hunter` findings:
   - Evidence:
     `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
 
+Post-open `security-auditor` findings:
+
+- Rate-limit wiring marker is global, not app-specific: FIXED
+  - Commit: `a8bffffe7`
+  - Evidence: `app/security/rate_limit.py`
+  - Evidence: `app/security/production_invariants.py`
+  - Evidence: `app/bootstrap/startup_guards.py`
+  - Evidence: `legacy_app.py`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_legacy_app_wires_rate_limiting_to_serving_app_call_site`
+
 Post-open governance still required:
 
-- `security-auditor`
 - Codex Security diff scan when available
 - CodeRabbit when authenticated
 - `pulseplate-pr-review`
@@ -135,6 +147,15 @@ Post-open governance still required:
     `tests/test_production_runtime_invariants.py::test_rate_limit_readiness_rejects_unwired_app_in_production`
   - Evidence:
     `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
+- Post-open security app-specific wiring fix: `a8bffffe7`
+  - Evidence: `app/security/rate_limit.py`
+  - Evidence: `app/security/production_invariants.py`
+  - Evidence: `app/bootstrap/startup_guards.py`
+  - Evidence: `legacy_app.py`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware`
+  - Evidence:
+    `tests/test_production_runtime_invariants.py::test_legacy_app_wires_rate_limiting_to_serving_app_call_site`
 
 ## Deferred / Follow-Ups
 
