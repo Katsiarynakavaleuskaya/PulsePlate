@@ -19,9 +19,8 @@ RAG runtime ownership.
   `evals/AGENTS.md`, `tests/test_python_supply_chain_controls.py`,
   `.github/workflows/python-dependency-submission.yml`,
   `scripts/ci/ci_risk_profile.py`, `scripts/ci/run_safety_audit.py`,
-  `scripts/ci_pip_audit.sh`,
-  `tests/guards/test_security_devtooling_regression_guards.py`,
-  `tests/test_ci_risk_profile.py`, and `tests/test_run_safety_audit.py`.
+  `scripts/ci_pip_audit.sh`, `tests/test_ci_risk_profile.py`, and
+  `tests/test_run_safety_audit.py`.
 
 ## Premortem Closure
 
@@ -97,7 +96,7 @@ Reason: Adds compiled local/manual eval and data dependency locks, documents own
 
 Disposition: FIXED
 Commit: 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
-Evidence: `.github/workflows/python-dependency-submission.yml`, `scripts/ci/ci_risk_profile.py`, `scripts/ci/run_safety_audit.py`, `scripts/ci_pip_audit.sh`, `tests/guards/test_security_devtooling_regression_guards.py`, `tests/test_ci_risk_profile.py`, `tests/test_run_safety_audit.py`, and `tests/test_python_supply_chain_controls.py`.
+Evidence: `.github/workflows/python-dependency-submission.yml`, `scripts/ci/ci_risk_profile.py`, `scripts/ci/run_safety_audit.py`, `scripts/ci_pip_audit.sh`, `tests/test_ci_risk_profile.py`, `tests/test_run_safety_audit.py`, and `tests/test_python_supply_chain_controls.py`.
 Reason: Covers eval/data lockfiles in dependency-security routing and audit helpers, and extends direct URL/path/VCS/editable lockfile guards.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#pullrequestreview-4522122111 -> 8d5df6b0a6b2b4e562dd5df17060136777b4ca73
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1991#discussion_r3433531112 -> 8d5df6b0a6b2b4e562dd5df17060136777b4ca73

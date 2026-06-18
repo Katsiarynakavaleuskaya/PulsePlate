@@ -168,12 +168,12 @@ coverage registry is:
 Every file in this registry must be covered consistently by Python dependency
 submission path filters and CI risk-profile routing. Every compiled lockfile in
 this registry must also be covered by the shared Safety audit helper and the
-pip-audit helper. The guard
-`tests/guards/test_security_devtooling_regression_guards.py` fails if a future
-optional/manual dependency profile is added without updating all security
-surfaces. This registry does not make `requirements-data.txt` or
-`requirements-evals.txt` shared install profiles; they remain local/manual
-offline profiles and stay out of runtime, Docker, and generic CI installs.
+pip-audit helper. The supply-chain guard in
+`tests/test_python_supply_chain_controls.py` fails if the local/manual eval/data
+profiles drift from those security surfaces. This registry does not make
+`requirements-data.txt` or `requirements-evals.txt` shared install profiles;
+they remain local/manual offline profiles and stay out of runtime, Docker, and
+generic CI installs.
 
 Canonical contract for shared CI/Docker/bootstrap paths:
 
