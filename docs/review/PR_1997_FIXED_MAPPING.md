@@ -114,9 +114,18 @@ passed after the premortem.
 
 ## Post-Open Review Evidence
 
-Pending. This artifact was created immediately after PR open and before
-post-open bot/human review. Mandatory post-open role review and Codex Security
-scan/finding discovery remain required before merge-readiness.
+- `qa-engineer-agent`: FIXED valid governance checklist and diff-coverage
+  findings in `54e9ef7f5`. Evidence:
+  `docs/review/PR_1997_FIXED_MAPPING.md` uses unchecked merge-readiness
+  checklist items, and focused diff-cover reported `app/main.py (100%)`,
+  `app/routers/plan_export.py (100%)`, total changed-line coverage `100%`.
+- CodeRabbit: FIXED merge-readiness checklist finding in `54e9ef7f5`.
+  Evidence: `docs/review/PR_1997_FIXED_MAPPING.md` now uses unchecked
+  checklist items under `Required before merge`.
+- Codex Security diff scan / finding discovery: unavailable in this Codex
+  runtime. `tool_search` did not expose callable Codex Security scan tools.
+- `bug-hunter`, `security-auditor`, and `pulseplate-pr-review`: pending after
+  the `54e9ef7f5` fix commit.
 
 ## Discussion Thread Pass
 
@@ -129,7 +138,15 @@ after any new bot or human review activity.
 
 ## Fixed in Commit Mapping
 
-No GitHub review-thread mappings yet.
+Disposition: FIXED
+
+Commit: 54e9ef7f5
+
+Evidence: `docs/review/PR_1997_FIXED_MAPPING.md` uses unchecked
+merge-readiness checklist items; focused diff-cover reports 100% changed-line
+coverage for `app/main.py` and `app/routers/plan_export.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#discussion_r3444327264 -> 54e9ef7f5
 
 ## Deferred / Follow-Ups
 
