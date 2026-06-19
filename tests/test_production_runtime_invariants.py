@@ -329,6 +329,16 @@ def test_web_session_secure_cookie_uses_canonical_environment(
     assert web_session._is_secure_cookie_environment() is True
 
 
+def test_web_session_cookie_is_secure_when_runtime_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("DEBUG", "false")
+
+    assert web_session._is_secure_cookie_environment() is True
+
+
 def test_web_session_cookie_remains_insecure_in_explicit_local_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

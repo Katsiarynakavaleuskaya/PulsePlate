@@ -21,13 +21,14 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Response
 
 from app.security.server_salt import require_server_salt
-from settings import is_explicit_developer_env, is_production_like_env
+from settings import is_production_like_env
 
 WEB_SESSION_COOKIE_NAME = "pp_web_session"
 WEB_SESSION_TTL_ENV = "WEB_SESSION_TTL_SECONDS"
 DEFAULT_WEB_SESSION_TTL_SECONDS = 60 * 60 * 12  # 12h
 _COOKIE_PATH = "/"
 _COOKIE_SAMESITE: Literal["lax"] = "lax"
+_DEVELOPER_COOKIE_ENVS = frozenset({"local", "dev", "development", "test", "testing", "ci"})
 _SESSION_SIGNATURE_ITERATIONS = 20_000
 # RU/EN: Допуск рассинхрона часов для `iat` (not-before), секунды.
 _SESSION_IAT_CLOCK_SKEW_SECONDS = 120
@@ -309,12 +310,21 @@ def verify_web_session(
     )
 
 
+def _is_explicit_developer_cookie_environment() -> bool:
+    """Return whether cookie Secure may be disabled by explicit dev env labels."""
+
+    return any(
+        (os.getenv(name) or "").strip().lower() in _DEVELOPER_COOKIE_ENVS
+        for name in ("APP_ENV", "ENVIRONMENT")
+    )
+
+
 def _is_secure_cookie_environment() -> bool:
     """Return Secure-cookie mode (fail-closed by default)."""
 
     if is_production_like_env():
         return True
-    return not is_explicit_developer_env()
+    return not _is_explicit_developer_cookie_environment()
 
 
 def set_web_session_cookie(
