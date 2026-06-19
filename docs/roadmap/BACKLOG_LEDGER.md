@@ -24,6 +24,17 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-first-class-auth-principal-mapping"></a>
+- [ ] P1: First-class authenticated principal mapping for API-key-derived subjects
+  - Owner: @katsiaryna_kavaleuskaya (Backend / Security)
+  - Priority: P1
+  - Target PR: Follow-up after PR-3 auth/tier/BOLA contract pack
+  - Status: Open
+  - Area: security / auth / subject isolation
+  - Reason (EN): Current backend contract derives subject principals from authenticated API keys for adherence, nutrition, feedback, RAG, and paid-tier route isolation. PR-3 records and tests that contract, but the long-term auth model still needs first-class user-authentication mapping and operational alerting for suspicious cross-subject attempts without moving product truth into clients.
+  - Links: `docs/security/SEC-001-bayes-adherence-horizontal-privilege-escalation.md`, `docs/security/API_AUTH_TIER_BOLA_CONTRACT_PACK.md`, `tests/security/_api_authz_contracts.py`, `docs/contracts/RAG_CONTRACT.md`
+  - DoD: Define the canonical authenticated principal model; migrate API-key-derived subject mapping without breaking existing paid-tier/API-key contracts; add deterministic migration and cross-principal negative tests; document rollback and alerting behavior; preserve wellness-only boundaries and keep OpenAPI/client changes in a separately reviewed contract if required.
+
 <a id="ledger-p1-semantic-cache-cost-provenance-train"></a>
 - [ ] P1: Semantic cache cost provenance and context-economy PR train
   - Owner: @katsiaryna_kavaleuskaya (AI runtime / orchestration governance)

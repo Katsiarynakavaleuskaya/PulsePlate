@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
-
 from fastapi import FastAPI
-from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
 from app.routers.billing import _require_manual_billing_transport_key
 from app.routers.api_key import api_key_header
+from tests.security._api_authz_contracts import (
+    _contains_dependency,
+    _dependency_key,
+    _flatten_dependency_calls,
+    _load_routes,
+)
 
 CANONICAL_PREFIX_GUARD = {
     "/api/v1/pro/": require_pro_tier,
@@ -30,27 +32,6 @@ PRE_ENTITLEMENT_ROUTE_ALLOWLIST = {
 }
 
 
-def _load_routes(app: FastAPI) -> list[APIRoute]:
-    return [route for route in app.routes if isinstance(route, APIRoute)]
-
-
-def _flatten_dependency_calls(route: APIRoute) -> list[Callable[..., Any]]:
-    seen: set[int] = set()
-    calls: list[Callable[..., Any]] = []
-
-    def visit(dep: Dependant) -> None:
-        call = getattr(dep, "call", None)
-        if callable(call) and id(call) not in seen:
-            seen.add(id(call))
-            calls.append(call)
-        for child in getattr(dep, "dependencies", []) or []:
-            visit(child)
-
-    for dep in getattr(route.dependant, "dependencies", []) or []:
-        visit(dep)
-    return calls
-
-
 def _canonical_pro_vip_routes(routes: list[APIRoute]) -> list[APIRoute]:
     canonical: list[APIRoute] = []
     for route in routes:
@@ -61,26 +42,6 @@ def _canonical_pro_vip_routes(routes: list[APIRoute]) -> list[APIRoute]:
         if route.path.startswith("/api/v1/pro/") or route.path.startswith("/api/v1/vip/"):
             canonical.append(route)
     return canonical
-
-
-def _dependency_key(call: Callable[..., Any]) -> tuple[str, str]:
-    module_name = getattr(call, "__module__", type(call).__module__)
-    qualified_name = getattr(
-        call,
-        "__qualname__",
-        getattr(call, "__name__", type(call).__name__),
-    )
-    return module_name, qualified_name
-
-
-def _contains_dependency(
-    flattened_calls: list[Callable[..., Any]],
-    expected_dependency: Callable[..., Any],
-) -> bool:
-    if expected_dependency in flattened_calls:
-        return True
-    expected_key = _dependency_key(expected_dependency)
-    return any(_dependency_key(call) == expected_key for call in flattened_calls)
 
 
 def test_canonical_pro_vip_routes_require_expected_tier_dependency(app: FastAPI) -> None:
@@ -113,7 +74,7 @@ def test_canonical_pro_vip_routes_require_expected_tier_dependency(app: FastAPI)
                         f"got [{names}]"
                     )
                 break
-            if expected_guard not in flattened_calls:
+            if not _contains_dependency(flattened_calls, expected_guard):
                 methods = ",".join(sorted(route.methods))
                 names = ", ".join(
                     getattr(call, "__name__", type(call).__name__) for call in flattened_calls
