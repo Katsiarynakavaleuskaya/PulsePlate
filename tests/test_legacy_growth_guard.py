@@ -448,6 +448,50 @@ def test_legacy_growth_guard_rejects_legal_router_import() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_plan_export_router_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.plan_export import export_router, plan_router
+
+        app.include_router(export_router, dependencies=[protected_dependency])
+        app.include_router(plan_router, dependencies=[protected_dependency])
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:export_router",
+        "legacy_app.py: unexpected legacy route growth: " "registration:include_router:plan_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.plan_export:export_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.plan_export:plan_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_reintroduced_aliased_plan_export_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.plan_export import export_router as canonical_export_router
+        from app.routers.plan_export import plan_router as canonical_plan_router
+
+        app.include_router(canonical_export_router, dependencies=[protected_dependency])
+        app.include_router(canonical_plan_router, dependencies=[protected_dependency])
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:canonical_export_router",
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:canonical_plan_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.plan_export:export_router -> canonical_export_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.plan_export:plan_router -> canonical_plan_router",
+    ]
+
+
 def test_legacy_growth_guard_rejects_normal_router_import() -> None:
     source = "import app.routers.new_surface as new_surface\n"
 
@@ -614,7 +658,7 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
 
     errors = legacy_guard.validate_legacy_growth(source)
 
-    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 11 > 10"]
+    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 9 > 8"]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:

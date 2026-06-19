@@ -74,7 +74,7 @@ SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
     "subscription": 0,
 }
 SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
-    "api_key": 10,
+    "api_key": 8,
     "auth": 0,
     "billing": 0,
     "entitlement": 0,
@@ -105,8 +105,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("registration", "include_router", "users_router", ""),
         LegacyFact("registration", "include_router", "catalog_router", ""),
         LegacyFact("registration", "include_router", "restaurant_moderation_router", ""),
-        LegacyFact("registration", "include_router", "export_router", ""),
-        LegacyFact("registration", "include_router", "plan_router", ""),
         LegacyFact("registration", "include_router", "shoplist_router", ""),
         LegacyFact("registration", "include_router", "shopping_list_pro_router", ""),
         LegacyFact("registration", "include_router", "shoplist_day_router", ""),
@@ -154,8 +152,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
             "router",
             "nutrition_recommendations_router",
         ),
-        LegacyFact("router_import", "app.routers.plan_export", "export_router", ""),
-        LegacyFact("router_import", "app.routers.plan_export", "plan_router", ""),
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_plate", ""
         ),

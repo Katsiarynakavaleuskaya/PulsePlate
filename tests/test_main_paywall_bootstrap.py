@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, FastAPI, Response
+from fastapi import APIRouter, Depends, FastAPI, Response
 from fastapi.testclient import TestClient
 import pytest
 from typing import Generator
@@ -143,6 +143,95 @@ def _legacy_export_alias_stub_router(
         )
 
     return router
+
+
+def _plan_export_stub_routers(
+    *,
+    omit: frozenset[str] = frozenset(),
+    method_overrides: dict[str, str] | None = None,
+    include_overrides: dict[str, bool] | None = None,
+    include_429: bool = True,
+) -> tuple[APIRouter, APIRouter]:
+    export_stub_router = APIRouter()
+    plan_stub_router = APIRouter()
+    method_override_map = method_overrides or {}
+    include_override_map = include_overrides or {}
+    responses = {429: {"description": "Rate limit exceeded"}} if include_429 else None
+
+    for path, method, include_in_schema in app_main._PLAN_EXPORT_ROUTE_SPECS:
+        if path in omit:
+            continue
+        route_method = method_override_map.get(path, method).lower()
+        route_include = include_override_map.get(path, include_in_schema)
+        target_router = (
+            export_stub_router if path.startswith("/api/v1/export/") else plan_stub_router
+        )
+
+        async def _plan_export_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        getattr(target_router, route_method)(
+            path,
+            include_in_schema=route_include,
+            responses=responses,
+        )(_plan_export_handler)
+
+    return export_stub_router, plan_stub_router
+
+
+def _duplicate_plan_export_stub_routers() -> tuple[APIRouter, APIRouter]:
+    export_stub_router, plan_stub_router = _plan_export_stub_routers()
+    duplicate_path, duplicate_method, duplicate_include = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+    target_router = (
+        export_stub_router if duplicate_path.startswith("/api/v1/export/") else plan_stub_router
+    )
+
+    async def _second_plan_export_handler() -> dict[str, str]:
+        return {"status": "duplicate"}
+
+    getattr(target_router, duplicate_method.lower())(
+        duplicate_path,
+        include_in_schema=duplicate_include,
+        responses={429: {"description": "Rate limit exceeded"}},
+    )(_second_plan_export_handler)
+    return export_stub_router, plan_stub_router
+
+
+def _plan_export_stub_routers_with_combined_methods() -> tuple[APIRouter, APIRouter]:
+    export_stub_router = APIRouter()
+    plan_stub_router = APIRouter()
+    combined_path, combined_method, combined_include = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+
+    for path, method, include_in_schema in app_main._PLAN_EXPORT_ROUTE_SPECS:
+        target_router = (
+            export_stub_router if path.startswith("/api/v1/export/") else plan_stub_router
+        )
+
+        async def _plan_export_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        methods = [method]
+        if path == combined_path:
+            methods.append("GET" if combined_method == "POST" else "POST")
+        target_router.add_api_route(
+            path,
+            _plan_export_handler,
+            methods=methods,
+            include_in_schema=combined_include if path == combined_path else include_in_schema,
+            responses={429: {"description": "Rate limit exceeded"}},
+        )
+
+    return export_stub_router, plan_stub_router
+
+
+def _plan_export_stub_routers_with_unrelated_path() -> tuple[APIRouter, APIRouter]:
+    export_stub_router, plan_stub_router = _plan_export_stub_routers()
+
+    async def _unrelated_handler() -> dict[str, str]:
+        return {"status": "unrelated"}
+
+    plan_stub_router.get("/api/v1/unrelated-plan-export-probe")(_unrelated_handler)
+    return export_stub_router, plan_stub_router
 
 
 def _duplicate_health_stub_router() -> APIRouter:
@@ -324,6 +413,34 @@ def _app_with_legacy_export_alias_routes_and_extra_method(*, combined_route: boo
         _extra_method_handler,
         methods=extra_methods,
         include_in_schema=extra_include,
+    )
+    return app
+
+
+def _app_with_plan_export_routes_and_extra_method(*, combined_route: bool) -> FastAPI:
+    app = FastAPI()
+    extra_path, extra_method, extra_include = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+
+    app.include_router(
+        app_main.export_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    app.include_router(
+        app_main.plan_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+
+    async def _extra_method_handler() -> dict[str, str]:
+        return {"status": "extra-method"}
+
+    opposite_method = "POST" if extra_method == "GET" else "GET"
+    extra_methods = [extra_method, opposite_method] if combined_route else [opposite_method]
+    app.add_api_route(
+        extra_path,
+        _extra_method_handler,
+        methods=extra_methods,
+        include_in_schema=extra_include,
+        responses={429: {"description": "Rate limit exceeded"}},
     )
     return app
 
@@ -1126,6 +1243,341 @@ def test_bmi_compat_route_registration_rejects_duplicate_canonical_router_paths(
     with pytest.raises(
         RuntimeError,
         match="BMI compatibility router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_plan_export_route_registration_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    _bootstrap_temp_app(app)
+    _bootstrap_temp_app(app)
+
+    for path, method, include_in_schema in app_main._PLAN_EXPORT_ROUTE_SPECS:
+        matching_routes = [
+            route
+            for route in app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        assert len(matching_routes) == 1
+        assert getattr(matching_routes[0], "endpoint").__module__ == "app.routers.plan_export"
+        assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
+        assert 429 in (getattr(matching_routes[0], "responses", None) or {})
+        assert app_main._route_has_dependency_call(
+            matching_routes[0],
+            app_main._legacy_module._get_api_key_dynamic,
+        )
+
+
+def test_plan_export_route_registration_rejects_partial_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    path, method, include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+
+    async def _existing_plan_export_route() -> dict[str, str]:
+        return {"status": "partial"}
+
+    getattr(app, method.lower())(path, include_in_schema=include_in_schema)(
+        _existing_plan_export_route
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial plan export route registration detected",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_plan_export_route_registration_rejects_missing_api_key_dependency_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export API key dependency is unavailable",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_plan_export_route_registration_rejects_wrong_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    path, method, include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+
+    async def _wrong_method_plan_export_route() -> dict[str, str]:
+        return {"status": "wrong-method"}
+
+    wrong_method = "GET" if method == "POST" else "POST"
+    getattr(app, wrong_method.lower())(path, include_in_schema=include_in_schema)(
+        _wrong_method_plan_export_route
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial plan export route registration detected",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_plan_export_route_registration_rejects_existing_wrong_method_after_full_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial plan export route registration detected",
+    ):
+        _bootstrap_temp_app(_app_with_plan_export_routes_and_extra_method(combined_route=False))
+
+
+def test_plan_export_route_registration_rejects_existing_combined_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial plan export route registration detected",
+    ):
+        _bootstrap_temp_app(_app_with_plan_export_routes_and_extra_method(combined_route=True))
+
+
+def test_plan_export_route_registration_rejects_wrong_method_in_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    path, method, _include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+    wrong_method = "GET" if method == "POST" else "POST"
+    export_stub_router, plan_stub_router = _plan_export_stub_routers(
+        method_overrides={path: wrong_method}
+    )
+    monkeypatch.setattr(app_main, "export_router", export_stub_router)
+    monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_plan_export_route_registration_rejects_combined_methods_in_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    export_stub_router, plan_stub_router = _plan_export_stub_routers_with_combined_methods()
+    monkeypatch.setattr(app_main, "export_router", export_stub_router)
+    monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_plan_export_route_registration_allows_unrelated_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    export_stub_router, plan_stub_router = _plan_export_stub_routers_with_unrelated_path()
+    monkeypatch.setattr(app_main, "export_router", export_stub_router)
+    monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
+
+    app = _bootstrap_temp_app(FastAPI())
+
+    assert any(
+        getattr(route, "path", None) == "/api/v1/unrelated-plan-export-probe"
+        for route in app.routes
+    )
+
+
+def test_plan_export_callable_equivalence_rejects_non_callables() -> None:
+    expected_endpoint = next(
+        route.endpoint
+        for route in app_main.export_router.routes
+        if getattr(route, "path", None) == app_main._PLAN_EXPORT_ROUTE_SPECS[0][0]
+    )
+
+    assert not app_main._is_same_plan_export_callable(None, expected_endpoint)
+    assert not app_main._is_same_plan_export_callable(expected_endpoint, None)
+
+
+def test_plan_export_route_registration_rejects_foreign_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+
+    for path, method, include_in_schema in app_main._PLAN_EXPORT_ROUTE_SPECS:
+
+        async def _foreign_plan_export_route(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        getattr(app, method.lower())(path, include_in_schema=include_in_schema)(
+            _foreign_plan_export_route
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate .* route detected with a different plan export handler",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_plan_export_route_registration_rejects_missing_api_key_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    app.include_router(app_main.export_router)
+    app.include_router(app_main.plan_router)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve plan export API key dependency",
+    ):
+        app_main._include_plan_export_routers_if_needed(app)
+
+
+def test_plan_export_route_registration_rejects_openapi_visibility_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    path, _method, include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+    export_stub_router, plan_stub_router = _plan_export_stub_routers(
+        include_overrides={path: not include_in_schema}
+    )
+    monkeypatch.setattr(app_main, "export_router", export_stub_router)
+    monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export router does not preserve OpenAPI visibility",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_plan_export_route_registration_rejects_existing_openapi_visibility_drift() -> None:
+    app = FastAPI()
+    app.include_router(
+        app_main.export_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    app.include_router(
+        app_main.plan_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    path, method, include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+    matching_route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    )
+    matching_route.include_in_schema = not include_in_schema
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve plan export OpenAPI visibility",
+    ):
+        app_main._include_plan_export_routers_if_needed(app)
+
+
+def test_plan_export_dependency_detection_walks_nested_dependencies() -> None:
+    app = FastAPI()
+
+    async def _outer_dependency(
+        _guard: None = Depends(app_main._legacy_module._get_api_key_dynamic),
+    ) -> None:
+        return None
+
+    async def _nested_dependency_probe() -> dict[str, str]:
+        return {"status": "nested"}
+
+    app.add_api_route(
+        "/api/v1/nested-plan-export-dependency-probe",
+        _nested_dependency_probe,
+        methods=["GET"],
+        dependencies=[Depends(_outer_dependency)],
+    )
+
+    route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == "/api/v1/nested-plan-export-dependency-probe"
+    )
+
+    assert app_main._route_has_dependency_call(
+        route,
+        app_main._legacy_module._get_api_key_dynamic,
+    )
+
+
+def test_plan_export_route_registration_rejects_existing_429_metadata_drift() -> None:
+    app = FastAPI()
+    app.include_router(
+        app_main.export_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    app.include_router(
+        app_main.plan_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    path, method, _include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+    matching_route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    )
+    matching_route.responses.pop(429, None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve 429 response metadata",
+    ):
+        app_main._include_plan_export_routers_if_needed(app)
+
+
+def test_plan_export_route_registration_rejects_missing_429_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    export_stub_router, plan_stub_router = _plan_export_stub_routers(include_429=False)
+    monkeypatch.setattr(app_main, "export_router", export_stub_router)
+    monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export router does not preserve 429 response metadata",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_plan_export_route_registration_rejects_duplicate_canonical_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    export_stub_router, plan_stub_router = _duplicate_plan_export_stub_routers()
+    monkeypatch.setattr(app_main, "export_router", export_stub_router)
+    monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export router does not define the expected route family",
     ):
         _bootstrap_temp_app(FastAPI())
 

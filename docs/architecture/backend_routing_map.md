@@ -19,7 +19,8 @@ This is a **runtime truth** view (not a product wishlist).
 
 - Runtime entrypoint: `uvicorn app.main:app` (`Dockerfile:102-105`)
 - `app/main.py` uses `legacy_app.app` as the FastAPI instance and applies bootstrap (`app/main.py:11-22`).
-- Most route registration currently happens in `legacy_app.py`.
+- Most legacy route registration still happens in `legacy_app.py`; canonical bootstrap-owned
+  route families are registered from `app/main.py`.
 
 ## Router registration: always-on vs conditional
 
@@ -33,9 +34,29 @@ Evidence: `legacy_app.py:811-820`
 - `recipes_router` (`app/routers/recipes.py`)
 - `users_router` (`app/routers/users.py`)
 - `catalog_router` (`app/routers/catalog.py`)
-- `export_router` (`app/routers/shoplist_export.py`) — included with `dependencies=[Depends(_get_api_key_dynamic)]`
-- `plan_router` (`app/routers/plan_export.py`) — included with `dependencies=[Depends(_get_api_key_dynamic)]`
 - `shoplist_router` (`app/routers/shoplist_export.py`) — included with `dependencies=[Depends(_get_api_key_dynamic)]`
+
+### Canonical plan export routers (canonical bootstrap-owned)
+
+Anchor (stable): `app/main.py -> _include_plan_export_routers_if_needed(app)`
+
+Evidence:
+- `app/main.py` — registers `export_router` and `plan_router` from `app/routers/plan_export.py`
+  with `dependencies=[Depends(_legacy_module._get_api_key_dynamic)]`
+- `app/routers/plan_export.py` — owns implementation, rate-limit decorators, signed export token
+  guard for weekly CSV/PDF, response schemas, and `PLAN_EXPORT_ROUTE_SPECS`
+
+Runtime effect:
+- `POST /api/v1/export/sign`
+- `GET /api/v1/plan/week/export.csv`
+- `GET /api/v1/plan/week/export.pdf`
+
+OpenAPI effect:
+- Source `APIRoute.include_in_schema` remains `True`.
+- Final public `app.openapi()` continues to hide these export/plan paths through the canonical
+  OpenAPI builder.
+- Hidden legacy export aliases remain a separate compatibility router owned by
+  `app/routers/legacy_export_aliases.py`.
 
 ### VIP routes (feature-flag gated, centralized)
 

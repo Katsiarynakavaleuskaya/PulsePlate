@@ -56,7 +56,6 @@ from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
-from app.routers.plan_export import export_router, plan_router
 from app.routers.pro_registration import register_pro_routes as _register_pro_routes
 from app.routers.recipes import router as recipes_router
 from app.routers.restaurants import (
@@ -932,8 +931,6 @@ app.include_router(
     dependencies=[protected_dependency],
     include_in_schema=False,
 )
-app.include_router(export_router, dependencies=[protected_dependency])
-app.include_router(plan_router, dependencies=[protected_dependency])
 app.include_router(shoplist_router, dependencies=[protected_dependency])
 
 # Register VIP routes (centralized, explicit registration)
