@@ -184,7 +184,7 @@ Reason: Addressed Sourcery's weak disabled-state assertion finding, CodeRabbit's
 ## Deferred / Follow-Ups
 
 - Native RAGAS companion scoring restoration is tracked by
-  `ledger-p1-restore-ragas-companion-safe-deps`.
+  [`ledger-p1-restore-ragas-companion-safe-deps`](../roadmap/BACKLOG_LEDGER.md#ledger-p1-restore-ragas-companion-safe-deps).
 - Torch `CVE-2025-3000` remains upstream-blocked until advisory/private-index
   evidence identifies a patched version.
 - Dependabot PR #1993 was closed as superseded after this replacement PR was
