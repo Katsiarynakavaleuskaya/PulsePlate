@@ -70,8 +70,7 @@ claim.
 
 - Packet:
   `artifacts/orchestration/experiments/artifacts/orchestration/experiments/pr5_plan_export_registration_oracle_packet.json`
-- Result artifact:
-  `artifacts/orchestration/experiments/results/exp-7a6bc3ab3b0e.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-7a6bc3ab3b0e.json`
 - Status: accepted.
 - Oracles passed:
   - `python3 scripts/ci/check_legacy_growth_guard.py`
@@ -122,6 +121,13 @@ passed after the premortem.
 - CodeRabbit: FIXED merge-readiness checklist finding in `54e9ef7f5`.
   Evidence: `docs/review/PR_1997_FIXED_MAPPING.md` now uses unchecked
   checklist items under `Required before merge`.
+- Sourcery: FIXED callable-helper and dependency-depth review in `73f806833`.
+  Evidence: `app/main.py` now shares callable comparison semantics and walks
+  nested FastAPI dependency calls.
+- CodeRabbit: FIXED route-spec documentation review in `73f806833`.
+  Evidence: `app/routers/plan_export.py` documents `PLAN_EXPORT_ROUTE_SPECS`.
+- CodeRabbit: FIXED `bot/human` style review in `73f806833`.
+  Evidence: this artifact now uses `bot or human`.
 - Codex Security diff scan / finding discovery: unavailable in this Codex
   runtime. `tool_search` did not expose callable Codex Security scan tools.
 - `bug-hunter`, `security-auditor`, and `pulseplate-pr-review`: pending after
@@ -129,12 +135,11 @@ passed after the premortem.
 
 ## Discussion Thread Pass
 
-- [x] Initial discussion-thread pass completed
-- [x] Fixed in commit mapping artifact created
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-No GitHub review threads existed at artifact creation time. Review threads must
-not be resolved without disposition evidence and this pass must be repeated
-after any new bot or human review activity.
+Review threads must not be resolved without disposition evidence and this pass
+must be repeated after any new bot or human review activity.
 
 ## Fixed in Commit Mapping
 
@@ -143,10 +148,35 @@ Disposition: FIXED
 Commit: 54e9ef7f5
 
 Evidence: `docs/review/PR_1997_FIXED_MAPPING.md` uses unchecked
-merge-readiness checklist items; focused diff-cover reports 100% changed-line
-coverage for `app/main.py` and `app/routers/plan_export.py`.
+Evidence: focused diff-cover reports 100% changed-line coverage for `app/main.py` and `app/routers/plan_export.py`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#discussion_r3444327264 -> 54e9ef7f5
+
+Disposition: FIXED
+
+Commit: 73f806833
+
+Evidence: `app/main.py` shares callable comparison semantics and recursively checks nested FastAPI dependency calls.
+Evidence: `tests/test_main_paywall_bootstrap.py` covers nested dependency detection.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#pullrequestreview-4534070939 -> 73f806833
+
+Disposition: FIXED
+
+Commit: 73f806833
+
+Evidence: `app/routers/plan_export.py` documents the route-spec tuple shape.
+Reason: The larger generic router-family extraction suggestion is intentionally out of scope for this narrow registration-ownership PR; CodeRabbit itself classified the current tradeoff as acceptable for this PR.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#pullrequestreview-4534091296 -> 73f806833
+
+Disposition: FIXED
+
+Commit: 73f806833
+
+Evidence: `docs/review/PR_1997_FIXED_MAPPING.md` uses `bot or human` wording and keeps merge-readiness checklist items unchecked.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#pullrequestreview-4534993087 -> 73f806833
 
 ## Deferred / Follow-Ups
 

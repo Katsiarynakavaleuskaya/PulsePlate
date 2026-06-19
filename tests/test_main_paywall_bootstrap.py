@@ -1496,6 +1496,36 @@ def test_plan_export_route_registration_rejects_existing_openapi_visibility_drif
         app_main._include_plan_export_routers_if_needed(app)
 
 
+def test_plan_export_dependency_detection_walks_nested_dependencies() -> None:
+    app = FastAPI()
+
+    async def _outer_dependency(
+        _guard: None = Depends(app_main._legacy_module._get_api_key_dynamic),
+    ) -> None:
+        return None
+
+    async def _nested_dependency_probe() -> dict[str, str]:
+        return {"status": "nested"}
+
+    app.add_api_route(
+        "/api/v1/nested-plan-export-dependency-probe",
+        _nested_dependency_probe,
+        methods=["GET"],
+        dependencies=[Depends(_outer_dependency)],
+    )
+
+    route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == "/api/v1/nested-plan-export-dependency-probe"
+    )
+
+    assert app_main._route_has_dependency_call(
+        route,
+        app_main._legacy_module._get_api_key_dynamic,
+    )
+
+
 def test_plan_export_route_registration_rejects_existing_429_metadata_drift() -> None:
     app = FastAPI()
     app.include_router(

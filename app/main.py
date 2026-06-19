@@ -136,37 +136,50 @@ def _build_legacy_export_aliases_router() -> APIRouter:
 legacy_export_aliases_router = _build_legacy_export_aliases_router()
 
 
+def _is_same_callable_by_module_and_name(
+    existing: object,
+    expected: object,
+    *,
+    use_qualname: bool = True,
+) -> bool:
+    if existing is expected:
+        return True
+    if not callable(existing) or not callable(expected):
+        return False
+    name_attr = "__qualname__" if use_qualname else "__name__"
+    return getattr(existing, "__module__", None) == getattr(
+        expected, "__module__", None
+    ) and getattr(existing, name_attr, getattr(existing, "__name__", None)) == getattr(
+        expected, name_attr, getattr(expected, "__name__", None)
+    )
+
+
 def _is_same_legacy_export_alias_endpoint(existing: object, expected: object) -> bool:
     if existing is expected:
         return True
-    if not callable(existing) or not callable(expected):
+    if not _is_same_callable_by_module_and_name(existing, expected, use_qualname=False):
         return False
     expected_module = getattr(expected, "__module__", None)
-    return (
-        expected_module == legacy_export_aliases_module.__name__
-        and getattr(existing, "__module__", None) == expected_module
-        and getattr(existing, "__name__", None) == getattr(expected, "__name__", None)
-    )
+    return expected_module == legacy_export_aliases_module.__name__
 
 
 def _is_same_plan_export_callable(existing: object, expected: object) -> bool:
-    if existing is expected:
-        return True
-    if not callable(existing) or not callable(expected):
-        return False
-    return getattr(existing, "__module__", None) == getattr(
-        expected, "__module__", None
-    ) and getattr(existing, "__qualname__", getattr(existing, "__name__", None)) == getattr(
-        expected, "__qualname__", getattr(expected, "__name__", None)
-    )
+    return _is_same_callable_by_module_and_name(existing, expected)
 
 
 def _route_has_dependency_call(route: object, expected: object) -> bool:
     dependant = getattr(route, "dependant", None)
-    dependencies = getattr(dependant, "dependencies", None) or []
+
+    def _iter_dependency_calls(dependencies: object) -> list[object]:
+        calls: list[object] = []
+        for dependency in dependencies or []:
+            calls.append(getattr(dependency, "call", None))
+            calls.extend(_iter_dependency_calls(getattr(dependency, "dependencies", None)))
+        return calls
+
     return any(
-        _is_same_plan_export_callable(getattr(dependency, "call", None), expected)
-        for dependency in dependencies
+        _is_same_plan_export_callable(call, expected)
+        for call in _iter_dependency_calls(getattr(dependant, "dependencies", None))
     )
 
 

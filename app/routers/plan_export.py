@@ -51,6 +51,7 @@ WEEK_EXPORT_CSV_ROUTE = "/week/export.csv"
 WEEK_EXPORT_PDF_ROUTE = "/week/export.pdf"
 WEEK_EXPORT_CSV_PATH = f"{PLAN_ROUTE_PREFIX}{WEEK_EXPORT_CSV_ROUTE}"
 WEEK_EXPORT_PDF_PATH = f"{PLAN_ROUTE_PREFIX}{WEEK_EXPORT_PDF_ROUTE}"
+# Route specs: (path, HTTP method, include_in_schema)
 PLAN_EXPORT_ROUTE_SPECS = (
     ("/api/v1/export/sign", "POST", True),
     (WEEK_EXPORT_CSV_PATH, "GET", True),
