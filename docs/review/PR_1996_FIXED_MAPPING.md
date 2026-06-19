@@ -98,7 +98,13 @@ authorization bypass inside this contract-pack PR.
   The scan reviewed 12/12 diff-scoped files and used an explicit
   `git diff --name-only` worklist fallback because the plugin default generator
   excludes tests/docs paths.
-- `pulseplate-pr-review`: pending.
+- `pulseplate-pr-review`: NOT-A-BUG for the advisory large-diff note.
+  Evidence: `/tmp/pulseplate_pr1996_review_context.json`,
+  `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr1996_review_context.json --format markdown`,
+  focused security pytest, `make validate-changed`, `pre-commit run --all-files`,
+  and pre-push hooks passed. Reason: the diff is large because the route
+  registry is explicit, but scope remains tests/docs-only with no runtime files
+  changed.
 
 ## Discussion Thread Pass
 
@@ -116,18 +122,18 @@ post-open state and must be repeated after any new bot or human review activity.
 
 - First-class principal/user-auth mapping remains tracked in
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-first-class-auth-principal-mapping`.
+- `pulseplate-pr-review` large-diff advisory does not require a backlog item
+  because this PR already documents the narrow tests/docs scope and passed the
+  targeted local gates.
 
 ## Merge Readiness
 
-Status: NOT READY while current-head CI, post-open role passes, bot review,
+Status: NOT READY while fresh current-head CI for `75b81427e`, bot review,
 strict merge-readiness, and the mandatory wait-window remain pending.
 
 Required before merge:
 
-- Current-head PR CI parity.
+- Fresh current-head PR CI parity after head `75b81427e`.
 - No unresolved actionable human or bot review comments.
-- Post-open `bug-hunter` and `security-auditor` passes complete.
-- Codex Security diff scan / finding discovery and `pulseplate-pr-review`
-  complete.
 - Strict merge-readiness with auth passes.
 - Mandatory wait-window after latest review/bot activity.
