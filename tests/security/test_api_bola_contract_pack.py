@@ -6,9 +6,20 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
-from app.middleware.api_tiers import derive_subject_id_from_api_key
+from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
 from app.models import NutritionEvent, RAGFeedback
 from core.db import session_scope
+
+MEAL_LOG_PRO_KEY_A = "meal-log-contract-pro-key-a"
+MEAL_LOG_PRO_KEY_B = "meal-log-contract-pro-key-b"
+DAY_CLOSE_PRO_KEY_A = "day-close-contract-pro-key-a"
+DAY_CLOSE_PRO_KEY_B = "day-close-contract-pro-key-b"
+PRO_CONTRACT_KEYS = (
+    MEAL_LOG_PRO_KEY_A,
+    MEAL_LOG_PRO_KEY_B,
+    DAY_CLOSE_PRO_KEY_A,
+    DAY_CLOSE_PRO_KEY_B,
+)
 
 
 def _headers(credential: str) -> dict[str, str]:
@@ -16,8 +27,9 @@ def _headers(credential: str) -> dict[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def _allow_anonymous_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
+def _registered_pro_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("PRO_API_KEYS", ",".join(PRO_CONTRACT_KEYS))
 
 
 NutritionEventSnapshot = tuple[int, date, dict[str, object] | None]
@@ -49,8 +61,8 @@ def _nutrition_events_for(*, source: str, client_event_id: str) -> list[Nutritio
 def test_meal_log_idempotency_is_scoped_by_authenticated_subject(
     test_client: TestClient,
 ) -> None:
-    first_key = "test_key_meal_cross_subject_a"
-    second_key = "test_key_meal_cross_subject_b"
+    first_key = MEAL_LOG_PRO_KEY_A
+    second_key = MEAL_LOG_PRO_KEY_B
     client_event_id = "meal-cross-subject-shared-id"
     payload = {
         "log_type": "meal_logged",
@@ -86,8 +98,8 @@ def test_meal_log_idempotency_is_scoped_by_authenticated_subject(
 def test_day_close_idempotency_is_scoped_by_authenticated_subject(
     test_client: TestClient,
 ) -> None:
-    first_key = "test_key_day_close_cross_subject_a"
-    second_key = "test_key_day_close_cross_subject_b"
+    first_key = DAY_CLOSE_PRO_KEY_A
+    second_key = DAY_CLOSE_PRO_KEY_B
     close_day = date(2026, 1, 8)
     client_event_id = f"day-close:{close_day.isoformat()}"
     payload = {
@@ -124,7 +136,7 @@ def test_day_close_idempotency_is_scoped_by_authenticated_subject(
 def test_rag_feedback_ignores_payload_owner_fields_for_persisted_subject(
     test_client: TestClient,
 ) -> None:
-    credential = "feedback-owner-contract-credential"
+    credential = TEST_KEY_PRO
     injected_user_id = derive_subject_id_from_api_key("feedback-owner-attacker-credential")
 
     response = test_client.post(
@@ -138,6 +150,7 @@ def test_rag_feedback_ignores_payload_owner_fields_for_persisted_subject(
     )
 
     assert response.status_code == 201
+    assert response.headers.get("content-type", "").startswith("application/json")
     feedback_id = response.json()["id"]
     expected_subject = derive_subject_id_from_api_key(credential)
 
