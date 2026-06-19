@@ -128,10 +128,19 @@ passed after the premortem.
   Evidence: `app/routers/plan_export.py` documents `PLAN_EXPORT_ROUTE_SPECS`.
 - CodeRabbit: FIXED `bot/human` style review in `e255e0244`.
   Evidence: this artifact now uses `bot or human`.
+- `bug-hunter`: FIXED Phase 2 parser and mapping-shape findings in
+  `9f6beef12` and `e255e0244`. Evidence: local
+  `check_pr_body_phase2_gates.py` passed against the live PR body after the
+  mapping/body mirror updates.
+- `security-auditor`: PASS on `e551bfcb5`; no blocking code or security
+  findings. Evidence: read-only pass confirmed API-key dependency preservation,
+  429 metadata enforcement, signed-token guard placement, legacy guard coverage,
+  and zero unresolved review threads.
+- `pulseplate-pr-review`: PASS on `e551bfcb5`; no blocking findings. Evidence:
+  read-only pass confirmed coherent ownership move, auth preservation, route
+  metadata tests, passing Phase 2 body gate, and no unresolved review threads.
 - Codex Security diff scan / finding discovery: unavailable in this Codex
   runtime. `tool_search` did not expose callable Codex Security scan tools.
-- `bug-hunter`, `security-auditor`, and `pulseplate-pr-review`: pending after
-  the `54e9ef7f5` fix commit.
 
 ## Discussion Thread Pass
 
@@ -185,9 +194,9 @@ override as documented above.
 
 ## Merge Readiness
 
-Status: NOT READY while post-open role review, Codex Security scan/finding
-discovery, current-head CI, bot/human review disposition, strict
-merge-readiness, and the mandatory wait-window remain pending.
+Status: NOT READY while current-head CI, Codecov coverage supersession or
+disposition, strict merge-readiness, and the mandatory wait-window remain
+pending.
 
 Required before merge:
 
