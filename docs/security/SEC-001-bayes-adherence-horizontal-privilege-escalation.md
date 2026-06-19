@@ -3,10 +3,10 @@
 **Label**: security
 **Priority**: critical
 **Severity**: high
-**Status**: in progress
+**Status**: implemented for auth-derived identity; follow-ups tracked
 **Owner**: Backend
 **Reported**: 2025-09-18
-**Target remediation**: 2025-10-15
+**Last reviewed**: 2026-06-19
 
 ## Summary
 
@@ -26,32 +26,43 @@ authenticated context.
 - Unauthorized access to adherence risk metrics for other users.
 - Potential data leakage in analytics and user-facing risk scores.
 
-## Required Work
+## Implemented Work
 
-- Replace `user_id` in payload/query with `Depends(get_current_user)` to derive identity from auth.
-- Remove `user_id` from request schema and forbid extra fields.
-- Add per-API-key rate limiting for adherence endpoints.
-- Enforce stricter input validation/whitelisting on request payload and analyzer key.
-- Add logging and alerting for suspicious cross-user attempts.
-- Update tests, threat model, and security posture documentation.
+- Bayesian adherence routes derive the effective subject from
+  `Depends(get_current_user)`.
+- Requests cannot use payload/query `user_id` as the effective subject.
+- API-key state isolation is covered by deterministic tests.
+- The API auth/tier/BOLA contract pack registers adherence routes as PRO,
+  auth-derived-subject routes.
+- Security posture documentation records the current contract evidence.
 
-## Acceptance Criteria
+## Current Acceptance Criteria
 
-- Requests cannot supply `user_id` in adherence payload or query parameters.
+- Requests cannot use supplied `user_id` in adherence payload or query
+  parameters as the effective subject.
 - `get_current_user` supplies the effective `user_id` for reads/writes.
-- Sending `user_id` in the payload returns HTTP 422.
 - Different API keys yield isolated adherence state.
-- Rate limiting, input whitelisting, and alerting controls are documented and implemented.
-- Documentation records current posture and remediation timeline.
+- Documentation records current posture and remaining follow-ups.
 
-## Mitigation Plan (Interim)
+## Evidence
 
-- Enforce per-API-key rate limiting for adherence endpoints.
-- Forbid extra request fields and whitelist allowed payload keys.
-- Log and alert on suspicious cross-user attempts or unexpected identifiers.
+- Auth-derived subject setup:
+  `tests/test_bayes_adherence_api.py:41`
+- Payload `user_id` rejection:
+  `tests/test_bayes_adherence_api.py:171`
+- API-key state isolation:
+  `tests/test_bayes_adherence_api.py:252`
+- Auth/tier contract registration:
+  `tests/security/_api_authz_contracts.py:144`
+- Contract drift test:
+  `tests/security/test_api_auth_tier_contract_pack.py:32`
+- Security posture summary:
+  `docs/security/SECURITY_POSTURE.md:11`
 
-## Remediation Timeline
+## Deferred Follow-ups
 
-- Identity derivation from auth context: next release (target 2025-09-20).
-- Interim controls (rate limiting, logging/alerting): by 2025-10-15.
-- Full user authentication mapping: planned follow-up after interim controls.
+- First-class user-authentication mapping remains tracked in
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-first-class-auth-principal-mapping`.
+- Operational alerting for suspicious cross-subject attempts remains part of the
+  same follow-up and must not be represented as implemented runtime behavior
+  until a dedicated PR lands it.

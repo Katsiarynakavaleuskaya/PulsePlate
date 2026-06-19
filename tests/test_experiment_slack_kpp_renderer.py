@@ -386,7 +386,7 @@ def test_json_no_raw_secrets() -> None:
         ),
     )
     json_payload = message.as_blocks_json()
-    assert "xoxb-1234567890-secret-token" not in json_payload
+    assert "xoxb-1234567890-secret-token" not in json_payload  # pragma: allowlist secret
     assert "/Users/alice/local/path" not in json_payload
     assert "[redacted-secret]" in json_payload
     assert "[redacted-path]" in json_payload
