@@ -25,7 +25,7 @@
   authentication class, tier, principal source, ownership policy, and OpenAPI
   exposure in `tests/security/_api_authz_contracts.py`.
 - Evidence: `tests/security/test_api_auth_tier_contract_pack.py:32` validates
-  live route classification, `tests/security/test_api_auth_tier_contract_pack.py:81`
+  live route classification, `tests/security/test_api_auth_tier_contract_pack.py:82`
   validates dependency drift, and `tests/security/test_api_bola_contract_pack.py:49`
   validates nutrition/feedback owner derivation plus cross-principal
   idempotency.

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from fastapi import FastAPI
 
 from tests.security._api_authz_contracts import (
@@ -16,17 +18,16 @@ from tests.security._api_authz_contracts import (
 )
 
 
-def _has_object_identifier(path: str) -> bool:
-    object_params = {
-        "activation_id",
-        "intent_id",
-        "order_id",
-        "share_id",
-        "submission_id",
-        "user_id",
-        "plan_id",
-    }
-    return any(f"{{{param}}}" in path for param in object_params)
+def _path_parameters(path: str) -> set[str]:
+    return set(re.findall(r"{([^{}]+)}", path))
+
+
+def _has_path_parameter(path: str) -> bool:
+    return bool(_path_parameters(path))
+
+
+def _has_foreign_object_parameter(path: str) -> bool:
+    return any(param.endswith("_id") for param in _path_parameters(path))
 
 
 def test_sensitive_api_routes_are_registered_in_authz_contract_pack(app: FastAPI) -> None:
@@ -101,32 +102,36 @@ def test_contract_auth_classes_match_live_dependency_graph(app: FastAPI) -> None
     assert not missing, "Auth dependency drift:\n" + "\n".join(missing)
 
 
-def test_object_identifier_routes_have_non_empty_ownership_policy() -> None:
-    object_routes_without_policy = [
+def test_path_parameter_routes_have_non_empty_ownership_policy() -> None:
+    path_parameter_routes_without_policy = [
         contract
         for contract in API_AUTHZ_CONTRACTS
-        if _has_object_identifier(contract.path)
-        and contract.ownership_policy is OwnershipPolicy.NONE
+        if _has_path_parameter(contract.path) and contract.ownership_policy is OwnershipPolicy.NONE
     ]
 
     assert (
-        not object_routes_without_policy
-    ), "Object identifier routes must classify ownership policy:\n" + "\n".join(
-        f"{contract.method} {contract.path}" for contract in object_routes_without_policy
+        not path_parameter_routes_without_policy
+    ), "Path-parameter routes must classify ownership policy:\n" + "\n".join(
+        f"{contract.method} {contract.path}" for contract in path_parameter_routes_without_policy
     )
 
 
 def test_foreign_object_routes_document_negative_status() -> None:
+    policies_requiring_foreign_object_status = {
+        OwnershipPolicy.AUTHENTICATED_SUBJECT,
+        OwnershipPolicy.ISSUER_SCOPED,
+        OwnershipPolicy.LEGACY_HIDDEN,
+    }
     missing_status = [
         contract
         for contract in API_AUTHZ_CONTRACTS
-        if contract.ownership_policy is OwnershipPolicy.AUTHENTICATED_SUBJECT
-        and _has_object_identifier(contract.path)
+        if contract.ownership_policy in policies_requiring_foreign_object_status
+        and _has_foreign_object_parameter(contract.path)
         and contract.foreign_object_status is None
     ]
 
     assert (
         not missing_status
-    ), "Subject-owned object routes must document foreign-object status evidence:\n" + "\n".join(
+    ), "Foreign-object routes must document negative status evidence:\n" + "\n".join(
         f"{contract.method} {contract.path}" for contract in missing_status
     )

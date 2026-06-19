@@ -102,7 +102,7 @@ def test_canonical_vip_routes_keep_api_key_header_dependency(app: FastAPI) -> No
 
     for route in routes:
         flattened_calls = _flatten_dependency_calls(route)
-        if api_key_header not in flattened_calls:
+        if not _contains_dependency(flattened_calls, api_key_header):
             methods = ",".join(sorted(route.methods))
             missing_header.append(f"{methods} {route.path}")
 

@@ -32,9 +32,9 @@ Evidence anchors:
 - Sensitive-route discovery: `tests/security/_api_authz_contracts.py:717`
 - Auth dependency matching: `tests/security/_api_authz_contracts.py:760`
 - Inventory invariants: `tests/security/test_api_auth_tier_contract_pack.py:32`
-- Dependency guard invariant: `tests/security/test_api_auth_tier_contract_pack.py:81`
+- Dependency guard invariant: `tests/security/test_api_auth_tier_contract_pack.py:82`
 - Object ownership invariant:
-  `tests/security/test_api_auth_tier_contract_pack.py:104`
+  `tests/security/test_api_auth_tier_contract_pack.py:105`
 - Foreign-object status invariant:
   `tests/security/test_api_auth_tier_contract_pack.py:119`
 - BOLA/idempotency regressions:
