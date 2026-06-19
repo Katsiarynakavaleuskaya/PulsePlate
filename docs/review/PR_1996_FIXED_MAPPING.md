@@ -126,11 +126,8 @@ Disposition: FIXED
 
 Commit: 048d7235e
 
-Evidence: `tests/security/test_api_auth_tier_contract_pack.py:21` and
-`tests/security/test_api_auth_tier_contract_pack.py:29` replace the narrow
-hard-coded object-id heuristic with generic path-parameter detection and
-foreign-object `_id` classification. Focused pytest and `make validate-changed`
-passed after the fix.
+Evidence: `tests/security/test_api_auth_tier_contract_pack.py:21` and `tests/security/test_api_auth_tier_contract_pack.py:29` replace the narrow hard-coded object-id heuristic with generic path-parameter detection and foreign-object `_id` classification.
+Evidence: Focused pytest and `make validate-changed` passed after the fix.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1996#discussion_r3442325743 -> 048d7235e
 
@@ -138,12 +135,9 @@ Disposition: FIXED
 
 Commit: 8fbe52ade
 
-Evidence: `tests/security/test_api_bola_contract_pack.py:29` registers explicit
-PRO credentials with `ALLOW_ANONYMOUS_API_KEYS=false`, preserving the real PRO
-tier path in the BOLA idempotency tests. Evidence:
-`tests/security/test_api_bola_contract_pack.py:152` asserts JSON content type
-before parsing the feedback response. Focused pytest, `make validate-changed`,
-and `pre-commit run --all-files` passed after the fix.
+Evidence: `tests/security/test_api_bola_contract_pack.py:29` registers explicit PRO credentials with `ALLOW_ANONYMOUS_API_KEYS=false`, preserving the real PRO tier path in the BOLA idempotency tests.
+Evidence: `tests/security/test_api_bola_contract_pack.py:152` asserts JSON content type before parsing the feedback response.
+Evidence: Focused pytest, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1996#discussion_r3442325753 -> 8fbe52ade
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1996#discussion_r3442325757 -> 8fbe52ade
