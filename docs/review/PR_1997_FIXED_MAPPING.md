@@ -144,7 +144,7 @@ merge-readiness, and the mandatory wait-window remain pending.
 
 Required before merge:
 
-- Fresh current-head PR CI parity.
-- No unresolved actionable human or bot review comments.
-- Strict merge-readiness with auth passes.
-- Mandatory wait-window after latest review/bot activity.
+- [ ] Fresh current-head PR CI parity.
+- [ ] No unresolved actionable human or bot review comments.
+- [ ] Strict merge-readiness with auth passes.
+- [ ] Mandatory wait-window after latest review/bot activity.

@@ -224,6 +224,16 @@ def _plan_export_stub_routers_with_combined_methods() -> tuple[APIRouter, APIRou
     return export_stub_router, plan_stub_router
 
 
+def _plan_export_stub_routers_with_unrelated_path() -> tuple[APIRouter, APIRouter]:
+    export_stub_router, plan_stub_router = _plan_export_stub_routers()
+
+    async def _unrelated_handler() -> dict[str, str]:
+        return {"status": "unrelated"}
+
+    plan_stub_router.get("/api/v1/unrelated-plan-export-probe")(_unrelated_handler)
+    return export_stub_router, plan_stub_router
+
+
 def _duplicate_health_stub_router() -> APIRouter:
     router = _health_stub_router()
 
@@ -403,6 +413,34 @@ def _app_with_legacy_export_alias_routes_and_extra_method(*, combined_route: boo
         _extra_method_handler,
         methods=extra_methods,
         include_in_schema=extra_include,
+    )
+    return app
+
+
+def _app_with_plan_export_routes_and_extra_method(*, combined_route: bool) -> FastAPI:
+    app = FastAPI()
+    extra_path, extra_method, extra_include = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+
+    app.include_router(
+        app_main.export_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    app.include_router(
+        app_main.plan_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+
+    async def _extra_method_handler() -> dict[str, str]:
+        return {"status": "extra-method"}
+
+    opposite_method = "POST" if extra_method == "GET" else "GET"
+    extra_methods = [extra_method, opposite_method] if combined_route else [opposite_method]
+    app.add_api_route(
+        extra_path,
+        _extra_method_handler,
+        methods=extra_methods,
+        include_in_schema=extra_include,
+        responses={429: {"description": "Rate limit exceeded"}},
     )
     return app
 
@@ -1257,6 +1295,19 @@ def test_plan_export_route_registration_rejects_partial_state(
         _bootstrap_temp_app(app)
 
 
+def test_plan_export_route_registration_rejects_missing_api_key_dependency_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export API key dependency is unavailable",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
 def test_plan_export_route_registration_rejects_wrong_method(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1277,6 +1328,30 @@ def test_plan_export_route_registration_rejects_wrong_method(
         match="Partial plan export route registration detected",
     ):
         _bootstrap_temp_app(app)
+
+
+def test_plan_export_route_registration_rejects_existing_wrong_method_after_full_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial plan export route registration detected",
+    ):
+        _bootstrap_temp_app(_app_with_plan_export_routes_and_extra_method(combined_route=False))
+
+
+def test_plan_export_route_registration_rejects_existing_combined_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial plan export route registration detected",
+    ):
+        _bootstrap_temp_app(_app_with_plan_export_routes_and_extra_method(combined_route=True))
 
 
 def test_plan_export_route_registration_rejects_wrong_method_in_router(
@@ -1311,6 +1386,33 @@ def test_plan_export_route_registration_rejects_combined_methods_in_router(
         match="Plan export router does not define the expected route family",
     ):
         _bootstrap_temp_app(FastAPI())
+
+
+def test_plan_export_route_registration_allows_unrelated_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    export_stub_router, plan_stub_router = _plan_export_stub_routers_with_unrelated_path()
+    monkeypatch.setattr(app_main, "export_router", export_stub_router)
+    monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
+
+    app = _bootstrap_temp_app(FastAPI())
+
+    assert any(
+        getattr(route, "path", None) == "/api/v1/unrelated-plan-export-probe"
+        for route in app.routes
+    )
+
+
+def test_plan_export_callable_equivalence_rejects_non_callables() -> None:
+    expected_endpoint = next(
+        route.endpoint
+        for route in app_main.export_router.routes
+        if getattr(route, "path", None) == app_main._PLAN_EXPORT_ROUTE_SPECS[0][0]
+    )
+
+    assert not app_main._is_same_plan_export_callable(None, expected_endpoint)
+    assert not app_main._is_same_plan_export_callable(expected_endpoint, None)
 
 
 def test_plan_export_route_registration_rejects_foreign_handlers(
@@ -1390,6 +1492,32 @@ def test_plan_export_route_registration_rejects_existing_openapi_visibility_drif
     with pytest.raises(
         RuntimeError,
         match="Existing .* route does not preserve plan export OpenAPI visibility",
+    ):
+        app_main._include_plan_export_routers_if_needed(app)
+
+
+def test_plan_export_route_registration_rejects_existing_429_metadata_drift() -> None:
+    app = FastAPI()
+    app.include_router(
+        app_main.export_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    app.include_router(
+        app_main.plan_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    path, method, _include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
+    matching_route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    )
+    matching_route.responses.pop(429, None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve 429 response metadata",
     ):
         app_main._include_plan_export_routers_if_needed(app)
 
