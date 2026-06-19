@@ -777,7 +777,7 @@ def test_eval_and_data_dependency_profiles_are_compiled_and_pinned() -> None:
     assert "\n-c requirements.txt\n" not in f"\n{eval_input_text}\n"
     assert "GHSA-95ww-475f-pr4f" in eval_input_text
     assert "GHSA-w8v5-vhqr-4h9v" in eval_input_text
-    assert "disabled" in eval_input_text
+    assert "RAGAS native execution is disabled" in eval_input_text
 
     for lockfile, source_file in expected_sources.items():
         lock_path = REPO_ROOT / lockfile

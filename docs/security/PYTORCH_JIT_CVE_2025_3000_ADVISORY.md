@@ -38,7 +38,7 @@ finding is limited to the optional vector profile.
 
 - `requirements-rag-vector.txt:162`
 - `requirements-rag-vector-cpu.txt:119`
-- `safety-policy.yaml:16`
+- `safety-policy.yaml:10`
 - `docs/roadmap/BACKLOG_LEDGER.md:709`
 
 ## Exposure Assessment

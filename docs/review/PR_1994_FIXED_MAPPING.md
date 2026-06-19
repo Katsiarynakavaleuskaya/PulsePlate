@@ -77,10 +77,11 @@ Disposition summary:
   tracked native RAGAS deps and documenting restoration criteria.
 - Frontend audit false-green risk: FIXED by including `ws==8.21.0` alongside
   `dompurify==3.4.11` and `undici==7.28.0`.
-- Torch speculative-upgrade risk: NOT-A-BUG / DEFERRED with advisory evidence
-  showing no patched version.
+- Torch speculative-upgrade risk: DEFERRED with advisory evidence showing no
+  patched version.
 
-Evidence: `.github/workflows/python-dependency-submission.yml`,
+Evidence: GitHub Actions workflow at
+`.github/workflows/python-dependency-submission.yml`,
 `frontend/package.json`, `frontend/package-lock.json`,
 `requirements-evals.in`, `requirements-evals.txt`,
 `tests/test_frontend_dependency_guards.py`,
@@ -112,8 +113,8 @@ Pending for current-head PR #1994:
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 No actionable human or bot review threads were present when this artifact was
 created. Any later actionable review thread must be dispositioned below before
@@ -129,7 +130,7 @@ Evidence: `frontend/package.json`
 Evidence: `frontend/package-lock.json`
 Evidence: `requirements-evals.in`
 Evidence: `requirements-evals.txt`
-Evidence: `.github/workflows/python-dependency-submission.yml`
+Evidence: GitHub Actions workflow at `.github/workflows/python-dependency-submission.yml`
 Evidence: `tests/test_frontend_dependency_guards.py`
 Evidence: `tests/test_python_supply_chain_controls.py`
 Evidence: `tests/guards/test_security_devtooling_regression_guards.py`
