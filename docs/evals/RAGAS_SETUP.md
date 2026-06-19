@@ -3,6 +3,8 @@
 ## Purpose
 - This lane adds a narrow offline `evals/ragas/*` companion bootstrap for
   report-only RAGAS scoring.
+- RAGAS native execution is disabled while `GHSA-95ww-475f-pr4f` and
+  `GHSA-w8v5-vhqr-4h9v` have no patched RAGAS / DiskCache dependency path.
 - It is intentionally subordinate to the canonical release-gates lane in
   `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`.
 - It does not change runtime behavior, request-path logic, provider selection, or CI gate policy.
@@ -33,10 +35,10 @@
 ## Hard Rules
 - Do not import `evals/` from `app/`, `core/`, `frontend/`, or `ios/`
 - Do not add `ragas` or `datasets` to `requirements.txt` or `requirements-dev.txt`
-- Keep high-level eval declarations in `requirements-evals.in` and exact pins in
-  compiled `requirements-evals.txt`
-- Keep `ragas<1.0` until `evals/ragas/run_ragas_eval.py` migrates from the
-  current v0.4-compatible imports to the v1-compatible RAGAS API
+- Keep `requirements-evals.in` and compiled `requirements-evals.txt` as the
+  tracked local/manual eval dependency surface, but do not track vulnerable
+  `ragas`, `datasets`, or `diskcache` pins while native RAGAS execution is
+  disabled
 - Keep `ragas` imports lazy inside the runner entrypoint
 - Do not call live providers or runtime routes from this lane
 - The CLI fails closed when known live LLM/embedding provider credential
@@ -73,16 +75,27 @@ Notes:
 - Only synthetic or curated content is allowed in the committed dataset.
 
 ## Installation
-Install the local/manual eval profile only when running this offline companion
-lane. If dependency inputs changed, regenerate the lock first through the
-approved local package-proxy environment:
+Native RAGAS execution is disabled. The local/manual eval profile remains
+tracked so audits and dependency graph submission can prove that vulnerable
+RAGAS / DiskCache dependencies are not installed by default. If dependency
+inputs changed, regenerate the lock first through the approved local
+package-proxy environment:
 
 ```bash
 .venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url --output-file=requirements-evals.txt requirements-evals.in
-pip install -r requirements-evals.txt
 ```
 
 ## Usage
+The CLI must remain importable and must fail closed if native RAGAS execution is
+attempted without a safe dependency profile:
+
+```bash
+python -m evals.ragas.run_ragas_eval --help
+```
+
+Native RAGAS scoring stays deferred until the vulnerable dependency path is
+replaced or patched. Historical/future native usage shape:
+
 ```bash
 python -m evals.ragas.run_ragas_eval \
   --dataset evals/ragas/testset.jsonl \

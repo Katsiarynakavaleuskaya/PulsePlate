@@ -16,8 +16,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
 FRONTEND_LOCK_JSON = REPO_ROOT / "frontend" / "package-lock.json"
 NPM_REGISTRY_HOST = "registry.npmjs.org"
-MIN_DOMPURIFY_VERSION = Version("3.4.10")
+MIN_DOMPURIFY_VERSION = Version("3.4.11")
 MIN_JS_YAML_VERSION = Version("4.2.0")
+MIN_UNDICI_VERSION = Version("7.28.0")
+MIN_WS_VERSION = Version("8.21.0")
 
 
 def _load_json(path: Path) -> dict:
@@ -56,6 +58,24 @@ def test_frontend_package_has_js_yaml_override_floor() -> None:
     assert Version(js_yaml_override) >= MIN_JS_YAML_VERSION
 
 
+def test_frontend_package_has_undici_override_floor() -> None:
+    """RU/EN: package.json override must keep undici at secure floor version."""
+    package_json = _load_json(FRONTEND_PACKAGE_JSON)
+    overrides = package_json.get("overrides", {})
+    undici_override = overrides.get("undici")
+    assert isinstance(undici_override, str), "frontend/package.json: overrides.undici missing"
+    assert Version(undici_override) >= MIN_UNDICI_VERSION
+
+
+def test_frontend_package_has_ws_override_floor() -> None:
+    """RU/EN: package.json override must keep ws at secure floor version."""
+    package_json = _load_json(FRONTEND_PACKAGE_JSON)
+    overrides = package_json.get("overrides", {})
+    ws_override = overrides.get("ws")
+    assert isinstance(ws_override, str), "frontend/package.json: overrides.ws missing"
+    assert Version(ws_override) >= MIN_WS_VERSION
+
+
 def test_frontend_lock_resolves_dompurify_to_safe_npm_release() -> None:
     """RU/EN: package-lock must resolve dompurify from npm registry."""
     package_lock = _load_json(FRONTEND_LOCK_JSON)
@@ -66,6 +86,30 @@ def test_frontend_lock_resolves_dompurify_to_safe_npm_release() -> None:
     assert isinstance(lock_version, str), "frontend/package-lock.json: dompurify version missing"
     assert Version(lock_version) >= MIN_DOMPURIFY_VERSION
     _assert_npm_registry_resolution(package_name="dompurify", resolved=resolved)
+
+
+def test_frontend_lock_resolves_undici_to_safe_npm_release() -> None:
+    """RU/EN: package-lock must resolve undici from npm registry."""
+    package_lock = _load_json(FRONTEND_LOCK_JSON)
+    undici_pkg = package_lock.get("packages", {}).get("node_modules/undici", {})
+    lock_version = undici_pkg.get("version")
+    resolved = undici_pkg.get("resolved", "")
+
+    assert isinstance(lock_version, str), "frontend/package-lock.json: undici version missing"
+    assert Version(lock_version) >= MIN_UNDICI_VERSION
+    _assert_npm_registry_resolution(package_name="undici", resolved=resolved)
+
+
+def test_frontend_lock_resolves_ws_to_safe_npm_release() -> None:
+    """RU/EN: package-lock must resolve ws from npm registry."""
+    package_lock = _load_json(FRONTEND_LOCK_JSON)
+    ws_pkg = package_lock.get("packages", {}).get("node_modules/ws", {})
+    lock_version = ws_pkg.get("version")
+    resolved = ws_pkg.get("resolved", "")
+
+    assert isinstance(lock_version, str), "frontend/package-lock.json: ws version missing"
+    assert Version(lock_version) >= MIN_WS_VERSION
+    _assert_npm_registry_resolution(package_name="ws", resolved=resolved)
 
 
 def test_frontend_lock_resolves_all_js_yaml_entries_to_safe_npm_release() -> None:

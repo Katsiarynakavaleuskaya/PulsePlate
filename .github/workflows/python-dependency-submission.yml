@@ -65,18 +65,118 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  dependency-submission:
-    name: Submit Python dependency snapshot
+  dependency-submission-pr-validation:
+    name: Validate Python dependency submission trigger
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
+    permissions:
+      contents: read
+    steps:
+      - name: Confirm dependency submission is main-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Dependency snapshots are submitted on push to main or workflow_dispatch only."
+          echo "Pull requests validate this workflow without calling the dependency submission API."
+
+  runtime-dependency-submission:
+    name: Submit Python runtime and CI dependency snapshot
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - name: Detect and submit Python dependencies
+      - name: Prepare runtime Python dependency graph root
+        shell: bash
+        run: |
+          set -euo pipefail
+          graph_root="${RUNNER_TEMP}/pulseplate-python-runtime-dependency-root"
+          rm -rf "${graph_root}"
+          mkdir -p "${graph_root}"
+          cp \
+            constraints.txt \
+            requirements-ci-lite.txt \
+            requirements-dev.txt \
+            requirements-docker-runtime.txt \
+            requirements-lock.txt \
+            requirements-test.txt \
+            requirements.txt \
+            "${graph_root}/"
+
+      - name: Detect and submit runtime Python dependencies
         uses: advanced-security/component-detection-dependency-submission-action@b876b8cc341a53970394b33ea0ca4e86c25542de # v0.1.3
         with:
-          correlator: python-dependency-submission
+          correlator: python-dependency-submission-runtime
+          filePath: ${{ runner.temp }}/pulseplate-python-runtime-dependency-root
           detectorsCategories: Pip
           detectorArgs: Pip=EnableIfDefaultOff,SimplePip=EnableIfDefaultOff
-          directoryExclusionList: frontend,ios,node_modules,worktrees,.venv
+          directoryExclusionList: node_modules,worktrees,.venv
+
+  eval-data-dependency-submission:
+    name: Submit Python eval and data dependency snapshot
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Prepare eval and data Python dependency graph root
+        shell: bash
+        run: |
+          set -euo pipefail
+          graph_root="${RUNNER_TEMP}/pulseplate-python-eval-data-dependency-root"
+          rm -rf "${graph_root}"
+          mkdir -p "${graph_root}"
+          cp \
+            requirements-data.txt \
+            requirements-evals.txt \
+            "${graph_root}/"
+
+      - name: Detect and submit eval and data Python dependencies
+        uses: advanced-security/component-detection-dependency-submission-action@b876b8cc341a53970394b33ea0ca4e86c25542de # v0.1.3
+        with:
+          correlator: python-dependency-submission-eval-data
+          filePath: ${{ runner.temp }}/pulseplate-python-eval-data-dependency-root
+          detectorsCategories: Pip
+          detectorArgs: Pip=EnableIfDefaultOff,SimplePip=EnableIfDefaultOff
+          directoryExclusionList: node_modules,worktrees,.venv
+
+  rag-vector-dependency-submission:
+    name: Submit Python RAG/vector dependency snapshot
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.WORKFLOW_TIMEOUT_MINUTES || '10') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Prepare RAG/vector Python dependency graph root
+        shell: bash
+        run: |
+          set -euo pipefail
+          graph_root="${RUNNER_TEMP}/pulseplate-python-rag-vector-dependency-root"
+          rm -rf "${graph_root}"
+          mkdir -p "${graph_root}"
+          cp \
+            requirements-rag-vector-cpu.txt \
+            requirements-rag-vector.txt \
+            "${graph_root}/"
+
+      - name: Detect and submit RAG/vector Python dependencies
+        uses: advanced-security/component-detection-dependency-submission-action@b876b8cc341a53970394b33ea0ca4e86c25542de # v0.1.3
+        with:
+          correlator: python-dependency-submission-rag-vector
+          filePath: ${{ runner.temp }}/pulseplate-python-rag-vector-dependency-root
+          detectorsCategories: Pip
+          detectorArgs: Pip=EnableIfDefaultOff,SimplePip=EnableIfDefaultOff
+          directoryExclusionList: node_modules,worktrees,.venv

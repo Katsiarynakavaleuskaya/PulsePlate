@@ -2,9 +2,9 @@
 #
 # Local/manual only: do not install from runtime, Docker, or generic CI profiles.
 
--c requirements.txt
-
-# Heavy eval dependencies are lazy-imported by evals/ragas/run_ragas_eval.py.
-# Keep RAGAS below v1 until the companion runner migrates from v0.4-compatible imports.
-ragas<1.0
-datasets
+# RAGAS native execution is disabled while GHSA-95ww-475f-pr4f and
+# GHSA-w8v5-vhqr-4h9v have no patched RAGAS / DiskCache dependency path.
+# Keep this profile as an explicit empty local/manual surface so dependency
+# graph submission and audit routing can prove no vulnerable eval deps are
+# tracked. The runner must remain importable and fail closed when native RAGAS
+# dependencies are unavailable.

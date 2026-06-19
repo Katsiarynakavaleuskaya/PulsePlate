@@ -514,7 +514,7 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.6"
-    assert frontend_package["overrides"]["ws"] == "8.20.1"
+    assert frontend_package["overrides"]["ws"] == "8.21.0"
     packages = frontend_lock["packages"]
     minimatch_10_paths = {
         str(package_path)
@@ -529,7 +529,7 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
         )
         assert packages[brace_path]["version"] == "5.0.6"
     assert packages["node_modules/brace-expansion"]["version"] == "2.0.3"
-    assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.20.1"
+    assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.21.0"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
     assert "FROM node:24.16.0-bookworm-slim AS frontend-build" in dockerfile
     assert "node:22.22.1" not in dockerfile
