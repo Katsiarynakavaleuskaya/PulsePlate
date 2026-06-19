@@ -181,6 +181,12 @@ Reason: Addressed Sourcery's weak disabled-state assertion finding, CodeRabbit's
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1994#pullrequestreview-4527790634 -> 5b593652f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1994#discussion_r3438270668 -> 5b593652f
 
+Disposition: FIXED
+Commit: 5a10c1d08
+Evidence: `docs/review/PR_1994_FIXED_MAPPING.md`
+Reason: Converted the deferred RAGAS restoration backlog reference into a markdown link pointing at the canonical backlog ledger entry.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1994#pullrequestreview-4530417701 -> 5a10c1d08
+
 ## Deferred / Follow-Ups
 
 - Native RAGAS companion scoring restoration is tracked by
