@@ -105,18 +105,49 @@ authorization bypass inside this contract-pack PR.
   and pre-push hooks passed. Reason: the diff is large because the route
   registry is explicit, but scope remains tests/docs-only with no runtime files
   changed.
+- CodeRabbit: FIXED three actionable review findings. Evidence:
+  `tests/security/test_api_auth_tier_contract_pack.py:21`,
+  `tests/security/test_api_auth_tier_contract_pack.py:29`,
+  `tests/security/test_api_bola_contract_pack.py:29`, and
+  `tests/security/test_api_bola_contract_pack.py:152`.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No GitHub review threads have been resolved yet. This pass records the current
-post-open state and must be repeated after any new bot or human review activity.
+GitHub review threads have not been resolved without disposition evidence. This
+pass records the current post-open state and must be repeated after any new bot
+or human review activity.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+
+Commit: 048d7235e
+
+Evidence: `tests/security/test_api_auth_tier_contract_pack.py:21` and
+`tests/security/test_api_auth_tier_contract_pack.py:29` replace the narrow
+hard-coded object-id heuristic with generic path-parameter detection and
+foreign-object `_id` classification. Focused pytest and `make validate-changed`
+passed after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1996#discussion_r3442325743 -> 048d7235e
+
+Disposition: FIXED
+
+Commit: 8fbe52ade
+
+Evidence: `tests/security/test_api_bola_contract_pack.py:29` registers explicit
+PRO credentials with `ALLOW_ANONYMOUS_API_KEYS=false`, preserving the real PRO
+tier path in the BOLA idempotency tests. Evidence:
+`tests/security/test_api_bola_contract_pack.py:152` asserts JSON content type
+before parsing the feedback response. Focused pytest, `make validate-changed`,
+and `pre-commit run --all-files` passed after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1996#discussion_r3442325753 -> 8fbe52ade
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1996#discussion_r3442325757 -> 8fbe52ade
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1996#pullrequestreview-4532649016 -> 8fbe52ade
 
 ## Deferred / Follow-Ups
 
@@ -128,12 +159,12 @@ post-open state and must be repeated after any new bot or human review activity.
 
 ## Merge Readiness
 
-Status: NOT READY while fresh current-head CI for `75b81427e`, bot review,
+Status: NOT READY while fresh current-head CI for `8fbe52ade`, bot review,
 strict merge-readiness, and the mandatory wait-window remain pending.
 
 Required before merge:
 
-- Fresh current-head PR CI parity after head `75b81427e`.
+- Fresh current-head PR CI parity after head `8fbe52ade`.
 - No unresolved actionable human or bot review comments.
 - Strict merge-readiness with auth passes.
 - Mandatory wait-window after latest review/bot activity.
