@@ -108,6 +108,8 @@ Disposition: FIXED
 
 Finding: `PR5-P2-002` requested deterministic export rate-limit behavior checks.
 
+Commit: a90daa4ad
+
 Evidence: `. .venv/bin/activate && pytest -q tests/test_rate_limit_llm_and_exports_api.py::test_plan_week_export_csv_rate_limited_200_then_429 tests/test_rate_limit_llm_and_exports_api.py::test_export_sign_rate_limited_200_then_429`
 passed after the premortem.
 
@@ -153,38 +155,26 @@ must be repeated after any new bot or human review activity.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-
 Commit: 54e9ef7f5
-
 Evidence: `docs/review/PR_1997_FIXED_MAPPING.md` uses unchecked
 Evidence: focused diff-cover reports 100% changed-line coverage for `app/main.py` and `app/routers/plan_export.py`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#discussion_r3444327264 -> 54e9ef7f5
 
 Disposition: FIXED
-
 Commit: 891a1438c
-
 Evidence: `app/main.py` shares callable comparison semantics and recursively checks nested FastAPI dependency calls.
 Evidence: `tests/test_main_paywall_bootstrap.py` covers nested dependency detection.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#pullrequestreview-4534070939 -> 891a1438c
 
 Disposition: FIXED
-
 Commit: e255e0244
-
 Evidence: `app/routers/plan_export.py` documents the route-spec tuple shape.
 Reason: The larger generic router-family extraction suggestion is intentionally out of scope for this narrow registration-ownership PR; CodeRabbit itself classified the current tradeoff as acceptable for this PR.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#pullrequestreview-4534091296 -> e255e0244
 
 Disposition: FIXED
-
 Commit: e255e0244
-
 Evidence: `docs/review/PR_1997_FIXED_MAPPING.md` uses `bot or human` wording and keeps merge-readiness checklist items unchecked.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#pullrequestreview-4534993087 -> e255e0244
 
 ## Deferred / Follow-Ups
