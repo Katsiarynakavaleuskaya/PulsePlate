@@ -121,7 +121,7 @@ passed after the premortem.
 - CodeRabbit: FIXED merge-readiness checklist finding in `54e9ef7f5`.
   Evidence: `docs/review/PR_1997_FIXED_MAPPING.md` now uses unchecked
   checklist items under `Required before merge`.
-- Sourcery: FIXED callable-helper and dependency-depth review in `e255e0244`.
+- Sourcery: FIXED callable-helper and dependency-depth review in `891a1438c`.
   Evidence: `app/main.py` now shares callable comparison semantics and walks
   nested FastAPI dependency calls.
 - CodeRabbit: FIXED route-spec documentation review in `e255e0244`.
@@ -154,12 +154,12 @@ Evidence: focused diff-cover reports 100% changed-line coverage for `app/main.py
 
 Disposition: FIXED
 
-Commit: e255e0244
+Commit: 891a1438c
 
 Evidence: `app/main.py` shares callable comparison semantics and recursively checks nested FastAPI dependency calls.
 Evidence: `tests/test_main_paywall_bootstrap.py` covers nested dependency detection.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#pullrequestreview-4534070939 -> e255e0244
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1997#pullrequestreview-4534070939 -> 891a1438c
 
 Disposition: FIXED
 
