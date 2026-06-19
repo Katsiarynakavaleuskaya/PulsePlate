@@ -28,13 +28,12 @@ This is a **runtime truth** view (not a product wishlist).
 
 Anchor (stable): `legacy_app.py -> include_router(...) for core API routers`
 
-Evidence: `legacy_app.py:811-820`
+Evidence: `legacy_app.py:922-932`
 
 - `foods_router` (`app/routers/foods.py`)
 - `recipes_router` (`app/routers/recipes.py`)
 - `users_router` (`app/routers/users.py`)
 - `catalog_router` (`app/routers/catalog.py`)
-- `shoplist_router` (`app/routers/shoplist_export.py`) — included with `dependencies=[Depends(_get_api_key_dynamic)]`
 
 ### Canonical plan export routers (canonical bootstrap-owned)
 
@@ -57,6 +56,28 @@ OpenAPI effect:
   OpenAPI builder.
 - Hidden legacy export aliases remain a separate compatibility router owned by
   `app/routers/legacy_export_aliases.py`.
+
+### Canonical shoplist export router (canonical bootstrap-owned)
+
+Anchor (stable): `app/main.py -> _include_shoplist_export_router_if_needed(app)`
+
+Evidence:
+- `app/main.py` — registers `shoplist_export_router` from `app/routers/shoplist_export.py`
+  with `dependencies=[Depends(_legacy_module._get_api_key_dynamic)]`
+- `app/routers/shoplist_export.py` — owns implementation, export rate-limit decorators, CSV/PDF
+  response behavior, and the shared route constants from `app/routers/shoplist_export_routes.py`
+
+Runtime effect:
+- `GET /api/v1/shoplist`
+- `GET /api/v1/shoplist/export.csv`
+- `GET /api/v1/shoplist/export.pdf`
+
+OpenAPI effect:
+- Source `APIRoute.include_in_schema` remains `True`.
+- Final public `app.openapi()` continues to hide these shoplist export paths through the
+  canonical OpenAPI builder.
+- `legacy_app.py` no longer imports or registers `app/routers/shoplist_export.py`; the
+  legacy growth guard rejects reintroduced legacy registration.
 
 ### VIP routes (feature-flag gated, centralized)
 

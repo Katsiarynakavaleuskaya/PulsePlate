@@ -1,12 +1,14 @@
 """Tests for the public shoplist export endpoints."""
 
-from types import SimpleNamespace
+import inspect
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import List
 
 import pytest
 
+import app.main as app_main
 from app.routers import shoplist_export as export
 
 
@@ -36,6 +38,32 @@ def _patch_lazy_reportlab(
         lambda: (object(), fake_pdfmetrics, fake_tt_font, FakeTTFError, fake_canvas),
     )
     return seen_names
+
+
+def test_shoplist_export_route_registration_contract() -> None:
+    app_main.app.openapi_schema = None
+    openapi_paths = app_main.app.openapi().get("paths", {})
+    assert not [path for path in openapi_paths if str(path).startswith("/api/v1/shoplist")]
+
+    for path, method, include_in_schema in app_main._SHOPLIST_ROUTE_SPECS:
+        matching_routes = [
+            route
+            for route in app_main.app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        assert len(matching_routes) == 1
+
+        route = matching_routes[0]
+        endpoint = getattr(route, "endpoint", None)
+        assert endpoint.__module__ == "app.routers.shoplist_export"
+        assert "request" in inspect.signature(endpoint).parameters
+        assert getattr(route, "include_in_schema", True) is include_in_schema
+        assert 429 in (getattr(route, "responses", None) or {})
+        assert app_main._route_has_dependency_call(
+            route,
+            app_main._legacy_module._get_api_key_dynamic,
+        )
 
 
 def test_shoplist_json_structure(client):

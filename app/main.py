@@ -56,6 +56,8 @@ from app.routers.plan_export import (
     export_router,
     plan_router,
 )
+from app.routers.shoplist_export import router as shoplist_export_router
+from app.routers.shoplist_export_routes import SHOPLIST_ROUTE_SPECS
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
 
@@ -94,6 +96,10 @@ _LEGACY_EXPORT_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
 _PLAN_EXPORT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in PLAN_EXPORT_ROUTE_SPECS
+)
+_SHOPLIST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in SHOPLIST_ROUTE_SPECS
 )
 
 
@@ -165,6 +171,10 @@ def _is_same_legacy_export_alias_endpoint(existing: object, expected: object) ->
 
 
 def _is_same_plan_export_callable(existing: object, expected: object) -> bool:
+    return _is_same_callable_by_module_and_name(existing, expected)
+
+
+def _is_same_shoplist_export_callable(existing: object, expected: object) -> bool:
     return _is_same_callable_by_module_and_name(existing, expected)
 
 
@@ -762,6 +772,110 @@ def _include_plan_export_routers_if_needed(target_app: FastAPI) -> None:
             )
 
 
+def _include_shoplist_export_router_if_needed(target_app: FastAPI) -> None:
+    """Register public shoplist export routes as one protected atomic family."""
+
+    api_key_dependency = getattr(_legacy_module, "_get_api_key_dynamic", None)
+    if not callable(api_key_dependency):
+        raise RuntimeError("Shoplist export API key dependency is unavailable.")
+
+    expected_specs = {(path, method) for path, method, _include in _SHOPLIST_ROUTE_SPECS}
+    expected_paths = {path for path, _method in expected_specs}
+    expected_methods_by_path = {path: method for path, method in expected_specs}
+    expected_visibility = {
+        (path, method): include_in_schema
+        for path, method, include_in_schema in _SHOPLIST_ROUTE_SPECS
+    }
+    expected_endpoints: dict[tuple[str, str], object] = {}
+    expected_route_counts: dict[tuple[str, str], int] = {spec: 0 for spec in expected_specs}
+
+    for route in shoplist_export_router.routes:
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None) or set()
+        if path not in expected_paths:
+            continue
+        expected_method = expected_methods_by_path[str(path)]
+        if expected_method not in methods:
+            raise RuntimeError("Shoplist export router does not define the expected route family.")
+        unexpected_methods = set(methods) - {expected_method, "HEAD", "OPTIONS"}
+        if unexpected_methods:
+            raise RuntimeError("Shoplist export router does not define the expected route family.")
+        spec = (str(path), expected_method)
+        expected_route_counts[spec] += 1
+        expected_endpoints[spec] = getattr(route, "endpoint", None)
+        if getattr(route, "include_in_schema", True) is not expected_visibility[spec]:
+            raise RuntimeError("Shoplist export router does not preserve OpenAPI visibility.")
+        if 429 not in (getattr(route, "responses", None) or {}):
+            raise RuntimeError("Shoplist export router does not preserve 429 response metadata.")
+
+    if set(expected_endpoints) != expected_specs or any(
+        count != 1 for count in expected_route_counts.values()
+    ):
+        raise RuntimeError("Shoplist export router does not define the expected route family.")
+
+    shoplist_routes = [
+        route for route in target_app.routes if getattr(route, "path", None) in expected_paths
+    ]
+    if not shoplist_routes:
+        target_app.include_router(
+            shoplist_export_router,
+            dependencies=[Depends(api_key_dependency)],
+        )
+        return
+
+    shoplist_paths_present = {
+        str(getattr(route, "path", ""))
+        for route in shoplist_routes
+        if expected_methods_by_path[str(getattr(route, "path", ""))]
+        in (getattr(route, "methods", None) or set())
+    }
+    if shoplist_paths_present != expected_paths:
+        existing = ", ".join(sorted(shoplist_paths_present))
+        missing = ", ".join(sorted(expected_paths - shoplist_paths_present))
+        raise RuntimeError(
+            "Partial shoplist export route registration detected. "
+            f"Existing: {existing or '<none>'}; missing: {missing or '<none>'}."
+        )
+
+    for route in shoplist_routes:
+        path = str(getattr(route, "path", ""))
+        methods = getattr(route, "methods", None) or set()
+        expected_method = expected_methods_by_path[path]
+        if expected_method not in methods:
+            raise RuntimeError("Partial shoplist export route registration detected.")
+        unexpected_methods = set(methods) - {expected_method, "HEAD", "OPTIONS"}
+        if unexpected_methods:
+            raise RuntimeError("Partial shoplist export route registration detected.")
+
+    for (path, method), endpoint in expected_endpoints.items():
+        matching_routes = [
+            route
+            for route in target_app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        if len(matching_routes) != 1 or not _is_same_shoplist_export_callable(
+            getattr(matching_routes[0], "endpoint", None),
+            endpoint,
+        ):
+            raise RuntimeError(
+                f"Duplicate {path} route detected with a different shoplist export handler."
+            )
+        if (
+            getattr(matching_routes[0], "include_in_schema", True)
+            is not expected_visibility[(path, method)]
+        ):
+            raise RuntimeError(
+                f"Existing {path} route does not preserve shoplist export OpenAPI visibility."
+            )
+        if 429 not in (getattr(matching_routes[0], "responses", None) or {}):
+            raise RuntimeError(f"Existing {path} route does not preserve 429 response metadata.")
+        if not _route_has_dependency_call(matching_routes[0], api_key_dependency):
+            raise RuntimeError(
+                f"Existing {path} route does not preserve shoplist export API key dependency."
+            )
+
+
 def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     """Hide legacy users CRUD from the public OpenAPI contract.
 
@@ -849,6 +963,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_admin_operations_router_if_needed(app)
     _include_bmi_compat_router_if_needed(app)
     _include_plan_export_routers_if_needed(app)
+    _include_shoplist_export_router_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)
 
     register_billing_routes(app)

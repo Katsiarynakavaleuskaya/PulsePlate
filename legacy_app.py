@@ -64,7 +64,6 @@ from app.routers.restaurants import (
 )
 from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
-from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
@@ -931,7 +930,6 @@ app.include_router(
     dependencies=[protected_dependency],
     include_in_schema=False,
 )
-app.include_router(shoplist_router, dependencies=[protected_dependency])
 
 # Register VIP routes (centralized, explicit registration)
 if _register_vip_routes is not None:
