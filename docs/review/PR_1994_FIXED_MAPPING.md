@@ -102,16 +102,40 @@ Evidence: GitHub Actions workflow at
 
 ## Post-Open Review Evidence
 
-Pending for current-head PR #1994:
+Completed for current-head PR #1994:
 
 - `agent-coordinator`: FIXED Phase2/body artifact and bot finding blockers in
   `5b593652f`.
-- `qa-engineer-agent`
-- `bug-hunter`
-- `security-auditor`
-- Codex Security diff scan / finding discovery
-- CodeRabbit
-- `pulseplate-pr-review`
+- `qa-engineer-agent`: PASS for acceptance/regression risk on head
+  `ae1b1d464`.
+  Evidence: focused dependency/security pytest passed with `114 passed`;
+  `npm --prefix frontend ls dompurify undici ws --package-lock-only --all`
+  showed `dompurify@3.4.11`, `undici@7.28.0`, and `ws@8.21.0`; npm audit
+  reported `found 0 vulnerabilities`.
+- `bug-hunter`: PASS for false-green/regression risk on head `ae1b1d464`.
+  Evidence: `pip-audit -r requirements-evals.txt` reported no known
+  vulnerabilities, `python -m evals.ragas.run_ragas_eval --help` remained
+  importable, and `git diff --check origin/main...HEAD` passed.
+- `security-auditor`: PASS with merge caveat on head `ae1b1d464`.
+  Evidence: generated eval files contain no private index URL, credential marker,
+  `file://`, or `/Users/` material; npm lock entries resolve the remediated
+  floors from the npm registry with integrity; `security-scan` is passing.
+- Codex Security diff scan / finding discovery: completed through the local
+  diff-scan workflow because no callable Codex Security MCP endpoint was exposed
+  in this session. No additional actionable finding.
+- CodeRabbit: PASS on the latest current-head review status after bot findings
+  were fixed in `5b593652f` and mapped in `ae1b1d464`.
+- Sourcery: PASS after the weak disabled-state assertion finding was fixed in
+  `5b593652f`.
+- `pulseplate-pr-review`: dry-run report completed. The only advisory note was
+  large-diff review risk, covered by the operator-approved consolidated scope,
+  trusted scope labels, PR body scope approvals, `pr_scope_guard`, and focused
+  local gates. Calibration tests passed:
+  `. .venv/bin/activate && python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
+  -> `13 passed`.
+- Review thread disposition guard:
+  `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1994 --require-auth`
+  -> PASS.
 
 ## Discussion Thread Pass
 
@@ -157,14 +181,11 @@ Reason: Addressed Sourcery's weak disabled-state assertion finding, CodeRabbit's
 
 ## Merge Readiness
 
-Status: NOT READY while post-open role passes, review thread disposition, and
-current-head PR CI are pending.
+Status: NOT READY while current-head PR CI and strict merge-readiness are
+pending.
 
 Required before merge:
 
-- Post-open role pass completion.
-- Codex Security diff scan / finding discovery.
-- CodeRabbit and bot comment disposition.
 - Current-head PR CI parity.
 - No unresolved actionable human or bot review comments.
 - Strict merge-readiness with auth.
