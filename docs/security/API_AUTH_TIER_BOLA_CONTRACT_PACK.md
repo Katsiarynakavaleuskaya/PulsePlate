@@ -9,7 +9,7 @@ the legacy and architecture cleanup sequence.
 ## Contract Surface
 
 The source of truth for the test registry is
-`tests/security/_api_authz_contracts.py`. Each sensitive route is classified by:
+`tests/security/_api_authz_contracts.py:86`. Each sensitive route is classified by:
 
 - method and path;
 - authentication class;
@@ -25,6 +25,22 @@ hidden mutating routes, or expose path-parameter object identifiers. The
 registry is method-and-path based because the live router table can contain
 duplicate registrations for the same path, including VIP shoplist routes. A new
 sensitive route must be added to the registry before the contract test passes.
+
+Evidence anchors:
+
+- Registry: `tests/security/_api_authz_contracts.py:144`
+- Sensitive-route discovery: `tests/security/_api_authz_contracts.py:717`
+- Auth dependency matching: `tests/security/_api_authz_contracts.py:760`
+- Inventory invariants: `tests/security/test_api_auth_tier_contract_pack.py:32`
+- Dependency guard invariant: `tests/security/test_api_auth_tier_contract_pack.py:81`
+- Object ownership invariant:
+  `tests/security/test_api_auth_tier_contract_pack.py:104`
+- Foreign-object status invariant:
+  `tests/security/test_api_auth_tier_contract_pack.py:119`
+- BOLA/idempotency regressions:
+  `tests/security/test_api_bola_contract_pack.py:49`,
+  `tests/security/test_api_bola_contract_pack.py:86`, and
+  `tests/security/test_api_bola_contract_pack.py:124`
 
 ## Security Guarantees
 

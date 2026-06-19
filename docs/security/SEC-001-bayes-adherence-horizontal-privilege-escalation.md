@@ -46,9 +46,18 @@ authenticated context.
 
 ## Evidence
 
-- `tests/test_bayes_adherence_api.py`
-- `tests/security/test_api_auth_tier_contract_pack.py`
-- `docs/security/SECURITY_POSTURE.md`
+- Auth-derived subject setup:
+  `tests/test_bayes_adherence_api.py:41`
+- Payload `user_id` rejection:
+  `tests/test_bayes_adherence_api.py:171`
+- API-key state isolation:
+  `tests/test_bayes_adherence_api.py:252`
+- Auth/tier contract registration:
+  `tests/security/_api_authz_contracts.py:144`
+- Contract drift test:
+  `tests/security/test_api_auth_tier_contract_pack.py:32`
+- Security posture summary:
+  `docs/security/SECURITY_POSTURE.md:11`
 
 ## Deferred Follow-ups
 
