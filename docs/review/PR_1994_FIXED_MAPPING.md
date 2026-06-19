@@ -104,6 +104,8 @@ Evidence: GitHub Actions workflow at
 
 Pending for current-head PR #1994:
 
+- `agent-coordinator`: FIXED Phase2/body artifact and bot finding blockers in
+  `5b593652f`.
 - `qa-engineer-agent`
 - `bug-hunter`
 - `security-auditor`
@@ -116,13 +118,10 @@ Pending for current-head PR #1994:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable human or bot review threads were present when this artifact was
-created. Any later actionable review thread must be dispositioned below before
-resolution.
+Current human and bot review threads have been checked and the actionable items
+known at this pass are dispositioned below before resolution.
 
 ## Fixed in Commit Mapping
-
-Initial implementation commit:
 
 Disposition: FIXED
 Commit: fbb936af1
@@ -135,14 +134,26 @@ Evidence: `tests/test_frontend_dependency_guards.py`
 Evidence: `tests/test_python_supply_chain_controls.py`
 Evidence: `tests/guards/test_security_devtooling_regression_guards.py`
 
+Disposition: FIXED
+Commit: 5b593652f
+Evidence: `tests/test_python_supply_chain_controls.py`
+Evidence: `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md`
+Evidence: `docs/review/PR_1994_FIXED_MAPPING.md`
+Reason: Addressed Sourcery's weak disabled-state assertion finding, CodeRabbit's unchecked fixed-mapping checklist finding, CodeRabbit's torch advisory anchor finding, and CodeRabbit's single-disposition / GitHub capitalization notes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1994#pullrequestreview-4527742903 -> 5b593652f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1994#discussion_r3438230320 -> 5b593652f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1994#pullrequestreview-4527768907 -> 5b593652f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1994#pullrequestreview-4527790634 -> 5b593652f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1994#discussion_r3438270668 -> 5b593652f
+
 ## Deferred / Follow-Ups
 
 - Native RAGAS companion scoring restoration is tracked by
   `ledger-p1-restore-ragas-companion-safe-deps`.
 - Torch `CVE-2025-3000` remains upstream-blocked until advisory/private-index
   evidence identifies a patched version.
-- Dependabot PR #1993 should be closed as superseded after this replacement PR
-  has current-head coverage.
+- Dependabot PR #1993 was closed as superseded after this replacement PR was
+  opened with `undici==7.28.0` coverage.
 
 ## Merge Readiness
 
