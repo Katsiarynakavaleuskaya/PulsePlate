@@ -51,6 +51,11 @@ WEEK_EXPORT_CSV_ROUTE = "/week/export.csv"
 WEEK_EXPORT_PDF_ROUTE = "/week/export.pdf"
 WEEK_EXPORT_CSV_PATH = f"{PLAN_ROUTE_PREFIX}{WEEK_EXPORT_CSV_ROUTE}"
 WEEK_EXPORT_PDF_PATH = f"{PLAN_ROUTE_PREFIX}{WEEK_EXPORT_PDF_ROUTE}"
+PLAN_EXPORT_ROUTE_SPECS = (
+    ("/api/v1/export/sign", "POST", True),
+    (WEEK_EXPORT_CSV_PATH, "GET", True),
+    (WEEK_EXPORT_PDF_PATH, "GET", True),
+)
 
 plan_router = APIRouter(prefix=PLAN_ROUTE_PREFIX, tags=["plan"])
 export_router = APIRouter(prefix="/api/v1/export", tags=["export"])
@@ -617,4 +622,4 @@ def sign_export_link_route(request: Request, payload: SignRequest) -> SignedLink
     return SignedLinkResponse(**sign_export_link(payload))
 
 
-__all__ = ["plan_router", "export_router"]
+__all__ = ["PLAN_EXPORT_ROUTE_SPECS", "plan_router", "export_router"]

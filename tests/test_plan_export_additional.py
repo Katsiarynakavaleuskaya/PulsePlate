@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import inspect
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from legacy_app import _get_api_key_dynamic
 from app.main import app
 from app.routers import plan_export
 import settings
+from tests.security._api_authz_contracts import _contains_dependency, _flatten_dependency_calls
 
 
 def test_slogan_default() -> None:
@@ -178,26 +182,33 @@ def test_export_token_ttl_rejects_non_positive_value(
 
 
 def test_export_routes_are_registered_but_hidden_from_public_openapi() -> None:
-    runtime_paths = {
-        getattr(route, "path", None)
-        for route in app.routes
-        if getattr(route, "path", None)
-        in {
-            "/api/v1/export/sign",
-            plan_export.WEEK_EXPORT_CSV_PATH,
-            plan_export.WEEK_EXPORT_PDF_PATH,
-            plan_export.SHOPLIST_EXPORT_PDF_PATH,
-        }
+    expected_routes = {
+        (method, path): include_in_schema
+        for path, method, include_in_schema in plan_export.PLAN_EXPORT_ROUTE_SPECS
     }
     public_paths = app.openapi()["paths"]
 
-    assert runtime_paths == {
-        "/api/v1/export/sign",
-        plan_export.WEEK_EXPORT_CSV_PATH,
-        plan_export.WEEK_EXPORT_PDF_PATH,
-        plan_export.SHOPLIST_EXPORT_PDF_PATH,
-    }
-    assert "/api/v1/export/sign" not in public_paths
-    assert plan_export.WEEK_EXPORT_CSV_PATH not in public_paths
-    assert plan_export.WEEK_EXPORT_PDF_PATH not in public_paths
+    for (method, path), include_in_schema in expected_routes.items():
+        matching_routes = [
+            route
+            for route in app.routes
+            if isinstance(route, APIRoute)
+            and route.path == path
+            and method in (route.methods or set())
+        ]
+        assert len(matching_routes) == 1
+        route = matching_routes[0]
+        flattened_calls = _flatten_dependency_calls(route)
+
+        assert route.endpoint.__module__ == "app.routers.plan_export"
+        assert route.include_in_schema is include_in_schema
+        assert 429 in route.responses
+        assert "request" in inspect.signature(route.endpoint).parameters
+        assert _contains_dependency(flattened_calls, _get_api_key_dynamic)
+        if path in {plan_export.WEEK_EXPORT_CSV_PATH, plan_export.WEEK_EXPORT_PDF_PATH}:
+            assert _contains_dependency(flattened_calls, plan_export._require_valid_token)
+        else:
+            assert not _contains_dependency(flattened_calls, plan_export._require_valid_token)
+        assert path not in public_paths
+
     assert plan_export.SHOPLIST_EXPORT_PDF_PATH not in public_paths
