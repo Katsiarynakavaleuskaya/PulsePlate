@@ -125,8 +125,8 @@ def test_legacy_vip_weekly_plan_alias_is_deprecated_and_not_treated_as_canonical
 
     assert alias_route.deprecated is True
     assert ("POST", alias_route.path) in LEGACY_HTTP_ALIAS_ALLOWLIST
-    assert require_vip_tier not in flattened_calls
-    assert api_key_header in flattened_calls
+    assert not _contains_dependency(flattened_calls, require_vip_tier)
+    assert _contains_dependency(flattened_calls, api_key_header)
 
 
 def test_legacy_http_alias_allowlist_matches_deprecated_routes(app: FastAPI) -> None:
