@@ -36,8 +36,8 @@ authorization bypass inside this contract-pack PR.
 - Post-open packet: `artifacts/orchestration/task_packets/31612eecd993.json`
 - Pre-open role order executed:
   `agent-coordinator -> security-auditor -> backend-engineer -> qa-engineer-agent -> bug-hunter -> architecture-specialist`
-- Post-open role order started:
-  `agent-coordinator -> qa-engineer-agent`
+- Post-open role order executed:
+  `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor`
 - Starter: direct repo startup with `check_preflight.py --mode execute` and
   `task_bootstrap.py`; packet creation was treated as provenance only, not role
   execution.
@@ -84,9 +84,20 @@ authorization bypass inside this contract-pack PR.
 - `qa-engineer-agent`: FIXED valid governance findings in this mapping/docs
   update. The findings were missing security-doc `file:line` anchors and missing
   canonical `docs/review/PR_1996_FIXED_MAPPING.md` artifact.
-- `bug-hunter`: pending after this governance fix.
-- `security-auditor`: pending after this governance fix.
-- Codex Security diff scan / finding discovery: pending.
+- `bug-hunter`: FIXED false-green contract-test findings in `048d7235e`.
+  Evidence: `tests/security/test_api_auth_tier_contract_pack.py:105`,
+  `tests/security/test_api_auth_tier_contract_pack.py:119`, and
+  `tests/test_pro_vip_route_dependency_guard.py:95`.
+- `security-auditor`: FIXED stale-local-head/governance finding by pushing the
+  post-review fix series; FIXED the remaining module/qualname-safe dependency
+  assertion in `2dcc8c759`. Evidence:
+  `tests/test_pro_vip_route_dependency_guard.py:114`.
+- Codex Security diff scan / finding discovery: PASS / no reportable findings.
+  Report directory:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/dfffec476_20260619T121118Z`.
+  The scan reviewed 12/12 diff-scoped files and used an explicit
+  `git diff --name-only` worklist fallback because the plugin default generator
+  excludes tests/docs paths.
 - `pulseplate-pr-review`: pending.
 
 ## Discussion Thread Pass
