@@ -6,6 +6,7 @@ Keep imports deterministic: do NOT use importlib exec_module, do NOT mutate sys.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any, Awaitable, Callable, cast
 
 import legacy_app as _legacy_module
@@ -160,7 +161,7 @@ def _is_same_legacy_export_alias_endpoint(existing: object, expected: object) ->
     if not _is_same_callable_by_module_and_name(existing, expected, use_qualname=False):
         return False
     expected_module = getattr(expected, "__module__", None)
-    return expected_module == legacy_export_aliases_module.__name__
+    return bool(expected_module == legacy_export_aliases_module.__name__)
 
 
 def _is_same_plan_export_callable(existing: object, expected: object) -> bool:
@@ -170,9 +171,9 @@ def _is_same_plan_export_callable(existing: object, expected: object) -> bool:
 def _route_has_dependency_call(route: object, expected: object) -> bool:
     dependant = getattr(route, "dependant", None)
 
-    def _iter_dependency_calls(dependencies: object) -> list[object]:
+    def _iter_dependency_calls(dependencies: Iterable[object] | None) -> list[object]:
         calls: list[object] = []
-        for dependency in dependencies or []:
+        for dependency in dependencies if dependencies is not None else ():
             calls.append(getattr(dependency, "call", None))
             calls.extend(_iter_dependency_calls(getattr(dependency, "dependencies", None)))
         return calls
