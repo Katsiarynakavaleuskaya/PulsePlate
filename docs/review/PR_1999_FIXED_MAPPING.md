@@ -70,6 +70,10 @@ moderation runtime work, or broad legacy refactor.
 - PASS: clean CI-style Trivy action reproduction with upstream
   `aquasecurity/trivy` checkout under `trivy/`, Docker workflow
   `skip-dirs: trivy`, `.trivy-ignore-policy.rego`, and JSON result count `0`.
+- PASS: PR merge-ref Trivy action reproduction for GitHub synthetic merge commit
+  `891d0f9f` with upstream `aquasecurity/trivy` checkout under `trivy/`, Docker
+  workflow `skip-dirs: trivy`, `.trivy-ignore-policy.rego`, and JSON result
+  count `0`.
 - PASS after CI-remediation commits: `make validate-changed` selected
   `tests/test_ci_workflow_pr_size_governance_contract.py`,
   `tests/test_main_paywall_bootstrap.py`,
@@ -216,9 +220,9 @@ and passed.
 - FIXED: CodeRabbit reported stale Evidence Anchor lines in
   `docs/security/CVE-2026-54297-faraday-fastlane.md`.
   - Commit: `1113689fe`
-  - Evidence: `docs/security/CVE-2026-54297-faraday-fastlane.md:116` points to
-    the exact CVE match, `:118` points to the observed fingerprint set, and
-    `:123` points to the backlog anchor line; `tests/test_trivy_ignore_policy_expiry.py`
+  - Evidence: `docs/security/CVE-2026-54297-faraday-fastlane.md:118` points to
+    the exact CVE match, `:120` points to the observed fingerprint set, and
+    `:125` points to the backlog anchor line; `tests/test_trivy_ignore_policy_expiry.py`
     asserts these anchors.
 
 ## Discussion Thread Pass
@@ -234,7 +238,7 @@ disposition evidence before thread resolution or merge-readiness claims.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1999#discussion_r3447050572 -> 1113689fe
 Disposition: FIXED
 Commit: 1113689fe
-Evidence: docs/security/CVE-2026-54297-faraday-fastlane.md:116; docs/security/CVE-2026-54297-faraday-fastlane.md:118; docs/security/CVE-2026-54297-faraday-fastlane.md:123; tests/test_trivy_ignore_policy_expiry.py line-anchor assertions.
+Evidence: docs/security/CVE-2026-54297-faraday-fastlane.md:118; docs/security/CVE-2026-54297-faraday-fastlane.md:120; docs/security/CVE-2026-54297-faraday-fastlane.md:125; tests/test_trivy_ignore_policy_expiry.py line-anchor assertions.
 
 ## Merge Readiness
 

@@ -304,6 +304,7 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
 
     assert 'input.VulnerabilityID == "CVE-2026-54297"' in policy
     assert '"sha256:5e248df54210988d324657bcd9bd73c2b662bf0d8a1a4bc5fc7fa933d74fe790"' in policy
+    assert '"sha256:9fdbd863204075dce25e2bd9eb09096f0db55a2463a7888f8ff5def4444912b1"' in policy
     assert '"sha256:3c73a6b1e7a4ca1de2e0ae9967c4ffe520e12e5c68dc5f60951bf54ac68f0a16"' in policy
     assert 'input.PkgName == "faraday"' in policy
     assert 'input.InstalledVersion == "1.10.5"' in policy
@@ -318,7 +319,7 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     assert "`ios/Gemfile.lock` as the target evidence" in doc_text
     assert "skip-dirs: trivy" in doc_text
     assert "transient upstream `trivy/go.mod`" in doc_text
-    assert "`trivy/ignore-policy.rego:124`" in doc_text
+    assert "`trivy/ignore-policy.rego:125`" in doc_text
     assert "`trivy/ignore-policy.rego:112`" in doc_text
     assert "`docs/roadmap/BACKLOG_LEDGER.md:5150`" in doc_text
 
