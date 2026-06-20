@@ -40,6 +40,14 @@ Evidence: `legacy_app.py:922-932`
 Anchor (stable): `app/main.py -> _include_plan_export_routers_if_needed(app)`
 
 Evidence:
+- `app/bootstrap/route_family.py:26` — shared `RouteMemberContract` for exact static
+  route-family members.
+- `app/bootstrap/route_family.py:87` — shared `ensure_route_family_registered(...)` guard
+  validates source routers before registration and validates existing app routes for
+  idempotency, partial registration, duplicate/foreign handlers, required dependency drift,
+  response metadata drift, and OpenAPI visibility drift.
+- `app/main.py:686-700` — applies the shared static guard to `export_router` and
+  `plan_router`.
 - `app/main.py` — registers `export_router` and `plan_router` from `app/routers/plan_export.py`
   with `dependencies=[Depends(_legacy_module._get_api_key_dynamic)]`
 - `app/routers/plan_export.py` — owns implementation, rate-limit decorators, signed export token
@@ -56,12 +64,18 @@ OpenAPI effect:
   OpenAPI builder.
 - Hidden legacy export aliases remain a separate compatibility router owned by
   `app/routers/legacy_export_aliases.py`.
+- Unexpected source `APIRoute`s in the plan/export source routers fail closed before
+  registration; this matches the shoplist export bootstrap policy.
 
 ### Canonical shoplist export router (canonical bootstrap-owned)
 
 Anchor (stable): `app/main.py -> _include_shoplist_export_router_if_needed(app)`
 
 Evidence:
+- `app/bootstrap/route_family.py:26` — shared `RouteMemberContract` for exact static
+  route-family members.
+- `app/bootstrap/route_family.py:87` — shared `ensure_route_family_registered(...)` guard.
+- `app/main.py:703-717` — applies the shared static guard to `shoplist_export_router`.
 - `app/main.py` — registers `shoplist_export_router` from `app/routers/shoplist_export.py`
   with `dependencies=[Depends(_legacy_module._get_api_key_dynamic)]`
 - `app/routers/shoplist_export.py` — owns implementation, export rate-limit decorators, CSV/PDF

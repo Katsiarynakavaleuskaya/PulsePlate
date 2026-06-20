@@ -9,6 +9,7 @@ from typing import List
 import pytest
 
 import app.main as app_main
+from app.bootstrap.route_family import route_has_dependency_call
 from app.routers import shoplist_export as export
 
 
@@ -60,7 +61,7 @@ def test_shoplist_export_route_registration_contract() -> None:
         assert "request" in inspect.signature(endpoint).parameters
         assert getattr(route, "include_in_schema", True) is include_in_schema
         assert 429 in (getattr(route, "responses", None) or {})
-        assert app_main._route_has_dependency_call(
+        assert route_has_dependency_call(
             route,
             app_main._legacy_module._get_api_key_dynamic,
         )

@@ -6,6 +6,10 @@ import pytest
 from typing import Generator
 
 import app.main as app_main
+from app.bootstrap.route_family import (
+    route_has_dependency_call,
+    same_callable_by_module_and_qualname,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -1371,7 +1375,7 @@ def test_plan_export_route_registration_is_idempotent(
         assert getattr(matching_routes[0], "endpoint").__module__ == "app.routers.plan_export"
         assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
         assert 429 in (getattr(matching_routes[0], "responses", None) or {})
-        assert app_main._route_has_dependency_call(
+        assert route_has_dependency_call(
             matching_routes[0],
             app_main._legacy_module._get_api_key_dynamic,
         )
@@ -1491,7 +1495,7 @@ def test_plan_export_route_registration_rejects_combined_methods_in_router(
         _bootstrap_temp_app(FastAPI())
 
 
-def test_plan_export_route_registration_allows_unrelated_router_paths(
+def test_plan_export_route_registration_rejects_unrelated_router_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
@@ -1499,12 +1503,11 @@ def test_plan_export_route_registration_allows_unrelated_router_paths(
     monkeypatch.setattr(app_main, "export_router", export_stub_router)
     monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
 
-    app = _bootstrap_temp_app(FastAPI())
-
-    assert any(
-        getattr(route, "path", None) == "/api/v1/unrelated-plan-export-probe"
-        for route in app.routes
-    )
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
 
 
 def test_plan_export_callable_equivalence_rejects_non_callables() -> None:
@@ -1514,8 +1517,8 @@ def test_plan_export_callable_equivalence_rejects_non_callables() -> None:
         if getattr(route, "path", None) == app_main._PLAN_EXPORT_ROUTE_SPECS[0][0]
     )
 
-    assert not app_main._is_same_plan_export_callable(None, expected_endpoint)
-    assert not app_main._is_same_plan_export_callable(expected_endpoint, None)
+    assert not same_callable_by_module_and_qualname(None, expected_endpoint)
+    assert not same_callable_by_module_and_qualname(expected_endpoint, None)
 
 
 def test_plan_export_route_registration_rejects_foreign_handlers(
@@ -1550,7 +1553,7 @@ def test_plan_export_route_registration_rejects_missing_api_key_dependency(
 
     with pytest.raises(
         RuntimeError,
-        match="Existing .* route does not preserve plan export API key dependency",
+        match="Existing .* route does not preserve plan export required dependency",
     ):
         app_main._include_plan_export_routers_if_needed(app)
 
@@ -1623,7 +1626,7 @@ def test_plan_export_dependency_detection_walks_nested_dependencies() -> None:
         if getattr(route, "path", None) == "/api/v1/nested-plan-export-dependency-probe"
     )
 
-    assert app_main._route_has_dependency_call(
+    assert route_has_dependency_call(
         route,
         app_main._legacy_module._get_api_key_dynamic,
     )
@@ -1705,7 +1708,7 @@ def test_shoplist_export_route_registration_is_idempotent(
         assert len(matching_routes) == 1
         assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
         assert 429 in (getattr(matching_routes[0], "responses", None) or {})
-        assert app_main._route_has_dependency_call(
+        assert route_has_dependency_call(
             matching_routes[0],
             app_main._legacy_module._get_api_key_dynamic,
         )
@@ -1851,8 +1854,8 @@ def test_shoplist_export_callable_equivalence_rejects_non_callables() -> None:
         if getattr(route, "path", None) == app_main._SHOPLIST_ROUTE_SPECS[0][0]
     )
 
-    assert not app_main._is_same_shoplist_export_callable(None, expected_endpoint)
-    assert not app_main._is_same_shoplist_export_callable(expected_endpoint, None)
+    assert not same_callable_by_module_and_qualname(None, expected_endpoint)
+    assert not same_callable_by_module_and_qualname(expected_endpoint, None)
 
 
 def test_shoplist_export_route_registration_rejects_foreign_handlers(
@@ -1886,7 +1889,7 @@ def test_shoplist_export_route_registration_rejects_missing_api_key_dependency(
 
     with pytest.raises(
         RuntimeError,
-        match="Existing .* route does not preserve shoplist export API key dependency",
+        match="Existing .* route does not preserve shoplist export required dependency",
     ):
         app_main._include_shoplist_export_router_if_needed(app)
 
