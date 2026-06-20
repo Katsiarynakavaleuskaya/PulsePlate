@@ -221,7 +221,7 @@ and passed.
   `docs/security/CVE-2026-54297-faraday-fastlane.md`.
   - Commit: `1113689fe`
   - Evidence: `docs/security/CVE-2026-54297-faraday-fastlane.md:118` points to
-    the exact CVE match, `:120` points to the observed fingerprint set, and
+    the exact CVE match, `:120` points to the stable identifier set, and
     `:125` points to the backlog anchor line; `tests/test_trivy_ignore_policy_expiry.py`
     asserts these anchors.
 

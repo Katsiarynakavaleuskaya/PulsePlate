@@ -103,18 +103,21 @@ ignore if {
 
 # CVE-2026-54297 (Faraday / Fastlane release tooling) - Fastlane still constrains Faraday 1.x at review time
 # Review-by: 2026-06-27 (manual removal)
-# Rationale: Trivy v0.71.2 reports faraday@1.10.5 in ios/Gemfile.lock with fixed version 2.14.3, but Fastlane 2.236.1 still depends on faraday (~> 1.0). This lockfile is privileged iOS release tooling, not backend/container runtime or the iOS app binary, so keep an exact temporary suppression while monitoring upstream Fastlane. Trivy ignore-policy input does not expose the result Target, so this rule is fingerprint-scoped to the exact observed clean branch, PR merge-ref, and dirty-local findings.
+# Rationale: Trivy v0.71.2 reports faraday@1.10.5 in ios/Gemfile.lock with fixed version 2.14.3, but Fastlane 2.236.1 still depends on faraday (~> 1.0). This lockfile is privileged iOS release tooling, not backend/container runtime or the iOS app binary, so keep an exact temporary suppression while monitoring upstream Fastlane. Trivy ignore-policy input does not expose the result Target, and Fingerprint changes between synthetic PR merge refs, so this rule is scoped to stable advisory/package identity fields and guarded by a repo test that Faraday 1.10.5 exists only in ios/Gemfile.lock.
 # Monitor: https://avd.aquasec.com/nvd/cve-2026-54297
 # Documented in: docs/security/CVE-2026-54297-faraday-fastlane.md
 # Removal condition: Remove when Fastlane publishes a compatible release that permits Faraday >= 2.14.3, or iOS release tooling no longer depends on Fastlane's Faraday 1.x graph.
 
-cve_2026_54297_fingerprint_match if {
-	observed_fingerprints := {
-		"sha256:5e248df54210988d324657bcd9bd73c2b662bf0d8a1a4bc5fc7fa933d74fe790",
-		"sha256:9fdbd863204075dce25e2bd9eb09096f0db55a2463a7888f8ff5def4444912b1",
-		"sha256:3c73a6b1e7a4ca1de2e0ae9967c4ffe520e12e5c68dc5f60951bf54ac68f0a16",
-	}
-	observed_fingerprints[input.Fingerprint]
+cve_2026_54297_identifier_match if {
+	input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.5"
+}
+
+cve_2026_54297_advisory_match if {
+	input.FixedVersion == "2.14.3"
+	input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"
+	input.Severity == "HIGH"
+	input.Status == "fixed"
+	input.DataSource.ID == "ghsa"
 }
 
 cve_2026_54297_pkgid_match if {
@@ -123,7 +126,8 @@ cve_2026_54297_pkgid_match if {
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-54297"
-	cve_2026_54297_fingerprint_match
+	cve_2026_54297_identifier_match
+	cve_2026_54297_advisory_match
 	input.PkgName == "faraday"
 	input.InstalledVersion == "1.10.5"
 	cve_2026_54297_pkgid_match

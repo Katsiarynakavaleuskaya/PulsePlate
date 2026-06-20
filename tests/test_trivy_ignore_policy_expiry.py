@@ -299,13 +299,18 @@ def test_gpgv_docs_and_backlog_record_production_package_removal() -> None:
 
 def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     policy = _policy_text()
+    faraday_policy = policy[policy.index("# CVE-2026-54297") :]
     doc_text = SECURITY_DOC_FARADAY_PATH.read_text(encoding="utf-8")
     ledger_entry = _ledger_faraday_entry()
 
     assert 'input.VulnerabilityID == "CVE-2026-54297"' in policy
-    assert '"sha256:5e248df54210988d324657bcd9bd73c2b662bf0d8a1a4bc5fc7fa933d74fe790"' in policy
-    assert '"sha256:9fdbd863204075dce25e2bd9eb09096f0db55a2463a7888f8ff5def4444912b1"' in policy
-    assert '"sha256:3c73a6b1e7a4ca1de2e0ae9967c4ffe520e12e5c68dc5f60951bf54ac68f0a16"' in policy
+    assert "input.Fingerprint" not in faraday_policy
+    assert 'input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.5"' in policy
+    assert 'input.FixedVersion == "2.14.3"' in policy
+    assert 'input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"' in policy
+    assert 'input.Severity == "HIGH"' in policy
+    assert 'input.Status == "fixed"' in policy
+    assert 'input.DataSource.ID == "ghsa"' in policy
     assert 'input.PkgName == "faraday"' in policy
     assert 'input.InstalledVersion == "1.10.5"' in policy
     assert 'input.PkgID == "faraday@1.10.5"' in policy
@@ -316,10 +321,10 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     assert "fastlane (2.236.1)" in doc_text
     assert "faraday (~> 1.0)" in doc_text
     assert "Trivy's ignore-policy Rego input" in doc_text
-    assert "`ios/Gemfile.lock` as the target evidence" in doc_text
+    assert "Trivy `Fingerprint` changes between synthetic PR merge refs" in doc_text
     assert "skip-dirs: trivy" in doc_text
     assert "transient upstream `trivy/go.mod`" in doc_text
-    assert "`trivy/ignore-policy.rego:125`" in doc_text
+    assert "`trivy/ignore-policy.rego:129`" in doc_text
     assert "`trivy/ignore-policy.rego:112`" in doc_text
     assert "`docs/roadmap/BACKLOG_LEDGER.md:5150`" in doc_text
 
@@ -327,3 +332,17 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     assert "PR-TBD-FARADAY-FASTLANE-UNBLOCK" in ledger_entry
     assert "faraday >= 2.14.3" in ledger_entry
     assert "Remove suppression rule from `trivy/ignore-policy.rego`" in ledger_entry
+
+
+def test_faraday_1_10_5_is_only_locked_in_ios_fastlane_lockfile() -> None:
+    ignored_dirs = {".git", ".venv", "node_modules", "worktrees"}
+    matching_lockfiles = []
+
+    for lockfile in REPO_ROOT.rglob("Gemfile.lock"):
+        relative = lockfile.relative_to(REPO_ROOT)
+        if ignored_dirs.intersection(relative.parts):
+            continue
+        if "    faraday (1.10.5)" in lockfile.read_text(encoding="utf-8"):
+            matching_lockfiles.append(relative.as_posix())
+
+    assert matching_lockfiles == ["ios/Gemfile.lock"]
