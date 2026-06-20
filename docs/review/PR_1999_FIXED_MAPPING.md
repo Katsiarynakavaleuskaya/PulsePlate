@@ -231,12 +231,10 @@ disposition evidence before thread resolution or merge-readiness claims.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1999#discussion_r3447050572 -> `1113689fe`
-  - Disposition: FIXED
-  - Evidence: `docs/security/CVE-2026-54297-faraday-fastlane.md:116`,
-    `docs/security/CVE-2026-54297-faraday-fastlane.md:118`,
-    `docs/security/CVE-2026-54297-faraday-fastlane.md:123`, and
-    `tests/test_trivy_ignore_policy_expiry.py` line-anchor assertions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1999#discussion_r3447050572 -> 1113689fe
+Disposition: FIXED
+Commit: 1113689fe
+Evidence: docs/security/CVE-2026-54297-faraday-fastlane.md:116; docs/security/CVE-2026-54297-faraday-fastlane.md:118; docs/security/CVE-2026-54297-faraday-fastlane.md:123; tests/test_trivy_ignore_policy_expiry.py line-anchor assertions.
 
 ## Merge Readiness
 
