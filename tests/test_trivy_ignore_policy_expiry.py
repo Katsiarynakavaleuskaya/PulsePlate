@@ -319,8 +319,8 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     assert "skip-dirs: trivy" in doc_text
     assert "transient upstream `trivy/go.mod`" in doc_text
     assert "`trivy/ignore-policy.rego:124`" in doc_text
-    assert "`trivy/ignore-policy.rego:125`" in doc_text
-    assert "`docs/roadmap/BACKLOG_LEDGER.md:5151`" in doc_text
+    assert "`trivy/ignore-policy.rego:112`" in doc_text
+    assert "`docs/roadmap/BACKLOG_LEDGER.md:5150`" in doc_text
 
     assert "Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
     assert "PR-TBD-FARADAY-FASTLANE-UNBLOCK" in ledger_entry
