@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import pytest
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, WebSocket
 
 from app.bootstrap.route_family import (
     RouteMemberContract,
@@ -46,6 +46,7 @@ def _family_routers(
     include_overrides: dict[str, bool] | None = None,
     include_429: bool = True,
     include_unexpected: bool = False,
+    include_websocket: bool = False,
     combined_methods_path: str | None = None,
 ) -> tuple[APIRouter, APIRouter]:
     route_a = APIRouter()
@@ -85,6 +86,13 @@ def _family_routers(
 
         route_a.get("/api/v1/static-family/unexpected")(_unexpected)
 
+    if include_websocket:
+
+        async def _websocket(websocket: WebSocket) -> None:
+            await websocket.close()
+
+        route_a.websocket("/api/v1/static-family/ws")(_websocket)
+
     return route_a, route_b
 
 
@@ -108,6 +116,65 @@ def _matching_routes(app: FastAPI, member: RouteMemberContract) -> list[object]:
         if getattr(route, "path", None) == member.path
         and member.method in (getattr(route, "methods", None) or set())
     ]
+
+
+def test_route_member_contract_defaults_are_immutable_empty_collections() -> None:
+    member = RouteMemberContract(
+        path="/api/v1/static-family/defaults",
+        method="get",
+        include_in_schema=True,
+    )
+
+    assert member.method == "GET"
+    assert member.required_status_codes == frozenset()
+    assert member.required_dependencies == ()
+
+
+def test_static_route_family_rejects_duplicate_member_contracts() -> None:
+    duplicate_members = (
+        RouteMemberContract(
+            path="/api/v1/static-family/a",
+            method="GET",
+            include_in_schema=True,
+        ),
+        RouteMemberContract(
+            path="/api/v1/static-family/a",
+            method="GET",
+            include_in_schema=True,
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(),
+            members=duplicate_members,
+        )
+
+
+def test_static_route_family_rejects_empty_member_contracts() -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(),
+            members=(),
+        )
+
+
+def test_static_route_family_rejects_non_http_source_routes() -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        _ensure(FastAPI(), _family_routers(include_websocket=True))
 
 
 def test_static_route_family_registration_is_idempotent() -> None:

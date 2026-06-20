@@ -5147,6 +5147,30 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mark `docs/security/CVE-2026-45363-jwt-fastlane.md` resolved or update with remediation evidence
     - Trivy Code Scanning alert #594 remains closed on `main`
 
+<a id="ledger-p1-remove-trivy-suppression-faraday-cve-2026-54297"></a>
+- [ ] P1: Remove Trivy suppression for Ruby Faraday CVE-2026-54297
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FARADAY-FASTLANE-UNBLOCK
+  - Status: Opened by PR #1999 because Fastlane `2.236.1` still constrains `faraday (~> 1.0)` while Trivy reports fixed version `2.14.3`.
+  - Area: security / iOS release tooling / code-scanning
+  - Finding Type: release-tooling dependency vulnerability
+  - Reason: Trivy `v0.71.2` reports Ruby gem `faraday` `CVE-2026-54297` at `1.10.5` from `ios/Gemfile.lock`, with fixed version `2.14.3`. Bundler resolver evidence on 2026-06-20 shows current Fastlane `2.235.0` and latest checked Fastlane `2.236.1` both require `faraday (~> 1.0)`, so there is no clean lockfile update path yet.
+  - Links:
+    - docs/security/CVE-2026-54297-faraday-fastlane.md
+    - trivy/ignore-policy.rego
+    - scripts/ci/check_trivy_ignore_policy_expiry.py
+    - https://avd.aquasec.com/nvd/cve-2026-54297
+    - https://rubygems.org/gems/fastlane/versions/2.235.0
+    - https://rubygems.org/gems/fastlane/versions/2.236.1
+    - https://rubygems.org/gems/faraday/versions/2.14.3
+  - DoD:
+    - Fastlane publishes a compatible release that permits `faraday >= 2.14.3`, or iOS release tooling no longer depends on Fastlane's Faraday 1.x graph
+    - Update `ios/Gemfile.lock` to remove the vulnerable `faraday` resolution
+    - Remove suppression rule from `trivy/ignore-policy.rego`
+    - Mark `docs/security/CVE-2026-54297-faraday-fastlane.md` resolved or update with remediation evidence
+    - Trivy Code Scanning no longer reports `CVE-2026-54297` for `ios/Gemfile.lock` on `main`
+
 <a id="ledger-p1-reconcile-open-dependabot-alerts"></a>
 - [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes
   - Owner: @katsiaryna_kavaleuskaya

@@ -164,7 +164,9 @@ def _source_endpoints(
     for router in routers:
         for route in router.routes:
             if not isinstance(route, APIRoute):
-                continue
+                raise RuntimeError(
+                    f"{family_name} router does not define the expected route family."
+                )
             path = str(route.path)
             if path not in expected_paths:
                 raise RuntimeError(
