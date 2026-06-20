@@ -117,9 +117,64 @@ and passed.
 
 ## Post-Open Review Evidence
 
-Pending. Mandatory post-open reviewer lane, Codex Security diff scan / finding
-discovery, `pulseplate-pr-review`, and external bot review disposition must run
-before any merge-readiness claim.
+- PASS: post-open packet
+  `artifacts/orchestration/task_packets/2ff0d1204c68.json` and dispatch
+  manifest from
+  `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/2ff0d1204c68.json --pretty`.
+- PASS: post-open role order executed through the dispatch-declared sequence:
+  `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor -> backend-engineer -> architecture-specialist`.
+- PASS: `qa-engineer-agent` post-open pass found no actionables and reran the
+  focused plan/shoplist/static helper slice.
+- PASS: `bug-hunter` post-open pass found no bugs and confirmed the PR stayed
+  open, non-draft, and scoped.
+- PASS: `security-auditor` post-open pass found no actionable security
+  vulnerabilities and confirmed no `legacy_app.py`, DB, OpenAPI/client,
+  subprocess, nosec, or secret-handling changes.
+- PASS: `backend-engineer` post-open pass found no implementation blocker and
+  reran focused pytest, auth/OpenAPI route probes, mypy, and diff-check
+  evidence.
+- PASS: `architecture-specialist` post-open pass found no architecture blocker
+  and confirmed the helper is bounded to exact static route families while
+  dynamic legacy aliases remain on their dedicated helper.
+- PASS: Codex Security diff scan / finding discovery completed for
+  `origin/main...HEAD` at `45958e10e3fd`.
+  - Scan bundle:
+    `/tmp/codex-security-scans/BMI-App_2025_clean/45958e10e3fd_20260620T092927Z`
+  - Work ledger:
+    `/tmp/codex-security-scans/BMI-App_2025_clean/45958e10e3fd_20260620T092927Z/artifacts/02_discovery/work_ledger.jsonl`
+  - Report:
+    `/tmp/codex-security-scans/BMI-App_2025_clean/45958e10e3fd_20260620T092927Z/report.md`
+  - HTML report:
+    `/tmp/codex-security-scans/BMI-App_2025_clean/45958e10e3fd_20260620T092927Z/report.html`
+  - Result: 2/2 `deep_review_input.csv` rows reviewed; no candidates emitted;
+    report format validation and HTML rendering passed.
+- PASS / NOT-A-BUG: `pulseplate-pr-review` dry-run completed and emitted one
+  advisory `note` for diff size (`large-diff-risk`, 1038 changed lines).
+  Evidence: PR body now has a `## PR Size Justification` explaining that this
+  is one coherent static-helper + wrapper + focused-test/doc slice; local
+  focused gates, post-open role passes, Codex Security, and review artifacts
+  cover the slice. No code defect or merge-blocking finding was emitted by the
+  dry-run report.
+- External review state:
+  - CodeRabbit GitHub app status: PASS; comment reports no actionable comments.
+  - CodeRabbit CLI: attempted with authenticated CLI `0.6.0`, command
+    `coderabbit review --agent -t committed -c AGENTS.md`; failed with service
+    timeout `77b7b770-2afd-427d-a68a-0a6cf34fcb1d`, so CLI output is not used
+    as CodeRabbit review evidence.
+  - Sourcery: PASS / no actionable review; generated reviewer guide and
+    "looks great" review comment.
+  - Cubic: skipped/neutral; no actionable comment available.
+- Current-head CI note: after head `45958e10e3fd`, `pr_scope_guard` failed
+  because the PR body had `## Tests / Validation` instead of the literal
+  required `## Tests`; PR body was edited to add exact `## Tests` and
+  `## PR Size Justification`.
+- Current-head CI blocker outside PR-7 scope: Docker Build and Push
+  `security-scan` failed on Trivy `CVE-2026-54297` for `faraday@1.10.5` in
+  `ios/Gemfile.lock`, fixed version `2.14.3`. Local Trivy reproduction with
+  v0.69.3 found the same single HIGH finding. Latest upstream Fastlane
+  `2.236.1` still constrains `faraday (~> 1.0)`, so a clean lockfile bump is
+  not available in this route-family PR. This PR does not claim merge readiness
+  while that check is failed.
 
 ## Discussion Thread Pass
 
@@ -138,8 +193,9 @@ resolution or merge-readiness claims.
 ## Merge Readiness
 
 - [ ] Required current-head CI complete and passing
-- [ ] Post-open role lane complete: `qa-engineer-agent -> bug-hunter -> security-auditor`
-- [ ] Codex Security diff scan / finding discovery complete
-- [ ] `pulseplate-pr-review` complete
-- [ ] CodeRabbit/Sourcery/Cubic actionables dispositioned
+- [x] Post-open role lane complete:
+  `qa-engineer-agent -> bug-hunter -> security-auditor -> backend-engineer -> architecture-specialist`
+- [x] Codex Security diff scan / finding discovery complete
+- [x] `pulseplate-pr-review` complete
+- [x] CodeRabbit/Sourcery/Cubic actionables dispositioned
 - [ ] Strict merge readiness wrapper passes after latest review activity
