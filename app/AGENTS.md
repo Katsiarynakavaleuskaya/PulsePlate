@@ -278,6 +278,20 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - VIP router registration must be centralized via `app/routers/vip_registration.py:register_vip_routes`.
 - Do not scatter conditional `include_router(...)` calls across modules; keep registration explicit and safe to call multiple times.
 
+### Static route-family bootstrap guard
+
+- Exact static route families registered from `app/main.py` should use
+  `app/bootstrap/route_family.py` with `RouteMemberContract` and
+  `ensure_route_family_registered(...)`.
+- Use this helper only for fixed source routers with stable path/method/OpenAPI
+  visibility/status-code/dependency contracts. It validates source routers before
+  registration and validates existing app routes for idempotency, partial
+  registration, duplicate/foreign handlers, required dependency drift, response
+  metadata drift, and OpenAPI visibility drift.
+- Do not use the static helper for request-time rebound or rebuilt-callable
+  compatibility aliases such as dynamic legacy export aliases; keep those on
+  their dedicated alias helper.
+
 ## No duplicated business logic (app vs core)
 
 - Routers and services must not re-implement domain logic.

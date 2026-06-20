@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, FastAPI, Response
+from fastapi import APIRouter, Depends, FastAPI, Response, WebSocket
 from fastapi.testclient import TestClient
 import pytest
 from typing import Generator
 
 import app.main as app_main
+from app.bootstrap.route_family import (
+    RouteMemberContract,
+    ensure_route_family_registered,
+    route_has_dependency_call,
+    same_callable_by_module_and_qualname,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +31,85 @@ def _stub_router(path: str, *, method: str = "post", include_in_schema: bool = T
 
     getattr(router, method)(path, include_in_schema=include_in_schema)(_handler)
     return router
+
+
+def test_route_member_contract_defaults_for_static_family_tail_coverage() -> None:
+    member = RouteMemberContract(
+        path="/api/v1/static-family/defaults",
+        method="get",
+        include_in_schema=True,
+    )
+
+    assert member.method == "GET"
+    assert member.required_status_codes == frozenset()
+    assert member.required_dependencies == ()
+
+
+def test_route_family_rejects_duplicate_and_empty_member_contracts() -> None:
+    duplicate_members = (
+        RouteMemberContract(
+            path="/api/v1/static-family/a",
+            method="GET",
+            include_in_schema=True,
+        ),
+        RouteMemberContract(
+            path="/api/v1/static-family/a",
+            method="GET",
+            include_in_schema=True,
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(),
+            members=duplicate_members,
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(),
+            members=(),
+        )
+
+
+def test_route_family_rejects_non_http_source_routes_for_static_tail_coverage() -> None:
+    router = APIRouter()
+
+    async def _handler() -> dict[str, str]:
+        return {"status": "ok"}
+
+    async def _websocket(websocket: WebSocket) -> None:
+        await websocket.close()
+
+    router.get("/api/v1/static-family/http")(_handler)
+    router.websocket("/api/v1/static-family/ws")(_websocket)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(router,),
+            members=(
+                RouteMemberContract(
+                    path="/api/v1/static-family/http",
+                    method="GET",
+                    include_in_schema=True,
+                ),
+            ),
+        )
 
 
 def _legal_stub_router() -> APIRouter:
@@ -1371,7 +1456,7 @@ def test_plan_export_route_registration_is_idempotent(
         assert getattr(matching_routes[0], "endpoint").__module__ == "app.routers.plan_export"
         assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
         assert 429 in (getattr(matching_routes[0], "responses", None) or {})
-        assert app_main._route_has_dependency_call(
+        assert route_has_dependency_call(
             matching_routes[0],
             app_main._legacy_module._get_api_key_dynamic,
         )
@@ -1491,7 +1576,7 @@ def test_plan_export_route_registration_rejects_combined_methods_in_router(
         _bootstrap_temp_app(FastAPI())
 
 
-def test_plan_export_route_registration_allows_unrelated_router_paths(
+def test_plan_export_route_registration_rejects_unrelated_router_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
@@ -1499,12 +1584,11 @@ def test_plan_export_route_registration_allows_unrelated_router_paths(
     monkeypatch.setattr(app_main, "export_router", export_stub_router)
     monkeypatch.setattr(app_main, "plan_router", plan_stub_router)
 
-    app = _bootstrap_temp_app(FastAPI())
-
-    assert any(
-        getattr(route, "path", None) == "/api/v1/unrelated-plan-export-probe"
-        for route in app.routes
-    )
+    with pytest.raises(
+        RuntimeError,
+        match="Plan export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
 
 
 def test_plan_export_callable_equivalence_rejects_non_callables() -> None:
@@ -1514,8 +1598,8 @@ def test_plan_export_callable_equivalence_rejects_non_callables() -> None:
         if getattr(route, "path", None) == app_main._PLAN_EXPORT_ROUTE_SPECS[0][0]
     )
 
-    assert not app_main._is_same_plan_export_callable(None, expected_endpoint)
-    assert not app_main._is_same_plan_export_callable(expected_endpoint, None)
+    assert not same_callable_by_module_and_qualname(None, expected_endpoint)
+    assert not same_callable_by_module_and_qualname(expected_endpoint, None)
 
 
 def test_plan_export_route_registration_rejects_foreign_handlers(
@@ -1550,7 +1634,7 @@ def test_plan_export_route_registration_rejects_missing_api_key_dependency(
 
     with pytest.raises(
         RuntimeError,
-        match="Existing .* route does not preserve plan export API key dependency",
+        match="Existing .* route does not preserve plan export required dependency",
     ):
         app_main._include_plan_export_routers_if_needed(app)
 
@@ -1623,7 +1707,7 @@ def test_plan_export_dependency_detection_walks_nested_dependencies() -> None:
         if getattr(route, "path", None) == "/api/v1/nested-plan-export-dependency-probe"
     )
 
-    assert app_main._route_has_dependency_call(
+    assert route_has_dependency_call(
         route,
         app_main._legacy_module._get_api_key_dynamic,
     )
@@ -1705,7 +1789,7 @@ def test_shoplist_export_route_registration_is_idempotent(
         assert len(matching_routes) == 1
         assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
         assert 429 in (getattr(matching_routes[0], "responses", None) or {})
-        assert app_main._route_has_dependency_call(
+        assert route_has_dependency_call(
             matching_routes[0],
             app_main._legacy_module._get_api_key_dynamic,
         )
@@ -1851,8 +1935,8 @@ def test_shoplist_export_callable_equivalence_rejects_non_callables() -> None:
         if getattr(route, "path", None) == app_main._SHOPLIST_ROUTE_SPECS[0][0]
     )
 
-    assert not app_main._is_same_shoplist_export_callable(None, expected_endpoint)
-    assert not app_main._is_same_shoplist_export_callable(expected_endpoint, None)
+    assert not same_callable_by_module_and_qualname(None, expected_endpoint)
+    assert not same_callable_by_module_and_qualname(expected_endpoint, None)
 
 
 def test_shoplist_export_route_registration_rejects_foreign_handlers(
@@ -1886,7 +1970,7 @@ def test_shoplist_export_route_registration_rejects_missing_api_key_dependency(
 
     with pytest.raises(
         RuntimeError,
-        match="Existing .* route does not preserve shoplist export API key dependency",
+        match="Existing .* route does not preserve shoplist export required dependency",
     ):
         app_main._include_shoplist_export_router_if_needed(app)
 

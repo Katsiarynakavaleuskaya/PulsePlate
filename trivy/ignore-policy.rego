@@ -11,7 +11,7 @@ default ignore := false
 #
 # Suppression expires: 2026-06-27 (manual removal)
 # Last reviewed: 2026-06-14
-# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md
+# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-54297-faraday-fastlane.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
 # Review-by: 2026-06-27 (manual removal)
@@ -99,4 +99,36 @@ ignore if {
 	cve_2025_69720_pkg_match
 	cve_2025_69720_version_match
 	cve_2025_69720_pkgid_match
+}
+
+# CVE-2026-54297 (Faraday / Fastlane release tooling) - Fastlane still constrains Faraday 1.x at review time
+# Review-by: 2026-06-27 (manual removal)
+# Rationale: Trivy v0.71.2 reports faraday@1.10.5 in ios/Gemfile.lock with fixed version 2.14.3, but Fastlane 2.236.1 still depends on faraday (~> 1.0). This lockfile is privileged iOS release tooling, not backend/container runtime or the iOS app binary, so keep an exact temporary suppression while monitoring upstream Fastlane. Trivy ignore-policy input does not expose the result Target, and Fingerprint changes between synthetic PR merge refs, so this rule is scoped to stable advisory/package identity fields and guarded by a repo test that Faraday 1.10.5 exists only in ios/Gemfile.lock.
+# Monitor: https://avd.aquasec.com/nvd/cve-2026-54297
+# Documented in: docs/security/CVE-2026-54297-faraday-fastlane.md
+# Removal condition: Remove when Fastlane publishes a compatible release that permits Faraday >= 2.14.3, or iOS release tooling no longer depends on Fastlane's Faraday 1.x graph.
+
+cve_2026_54297_identifier_match if {
+	input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.5"
+}
+
+cve_2026_54297_advisory_match if {
+	input.FixedVersion == "2.14.3"
+	input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"
+	input.Severity == "HIGH"
+	input.Status == "fixed"
+	input.DataSource.ID == "ghsa"
+}
+
+cve_2026_54297_pkgid_match if {
+	input.PkgID == "faraday@1.10.5"
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-54297"
+	cve_2026_54297_identifier_match
+	cve_2026_54297_advisory_match
+	input.PkgName == "faraday"
+	input.InstalledVersion == "1.10.5"
+	cve_2026_54297_pkgid_match
 }

@@ -18,6 +18,7 @@ SECURITY_DOC_ARCHIVE_TAR_PATH = (
 SECURITY_DOC_SQLITE_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-sqlite-runtime-removal.md"
 SECURITY_DOC_GPGV_24882_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24882-gpgv.md"
 SECURITY_DOC_GPGV_24883_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24883-gpgv.md"
+SECURITY_DOC_FARADAY_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-54297-faraday-fastlane.md"
 BACKLOG_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
 
 REMOVED_PERL_RUNTIME_CVES = (
@@ -68,6 +69,16 @@ def _ledger_gpgv_entry() -> str:
     )
     next_item = backlog_text.find("\n- [", ledger_start + 1)
     ledger_end = next_item if next_item != -1 else len(backlog_text)
+    return backlog_text[ledger_start:ledger_end]
+
+
+def _ledger_faraday_entry() -> str:
+    backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
+    ledger_start = backlog_text.index(
+        '<a id="ledger-p1-remove-trivy-suppression-faraday-cve-2026-54297"></a>'
+    )
+    next_anchor = backlog_text.find("<a id=", ledger_start + 1)
+    ledger_end = next_anchor if next_anchor != -1 else len(backlog_text)
     return backlog_text[ledger_start:ledger_end]
 
 
@@ -284,3 +295,54 @@ def test_gpgv_docs_and_backlog_record_production_package_removal() -> None:
     assert "codex/fix-main-trivy-container-cves" in ledger_entry
     assert "Final production image removes `gpgv`" in ledger_entry
     assert "do not suppress CVE-2026-24883" in ledger_entry
+
+
+def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
+    policy = _policy_text()
+    faraday_policy = policy[policy.index("# CVE-2026-54297") :]
+    doc_text = SECURITY_DOC_FARADAY_PATH.read_text(encoding="utf-8")
+    ledger_entry = _ledger_faraday_entry()
+
+    assert 'input.VulnerabilityID == "CVE-2026-54297"' in policy
+    assert "input.Fingerprint" not in faraday_policy
+    assert 'input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.5"' in policy
+    assert 'input.FixedVersion == "2.14.3"' in policy
+    assert 'input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"' in policy
+    assert 'input.Severity == "HIGH"' in policy
+    assert 'input.Status == "fixed"' in policy
+    assert 'input.DataSource.ID == "ghsa"' in policy
+    assert 'input.PkgName == "faraday"' in policy
+    assert 'input.InstalledVersion == "1.10.5"' in policy
+    assert 'input.PkgID == "faraday@1.10.5"' in policy
+    assert "docs/security/CVE-2026-54297-faraday-fastlane.md" in policy
+    assert "# Review-by: 2026-06-27 (manual removal)" in policy
+
+    assert "Temporary Trivy Rego suppression" in doc_text
+    assert "fastlane (2.236.1)" in doc_text
+    assert "faraday (~> 1.0)" in doc_text
+    assert "Trivy's ignore-policy Rego input" in doc_text
+    assert "Trivy `Fingerprint` changes between synthetic PR merge refs" in doc_text
+    assert "skip-dirs: trivy" in doc_text
+    assert "transient upstream `trivy/go.mod`" in doc_text
+    assert "`trivy/ignore-policy.rego:129`" in doc_text
+    assert "`trivy/ignore-policy.rego:112`" in doc_text
+    assert "`docs/roadmap/BACKLOG_LEDGER.md:5150`" in doc_text
+
+    assert "Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
+    assert "PR-TBD-FARADAY-FASTLANE-UNBLOCK" in ledger_entry
+    assert "faraday >= 2.14.3" in ledger_entry
+    assert "Remove suppression rule from `trivy/ignore-policy.rego`" in ledger_entry
+
+
+def test_faraday_1_10_5_is_only_locked_in_ios_fastlane_lockfile() -> None:
+    ignored_dirs = {".git", ".venv", "node_modules", "worktrees"}
+    matching_lockfiles = []
+
+    for lockfile in REPO_ROOT.rglob("Gemfile.lock"):
+        relative = lockfile.relative_to(REPO_ROOT)
+        if ignored_dirs.intersection(relative.parts):
+            continue
+        if "    faraday (1.10.5)" in lockfile.read_text(encoding="utf-8"):
+            matching_lockfiles.append(relative.as_posix())
+
+    assert matching_lockfiles == ["ios/Gemfile.lock"]
