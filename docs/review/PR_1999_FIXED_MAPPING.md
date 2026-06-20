@@ -102,8 +102,7 @@ and passed.
   `artifacts/orchestration/experiments/results/pr7-route-family-bootstrap-oracle-result.json`
   was rejected before oracle execution because the packet context omitted two
   changed paths. It is not used as readiness evidence.
-- Accepted artifact:
-  `artifacts/orchestration/experiments/results/pr7-route-family-bootstrap-oracle-result-v3.json`
+- Artifact: `artifacts/orchestration/experiments/results/pr7-route-family-bootstrap-oracle-result-v3.json`
 - Status: accepted.
 - Runner mode: `oracle_only_governance_reviewer`.
 - Oracles passed:
