@@ -321,6 +321,7 @@ jobs:
           scanners: vuln
           format: sarif
           output: ${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif
+          skip-dirs: trivy
           severity: CRITICAL,HIGH
           limit-severities-for-sarif: true
           exit-code: '1'

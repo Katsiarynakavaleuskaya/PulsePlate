@@ -303,10 +303,8 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     ledger_entry = _ledger_faraday_entry()
 
     assert 'input.VulnerabilityID == "CVE-2026-54297"' in policy
-    assert (
-        'input.Fingerprint == "sha256:3c73a6b1e7a4ca1de2e0ae9967c4ffe520e12e5c68dc5f60951bf54ac68f0a16"'
-        in policy
-    )
+    assert '"sha256:5e248df54210988d324657bcd9bd73c2b662bf0d8a1a4bc5fc7fa933d74fe790"' in policy
+    assert '"sha256:3c73a6b1e7a4ca1de2e0ae9967c4ffe520e12e5c68dc5f60951bf54ac68f0a16"' in policy
     assert 'input.PkgName == "faraday"' in policy
     assert 'input.InstalledVersion == "1.10.5"' in policy
     assert 'input.PkgID == "faraday@1.10.5"' in policy
@@ -317,9 +315,11 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     assert "fastlane (2.236.1)" in doc_text
     assert "faraday (~> 1.0)" in doc_text
     assert "Trivy's ignore-policy Rego input" in doc_text
-    assert "`ios/Gemfile.lock` as the observed target evidence" in doc_text
-    assert "`trivy/ignore-policy.rego:120`" in doc_text
-    assert "`trivy/ignore-policy.rego:121`" in doc_text
+    assert "`ios/Gemfile.lock` as the target evidence" in doc_text
+    assert "skip-dirs: trivy" in doc_text
+    assert "transient upstream `trivy/go.mod`" in doc_text
+    assert "`trivy/ignore-policy.rego:124`" in doc_text
+    assert "`trivy/ignore-policy.rego:125`" in doc_text
     assert "`docs/roadmap/BACKLOG_LEDGER.md:5151`" in doc_text
 
     assert "Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry

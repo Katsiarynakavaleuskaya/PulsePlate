@@ -1100,6 +1100,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "scanners": "vuln",
                 "format": "sarif",
                 "output": "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif",
+                "skip-dirs": "trivy",
                 "severity": "CRITICAL,HIGH",
                 "limit-severities-for-sarif": True,
                 "exit-code": "1",
