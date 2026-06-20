@@ -81,6 +81,22 @@ moderation runtime work, or broad legacy refactor.
   `tests/test_shoplist_export.py`, and
   `tests/test_trivy_ignore_policy_expiry.py`.
 - PASS after CI-remediation commits: `pre-commit run --all-files`
+- PASS after diff-coverage remediation commit `391fae155`:
+  `. .venv/bin/activate && python -m pytest -q tests/test_route_family_bootstrap.py`
+- PASS after diff-coverage remediation commit `391fae155`:
+  `make validate-changed` selected
+  `tests/test_ci_workflow_pr_size_governance_contract.py`,
+  `tests/test_main_paywall_bootstrap.py`,
+  `tests/test_route_family_bootstrap.py`,
+  `tests/test_shoplist_export.py`, and
+  `tests/test_trivy_ignore_policy_expiry.py`.
+- PASS after diff-coverage remediation commit `391fae155`:
+  `pre-commit run --all-files`
+- PASS after diff-coverage remediation commit `391fae155`: local CI-style
+  `test-pr` coverage reproduction plus
+  `diff-cover coverage.xml --compare-branch=origin/main --fail-under=97`
+  reported `app/bootstrap/route_family.py (100%)`, `app/main.py (100%)`,
+  and `Coverage: 100%`.
 - Not run: full `make verify`; this PR is not claiming merge readiness from
   local gates alone.
 
@@ -224,6 +240,15 @@ and passed.
     the exact CVE match, `:120` points to the stable identifier set, and
     `:125` points to the backlog anchor line; `tests/test_trivy_ignore_policy_expiry.py`
     asserts these anchors.
+- FIXED: Current-head `diff-coverage` failed because the `test-pr` coverage
+  artifact did not include the new static route-family helper tests.
+  - Commit: `391fae155`
+  - Evidence: `.github/workflows/ci.yml` includes
+    `tests/test_route_family_bootstrap.py` in both PR and feature
+    `route_contract_safety` suites;
+    `tests/test_ci_workflow_pr_size_governance_contract.py` asserts the route
+    family test remains in that group; local diff-cover reproduction reached
+    100% for `app/bootstrap/route_family.py` and `app/main.py`.
 
 ## Discussion Thread Pass
 
