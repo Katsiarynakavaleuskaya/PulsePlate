@@ -762,7 +762,6 @@ jobs:
                   tests/test_paywall_exposure_ledger_service.py \
                   tests/test_production_runtime_invariants.py \
                   tests/test_pro_vip_route_dependency_guard.py \
-                  tests/test_route_family_bootstrap.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_philosophy_admission_dry_run_report.py \
@@ -1043,7 +1042,6 @@ jobs:
                   tests/test_paywall_exposure_ledger_service.py \
                   tests/test_production_runtime_invariants.py \
                   tests/test_pro_vip_route_dependency_guard.py \
-                  tests/test_route_family_bootstrap.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_philosophy_admission_dry_run_report.py \

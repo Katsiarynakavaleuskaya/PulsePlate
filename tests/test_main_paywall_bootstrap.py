@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, FastAPI, Response
+from fastapi import APIRouter, Depends, FastAPI, Response, WebSocket
 from fastapi.testclient import TestClient
 import pytest
 from typing import Generator
 
 import app.main as app_main
 from app.bootstrap.route_family import (
+    RouteMemberContract,
+    ensure_route_family_registered,
     route_has_dependency_call,
     same_callable_by_module_and_qualname,
 )
@@ -29,6 +31,85 @@ def _stub_router(path: str, *, method: str = "post", include_in_schema: bool = T
 
     getattr(router, method)(path, include_in_schema=include_in_schema)(_handler)
     return router
+
+
+def test_route_member_contract_defaults_for_static_family_tail_coverage() -> None:
+    member = RouteMemberContract(
+        path="/api/v1/static-family/defaults",
+        method="get",
+        include_in_schema=True,
+    )
+
+    assert member.method == "GET"
+    assert member.required_status_codes == frozenset()
+    assert member.required_dependencies == ()
+
+
+def test_route_family_rejects_duplicate_and_empty_member_contracts() -> None:
+    duplicate_members = (
+        RouteMemberContract(
+            path="/api/v1/static-family/a",
+            method="GET",
+            include_in_schema=True,
+        ),
+        RouteMemberContract(
+            path="/api/v1/static-family/a",
+            method="GET",
+            include_in_schema=True,
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(),
+            members=duplicate_members,
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(),
+            members=(),
+        )
+
+
+def test_route_family_rejects_non_http_source_routes_for_static_tail_coverage() -> None:
+    router = APIRouter()
+
+    async def _handler() -> dict[str, str]:
+        return {"status": "ok"}
+
+    async def _websocket(websocket: WebSocket) -> None:
+        await websocket.close()
+
+    router.get("/api/v1/static-family/http")(_handler)
+    router.websocket("/api/v1/static-family/ws")(_websocket)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(router,),
+            members=(
+                RouteMemberContract(
+                    path="/api/v1/static-family/http",
+                    method="GET",
+                    include_in_schema=True,
+                ),
+            ),
+        )
 
 
 def _legal_stub_router() -> APIRouter:
