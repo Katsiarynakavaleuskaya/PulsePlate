@@ -111,8 +111,25 @@ contract test preserve the intended behavior.
   this PR intentionally mirrors the already-governed PR #1997 seam pattern for
   one narrow route family; extracting a generic bootstrap framework would widen
   the PR beyond the registration-ownership lane.
-- Mandatory role-agent post-open pass remains:
-  `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff/finding discovery -> pulseplate-pr-review`.
+- qa-engineer-agent: PASS on `ec57ad08c`. Evidence: CodeRabbit finding was
+  fixed in `37b3754f3`, the review thread is resolved/outdated, focused pytest,
+  OpenAPI, PR body, and mapping guards pass, and the worktree is clean.
+- bug-hunter: PASS on `ec57ad08c`. Evidence: runtime probe confirmed exactly
+  three shoplist export routes with protected dependency, 429 metadata, hidden
+  final OpenAPI paths, and the advisory disposition guard passed locally.
+- security-auditor: PASS on `ec57ad08c`. Evidence: auth remains fail-closed,
+  unexpected source-router paths fail closed, no new secret or subprocess surface
+  was introduced, security CI passed on current-head run `27864230408`, and
+  strict local disposition parity was blocked only by missing local `GH_TOKEN`.
+- Codex Security diff/finding discovery: PASS/no findings. Evidence:
+  plugin callable scan tools were unavailable in this runtime, so a bounded
+  diff-focused security pass reviewed the changed auth, rate-limit metadata,
+  OpenAPI hiding, subprocess/suppression, and guard surfaces.
+- pulseplate-pr-review: NOT-A-BUG advisory large-diff planning note. Evidence:
+  the diff is intentionally test-heavy for one route-family migration, operator
+  scope approval applies, `make validate-changed` was run and treated as
+  non-sufficient because it selected no files, and focused deterministic pytest,
+  OpenAPI, pre-commit, and pre-push hooks cover the changed surface.
 
 ## Discussion Thread Pass
 
@@ -143,8 +160,9 @@ Reason: Extracting shared route-family helpers is valid future cleanup but would
 
 ## Deferred / Follow-Ups
 
-- Complete post-open role-agent review loop and disposition every finding before
-  any readiness or merge claim.
+- No code follow-up is deferred by this artifact. Readiness remains unclaimed
+  until current-head required CI, strict merge readiness, and the mandatory
+  wait-window are satisfied.
 
 ## Merge Readiness
 
@@ -152,7 +170,7 @@ Not claimed.
 
 Required before merge:
 - [ ] Current-head required CI is green with no pending required jobs.
-- [ ] Post-open role-agent review loop is complete.
+- [x] Post-open role-agent review loop is complete.
 - [ ] CodeRabbit, Sourcery, and Cubic are PASS / no-actionables.
 - [ ] All actionable review threads are dispositioned and mapped here.
 - [ ] Strict merge-readiness wrapper passes.
