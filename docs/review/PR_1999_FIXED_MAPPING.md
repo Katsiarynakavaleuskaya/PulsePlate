@@ -269,6 +269,11 @@ disposition evidence before thread resolution or merge-readiness claims.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1999#pullrequestreview-4538348361 -> 1113689fe
+Disposition: FIXED
+Commit: 1113689fe
+Evidence: CodeRabbit review reported one actionable inline Evidence Anchors issue; docs/security/CVE-2026-54297-faraday-fastlane.md:118 points to the exact CVE match, :120 points to the stable identifier set, and :125 points to the backlog anchor line; tests/test_trivy_ignore_policy_expiry.py line-anchor assertions cover the fix.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1999#discussion_r3447050572 -> 1113689fe
 Disposition: FIXED
 Commit: 1113689fe
