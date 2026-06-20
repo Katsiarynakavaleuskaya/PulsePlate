@@ -24,6 +24,10 @@ duplicate/foreign handler rejection are preserved.
 - Keep dynamic legacy export aliases on their existing dedicated helper.
 - Update `app/AGENTS.md` and `docs/architecture/backend_routing_map.md` for the
   canonical static-helper pattern.
+- Remediate current-head CI security blockers introduced by the scanner/tooling
+  surface: pin Trivy to `v0.71.2`, document and track the temporary Faraday
+  Fastlane suppression, and isolate the Trivy action's transient upstream
+  checkout from the PulsePlate filesystem scan.
 
 ## Out Of Scope
 
@@ -57,6 +61,22 @@ moderation runtime work, or broad legacy refactor.
   `tests/test_route_family_bootstrap.py`, and `tests/test_shoplist_export.py`
 - PASS on push hook: changed-file mypy, pre-push backend pytest, full-repo
   Bandit, and Docker build test
+- PASS: `. .venv/bin/activate && python -m pytest -q tests/test_trivy_ignore_policy_expiry.py tests/test_ci_workflow_pr_size_governance_contract.py -k 'faraday or trivy'`
+- PASS: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`
+- PASS: `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-54297-faraday-fastlane.md`
+- PASS: local Trivy `v0.71.2` filesystem scan with
+  `--ignore-policy trivy/ignore-policy.rego`, `.trivyignore`,
+  HIGH/CRITICAL severities, and JSON result count `0`.
+- PASS: clean CI-style Trivy action reproduction with upstream
+  `aquasecurity/trivy` checkout under `trivy/`, Docker workflow
+  `skip-dirs: trivy`, `.trivy-ignore-policy.rego`, and JSON result count `0`.
+- PASS after CI-remediation commits: `make validate-changed` selected
+  `tests/test_ci_workflow_pr_size_governance_contract.py`,
+  `tests/test_main_paywall_bootstrap.py`,
+  `tests/test_route_family_bootstrap.py`,
+  `tests/test_shoplist_export.py`, and
+  `tests/test_trivy_ignore_policy_expiry.py`.
+- PASS after CI-remediation commits: `pre-commit run --all-files`
 - Not run: full `make verify`; this PR is not claiming merge readiness from
   local gates alone.
 
@@ -156,7 +176,8 @@ and passed.
   cover the slice. No code defect or merge-blocking finding was emitted by the
   dry-run report.
 - External review state:
-  - CodeRabbit GitHub app status: PASS; comment reports no actionable comments.
+  - CodeRabbit GitHub app reported one actionable line-anchor comment after
+    the Faraday CI remediation; disposition is recorded below as FIXED.
   - CodeRabbit CLI: attempted with authenticated CLI `0.6.0`, command
     `coderabbit review --agent -t committed -c AGENTS.md`; failed with service
     timeout `77b7b770-2afd-427d-a68a-0a6cf34fcb1d`, so CLI output is not used
@@ -168,27 +189,54 @@ and passed.
   because the PR body had `## Tests / Validation` instead of the literal
   required `## Tests`; PR body was edited to add exact `## Tests` and
   `## PR Size Justification`.
-- Current-head CI blocker outside PR-7 scope: Docker Build and Push
-  `security-scan` failed on Trivy `CVE-2026-54297` for `faraday@1.10.5` in
-  `ios/Gemfile.lock`, fixed version `2.14.3`. Local Trivy reproduction with
-  v0.69.3 found the same single HIGH finding. Latest upstream Fastlane
-  `2.236.1` still constrains `faraday (~> 1.0)`, so a clean lockfile bump is
-  not available in this route-family PR. This PR does not claim merge readiness
-  while that check is failed.
+
+## CI Security Remediation Evidence
+
+- FIXED: Docker Build and Push `security-scan` initially failed on Trivy
+  `CVE-2026-54297` for `faraday@1.10.5` in `ios/Gemfile.lock`, fixed version
+  `2.14.3`.
+  - Commit: `879d25145`
+  - Evidence: `.github/workflows/build.yml` and `.github/workflows/trivy.yml`
+    pin Trivy `v0.71.2`; `trivy/ignore-policy.rego` contains an exact,
+    temporary Faraday suppression; `docs/security/CVE-2026-54297-faraday-fastlane.md`
+    records Fastlane resolver evidence and removal conditions;
+    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-faraday-cve-2026-54297`
+    tracks removal.
+- FIXED: Docker filesystem scan failed again because
+  `aquasecurity/setup-trivy` checks out the upstream Trivy repository into
+  workspace path `trivy`, causing the PulsePlate filesystem scan to report
+  transient upstream `trivy/go.mod` vulnerabilities that are not part of the
+  repository checkout or product runtime.
+  - Commit: `abc0c9e67`
+  - Evidence: `.github/workflows/build.yml:324` sets `skip-dirs: trivy` for
+    the Docker filesystem scan; `docs/security/CVE-2026-54297-faraday-fastlane.md`
+    documents the action checkout collision; clean CI-style local reproduction
+    with the upstream `trivy` checkout and `skip-dirs: trivy` returned zero
+    HIGH/CRITICAL JSON findings.
+- FIXED: CodeRabbit reported stale Evidence Anchor lines in
+  `docs/security/CVE-2026-54297-faraday-fastlane.md`.
+  - Commit: `1113689fe`
+  - Evidence: `docs/security/CVE-2026-54297-faraday-fastlane.md:116` points to
+    the exact CVE match, `:118` points to the observed fingerprint set, and
+    `:123` points to the backlog anchor line; `tests/test_trivy_ignore_policy_expiry.py`
+    asserts these anchors.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review-thread or bot actionables were available when this artifact was first
-created immediately after PR open. New post-open findings must be added here
-with FIXED / NOT-A-BUG / DEFERRED disposition evidence before thread
-resolution or merge-readiness claims.
+Post-open actionables are recorded below with FIXED / NOT-A-BUG / DEFERRED
+disposition evidence before thread resolution or merge-readiness claims.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1999#discussion_r3447050572 -> `1113689fe`
+  - Disposition: FIXED
+  - Evidence: `docs/security/CVE-2026-54297-faraday-fastlane.md:116`,
+    `docs/security/CVE-2026-54297-faraday-fastlane.md:118`,
+    `docs/security/CVE-2026-54297-faraday-fastlane.md:123`, and
+    `tests/test_trivy_ignore_policy_expiry.py` line-anchor assertions.
 
 ## Merge Readiness
 
