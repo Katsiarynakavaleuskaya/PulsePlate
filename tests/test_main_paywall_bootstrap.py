@@ -1827,7 +1827,7 @@ def test_shoplist_export_route_registration_rejects_combined_methods_in_router(
         _bootstrap_temp_app(FastAPI())
 
 
-def test_shoplist_export_route_registration_allows_unrelated_router_paths(
+def test_shoplist_export_route_registration_rejects_unrelated_router_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
@@ -1837,12 +1837,11 @@ def test_shoplist_export_route_registration_allows_unrelated_router_paths(
         _shoplist_export_stub_router_with_unrelated_path(),
     )
 
-    app = _bootstrap_temp_app(FastAPI())
-
-    assert any(
-        getattr(route, "path", None) == "/api/v1/unrelated-shoplist-export-probe"
-        for route in app.routes
-    )
+    with pytest.raises(
+        RuntimeError,
+        match="Shoplist export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
 
 
 def test_shoplist_export_callable_equivalence_rejects_non_callables() -> None:

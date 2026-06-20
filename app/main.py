@@ -793,7 +793,7 @@ def _include_shoplist_export_router_if_needed(target_app: FastAPI) -> None:
         path = getattr(route, "path", None)
         methods = getattr(route, "methods", None) or set()
         if path not in expected_paths:
-            continue
+            raise RuntimeError("Shoplist export router does not define the expected route family.")
         expected_method = expected_methods_by_path[str(path)]
         if expected_method not in methods:
             raise RuntimeError("Shoplist export router does not define the expected route family.")
