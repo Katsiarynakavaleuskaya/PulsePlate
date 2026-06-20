@@ -67,8 +67,8 @@ and the mandatory wait-window still apply before any merge claim.
 
 ## Experiment Runner Evidence
 
-- Packet: `artifacts/orchestration/experiments/pr6_shoplist_export_oracle_packet.json`
-- Artifact: `artifacts/orchestration/experiments/results/exp-d6352c44add9.json`
+- Packet: `artifacts/orchestration/experiments/pr1998_shoplist_export_oracle_packet_v2.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-0dfcbf0eb4b1.json`
 - Status: accepted.
 - Oracles passed:
   - `python3 scripts/ci/check_legacy_growth_guard.py`
@@ -103,21 +103,43 @@ contract test preserve the intended behavior.
 
 ## Post-Open Review Evidence
 
-Pending. Mandatory post-open pass remains:
-`qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff/finding discovery -> pulseplate-pr-review`.
+- CodeRabbit: FIXED unexpected source-router path finding in
+  `37b3754f3`. Evidence: `app/main.py` now rejects unexpected
+  `shoplist_export_router` paths before including the whole router, and
+  `tests/test_main_paywall_bootstrap.py` asserts the fail-closed behavior.
+- Sourcery: NOT-A-BUG broader shared-helper extraction suggestion. Evidence:
+  this PR intentionally mirrors the already-governed PR #1997 seam pattern for
+  one narrow route family; extracting a generic bootstrap framework would widen
+  the PR beyond the registration-ownership lane.
+- Mandatory role-agent post-open pass remains:
+  `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff/finding discovery -> pulseplate-pr-review`.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Initial pass completed with no actionable review comments available at this
-snapshot. Review threads must not be resolved without disposition evidence and
-this pass must be repeated after any new bot or human review activity.
+Pass completed for bot activity available through CodeRabbit review
+`4535586272` and Sourcery review `4535567071`. Review threads must not be
+resolved without disposition evidence and this pass must be repeated after any
+new bot or human review activity.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 37b3754f3c57da0f4de3bd955565a55924f3c6bd
+Evidence: `app/main.py` rejects unexpected `shoplist_export_router` paths before including the router; `tests/test_main_paywall_bootstrap.py` covers the regression.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1998#discussion_r3444778679 -> 37b3754f3c57da0f4de3bd955565a55924f3c6bd
+
+Disposition: FIXED
+Commit: 37b3754f3c57da0f4de3bd955565a55924f3c6bd
+Evidence: same CodeRabbit finding as the inline discussion above; fixed in code and covered by focused bootstrap tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1998#pullrequestreview-4535586272 -> 37b3754f3c57da0f4de3bd955565a55924f3c6bd
+
+Disposition: NOT-A-BUG
+Evidence: `app/main.py` keeps this lane aligned with the established PR #1997 route-family bootstrap pattern, and `tests/test_main_paywall_bootstrap.py` covers the concrete shoplist invariants without introducing a broad generic bootstrap abstraction.
+Reason: Extracting shared route-family helpers is valid future cleanup but would broaden this narrow legacy-registration PR beyond the reviewed scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1998#pullrequestreview-4535567071
 
 ## Deferred / Follow-Ups
 
