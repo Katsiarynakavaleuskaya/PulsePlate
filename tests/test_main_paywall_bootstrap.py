@@ -234,6 +234,84 @@ def _plan_export_stub_routers_with_unrelated_path() -> tuple[APIRouter, APIRoute
     return export_stub_router, plan_stub_router
 
 
+def _shoplist_export_stub_router(
+    *,
+    omit: frozenset[str] = frozenset(),
+    method_overrides: dict[str, str] | None = None,
+    include_overrides: dict[str, bool] | None = None,
+    include_429: bool = True,
+) -> APIRouter:
+    router = APIRouter()
+    method_override_map = method_overrides or {}
+    include_override_map = include_overrides or {}
+    responses = {429: {"description": "Rate limit exceeded"}} if include_429 else None
+
+    for path, method, include_in_schema in app_main._SHOPLIST_ROUTE_SPECS:
+        if path in omit:
+            continue
+        route_method = method_override_map.get(path, method).lower()
+        route_include = include_override_map.get(path, include_in_schema)
+
+        async def _shoplist_export_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        getattr(router, route_method)(
+            path,
+            include_in_schema=route_include,
+            responses=responses,
+        )(_shoplist_export_handler)
+
+    return router
+
+
+def _duplicate_shoplist_export_stub_router() -> APIRouter:
+    router = _shoplist_export_stub_router()
+    duplicate_path, duplicate_method, duplicate_include = app_main._SHOPLIST_ROUTE_SPECS[0]
+
+    async def _second_shoplist_export_handler() -> dict[str, str]:
+        return {"status": "duplicate"}
+
+    getattr(router, duplicate_method.lower())(
+        duplicate_path,
+        include_in_schema=duplicate_include,
+        responses={429: {"description": "Rate limit exceeded"}},
+    )(_second_shoplist_export_handler)
+    return router
+
+
+def _shoplist_export_stub_router_with_combined_methods() -> APIRouter:
+    router = APIRouter()
+    combined_path, combined_method, combined_include = app_main._SHOPLIST_ROUTE_SPECS[0]
+
+    for path, method, include_in_schema in app_main._SHOPLIST_ROUTE_SPECS:
+
+        async def _shoplist_export_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        methods = [method]
+        if path == combined_path:
+            methods.append("GET" if combined_method == "POST" else "POST")
+        router.add_api_route(
+            path,
+            _shoplist_export_handler,
+            methods=methods,
+            include_in_schema=combined_include if path == combined_path else include_in_schema,
+            responses={429: {"description": "Rate limit exceeded"}},
+        )
+
+    return router
+
+
+def _shoplist_export_stub_router_with_unrelated_path() -> APIRouter:
+    router = _shoplist_export_stub_router()
+
+    async def _unrelated_handler() -> dict[str, str]:
+        return {"status": "unrelated"}
+
+    router.get("/api/v1/unrelated-shoplist-export-probe")(_unrelated_handler)
+    return router
+
+
 def _duplicate_health_stub_router() -> APIRouter:
     router = _health_stub_router()
 
@@ -445,6 +523,30 @@ def _app_with_plan_export_routes_and_extra_method(*, combined_route: bool) -> Fa
     return app
 
 
+def _app_with_shoplist_export_routes_and_extra_method(*, combined_route: bool) -> FastAPI:
+    app = FastAPI()
+    extra_path, extra_method, extra_include = app_main._SHOPLIST_ROUTE_SPECS[0]
+
+    app.include_router(
+        app_main.shoplist_export_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+
+    async def _extra_method_handler() -> dict[str, str]:
+        return {"status": "extra-method"}
+
+    opposite_method = "POST" if extra_method == "GET" else "GET"
+    extra_methods = [extra_method, opposite_method] if combined_route else [opposite_method]
+    app.add_api_route(
+        extra_path,
+        _extra_method_handler,
+        methods=extra_methods,
+        include_in_schema=extra_include,
+        responses={429: {"description": "Rate limit exceeded"}},
+    )
+    return app
+
+
 def _admin_operations_stub_router_with_unrelated_path() -> APIRouter:
     router = _admin_operations_stub_router()
 
@@ -536,6 +638,7 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
         "legacy_export_aliases_router",
         _legacy_export_alias_stub_router(),
     )
+    monkeypatch.setattr(app_main, "shoplist_export_router", _shoplist_export_stub_router())
     monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
     monkeypatch.setattr(app_main, "favicon_router", _favicon_stub_router())
     monkeypatch.setattr(app_main, "health_router", _health_stub_router())
@@ -1578,6 +1681,314 @@ def test_plan_export_route_registration_rejects_duplicate_canonical_router_paths
     with pytest.raises(
         RuntimeError,
         match="Plan export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_shoplist_export_route_registration_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    app = FastAPI()
+
+    _bootstrap_temp_app(app)
+    _bootstrap_temp_app(app)
+
+    for path, method, include_in_schema in app_main._SHOPLIST_ROUTE_SPECS:
+        matching_routes = [
+            route
+            for route in app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        assert len(matching_routes) == 1
+        assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
+        assert 429 in (getattr(matching_routes[0], "responses", None) or {})
+        assert app_main._route_has_dependency_call(
+            matching_routes[0],
+            app_main._legacy_module._get_api_key_dynamic,
+        )
+
+
+def test_shoplist_export_route_registration_rejects_partial_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    path, method, include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
+
+    async def _existing_shoplist_export_route() -> dict[str, str]:
+        return {"status": "partial"}
+
+    getattr(app, method.lower())(path, include_in_schema=include_in_schema)(
+        _existing_shoplist_export_route
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial shoplist export route registration detected",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_shoplist_export_route_registration_rejects_missing_api_key_dependency_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Shoplist export API key dependency is unavailable",
+    ):
+        app_main._include_shoplist_export_router_if_needed(FastAPI())
+
+
+def test_shoplist_export_route_registration_rejects_wrong_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    path, method, include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
+
+    async def _wrong_method_shoplist_export_route() -> dict[str, str]:
+        return {"status": "wrong-method"}
+
+    wrong_method = "GET" if method == "POST" else "POST"
+    getattr(app, wrong_method.lower())(path, include_in_schema=include_in_schema)(
+        _wrong_method_shoplist_export_route
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial shoplist export route registration detected",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_shoplist_export_route_registration_rejects_existing_wrong_method_after_full_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial shoplist export route registration detected",
+    ):
+        _bootstrap_temp_app(_app_with_shoplist_export_routes_and_extra_method(combined_route=False))
+
+
+def test_shoplist_export_route_registration_rejects_existing_combined_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial shoplist export route registration detected",
+    ):
+        _bootstrap_temp_app(_app_with_shoplist_export_routes_and_extra_method(combined_route=True))
+
+
+def test_shoplist_export_route_registration_rejects_wrong_method_in_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    path, method, _include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
+    wrong_method = "GET" if method == "POST" else "POST"
+    monkeypatch.setattr(
+        app_main,
+        "shoplist_export_router",
+        _shoplist_export_stub_router(method_overrides={path: wrong_method}),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Shoplist export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_shoplist_export_route_registration_rejects_combined_methods_in_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "shoplist_export_router",
+        _shoplist_export_stub_router_with_combined_methods(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Shoplist export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_shoplist_export_route_registration_rejects_unrelated_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "shoplist_export_router",
+        _shoplist_export_stub_router_with_unrelated_path(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Shoplist export router does not define the expected route family",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_shoplist_export_callable_equivalence_rejects_non_callables() -> None:
+    expected_endpoint = next(
+        route.endpoint
+        for route in app_main.shoplist_export_router.routes
+        if getattr(route, "path", None) == app_main._SHOPLIST_ROUTE_SPECS[0][0]
+    )
+
+    assert not app_main._is_same_shoplist_export_callable(None, expected_endpoint)
+    assert not app_main._is_same_shoplist_export_callable(expected_endpoint, None)
+
+
+def test_shoplist_export_route_registration_rejects_foreign_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+
+    for path, method, include_in_schema in app_main._SHOPLIST_ROUTE_SPECS:
+
+        async def _foreign_shoplist_export_route(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        getattr(app, method.lower())(path, include_in_schema=include_in_schema)(
+            _foreign_shoplist_export_route
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate .* route detected with a different shoplist export handler",
+    ):
+        _bootstrap_temp_app(app)
+
+
+def test_shoplist_export_route_registration_rejects_missing_api_key_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    app.include_router(app_main.shoplist_export_router)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve shoplist export API key dependency",
+    ):
+        app_main._include_shoplist_export_router_if_needed(app)
+
+
+def test_shoplist_export_route_registration_rejects_openapi_visibility_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    path, _method, include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
+    monkeypatch.setattr(
+        app_main,
+        "shoplist_export_router",
+        _shoplist_export_stub_router(include_overrides={path: not include_in_schema}),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Shoplist export router does not preserve OpenAPI visibility",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_shoplist_export_route_registration_rejects_existing_openapi_visibility_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    app.include_router(
+        app_main.shoplist_export_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    path, method, include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
+    matching_route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    )
+    matching_route.include_in_schema = not include_in_schema
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve shoplist export OpenAPI visibility",
+    ):
+        app_main._include_shoplist_export_router_if_needed(app)
+
+
+def test_shoplist_export_route_registration_rejects_existing_429_metadata_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    app = FastAPI()
+    app.include_router(
+        app_main.shoplist_export_router,
+        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+    )
+    path, method, _include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
+    matching_route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    )
+    matching_route.responses.pop(429, None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve 429 response metadata",
+    ):
+        app_main._include_shoplist_export_router_if_needed(app)
+
+
+def test_shoplist_export_route_registration_rejects_missing_429_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "shoplist_export_router",
+        _shoplist_export_stub_router(include_429=False),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Shoplist export router does not preserve 429 response metadata",
+    ):
+        _bootstrap_temp_app(FastAPI())
+
+
+def test_shoplist_export_route_registration_rejects_duplicate_canonical_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        app_main,
+        "shoplist_export_router",
+        _duplicate_shoplist_export_stub_router(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Shoplist export router does not define the expected route family",
     ):
         _bootstrap_temp_app(FastAPI())
 

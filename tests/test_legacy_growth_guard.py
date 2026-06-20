@@ -492,6 +492,40 @@ def test_legacy_growth_guard_rejects_reintroduced_aliased_plan_export_registrati
     ]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_shoplist_export_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.shoplist_export import router as shoplist_router
+
+        app.include_router(shoplist_router, dependencies=[protected_dependency])
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:shoplist_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.shoplist_export:router -> shoplist_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_reintroduced_aliased_shoplist_export_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.shoplist_export import router as canonical_shoplist_router
+
+        app.include_router(canonical_shoplist_router, dependencies=[protected_dependency])
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:canonical_shoplist_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.shoplist_export:router -> canonical_shoplist_router",
+    ]
+
+
 def test_legacy_growth_guard_rejects_normal_router_import() -> None:
     source = "import app.routers.new_surface as new_surface\n"
 
@@ -658,7 +692,7 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
 
     errors = legacy_guard.validate_legacy_growth(source)
 
-    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 9 > 8"]
+    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 8 > 7"]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:
