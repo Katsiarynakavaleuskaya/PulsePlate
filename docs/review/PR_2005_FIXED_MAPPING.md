@@ -177,6 +177,8 @@ Reason: Addressed CodeRabbit and bug-hunter governance finding that merge-readin
 - [x] Discussion-thread pass completed.
 - [x] Fixed in commit mapping completed.
 - [x] Initial PR open: no review threads were present at artifact creation.
+- [x] CodeRabbit mapping-checklist review comment verified after the comment:
+  both canonical Phase2 checklist boxes remain checked.
 - [x] Post-open `qa-engineer-agent` pass completed; QA coverage note fixed in
   commit `8f2529440`.
 - [x] Post-open `bug-hunter` pass completed; actionable findings fixed in commit
