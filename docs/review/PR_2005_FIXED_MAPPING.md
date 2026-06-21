@@ -106,6 +106,24 @@ Evidence: `tests/test_restaurant_moderation_bootstrap.py` parameterizes the vali
 Reason: Closed the post-open QA coverage note that the success-path behavior test only exercised `approved` despite the PR-8 acceptance wording naming approve and reject success.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005 -> 8f2529440
 
+Disposition: FIXED
+Commit: 1fd0fa12f
+Evidence: `tests/test_restaurant_moderation_bootstrap.py` asserts `Content-Type` starts with `application/json` before parsing restaurant moderation `404`, `422`, and `200` responses; focused pytest and `make validate-changed` passed with `72 passed`.
+Reason: Addressed CodeRabbit and bug-hunter finding that response tests called `.json()` without first asserting the JSON response contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#discussion_r3448045613 -> 1fd0fa12f
+
+Disposition: FIXED
+Commit: 79d93ef9c
+Evidence: `docs/review/PR_2005_FIXED_MAPPING.md` uses checked `Discussion-thread pass completed` and `Fixed in commit mapping completed` boxes; local Phase2 checker passed after the parser repair.
+Reason: Addressed CodeRabbit mapping-checklist finding for the canonical fixed-mapping artifact.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#discussion_r3448048031 -> 79d93ef9c
+
+Disposition: FIXED
+Commit: 1fd0fa12f
+Evidence: `docs/review/PR_2005_FIXED_MAPPING.md` keeps the first three Merge Readiness checklist items unchecked until final merge-cycle verification.
+Reason: Addressed CodeRabbit and bug-hunter governance finding that merge-readiness items were pre-checked too early.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#discussion_r3448048034 -> 1fd0fa12f
+
 ## Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`.
@@ -133,6 +151,10 @@ Reason: Closed the post-open QA coverage note that the success-path behavior tes
 - PASS: post-QA focused pytest for `tests/test_restaurant_moderation_bootstrap.py`
   and `tests/test_legacy_growth_guard.py` with `72 passed`.
 - PASS: post-QA `make validate-changed` with `72 passed`.
+- PASS: post-CodeRabbit focused pytest for
+  `tests/test_restaurant_moderation_bootstrap.py` and
+  `tests/test_legacy_growth_guard.py` with `72 passed`.
+- PASS: post-CodeRabbit `make validate-changed` with `72 passed`.
 - PASS: pre-push hooks, including changed-file backend tests, full-repo Bandit,
   and docker build test.
 - DEFERRED by operator instruction: full local `make verify` because the project
@@ -147,6 +169,8 @@ Reason: Closed the post-open QA coverage note that the success-path behavior tes
 - [x] Initial PR open: no review threads were present at artifact creation.
 - [x] Post-open `qa-engineer-agent` pass completed; QA coverage note fixed in
   commit `8f2529440`.
+- [x] Post-open `bug-hunter` pass completed; actionable findings fixed in commit
+  `1fd0fa12f`.
 
 No review thread has been resolved without disposition evidence.
 
