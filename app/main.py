@@ -59,6 +59,10 @@ from app.routers.plan_export import (
     export_router,
     plan_router,
 )
+from app.routers.restaurants import (
+    RESTAURANT_MODERATION_ROUTE_SPECS,
+    moderation_router as restaurant_moderation_router,
+)
 from app.routers.shoplist_export import router as shoplist_export_router
 from app.routers.shoplist_export_routes import SHOPLIST_ROUTE_SPECS
 from app.routers.vip_registration import register_vip_routes
@@ -104,7 +108,12 @@ _SHOPLIST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in SHOPLIST_ROUTE_SPECS
 )
+_RESTAURANT_MODERATION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in RESTAURANT_MODERATION_ROUTE_SPECS
+)
 _EXPORT_ROUTE_REQUIRED_STATUS_CODES = frozenset({429})
+_RESTAURANT_MODERATION_REQUIRED_STATUS_CODES = frozenset({404, 422})
 _PLAN_SIGNED_EXPORT_PATHS = frozenset({WEEK_EXPORT_CSV_PATH, WEEK_EXPORT_PDF_PATH})
 
 
@@ -206,6 +215,21 @@ def _shoplist_export_route_members(
             required_dependencies=(api_key_dependency,),
         )
         for path, method, include_in_schema in _SHOPLIST_ROUTE_SPECS
+    )
+
+
+def _restaurant_moderation_route_members(
+    api_key_dependency: Callable[..., object],
+) -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+            required_status_codes=_RESTAURANT_MODERATION_REQUIRED_STATUS_CODES,
+            required_dependencies=(api_key_dependency,),
+        )
+        for path, method, include_in_schema in _RESTAURANT_MODERATION_ROUTE_SPECS
     )
 
 
@@ -717,6 +741,23 @@ def _include_shoplist_export_router_if_needed(target_app: FastAPI) -> None:
     )
 
 
+def _include_restaurant_moderation_router_if_needed(target_app: FastAPI) -> None:
+    """Register restaurant moderation route as one protected atomic family."""
+
+    api_key_dependency = getattr(_legacy_module, "_get_api_key_dynamic", None)
+    if not callable(api_key_dependency):
+        raise RuntimeError("Restaurant moderation API key dependency is unavailable.")
+    api_key_dependency = cast(Callable[..., object], api_key_dependency)
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Restaurant moderation",
+        routers=(restaurant_moderation_router,),
+        members=_restaurant_moderation_route_members(api_key_dependency),
+        registration_dependencies=(Depends(api_key_dependency),),
+    )
+
+
 def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     """Hide legacy users CRUD from the public OpenAPI contract.
 
@@ -803,6 +844,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_favicon_router_if_needed(app)
     _include_admin_operations_router_if_needed(app)
     _include_bmi_compat_router_if_needed(app)
+    _include_restaurant_moderation_router_if_needed(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)

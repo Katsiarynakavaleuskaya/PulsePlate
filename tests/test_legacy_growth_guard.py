@@ -526,6 +526,45 @@ def test_legacy_growth_guard_rejects_reintroduced_aliased_shoplist_export_regist
     ]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_restaurant_moderation_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.restaurants import moderation_router as restaurant_moderation_router
+
+        app.include_router(
+            restaurant_moderation_router,
+            dependencies=[Depends(_get_api_key_dynamic)],
+            include_in_schema=False,
+        )
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:restaurant_moderation_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.restaurants:moderation_router -> "
+        "restaurant_moderation_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_direct_restaurant_moderation_import() -> None:
+    source = textwrap.dedent("""
+        from app.routers.restaurants import moderation_router
+
+        app.include_router(moderation_router, dependencies=[Depends(_get_api_key_dynamic)])
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:moderation_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.restaurants:moderation_router",
+    ]
+
+
 def test_legacy_growth_guard_rejects_normal_router_import() -> None:
     source = "import app.routers.new_surface as new_surface\n"
 
@@ -692,7 +731,7 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
 
     errors = legacy_guard.validate_legacy_growth(source)
 
-    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 8 > 7"]
+    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 7 > 6"]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:

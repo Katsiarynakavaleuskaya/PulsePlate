@@ -93,6 +93,29 @@ OpenAPI effect:
 - `legacy_app.py` no longer imports or registers `app/routers/shoplist_export.py`; the
   legacy growth guard rejects reintroduced legacy registration.
 
+### Restaurant moderation router (canonical bootstrap-owned)
+
+Anchor (stable): `app/main.py -> _include_restaurant_moderation_router_if_needed(app)`
+
+Evidence:
+- `app/bootstrap/route_family.py:26` — shared `RouteMemberContract` for exact static
+  route-family members.
+- `app/bootstrap/route_family.py:87` — shared `ensure_route_family_registered(...)` guard.
+- `app/main.py` — registers `moderation_router` from `app/routers/restaurants.py` with
+  `dependencies=[Depends(_legacy_module._get_api_key_dynamic)]`.
+- `app/routers/restaurants.py` — owns moderation implementation, `RestaurantSubmission`
+  response model, hidden route metadata, `404/422` response metadata, and
+  `RESTAURANT_MODERATION_ROUTE_SPECS`.
+
+Runtime effect:
+- `PATCH /api/v1/restaurants/submissions/{submission_id}/status`
+
+OpenAPI effect:
+- Source `APIRoute.include_in_schema` is `False`.
+- Final public `app.openapi()` continues to hide the restaurant moderation path.
+- `legacy_app.py` no longer imports or registers `restaurant_moderation_router`; the
+  legacy growth guard rejects reintroduced legacy registration.
+
 ### VIP routes (feature-flag gated, centralized)
 
 Anchor (stable): `legacy_app.py -> register_vip_routes(app)` and `vip_registration.register_vip_routes()`
