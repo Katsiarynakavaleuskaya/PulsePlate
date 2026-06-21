@@ -32,8 +32,8 @@ and `RouteMemberContract` changes.
 
 ## Lane Start Provenance
 
+Packet: `artifacts/orchestration/task_packets/8180df059038.json`
 - Base SHA: `6b84f6bbd24b5c7205d47935194a4ff4febf7f03`.
-- Packet: `artifacts/orchestration/task_packets/8180df059038.json`.
 - Branch: `codex/shrink-legacy-restaurant-moderation-registration-seam`.
 - Starter: direct repo startup with `check_preflight.py` and `task_bootstrap.py`;
   packet creation was treated as provenance only, not role execution.
@@ -73,8 +73,7 @@ and `RouteMemberContract` changes.
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/pr8-restaurant-moderation-oracle.json`.
-- Artifact:
-  `artifacts/orchestration/experiments/results/exp-7c1ad9f17afb-pr8-restaurant-moderation.json`.
+Artifact: `artifacts/orchestration/experiments/results/exp-7c1ad9f17afb-pr8-restaurant-moderation.json`
 - Mode: `oracle_only_governance_reviewer`.
 - Status: `accepted`.
 - Mutated paths: `[]`.
@@ -95,24 +94,11 @@ and `RouteMemberContract` changes.
 
 ## Fixed in Commit Mapping
 
-No GitHub review threads have been resolved yet. This section currently records
-the implementation commit only; any future actionable review thread must be
-listed here with disposition-specific proof before resolution.
-
 Disposition: FIXED
-Commit: `7e34103c5`
-Evidence:
-- `app/main.py` registers restaurant moderation through canonical bootstrap with
-  `ensure_route_family_registered(...)`.
-- `app/routers/restaurants.py` owns
-  `RESTAURANT_MODERATION_STATUS_PATH`, `RESTAURANT_MODERATION_ROUTE_SPECS`, and
-  hidden source OpenAPI metadata.
-- `legacy_app.py` no longer imports or includes `restaurant_moderation_router`.
-- `scripts/ci/check_legacy_growth_guard.py` removes moderation import/include
-  allowlist entries and sets `api_key` app-surface baseline to `6`.
-- `tests/test_restaurant_moderation_bootstrap.py` and
-  `tests/test_legacy_growth_guard.py` cover exact registration, runtime behavior,
-  and legacy reintroduction rejection.
+Commit: 7e34103c5
+Evidence: `app/main.py` registers restaurant moderation through canonical bootstrap; `app/routers/restaurants.py` owns route constants and hidden source OpenAPI metadata; `legacy_app.py` no longer imports/includes `restaurant_moderation_router`; `scripts/ci/check_legacy_growth_guard.py` sets `api_key` baseline to `6`; `tests/test_restaurant_moderation_bootstrap.py` and `tests/test_legacy_growth_guard.py` cover registration, runtime behavior, and legacy reintroduction rejection.
+Reason: Moves only the protected restaurant moderation registration ownership seam from legacy to canonical bootstrap while preserving route behavior and guard coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005 -> 7e34103c5
 
 ## Validation Evidence
 
@@ -147,8 +133,9 @@ Evidence:
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed.
-- [ ] Fixed in commit mapping completed.
+- [x] Discussion-thread pass completed.
+- [x] Fixed in commit mapping completed.
+- [x] Initial PR open: no review threads were present at artifact creation.
 
 No review thread has been resolved without disposition evidence.
 
