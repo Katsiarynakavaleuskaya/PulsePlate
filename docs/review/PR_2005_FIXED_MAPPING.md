@@ -157,6 +157,14 @@ Reason: Addressed CodeRabbit and bug-hunter governance finding that merge-readin
 - PASS: post-CodeRabbit `make validate-changed` with `72 passed`.
 - PASS: post-open `security-auditor` read-only pass found no blocking or
   actionable security findings on local head `67bef4602`.
+- PASS: Codex Security diff scan / finding discovery local fallback completed
+  for head `0b58fbb8432`; report:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/0b58fbb8432_20260621T072848Z/report.md`;
+  HTML:
+  `/tmp/codex-security-scans/BMI-App_2025_clean/0b58fbb8432_20260621T072848Z/report.html`.
+- PASS: `pulseplate-pr-review` dry-run report generated at
+  `/tmp/pulseplate_pr2005_review_report.md`; no deterministic code/security
+  findings.
 - PASS: pre-push hooks, including changed-file backend tests, full-repo Bandit,
   and docker build test.
 - DEFERRED by operator instruction: full local `make verify` because the project
@@ -175,8 +183,18 @@ Reason: Addressed CodeRabbit and bug-hunter governance finding that merge-readin
   `1fd0fa12f`.
 - [x] Post-open `security-auditor` pass completed with no blocking or actionable
   findings on local head `67bef4602`.
+- [x] Codex Security diff scan / finding discovery completed by local plugin
+  fallback with no reportable findings.
+- [x] `pulseplate-pr-review` completed; advisory large-diff note dispositioned
+  as NOT-A-BUG below.
 
 No review thread has been resolved without disposition evidence.
+
+## Internal Review Finding Disposition
+
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` dry-run report at `/tmp/pulseplate_pr2005_review_report.md` flags only advisory `large-diff-risk`; the code scope remains one protected restaurant moderation route registration ownership move, and focused pytest, `make validate-changed`, legacy growth guard, Phase2 checker, pre-commit, pre-push, and Codex Security fallback scan passed.
+Reason: The line count is driven by explicit route-family tests and PR governance mapping, not broad runtime scope or unreviewed product/security behavior.
 
 ## Merge Readiness
 
