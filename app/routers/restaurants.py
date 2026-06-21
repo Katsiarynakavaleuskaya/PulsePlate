@@ -25,6 +25,8 @@ from app.services import restaurant_postgres_read, restaurant_shadow_parity, res
 router = APIRouter(tags=["restaurants"])
 moderation_router = APIRouter(tags=["restaurants"])
 logger = logging.getLogger(__name__)
+RESTAURANT_MODERATION_STATUS_PATH = "/api/v1/restaurants/submissions/{submission_id}/status"
+RESTAURANT_MODERATION_ROUTE_SPECS = ((RESTAURANT_MODERATION_STATUS_PATH, "PATCH", False),)
 FEATURE_RESTAURANT_POSTGRES_SHADOW_READS = "FEATURE_RESTAURANT_POSTGRES_SHADOW_READS"
 RESTAURANT_POSTGRES_SHADOW_READS_URL = "RESTAURANT_POSTGRES_SHADOW_READS_URL"
 SHADOW_READ_CIRCUIT_BREAKER_SECONDS = 30.0
@@ -372,8 +374,9 @@ def get_restaurant_submission(
 
 
 @moderation_router.patch(
-    "/api/v1/restaurants/submissions/{submission_id}/status",
+    RESTAURANT_MODERATION_STATUS_PATH,
     response_model=RestaurantSubmission,
+    include_in_schema=False,
     responses={
         status.HTTP_404_NOT_FOUND: {"description": "Submission not found"},
         status.HTTP_422_UNPROCESSABLE_CONTENT: {"description": "Invalid transition"},

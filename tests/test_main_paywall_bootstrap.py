@@ -1829,6 +1829,19 @@ def test_shoplist_export_route_registration_rejects_missing_api_key_dependency_s
         app_main._include_shoplist_export_router_if_needed(FastAPI())
 
 
+def test_restaurant_moderation_route_registration_rejects_missing_api_key_dependency_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Restaurant moderation API key dependency is unavailable",
+    ):
+        app_main._include_restaurant_moderation_router_if_needed(FastAPI())
+
+
 def test_shoplist_export_route_registration_rejects_wrong_method(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
