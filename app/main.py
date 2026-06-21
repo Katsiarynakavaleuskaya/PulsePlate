@@ -844,10 +844,10 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_favicon_router_if_needed(app)
     _include_admin_operations_router_if_needed(app)
     _include_bmi_compat_router_if_needed(app)
-    _include_restaurant_moderation_router_if_needed(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)
+    _include_restaurant_moderation_router_if_needed(app)
 
     register_billing_routes(app)
 
