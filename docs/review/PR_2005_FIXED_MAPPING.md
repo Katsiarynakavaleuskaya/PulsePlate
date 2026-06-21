@@ -113,10 +113,10 @@ Reason: Addressed CodeRabbit and bug-hunter finding that response tests called `
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#discussion_r3448045613 -> 1fd0fa12f
 
 Disposition: FIXED
-Commit: 79d93ef9c
-Evidence: `docs/review/PR_2005_FIXED_MAPPING.md` uses checked `Discussion-thread pass completed` and `Fixed in commit mapping completed` boxes; local Phase2 checker passed after the parser repair.
+Commit: baf85e46f
+Evidence: `docs/review/PR_2005_FIXED_MAPPING.md` uses checked `Discussion-thread pass completed` and `Fixed in commit mapping completed` boxes, and commit `baf85e46f` adds after-comment evidence verifying the CodeRabbit checklist finding; local Phase2 checker passed after the parser repair.
 Reason: Addressed CodeRabbit mapping-checklist finding for the canonical fixed-mapping artifact.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#discussion_r3448048031 -> 79d93ef9c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#discussion_r3448048031 -> baf85e46f
 
 Disposition: FIXED
 Commit: 1fd0fa12f
