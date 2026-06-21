@@ -310,19 +310,21 @@ def test_restaurant_moderation_route_valid_key_preserves_404_and_422_behavior(
     assert invalid_transition_response.json()["detail"] == "Invalid submission transition"
 
 
+@pytest.mark.parametrize("status_value", ("approved", "rejected"))
 def test_restaurant_moderation_route_valid_key_preserves_success_behavior(
     _moderation_client: TestClient,
+    status_value: str,
 ) -> None:
-    store = _ApiStore(review_response=_submission_row())
+    store = _ApiStore(review_response=_submission_row(status=status_value))
     _moderation_client.app.dependency_overrides[restaurants.get_restaurant_store] = lambda: store
 
     response = _moderation_client.patch(
         "/api/v1/restaurants/submissions/s1/status",
-        json={"status": "approved", "reviewer_notes": "ok"},
+        json={"status": status_value, "reviewer_notes": "ok"},
         headers={"X-API-Key": "test_key"},
     )
 
     assert response.status_code == 200
     assert response.json()["id"] == "s1"
-    assert response.json()["status"] == "approved"
+    assert response.json()["status"] == status_value
     assert store.review_calls == 1
