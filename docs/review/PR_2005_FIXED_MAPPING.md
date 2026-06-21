@@ -152,9 +152,9 @@ No review thread has been resolved without disposition evidence.
 
 ## Merge Readiness
 
-- [x] Narrow local gates passed.
-- [x] Full local `make verify` deferral documented.
-- [x] Canonical fixed-mapping artifact exists with the assigned PR number.
+- [ ] Narrow local gates passed.
+- [ ] Full local `make verify` deferral documented.
+- [ ] Canonical fixed-mapping artifact exists with the assigned PR number.
 - [ ] Mandatory post-open role passes complete:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - [ ] Codex Security diff scan / finding discovery complete when callable.

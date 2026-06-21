@@ -305,8 +305,12 @@ def test_restaurant_moderation_route_valid_key_preserves_404_and_422_behavior(
     )
 
     assert missing_response.status_code == 404
+    assert missing_response.headers.get("content-type", "").startswith("application/json")
     assert missing_response.json()["detail"] == "Submission not found"
     assert invalid_transition_response.status_code == 422
+    assert invalid_transition_response.headers.get("content-type", "").startswith(
+        "application/json"
+    )
     assert invalid_transition_response.json()["detail"] == "Invalid submission transition"
 
 
@@ -325,6 +329,7 @@ def test_restaurant_moderation_route_valid_key_preserves_success_behavior(
     )
 
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json()["id"] == "s1"
     assert response.json()["status"] == status_value
     assert store.review_calls == 1
