@@ -100,6 +100,12 @@ Evidence: `app/main.py` registers restaurant moderation through canonical bootst
 Reason: Moves only the protected restaurant moderation registration ownership seam from legacy to canonical bootstrap while preserving route behavior and guard coverage.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005 -> 7e34103c5
 
+Disposition: FIXED
+Commit: 8f2529440
+Evidence: `tests/test_restaurant_moderation_bootstrap.py` parameterizes the valid API-key success path over both `approved` and `rejected`; focused pytest and `make validate-changed` passed with `72 passed`.
+Reason: Closed the post-open QA coverage note that the success-path behavior test only exercised `approved` despite the PR-8 acceptance wording naming approve and reject success.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005 -> 8f2529440
+
 ## Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`.
@@ -124,6 +130,9 @@ Reason: Moves only the protected restaurant moderation registration ownership se
 - PASS: post-commit `make validate-changed`, selecting
   `tests/test_legacy_growth_guard.py` and
   `tests/test_restaurant_moderation_bootstrap.py`.
+- PASS: post-QA focused pytest for `tests/test_restaurant_moderation_bootstrap.py`
+  and `tests/test_legacy_growth_guard.py` with `72 passed`.
+- PASS: post-QA `make validate-changed` with `72 passed`.
 - PASS: pre-push hooks, including changed-file backend tests, full-repo Bandit,
   and docker build test.
 - DEFERRED by operator instruction: full local `make verify` because the project
@@ -136,6 +145,8 @@ Reason: Moves only the protected restaurant moderation registration ownership se
 - [x] Discussion-thread pass completed.
 - [x] Fixed in commit mapping completed.
 - [x] Initial PR open: no review threads were present at artifact creation.
+- [x] Post-open `qa-engineer-agent` pass completed; QA coverage note fixed in
+  commit `8f2529440`.
 
 No review thread has been resolved without disposition evidence.
 
