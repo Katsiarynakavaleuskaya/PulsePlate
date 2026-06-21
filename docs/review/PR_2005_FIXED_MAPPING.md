@@ -111,6 +111,7 @@ Commit: 1fd0fa12f
 Evidence: `tests/test_restaurant_moderation_bootstrap.py` asserts `Content-Type` starts with `application/json` before parsing restaurant moderation `404`, `422`, and `200` responses; focused pytest and `make validate-changed` passed with `72 passed`.
 Reason: Addressed CodeRabbit and bug-hunter finding that response tests called `.json()` without first asserting the JSON response contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#discussion_r3448045613 -> 1fd0fa12f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#pullrequestreview-4539323922 -> 1fd0fa12f
 
 Disposition: FIXED
 Commit: baf85e46f
@@ -123,6 +124,7 @@ Commit: 1fd0fa12f
 Evidence: `docs/review/PR_2005_FIXED_MAPPING.md` keeps the first three Merge Readiness checklist items unchecked until final merge-cycle verification.
 Reason: Addressed CodeRabbit and bug-hunter governance finding that merge-readiness items were pre-checked too early.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#discussion_r3448048034 -> 1fd0fa12f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2005#pullrequestreview-4539326059 -> 1fd0fa12f
 
 ## Validation Evidence
 
