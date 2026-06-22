@@ -46,11 +46,7 @@ Sourcery review-level feedback is mapped below.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2007#pullrequestreview-4547611166 -> e2b99c1c0
 Disposition: FIXED
 Commit: e2b99c1c0
-Evidence: `scripts/ci/run_main_test_shards.py` now uses shared
-`build_test_file(...)` metadata construction from both regular and serial test
-discovery paths; `tests/test_main_test_shards.py` adds
-`test_build_test_file_normalizes_relative_path_and_weight`. Focused pytest and
-targeted mypy passed.
+Evidence: `scripts/ci/run_main_test_shards.py` now uses shared `build_test_file(...)` metadata construction from both regular and serial test discovery paths; `tests/test_main_test_shards.py` adds `test_build_test_file_normalizes_relative_path_and_weight`. Focused pytest and targeted mypy passed.
 
 ## Implementation Commits
 
