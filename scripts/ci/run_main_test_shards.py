@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import hashlib
+import importlib.util
 import multiprocessing
 import os
 import signal
@@ -203,10 +204,16 @@ def shard_basetemp_dir(repo_root: Path, shard: TestShard) -> Path:
     raise RuntimeError("unable to resolve pytest basetemp path outside repo")
 
 
+def pytest_cov_available() -> bool:
+    """Return whether the active interpreter can load pytest-cov."""
+
+    return importlib.util.find_spec("pytest_cov") is not None
+
+
 def build_pytest_args(shard: TestShard, repo_root: Path) -> list[str]:
     """Build one no-xdist pytest argv for a shard."""
 
-    return [
+    pytest_args = [
         "-c",
         "pyproject.toml",
         "-p",
@@ -219,14 +226,16 @@ def build_pytest_args(shard: TestShard, repo_root: Path) -> list[str]:
         f"faulthandler_timeout={DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS}",
         "--basetemp",
         str(shard_basetemp_dir(repo_root, shard)),
-        "--cov=.",
-        "--cov-report=",
         "--junitxml",
         shard.junit_file,
         "-o",
         f"junit_family={JUNIT_FAMILY}",
         *[str(test_file.path) for test_file in shard.files],
     ]
+    if pytest_cov_available():
+        junit_index = pytest_args.index("--junitxml")
+        pytest_args[junit_index:junit_index] = ["--cov=.", "--cov-report="]
+    return pytest_args
 
 
 def build_shard_env(base_env: dict[str, str], shard: TestShard, repo_root: Path) -> dict[str, str]:

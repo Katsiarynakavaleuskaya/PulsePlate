@@ -273,6 +273,42 @@ def test_build_pytest_args_disables_xdist_and_emits_junit(tmp_path: Path) -> Non
     assert "tests/test_alpha.py" in pytest_args
 
 
+def test_build_pytest_args_omits_cov_args_when_pytest_cov_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=1,
+        artifact_label="py313",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    monkeypatch.setattr(runner, "pytest_cov_available", lambda: False)
+
+    pytest_args = runner.build_pytest_args(shard, tmp_path)
+
+    assert "--cov=." not in pytest_args
+    assert "--cov-report=" not in pytest_args
+
+
+def test_build_pytest_args_includes_cov_args_when_pytest_cov_is_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=1,
+        artifact_label="py313",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    monkeypatch.setattr(runner, "pytest_cov_available", lambda: True)
+
+    pytest_args = runner.build_pytest_args(shard, tmp_path)
+
+    assert "--cov=." in pytest_args
+    assert "--cov-report=" in pytest_args
+
+
 def test_build_shard_env_isolates_database_and_coverage(tmp_path: Path) -> None:
     shard = runner.TestShard(index=1, artifact_label="py313")
     env = runner.build_shard_env(
