@@ -10,7 +10,6 @@ import tempfile
 from concurrent.futures import Future
 from pathlib import Path
 
-import coverage.cmdline
 import pytest
 
 from scripts.ci import run_main_test_shards as runner
@@ -41,6 +40,53 @@ def test_discover_test_files_includes_edges_and_excludes_disabled(tmp_path: Path
     assert [test_file.path.as_posix() for test_file in discovered] == [
         "tests/edges/test_beta.py",
         "tests/test_alpha.py",
+    ]
+
+
+def test_build_test_file_normalizes_relative_path_and_weight(tmp_path: Path) -> None:
+    test_path = _write_test_file(
+        tmp_path,
+        "tests/test_alpha.py",
+        "def test_alpha(): pass\n",
+    )
+
+    test_file = runner.build_test_file(tmp_path, test_path)
+
+    assert test_file == runner.TestFile(Path("tests/test_alpha.py"), test_path.stat().st_size)
+
+
+def test_discover_test_files_excludes_serial_main_tests(tmp_path: Path) -> None:
+    _write_test_file(tmp_path, "tests/test_alpha.py", "def test_alpha(): pass\n")
+    _write_test_file(
+        tmp_path,
+        "tests/test_design_token_parity.py",
+        "def test_design_token_parity(): pass\n",
+    )
+
+    discovered = runner.discover_test_files(
+        tmp_path,
+        excluded_paths=runner.SERIAL_MAIN_TEST_PATHS,
+    )
+
+    assert [test_file.path.as_posix() for test_file in discovered] == ["tests/test_alpha.py"]
+
+
+def test_build_serial_shards_selects_toolchain_sensitive_tests(tmp_path: Path) -> None:
+    design_tokens = _write_test_file(
+        tmp_path,
+        "tests/test_design_token_parity.py",
+        "def test_design_token_parity(): pass\n",
+    )
+
+    serial_shards = runner.build_serial_shards(tmp_path, "py311")
+
+    assert len(serial_shards) == 1
+    assert serial_shards[0].index == 0
+    assert serial_shards[0].artifact_label == "py311"
+    assert serial_shards[0].coverage_file == ".coverage.py311-main-shard-0"
+    assert serial_shards[0].junit_file == "tests/results-py311-shard-0.xml"
+    assert serial_shards[0].files == [
+        runner.TestFile(Path("tests/test_design_token_parity.py"), design_tokens.stat().st_size)
     ]
 
 
@@ -225,6 +271,42 @@ def test_build_pytest_args_disables_xdist_and_emits_junit(tmp_path: Path) -> Non
     assert f"junit_family={runner.JUNIT_FAMILY}" in pytest_args
     assert shard.junit_file in pytest_args
     assert "tests/test_alpha.py" in pytest_args
+
+
+def test_build_pytest_args_omits_cov_args_when_pytest_cov_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=1,
+        artifact_label="py313",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    monkeypatch.setattr(runner, "pytest_cov_available", lambda: False)
+
+    pytest_args = runner.build_pytest_args(shard, tmp_path)
+
+    assert "--cov=." not in pytest_args
+    assert "--cov-report=" not in pytest_args
+
+
+def test_build_pytest_args_includes_cov_args_when_pytest_cov_is_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=1,
+        artifact_label="py313",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    monkeypatch.setattr(runner, "pytest_cov_available", lambda: True)
+
+    pytest_args = runner.build_pytest_args(shard, tmp_path)
+
+    assert "--cov=." in pytest_args
+    assert "--cov-report=" in pytest_args
 
 
 def test_build_shard_env_isolates_database_and_coverage(tmp_path: Path) -> None:
@@ -600,6 +682,215 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
     ]
 
 
+def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=1,
+        artifact_label="py311",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 1)],
+        weight=1,
+    )
+    coverage_calls: list[list[str]] = []
+    submitted: list[int] = []
+
+    class FakeExecutor:
+        def __init__(self, **kwargs: object) -> None:
+            del kwargs
+
+        def shutdown(self, *, wait: bool, cancel_futures: bool = False) -> None:
+            assert wait is True
+            assert cancel_futures is False
+
+        def submit(
+            self,
+            func: object,
+            repo_root: Path,
+            submitted_shard: runner.TestShard,
+            base_env: dict[str, str],
+        ) -> Future[int]:
+            del func
+            assert repo_root == tmp_path
+            assert base_env == {}
+            submitted.append(submitted_shard.index)
+            future: Future[int] = Future()
+            future.set_result(0)
+            return future
+
+    def fake_wait(
+        futures: set[Future[int]] | dict[Future[int], int],
+        *,
+        return_when: object,
+    ) -> tuple[set[Future[int]], set[Future[int]]]:
+        assert return_when is runner.concurrent.futures.FIRST_COMPLETED
+        return set(futures), set()
+
+    def fake_coverage(repo_root: Path, args: list[str]) -> int:
+        assert repo_root == tmp_path
+        coverage_calls.append(list(args))
+        return 0
+
+    monkeypatch.setattr(runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(runner.concurrent.futures, "wait", fake_wait)
+    monkeypatch.setattr(runner, "run_coverage_command", fake_coverage)
+
+    assert (
+        runner.run_all_shards(
+            tmp_path,
+            [shard],
+            1,
+            {},
+            extra_coverage_files=[".coverage.py311-main-shard-0"],
+        )
+        == 0
+    )
+    assert submitted == [1]
+    assert coverage_calls == [
+        ["combine", ".coverage.py311-main-shard-0", ".coverage.py311-main-shard-1"],
+        ["xml"],
+        ["report", "-m", "--fail-under=97"],
+    ]
+
+
+def test_run_serial_shards_stops_before_parallel_phase_on_failure(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    serial_shard = runner.TestShard(
+        index=0,
+        artifact_label="py311",
+        files=[runner.TestFile(Path("tests/test_design_token_parity.py"), 1)],
+        weight=1,
+    )
+
+    monkeypatch.setattr(runner, "run_shard", lambda *args, **kwargs: 5)
+
+    assert runner.run_serial_shards(tmp_path, [serial_shard], {}) == 5
+    assert (
+        "MAIN_TEST_SERIAL_SHARD_FAILED label=py311 index=0 exit_code=5" in capsys.readouterr().err
+    )
+
+
+def test_main_stops_before_parallel_shards_when_serial_tests_fail(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _write_test_file(tmp_path, "tests/test_alpha.py", "def test_alpha(): pass\n")
+    _write_test_file(
+        tmp_path,
+        "tests/test_design_token_parity.py",
+        "def test_design_token_parity(): pass\n",
+    )
+    captured_serial: dict[str, object] = {}
+
+    def fake_run_serial(
+        repo_root: Path,
+        serial_shards: list[runner.TestShard],
+        base_env: dict[str, str],
+    ) -> int:
+        del base_env
+        captured_serial["repo_root"] = repo_root
+        captured_serial["serial_paths"] = [
+            test_file.path.as_posix()
+            for serial_shard in serial_shards
+            for test_file in serial_shard.files
+        ]
+        return 5
+
+    monkeypatch.setattr(runner, "run_serial_shards", fake_run_serial)
+    monkeypatch.setattr(
+        runner,
+        "run_all_shards",
+        lambda *args, **kwargs: pytest.fail("parallel shards must not run"),
+    )
+
+    assert (
+        runner.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--python-version",
+                "3.11",
+                "--shard-count",
+                "2",
+            ]
+        )
+        == 5
+    )
+    assert captured_serial == {
+        "repo_root": tmp_path.resolve(),
+        "serial_paths": ["tests/test_design_token_parity.py"],
+    }
+
+
+def test_main_passes_serial_coverage_into_parallel_combine(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _write_test_file(tmp_path, "tests/test_alpha.py", "def test_alpha(): pass\n")
+    _write_test_file(
+        tmp_path,
+        "tests/test_design_token_parity.py",
+        "def test_design_token_parity(): pass\n",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_run_serial(
+        repo_root: Path,
+        serial_shards: list[runner.TestShard],
+        base_env: dict[str, str],
+    ) -> int:
+        del base_env
+        captured["serial_repo_root"] = repo_root
+        captured["serial_coverage"] = [serial_shard.coverage_file for serial_shard in serial_shards]
+        return 0
+
+    def fake_run_all(
+        repo_root: Path,
+        shards: list[runner.TestShard],
+        max_parallel: int,
+        base_env: dict[str, str],
+        extra_coverage_files: list[str],
+    ) -> int:
+        del base_env
+        captured["parallel_repo_root"] = repo_root
+        captured["parallel_paths"] = [
+            test_file.path.as_posix() for shard in shards for test_file in shard.files
+        ]
+        captured["max_parallel"] = max_parallel
+        captured["extra_coverage_files"] = extra_coverage_files
+        return 0
+
+    monkeypatch.setattr(runner, "run_serial_shards", fake_run_serial)
+    monkeypatch.setattr(runner, "run_all_shards", fake_run_all)
+
+    assert (
+        runner.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--python-version",
+                "3.11",
+                "--shard-count",
+                "2",
+                "--max-parallel",
+                "1",
+            ]
+        )
+        == 0
+    )
+    assert captured == {
+        "serial_repo_root": tmp_path.resolve(),
+        "serial_coverage": [".coverage.py311-main-shard-0"],
+        "parallel_repo_root": tmp_path.resolve(),
+        "parallel_paths": ["tests/test_alpha.py"],
+        "max_parallel": 1,
+        "extra_coverage_files": [".coverage.py311-main-shard-0"],
+    }
+
+
 def test_collect_shard_results_reports_worker_exceptions(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -696,9 +987,7 @@ def test_run_coverage_command_uses_coverage_api(
         captured["cov_core_datafile"] = os.environ.get("COV_CORE_DATAFILE")
         return 0
 
-    monkeypatch.setattr(coverage.cmdline, "main", fake_main)
-
-    assert runner.run_coverage_command(tmp_path, ["xml"]) == 0
+    assert runner.run_coverage_command(tmp_path, ["xml"], coverage_main=fake_main) == 0
     assert captured == {
         "args": ["xml"],
         "cwd": tmp_path,
