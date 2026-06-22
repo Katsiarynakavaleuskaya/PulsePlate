@@ -210,5 +210,6 @@ class TestPremiumWeekEndpointSimple96:
             )
 
             assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
             data = response.json()
             assert "daily_menus" in data or "week_summary" in data
