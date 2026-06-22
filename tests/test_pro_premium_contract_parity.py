@@ -152,6 +152,8 @@ def test_premium_weekly_matches_pro_weekly(client: TestClient) -> None:
     r_pro = client.post("/api/v1/pro/meal/weekly", json=payload, headers=_pro_headers())
     assert r_pro.status_code == 200, r_pro.text
 
+    assert r_premium.headers.get("content-type", "").startswith("application/json")
+    assert r_pro.headers.get("content-type", "").startswith("application/json")
     premium_payload = r_premium.json()
     pro_payload = r_pro.json()
     assert premium_payload["next_best_action"]["type"] == "upgrade_for_export"
@@ -183,6 +185,8 @@ def test_premium_weekly_profile_derived_matches_pro_weekly(client: TestClient) -
     r_pro = client.post("/api/v1/pro/meal/weekly", json=payload, headers=_pro_headers())
     assert r_pro.status_code == 200, r_pro.text
 
+    assert r_premium.headers.get("content-type", "").startswith("application/json")
+    assert r_pro.headers.get("content-type", "").startswith("application/json")
     premium_payload = r_premium.json()
     pro_payload = r_pro.json()
     assert premium_payload["next_best_action"]["type"] == "upgrade_for_export"
