@@ -16,8 +16,7 @@ preserving canonical PRO and deprecated premium weekly endpoint behavior.
 
 - Base branch: `main`
 - Start head: `2fd053128c7e5ac3d45873007867c8f4b7500f04`
-- Task packet:
-  `artifacts/orchestration/task_packets/b7f6dbc6858b.json`
+- Packet: `artifacts/orchestration/task_packets/b7f6dbc6858b.json`
 - Required pre-implementation role order completed:
   `agent-coordinator -> qa-engineer-agent -> security-auditor -> backend-engineer -> architecture-specialist`
 
@@ -38,16 +37,21 @@ legacy rewrite.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No review threads existed at PR open.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
 
-No review-thread fixes yet.
+- No actionable review comments
 
-Implementation:
+## Implementation Commits
+
 - `6eec0ea99` - centralizes profile-derived weekly planning targets, updates
   PRO/premium weekly routers and tests, preserves deprecated compatibility, and
   fixes the `legacy_app.py` flake8 import-hygiene gate.
+- `1118b0583` - adds PR #2006 fixed-mapping governance artifact.
 
 ## Premortem Evidence
 
@@ -66,7 +70,7 @@ Implementation:
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/exp-ed836b5c000a.json`
-- Result: `artifacts/orchestration/experiments/results/exp-ed836b5c000a.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-ed836b5c000a.json`
 - Status: `accepted`
 - Runner mode: `oracle_only_governance_reviewer`
 - Contribution kind: `oracle_review`
