@@ -65,6 +65,21 @@ Disposition: FIXED
 Commit: 3f5504350
 Evidence: `docs/review/PR_2006_FIXED_MAPPING.md` now uses unchecked checklist entries under `## Merge Readiness`; `pre-commit run --all-files` passed.
 
+## PulsePlate PR Review Disposition
+
+Finding: `large-diff-risk` advisory from `pulseplate-pr-review`.
+
+Disposition: NOT-A-BUG
+Evidence: `make validate-changed` selected the changed Python test surface and
+passed; focused weekly/pro/premium pytest bundles, targeted mypy,
+`make openapi-check`, `pre-commit run --all-files`, and `git diff --check`
+passed.
+Reason: The line-count threshold is crossed by focused test updates and the
+canonical review artifact, while production code scope remains limited to the
+shared nutrition target service, two weekly routers, and a `legacy_app.py`
+import-compat hygiene fix. No route/auth/tier, OpenAPI/client, migration,
+FoodDB cutover, frontend/iOS, or broad legacy rewrite scope is included.
+
 ## Implementation Commits
 
 - `6eec0ea99` - centralizes profile-derived weekly planning targets, updates
@@ -82,6 +97,7 @@ Evidence: `docs/review/PR_2006_FIXED_MAPPING.md` now uses unchecked checklist en
   mapping artifact.
 - `3f5504350` - addresses CodeRabbit outside-diff test/mapping findings and
   removes the disabled hypothesis file from the net PR diff.
+- `42a1b4140` - maps PR #2006 review-level bot comments.
 
 ## Premortem Evidence
 
@@ -118,14 +134,12 @@ Passed locally:
 - `. .venv/bin/activate && pytest -q tests/test_pro_vip_route_dependency_guard.py tests/security/test_api_auth_tier_contract_pack.py tests/test_paid_route_guards.py`
 - `. .venv/bin/activate && mypy app/services/nutrition_targets.py app/routers/pro.py app/routers/premium_week.py`
 - `make openapi-check`
+- `make validate-changed`
 - `make lint`
 - `pre-commit run --all-files`
 - `git diff --check`
 - Pre-push hooks: changed-files mypy, backend tests, full-repo Bandit, Docker
   build test.
-
-`make validate-changed` passed but selected no Python files in the local branch
-state, so it is explicitly not treated as sufficient evidence for this PR.
 
 Full `make verify` was attempted once. The first run exposed the
 `legacy_app.py` lint issue fixed in `6eec0ea99`. The rerun passed verify-env,
