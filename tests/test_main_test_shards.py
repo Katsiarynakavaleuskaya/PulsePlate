@@ -10,7 +10,6 @@ import tempfile
 from concurrent.futures import Future
 from pathlib import Path
 
-import coverage.cmdline
 import pytest
 
 from scripts.ci import run_main_test_shards as runner
@@ -952,9 +951,7 @@ def test_run_coverage_command_uses_coverage_api(
         captured["cov_core_datafile"] = os.environ.get("COV_CORE_DATAFILE")
         return 0
 
-    monkeypatch.setattr(coverage.cmdline, "main", fake_main)
-
-    assert runner.run_coverage_command(tmp_path, ["xml"]) == 0
+    assert runner.run_coverage_command(tmp_path, ["xml"], coverage_main=fake_main) == 0
     assert captured == {
         "args": ["xml"],
         "cwd": tmp_path,

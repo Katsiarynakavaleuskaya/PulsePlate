@@ -14,7 +14,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
@@ -398,17 +398,24 @@ def _build_explicit_shard(args: argparse.Namespace, artifact_label: str) -> Test
     return shard
 
 
-def run_coverage_command(repo_root: Path, args: Sequence[str]) -> int:
+def run_coverage_command(
+    repo_root: Path,
+    args: Sequence[str],
+    coverage_main: Callable[[list[str]], int | None] | None = None,
+) -> int:
     """Run a coverage command after all pytest shards pass."""
 
-    import coverage.cmdline
+    if coverage_main is None:
+        import coverage.cmdline
+
+        coverage_main = coverage.cmdline.main
 
     old_cwd = Path.cwd()
     old_coverage_file = os.environ.pop("COVERAGE_FILE", None)
     old_cov_core_datafile = os.environ.pop("COV_CORE_DATAFILE", None)
     try:
         os.chdir(repo_root)
-        return int(coverage.cmdline.main(list(args)) or 0)
+        return int(coverage_main(list(args)) or 0)
     finally:
         if old_coverage_file is not None:
             os.environ["COVERAGE_FILE"] = old_coverage_file
