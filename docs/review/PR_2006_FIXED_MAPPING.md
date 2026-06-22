@@ -108,6 +108,11 @@ FoodDB cutover, frontend/iOS, or broad legacy rewrite scope is included.
 - `42a1b4140` - maps PR #2006 review-level bot comments.
 - `8362e21fe` - asserts JSON content type before parsing the legacy premium
   weekly alias response.
+- `f1178c2e5` - maps the fixed CodeRabbit legacy alias finding in the PR #2006
+  mapping artifact.
+- `e6212bd4f` - removes async test markers from the changed diff-coverage test
+  surface so CI pre-commit backend-tests do not require the optional
+  `pytest-asyncio` plugin in the lint environment.
 
 ## Premortem Evidence
 
@@ -148,8 +153,14 @@ Passed locally:
 - `make lint`
 - `pre-commit run --all-files`
 - `git diff --check`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh`
 - Pre-push hooks: changed-files mypy, backend tests, full-repo Bandit, Docker
   build test.
+
+Current-head CI lint failure on `f1178c2e5` was fixed in `e6212bd4f` by
+removing `pytest.mark.asyncio`/`async def` from the changed diff-coverage tests
+selected by the pre-commit backend-tests hook. The selected bundle now has no
+async test markers and passes without relying on `pytest-asyncio`.
 
 Full `make verify` was attempted once. The first run exposed the
 `legacy_app.py` lint issue fixed in `6eec0ea99`. The rerun passed verify-env,
