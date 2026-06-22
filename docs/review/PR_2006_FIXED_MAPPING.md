@@ -40,11 +40,15 @@ legacy rewrite.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads existed at PR open.
+No review threads existed at PR open. One post-open Sourcery thread is mapped
+below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2006#discussion_r3452568392 -> 8d972fbf9
+Disposition: FIXED
+Commit: 8d972fbf9
+Evidence: `app/services/nutrition_targets.py` widens `PlanningTargetsPayload.macros` and `PlanningTargetsPayload.micro` through `PlanningNumeric = int | float`; targeted mypy and service/diff coverage tests passed.
 
 ## Implementation Commits
 
@@ -52,6 +56,9 @@ No review threads existed at PR open.
   PRO/premium weekly routers and tests, preserves deprecated compatibility, and
   fixes the `legacy_app.py` flake8 import-hygiene gate.
 - `1118b0583` - adds PR #2006 fixed-mapping governance artifact.
+- `923a8fb5d` - aligns fixed-mapping artifact syntax with Phase2 gates.
+- `8d972fbf9` - widens planning target numeric payload types for Sourcery
+  feedback.
 
 ## Premortem Evidence
 
