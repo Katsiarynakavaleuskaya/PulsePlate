@@ -150,14 +150,14 @@ class TestPremiumWeekEndpoint96:
             patch.dict(os.environ, {"API_KEY": "test_api_key"}),
             patch("core.food_db_new.FoodDB") as mock_fooddb,
             patch("core.recipe_db_new.RecipeDB") as mock_recipedb,
-            patch("app.routers.premium_week.estimate_targets_minimal") as mock_estimate,
+            patch("app.services.nutrition_targets.estimate_targets_from_profile") as mock_estimate,
             patch("app.routers.premium_week.build_week") as mock_build_week,
         ):
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
 
-            # Mock estimate_targets_minimal response
+            # Mock profile-derived planning target response.
             mock_estimate.return_value = {
                 "kcal": 2000,
                 "macros": {"protein_g": 150, "fat_g": 65, "carbs_g": 250},
@@ -236,14 +236,14 @@ class TestPremiumWeekEndpoint96:
             patch.dict(os.environ, {"API_KEY": "test_api_key"}),
             patch("core.food_db_new.FoodDB") as mock_fooddb,
             patch("core.recipe_db_new.RecipeDB") as mock_recipedb,
-            patch("app.routers.premium_week.estimate_targets_minimal") as mock_estimate,
+            patch("app.services.nutrition_targets.estimate_targets_from_profile") as mock_estimate,
             patch("app.routers.premium_week.build_week") as mock_build_week,
         ):
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
 
-            # Mock estimate_targets_minimal to return None
+            # Mock profile-derived planning target adapter to return None.
             mock_estimate.return_value = None
 
             # Mock build_week to return a predictable result
@@ -281,14 +281,16 @@ class TestPremiumWeekEndpoint96:
                 patch.dict(os.environ, {"API_KEY": "test_api_key"}),
                 patch("core.food_db_new.FoodDB") as mock_fooddb,
                 patch("core.recipe_db_new.RecipeDB") as mock_recipedb,
-                patch("app.routers.premium_week.estimate_targets_minimal") as mock_estimate,
+                patch(
+                    "app.services.nutrition_targets.estimate_targets_from_profile"
+                ) as mock_estimate,
                 patch("app.routers.premium_week.build_week") as mock_build_week,
             ):
                 # Mock database objects
                 mock_fooddb.return_value = Mock()
                 mock_recipedb.return_value = Mock()
 
-                # Mock estimate_targets_minimal response
+                # Mock profile-derived planning target response.
                 mock_estimate.return_value = {
                     "kcal": 2000,
                     "macros": {"protein_g": 150, "fat_g": 65, "carbs_g": 250},
@@ -338,14 +340,16 @@ class TestPremiumWeekEndpoint96:
                 patch.dict(os.environ, {"API_KEY": "test_api_key"}),
                 patch("core.food_db_new.FoodDB") as mock_fooddb,
                 patch("core.recipe_db_new.RecipeDB") as mock_recipedb,
-                patch("app.routers.premium_week.estimate_targets_minimal") as mock_estimate,
+                patch(
+                    "app.services.nutrition_targets.estimate_targets_from_profile"
+                ) as mock_estimate,
                 patch("app.routers.premium_week.build_week") as mock_build_week,
             ):
                 # Mock database objects
                 mock_fooddb.return_value = Mock()
                 mock_recipedb.return_value = Mock()
 
-                # Mock estimate_targets_minimal response
+                # Mock profile-derived planning target response.
                 mock_estimate.return_value = {
                     "kcal": 2000,
                     "macros": {"protein_g": 150, "fat_g": 65, "carbs_g": 250},

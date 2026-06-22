@@ -148,7 +148,11 @@ class TestProRouterIsolated:
         monkeypatch.setattr(self.pro_mod, "get_recipe_db", lambda: object())
 
         # Bypass profile/targets validation to focus on pipeline contract.
-        monkeypatch.setattr(self.pro_mod, "_is_complete_targets", lambda _d: True)
+        from app.services import nutrition_targets as nutrition_targets_service
+
+        monkeypatch.setattr(
+            nutrition_targets_service, "is_complete_planning_targets", lambda _d: True
+        )
 
         def _fake_pipeline(**_kwargs: Any) -> str:
             return "not-a-week-plan-response"
@@ -164,7 +168,11 @@ class TestProRouterIsolated:
         """Malformed build output must fail closed in the postprocess stage."""
         monkeypatch.setattr(self.pro_mod, "get_food_db", lambda: object())
         monkeypatch.setattr(self.pro_mod, "get_recipe_db", lambda: object())
-        monkeypatch.setattr(self.pro_mod, "_is_complete_targets", lambda _d: True)
+        from app.services import nutrition_targets as nutrition_targets_service
+
+        monkeypatch.setattr(
+            nutrition_targets_service, "is_complete_planning_targets", lambda _d: True
+        )
 
         def _fake_pipeline(**kwargs: Any) -> dict[str, Any]:
             postprocess_fn = kwargs["postprocess_fn"]

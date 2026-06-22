@@ -86,12 +86,6 @@ from app.services.bmi_compat import (
     add_visualization_if_requested,
     generate_bmi_visualization,
 )
-
-_BMI_COMPAT_REEXPORTS = (
-    MATPLOTLIB_AVAILABLE,
-    add_visualization_if_requested,
-    generate_bmi_visualization,
-)
 from core.fingerprint_security import _client_fingerprint
 from core.log_retention import (
     DATA_CLASS_PSEUDONYMOUS,
@@ -129,6 +123,21 @@ from app.security.llm_monthly_quota import (
 from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
     _calculate_all_tdee_wrapper,
+)
+
+_BMI_COMPAT_REEXPORTS = (
+    MATPLOTLIB_AVAILABLE,
+    add_visualization_if_requested,
+    generate_bmi_visualization,
+)
+
+_LEGACY_IMPORT_COMPAT_REEXPORTS = (
+    DataClass,
+    get_retention_manager,
+    get_session,
+    Language,
+    normalize_lang,
+    _short_git_sha,
 )
 
 # PR-633: thin alias to canonical import-safe schema (no local validation).

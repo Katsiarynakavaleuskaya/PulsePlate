@@ -24,14 +24,13 @@ from app.schemas.weekly_plan import (
     require_weekly_plan_payload_shape,
     normalize_weekly_plan_payload,
 )
+from app.services import nutrition_targets as nutrition_targets_service
 from app.services.intervention_trigger_engine import build_weekly_plan_next_action
 from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 from core.food_db_new import FoodDB
 from core.meal_i18n import Language
 from core.recipe_db_new import RecipeDB
-from core.recommendations import build_nutrition_targets
-from core.targets import UserProfile
 from core.weekly_plan_new import build_week
 
 router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
@@ -102,79 +101,6 @@ def _missing_profile_detail(field: str) -> str:
     return f"Missing user profile data (Missing required field: {field})"
 
 
-def _is_complete_targets(d: Dict[str, Any]) -> bool:
-    """Check if targets dict has all required keys and non-empty micro/macros.
-
-    Note: activity_week is optional but validated if present.
-    """
-    required_keys = {"kcal", "macros", "micro", "water_ml"}
-    if not required_keys.issubset(d.keys()):
-        return False
-    if not isinstance(d.get("macros"), dict):
-        return False
-    if not isinstance(d.get("micro"), dict):
-        return False
-    # If activity_week is present, it must be a dict
-    if "activity_week" in d and d.get("activity_week") is not None:
-        if not isinstance(d["activity_week"], dict):
-            return False
-    # micro must not be empty, otherwise core may produce unexpected results
-    if not d.get("micro"):
-        return False
-    # macros must not be empty, for consistency with micro validation
-    if not d.get("macros"):
-        return False
-    return True
-
-
-# TODO(#286): Deduplicate estimate_targets_minimal by moving it into app/services/nutrition_targets.py
-# Keep parity between /api/v1/pro/meal/weekly and deprecated /api/v1/premium/plan/week-flexible.
-def estimate_targets_minimal(
-    sex: Literal["female", "male"],
-    age: int,
-    height_cm: float,
-    weight_kg: float,
-    activity: Literal["sedentary", "light", "moderate", "active", "very_active"],
-    goal: Literal["loss", "maintain", "gain"],
-) -> Dict[str, Any]:
-    """Temporary function to estimate targets from user profile (DEPRECATED endpoint).
-
-    WARNING: This function is duplicated in pro.py to maintain backward compatibility.
-    Any changes here MUST be mirrored in pro.py until extraction is complete.
-    """
-    # Create a UserProfile object
-    profile = UserProfile(
-        sex=sex,
-        age=age,
-        height_cm=height_cm,
-        weight_kg=weight_kg,
-        activity=activity,
-        goal=goal,
-    )
-
-    # Build nutrition targets using existing WHO-based system
-    targets = build_nutrition_targets(profile)
-
-    # Convert to the format expected by the weekly plan generator
-    return {
-        "kcal": targets.kcal_daily,
-        "macros": {
-            "protein_g": targets.macros.protein_g,
-            "fat_g": targets.macros.fat_g,
-            "carbs_g": targets.macros.carbs_g,
-            "fiber_g": targets.macros.fiber_g,
-        },
-        "micro": targets.micros.get_priority_nutrients(),
-        "water_ml": targets.water_ml_daily,
-        "activity_week": {
-            "moderate_aerobic_min": targets.activity.moderate_aerobic_min,
-            "vigorous_aerobic_min": targets.activity.vigorous_aerobic_min,
-            "strength_sessions": targets.activity.strength_sessions,
-            "steps_daily": targets.activity.steps_daily,
-        },
-    }
-
-
 @router.post(
     "/plan/week-flexible",
     response_model=PremiumWeekPlanResponse,
@@ -235,7 +161,7 @@ async def generate_week_plan(
         req.targets.model_dump(exclude_none=True) if req.targets is not None else {}
     )
 
-    if _is_complete_targets(targets_from_request):
+    if nutrition_targets_service.is_complete_planning_targets(targets_from_request):
         targets: Dict[str, Any] = targets_from_request
     else:
         # Fallback: derive from profile, otherwise 400 (DRY error messages with helper)
@@ -254,19 +180,22 @@ async def generate_week_plan(
             raise HTTPException(status_code=400, detail=_missing_profile_detail("goal"))
 
         # After all None checks above, types are narrowed to non-None
-        targets = estimate_targets_minimal(
-            sex=req.sex,
-            age=req.age,
-            height_cm=float(req.height_cm),
-            weight_kg=float(req.weight_kg),
-            activity=req.activity,
-            goal=req.goal,
+        targets = cast(
+            Dict[str, Any],
+            nutrition_targets_service.estimate_targets_from_profile(
+                sex=req.sex,
+                age=req.age,
+                height_cm=float(req.height_cm),
+                weight_kg=float(req.weight_kg),
+                activity=req.activity,
+                goal=req.goal,
+            ),
         )
 
     # Hard guard: never pass None/malformed targets to core
     if not isinstance(targets, dict):
         raise HTTPException(status_code=400, detail="Unable to derive targets")
-    if not _is_complete_targets(targets):
+    if not nutrition_targets_service.is_complete_planning_targets(targets):
         raise HTTPException(status_code=400, detail="Unable to derive targets")
 
     # 2) Построить неделю (generation stage) + postprocess (pipeline with ordering guard)

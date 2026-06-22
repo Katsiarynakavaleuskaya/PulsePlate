@@ -3,7 +3,7 @@ Diff coverage tests for PR #339 - PRO tier router standardization.
 
 These tests ensure 97%+ patch coverage by exercising all code branches
 introduced in the PR, specifically targeting:
-- _is_complete_targets() validation logic (all return paths)
+- is_complete_planning_targets() validation logic (all return paths)
 - Hard guards for malformed targets
 - Missing profile field error messages
 - Cache initialization branches
@@ -31,16 +31,16 @@ class TestPRORouterDiffCoverage:
         assert "Missing user profile data" in msg
         assert "Missing required field: age" in msg
 
-    def test_is_complete_targets_all_branches(self):
-        """Cover all return paths in _is_complete_targets()."""
-        from app.routers.pro import _is_complete_targets
+    def test_is_complete_planning_targets_all_branches(self):
+        """Cover all return paths in is_complete_planning_targets()."""
+        from app.services.nutrition_targets import is_complete_planning_targets
 
         # Missing required keys
-        assert not _is_complete_targets({})
-        assert not _is_complete_targets({"kcal": 2000})
+        assert not is_complete_planning_targets({})
+        assert not is_complete_planning_targets({"kcal": 2000})
 
         # macros not a dict
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": "invalid",
@@ -51,7 +51,7 @@ class TestPRORouterDiffCoverage:
         )
 
         # micro not a dict
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -62,7 +62,7 @@ class TestPRORouterDiffCoverage:
         )
 
         # micro is empty (required to be non-empty)
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -73,7 +73,7 @@ class TestPRORouterDiffCoverage:
         )
 
         # macros is empty (required to be non-empty)
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {},
@@ -84,7 +84,7 @@ class TestPRORouterDiffCoverage:
         )
 
         # Valid complete targets
-        assert _is_complete_targets(
+        assert is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -95,7 +95,7 @@ class TestPRORouterDiffCoverage:
         )
 
         # Valid targets without activity_week (optional field)
-        assert _is_complete_targets(
+        assert is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -105,7 +105,7 @@ class TestPRORouterDiffCoverage:
         )
 
         # Invalid: activity_week wrong type (not dict)
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -115,9 +115,9 @@ class TestPRORouterDiffCoverage:
             }
         )
 
-    def test_estimate_targets_minimal_smoke(self, monkeypatch):
-        """Smoke test for estimate_targets_minimal() happy path."""
-        from app.routers.pro import estimate_targets_minimal
+    def test_estimate_targets_from_profile_smoke(self, monkeypatch):
+        """Smoke test for estimate_targets_from_profile() happy path."""
+        from app.services.nutrition_targets import estimate_targets_from_profile
 
         mock_targets = SimpleNamespace(
             kcal_daily=2000,
@@ -140,11 +140,11 @@ class TestPRORouterDiffCoverage:
         )
 
         monkeypatch.setattr(
-            "app.routers.pro.build_nutrition_targets",
+            "app.services.nutrition_targets.build_nutrition_targets",
             lambda profile: mock_targets,
         )
 
-        result = estimate_targets_minimal(
+        result = estimate_targets_from_profile(
             sex="female",
             age=30,
             height_cm=165.0,
@@ -252,7 +252,7 @@ class TestPRORouterDiffCoverage:
         monkeypatch.setattr("app.routers.pro.get_food_db", lambda: MagicMock())
         monkeypatch.setattr("app.routers.pro.get_recipe_db", lambda: MagicMock())
         monkeypatch.setattr(
-            "app.routers.pro.estimate_targets_minimal",
+            "app.services.nutrition_targets.estimate_targets_from_profile",
             lambda *args, **kwargs: "not_a_dict",  # Type guard should catch this
         )
 
@@ -273,7 +273,7 @@ class TestPRORouterDiffCoverage:
         monkeypatch.setattr("app.routers.pro.get_food_db", lambda: MagicMock())
         monkeypatch.setattr("app.routers.pro.get_recipe_db", lambda: MagicMock())
         monkeypatch.setattr(
-            "app.routers.pro.estimate_targets_minimal",
+            "app.services.nutrition_targets.estimate_targets_from_profile",
             lambda *args, **kwargs: {"kcal": 2000, "macros": {}, "micro": {}},  # Missing keys
         )
 
@@ -333,15 +333,15 @@ class TestPremiumWeekDiffCoverage:
         assert "Missing user profile data" in msg
         assert "Missing required field: height_cm" in msg
 
-    def test_is_complete_targets_all_branches(self):
-        """Cover all return paths in _is_complete_targets()."""
-        from app.routers.premium_week import _is_complete_targets
+    def test_is_complete_planning_targets_all_branches(self):
+        """Cover all return paths in is_complete_planning_targets()."""
+        from app.services.nutrition_targets import is_complete_planning_targets
 
         # Missing required keys
-        assert not _is_complete_targets({})
+        assert not is_complete_planning_targets({})
 
         # macros not a dict
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": None,
@@ -352,7 +352,7 @@ class TestPremiumWeekDiffCoverage:
         )
 
         # micro is empty
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -363,7 +363,7 @@ class TestPremiumWeekDiffCoverage:
         )
 
         # micro not a dict
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -374,7 +374,7 @@ class TestPremiumWeekDiffCoverage:
         )
 
         # macros is empty
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {},
@@ -385,7 +385,7 @@ class TestPremiumWeekDiffCoverage:
         )
 
         # Valid
-        assert _is_complete_targets(
+        assert is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -396,7 +396,7 @@ class TestPremiumWeekDiffCoverage:
         )
 
         # Valid without activity_week (optional)
-        assert _is_complete_targets(
+        assert is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -406,7 +406,7 @@ class TestPremiumWeekDiffCoverage:
         )
 
         # Invalid: activity_week wrong type
-        assert not _is_complete_targets(
+        assert not is_complete_planning_targets(
             {
                 "kcal": 2000,
                 "macros": {"protein_g": 100},
@@ -447,9 +447,9 @@ class TestPremiumWeekDiffCoverage:
         rdb2 = premium_router._get_recipe_db()
         assert rdb2 is rdb1
 
-    def test_premium_estimate_targets_minimal_smoke(self, monkeypatch):
-        """Smoke test for premium estimate_targets_minimal() happy path."""
-        from app.routers.premium_week import estimate_targets_minimal
+    def test_premium_estimate_targets_from_profile_smoke(self, monkeypatch):
+        """Smoke test for premium estimate_targets_from_profile() happy path."""
+        from app.services.nutrition_targets import estimate_targets_from_profile
 
         mock_targets = SimpleNamespace(
             kcal_daily=2000,
@@ -472,11 +472,11 @@ class TestPremiumWeekDiffCoverage:
         )
 
         monkeypatch.setattr(
-            "app.routers.premium_week.build_nutrition_targets",
+            "app.services.nutrition_targets.build_nutrition_targets",
             lambda profile: mock_targets,
         )
 
-        result = estimate_targets_minimal(
+        result = estimate_targets_from_profile(
             sex="male",
             age=40,
             height_cm=180.0,
@@ -541,7 +541,7 @@ class TestPremiumWeekDiffCoverage:
         monkeypatch.setattr("app.routers.premium_week._get_food_db", lambda: MagicMock())
         monkeypatch.setattr("app.routers.premium_week._get_recipe_db", lambda: MagicMock())
         monkeypatch.setattr(
-            "app.routers.premium_week.estimate_targets_minimal",
+            "app.services.nutrition_targets.estimate_targets_from_profile",
             lambda *args, **kwargs: {"kcal": 2000},  # Incomplete
         )
 
@@ -561,7 +561,7 @@ class TestPremiumWeekDiffCoverage:
         monkeypatch.setattr("app.routers.premium_week._get_food_db", lambda: MagicMock())
         monkeypatch.setattr("app.routers.premium_week._get_recipe_db", lambda: MagicMock())
         monkeypatch.setattr(
-            "app.routers.premium_week.estimate_targets_minimal",
+            "app.services.nutrition_targets.estimate_targets_from_profile",
             lambda *args, **kwargs: "not_a_dict",
         )
 

@@ -31,7 +31,9 @@ def test_premium_week_pipeline_type_mismatch_raises_typeerror(
     monkeypatch.setattr(premium_mod, "_get_recipe_db", lambda: object())
 
     # Bypass profile/targets validation to focus on pipeline contract.
-    monkeypatch.setattr(premium_mod, "_is_complete_targets", lambda _d: True)
+    from app.services import nutrition_targets as nutrition_targets_service
+
+    monkeypatch.setattr(nutrition_targets_service, "is_complete_planning_targets", lambda _d: True)
 
     def _fake_pipeline(**_kwargs: Any) -> str:
         return "not-a-week-plan-response"
@@ -59,7 +61,9 @@ def test_premium_week_pipeline_invalid_payload_surfaces_postprocess_error(
 
     monkeypatch.setattr(premium_mod, "_get_food_db", lambda: object())
     monkeypatch.setattr(premium_mod, "_get_recipe_db", lambda: object())
-    monkeypatch.setattr(premium_mod, "_is_complete_targets", lambda _d: True)
+    from app.services import nutrition_targets as nutrition_targets_service
+
+    monkeypatch.setattr(nutrition_targets_service, "is_complete_planning_targets", lambda _d: True)
 
     def _fake_pipeline(**kwargs: Any) -> dict[str, Any]:
         postprocess_fn = kwargs["postprocess_fn"]
