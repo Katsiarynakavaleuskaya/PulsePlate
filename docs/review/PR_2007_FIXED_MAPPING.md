@@ -36,14 +36,12 @@ runtime, iOS, npm install, dependency, skip/xfail, or coverage-threshold change.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-No review threads yet.
+No review threads are present at this checkpoint.
 
 ## Fixed in Commit Mapping
-
-No review threads yet.
 
 ## Implementation Commits
 
