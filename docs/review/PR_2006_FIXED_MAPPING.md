@@ -113,6 +113,9 @@ FoodDB cutover, frontend/iOS, or broad legacy rewrite scope is included.
 - `e6212bd4f` - removes async test markers from the changed diff-coverage test
   surface so CI pre-commit backend-tests do not require the optional
   `pytest-asyncio` plugin in the lint environment.
+- `9e59c3791` - records the CI lint fix in the PR #2006 mapping artifact.
+- `6738ed9b8` - documents the async marker/pre-commit environment rule in
+  root `AGENTS.md`, `tests/AGENTS.md`, and `docs/ENGINEERING_LESSONS.md`.
 
 ## Premortem Evidence
 
@@ -161,6 +164,10 @@ Current-head CI lint failure on `f1178c2e5` was fixed in `e6212bd4f` by
 removing `pytest.mark.asyncio`/`async def` from the changed diff-coverage tests
 selected by the pre-commit backend-tests hook. The selected bundle now has no
 async test markers and passes without relying on `pytest-asyncio`.
+
+Operator-requested process memory from the same incident is captured in
+`6738ed9b8`: pre-commit-selected tests must not rely on async pytest plugin
+state unless that hook environment is explicitly proven to load it.
 
 Full `make verify` was attempted once. The first run exposed the
 `legacy_app.py` lint issue fixed in `6eec0ea99`. The rerun passed verify-env,
