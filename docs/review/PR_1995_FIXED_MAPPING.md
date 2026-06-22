@@ -86,25 +86,23 @@ Decision: proceed with changes.
 - PASS: role dispatch order completed:
   `agent-coordinator -> backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor`
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py tests/test_web_session_security.py tests/test_pro_session_cookie_auth.py tests/test_api_tiers.py`
+  `.venv/bin/python -m pytest -q tests/test_production_runtime_invariants.py tests/test_web_session_security.py tests/test_pro_session_cookie_auth.py tests/test_api_tiers.py`
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy settings.py app/security/web_session.py`
+  `.venv/bin/python -m mypy settings.py app/security/web_session.py`
 - PASS:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+  `VENV_PYTHON=.venv/bin/python make validate-changed`
 - PASS:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pre_commit run --all-files`
+  `VENV_PYTHON=.venv/bin/python .venv/bin/python -m pre_commit run --all-files`
 - PASS: `git diff --check`
 
 Full local `make verify` not run by operator instruction for this narrow lane.
 
 ## Merge Readiness
 
-Not merge-ready yet.
+Merge readiness remains evidence-gated after any later commit.
 
 Remaining before merge:
-- Push current commits to PR #1995.
-- Update PR body mirror with this fixed mapping.
-- Run current-head CI review after push.
-- Run Codex Security diff scan / finding discovery and `pulseplate-pr-review`.
-- Resolve review threads only after GitHub-visible disposition evidence exists.
-- Run strict merge-readiness wrapper with auth and current-head CI evidence.
+- Push any mapping/body cleanup commits to PR #1995.
+- Re-run the local absolute-path guard and required narrow gates.
+- Re-run current-head CI review after push.
+- Re-run strict merge-readiness wrapper with auth and current-head CI evidence.
