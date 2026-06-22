@@ -49,6 +49,10 @@ below.
 Disposition: FIXED
 Commit: 8d972fbf9
 Evidence: `app/services/nutrition_targets.py` widens `PlanningTargetsPayload.macros` and `PlanningTargetsPayload.micro` through `PlanningNumeric = int | float`; targeted mypy and service/diff coverage tests passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2006#discussion_r3452622130 -> 366d6a18d
+Disposition: FIXED
+Commit: 366d6a18d
+Evidence: `tests/test_pro_premium_contract_parity.py` asserts JSON `content-type` before parsing both explicit-target and profile-derived weekly parity responses; `pytest -q tests/test_pro_premium_contract_parity.py` passed.
 
 ## Implementation Commits
 
@@ -58,6 +62,10 @@ Evidence: `app/services/nutrition_targets.py` widens `PlanningTargetsPayload.mac
 - `1118b0583` - adds PR #2006 fixed-mapping governance artifact.
 - `923a8fb5d` - aligns fixed-mapping artifact syntax with Phase2 gates.
 - `8d972fbf9` - widens planning target numeric payload types for Sourcery
+  feedback.
+- `cf0a52117` - maps the fixed Sourcery typing thread in the PR #2006 mapping
+  artifact.
+- `366d6a18d` - asserts weekly parity response JSON content types for CodeRabbit
   feedback.
 
 ## Premortem Evidence
