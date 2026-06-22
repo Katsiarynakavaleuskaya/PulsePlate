@@ -7,13 +7,15 @@ from typing import Any, TypedDict
 from core.recommendations import build_nutrition_targets
 from core.targets import Activity, Goal, Sex, UserProfile
 
+PlanningNumeric = int | float
+
 
 class PlanningTargetsPayload(TypedDict):
     """Weekly-planning target payload shape consumed by plan generators."""
 
     kcal: int
-    macros: dict[str, int]
-    micro: dict[str, float]
+    macros: dict[str, PlanningNumeric]
+    micro: dict[str, PlanningNumeric]
     water_ml: int
     activity_week: dict[str, int]
 
