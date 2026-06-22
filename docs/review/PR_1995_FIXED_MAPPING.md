@@ -16,6 +16,7 @@ tests, and full local `make verify`.
 - [x] Review comments inspected for PR #1995.
 - [x] Actionable Sourcery feedback mapped after the code fix commit existed.
 - [x] Actionable Codex inline P2 feedback mapped after the code fix commit existed.
+- [x] CodeRabbit walkthrough warning inspected and dispositioned.
 - [ ] Review threads resolved in GitHub after this artifact and PR body mirror are pushed.
 
 ## Fixed in Commit Mapping
@@ -29,6 +30,11 @@ Disposition: FIXED
 Commit: 3fb1c6993
 Evidence: cookie policy keeps production-like labels Secure first, disables `Secure` only when every explicit raw runtime label is developer-like, and tests cover unset, unknown, local/review-style conflict, production/local conflict, exchange-header, and clear-cookie behavior.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1995#discussion_r3441832916 -> 3fb1c6993
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit status is PASS; the docstring-coverage warning is a repository-wide pre-merge check advisory, not a current-head repo gate failure for this security patch. The new `settings.is_raw_explicit_developer_env()` helper and changed cookie tests include docstrings or focused assertions for the changed behavior.
+Reason: Raising global docstring coverage from 55.17% to 80.00% is outside this narrow cookie-security lane and is not required to prove the Secure-by-default fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1995#issuecomment-4750672655
 
 ## Premortem Risk Review
 
