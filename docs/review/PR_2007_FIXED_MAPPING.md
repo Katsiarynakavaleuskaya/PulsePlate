@@ -64,6 +64,12 @@ Disposition: FIXED
 Commit: 911fa570e
 Evidence: `scripts/ci/run_main_test_shards.py` now allows `run_coverage_command(...)` to receive an injected `coverage_main`, and `tests/test_main_test_shards.py` no longer imports `coverage.cmdline` during collection. `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh` passed.
 
+Finding: Current-head `lint` / `backend-tests` then failed because the child-process isolation test exercised pytest with `--cov` arguments in the `ci-lite` environment where `pytest-cov` is not installed.
+
+Disposition: FIXED
+Commit: b833664d1
+Evidence: `scripts/ci/run_main_test_shards.py` detects `pytest_cov` before adding `--cov` pytest arguments, while coverage combine/report still enforce failure when real coverage artifacts are missing. `tests/test_main_test_shards.py` covers both pytest-cov-present and pytest-cov-missing argument construction. Exact backend-tests hook, focused pytest, targeted mypy, and `git diff --check` passed.
+
 ## Implementation Commits
 
 - `32c3bbd8b` - serializes the design-token parity file before process-parallel
@@ -72,6 +78,8 @@ Evidence: `scripts/ci/run_main_test_shards.py` now allows `run_coverage_command(
   serial main test discovery in response to Sourcery feedback.
 - `911fa570e` - removes the top-level `coverage.cmdline` test import so CI
   lint's `ci-lite` backend-tests hook can collect `tests/test_main_test_shards.py`.
+- `b833664d1` - omits pytest-cov command-line arguments when pytest-cov is not
+  installed, while preserving coverage combine/report enforcement.
 
 ## Premortem Evidence
 
