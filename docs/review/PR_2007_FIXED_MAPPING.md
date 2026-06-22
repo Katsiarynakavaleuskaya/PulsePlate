@@ -56,12 +56,22 @@ Disposition: NOT-A-BUG
 Evidence: The line count is driven by focused runner regression tests and the canonical review artifact. Production scope is limited to CI/test orchestration; focused pytest, targeted mypy, `make validate-changed`, `pre-commit run --all-files`, pre-push hooks, and `git diff --check` passed.
 Reason: The PR is intentionally narrow despite crossing the dry-run line-count threshold; no runtime product, API, dependency, coverage-threshold, skip/xfail, auth, billing, nutrition, frontend runtime, or iOS scope is included.
 
+## CI Failure Disposition
+
+Finding: Current-head `lint` / `backend-tests` failed because `tests/test_main_test_shards.py` imported `coverage.cmdline` at module import time, but CI lint uses the `ci-lite` dependency profile where `coverage` is not installed.
+
+Disposition: FIXED
+Commit: 90f943239
+Evidence: `scripts/ci/run_main_test_shards.py` now allows `run_coverage_command(...)` to receive an injected `coverage_main`, and `tests/test_main_test_shards.py` no longer imports `coverage.cmdline` during collection. `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh` passed.
+
 ## Implementation Commits
 
 - `cfa68539d` - serializes the design-token parity file before process-parallel
   main shards and adds runner regression coverage.
 - `e2b99c1c0` - shares test-file metadata construction between regular and
   serial main test discovery in response to Sourcery feedback.
+- `90f943239` - removes the top-level `coverage.cmdline` test import so CI
+  lint's `ci-lite` backend-tests hook can collect `tests/test_main_test_shards.py`.
 
 ## Premortem Evidence
 
