@@ -64,6 +64,14 @@ Evidence: `tests/test_diff_coverage_pr339.py` and `tests/test_final_coverage_96.
 Disposition: FIXED
 Commit: 3f5504350
 Evidence: `docs/review/PR_2006_FIXED_MAPPING.md` now uses unchecked checklist entries under `## Merge Readiness`; `pre-commit run --all-files` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2006#discussion_r3452821243 -> 8362e21fe
+Disposition: FIXED
+Commit: 8362e21fe
+Evidence: `tests/test_premium_week_endpoint_simple_96.py` asserts JSON `content-type` before parsing the legacy premium weekly alias response; `pytest -q tests/test_premium_week_endpoint_simple_96.py` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2006#pullrequestreview-4544801394 -> 8362e21fe
+Disposition: FIXED
+Commit: 8362e21fe
+Evidence: `tests/test_premium_week_endpoint_simple_96.py` asserts JSON `content-type` before parsing the legacy premium weekly alias response; `pytest -q tests/test_premium_week_endpoint_simple_96.py` passed.
 
 ## PulsePlate PR Review Disposition
 
@@ -98,6 +106,8 @@ FoodDB cutover, frontend/iOS, or broad legacy rewrite scope is included.
 - `3f5504350` - addresses CodeRabbit outside-diff test/mapping findings and
   removes the disabled hypothesis file from the net PR diff.
 - `42a1b4140` - maps PR #2006 review-level bot comments.
+- `8362e21fe` - asserts JSON content type before parsing the legacy premium
+  weekly alias response.
 
 ## Premortem Evidence
 
