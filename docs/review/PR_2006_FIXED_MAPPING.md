@@ -27,6 +27,8 @@ preserving canonical PRO and deprecated premium weekly endpoint behavior.
   shared service for weekly planning target derivation/completeness.
 - Updated tests to patch and validate the new service seam.
 - Added profile-derived PRO/premium weekly parity coverage.
+- Added CI-smoke coverage for the shared planning-target service and
+  profile-derived weekly router branches.
 - Fixed `legacy_app.py` import hygiene surfaced by local `make verify` lint.
 
 ## Out Of Scope
@@ -116,6 +118,10 @@ FoodDB cutover, frontend/iOS, or broad legacy rewrite scope is included.
 - `9e59c3791` - records the CI lint fix in the PR #2006 mapping artifact.
 - `6738ed9b8` - documents the async marker/pre-commit environment rule in
   root `AGENTS.md`, `tests/AGENTS.md`, and `docs/ENGINEERING_LESSONS.md`.
+- `04c500acc` - covers profile-derived planning-target service/router branches
+  inside the CI smoke `tests/edges` coverage set after current-head
+  `diff-coverage` reported missing lines in `app/services/nutrition_targets.py`,
+  `app/routers/pro.py`, and `app/routers/premium_week.py`.
 
 ## Premortem Evidence
 
@@ -168,6 +174,16 @@ async test markers and passes without relying on `pytest-asyncio`.
 Operator-requested process memory from the same incident is captured in
 `6738ed9b8`: pre-commit-selected tests must not rely on async pytest plugin
 state unless that hook environment is explicitly proven to load it.
+
+Current-head CI `diff-coverage` failure on `31134b866` was fixed in
+`04c500acc` by adding synchronous `tests/edges/test_premium_week_edges.py`
+coverage for `is_complete_planning_targets(...)`,
+`estimate_targets_from_profile(...)`, and the profile-derived PRO/premium weekly
+router branches. Local CI-smoke coverage evidence:
+`PYTHONPATH="$PWD:$PWD/tests" VIP_MODULE_ENABLED=true APP_ENV=test ENVIRONMENT=test FEATURE_PREMIUM_NUTRITION=true API_KEY=test_key PYTHONUNBUFFERED=1 PYTHONFAULTHANDLER=1 PYTHONMALLOC=malloc python -m coverage run -m pytest -q tests/edges --maxfail=3 && python -m coverage xml && diff-cover coverage.xml --compare-branch origin/main --fail-under 97 ...`
+reported `app/routers/premium_week.py (100%)`, `app/routers/pro.py (100%)`,
+`app/services/nutrition_targets.py (100%)`, `legacy_app.py (100%)`, total
+`44` diff lines, missing `0`, coverage `100%`.
 
 Full `make verify` was attempted once. The first run exposed the
 `legacy_app.py` lint issue fixed in `6eec0ea99`. The rerun passed verify-env,
