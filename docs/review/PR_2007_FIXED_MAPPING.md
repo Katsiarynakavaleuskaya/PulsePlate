@@ -48,6 +48,14 @@ Disposition: FIXED
 Commit: e2b99c1c0
 Evidence: `scripts/ci/run_main_test_shards.py` now uses shared `build_test_file(...)` metadata construction from both regular and serial test discovery paths; `tests/test_main_test_shards.py` adds `test_build_test_file_normalizes_relative_path_and_weight`. Focused pytest and targeted mypy passed.
 
+## PulsePlate PR Review Disposition
+
+Finding: `large-diff-risk` advisory from `pulseplate-pr-review`.
+
+Disposition: NOT-A-BUG
+Evidence: The line count is driven by focused runner regression tests and the canonical review artifact. Production scope is limited to CI/test orchestration; focused pytest, targeted mypy, `make validate-changed`, `pre-commit run --all-files`, pre-push hooks, and `git diff --check` passed.
+Reason: The PR is intentionally narrow despite crossing the dry-run line-count threshold; no runtime product, API, dependency, coverage-threshold, skip/xfail, auth, billing, nutrition, frontend runtime, or iOS scope is included.
+
 ## Implementation Commits
 
 - `cfa68539d` - serializes the design-token parity file before process-parallel
