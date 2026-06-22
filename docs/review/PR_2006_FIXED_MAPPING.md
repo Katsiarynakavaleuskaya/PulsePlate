@@ -52,6 +52,18 @@ Evidence: `app/services/nutrition_targets.py` widens `PlanningTargetsPayload.mac
 Disposition: FIXED
 Commit: 366d6a18d
 Evidence: `tests/test_pro_premium_contract_parity.py` asserts JSON `content-type` before parsing both explicit-target and profile-derived weekly parity responses; `pytest -q tests/test_pro_premium_contract_parity.py` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2006#pullrequestreview-4544483234 -> 8d972fbf9
+Disposition: FIXED
+Commit: 8d972fbf9
+Evidence: `app/services/nutrition_targets.py` widens macro/micro value types through `PlanningNumeric = int | float`; the `activity_week` return-payload key remains required because `estimate_targets_from_profile(...)` always returns the exact weekly planning payload shape, while `is_complete_planning_targets(...)` intentionally preserves existing compatibility for explicit targets that omit `activity_week`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2006#pullrequestreview-4544546239 -> 3f5504350
+Disposition: FIXED
+Commit: 3f5504350
+Evidence: `tests/test_diff_coverage_pr339.py` and `tests/test_final_coverage_96.py` add explicit return/fixture type annotations; `tests/test_premium_week_endpoint_simple_96.py` no longer claims to cover an unpatched unable-to-derive branch and instead preserves current legacy alias behavior; `tests/disabled_hypothesis/test_premium_week_hypothesis_simple.py` is reverted out of the net PR diff. `pre-commit run --all-files` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2006#pullrequestreview-4544563348 -> 3f5504350
+Disposition: FIXED
+Commit: 3f5504350
+Evidence: `docs/review/PR_2006_FIXED_MAPPING.md` now uses unchecked checklist entries under `## Merge Readiness`; `pre-commit run --all-files` passed.
 
 ## Implementation Commits
 
@@ -66,6 +78,10 @@ Evidence: `tests/test_pro_premium_contract_parity.py` asserts JSON `content-type
   artifact.
 - `366d6a18d` - asserts weekly parity response JSON content types for CodeRabbit
   feedback.
+- `715735355` - maps the fixed CodeRabbit content-type thread in the PR #2006
+  mapping artifact.
+- `3f5504350` - addresses CodeRabbit outside-diff test/mapping findings and
+  removes the disabled hypothesis file from the net PR diff.
 
 ## Premortem Evidence
 
