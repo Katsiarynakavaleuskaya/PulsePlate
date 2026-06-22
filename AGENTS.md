@@ -199,6 +199,16 @@ The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for 
 - CI runs `pre-commit run --all-files` and will fail if hooks would modify files that aren't committed.
 - This is not optional: uncommitted hook modifications guarantee CI failure.
 - **One-time setup:** Run `pre-commit install` locally once to enable automatic hook execution on `git commit` (reduces CI noise).
+- **Async test marker rule for pre-commit-selected tests:** CI lint runs
+  `pre-commit run --all-files`, and its `backend-tests` hook can execute changed
+  tests in an environment where `pytest-asyncio` is not loaded even if the local
+  venv has it. For tests selected by `scripts/run-backend-tests-pre-commit.sh`
+  (especially diff-coverage/changed-file tests), do not add `pytest.mark.asyncio`
+  or `async def` test functions unless the hook environment is explicitly proven
+  to load the async plugin. Prefer sync tests that call simple coroutines with
+  `asyncio.run(...)` or exercise routes through `TestClient`, and validate with
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh`
+  plus `pre-commit run --all-files`. See `docs/ENGINEERING_LESSONS.md` lesson 25.
 
 **Pre-commit and "expected red" PRs (guard policy):**
 

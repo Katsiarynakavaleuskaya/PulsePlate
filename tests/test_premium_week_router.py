@@ -105,7 +105,7 @@ class TestPremiumWeekRouter:
     @patch("app.routers.premium_week.FoodDB")
     @patch("app.routers.premium_week.RecipeDB")
     @patch("app.routers.premium_week.build_week")
-    @patch("app.routers.premium_week.estimate_targets_minimal")
+    @patch("app.services.nutrition_targets.estimate_targets_from_profile")
     def test_generate_week_plan_with_profile(
         self, mock_estimate_targets, mock_build_week, mock_recipe_db, mock_food_db
     ) -> None:
@@ -117,7 +117,7 @@ class TestPremiumWeekRouter:
         mock_recipe_db_instance = MagicMock()
         mock_recipe_db.return_value = mock_recipe_db_instance
 
-        # Mock the estimate_targets_minimal function
+        # Mock the profile-derived planning target adapter.
         mock_estimate_targets.return_value = {
             "kcal": 2000,
             "macros": {"protein_g": 150.0, "fat_g": 65.0, "carbs_g": 250.0},
@@ -201,7 +201,7 @@ class TestPremiumWeekRouter:
 
     @patch("app.routers.premium_week.FoodDB")
     @patch("app.routers.premium_week.RecipeDB")
-    @patch("app.routers.premium_week.estimate_targets_minimal")
+    @patch("app.services.nutrition_targets.estimate_targets_from_profile")
     def test_generate_week_plan_unable_to_derive_targets(
         self, mock_estimate_targets, mock_recipe_db, mock_food_db
     ) -> None:
@@ -213,7 +213,7 @@ class TestPremiumWeekRouter:
         mock_recipe_db_instance = MagicMock()
         mock_recipe_db.return_value = mock_recipe_db_instance
 
-        # Mock the estimate_targets_minimal function to return None
+        # Mock the profile-derived planning target adapter to return None.
         mock_estimate_targets.return_value = None
 
         response = self.client.post(

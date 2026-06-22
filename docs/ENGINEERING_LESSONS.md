@@ -632,6 +632,59 @@ For GitHub Actions runtime migrations, guard the whole active action surface:
 - one coherent guard update before publishing, rather than mapping-only
   follow-up commits after each bot rediscovery
 
+## 25) Pre-commit-selected tests must not rely on async pytest plugin state
+
+### Problem
+CI lint runs `pre-commit run --all-files`, and the local `backend-tests` hook
+selects changed Python tests through `scripts/run-backend-tests-pre-commit.sh`.
+That hook can execute in an environment where `pytest-asyncio` is not installed
+or not loaded, even when the developer venv or a broader pytest run has it.
+
+When a changed diff-coverage test uses `pytest.mark.asyncio` or an `async def`
+test function, the CI-only lint failure can look like:
+
+- `async def functions are not natively supported`
+- `PytestConfigWarning: Unknown config option: asyncio_mode`
+- `PytestConfigWarning: Unknown config option: asyncio_default_fixture_loop_scope`
+
+This is an environment/plugin-state drift, not a product bug, but it still
+breaks the PR because lint owns the pre-commit backend-tests hook.
+
+### Real incident (PR #2006)
+
+PR #2006 changed `tests/test_diff_coverage_pr339.py`. Local focused tests and
+`pre-commit run --all-files` passed in the developer environment, but
+current-head CI lint failed when the backend-tests hook selected that file without the
+async pytest plugin loaded. The first failure appeared on one parametrized async
+test, but the file contained multiple async tests that would have failed next.
+
+### Rule
+
+For tests selected by `scripts/run-backend-tests-pre-commit.sh`, especially
+diff-coverage and changed-file tests:
+
+1. Do not add `pytest.mark.asyncio` or `async def` test functions unless the
+   hook environment is explicitly proven to load the async plugin.
+2. Prefer sync tests that call simple router/service coroutines with
+   `asyncio.run(...)`, or exercise route behavior through FastAPI `TestClient`.
+3. After fixing the first async-marker failure, scan the entire selected test
+   bundle for `pytest.mark.asyncio` and `async def`; do not stop at the first
+   failing test.
+4. Validate with the exact backend-tests hook path:
+
+```bash
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
+pre-commit run --all-files
+```
+
+### Use instead
+
+- Sync test wrappers around simple coroutine entrypoints:
+  `response = asyncio.run(generate_week_plan(request))`.
+- `TestClient` for route-level behavior when HTTP semantics matter.
+- A full selected-bundle scan before pushing:
+  `rg -n "pytest\\.mark\\.asyncio|async def" <selected-test-files>`.
+
 ---
 
 ## Repo Commands Reference

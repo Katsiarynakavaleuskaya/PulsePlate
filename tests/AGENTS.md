@@ -21,6 +21,14 @@
 - **Prefer `monkeypatch.setattr()` over `@patch` decorator** — `@patch` on `@contextmanager` targets
   fails silently under Python 3.12 + xdist (see `docs/ENGINEERING_LESSONS.md` lesson 11).
   Use autouse `monkeypatch.setenv()` fixtures instead of `os.environ` mutation in `setup_method()`.
+- **Do not add async pytest markers to tests selected by the pre-commit backend-tests hook.**
+  CI lint may run `scripts/run-backend-tests-pre-commit.sh` without
+  `pytest-asyncio` loaded even when the local venv has it. For diff-coverage or
+  changed-file tests selected by that hook, prefer sync tests that call simple
+  coroutines with `asyncio.run(...)` or exercise routes through `TestClient`.
+  After editing selected tests, scan the whole selected bundle for
+  `pytest.mark.asyncio` and `async def`, then run the backend-tests hook command
+  and `pre-commit run --all-files`. See `docs/ENGINEERING_LESSONS.md` lesson 25.
 - For background update / lifespan tests, patch both `app` facade and `legacy_app` / `app_module`
   alias surfaces when replacing `start_background_updates` or `stop_background_updates`.
   Patching only one side is forbidden because production resolvers read multiple module aliases.

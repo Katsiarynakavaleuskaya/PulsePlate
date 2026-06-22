@@ -152,6 +152,41 @@ def test_premium_weekly_matches_pro_weekly(client: TestClient) -> None:
     r_pro = client.post("/api/v1/pro/meal/weekly", json=payload, headers=_pro_headers())
     assert r_pro.status_code == 200, r_pro.text
 
+    assert r_premium.headers.get("content-type", "").startswith("application/json")
+    assert r_pro.headers.get("content-type", "").startswith("application/json")
+    premium_payload = r_premium.json()
+    pro_payload = r_pro.json()
+    assert premium_payload["next_best_action"]["type"] == "upgrade_for_export"
+    assert premium_payload["next_best_action"]["recommended_surface"] == "vip_export"
+    assert premium_payload["next_best_action"]["trigger_reason"] == "weekly_plan_ready"
+    assert premium_payload["next_best_action"]["why_now"] == "weekly_plan_ready_export_and_share"
+    assert premium_payload["next_best_action"] == pro_payload["next_best_action"]
+
+
+def test_premium_weekly_profile_derived_matches_pro_weekly(client: TestClient) -> None:
+    payload = {
+        "sex": "female",
+        "age": 34,
+        "height_cm": 168,
+        "weight_kg": 64,
+        "activity": "active",
+        "goal": "maintain",
+        "diet_flags": [],
+        "lang": "en",
+    }
+
+    r_premium = client.post(
+        "/api/v1/premium/plan/week-flexible",
+        json=payload,
+        headers=_pro_headers(),
+    )
+    assert r_premium.status_code == 200, r_premium.text
+
+    r_pro = client.post("/api/v1/pro/meal/weekly", json=payload, headers=_pro_headers())
+    assert r_pro.status_code == 200, r_pro.text
+
+    assert r_premium.headers.get("content-type", "").startswith("application/json")
+    assert r_pro.headers.get("content-type", "").startswith("application/json")
     premium_payload = r_premium.json()
     pro_payload = r_pro.json()
     assert premium_payload["next_best_action"]["type"] == "upgrade_for_export"
