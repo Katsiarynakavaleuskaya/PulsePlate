@@ -324,8 +324,16 @@ For stricter environment control matching local development:
 
 Dependabot is configured to:
 
-- Run monthly (instead of weekly)
-- Create max 5 PRs at a time
+- Run weekly
+- Create max 10 PRs at a time
 - Group related dependencies together (production, testing, quality, security)
 
 See `.github/dependabot.yml` for details.
+
+Security-alert remediation must use a human-owned branch when raw Dependabot
+branches include unrelated lock drift or when GitHub's dependency graph
+attributes an alert to a profile that current repo manifests do not reproduce.
+For example, `GHSA-6v7p-g79w-8964` for `msgpack` is remediated through the
+dev/full-lock surfaces that carry the actual `msgpack` pin while the
+`requirements-ci-lite.txt` alert is rechecked as scanner attribution unless a
+repo-owned `ci-lite` dependency path is proven.
