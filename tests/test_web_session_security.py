@@ -43,6 +43,25 @@ def _sign_payload(payload_b64: str, *, server_salt: str) -> str:
     ).hex()
 
 
+def _set_cookie_headers(response: Response) -> list[str]:
+    return [
+        value.decode("latin-1")
+        for key, value in response.raw_headers
+        if key.lower() == b"set-cookie"
+    ]
+
+
+def _set_runtime_env_label(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str | None,
+) -> None:
+    if value is None:
+        monkeypatch.delenv(name, raising=False)
+    else:
+        monkeypatch.setenv(name, value)
+
+
 def test_require_web_session_ttl_seconds_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unset TTL should use safe default."""
 
@@ -398,6 +417,8 @@ def test_cookie_helpers_local(monkeypatch: pytest.MonkeyPatch) -> None:
     """Local mode should set hardened cookie without Secure flag."""
 
     monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("DEBUG", "true")
     monkeypatch.setenv(web_session.WEB_SESSION_TTL_ENV, "90")
     response = Response()
 
@@ -411,6 +432,87 @@ def test_cookie_helpers_local(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "secure" not in header.lower()
 
 
+def test_cookie_helpers_environment_local_without_app_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit local ENVIRONMENT should disable Secure only when APP_ENV is unset."""
+
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "local")
+    monkeypatch.setenv("DEBUG", "true")
+    response = Response()
+
+    web_session.set_web_session_cookie(response=response, token="abc", ttl_seconds=45)
+    header = response.headers.get("set-cookie", "")
+
+    assert f"{web_session.WEB_SESSION_COOKIE_NAME}=abc" in header
+    assert "HttpOnly" in header
+    assert "Path=/" in header
+    assert "samesite=lax" in header.lower()
+    assert "max-age=45" in header.lower()
+    assert "secure" not in header.lower()
+
+
+@pytest.mark.parametrize(
+    ("app_env", "runtime_env"),
+    [
+        (None, None),
+        ("preview", None),
+        (None, "preview"),
+        ("local", "preview"),
+        ("preview", "local"),
+        ("production", "local"),
+        ("local", "production"),
+        ("staging", None),
+    ],
+)
+def test_cookie_helpers_secure_by_default_for_unknown_and_conflicting_envs(
+    monkeypatch: pytest.MonkeyPatch,
+    app_env: str | None,
+    runtime_env: str | None,
+) -> None:
+    """Unset, unknown, and conflicting env labels must keep Secure enabled."""
+
+    _set_runtime_env_label(monkeypatch, "APP_ENV", app_env)
+    _set_runtime_env_label(monkeypatch, "ENVIRONMENT", runtime_env)
+    monkeypatch.setenv("DEBUG", "false")
+    response = Response()
+
+    web_session.set_web_session_cookie(response=response, token="abc", ttl_seconds=45)
+    header = response.headers.get("set-cookie", "")
+
+    assert f"{web_session.WEB_SESSION_COOKIE_NAME}=abc" in header
+    assert "HttpOnly" in header
+    assert "Path=/" in header
+    assert "samesite=lax" in header.lower()
+    assert "max-age=45" in header.lower()
+    assert "secure" in header.lower()
+
+
+def test_clear_cookie_secure_by_default_when_runtime_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Clear-cookie deletion header should remain Secure when runtime env is unset."""
+
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("DEBUG", "false")
+    response = Response()
+
+    web_session.clear_web_session_cookie(response=response)
+    deletion_headers = [
+        header.lower() for header in _set_cookie_headers(response) if "max-age=0" in header.lower()
+    ]
+
+    assert len(deletion_headers) == 1
+    deletion_header = deletion_headers[0]
+    assert f"{web_session.WEB_SESSION_COOKIE_NAME}=" in deletion_header
+    assert "httponly" in deletion_header
+    assert "path=/" in deletion_header
+    assert "samesite=lax" in deletion_header
+    assert "secure" in deletion_header
+
+
 def test_cookie_helpers_prod_and_clear(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prod mode should set Secure and clear should expire cookie."""
 
@@ -418,22 +520,17 @@ def test_cookie_helpers_prod_and_clear(monkeypatch: pytest.MonkeyPatch) -> None:
     response = Response()
 
     web_session.set_web_session_cookie(response=response, token="abc", ttl_seconds=30)
-    set_headers = [
-        value.decode("latin-1").lower()
-        for key, value in response.raw_headers
-        if key.lower() == b"set-cookie"
-    ]
+    set_headers = [header.lower() for header in _set_cookie_headers(response)]
     assert any("secure" in header for header in set_headers)
     assert any("max-age=30" in header for header in set_headers)
 
     web_session.clear_web_session_cookie(response=response)
-    clear_headers = [
-        value.decode("latin-1").lower()
-        for key, value in response.raw_headers
-        if key.lower() == b"set-cookie"
+    deletion_headers = [
+        header.lower() for header in _set_cookie_headers(response) if "max-age=0" in header.lower()
     ]
-    assert any(f"{web_session.WEB_SESSION_COOKIE_NAME}=" in header for header in clear_headers)
-    assert any("max-age=0" in header for header in clear_headers)
+    assert len(deletion_headers) == 1
+    assert f"{web_session.WEB_SESSION_COOKIE_NAME}=" in deletion_headers[0]
+    assert "secure" in deletion_headers[0]
 
 
 def test_decrypt_api_key_returns_none_on_fernet_value_error(

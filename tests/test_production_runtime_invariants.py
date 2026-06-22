@@ -15,6 +15,7 @@ from scripts.ci.check_production_runtime_invariants import (
     _UNSAFE_TRUE_FLAG_OVERRIDES,
     run_synthetic_production_checks,
 )
+from settings import is_explicit_developer_env, is_raw_explicit_developer_env
 
 
 class _FakeLimiter:
@@ -54,6 +55,96 @@ def _set_rate_limit_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(rate_limit, "RateLimitExceeded", object())
     monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", object())
     monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", {1})
+
+
+def _set_runtime_env_label(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str | None,
+) -> None:
+    if value is None:
+        monkeypatch.delenv(name, raising=False)
+    else:
+        monkeypatch.setenv(name, value)
+
+
+def test_raw_explicit_developer_env_does_not_use_default_local_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+    assert is_explicit_developer_env() is True
+    assert is_raw_explicit_developer_env() is False
+
+
+@pytest.mark.parametrize(
+    ("app_env", "runtime_env", "expected"),
+    [
+        (None, None, False),
+        ("", "", False),
+        (" local ", None, True),
+        (None, "CI", True),
+        ("dev", "testing", True),
+        ("preview", None, False),
+        (None, "preview", False),
+        ("local", "preview", False),
+        ("preview", "local", False),
+        ("production", "local", False),
+        ("local", "production", False),
+    ],
+)
+def test_raw_explicit_developer_env_is_fail_closed_for_unknown_and_conflicting_labels(
+    monkeypatch: pytest.MonkeyPatch,
+    app_env: str | None,
+    runtime_env: str | None,
+    expected: bool,
+) -> None:
+    _set_runtime_env_label(monkeypatch, "APP_ENV", app_env)
+    _set_runtime_env_label(monkeypatch, "ENVIRONMENT", runtime_env)
+
+    assert is_raw_explicit_developer_env() is expected
+
+
+def test_web_session_does_not_own_duplicate_developer_env_allowlist() -> None:
+    source = Path("app/security/web_session.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    assigned_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            assigned_names.update(
+                target.id for target in node.targets if isinstance(target, ast.Name)
+            )
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            assigned_names.add(node.target.id)
+
+    assert "_DEVELOPER_COOKIE_ENVS" not in assigned_names
+
+
+@pytest.mark.parametrize(
+    ("app_env", "runtime_env"),
+    [
+        (None, None),
+        ("preview", None),
+        (None, "preview"),
+        ("local", "preview"),
+        ("preview", "local"),
+        ("production", "local"),
+        ("local", "production"),
+        ("staging", None),
+    ],
+)
+def test_web_session_cookie_secure_policy_is_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    app_env: str | None,
+    runtime_env: str | None,
+) -> None:
+    _set_runtime_env_label(monkeypatch, "APP_ENV", app_env)
+    _set_runtime_env_label(monkeypatch, "ENVIRONMENT", runtime_env)
+    monkeypatch.setenv("DEBUG", "false")
+
+    assert web_session._is_secure_cookie_environment() is True
 
 
 def test_production_runtime_invariants_accept_safe_profile(

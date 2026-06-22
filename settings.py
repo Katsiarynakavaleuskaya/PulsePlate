@@ -89,6 +89,19 @@ def is_explicit_developer_env() -> bool:
     return get_runtime_env_name() in _DEVELOPER_LIKE_ENVS
 
 
+def is_raw_explicit_developer_env() -> bool:
+    """Return whether raw runtime labels are explicitly and only developer-like.
+
+    Unlike ``is_explicit_developer_env()``, this helper does not apply the
+    default-local canonical fallback. Any non-empty non-dev label keeps the
+    result fail-closed for security-sensitive callers such as cookie policy.
+    """
+
+    raw_labels = [_normalized_runtime_env(name) for name in ("APP_ENV", "ENVIRONMENT")]
+    explicit_labels = [label for label in raw_labels if label]
+    return bool(explicit_labels) and all(label in _DEVELOPER_LIKE_ENVS for label in explicit_labels)
+
+
 def validate_api_key_toggle_guard() -> None:
     """Reject unsafe API-key escape hatches in production-like environments.
 
