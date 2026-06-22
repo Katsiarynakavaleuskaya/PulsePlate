@@ -27,6 +27,7 @@ PYTEST_BASETEMP_ROOT_NAME = "pulseplate-main-test-shards"
 PYTEST_BASETEMP_FALLBACK_ROOT_NAME = "pulseplate-main-test-shards-external"
 POSIX_TEMP_ROOT = Path(os.sep) / "tmp"
 WINDOWS_TEMP_ROOT = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Temp"
+SERIAL_MAIN_TEST_PATHS = frozenset({Path("tests/test_design_token_parity.py")})
 
 
 @dataclass(frozen=True)
@@ -59,7 +60,10 @@ class TestShard:
         return f"tests/results-{self.artifact_label}-shard-{self.index}.xml"
 
 
-def discover_test_files(repo_root: Path) -> list[TestFile]:
+def discover_test_files(
+    repo_root: Path,
+    excluded_paths: frozenset[Path] = frozenset(),
+) -> list[TestFile]:
     """Return all first-class pytest files for the main suite."""
 
     tests_root = repo_root / "tests"
@@ -68,15 +72,45 @@ def discover_test_files(repo_root: Path) -> list[TestFile]:
     for test_path in sorted(tests_root.rglob("test_*.py")):
         if disabled_root in test_path.parents:
             continue
-        if any(part.startswith(".") for part in test_path.relative_to(repo_root).parts):
+        relative_path = test_path.relative_to(repo_root)
+        if relative_path in excluded_paths:
+            continue
+        if any(part.startswith(".") for part in relative_path.parts):
             continue
         discovered.append(
             TestFile(
-                path=test_path.relative_to(repo_root),
+                path=relative_path,
                 weight=max(test_path.stat().st_size, 1),
             )
         )
     return discovered
+
+
+def discover_serial_test_files(repo_root: Path) -> list[TestFile]:
+    """Return tests that must run outside the process-parallel main shards."""
+
+    discovered: list[TestFile] = []
+    for relative_path in sorted(SERIAL_MAIN_TEST_PATHS):
+        test_path = repo_root / relative_path
+        if test_path.is_file():
+            discovered.append(TestFile(path=relative_path, weight=max(test_path.stat().st_size, 1)))
+    return discovered
+
+
+def build_serial_shards(repo_root: Path, artifact_label: str) -> list[TestShard]:
+    """Build deterministic serial shard wrappers for global/toolchain tests."""
+
+    serial_tests = discover_serial_test_files(repo_root)
+    if not serial_tests:
+        return []
+    return [
+        TestShard(
+            index=0,
+            artifact_label=artifact_label,
+            files=serial_tests,
+            weight=sum(test_file.weight for test_file in serial_tests),
+        )
+    ]
 
 
 def normalize_python_label(value: str) -> str:
@@ -462,6 +496,7 @@ def run_all_shards(
     shards: Sequence[TestShard],
     max_parallel: int,
     base_env: dict[str, str],
+    extra_coverage_files: Sequence[str] = (),
 ) -> int:
     """Run all shards, then combine and enforce coverage if all pass."""
 
@@ -517,7 +552,7 @@ def run_all_shards(
         print(f"MAIN_TEST_SHARDS_FAILED shards={failing_shards}", file=sys.stderr)
         return 1
 
-    coverage_files = [shard.coverage_file for shard in shards]
+    coverage_files = [*extra_coverage_files, *[shard.coverage_file for shard in shards]]
     combine_status = run_coverage_command(repo_root, ["combine", *coverage_files])
     if combine_status != 0:
         _log_coverage_failure("combine", combine_status)
@@ -530,6 +565,26 @@ def run_all_shards(
     if report_status != 0:
         _log_coverage_failure("report", report_status)
     return report_status
+
+
+def run_serial_shards(
+    repo_root: Path,
+    serial_shards: Sequence[TestShard],
+    base_env: dict[str, str],
+) -> int:
+    """Run global/toolchain tests sequentially before process-parallel shards."""
+
+    for shard in serial_shards:
+        exit_code = run_shard(repo_root, shard, base_env)
+        if exit_code != 0:
+            print(
+                f"MAIN_TEST_SERIAL_SHARD_FAILED label={shard.artifact_label} "
+                f"index={shard.index} exit_code={exit_code}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return exit_code
+    return 0
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -585,8 +640,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         shard = _build_explicit_shard(args, artifact_label)
         return run_shard_child(repo_root, shard, os.environ.copy())
 
-    test_files = discover_test_files(repo_root)
+    serial_shards = build_serial_shards(repo_root, artifact_label)
+    test_files = discover_test_files(repo_root, excluded_paths=SERIAL_MAIN_TEST_PATHS)
     shards = partition_test_files(test_files, args.shard_count, artifact_label)
+
+    for serial_shard in serial_shards:
+        print(
+            f"MAIN_TEST_SERIAL_PLAN label={serial_shard.artifact_label} "
+            f"index={serial_shard.index} files={len(serial_shard.files)} "
+            f"weight={serial_shard.weight}",
+            flush=True,
+        )
+        if args.list_shards:
+            for test_file in serial_shard.files:
+                print(f"  {test_file.path}")
 
     for shard in shards:
         print(
@@ -601,8 +668,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.list_shards:
         return 0
 
-    remove_previous_outputs(repo_root, shards)
-    return run_all_shards(repo_root, shards, args.max_parallel, os.environ.copy())
+    all_shards = [*serial_shards, *shards]
+    remove_previous_outputs(repo_root, all_shards)
+    base_env = os.environ.copy()
+    serial_status = run_serial_shards(repo_root, serial_shards, base_env)
+    if serial_status != 0:
+        return serial_status
+    return run_all_shards(
+        repo_root,
+        shards,
+        args.max_parallel,
+        base_env,
+        extra_coverage_files=[shard.coverage_file for shard in serial_shards],
+    )
 
 
 if __name__ == "__main__":
