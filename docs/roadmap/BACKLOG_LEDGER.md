@@ -753,6 +753,68 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove `SFTY-20250331-30014` from `safety-policy.yaml` and close this
       ledger item in the same PR.
 
+<a id="ledger-p1-msgpack-ci-lite-alert-recheck"></a>
+- [ ] P1: Recheck msgpack Dependabot alert #225 after dev/full-lock remediation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / dependency-graph reconciliation)
+  - Target PR: PR-TBD after PR #2008 current-head dependency graph refresh
+  - Area: security / CI / dependencies
+  - Reason (EN): Live Dependabot alert `#225` reports `msgpack`
+    `GHSA-6v7p-g79w-8964` against `requirements-ci-lite.txt` as a transitive
+    runtime dependency, but current repo manifests show no direct
+    `cachecontrol` or `msgpack` entry in `requirements-ci-lite.in` or
+    `requirements-ci-lite.txt`. PR #2008 remediates the repo-owned vulnerable
+    pins in `requirements-dev.txt` and `requirements-lock.txt` and deliberately
+    avoids adding unused packages to `ci-lite` without a reproducible dependency
+    path.
+  - Links:
+    - `docs/security/GHSA-6v7p-g79w-8964-msgpack.md`
+    - `requirements-ci-lite.in`
+    - `requirements-ci-lite.txt`
+    - `requirements-dev.txt`
+    - `requirements-lock.txt`
+  - DoD:
+    - Recheck Dependabot alert `#225` after PR #2008 merges and GitHub refreshes
+      dependency graph state.
+    - If the alert closes, record the closure evidence and mark this item
+      complete.
+    - If the alert remains open, prove the actual repo-owned `ci-lite`
+      dependency path before editing `requirements-ci-lite.in` or
+      `requirements-ci-lite.txt`.
+
+<a id="ledger-p1-python-dependency-surface-contract"></a>
+- [ ] P1: Add Python dependency surface contract and retire stale requirements guidance
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / dependency architecture)
+  - Target PR: PR-TBD-DEPENDENCY-SURFACE-CONTRACT
+  - Area: security / CI / dependencies / docs
+  - Reason (EN): The operator-linked requirements cleanup epic identifies a
+    broader architecture debt train: every dependency profile needs an explicit
+    owner, runtime authority, import surface, security scan coverage, optional
+    profile boundary, Docker inclusion rule, and validation gate. PR #2008 only
+    remediates `msgpack` and records the current alert boundary; it does not
+    retire `requirements-all.txt`, replace `verify_requirements.py`, create new
+    eval/data profiles, or migrate to pyproject/uv metadata.
+  - Links:
+    - `docs/DEPENDENCY_MANAGEMENT.md`
+    - `requirements-all.txt`
+    - `requirements-lock.txt`
+    - `requirements-evals.in`
+    - `requirements-data.in`
+    - `verify_requirements.py`
+  - DoD:
+    - Document each Python dependency profile owner, purpose, install authority,
+      and scan coverage in a canonical dependency-surface contract.
+    - Reconcile `REQUIREMENTS.md` / `docs/DEPENDENCY_MANAGEMENT.md` drift and
+      live `.github/dependabot.yml` cadence.
+    - Decide and document whether `requirements-all.txt` and
+      `requirements-lock.txt` are canonical, deprecated, or renamed.
+    - Replace or wrap `verify_requirements.py` with a validator that understands
+      all active profiles.
+    - Keep eval/data profile locking, pyproject/uv migration, and broad package
+      cleanup as separately scoped follow-up work unless the contract PR
+      explicitly owns them.
+
 <a id="ledger-p1-restore-ragas-companion-safe-deps"></a>
 - [ ] P1: Restore native RAGAS companion after safe dependency path exists
   - Owner: @katsiaryna_kavaleuskaya

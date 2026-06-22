@@ -207,8 +207,10 @@ mccabe==0.7.0
     # via flake8
 mdurl==0.1.2
     # via markdown-it-py
-msgpack==1.1.2
-    # via cachecontrol
+msgpack==1.2.1
+    # via
+    #   -r requirements-dev.in
+    #   cachecontrol
 mypy==2.1.0
     # via -r requirements-dev.in
 mypy-extensions==1.1.0
