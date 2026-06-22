@@ -239,7 +239,7 @@ class TestPremiumWeekHypothesisSimple:
             )
 
             # Should succeed and cover lines 104-113
-            # (profile-derived planning target call and targets check)
+            # (estimate_targets_minimal call and targets check)
             assert response.status_code == 200
             data = response.json()
             assert "daily_menus" in data

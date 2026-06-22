@@ -40,8 +40,7 @@ legacy rewrite.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads existed at PR open. One post-open Sourcery thread is mapped
-below.
+Post-open Sourcery and CodeRabbit findings are mapped below.
 
 ## Fixed in Commit Mapping
 
@@ -123,10 +122,10 @@ readiness signal.
 Not merge-ready yet.
 
 Required before merge:
-- Current-head CI must pass.
-- Bot/human review comments must be dispositioned.
-- Post-open role passes must run:
+- [ ] Current-head CI passes.
+- [ ] Bot/human review comments dispositioned.
+- [ ] Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Codex Security diff scan/finding discovery must run if available.
-- `pulseplate-pr-review` must run.
-- Strict merge-readiness checks must pass.
+- [ ] Codex Security diff scan/finding discovery run if available.
+- [ ] `pulseplate-pr-review` passed.
+- [ ] Strict merge-readiness checks passed.

@@ -10,12 +10,12 @@ from app.services.nutrition_targets import estimate_targets_from_profile
 class TestFinalCoverage96:
     """Tests to reach final 96% coverage target."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_premium_week_estimate_targets_from_profile(self):
+    def test_premium_week_estimate_targets_from_profile(self) -> None:
         """Test estimate_targets_from_profile function."""
         result = estimate_targets_from_profile(
             sex="male",
@@ -33,7 +33,7 @@ class TestFinalCoverage96:
         assert "water_ml" in result
         assert "activity_week" in result
 
-    def test_premium_week_estimate_targets_from_profile_female(self):
+    def test_premium_week_estimate_targets_from_profile_female(self) -> None:
         """Test estimate_targets_from_profile with female profile."""
         result = estimate_targets_from_profile(
             sex="female",
@@ -49,7 +49,7 @@ class TestFinalCoverage96:
         assert "macros" in result
         assert "micro" in result
 
-    def test_premium_week_estimate_targets_from_profile_elderly(self):
+    def test_premium_week_estimate_targets_from_profile_elderly(self) -> None:
         """Test estimate_targets_from_profile with elderly profile."""
         result = estimate_targets_from_profile(
             sex="male",
@@ -65,7 +65,7 @@ class TestFinalCoverage96:
         assert "macros" in result
         assert "micro" in result
 
-    def test_premium_week_estimate_targets_from_profile_teen(self):
+    def test_premium_week_estimate_targets_from_profile_teen(self) -> None:
         """Test estimate_targets_from_profile with teen profile."""
         result = estimate_targets_from_profile(
             sex="female",
@@ -81,7 +81,7 @@ class TestFinalCoverage96:
         assert "macros" in result
         assert "micro" in result
 
-    def test_premium_week_estimate_targets_from_profile_athlete(self):
+    def test_premium_week_estimate_targets_from_profile_athlete(self) -> None:
         """Test estimate_targets_from_profile with athlete profile."""
         result = estimate_targets_from_profile(
             sex="male",
@@ -97,7 +97,7 @@ class TestFinalCoverage96:
         assert "macros" in result
         assert "micro" in result
 
-    def test_premium_week_estimate_targets_from_profile_obese(self):
+    def test_premium_week_estimate_targets_from_profile_obese(self) -> None:
         """Test estimate_targets_from_profile with obese profile."""
         result = estimate_targets_from_profile(
             sex="female",
@@ -113,7 +113,7 @@ class TestFinalCoverage96:
         assert "macros" in result
         assert "micro" in result
 
-    def test_premium_week_estimate_targets_from_profile_underweight(self):
+    def test_premium_week_estimate_targets_from_profile_underweight(self) -> None:
         """Test estimate_targets_from_profile with underweight profile."""
         result = estimate_targets_from_profile(
             sex="male",
@@ -129,7 +129,7 @@ class TestFinalCoverage96:
         assert "macros" in result
         assert "micro" in result
 
-    def test_premium_week_estimate_targets_from_profile_edge_cases(self):
+    def test_premium_week_estimate_targets_from_profile_edge_cases(self) -> None:
         """Test estimate_targets_from_profile with edge case profiles."""
         # Test minimum age
         result = estimate_targets_from_profile(
@@ -153,7 +153,7 @@ class TestFinalCoverage96:
         )
         assert result is not None
 
-    def test_premium_week_estimate_targets_from_profile_all_activities(self):
+    def test_premium_week_estimate_targets_from_profile_all_activities(self) -> None:
         """Test estimate_targets_from_profile with all activity levels."""
         activities = ["sedentary", "light", "moderate", "active", "very_active"]
 
@@ -169,7 +169,7 @@ class TestFinalCoverage96:
             assert result is not None
             assert "kcal" in result
 
-    def test_premium_week_estimate_targets_from_profile_all_goals(self):
+    def test_premium_week_estimate_targets_from_profile_all_goals(self) -> None:
         """Test estimate_targets_from_profile with all goal types."""
         goals = ["loss", "maintain", "gain"]
 

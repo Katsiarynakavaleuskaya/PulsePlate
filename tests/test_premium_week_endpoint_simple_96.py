@@ -179,22 +179,18 @@ class TestPremiumWeekEndpointSimple96:
             assert any("height_cm" in str(error) for error in detail)
             assert any("weight_kg" in str(error) for error in detail)
 
-    def test_generate_week_plan_unable_to_derive_targets(self) -> None:
-        """Test generate_week_plan when unable to derive targets - lines 112-113."""
+    def test_generate_week_plan_profile_payload_legacy_alias(self) -> None:
+        """Test legacy premium week alias with a profile-derived payload."""
         client = TestClient(app)
 
         with (
             patch.dict(os.environ, {"API_KEY": "test_api_key"}),
             patch("app.routers.premium_week.FoodDB") as mock_fooddb,
             patch("app.routers.premium_week.RecipeDB") as mock_recipedb,
-            patch("app.services.nutrition_targets.estimate_targets_from_profile") as mock_estimate,
         ):
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
-
-            # Mock profile-derived planning target adapter to return None.
-            mock_estimate.return_value = None
 
             payload = {
                 "sex": "male",
@@ -213,7 +209,6 @@ class TestPremiumWeekEndpointSimple96:
                 headers={"X-API-Key": "test_api_key"},
             )
 
-            assert response.status_code == 200  # Mocking doesn't work for main.py endpoint
-            # The endpoint actually works and returns a response
+            assert response.status_code == 200
             data = response.json()
             assert "daily_menus" in data or "week_summary" in data

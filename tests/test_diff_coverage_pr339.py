@@ -12,8 +12,8 @@ introduced in the PR, specifically targeting:
 Focus: Hit new/changed lines with minimal dependencies on core/CSV.
 """
 
-from typing import Any, Dict
 from types import SimpleNamespace
+from typing import Any, Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,7 +23,7 @@ from fastapi import HTTPException
 class TestPRORouterDiffCoverage:
     """Cover new branches in app/routers/pro.py added by PR #339."""
 
-    def test_missing_profile_detail_helper_format(self):
+    def test_missing_profile_detail_helper_format(self) -> None:
         """Verify _missing_profile_detail() includes both required substrings."""
         from app.routers.pro import _missing_profile_detail
 
@@ -31,7 +31,7 @@ class TestPRORouterDiffCoverage:
         assert "Missing user profile data" in msg
         assert "Missing required field: age" in msg
 
-    def test_is_complete_planning_targets_all_branches(self):
+    def test_is_complete_planning_targets_all_branches(self) -> None:
         """Cover all return paths in is_complete_planning_targets()."""
         from app.services.nutrition_targets import is_complete_planning_targets
 
@@ -115,7 +115,7 @@ class TestPRORouterDiffCoverage:
             }
         )
 
-    def test_estimate_targets_from_profile_smoke(self, monkeypatch):
+    def test_estimate_targets_from_profile_smoke(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Smoke test for estimate_targets_from_profile() happy path."""
         from app.services.nutrition_targets import estimate_targets_from_profile
 
@@ -157,7 +157,7 @@ class TestPRORouterDiffCoverage:
         assert result["macros"]["protein_g"] == 100
         assert result["activity_week"]["steps_daily"] == 8000
 
-    def test_cache_init_and_reuse_branches(self, monkeypatch):
+    def test_cache_init_and_reuse_branches(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Cover cache initialization (None → instance) and reuse paths."""
         from app.routers import pro as pro_router
 
