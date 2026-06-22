@@ -60,6 +60,15 @@ class TestShard:
         return f"tests/results-{self.artifact_label}-shard-{self.index}.xml"
 
 
+def build_test_file(repo_root: Path, test_path: Path) -> TestFile:
+    """Return the normalized shard metadata for one pytest file."""
+
+    return TestFile(
+        path=test_path.relative_to(repo_root),
+        weight=max(test_path.stat().st_size, 1),
+    )
+
+
 def discover_test_files(
     repo_root: Path,
     excluded_paths: frozenset[Path] = frozenset(),
@@ -77,12 +86,7 @@ def discover_test_files(
             continue
         if any(part.startswith(".") for part in relative_path.parts):
             continue
-        discovered.append(
-            TestFile(
-                path=relative_path,
-                weight=max(test_path.stat().st_size, 1),
-            )
-        )
+        discovered.append(build_test_file(repo_root, test_path))
     return discovered
 
 
@@ -93,7 +97,7 @@ def discover_serial_test_files(repo_root: Path) -> list[TestFile]:
     for relative_path in sorted(SERIAL_MAIN_TEST_PATHS):
         test_path = repo_root / relative_path
         if test_path.is_file():
-            discovered.append(TestFile(path=relative_path, weight=max(test_path.stat().st_size, 1)))
+            discovered.append(build_test_file(repo_root, test_path))
     return discovered
 
 

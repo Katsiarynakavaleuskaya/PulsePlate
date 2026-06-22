@@ -44,6 +44,18 @@ def test_discover_test_files_includes_edges_and_excludes_disabled(tmp_path: Path
     ]
 
 
+def test_build_test_file_normalizes_relative_path_and_weight(tmp_path: Path) -> None:
+    test_path = _write_test_file(
+        tmp_path,
+        "tests/test_alpha.py",
+        "def test_alpha(): pass\n",
+    )
+
+    test_file = runner.build_test_file(tmp_path, test_path)
+
+    assert test_file == runner.TestFile(Path("tests/test_alpha.py"), test_path.stat().st_size)
+
+
 def test_discover_test_files_excludes_serial_main_tests(tmp_path: Path) -> None:
     _write_test_file(tmp_path, "tests/test_alpha.py", "def test_alpha(): pass\n")
     _write_test_file(
