@@ -27,6 +27,7 @@ def _session_cookie_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("DEBUG", "true")
 
 
@@ -70,6 +71,31 @@ def test_exchange_success_sets_hardened_cookie(
     assert "Path=/" in set_cookie
     assert "samesite=lax" in set_cookie.lower()
     assert "secure" not in set_cookie.lower()
+
+
+def test_exchange_success_sets_secure_cookie_when_runtime_env_unset(
+    isolated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    pro_headers: dict[str, str],
+) -> None:
+    """Unset runtime env should still issue a Secure browser session cookie."""
+
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("DEBUG", "false")
+
+    response = isolated_client.post(
+        "/api/v1/pro/session/exchange",
+        headers=pro_headers,
+    )
+    assert response.status_code == 200
+
+    set_cookie = response.headers.get("set-cookie", "")
+    assert f"{WEB_SESSION_COOKIE_NAME}=" in set_cookie
+    assert "HttpOnly" in set_cookie
+    assert "Path=/" in set_cookie
+    assert "samesite=lax" in set_cookie.lower()
+    assert "secure" in set_cookie.lower()
 
 
 def test_set_web_session_cookie_uses_environment_production_for_secure_flag(

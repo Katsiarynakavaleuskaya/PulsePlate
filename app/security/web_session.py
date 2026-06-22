@@ -21,7 +21,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Response
 
 from app.security.server_salt import require_server_salt
-from settings import is_explicit_developer_env, is_production_like_env
+from settings import is_production_like_env, is_raw_explicit_developer_env
 
 WEB_SESSION_COOKIE_NAME = "pp_web_session"
 WEB_SESSION_TTL_ENV = "WEB_SESSION_TTL_SECONDS"
@@ -314,7 +314,7 @@ def _is_secure_cookie_environment() -> bool:
 
     if is_production_like_env():
         return True
-    return not is_explicit_developer_env()
+    return not is_raw_explicit_developer_env()
 
 
 def set_web_session_cookie(
