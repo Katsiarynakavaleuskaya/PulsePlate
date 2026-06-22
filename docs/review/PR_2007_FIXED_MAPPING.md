@@ -39,16 +39,25 @@ runtime, iOS, npm install, dependency, skip/xfail, or coverage-threshold change.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads are present at this checkpoint.
+Sourcery review-level feedback is mapped below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2007#pullrequestreview-4547611166 -> e2b99c1c0
+Disposition: FIXED
+Commit: e2b99c1c0
+Evidence: `scripts/ci/run_main_test_shards.py` now uses shared
+`build_test_file(...)` metadata construction from both regular and serial test
+discovery paths; `tests/test_main_test_shards.py` adds
+`test_build_test_file_normalizes_relative_path_and_weight`. Focused pytest and
+targeted mypy passed.
 
 ## Implementation Commits
 
 - `cfa68539d` - serializes the design-token parity file before process-parallel
   main shards and adds runner regression coverage.
+- `e2b99c1c0` - shares test-file metadata construction between regular and
+  serial main test discovery in response to Sourcery feedback.
 
 ## Premortem Evidence
 
