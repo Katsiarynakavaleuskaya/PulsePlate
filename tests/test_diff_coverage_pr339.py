@@ -12,6 +12,7 @@ introduced in the PR, specifically targeting:
 Focus: Hit new/changed lines with minimal dependencies on core/CSV.
 """
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any, Dict
 from unittest.mock import MagicMock
@@ -196,7 +197,6 @@ class TestPRORouterDiffCoverage:
             pro_router._food_db_cache = original_food_cache
             pro_router._recipe_db_cache = original_recipe_cache
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "kwargs, expected_field",
         [
@@ -226,7 +226,7 @@ class TestPRORouterDiffCoverage:
             ),
         ],
     )
-    async def test_generate_week_plan_missing_profile_fields(
+    def test_generate_week_plan_missing_profile_fields(
         self, monkeypatch, kwargs: Dict[str, Any], expected_field: str
     ):
         """Cover all missing profile field branches in PRO router."""
@@ -238,13 +238,12 @@ class TestPRORouterDiffCoverage:
         req = ProWeekPlanRequest(**kwargs)
 
         with pytest.raises(HTTPException) as exc_info:
-            await generate_week_plan(req)
+            asyncio.run(generate_week_plan(req))
 
         assert exc_info.value.status_code == 400
         assert expected_field in exc_info.value.detail
 
-    @pytest.mark.asyncio
-    async def test_generate_week_plan_hard_guard_not_dict(self, monkeypatch):
+    def test_generate_week_plan_hard_guard_not_dict(self, monkeypatch):
         """Cover hard guard: targets is not a dict → 400."""
         from app.routers.pro import ProWeekPlanRequest, generate_week_plan
 
@@ -259,13 +258,12 @@ class TestPRORouterDiffCoverage:
         req = ProWeekPlanRequest(sex="female", age=25, height_cm=165, weight_kg=60)
 
         with pytest.raises(HTTPException) as exc_info:
-            await generate_week_plan(req)
+            asyncio.run(generate_week_plan(req))
 
         assert exc_info.value.status_code == 400
         assert "Unable to derive targets" in exc_info.value.detail
 
-    @pytest.mark.asyncio
-    async def test_generate_week_plan_hard_guard_incomplete(self, monkeypatch):
+    def test_generate_week_plan_hard_guard_incomplete(self, monkeypatch):
         """Cover hard guard: targets dict incomplete → 400."""
         from app.routers.pro import ProWeekPlanRequest, generate_week_plan
 
@@ -280,13 +278,12 @@ class TestPRORouterDiffCoverage:
         req = ProWeekPlanRequest(sex="male", age=30, height_cm=175, weight_kg=70)
 
         with pytest.raises(HTTPException) as exc_info:
-            await generate_week_plan(req)
+            asyncio.run(generate_week_plan(req))
 
         assert exc_info.value.status_code == 400
         assert "Unable to derive targets" in exc_info.value.detail
 
-    @pytest.mark.asyncio
-    async def test_generate_week_plan_with_valid_targets(self, monkeypatch):
+    def test_generate_week_plan_with_valid_targets(self, monkeypatch):
         """Cover happy path: valid targets dict from request."""
         from app.routers.pro import ProWeekPlanRequest, generate_week_plan
 
@@ -318,7 +315,7 @@ class TestPRORouterDiffCoverage:
             }
         )
 
-        resp = await generate_week_plan(req)
+        resp = asyncio.run(generate_week_plan(req))
         assert resp.weekly_coverage["kcal"] == 1.0
 
 
@@ -489,8 +486,7 @@ class TestPremiumWeekDiffCoverage:
         assert result["macros"]["fat_g"] == 70
         assert result["activity_week"]["steps_daily"] == 8000
 
-    @pytest.mark.asyncio
-    async def test_deprecation_event_both_states(self, monkeypatch):
+    def test_deprecation_event_both_states(self, monkeypatch):
         """Cover deprecation logging Event transitions (not set → set)."""
         from app.routers.premium_week import (
             PremiumWeekPlanRequest,
@@ -526,14 +522,13 @@ class TestPremiumWeekDiffCoverage:
         )
 
         # First call: event not set → log warning + set event
-        await generate_week_plan(req)
+        asyncio.run(generate_week_plan(req))
         assert _deprecation_logged.is_set()
 
         # Second call: event already set → skip logging
-        await generate_week_plan(req)
+        asyncio.run(generate_week_plan(req))
 
-    @pytest.mark.asyncio
-    async def test_hard_guard_malformed_targets(self, monkeypatch):
+    def test_hard_guard_malformed_targets(self, monkeypatch):
         """Cover hard guard for malformed targets after derivation."""
         from app.routers.premium_week import PremiumWeekPlanRequest, generate_week_plan
 
@@ -548,13 +543,12 @@ class TestPremiumWeekDiffCoverage:
         req = PremiumWeekPlanRequest(sex="female", age=28, height_cm=160, weight_kg=55)
 
         with pytest.raises(HTTPException) as exc_info:
-            await generate_week_plan(req)
+            asyncio.run(generate_week_plan(req))
 
         assert exc_info.value.status_code == 400
         assert "Unable to derive targets" in exc_info.value.detail
 
-    @pytest.mark.asyncio
-    async def test_premium_hard_guard_targets_not_dict(self, monkeypatch):
+    def test_premium_hard_guard_targets_not_dict(self, monkeypatch):
         """Cover hard guard where derived targets are not a dict."""
         from app.routers.premium_week import PremiumWeekPlanRequest, generate_week_plan
 
@@ -568,12 +562,11 @@ class TestPremiumWeekDiffCoverage:
         req = PremiumWeekPlanRequest(sex="female", age=28, height_cm=160, weight_kg=55)
 
         with pytest.raises(HTTPException) as exc_info:
-            await generate_week_plan(req)
+            asyncio.run(generate_week_plan(req))
 
         assert exc_info.value.status_code == 400
         assert "Unable to derive targets" in exc_info.value.detail
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "kwargs, expected_field",
         [
@@ -603,7 +596,7 @@ class TestPremiumWeekDiffCoverage:
             ),
         ],
     )
-    async def test_premium_generate_week_plan_missing_profile_fields(
+    def test_premium_generate_week_plan_missing_profile_fields(
         self, monkeypatch, kwargs: Dict[str, Any], expected_field: str
     ):
         """Cover missing profile field branches in premium router."""
@@ -618,7 +611,7 @@ class TestPremiumWeekDiffCoverage:
         req = PremiumWeekPlanRequest(**kwargs)
 
         with pytest.raises(HTTPException) as exc_info:
-            await generate_week_plan(req)
+            asyncio.run(generate_week_plan(req))
 
         assert exc_info.value.status_code == 400
         assert expected_field in exc_info.value.detail
