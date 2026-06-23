@@ -4,8 +4,9 @@
 # Feature-flagged via FEATURE_RAG_VECTOR; keep opt-in only.
 # Pin the currently proven runtime closure so this profile split does not widen
 # the fallback/index lane into an unrelated dependency-upgrade PR.
-# PR #1825 updates only the direct RAG/vector pins; the full ML resolver closure
-# remains unchanged because it is platform-sensitive on local macOS hosts.
+# Dependency refresh lanes update only the direct RAG/vector pins; the full ML
+# resolver closure remains unchanged because it is platform-sensitive on local
+# macOS hosts.
 sentence-transformers==5.6.0
 transformers==5.12.1
 torch==2.11.0

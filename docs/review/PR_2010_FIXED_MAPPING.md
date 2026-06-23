@@ -43,7 +43,7 @@ alert #224 changes.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Sourcery review-level feedback is mapped below.
+Sourcery review-level feedback and advisory bot comments are mapped below.
 
 ## Fixed in Commit Mapping
 
@@ -54,6 +54,12 @@ Disposition: FIXED
 Commit: a8c2a994b
 
 Evidence: `tests/test_install_locked_python_requirements.py` centralizes expected optional RAG/vector package versions; `docs/orchestration/RAG_VECTOR_ST_TRANSFORMERS_REFRESH_PREMORTEM_2026-06-23.md` names the exact fallback-retirement tests and locked-installer preflight command that enforce no fallback and exact-version constraints.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2010#issuecomment-4776733404
+
+Disposition: NOT-A-BUG
+
+Evidence: CodeRabbit's advisory docstring coverage warning applies to generated review heuristics, not a repo merge gate for this dependency/test/docs lane. The PR adds no production Python API or runtime callable requiring docstring coverage; the only changed Python file is `tests/test_install_locked_python_requirements.py`, where the review-requested constants at module scope centralize expected dependency versions without introducing new functions.
 
 ## Implementation Commits
 
@@ -134,7 +140,7 @@ Evidence:
 - Runner mode: `oracle_only_governance_reviewer`
 - Contribution kind: `oracle_review`
 - Co-author required: yes
-- Co-author trailer included in `bd6d57036`:
+- Co-author trailer included in `bd6d57036` and `cd0c9d1da`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 The first runner attempt was rejected because installer preflight inside the
@@ -185,7 +191,7 @@ Not merge-ready yet.
 Required before merge:
 
 - [ ] Current-head CI passes.
-- [ ] Bot/human review comments dispositioned.
+- [x] Current known bot/human review comments dispositioned.
 - [ ] Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - [ ] Codex Security diff scan / finding discovery run.
