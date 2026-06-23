@@ -34,11 +34,11 @@ entitlements, frontend, or iOS surfaces.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] Initial PR open: no human review threads existed at artifact creation.
-- [x] Fixed in commit mapping artifact created after GitHub assigned PR number
+- [ ] Initial PR open: no human review threads existed at artifact creation.
+- [ ] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2013`.
-- [x] Initial Sourcery review comments fixed and mapped.
-- [x] CodeRabbit JSON response parsing comments fixed and mapped.
+- [ ] Initial Sourcery review comments fixed and mapped.
+- [ ] CodeRabbit JSON response parsing comments fixed and mapped.
 - [ ] Later post-open bot/human review comments are fixed or dispositioned
   before merge readiness.
 - [ ] Current-head CI is complete before merge readiness.
