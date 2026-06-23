@@ -98,6 +98,10 @@ Reason: The diff is intentionally larger because the operator required removing 
 - `pulseplate-pr-review` dry-run completed after head
   `a798f358ecb01e6300cd262545c212b351fc90f5`; its only finding was the
   advisory large-diff-risk note dispositioned above.
+- Final latest-head Codex Security diff scan / finding discovery completed
+  after head `712aef4cdb047e5606edd649d665085762af58ba`; scan
+  `69281795-1706-42d7-9bf3-962b6481511b` reviewed 9 paid-tier, generated
+  contract, and Safety CI surfaces with 0 reportable findings.
 - Experiment Runner oracle-only evidence:
   `artifacts/orchestration/experiments/results/paid-tier-registration-ownership-oracle-result.json`
   (local artifact), experiment `exp-756e43207b6d`, status `accepted`,
@@ -165,7 +169,7 @@ review-thread mapping, and strict merge-readiness checks all support it.
 
 - [ ] Current-head CI parity reviewed.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass refreshed after latest push if required.
-- [ ] Codex Security diff scan / finding discovery finalized on latest head.
+- [x] Codex Security diff scan / finding discovery finalized on latest head.
 - [x] `pulseplate-pr-review`.
 - [x] CodeRabbit/Sourcery comments dispositioned for current post-open bot
   findings.
