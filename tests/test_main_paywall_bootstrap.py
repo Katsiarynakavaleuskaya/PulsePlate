@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import builtins
+import sys
+import types
+from typing import Any, Generator, cast
+
 from fastapi import APIRouter, Depends, FastAPI, Response, WebSocket
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 import pytest
-from typing import Generator
+from starlette.routing import BaseRoute
 
 import app.main as app_main
 from app.bootstrap.route_family import (
@@ -32,6 +38,16 @@ def _stub_router(path: str, *, method: str = "post", include_in_schema: bool = T
 
     getattr(router, method)(path, include_in_schema=include_in_schema)(_handler)
     return router
+
+
+def _install_dummy_router_module(
+    monkeypatch: pytest.MonkeyPatch,
+    module_name: str,
+    router_obj: APIRouter | None,
+) -> None:
+    dummy_mod = types.ModuleType(module_name)
+    setattr(dummy_mod, "router", router_obj)
+    monkeypatch.setitem(sys.modules, module_name, dummy_mod)
 
 
 def test_route_member_contract_defaults_for_static_family_tail_coverage() -> None:
@@ -81,6 +97,46 @@ def test_route_family_rejects_duplicate_and_empty_member_contracts() -> None:
             routers=(),
             members=(),
         )
+
+
+def test_route_member_contracts_reject_non_http_routes() -> None:
+    router = APIRouter()
+
+    async def _websocket_endpoint(websocket: WebSocket) -> None:
+        await websocket.close()
+
+    router.websocket("/ws/static-family")(_websocket_endpoint)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        route_member_contracts_from_router("Static family", router)
+
+
+def test_route_member_contracts_reject_framework_only_route_methods() -> None:
+    router = APIRouter()
+
+    async def _handler() -> dict[str, str]:
+        return {"status": "framework-only"}
+
+    route = APIRoute("/api/v1/static-family/head", endpoint=_handler, methods=["GET"])
+    route.methods = {"HEAD"}
+    router.routes.append(cast(BaseRoute, route))
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        route_member_contracts_from_router("Static family", router)
+
+
+def test_route_member_contracts_reject_empty_source_router() -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        route_member_contracts_from_router("Static family", APIRouter())
 
 
 def test_route_family_contract_builder_rejects_duplicate_source_routes() -> None:
@@ -819,6 +875,65 @@ def test_paid_tier_registration_runs_vip_then_pro_and_mirrors_legacy_attrs(
     assert app_main._legacy_module.premium_week_router is premium_week
 
 
+def test_vip_compat_resolver_returns_none_when_vip_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_main, "is_vip_module_enabled", lambda: False)
+
+    assert app_main._resolve_vip_router_for_compat() is None
+
+
+def test_vip_compat_resolver_returns_none_when_vip_module_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+
+    def _raise_missing_vip_module(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> Any:
+        if name == "app.routers" and "vip" in fromlist:
+            raise ModuleNotFoundError(
+                "No module named 'app.routers.vip'",
+                name="app.routers.vip",
+            )
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(app_main, "is_vip_module_enabled", lambda: True)
+    monkeypatch.setattr(builtins, "__import__", _raise_missing_vip_module)
+
+    assert app_main._resolve_vip_router_for_compat() is None
+
+
+def test_vip_compat_resolver_reraises_nested_import_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+
+    def _raise_nested_import_failure(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> Any:
+        if name == "app.routers" and "vip" in fromlist:
+            raise ModuleNotFoundError(
+                "No module named 'vip_runtime_dependency'",
+                name="vip_runtime_dependency",
+            )
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(app_main, "is_vip_module_enabled", lambda: True)
+    monkeypatch.setattr(builtins, "__import__", _raise_nested_import_failure)
+
+    with pytest.raises(ModuleNotFoundError, match="vip_runtime_dependency"):
+        app_main._resolve_vip_router_for_compat()
+
+
 def test_paid_tier_registration_keeps_legacy_attrs_unchanged_when_pro_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -952,6 +1067,23 @@ def test_paid_tier_registration_stops_before_pro_when_vip_fails(
     assert app_main.premium_week_router is original_premium_week_router
     assert app_main._legacy_module.pro_router is original_pro_router
     assert app_main._legacy_module.premium_week_router is original_premium_week_router
+
+
+def test_pro_registration_rejects_empty_canonical_pro_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.utils.feature_flags as feature_flags
+    from app.routers.pro_registration import register_pro_routes
+
+    _install_dummy_router_module(monkeypatch, "app.routers.pro", APIRouter())
+    monkeypatch.delenv("FEATURE_PREMIUM_WEEK_ENABLED", raising=False)
+    monkeypatch.setattr(feature_flags, "is_vip_module_enabled", lambda: False)
+
+    with pytest.raises(
+        RuntimeError,
+        match="PRO router from app\\.routers\\.pro must be a non-empty APIRouter",
+    ):
+        register_pro_routes(FastAPI())
 
 
 def test_vip_route_registration_rejects_foreign_existing_paid_tier_route(
