@@ -68,6 +68,11 @@ Disposition: FIXED
 Commit: 343bc4749d0a90f62175dab146bd82b1b50d359d
 Evidence: `scripts/ci/run_safety_audit.py:43-45` recognizes reportless Safety CLI transient crash markers; `scripts/ci/run_safety_audit.py:683-690` retries only non-zero reportless transient crashes; `scripts/ci/run_safety_audit.py:765-778` keeps fail-closed behavior after retry exhaustion; `tests/test_run_safety_audit.py:351-384` covers a reportless `Unhandled exception happened: '"detail"'` crash followed by a successful scan. `pytest -q tests/test_run_safety_audit.py -q` passed.
 
+`pulseplate-pr-review` dry-run reported a `large-diff-risk` advisory note because the PR diff exceeds 800 changed lines.
+Disposition: NOT-A-BUG
+Evidence: PR body contains `## Split Justification` plus explicit `operator approval`, `frontend/backend mix approval`, and `privileged scope exception` lines; PR labels include `scope/operator-approved`, `scope/frontend-backend-mix-approved`, and `scope/privileged-approved`; `python3 scripts/ci/check_pr_size_governance.py --base-sha 58fe0a81199e5ab0b08ecd643adc1b139a2072b7 --head-sha HEAD --event-path /tmp/pr2009-event.json` passed with `PR scope governance: OK (privileged CI/security/workflow policy)`; `make validate-changed` and `pre-commit run --all-files` passed after the scope expansion.
+Reason: The diff is intentionally larger because the operator required removing all duplicate routes, adding production-code agent rules, updating generated OpenAPI/client mirrors, and fixing the current-head Safety CI blocker in this PR instead of deferring surfaced defects.
+
 ## Governance Evidence
 
 - Worktree isolation: branch
@@ -90,6 +95,9 @@ Evidence: `scripts/ci/run_safety_audit.py:43-45` recognizes reportless Safety CL
   collision risk. Commit `da9c3b355ac6e4a93928022bfd14b8cd7d4a56de` fixed the
   finding by removing the VIP shoplist duplicate owner and adding strict
   route-family guards.
+- `pulseplate-pr-review` dry-run completed after head
+  `a798f358ecb01e6300cd262545c212b351fc90f5`; its only finding was the
+  advisory large-diff-risk note dispositioned above.
 - Experiment Runner oracle-only evidence:
   `artifacts/orchestration/experiments/results/paid-tier-registration-ownership-oracle-result.json`
   (local artifact), experiment `exp-756e43207b6d`, status `accepted`,
@@ -158,7 +166,7 @@ review-thread mapping, and strict merge-readiness checks all support it.
 - [ ] Current-head CI parity reviewed.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass refreshed after latest push if required.
 - [ ] Codex Security diff scan / finding discovery finalized on latest head.
-- [ ] `pulseplate-pr-review`.
+- [x] `pulseplate-pr-review`.
 - [x] CodeRabbit/Sourcery comments dispositioned for current post-open bot
   findings.
 - [ ] Cubic comments checked and dispositioned.
