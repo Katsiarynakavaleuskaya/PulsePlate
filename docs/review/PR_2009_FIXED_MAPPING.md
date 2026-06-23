@@ -23,6 +23,8 @@ entitlement, AI, or FoodDB behavior changed.
 - `9deaeef263bc9015086a9cf3f20f82e670556d5e` - fix changed-file mypy
   typing for route-family dependency contract construction discovered by
   pre-push hooks.
+- `343bc4749d0a90f62175dab146bd82b1b50d359d` - retry reportless transient
+  Safety CLI failures without weakening fail-closed vulnerability handling.
 
 ## Discussion Thread Pass
 
@@ -43,6 +45,11 @@ Disposition: FIXED
 Commit: 1e17831a1bf156484d6e4773b2df94f7654aed6c
 Evidence: `app/main.py:794-805` now catches only the missing VIP module case and re-raises unrelated import failures; `app/main.py:808-832` resolves all compatibility values before mutating `app.main` or `legacy_app`; `tests/test_main_paywall_bootstrap.py:847-896` covers the no-partial-mutation failure path.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2009#pullrequestreview-4550882968
+Disposition: NOT-A-BUG
+Evidence: The CodeRabbit review object was the post-push review wrapper/rate-limit walkthrough for commits through `635086017a3e1f9efe77ad871b3d5d7a8444aa29`; its earlier actionable inline architecture-map finding is separately mapped to `1e17831a1bf156484d6e4773b2df94f7654aed6c` above, and `gh pr checks 2009 --watch=false` reported `CodeRabbit` as `pass` for the same head.
+Reason: No additional code-actionable finding remained in that review object after the mapped CodeRabbit inline item was fixed.
+
 ## Additional Fixed Findings
 
 Codex Security finding discovery `e6d69443-1961-434b-8bec-f948e7680e93`: paid-tier canonical bootstrap did not fail closed on pre-existing protected route collisions; live duplicate VIP shoplist daily/weekly routes also created runtime/OpenAPI split-brain.
@@ -55,6 +62,11 @@ Operator PR-surface rule clarification: duplicate routes and surfaced PR errors 
 Disposition: FIXED
 Commit: da9c3b355ac6e4a93928022bfd14b8cd7d4a56de
 Evidence: `AGENTS.md:57-73`, `app/AGENTS.md:278-289`, and `docs/ENGINEERING_LESSONS.md:688-713` now require fixing current-PR defects, forbidding duplicate method/path routes, and rejecting `None`/empty placeholder routers instead of weakening production behavior.
+
+Current-head CI `security` job failed because Safety crashed before producing `safety-requirements-evals.json` for `requirements-evals.txt` with `Unhandled exception happened: '"detail"'`.
+Disposition: FIXED
+Commit: 343bc4749d0a90f62175dab146bd82b1b50d359d
+Evidence: `scripts/ci/run_safety_audit.py:43-45` recognizes reportless Safety CLI transient crash markers; `scripts/ci/run_safety_audit.py:683-690` retries only non-zero reportless transient crashes; `scripts/ci/run_safety_audit.py:765-778` keeps fail-closed behavior after retry exhaustion; `tests/test_run_safety_audit.py:351-384` covers a reportless `Unhandled exception happened: '"detail"'` crash followed by a successful scan. `pytest -q tests/test_run_safety_audit.py -q` passed.
 
 ## Governance Evidence
 
@@ -105,7 +117,7 @@ Evidence: `AGENTS.md:57-73`, `app/AGENTS.md:278-289`, and `docs/ENGINEERING_LESS
 - No-duplicate full route probe:
   `python - <<'PY' ... ensure_canonical_app_bootstrap(app) ... assert no duplicate method/path routes`
   - PASS, `total route keys 127`.
-- `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" make openapi-check`
+- `PATH=".venv/bin:$PATH" make openapi-check`
   - PASS. A raw `make openapi-check` attempt without the repo venv failed
     before app code with `ModuleNotFoundError: No module named 'dotenv'`.
 - `git diff --exit-code -- app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts`
@@ -120,6 +132,11 @@ Evidence: `AGENTS.md:57-73`, `app/AGENTS.md:278-289`, and `docs/ENGINEERING_LESS
   `mypy app/bootstrap/route_family.py app/routers/pro_registration.py app/routers/vip_registration.py app/routers/vip.py app/routers/vip_shoplist.py --no-incremental --cache-dir=/dev/null`
   passed.
 - `git diff --check` - PASS
+- `pytest -q tests/test_run_safety_audit.py -q` - PASS after Safety retry
+  remediation.
+- `python3 scripts/ci/check_pr_size_governance.py --base-sha 58fe0a81199e5ab0b08ecd643adc1b139a2072b7 --head-sha HEAD --event-path /tmp/pr2009-event.json`
+  - PASS with live PR body/labels:
+  `PR scope governance: OK (privileged CI/security/workflow policy)`.
 - Post-review-fix validation:
   `python -m py_compile app/main.py tests/test_main_paywall_bootstrap.py` -
   PASS;
