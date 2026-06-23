@@ -303,20 +303,19 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     doc_text = SECURITY_DOC_FARADAY_PATH.read_text(encoding="utf-8")
     ledger_entry = _ledger_faraday_entry()
 
-    assert 'input.VulnerabilityID == "CVE-2026-54297"' in policy
+    assert 'input.VulnerabilityID == "CVE-2026-54297"' in faraday_policy
     assert "input.Fingerprint" not in faraday_policy
-    assert 'input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.5"' in policy
-    assert 'input.FixedVersion == "2.14.3"' in policy
-    assert 'input.FixedVersion == ">= 2.14.3"' in policy
-    assert 'input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"' in policy
-    assert 'input.Severity == "HIGH"' in policy
-    assert 'input.Status == "fixed"' in policy
+    assert 'input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.5"' in faraday_policy
+    assert 'input.FixedVersion == ">= 2.14.3"' in faraday_policy
+    assert 'input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"' in faraday_policy
+    assert 'input.Severity == "HIGH"' in faraday_policy
+    assert 'input.Status == "fixed"' in faraday_policy
     assert 'input.DataSource.ID == "ghsa"' not in faraday_policy
-    assert 'input.PkgName == "faraday"' in policy
-    assert 'input.InstalledVersion == "1.10.5"' in policy
-    assert 'input.PkgID == "faraday@1.10.5"' in policy
-    assert "docs/security/CVE-2026-54297-faraday-fastlane.md" in policy
-    assert "# Review-by: 2026-06-27 (manual removal)" in policy
+    assert 'input.PkgName == "faraday"' in faraday_policy
+    assert 'input.InstalledVersion == "1.10.5"' in faraday_policy
+    assert 'input.PkgID == "faraday@1.10.5"' in faraday_policy
+    assert "docs/security/CVE-2026-54297-faraday-fastlane.md" in faraday_policy
+    assert "# Review-by: 2026-06-27 (manual removal)" in faraday_policy
 
     assert "Temporary Trivy Rego suppression" in doc_text
     assert "fastlane (2.236.1)" in doc_text

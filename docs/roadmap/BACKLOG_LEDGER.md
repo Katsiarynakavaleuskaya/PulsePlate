@@ -5216,10 +5216,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-FARADAY-FASTLANE-UNBLOCK
-  - Status: Opened by PR #1999 because Fastlane `2.236.1` still constrains `faraday (~> 1.0)` while Trivy reports fixed version `2.14.3`.
+  - Status: Opened by PR #1999 because Fastlane `2.236.1` still constrains `faraday (~> 1.0)` while Trivy reports fixed version `>= 2.14.3`.
   - Area: security / iOS release tooling / code-scanning
   - Finding Type: release-tooling dependency vulnerability
-  - Reason: Trivy `v0.71.2` reports Ruby gem `faraday` `CVE-2026-54297` at `1.10.5` from `ios/Gemfile.lock`, with fixed version `2.14.3`. Bundler resolver evidence on 2026-06-20 shows current Fastlane `2.235.0` and latest checked Fastlane `2.236.1` both require `faraday (~> 1.0)`, so there is no clean lockfile update path yet.
+  - Reason: Trivy `v0.71.2` reports Ruby gem `faraday` `CVE-2026-54297` at `1.10.5` from `ios/Gemfile.lock`, with fixed version `>= 2.14.3`. Bundler resolver evidence on 2026-06-20 shows current Fastlane `2.235.0` and latest checked Fastlane `2.236.1` both require `faraday (~> 1.0)`, so there is no clean lockfile update path yet.
   - Links:
     - docs/security/CVE-2026-54297-faraday-fastlane.md
     - trivy/ignore-policy.rego

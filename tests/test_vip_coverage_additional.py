@@ -13,6 +13,10 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 from app.middleware import api_tiers
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    assert_vip_shoplist_formats_response,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -124,7 +128,7 @@ class TestVIPCoverageAdditional:
 
         response = client.get("/api/v1/vip/health")
         assert response.status_code == 403
-        data = response.json()
+        data = assert_json_response_payload(response)
         assert "vip access" in data["detail"].lower()
 
     def test_api_tier_resolution_rejects_preview_env_fallbacks(
@@ -168,7 +172,7 @@ class TestVIPCoverageAdditional:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert data["status"] == "success"
             assert "menu" in data
 
@@ -194,7 +198,7 @@ class TestVIPCoverageAdditional:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert data["status"] == "success"  # Returns success in echo mode
             assert "menu" in data
 
@@ -249,7 +253,7 @@ class TestVIPCoverageAdditional:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert "days" in data
             assert isinstance(data["days"], list)
         finally:
@@ -342,7 +346,7 @@ class TestVIPCoverageAdditional:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert "packed" in data
             assert "unpacked" in data
         finally:
@@ -396,24 +400,6 @@ class TestVIPCoverageAdditional:
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Mock format_export to return success
-        with patch("app.routers.vip.format_export", return_value=["csv", "json", "pdf"]):
-            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"
-            assert "formats" in data
-
-    def test_vip_shoplist_formats_error_coverage_lines_304_348(self, vip_headers):
-        """Test VIP shoplist formats error coverage for lines 304-348."""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Mock format_export to raise exception
-        with patch("app.routers.vip.format_export", side_effect=Exception("Format error")):
-            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"  # Returns success in echo mode
-            assert "formats" in data
+        response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
+        assert response.status_code == 200
+        assert_vip_shoplist_formats_response(response)

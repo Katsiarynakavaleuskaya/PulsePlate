@@ -12,6 +12,11 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    assert_vip_shoplist_formats_response,
+)
+
 
 @pytest.fixture(autouse=True)
 def vip_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -117,7 +122,7 @@ class TestVIPCoverageSimple:
 
         response = client.get("/api/v1/vip/health")
         assert response.status_code == 403
-        data = response.json()
+        data = assert_json_response_payload(response)
         assert "vip access" in data["detail"].lower()
 
     def test_vip_weekly_menu_plan_success_coverage(self, vip_headers: dict[str, str]):
@@ -144,7 +149,7 @@ class TestVIPCoverageSimple:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert data["status"] in ["success", "error"]
             assert "menu" in data
 
@@ -170,7 +175,7 @@ class TestVIPCoverageSimple:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert data["status"] in ["success", "error"]  # Accept either
 
     def test_vip_shoplist_weekly_success_coverage(
@@ -221,7 +226,7 @@ class TestVIPCoverageSimple:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert "days" in data
             assert isinstance(data["days"], list)
         finally:
@@ -311,7 +316,7 @@ class TestVIPCoverageSimple:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert "packed" in data
             assert "unpacked" in data
         finally:
@@ -363,23 +368,6 @@ class TestVIPCoverageSimple:
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Mock format_export to return success
-        with patch("app.routers.vip.format_export", return_value=["csv", "json", "pdf"]):
-            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"
-            assert "formats" in data
-
-    def test_vip_shoplist_formats_error_coverage(self, vip_headers: dict[str, str]):
-        """Test VIP shoplist formats error coverage."""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Mock format_export to raise exception
-        with patch("app.routers.vip.format_export", side_effect=Exception("Format error")):
-            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"  # Returns success with echo mode
+        response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
+        assert response.status_code == 200
+        assert_vip_shoplist_formats_response(response)

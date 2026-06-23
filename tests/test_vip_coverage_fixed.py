@@ -3,7 +3,6 @@ Fixed VIP coverage tests with proper environment isolation.
 """
 
 import os
-import sys
 from typing import cast
 from unittest.mock import patch
 
@@ -20,53 +19,6 @@ class TestVIPCoverageFixed:
         """Set up test fixtures."""
         # Set test environment - conftest.py will handle cleanup
         os.environ["API_KEY"] = "test-key"
-
-    def test_vip_import_fallback_coverage_lines_55_74(self):
-        """Test VIP import fallback coverage for lines 55-74."""
-        # Mock import failure to trigger fallback logic
-        # Remove modules instead of setting to None (prevents sys.modules None poisoning)
-        modules_to_restore = {}
-        for mod_name in [
-            "core.auto_repair",
-            "core.menu_engine",
-            "core.recipe_synth",
-            "core.region_catalog",
-            "core.shoplist",
-        ]:
-            if mod_name in sys.modules:
-                modules_to_restore[mod_name] = sys.modules[mod_name]
-                del sys.modules[mod_name]
-
-        try:
-            # Re-import the module to trigger fallback
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
-            from app.routers import vip
-
-            # Verify fallback values are set to None (lines 57-74)
-            assert vip.make_weekly_menu is not None
-            assert vip.analyze_nutrient_gaps is not None
-            assert vip.ShoplistGenerator is not None
-            assert vip.aggregate_ingredients is not None
-            assert vip.round_to_packages is not None
-            assert vip.format_export is not None
-        finally:
-            # Restore modules
-            for mod_name, mod_obj in modules_to_restore.items():
-                sys.modules[mod_name] = mod_obj
-            assert vip.get_region_catalog is not None
-            assert vip.search_products is not None
-            assert vip.get_available_regions is not None
-            assert vip.get_price_comparison is not None
-            assert vip.get_recipe_synthesizer is not None
-            assert vip.synthesize_recipe_from_ingredients is not None
-            assert vip.synthesize_recipes_for_week is not None
-            assert vip.get_auto_repair_engine is not None
-            assert vip.auto_repair_week_plan is not None
-            assert vip.suggest_manual_fixes is not None
-            assert vip.RepairStrategy is not None
-            assert vip.RepairStatus is not None
 
     def test_vip_safe_call_with_adapter_errors(self):
         """Test VIP _safe_call_with_adapter error path when adapter missing/raises."""

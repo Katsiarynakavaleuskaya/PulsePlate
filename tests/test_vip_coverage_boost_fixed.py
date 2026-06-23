@@ -181,12 +181,8 @@ class TestVIPCoverageBoostFixed:
         mock_repair_engine.auto_repair_week_plan.return_value = {"status": "success", "repairs": []}
         mock_get_auto_repair_engine.return_value = mock_repair_engine
 
-        mock_shoplist_generator = MagicMock()
-        mock_shoplist_generator.return_value.generate.return_value = {"items": []}
-
         with (
             patch("app.routers.vip.make_weekly_menu", mock_make_weekly_menu),
-            patch("app.routers.vip.ShoplistGenerator", mock_shoplist_generator),
             patch("app.routers.vip.get_available_regions", mock_get_available_regions),
             patch("app.routers.vip.get_recipe_synthesizer", mock_get_recipe_synthesizer),
             patch("app.routers.vip.get_auto_repair_engine", mock_get_auto_repair_engine),
@@ -282,13 +278,7 @@ class TestVIPCoverageBoostFixed:
         mock_make_weekly_menu = MagicMock()
         mock_make_weekly_menu.side_effect = RuntimeError("Test error")
 
-        mock_shoplist_generator = MagicMock()
-        mock_shoplist_generator.side_effect = ValueError("Test shoplist error")
-
-        with (
-            patch("app.routers.vip.make_weekly_menu", mock_make_weekly_menu),
-            patch("app.routers.vip.ShoplistGenerator", mock_shoplist_generator),
-        ):
+        with patch("app.routers.vip.make_weekly_menu", mock_make_weekly_menu):
             client = TestClient(_get_app())
 
             # Тест weekly plan error
