@@ -30,7 +30,7 @@
 - [x] Initial fixed mapping artifact created after GitHub assigned PR number
   `#2011`.
 - [x] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
@@ -100,9 +100,9 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 - PASS:
   `python -m scripts.orchestration.creative_code_contract --validate docs/orchestration/contracts/creative_code_candidate.v1.json`
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_creative_code_contract.py`
+  `python -m pytest -q tests/test_creative_code_contract.py`
 - PASS after Sourcery fix:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_creative_code_contract.py`
+  `python -m pytest -q tests/test_creative_code_contract.py`
   (`45 passed`)
 - PASS after Sourcery fix: success CLI output remains on stdout; missing-file
   failure exits 1 and writes `FAIL: Unable to read creative-code candidate
@@ -116,6 +116,9 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 - PASS: `python3 scripts/orchestration/check_experiment_runner_identity.py`
 - PASS: `pre-commit run --all-files`
 - PASS after Sourcery fix: `pre-commit run --all-files`
+- PASS after security-auditor fix:
+  `python -m pytest -q tests/test_creative_code_contract.py` (`62 passed`)
+- PASS after security-auditor fix: `pre-commit run --all-files`
 - PASS: pre-push hook during `git push`, including mypy changed files, backend
   pre-push pytest, full-repo Bandit, and docker build test.
 - PASS with caveat: `make validate-changed` exited 0 but selected no files, so
@@ -149,7 +152,17 @@ the wait-window.
     `tests/test_creative_code_contract.py` covers uppercase and whitespace
     variants.
 - `security-auditor`
-  - Status: pending post-open pass.
+  - Disposition: FIXED
+  - Commit: 9f5c8da8aaf52cd1b15597c491a571f37a706c2c
+  - Evidence: post-open security-auditor found that the PR-0 validator still
+    allowed protected governance/review/security prompt/program docs through
+    `target_surface`, plus fixed-mapping hygiene issues. The validator now
+    rejects protected governance, review, security, compliance, legal, test,
+    CI, AGENTS, and release target surfaces before reusing the shared mutable
+    candidate validator; `tests/test_creative_code_contract.py` covers the
+    prompt/program bypasses and protected CI/AGENTS/release paths. This artifact
+    also removed machine-local absolute command paths and aligned the
+    bug-hunter checklist with its recorded disposition.
 - Codex Security diff scan / finding discovery:
   - Status: pending.
 - `pulseplate-pr-review`
