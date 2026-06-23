@@ -75,6 +75,12 @@ Evidence:
 - `tests/test_install_locked_python_requirements.py` asserts no active
   `sentence-transformers` fallback and checks all RAG vector surfaces use
   `5.6.0`.
+- Enforcement tests:
+  `test_repo_sentence_transformers_emergency_fallback_is_retired_after_proxy_sync`
+  and `test_repo_transformers_emergency_fallback_is_retired_after_proxy_sync`.
+- Installer preflight evidence uses
+  `scripts/ci/install_locked_python_requirements.py --requirements-profile rag-vector`
+  against both RAG vector lockfiles.
 
 ### 3. Torch audit finding is accidentally treated as part of this PR
 

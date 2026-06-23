@@ -26,6 +26,8 @@ IDNA_DEPENDABOT_ALERT_REQUIREMENT_FILES = (
     "requirements-rag-vector.txt",
     "requirements-rag-vector-cpu.txt",
 )
+RAG_VECTOR_EXPECTED_SENTENCE_TRANSFORMERS_VERSION = "5.6.0"
+RAG_VECTOR_EXPECTED_TRANSFORMERS_VERSION = "5.12.1"
 
 
 def _repo_emergency_manifest_path() -> Path:
@@ -524,7 +526,7 @@ def test_repo_transformers_emergency_fallback_is_retired_after_proxy_sync() -> N
         assert len(requirement_versions) == 1
         observed_versions.update(requirement_versions)
 
-    assert observed_versions == {"5.12.1"}
+    assert observed_versions == {RAG_VECTOR_EXPECTED_TRANSFORMERS_VERSION}
 
 
 def test_repo_sentence_transformers_emergency_fallback_is_retired_after_proxy_sync() -> None:
@@ -552,7 +554,7 @@ def test_repo_sentence_transformers_emergency_fallback_is_retired_after_proxy_sy
         assert len(requirement_versions) == 1
         observed_versions.update(requirement_versions)
 
-    assert observed_versions == {"5.6.0"}
+    assert observed_versions == {RAG_VECTOR_EXPECTED_SENTENCE_TRANSFORMERS_VERSION}
 
 
 def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
