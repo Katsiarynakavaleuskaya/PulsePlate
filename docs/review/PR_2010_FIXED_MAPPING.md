@@ -48,18 +48,14 @@ Sourcery review-level feedback and advisory bot comments are mapped below.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2010#pullrequestreview-4550923707 -> a8c2a994b
-
 Disposition: FIXED
-
 Commit: a8c2a994b
-
 Evidence: `tests/test_install_locked_python_requirements.py` centralizes expected optional RAG/vector package versions; `docs/orchestration/RAG_VECTOR_ST_TRANSFORMERS_REFRESH_PREMORTEM_2026-06-23.md` names the exact fallback-retirement tests and locked-installer preflight command that enforce no fallback and exact-version constraints.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2010#issuecomment-4776733404
-
 Disposition: NOT-A-BUG
-
-Evidence: CodeRabbit's advisory docstring coverage warning applies to generated review heuristics, not a repo merge gate for this dependency/test/docs lane. The PR adds no production Python API or runtime callable requiring docstring coverage; the only changed Python file is `tests/test_install_locked_python_requirements.py`, where the review-requested constants at module scope centralize expected dependency versions without introducing new functions.
+Reason: CodeRabbit's advisory docstring coverage warning applies to generated review heuristics, not a repo merge gate for this dependency/test/docs lane.
+Evidence: The PR adds no production Python API or runtime callable requiring docstring coverage; the only changed Python file is `tests/test_install_locked_python_requirements.py`, where the review-requested constants at module scope centralize expected dependency versions without introducing new functions.
 
 ## Implementation Commits
 
