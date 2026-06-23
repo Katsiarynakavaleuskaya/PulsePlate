@@ -29,7 +29,7 @@
   creation.
 - [x] Initial fixed mapping artifact created after GitHub assigned PR number
   `#2011`.
-- [ ] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `qa-engineer-agent` pass completed.
 - [ ] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed.
@@ -39,7 +39,12 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 3686f7edf204edf3cd351157d661edd30c7e198c
+Evidence: `scripts/orchestration/creative_code_contract.py` sends `FAIL: ...` diagnostics to stderr while preserving success output on stdout; `tests/test_creative_code_contract.py` adds missing-file and malformed-JSON CLI error-path coverage. Focused validation passed with `45 passed`.
+Reason: Addresses Sourcery's CLI integration and missing negative-path test suggestions without widening PR-0 scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3458007457 -> 3686f7edf204edf3cd351157d661edd30c7e198c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3458007469 -> 3686f7edf204edf3cd351157d661edd30c7e198c
 
 ## Premortem Closure
 
@@ -97,6 +102,12 @@
   `python -m scripts.orchestration.creative_code_contract --validate docs/orchestration/contracts/creative_code_candidate.v1.json`
 - PASS:
   `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_creative_code_contract.py`
+- PASS after Sourcery fix:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_creative_code_contract.py`
+  (`45 passed`)
+- PASS after Sourcery fix: success CLI output remains on stdout; missing-file
+  failure exits 1 and writes `FAIL: Unable to read creative-code candidate
+  contract JSON.` to stderr.
 - PASS: adjacent focused pytest for creative research and Experiment Runner
   suites:
   `tests/test_creative_code_contract.py tests/test_creative_research_eval_contract.py tests/test_creative_research_eval.py tests/test_experiment_bootstrap.py tests/test_experiment_promote.py tests/test_experiment_pipeline.py tests/test_experiment_notify.py tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py`
@@ -105,6 +116,7 @@
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: `python3 scripts/orchestration/check_experiment_runner_identity.py`
 - PASS: `pre-commit run --all-files`
+- PASS after Sourcery fix: `pre-commit run --all-files`
 - PASS: pre-push hook during `git push`, including mypy changed files, backend
   pre-push pytest, full-repo Bandit, and docker build test.
 - PASS with caveat: `make validate-changed` exited 0 but selected no files, so
@@ -123,7 +135,11 @@ the wait-window.
 ## Post-Open Review Disposition
 
 - `qa-engineer-agent`
-  - Status: pending post-open pass.
+  - Disposition: FIXED
+  - Evidence: post-open QA found two Sourcery actionables and stale fixed
+    mapping text. Code/test fixes landed in
+    `3686f7edf204edf3cd351157d661edd30c7e198c`; this artifact now maps both
+    Sourcery threads to that commit.
 - `bug-hunter`
   - Status: pending post-open pass.
 - `security-auditor`
@@ -138,7 +154,13 @@ the wait-window.
 - CodeRabbit:
   - Status: pending post-open bot review.
 - Sourcery:
-  - Status: pending post-open bot review.
+  - Disposition: FIXED
+  - Evidence:
+    <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3458007457>
+    and
+    <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3458007469>
+    are mapped to
+    `3686f7edf204edf3cd351157d661edd30c7e198c`.
 - Cubic:
   - Status: pending post-open bot review.
 
