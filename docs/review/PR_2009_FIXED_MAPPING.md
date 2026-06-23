@@ -20,6 +20,9 @@ entitlement, AI, or FoodDB behavior changed.
   daily/weekly route owners, add strict PRO/VIP route-family collision guards,
   update generated OpenAPI/client artifacts to the canonical shoplist DTO
   contract, and document the no-softening/no-duplicate agent rule.
+- `9deaeef263bc9015086a9cf3f20f82e670556d5e` - fix changed-file mypy
+  typing for route-family dependency contract construction discovered by
+  pre-push hooks.
 
 ## Discussion Thread Pass
 
@@ -45,7 +48,8 @@ Evidence: `app/main.py:794-805` now catches only the missing VIP module case and
 Codex Security finding discovery `e6d69443-1961-434b-8bec-f948e7680e93`: paid-tier canonical bootstrap did not fail closed on pre-existing protected route collisions; live duplicate VIP shoplist daily/weekly routes also created runtime/OpenAPI split-brain.
 Disposition: FIXED
 Commit: da9c3b355ac6e4a93928022bfd14b8cd7d4a56de
-Evidence: `app/routers/vip.py:62-123` now has no legacy `core.shoplist` shadow owner and only includes canonical `vip_shoplist_router`; `app/routers/vip_shoplist.py:405-460` owns daily/weekly shoplist routes with stable operation IDs and typed DTO contracts; `app/bootstrap/route_family.py:88-126`, `app/routers/vip_registration.py:122-135`, and `app/routers/pro_registration.py:43-154` fail closed on duplicate source routes, foreign existing handlers, missing dependencies, and missing/empty route owners; `tests/test_pro_vip_route_dependency_guard.py:47-62` asserts no duplicate canonical PRO/VIP method/path entries; `tests/test_main_paywall_bootstrap.py:86-107` and `tests/test_main_paywall_bootstrap.py:957-994` cover duplicate source and foreign paid-tier route collisions.
+Follow-up Commit: 9deaeef263bc9015086a9cf3f20f82e670556d5e
+Evidence: `app/routers/vip.py:62-123` now has no legacy `core.shoplist` shadow owner and only includes canonical `vip_shoplist_router`; `app/routers/vip_shoplist.py:405-460` owns daily/weekly shoplist routes with stable operation IDs and typed DTO contracts; `app/bootstrap/route_family.py:88-126`, `app/routers/vip_registration.py:122-135`, and `app/routers/pro_registration.py:43-154` fail closed on duplicate source routes, foreign existing handlers, missing dependencies, and missing/empty route owners; `tests/test_pro_vip_route_dependency_guard.py:47-62` asserts no duplicate canonical PRO/VIP method/path entries; `tests/test_main_paywall_bootstrap.py:86-107` and `tests/test_main_paywall_bootstrap.py:957-994` cover duplicate source and foreign paid-tier route collisions. `9deaeef263bc9015086a9cf3f20f82e670556d5e` keeps that route-family dependency contract mypy-clean.
 
 Operator PR-surface rule clarification: duplicate routes and surfaced PR errors must be fixed in the current PR; production invariants must not be softened for placeholders.
 Disposition: FIXED
@@ -110,6 +114,11 @@ Evidence: `AGENTS.md:57-73`, `app/AGENTS.md:278-289`, and `docs/ENGINEERING_LESS
   `tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py`
 - `pre-commit run --all-files` - PASS after Black formatted
   `tests/test_pro_registration_router_coverage.py` and the hook was rerun.
+- Changed-file mypy pre-push check initially failed on
+  `app/bootstrap/route_family.py:101`; commit
+  `9deaeef263bc9015086a9cf3f20f82e670556d5e` fixed the type root cause, and
+  `mypy app/bootstrap/route_family.py app/routers/pro_registration.py app/routers/vip_registration.py app/routers/vip.py app/routers/vip_shoplist.py --no-incremental --cache-dir=/dev/null`
+  passed.
 - `git diff --check` - PASS
 - Post-review-fix validation:
   `python -m py_compile app/main.py tests/test_main_paywall_bootstrap.py` -
