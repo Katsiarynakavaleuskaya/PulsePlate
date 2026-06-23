@@ -27,6 +27,9 @@ entitlement, AI, or FoodDB behavior changed.
   Safety CLI failures without weakening fail-closed vulnerability handling.
 - `b910fcf7d8de84a4d56b35b5961d2f09821ea5f3` - cover paid-tier bootstrap
   guard branches that current-head CI `diff-coverage` identified as missing.
+- `e075967babe1e5d750feb8e23a326524893370bf` - fix latest CodeRabbit
+  fail-closed VIP router ownership and remove forbidden test import/module
+  monkeypatch patterns.
 
 ## Discussion Thread Pass
 
@@ -51,6 +54,31 @@ Evidence: `app/main.py:794-805` now catches only the missing VIP module case and
 Disposition: NOT-A-BUG
 Evidence: The CodeRabbit review object was the post-push review wrapper/rate-limit walkthrough for commits through `635086017a3e1f9efe77ad871b3d5d7a8444aa29`; its earlier actionable inline architecture-map finding is separately mapped to `1e17831a1bf156484d6e4773b2df94f7654aed6c` above, and `gh pr checks 2009 --watch=false` reported `CodeRabbit` as `pass` for the same head.
 Reason: No additional code-actionable finding remained in that review object after the mapped CodeRabbit inline item was fixed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2009#discussion_r3459653174 -> e075967babe1e5d750feb8e23a326524893370bf
+Disposition: FIXED
+Commit: e075967babe1e5d750feb8e23a326524893370bf
+Evidence: `app/routers/vip_registration.py:126-139` now requires the main VIP router to be a non-empty `APIRouter` before route-family registration; `tests/test_main_paywall_bootstrap.py:1065-1079` covers the empty canonical VIP router fail-closed path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2009#pullrequestreview-4553143924 -> e075967babe1e5d750feb8e23a326524893370bf
+Disposition: FIXED
+Commit: e075967babe1e5d750feb8e23a326524893370bf
+Evidence: The CodeRabbit review wrapper's actionable VIP fail-closed inline finding is mapped above to the same commit and evidence: `app/routers/vip_registration.py:126-139` plus `tests/test_main_paywall_bootstrap.py:1065-1079`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2009#discussion_r3460000090 -> e075967babe1e5d750feb8e23a326524893370bf
+Disposition: FIXED
+Commit: e075967babe1e5d750feb8e23a326524893370bf
+Evidence: `tests/test_main_paywall_bootstrap.py:1-18` no longer imports `sys` or `types`, and the prior `sys.modules` helper was removed; `tests/test_main_paywall_bootstrap.py:1050-1054` patches the real `app.routers.pro.router` symbol instead of installing a synthetic module.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2009#discussion_r3460000095 -> e075967babe1e5d750feb8e23a326524893370bf
+Disposition: FIXED
+Commit: e075967babe1e5d750feb8e23a326524893370bf
+Evidence: `app/main.py:794-810` exposes the narrow `_import_vip_module_for_compat()` seam used by the resolver; `tests/test_main_paywall_bootstrap.py:873-909` now patches that seam directly and no longer monkeypatches `builtins.__import__`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2009#pullrequestreview-4553587463 -> e075967babe1e5d750feb8e23a326524893370bf
+Disposition: FIXED
+Commit: e075967babe1e5d750feb8e23a326524893370bf
+Evidence: The CodeRabbit review wrapper's two actionable test-isolation inline findings are mapped above to the same commit and evidence: `tests/test_main_paywall_bootstrap.py:1-18`, `tests/test_main_paywall_bootstrap.py:873-909`, and `tests/test_main_paywall_bootstrap.py:1050-1054`.
 
 ## Additional Fixed Findings
 
@@ -187,6 +215,12 @@ Reason: The diff is intentionally larger because the operator required removing 
   `b910fcf7d8de84a4d56b35b5961d2f09821ea5f3`.
 - Pre-push hooks - PASS: changed-file mypy where applicable, pip-audit,
   backend tests, full Bandit, docker build test.
+- Latest CodeRabbit review-fix validation after commit
+  `e075967babe1e5d750feb8e23a326524893370bf`:
+  `python -m py_compile app/main.py app/routers/vip_registration.py tests/test_main_paywall_bootstrap.py`
+  - PASS; `pytest -q tests/test_main_paywall_bootstrap.py tests/test_pro_vip_route_dependency_guard.py tests/test_vip_guard_consistency.py`
+  - PASS; `make validate-changed` - PASS; `pre-commit run --all-files` -
+  PASS; `git diff --check` - PASS.
 
 Full local `make verify` was intentionally not run per operator machine-budget
 constraint for this narrow lane. This PR is not merge-ready until focused local
