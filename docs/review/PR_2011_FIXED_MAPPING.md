@@ -46,6 +46,20 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3458007457 -> 3686f7edf204edf3cd351157d661edd30c7e198c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3458007469 -> 3686f7edf204edf3cd351157d661edd30c7e198c
 
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
+states that PR-0 target surfaces reuse `validate_mutable_candidate_surface(...)`
+and then reject protected governance, review, security, compliance, legal,
+test, CI, AGENTS, and release surfaces; `tests/test_creative_code_contract.py`
+proves that `docs/orchestration/prompts/candidate.md`,
+`docs/review/foo/program.md`, and `docs/security/program.md` are intentionally
+rejected.
+Reason: CodeRabbit's suggestion to allow protected prompt/program docs would
+reopen the security-auditor finding fixed in this PR. PR-0 is a closed
+authority contract, not a future implementation lane for protected governance
+or review docs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3459399259
+
 ## Premortem Closure
 
 - Skill: `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md`
