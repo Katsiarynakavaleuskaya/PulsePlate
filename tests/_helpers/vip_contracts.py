@@ -1,0 +1,13 @@
+"""Shared VIP response contract assertions for tests."""
+
+from __future__ import annotations
+
+from typing import Any, Mapping
+
+
+def assert_vip_shoplist_formats_contract(payload: Mapping[str, Any]) -> None:
+    """Assert the static VIP shoplist formats response contract."""
+
+    assert payload["status"] == "success"
+    assert payload["formats"] == ["json", "csv", "text"]
+    assert payload["locales"] == ["ru", "en", "es"]

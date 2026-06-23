@@ -42,7 +42,7 @@ class TestVIPCoverageClean:
             "round_to_packages",
             "format_export",
         }
-        assert not any(hasattr(vip, alias) for alias in legacy_shoplist_aliases)
+        assert not legacy_shoplist_aliases & set(dir(vip))
 
     def test_vip_safe_call_with_adapter_error(self) -> None:
         """Test VIP _safe_call_with_adapter structured error when adapter missing."""

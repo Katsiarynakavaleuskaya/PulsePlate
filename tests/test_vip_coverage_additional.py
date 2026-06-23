@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 from app.middleware import api_tiers
+from tests._helpers.vip_contracts import assert_vip_shoplist_formats_contract
 
 
 @pytest.fixture(autouse=True)
@@ -398,7 +399,4 @@ class TestVIPCoverageAdditional:
 
         response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
         assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert data["formats"] == ["json", "csv", "text"]
-        assert data["locales"] == ["ru", "en", "es"]
+        assert_vip_shoplist_formats_contract(response.json())
