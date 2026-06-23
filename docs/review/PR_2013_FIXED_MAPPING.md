@@ -16,20 +16,36 @@ entitlements, frontend, or iOS surfaces.
   tests and patches for deleted `app.routers.vip` shoplist/export aliases,
   replace duplicate fallback coverage with a negative alias-absence guard, and
   assert the real `/api/v1/vip/shoplist/formats` contract.
+- `5b490696cc4ead4d408359b90d4471d7b47602ad` - address Sourcery review by
+  using set intersection for the legacy-alias absence guard and centralizing
+  the VIP shoplist formats response assertion in a shared test helper.
 
 ## Discussion Thread Pass
 
 - [x] Initial PR open: no human review threads existed at artifact creation.
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2013`.
-- [ ] Post-open bot/human review comments are fixed or dispositioned before
-  merge readiness.
+- [x] Initial Sourcery review comments fixed and mapped.
+- [ ] Later post-open bot/human review comments are fixed or dispositioned
+  before merge readiness.
 - [ ] Current-head CI is complete before merge readiness.
 - [ ] Strict merge-readiness check runs after the final review/check cycle.
 
 ## Fixed in Commit Mapping
 
-No review-thread URLs existed when this initial artifact was created.
+Initial artifact creation had no review-thread URLs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#pullrequestreview-4556631754 -> 5b490696cc4ead4d408359b90d4471d7b47602ad
+Disposition: FIXED
+Commit: `5b490696cc4ead4d408359b90d4471d7b47602ad`
+Evidence: `tests/test_vip_coverage_clean.py` now checks legacy VIP shoplist
+alias absence with `legacy_shoplist_aliases & set(dir(vip))`; new helper
+`tests/_helpers/vip_contracts.py` centralizes the static VIP shoplist formats
+contract; `tests/test_vip_coverage_simple.py` and
+`tests/test_vip_coverage_additional.py` call the helper instead of duplicating
+the `formats` / `locales` literals. Focused validation passed:
+`pytest -q tests/test_vip_coverage_clean.py tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`
+and the full stale-VIP cleanup bundle passed.
 
 Post-open review comments must be added here with disposition-specific proof
 before they are resolved:
