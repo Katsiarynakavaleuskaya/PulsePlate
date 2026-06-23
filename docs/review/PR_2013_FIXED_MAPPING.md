@@ -125,8 +125,8 @@ Commit: `603e8381af9b65f77e0474c5cbc84ff637dae537`
 Evidence:
 
 - `docs/review/PR_2013_FIXED_MAPPING.md` now uses the repo Python resolver form
-  instead of `/Users/...` paths for local validation evidence.
-- `rg -n "/Users/katsiaryna_kavaleuskaya|Developer/BMI-App_2025_clean" docs/review/PR_2013_FIXED_MAPPING.md docs/security/CVE-2026-54297-faraday-fastlane.md tests/test_trivy_ignore_policy_expiry.py trivy/ignore-policy.rego`
+  instead of machine-local paths for local validation evidence.
+- A direct local-path leak scan of the touched mapping/security/test/policy files
   returned no matches after cleanup.
 
 ## Governance Evidence
