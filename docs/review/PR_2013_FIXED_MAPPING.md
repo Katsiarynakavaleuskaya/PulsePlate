@@ -21,7 +21,7 @@ entitlements, frontend, or iOS surfaces.
   the VIP shoplist formats response assertion in a shared test helper.
 - `1c036e13a604ba26289c4999e2dc07b55037102d` - repair the canonical fixed
   mapping artifact shape so Phase2 parsers accept the PR closeout evidence.
-- `7d9174698d07e7c6f23559721139fbf1a57ad81d` - address CodeRabbit JSON
+- `7d91746984a76637ac9a425b0878223a4c2ae8f9` - address CodeRabbit JSON
   response parsing comments by asserting `Content-Type` before `response.json()`
   in changed VIP coverage tests.
 - `6524080fd62e9531b91cd79383618f40d26742f2` - refresh the existing Faraday
@@ -50,13 +50,13 @@ entitlements, frontend, or iOS surfaces.
 Disposition: FIXED
 Commit: 5b490696cc4ead4d408359b90d4471d7b47602ad
 Evidence: `tests/test_vip_coverage_clean.py` now checks legacy VIP shoplist alias absence with `legacy_shoplist_aliases & set(dir(vip))`; `tests/_helpers/vip_contracts.py` centralizes the static VIP shoplist formats contract; `tests/test_vip_coverage_simple.py` and `tests/test_vip_coverage_additional.py` call the helper instead of duplicating the `formats` / `locales` literals. Focused validation passed: `pytest -q tests/test_vip_coverage_clean.py tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`; the full stale-VIP cleanup bundle passed.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3462576094 -> 7d9174698d07e7c6f23559721139fbf1a57ad81d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3462576094 -> 7d91746984a76637ac9a425b0878223a4c2ae8f9
 Disposition: FIXED
-Commit: 7d9174698d07e7c6f23559721139fbf1a57ad81d
+Commit: 7d91746984a76637ac9a425b0878223a4c2ae8f9
 Evidence: `tests/test_vip_coverage_additional.py` now parses responses through `assert_json_response_payload(...)` or `assert_vip_shoplist_formats_response(...)`; `tests/_helpers/vip_contracts.py` asserts `Content-Type` starts with `application/json` before calling `response.json()`. Focused validation passed: `pytest -q tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3462576102 -> 7d9174698d07e7c6f23559721139fbf1a57ad81d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3462576102 -> 7d91746984a76637ac9a425b0878223a4c2ae8f9
 Disposition: FIXED
-Commit: 7d9174698d07e7c6f23559721139fbf1a57ad81d
+Commit: 7d91746984a76637ac9a425b0878223a4c2ae8f9
 Evidence: `tests/test_vip_coverage_simple.py` now parses responses through `assert_json_response_payload(...)` or `assert_vip_shoplist_formats_response(...)`; `tests/_helpers/vip_contracts.py` asserts `Content-Type` starts with `application/json` before calling `response.json()`. Focused validation passed: `pytest -q tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#pullrequestreview-4557050411 -> b97bed8f9aa8a3ec2171be99ba4d808953ae4eb5
 Disposition: FIXED
