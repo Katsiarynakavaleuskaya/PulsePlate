@@ -116,18 +116,18 @@ Evidence:
   `python3 scripts/orchestration/check_preflight.py --mode analyze --path ...`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_vip_coverage_clean.py tests/test_vip_coverage_fixed.py tests/test_vip_coverage_comprehensive.py tests/test_vip_coverage_precise.py tests/test_vip_coverage_simple.py tests/test_vip_coverage_boost_fixed.py tests/test_vip_simple_working.py tests/test_vip_coverage_additional.py tests/test_vip_coverage_boost.py tests/test_coverage_final_push.py`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_vip_coverage_clean.py tests/test_vip_coverage_fixed.py tests/test_vip_coverage_comprehensive.py tests/test_vip_coverage_precise.py tests/test_vip_coverage_simple.py tests/test_vip_coverage_boost_fixed.py tests/test_vip_simple_working.py tests/test_vip_coverage_additional.py tests/test_vip_coverage_boost.py tests/test_coverage_final_push.py`
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_main_paywall_bootstrap.py tests/test_pro_vip_route_dependency_guard.py tests/test_vip_shoplist_daily.py tests/test_vip_shoplist_weekly.py tests/test_vip_shoplist_generate_api.py tests/test_vip_shoplist_invalid_enum_422.py tests/test_vip_shoplist_router_hardening.py tests/test_vip_guard_consistency.py tests/test_pro_registration_router_coverage.py tests/edges/test_vip_auth_edges.py tests/test_repo_policy_sys_modules.py tests/test_repo_policy_guards.py`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_paywall_bootstrap.py tests/test_pro_vip_route_dependency_guard.py tests/test_vip_shoplist_daily.py tests/test_vip_shoplist_weekly.py tests/test_vip_shoplist_generate_api.py tests/test_vip_shoplist_invalid_enum_422.py tests/test_vip_shoplist_router_hardening.py tests/test_vip_guard_consistency.py tests/test_pro_registration_router_coverage.py tests/edges/test_vip_auth_edges.py tests/test_repo_policy_sys_modules.py tests/test_repo_policy_guards.py`
 - PASS:
-  `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" make openapi-check`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; PATH="$(dirname "$VENV_PYTHON"):$PATH" make openapi-check`
 - PASS:
   `git diff --exit-code -- app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts`
 - PASS:
-  `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" make validate-changed`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; PATH="$(dirname "$VENV_PYTHON"):$PATH" make validate-changed`
   after commit; selected all changed VIP test files.
 - PASS:
-  `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" pre-commit run --all-files`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; PATH="$(dirname "$VENV_PYTHON"):$PATH" pre-commit run --all-files`
 - PASS: pre-push hooks during `git push`, including pip-audit, backend
   pre-push pytest, and full-repo Bandit.
 - PASS: `git diff --check && git diff --check origin/main...HEAD`
