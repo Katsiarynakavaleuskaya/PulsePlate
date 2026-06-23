@@ -124,6 +124,22 @@ def test_source_must_be_promoted_creative_research() -> None:
         validate_creative_code_candidate_packet(packet)
 
 
+@pytest.mark.parametrize("promotion_decision", ["PROMOTE", "Promote", " promote "])
+def test_source_promotion_decision_must_match_schema_exactly(
+    promotion_decision: str,
+) -> None:
+    packet = _valid_packet()
+    source = packet["source_creative_research"]
+    assert isinstance(source, dict)
+    source["promotion_decision"] = promotion_decision
+
+    with pytest.raises(
+        CreativeCodeContractError,
+        match="source_creative_research.promotion_decision must equal 'promote'",
+    ):
+        validate_creative_code_candidate_packet(packet)
+
+
 @pytest.mark.parametrize("variant_count", [3, 4, 5])
 def test_variant_count_accepts_only_three_to_five(variant_count: int) -> None:
     packet = _valid_packet()

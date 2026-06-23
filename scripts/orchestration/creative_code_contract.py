@@ -290,6 +290,15 @@ def _validate_source(raw_source: Any) -> dict[str, str]:
         SOURCE_KEYS,
         label="CreativeCodeCandidatePacket.source_creative_research",
     )
+    raw_promotion_decision = raw_source.get("promotion_decision")
+    if not isinstance(raw_promotion_decision, str):
+        raise CreativeCodeContractError(
+            "CreativeCodeCandidatePacket.source_creative_research.promotion_decision must be a string."
+        )
+    if raw_promotion_decision != "promote":
+        raise CreativeCodeContractError(
+            "source_creative_research.promotion_decision must equal 'promote'."
+        )
     source = {
         "bundle_id": _require_id(
             raw_source,
@@ -301,11 +310,7 @@ def _validate_source(raw_source: Any) -> dict[str, str]:
             "candidate_id",
             label="CreativeCodeCandidatePacket.source_creative_research",
         ),
-        "promotion_decision": _require_non_empty_string(
-            raw_source,
-            "promotion_decision",
-            label="CreativeCodeCandidatePacket.source_creative_research",
-        ).lower(),
+        "promotion_decision": raw_promotion_decision,
         "fingerprint": _require_non_empty_string(
             raw_source,
             "fingerprint",
