@@ -29,6 +29,9 @@ entitlements, frontend, or iOS surfaces.
   preserving exact package/CVE scoping and existing backlog tracking.
 - `603e8381af9b65f77e0474c5cbc84ff637dae537` - remove machine-local absolute
   paths from PR #2013 review evidence after post-open QA review.
+- `5b70da19c8c1f74e0d562f8a79325a349c2ad8db` - remove the stale Faraday
+  `FixedVersion == "2.14.3"` assertion from the Trivy policy guard test while
+  keeping the current Trivy `>= 2.14.3` assertion.
 
 ## Discussion Thread Pass
 
@@ -50,6 +53,10 @@ entitlements, frontend, or iOS surfaces.
 Disposition: FIXED
 Commit: 5b490696cc4ead4d408359b90d4471d7b47602ad
 Evidence: `tests/test_vip_coverage_clean.py` now checks legacy VIP shoplist alias absence with `legacy_shoplist_aliases & set(dir(vip))`; `tests/_helpers/vip_contracts.py` centralizes the static VIP shoplist formats contract; `tests/test_vip_coverage_simple.py` and `tests/test_vip_coverage_additional.py` call the helper instead of duplicating the `formats` / `locales` literals. Focused validation passed: `pytest -q tests/test_vip_coverage_clean.py tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`; the full stale-VIP cleanup bundle passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#pullrequestreview-4556687766 -> 7d91746984a76637ac9a425b0878223a4c2ae8f9
+Disposition: FIXED
+Commit: 7d91746984a76637ac9a425b0878223a4c2ae8f9
+Evidence: `tests/test_vip_coverage_additional.py` and `tests/test_vip_coverage_simple.py` now parse `/api/v1/vip/shoplist/formats` through helpers that assert an `application/json` response before calling `response.json()`. The same CodeRabbit review also included a documentation nitpick, fixed by `95cf19be260975677a786f07a395b03c5e9dd8be`. Focused validation passed: `pytest -q tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3462576094 -> 7d91746984a76637ac9a425b0878223a4c2ae8f9
 Disposition: FIXED
 Commit: 7d91746984a76637ac9a425b0878223a4c2ae8f9
@@ -66,6 +73,14 @@ Evidence: `tests/test_trivy_ignore_policy_expiry.py` now scopes Faraday CVE-2026
 Disposition: FIXED
 Commit: b97bed8f9aa8a3ec2171be99ba4d808953ae4eb5
 Evidence: `docs/review/PR_2013_FIXED_MAPPING.md` keeps only the two artifact-level checkboxes checked and leaves later review/merge-cycle checklist items unchecked until final merge readiness.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#pullrequestreview-4557195306 -> 5b70da19c8c1f74e0d562f8a79325a349c2ad8db
+Disposition: FIXED
+Commit: 5b70da19c8c1f74e0d562f8a79325a349c2ad8db
+Evidence: `tests/test_trivy_ignore_policy_expiry.py` no longer asserts the stale Faraday `FixedVersion == "2.14.3"` literal in the current PR diff and keeps the active `FixedVersion == ">= 2.14.3"` expectation. Focused validation passed: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`; `pytest -q tests/test_trivy_ignore_policy_expiry.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3463019921 -> 5b70da19c8c1f74e0d562f8a79325a349c2ad8db
+Disposition: FIXED
+Commit: 5b70da19c8c1f74e0d562f8a79325a349c2ad8db
+Evidence: `tests/test_trivy_ignore_policy_expiry.py` no longer asserts the stale Faraday `FixedVersion == "2.14.3"` literal in the current PR diff and keeps the active `FixedVersion == ">= 2.14.3"` expectation. Focused validation passed: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`; `pytest -q tests/test_trivy_ignore_policy_expiry.py`.
 
 ## Additional Fixed Findings
 
