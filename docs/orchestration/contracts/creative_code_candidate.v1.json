@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "packet_type": "creative_code_candidate",
+  "candidate_id": "creative-code-pr0-reference",
+  "idempotency_key": "creative-code-pr0-reference-v1",
+  "policy_version": "creative-code-authority-pr0",
+  "gate_status": "closed",
+  "authority_class": "code-specification",
+  "source_creative_research": {
+    "bundle_id": "creative-research-reference-bundle",
+    "candidate_id": "creative-research-reference-candidate",
+    "promotion_decision": "promote",
+    "fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "evidence_ref": "docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md"
+  },
+  "variant_count": 3,
+  "sandbox_required": true,
+  "human_review_required": true,
+  "fallback": "Discard the creative-code candidate and keep the promoted research output as documentation-only input.",
+  "target_surface": [
+    "core/rag/orchestration.py"
+  ],
+  "immutable_oracles": [
+    "tests/test_creative_code_contract.py",
+    "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md"
+  ],
+  "authority": {
+    "generate_specifications": true,
+    "generate_candidate_patch": false,
+    "write_repository": false,
+    "write_shared_worktree": false,
+    "create_branch": false,
+    "push_branch": false,
+    "open_pull_request": false,
+    "open_draft_pr": false,
+    "mark_ready_for_review": false,
+    "resolve_review_threads": false,
+    "merge": false,
+    "release": false,
+    "call_models": false,
+    "call_network": false,
+    "read_secrets": false,
+    "modify_openapi_or_clients": false,
+    "use_semantic_cache": false,
+    "public_multi_tenant_use": false,
+    "slack_github_authority_expansion": false
+  },
+  "scientific_claim_status": "hypothesis_only",
+  "evidence_bundle": {
+    "artifact_refs": [
+      "docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md"
+    ],
+    "required_tests": [
+      "tests/test_creative_code_contract.py"
+    ],
+    "negative_controls": [
+      "non_promoted_source_rejected",
+      "repository_write_authority_rejected"
+    ]
+  },
+  "future_telemetry_contract": {
+    "emit_no_earlier_than": "PR-1",
+    "minimum_fields": [
+      "packet_id",
+      "source_candidate_id",
+      "variant_count",
+      "generation_status",
+      "oracle_status",
+      "failure_class",
+      "human_decision",
+      "cost_metadata_available"
+    ]
+  }
+}

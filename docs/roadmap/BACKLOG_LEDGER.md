@@ -848,7 +848,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: `PR-TBD` (follow-up after main Docker/CD proxy unblock)
   - Status: Active as of `16 June 2026`; PR-TBD hotfix rotates `cryptography` and `python-multipart` fallback artifacts after Safety `SFTY-20260615-*` findings.
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the runtime-effective emergency wheel fallback set still covers multiple active bootstrap/runtime dependency surfaces (including `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `requests 2.33.0`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `mypy 2.1.0`, `types-pyyaml 6.0.12.20260408`, and `sentence-transformers 5.5.1`). `PR #1378`, `PR #1418`, the main Docker/CD proxy unblock, the main CI protobuf/wrapt mirror-lag hotfix, the approved RAG/vector dependency consolidation, and the June 2026 Safety hotfix extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every runtime-effective fallback entry natively. `transformers` was retired from the emergency fallback set after the approved private proxy served `transformers==5.12.0`. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и runtime-effective emergency wheel fallback set всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces, включая `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `requests 2.33.0`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `mypy 2.1.0`, `types-pyyaml 6.0.12.20260408` и `sentence-transformers 5.5.1`. Удалять manifest можно только после того, как одобренное приватное зеркало начнёт отдавать всё ещё активные fallback-entry нативно. `transformers` удалён из emergency fallback set после подтверждения, что одобренное приватное зеркало отдаёт `transformers==5.12.0`.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the runtime-effective emergency wheel fallback set still covers multiple active bootstrap/runtime dependency surfaces (including `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `requests 2.33.0`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `mypy 2.1.0`, and `types-pyyaml 6.0.12.20260408`). `PR #1378`, `PR #1418`, the main Docker/CD proxy unblock, the main CI protobuf/wrapt mirror-lag hotfix, the approved RAG/vector dependency consolidation, and the June 2026 Safety hotfix extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every runtime-effective fallback entry natively. `transformers` was retired from the emergency fallback set after the approved private proxy served `transformers==5.12.0`; `sentence-transformers` was retired after the approved private proxy served `sentence-transformers==5.6.0`. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и runtime-effective emergency wheel fallback set всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces, включая `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `requests 2.33.0`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `mypy 2.1.0` и `types-pyyaml 6.0.12.20260408`. Удалять manifest можно только после того, как одобренное приватное зеркало начнёт отдавать всё ещё активные fallback-entry нативно. `transformers` удалён из emergency fallback set после подтверждения, что одобренное приватное зеркало отдаёт `transformers==5.12.0`; `sentence-transformers` удалён после подтверждения, что одобренное приватное зеркало отдаёт `sentence-transformers==5.6.0`.)
   - Links:
     - `docs/security/SFTY-20260615-python-runtime-floors.md:1`
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
@@ -865,7 +865,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `certifi 2026.1.4`, `requests 2.33.0`, `protobuf 6.33.5`, `wrapt 2.0.1`,
       `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `faker 40.15.0`,
       `hypothesis 6.152.4`, `mypy 2.1.0`, `ruff 0.15.13`,
-      `sentence-transformers 5.5.1`, and `types-pyyaml 6.0.12.20260408`.
+      and `types-pyyaml 6.0.12.20260408`.
+    - `sentence-transformers 5.5.1` was removed from the emergency manifest
+      after the approved private proxy served `sentence-transformers==5.6.0`.
     - Installer/bootstrap fallback logic is implemented in
       `scripts/ci/install_locked_python_requirements.py:275-359`
       (manifest load/validation), `scripts/ci/install_locked_python_requirements.py:401-420`
@@ -10895,6 +10897,46 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-B adds offline eval harness, deterministic judge contracts, negative controls, and no runtime integration
     - PR-C remains internal-only, feature-flagged, hidden from public OpenAPI, and introduces no new heavy LLM endpoint on the core path
     - The lane preserves no hidden memory, no autonomous merge, no immutable-oracle mutation, and quota-before-call for any future provider-backed pilot
+
+<a id="ledger-p1-governed-creative-code-execution-lane"></a>
+- [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (research-to-implementation leverage with closed authority)
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 -> PR-2 -> PR-3 -> PR-4 -> PR-5 -> PR-6
+  - Status: PR-0 planned/active as a repo-only closed authority contract; PR-1 through PR-6 remain gated future work
+  - Dependencies:
+    - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
+    - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+  - Reason (EN): Promoted `creative_research` output needs a typed, auditable path into future implementation candidates without turning research artifacts into runtime truth, repository-write authority, Slack/GitHub App authority, or merge-readiness evidence. PR-0 keeps the gate closed and defines the authority boundary before any patch generation is considered.
+  - Links:
+    - `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
+    - `docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md`
+    - `docs/orchestration/contracts/creative_code_candidate.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_candidate.v1.json`
+    - `scripts/orchestration/creative_code_contract.py`
+    - `tests/test_creative_code_contract.py`
+  - PR train:
+    - PR-0: closed authority contract, schema, reference packet, validator, and tests; no model calls, patches, workflows, Slack/GitHub settings, or `experiment_runner.py` changes.
+    - PR-1: emit implementation specifications from promoted creative research; no candidate patches.
+    - PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces.
+    - PR-3: allow human-approved draft PR promotion under a separate operator exception.
+    - PR-4: add candidate evaluation telemetry and rejection taxonomy.
+    - PR-5: add review-disposition integration without review-thread resolution authority.
+    - PR-6: run the first governed applied creative-code candidate through normal PR governance.
+  - Minimum future telemetry fields (defined now, emitted no earlier than PR-1):
+    - `packet_id`
+    - `source_candidate_id`
+    - `variant_count`
+    - `generation_status`
+    - `oracle_status`
+    - `failure_class`
+    - `human_decision`
+    - `cost_metadata_available`
+  - DoD:
+    - PR-0 keeps `gate_status=closed` and all repository-write/promotion authority flags false
+    - Creative-code packets require promoted `creative_research` provenance, sandboxing, human review, fallback, repo-relative paths, and disjoint mutable/oracle surfaces
+    - Future PRs cannot emit telemetry, generate patches, open PRs, or expand Slack/GitHub authority until their separate gates land
+    - No PR in the train treats creative-code output as canonical product truth, scientific verified discovery, merge-readiness evidence, or review-thread disposition authority
 
 <a id="ledger-p2-creative-research-domain-typing"></a>
 - [x] P2: Tighten creative research core domain typing

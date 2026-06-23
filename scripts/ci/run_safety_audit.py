@@ -40,7 +40,7 @@ SAFETY_TRANSIENT_ERROR_MARKERS = (
     "Sorry, something went wrong.",
     "Our engineers are working quickly to resolve the issue.",
 )
-SAFETY_REPORTLESS_TRANSIENT_ERROR_MARKERS = (
+SAFETY_MISSING_REPORT_TRANSIENT_ERROR_MARKERS = (
     *SAFETY_TRANSIENT_ERROR_MARKERS,
     "Unhandled exception happened:",
 )
@@ -680,16 +680,6 @@ def _should_retry_transient_safety_failure(
     return _has_safety_transient_marker(completed, SAFETY_TRANSIENT_ERROR_MARKERS)
 
 
-def _should_retry_reportless_transient_safety_failure(
-    completed: subprocess.CompletedProcess[str],
-) -> bool:
-    """Return whether Safety failed before report generation in a retryable shape."""
-
-    if completed.returncode == 0:
-        return False
-    return _has_safety_transient_marker(completed, SAFETY_REPORTLESS_TRANSIENT_ERROR_MARKERS)
-
-
 def _record_transient_retry(
     *,
     attempt_log_chunks: list[str],
@@ -704,6 +694,16 @@ def _record_transient_retry(
     attempt_log_chunks.append(retry_line)
     console_log.write_text("".join(attempt_log_chunks), encoding="utf-8")
     print(retry_line, end="")
+
+
+def _should_retry_missing_report_safety_failure(
+    completed: subprocess.CompletedProcess[str],
+) -> bool:
+    """Return whether a missing-report Safety crash should be retried."""
+
+    if completed.returncode == 0:
+        return False
+    return _has_safety_transient_marker(completed, SAFETY_MISSING_REPORT_TRANSIENT_ERROR_MARKERS)
 
 
 def run_safety_for_manifest(
@@ -765,7 +765,7 @@ def run_safety_for_manifest(
         if not report_json.is_file() or report_json.stat().st_size == 0:
             if (
                 attempt < SAFETY_TRANSIENT_RETRY_ATTEMPTS
-                and _should_retry_reportless_transient_safety_failure(completed)
+                and _should_retry_missing_report_safety_failure(completed)
             ):
                 _record_transient_retry(
                     attempt_log_chunks=attempt_log_chunks,
