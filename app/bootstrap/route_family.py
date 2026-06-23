@@ -97,12 +97,11 @@ def route_member_contracts_from_router(
         if not isinstance(route, APIRoute):
             raise RuntimeError(f"{family_name} router does not define the expected route family.")
 
-        route_dependencies = tuple(
-            call
-            for call in _iter_dependency_calls(getattr(route.dependant, "dependencies", None))
-            if callable(call)
-        )
-        required_dependencies = tuple(extra_required_dependencies) + route_dependencies
+        route_dependencies: list[Callable[..., object]] = []
+        for call in _iter_dependency_calls(getattr(route.dependant, "dependencies", None)):
+            if callable(call):
+                route_dependencies.append(call)
+        required_dependencies = tuple(extra_required_dependencies) + tuple(route_dependencies)
         methods = _route_methods(route) - _FRAMEWORK_METHODS
         if not methods:
             raise RuntimeError(f"{family_name} router does not define the expected route family.")
