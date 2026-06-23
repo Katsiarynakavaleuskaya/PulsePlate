@@ -29,7 +29,7 @@ entitlements, frontend, or iOS surfaces.
   preserving exact package/CVE scoping and existing backlog tracking.
 - `603e8381af9b65f77e0474c5cbc84ff637dae537` - remove machine-local absolute
   paths from PR #2013 review evidence after post-open QA review.
-- `5b70da19c8c1f74e0d562f8a79325a349c2ad8db` - remove the stale Faraday
+- `5b70da19c9685f505b57ee1f39913a337ab5c3e0` - remove the stale Faraday
   `FixedVersion == "2.14.3"` assertion from the Trivy policy guard test while
   keeping the current Trivy `>= 2.14.3` assertion.
 
@@ -73,13 +73,13 @@ Evidence: `tests/test_trivy_ignore_policy_expiry.py` now scopes Faraday CVE-2026
 Disposition: FIXED
 Commit: b97bed8f9aa8a3ec2171be99ba4d808953ae4eb5
 Evidence: `docs/review/PR_2013_FIXED_MAPPING.md` keeps only the two artifact-level checkboxes checked and leaves later review/merge-cycle checklist items unchecked until final merge readiness.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#pullrequestreview-4557195306 -> 5b70da19c8c1f74e0d562f8a79325a349c2ad8db
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#pullrequestreview-4557195306 -> 5b70da19c9685f505b57ee1f39913a337ab5c3e0
 Disposition: FIXED
-Commit: 5b70da19c8c1f74e0d562f8a79325a349c2ad8db
+Commit: 5b70da19c9685f505b57ee1f39913a337ab5c3e0
 Evidence: `tests/test_trivy_ignore_policy_expiry.py` no longer asserts the stale Faraday `FixedVersion == "2.14.3"` literal in the current PR diff and keeps the active `FixedVersion == ">= 2.14.3"` expectation. Focused validation passed: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`; `pytest -q tests/test_trivy_ignore_policy_expiry.py`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3463019921 -> 5b70da19c8c1f74e0d562f8a79325a349c2ad8db
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3463019921 -> 5b70da19c9685f505b57ee1f39913a337ab5c3e0
 Disposition: FIXED
-Commit: 5b70da19c8c1f74e0d562f8a79325a349c2ad8db
+Commit: 5b70da19c9685f505b57ee1f39913a337ab5c3e0
 Evidence: `tests/test_trivy_ignore_policy_expiry.py` no longer asserts the stale Faraday `FixedVersion == "2.14.3"` literal in the current PR diff and keeps the active `FixedVersion == ">= 2.14.3"` expectation. Focused validation passed: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`; `pytest -q tests/test_trivy_ignore_policy_expiry.py`.
 
 ## Additional Fixed Findings
