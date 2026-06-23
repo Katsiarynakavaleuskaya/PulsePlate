@@ -22,6 +22,8 @@ entitlements, frontend, or iOS surfaces.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Initial PR open: no human review threads existed at artifact creation.
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2013`.
@@ -33,26 +35,10 @@ entitlements, frontend, or iOS surfaces.
 
 ## Fixed in Commit Mapping
 
-Initial artifact creation had no review-thread URLs.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#pullrequestreview-4556631754 -> 5b490696cc4ead4d408359b90d4471d7b47602ad
 Disposition: FIXED
-Commit: `5b490696cc4ead4d408359b90d4471d7b47602ad`
-Evidence: `tests/test_vip_coverage_clean.py` now checks legacy VIP shoplist
-alias absence with `legacy_shoplist_aliases & set(dir(vip))`; new helper
-`tests/_helpers/vip_contracts.py` centralizes the static VIP shoplist formats
-contract; `tests/test_vip_coverage_simple.py` and
-`tests/test_vip_coverage_additional.py` call the helper instead of duplicating
-the `formats` / `locales` literals. Focused validation passed:
-`pytest -q tests/test_vip_coverage_clean.py tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`
-and the full stale-VIP cleanup bundle passed.
-
-Post-open review comments must be added here with disposition-specific proof
-before they are resolved:
-
-- `FIXED` entries require the review URL, commit SHA, and evidence.
-- `NOT-A-BUG` entries require the review URL, reason, and evidence.
-- `DEFERRED` entries require the review URL and backlog link.
+Commit: 5b490696cc4ead4d408359b90d4471d7b47602ad
+Evidence: `tests/test_vip_coverage_clean.py` now checks legacy VIP shoplist alias absence with `legacy_shoplist_aliases & set(dir(vip))`; `tests/_helpers/vip_contracts.py` centralizes the static VIP shoplist formats contract; `tests/test_vip_coverage_simple.py` and `tests/test_vip_coverage_additional.py` call the helper instead of duplicating the `formats` / `locales` literals. Focused validation passed: `pytest -q tests/test_vip_coverage_clean.py tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`; the full stale-VIP cleanup bundle passed.
 
 ## Additional Fixed Findings
 
