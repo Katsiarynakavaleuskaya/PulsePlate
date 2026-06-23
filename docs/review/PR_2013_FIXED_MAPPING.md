@@ -24,6 +24,11 @@ entitlements, frontend, or iOS surfaces.
 - `7d9174698d07e7c6f23559721139fbf1a57ad81d` - address CodeRabbit JSON
   response parsing comments by asserting `Content-Type` before `response.json()`
   in changed VIP coverage tests.
+- `6524080fd62e9531b91cd79383618f40d26742f2` - refresh the existing Faraday
+  Trivy suppression metadata to match Trivy `v0.71.2` current output while
+  preserving exact package/CVE scoping and existing backlog tracking.
+- `603e8381af9b65f77e0474c5cbc84ff637dae537` - remove machine-local absolute
+  paths from PR #2013 review evidence after post-open QA review.
 
 ## Discussion Thread Pass
 
@@ -83,6 +88,45 @@ Evidence:
   `tests/test_vip_simple_working.py` no longer patch the removed
   `app.routers.vip.ShoplistGenerator` alias.
 - `rg -n "app\\.routers\\.vip\\.(ShoplistGenerator|aggregate_ingredients|round_to_packages|format_export)|vip\\.(ShoplistGenerator|aggregate_ingredients|round_to_packages|format_export)" tests/test_vip_* tests/test_coverage_*`
+  returned no matches after cleanup.
+
+Current-head Docker `security-scan` run
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28054134124`
+failed because Trivy `v0.71.2` now reports Faraday `CVE-2026-54297` with
+`FixedVersion` `>= 2.14.3` and `DataSource.ID` `ruby-advisory-db`, while the
+existing exact temporary suppression expected older metadata.
+
+Disposition: FIXED
+
+Commit: `6524080fd62e9531b91cd79383618f40d26742f2`
+
+Evidence:
+
+- `trivy/ignore-policy.rego` now matches the current Trivy metadata while
+  preserving exact `CVE-2026-54297`, `faraday`, `1.10.5`, PURL, package ID,
+  severity, status, and primary URL constraints.
+- `docs/security/CVE-2026-54297-faraday-fastlane.md`,
+  `docs/security/DEPENDABOT_ALERT_INVENTORY.md`, and
+  `docs/roadmap/BACKLOG_LEDGER.md` now record the current fixed-version shape.
+- `tests/test_trivy_ignore_policy_expiry.py` asserts the updated exact policy.
+- PASS:
+  `trivy fs . --db-repository ghcr.io/aquasecurity/trivy-db --skip-dirs trivy --ignorefile .trivyignore --ignore-policy trivy/ignore-policy.rego --scanners vuln --severity CRITICAL,HIGH --format table --exit-code 1`
+- PASS:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_trivy_ignore_policy_expiry.py`
+- PASS: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`
+
+Post-open `qa-engineer-agent` review found machine-local absolute paths in
+the PR body and `docs/review/PR_2013_FIXED_MAPPING.md`.
+
+Disposition: FIXED
+
+Commit: `603e8381af9b65f77e0474c5cbc84ff637dae537`
+
+Evidence:
+
+- `docs/review/PR_2013_FIXED_MAPPING.md` now uses the repo Python resolver form
+  instead of `/Users/...` paths for local validation evidence.
+- `rg -n "/Users/katsiaryna_kavaleuskaya|Developer/BMI-App_2025_clean" docs/review/PR_2013_FIXED_MAPPING.md docs/security/CVE-2026-54297-faraday-fastlane.md tests/test_trivy_ignore_policy_expiry.py trivy/ignore-policy.rego`
   returned no matches after cleanup.
 
 ## Governance Evidence
