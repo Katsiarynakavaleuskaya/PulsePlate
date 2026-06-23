@@ -56,7 +56,6 @@ from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
-from app.routers.pro_registration import register_pro_routes as _register_pro_routes
 from app.routers.recipes import router as recipes_router
 from app.routers.restaurants import router as restaurants_router
 from app.routers.shoplist_day import router as shoplist_day_router
@@ -178,9 +177,7 @@ except ImportError:  # pragma: no cover - optional dependency in runtime
     RATE_LIMIT_429_RESPONSES = {429: {"description": "Rate limit exceeded"}}  # pragma: no cover
 
 
-# PRO router registration (explicit, no import-side-effects)
-# Moved to app/routers/pro_registration.py for centralized registration
-# See register_pro_routes() for schema-only mode guard and conditional imports
+# PRO router registration is owned by app.main canonical bootstrap.
 # Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
 premium_week_router: Optional[APIRouter] = None
 pro_router: Optional[APIRouter] = None
@@ -236,17 +233,12 @@ _scheduler_getter: Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]] = 
 # Track if lenient API key mode warning has already been logged to avoid log flooding
 _lenient_mode_warning_logged = False
 
-# VIP router registration (explicit, no import-side-effects)
-# Use centralized registration function instead of importing router directly
-_register_vip_routes: Callable[[FastAPI], None] | None = None
+# VIP router registration is owned by app.main canonical bootstrap.
 try:
-    from app.routers.vip_registration import register_vip_routes
     from app.utils.feature_flags import is_vip_module_enabled
 
-    _register_vip_routes = register_vip_routes
     VIP_MODULE_ENABLED = is_vip_module_enabled()  # Keep for backward compatibility
 except ImportError:
-    # VIP registration not available - VIP module disabled
     VIP_MODULE_ENABLED = False
 
 # Backward-compat: expose vip_router for tests/introspection.
@@ -930,12 +922,8 @@ app.include_router(recipes_router)
 app.include_router(users_router)
 app.include_router(catalog_router)
 
-# Register VIP routes (centralized, explicit registration)
-if _register_vip_routes is not None:
-    _register_vip_routes(app)
-
-# Register PRO routes (centralized, explicit registration)
-pro_router, premium_week_router = _register_pro_routes(app)
+# PRO/VIP route registration is owned by app.main canonical bootstrap.
+# Compatibility attrs above are populated there after successful registration.
 
 # Include Bayesian adherence router (PRO/VIP tier)
 try:

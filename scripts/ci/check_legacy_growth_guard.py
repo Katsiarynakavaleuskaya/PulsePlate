@@ -156,12 +156,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_targets", ""
         ),
-        LegacyFact(
-            "router_import",
-            "app.routers.pro_registration",
-            "register_pro_routes",
-            "_register_pro_routes",
-        ),
         LegacyFact("router_import", "app.routers.recipes", "router", "recipes_router"),
         LegacyFact("router_import", "app.routers.restaurants", "router", "restaurants_router"),
         LegacyFact("router_import", "app.routers.shoplist_day", "router", "shoplist_day_router"),
@@ -178,7 +172,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
             "execute_legacy_premium_week_alias_payload",
             "",
         ),
-        LegacyFact("router_import", "app.routers.vip_registration", "register_vip_routes", ""),
     }
 )
 

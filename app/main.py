@@ -59,6 +59,7 @@ from app.routers.plan_export import (
     export_router,
     plan_router,
 )
+from app.routers.pro_registration import register_pro_routes
 from app.routers.restaurants import (
     RESTAURANT_MODERATION_ROUTE_SPECS,
     moderation_router as restaurant_moderation_router,
@@ -67,8 +68,13 @@ from app.routers.shoplist_export import router as shoplist_export_router
 from app.routers.shoplist_export_routes import SHOPLIST_ROUTE_SPECS
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
+from app.utils.feature_flags import is_vip_module_enabled
 
 app: FastAPI = _legacy_app
+VIP_MODULE_ENABLED: bool = bool(getattr(_legacy_module, "VIP_MODULE_ENABLED", False))
+vip_router: APIRouter | None = getattr(_legacy_module, "vip_router", None)
+pro_router: APIRouter | None = getattr(_legacy_module, "pro_router", None)
+premium_week_router: APIRouter | None = getattr(_legacy_module, "premium_week_router", None)
 
 _WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
 _FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
@@ -785,6 +791,40 @@ def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     target_app.openapi_schema = None
 
 
+def _resolve_vip_router_for_compat() -> APIRouter | None:
+    if not is_vip_module_enabled():
+        return None
+
+    try:
+        from app.routers import vip as vip_module
+    except ImportError:
+        return None
+
+    return getattr(vip_module, "router", None)
+
+
+def _mirror_paid_tier_registration_attrs(
+    registered_pro_router: APIRouter | None,
+    registered_premium_week_router: APIRouter | None,
+) -> None:
+    global VIP_MODULE_ENABLED, vip_router, pro_router, premium_week_router
+
+    VIP_MODULE_ENABLED = is_vip_module_enabled()
+    vip_router = _resolve_vip_router_for_compat()
+    pro_router = registered_pro_router
+    premium_week_router = registered_premium_week_router
+    _legacy_module.VIP_MODULE_ENABLED = VIP_MODULE_ENABLED
+    _legacy_module.vip_router = vip_router
+    _legacy_module.pro_router = pro_router
+    _legacy_module.premium_week_router = premium_week_router
+
+
+def _register_paid_tier_routes(target_app: FastAPI) -> None:
+    register_vip_routes(target_app)
+    registered_pro_router, registered_premium_week_router = register_pro_routes(target_app)
+    _mirror_paid_tier_registration_attrs(registered_pro_router, registered_premium_week_router)
+
+
 def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     """Apply canonical additive bootstrap to the provided FastAPI instance.
 
@@ -828,6 +868,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     register_metrics(app)
     register_request_telemetry(app)
     register_tracing(app)
+    _register_paid_tier_routes(app)
     register_pro_contract_routes(app)
 
     ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
@@ -856,8 +897,6 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
         app.include_router(fitchef_structured_router)
-
-    register_vip_routes(target_app)
 
     if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
         app.include_router(creative_research_internal_router)
