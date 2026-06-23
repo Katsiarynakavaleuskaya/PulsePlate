@@ -13,7 +13,10 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 from app.middleware import api_tiers
-from tests._helpers.vip_contracts import assert_vip_shoplist_formats_contract
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    assert_vip_shoplist_formats_response,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -125,7 +128,7 @@ class TestVIPCoverageAdditional:
 
         response = client.get("/api/v1/vip/health")
         assert response.status_code == 403
-        data = response.json()
+        data = assert_json_response_payload(response)
         assert "vip access" in data["detail"].lower()
 
     def test_api_tier_resolution_rejects_preview_env_fallbacks(
@@ -169,7 +172,7 @@ class TestVIPCoverageAdditional:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert data["status"] == "success"
             assert "menu" in data
 
@@ -195,7 +198,7 @@ class TestVIPCoverageAdditional:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert data["status"] == "success"  # Returns success in echo mode
             assert "menu" in data
 
@@ -250,7 +253,7 @@ class TestVIPCoverageAdditional:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert "days" in data
             assert isinstance(data["days"], list)
         finally:
@@ -343,7 +346,7 @@ class TestVIPCoverageAdditional:
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
+            data = assert_json_response_payload(response)
             assert "packed" in data
             assert "unpacked" in data
         finally:
@@ -399,4 +402,4 @@ class TestVIPCoverageAdditional:
 
         response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
         assert response.status_code == 200
-        assert_vip_shoplist_formats_contract(response.json())
+        assert_vip_shoplist_formats_response(response)
