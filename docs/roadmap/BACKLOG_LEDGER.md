@@ -10896,6 +10896,46 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-C remains internal-only, feature-flagged, hidden from public OpenAPI, and introduces no new heavy LLM endpoint on the core path
     - The lane preserves no hidden memory, no autonomous merge, no immutable-oracle mutation, and quota-before-call for any future provider-backed pilot
 
+<a id="ledger-p1-governed-creative-code-execution-lane"></a>
+- [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (research-to-implementation leverage with closed authority)
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 -> PR-2 -> PR-3 -> PR-4 -> PR-5 -> PR-6
+  - Status: PR-0 planned/active as a repo-only closed authority contract; PR-1 through PR-6 remain gated future work
+  - Dependencies:
+    - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
+    - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+  - Reason (EN): Promoted `creative_research` output needs a typed, auditable path into future implementation candidates without turning research artifacts into runtime truth, repository-write authority, Slack/GitHub App authority, or merge-readiness evidence. PR-0 keeps the gate closed and defines the authority boundary before any patch generation is considered.
+  - Links:
+    - `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
+    - `docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md`
+    - `docs/orchestration/contracts/creative_code_candidate.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_candidate.v1.json`
+    - `scripts/orchestration/creative_code_contract.py`
+    - `tests/test_creative_code_contract.py`
+  - PR train:
+    - PR-0: closed authority contract, schema, reference packet, validator, and tests; no model calls, patches, workflows, Slack/GitHub settings, or `experiment_runner.py` changes.
+    - PR-1: emit implementation specifications from promoted creative research; no candidate patches.
+    - PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces.
+    - PR-3: allow human-approved draft PR promotion under a separate operator exception.
+    - PR-4: add candidate evaluation telemetry and rejection taxonomy.
+    - PR-5: add review-disposition integration without review-thread resolution authority.
+    - PR-6: run the first governed applied creative-code candidate through normal PR governance.
+  - Minimum future telemetry fields (defined now, emitted no earlier than PR-1):
+    - `packet_id`
+    - `source_candidate_id`
+    - `variant_count`
+    - `generation_status`
+    - `oracle_status`
+    - `failure_class`
+    - `human_decision`
+    - `cost_metadata_available`
+  - DoD:
+    - PR-0 keeps `gate_status=closed` and all repository-write/promotion authority flags false
+    - Creative-code packets require promoted `creative_research` provenance, sandboxing, human review, fallback, repo-relative paths, and disjoint mutable/oracle surfaces
+    - Future PRs cannot emit telemetry, generate patches, open PRs, or expand Slack/GitHub authority until their separate gates land
+    - No PR in the train treats creative-code output as canonical product truth, scientific verified discovery, merge-readiness evidence, or review-thread disposition authority
+
 <a id="ledger-p2-creative-research-domain-typing"></a>
 - [x] P2: Tighten creative research core domain typing
   - Owner: @katsiaryna_kavaleuskaya

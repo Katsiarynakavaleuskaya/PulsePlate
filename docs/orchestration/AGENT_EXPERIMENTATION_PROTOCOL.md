@@ -54,6 +54,7 @@ Forbidden in sub-lane docs:
 Current governed sub-lane:
 
 - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+- `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
 - `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
 
 ---
@@ -164,6 +165,14 @@ Rules:
 - Slack identity is not a cryptographic Git identity. A Slack bot/display
   identity remains a separate security-governed follow-up, not part of this
   experimentation protocol.
+- Creative-code candidates are specification-only unless a separate gate opens.
+  `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md` and
+  `docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md` define the
+  closed PR-0 handoff from promoted `creative_research` output to future code
+  candidates. That handoff does not authorize model calls, generated patches,
+  repository writes, branch/push/PR creation, ready-for-review, review-thread
+  resolution, merge, release, public multi-tenant use, or Slack/GitHub authority
+  expansion.
 
 ---
 
