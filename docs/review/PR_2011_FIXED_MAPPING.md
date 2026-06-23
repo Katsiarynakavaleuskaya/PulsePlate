@@ -43,12 +43,14 @@ Disposition: FIXED
 Commit: 3686f7edf204edf3cd351157d661edd30c7e198c
 Evidence: `scripts/orchestration/creative_code_contract.py` sends `FAIL: ...` diagnostics to stderr while preserving success output on stdout; `tests/test_creative_code_contract.py` adds missing-file and malformed-JSON CLI error-path coverage. Focused validation passed with `45 passed`.
 Reason: Addresses Sourcery's CLI integration and missing negative-path test suggestions without widening PR-0 scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#pullrequestreview-4551174029 -> 3686f7edf204edf3cd351157d661edd30c7e198c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3458007457 -> 3686f7edf204edf3cd351157d661edd30c7e198c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3458007469 -> 3686f7edf204edf3cd351157d661edd30c7e198c
 
 Disposition: NOT-A-BUG
 Evidence: `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md` states that PR-0 target surfaces reuse `validate_mutable_candidate_surface(...)` and then reject protected governance, review, security, compliance, legal, test, CI, AGENTS, and release surfaces; `tests/test_creative_code_contract.py` proves that `docs/orchestration/prompts/candidate.md`, `docs/review/foo/program.md`, and `docs/security/program.md` are intentionally rejected.
 Reason: CodeRabbit's suggestion to allow protected prompt/program docs would reopen the security-auditor finding fixed in this PR. PR-0 is a closed authority contract, not a future implementation lane for protected governance or review docs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#pullrequestreview-4552828053
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3459399259
 
 ## Premortem Closure
