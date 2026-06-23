@@ -43,6 +43,8 @@ When a rule conflicts, the umbrella experimentation protocol wins.
 - Offline eval overlay: `docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md`
 - Offline eval contract: `docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md`
 - Internal pilot contract: `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
+- Governed creative-code authority contract: `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
+- Creative-code candidate packet contract: `docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md`
 - Parallel work: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 - Handoff format: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`
@@ -269,6 +271,15 @@ Every completed `creative_research` cycle must end with an explicit next-PR pack
 - `quality_gates`
 - `deferred_followups`
 - `human_review_required`
+
+If a promoted result is intended to seed future code implementation candidates, the next-PR packet must use the closed `CreativeCodeCandidatePacket` contract:
+
+- contract: `docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md`
+- schema: `docs/orchestration/contracts/creative_code_candidate.v1.schema.json`
+- reference: `docs/orchestration/contracts/creative_code_candidate.v1.json`
+- validator: `python -m scripts.orchestration.creative_code_contract --validate docs/orchestration/contracts/creative_code_candidate.v1.json`
+
+That handoff is specification-only. It does not authorize model calls, candidate patches, shared worktree writes, branch or PR creation, ready-for-review, review-thread resolution, merge, release, public multi-tenant use, Slack/GitHub authority expansion, or scientific-discovery overclaims.
 
 If `current_outcome=defer`, the deferred work must be recorded immediately in `docs/roadmap/BACKLOG_LEDGER.md`.
 
