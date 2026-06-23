@@ -120,6 +120,19 @@ Evidence:
 - `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md` keeps Torch remediation
   in the future advisory lane.
 
+Finding: `pulseplate-pr-review` dry-run report flagged large-diff review risk
+because this dependency/governance PR changes more than 300 lines.
+
+Disposition: NOT-A-BUG
+
+Evidence: The diff size is driven by lockfile/governance evidence rather than a
+runtime/API expansion: the changed files are limited to RAG/vector requirements,
+the emergency wheel manifest, dependency guard tests, `.secrets.baseline`, and
+review/ledger/premortem docs. The PR body and this artifact document the split
+rationale, out-of-scope lanes, local `make verify` deferral, and focused gates;
+`make validate-changed`, `pre-commit run --all-files`, focused pytest, installer
+preflight, and Codex Security diff scan all passed for the scoped surface.
+
 ## Premortem Evidence
 
 - Artifact:
@@ -165,6 +178,9 @@ Passed locally:
 - Pre-push hooks: detect-secrets, backend tests, full-repo Bandit, Docker build
   test, repo pip-audit hook
 - `git diff --check HEAD~1..HEAD`
+- Codex Security diff scan `9f834b76-7359-432a-9f6e-98501f517637`: completed
+  with 0 reportable findings.
+- `pulseplate-pr-review`: completed; advisory large-diff risk dispositioned above.
 
 Audit notes:
 
@@ -192,8 +208,8 @@ Required before merge:
 
 - [ ] Current-head CI passes.
 - [x] Current known bot/human review comments dispositioned.
-- [ ] Post-open role passes completed:
+- [x] Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan / finding discovery run.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Codex Security diff scan / finding discovery run.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Strict merge-readiness checks pass with auth.
