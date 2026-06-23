@@ -13,12 +13,15 @@ frontend, iOS, billing, entitlement, AI, FoodDB, or route-handler drift.
 
 ## Discussion Thread Pass
 
-Status: Opened PR; no actionable human or bot review threads were present at
-artifact creation time.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Status: Completed for PR open; no actionable human or bot review threads were
+present at artifact creation time.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at PR open.
+- No actionable review comments
 
 ## Governance Evidence
 
