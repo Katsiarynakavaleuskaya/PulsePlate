@@ -524,11 +524,18 @@ def test_repo_transformers_emergency_fallback_is_retired_after_proxy_sync() -> N
         assert len(requirement_versions) == 1
         observed_versions.update(requirement_versions)
 
-    assert observed_versions == {"5.12.0"}
+    assert observed_versions == {"5.12.1"}
 
 
-def test_repo_sentence_transformers_emergency_fallback_matches_rag_vector_surfaces() -> None:
-    expected_version = _active_manifest_artifact_version("sentence-transformers")
+def test_repo_sentence_transformers_emergency_fallback_is_retired_after_proxy_sync() -> None:
+    fallback_versions = [
+        item["version"].strip()
+        for item in _repo_active_emergency_artifacts()
+        if item["package"] == "sentence-transformers"
+    ]
+    assert not fallback_versions
+
+    observed_versions: set[str] = set()
 
     for requirement_path in (
         "requirements-rag-vector.in",
@@ -537,9 +544,15 @@ def test_repo_sentence_transformers_emergency_fallback_matches_rag_vector_surfac
         "requirements-rag-vector-cpu.txt",
     ):
         requirement_text = (REPO_ROOT / requirement_path).read_text(encoding="utf-8")
-        assert ("sentence-transformers", expected_version) in _exact_requirement_pairs(
-            requirement_text
-        )
+        requirement_versions = {
+            version
+            for package, version in _exact_requirement_pairs(requirement_text)
+            if package == "sentence-transformers"
+        }
+        assert len(requirement_versions) == 1
+        observed_versions.update(requirement_versions)
+
+    assert observed_versions == {"5.6.0"}
 
 
 def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
