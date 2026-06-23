@@ -245,6 +245,38 @@ def test_path_guards_fail_closed(field: str, value: list[str], message: str) -> 
         validate_creative_code_candidate_packet(packet)
 
 
+@pytest.mark.parametrize(
+    "target_surface",
+    [
+        "docs/orchestration/prompts/candidate.md",
+        "docs/review/foo/program.md",
+        "docs/security/program.md",
+        "docs/compliance/program.md",
+        "docs/legal/program.md",
+        "docs/roadmap/program.md",
+        "docs/dev/program.md",
+        "tests/program.md",
+        ".github/actions/program.md",
+        "scripts/ci/program.md",
+        "AGENTS.md",
+        "docs/orchestration/AGENTS.md",
+        "release/program.md",
+        "ios/fastlane/program.md",
+    ],
+)
+def test_target_surface_rejects_protected_governance_and_release_paths(
+    target_surface: str,
+) -> None:
+    packet = _valid_packet()
+    packet["target_surface"] = [target_surface]
+
+    with pytest.raises(
+        CreativeCodeContractError,
+        match="target_surface must not include protected governance, review, security",
+    ):
+        validate_creative_code_candidate_packet(packet)
+
+
 def test_target_surface_must_not_overlap_oracles() -> None:
     packet = _valid_packet()
     packet["immutable_oracles"] = ["core/rag/orchestration.py"]

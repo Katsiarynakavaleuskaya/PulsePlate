@@ -123,6 +123,45 @@ FORBIDDEN_PATHS = frozenset(
         "worktrees",
     }
 )
+PROTECTED_TARGET_SURFACE_PREFIXES: tuple[str, ...] = (
+    ".github/",
+    "docs/audit/",
+    "docs/compliance/",
+    "docs/dev/",
+    "docs/legal/",
+    "docs/orchestration/",
+    "docs/release/",
+    "docs/review/",
+    "docs/roadmap/",
+    "docs/security/",
+    "fastlane/",
+    "ios/fastlane/",
+    "release/",
+    "scripts/ci/",
+    "tests/",
+)
+PROTECTED_TARGET_SURFACE_EXACT_PATHS = frozenset(
+    {
+        ".github",
+        "AGENTS.md",
+        "RUNBOOK_AGENT.md",
+        "docs/audit",
+        "docs/compliance",
+        "docs/dev",
+        "docs/legal",
+        "docs/orchestration",
+        "docs/release",
+        "docs/review",
+        "docs/roadmap",
+        "docs/security",
+        "fastlane",
+        "ios/fastlane",
+        "release",
+        "scripts/ci",
+        "tests",
+    }
+)
+PROTECTED_TARGET_SURFACE_FILENAMES = frozenset({"AGENTS.md"})
 
 
 class CreativeCodeContractError(ValueError):
@@ -272,6 +311,23 @@ def _validate_repo_relative_path_list(
         seen.add(path)
         normalized.append(path)
     return normalized
+
+
+def _validate_target_surface_not_protected(paths: list[str]) -> None:
+    protected_paths = [
+        path
+        for path in paths
+        if path in PROTECTED_TARGET_SURFACE_EXACT_PATHS
+        or PurePosixPath(path).name in PROTECTED_TARGET_SURFACE_FILENAMES
+        or any(path.startswith(prefix) for prefix in PROTECTED_TARGET_SURFACE_PREFIXES)
+    ]
+    if protected_paths:
+        joined = ", ".join(protected_paths)
+        raise CreativeCodeContractError(
+            "target_surface must not include protected governance, review, security, "
+            "compliance, legal, test, CI, AGENTS, or release surfaces. "
+            f"Invalid paths: {joined}"
+        )
 
 
 def _paths_overlap(left: str, right: str) -> bool:
@@ -470,6 +526,7 @@ def validate_creative_code_candidate_packet(payload: dict[str, Any]) -> dict[str
     target_surface = _validate_repo_relative_path_list(
         payload, "target_surface", label="CreativeCodeCandidatePacket"
     )
+    _validate_target_surface_not_protected(target_surface)
     immutable_oracles = _validate_repo_relative_path_list(
         payload, "immutable_oracles", label="CreativeCodeCandidatePacket"
     )

@@ -36,7 +36,9 @@ A valid packet must:
 - set `variant_count` to 3, 4, or 5;
 - set `sandbox_required=true` and `human_review_required=true`;
 - include a non-empty `fallback` for rejection or non-promotion;
-- keep target surfaces repo-relative and inside the existing mutable candidate allowlist;
+- keep target surfaces repo-relative, inside the existing mutable candidate
+  allowlist, and outside protected governance, review, security, compliance,
+  legal, test, CI, AGENTS, and release surfaces;
 - keep immutable oracles repo-relative and disjoint from target surfaces;
 - keep every repository-write, provider, runtime, semantic-cache, PR, review-thread, merge, release, and Slack/GitHub authority flag false.
 

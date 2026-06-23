@@ -60,7 +60,9 @@ Every valid creative-code candidate packet must:
 - require sandboxed evaluation and human review;
 - provide repo-relative `target_surface` and `immutable_oracles` paths;
 - reject absolute paths, parent traversal, URL/scheme paths, control characters, local artifact paths, and path overlap between mutable target surfaces and immutable oracles;
-- reuse the existing `validate_mutable_candidate_surface(...)` allowlist for target surfaces;
+- reuse the existing `validate_mutable_candidate_surface(...)` allowlist for
+  target surfaces, then reject protected governance, review, security,
+  compliance, legal, test, CI, AGENTS, and release surfaces;
 - keep all repository-write, provider, runtime, semantic-cache, PR, review-thread, merge, release, and Slack/GitHub expansion authority flags fail-closed;
 - treat scientific-style output as hypothesis or evidence-supported planning only, not verified discovery, unless a separate reviewed evidence result is promoted in a future PR.
 
