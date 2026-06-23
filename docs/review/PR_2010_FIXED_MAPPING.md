@@ -43,17 +43,26 @@ alert #224 changes.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No GitHub review threads have been resolved yet.
+Sourcery review-level feedback is mapped below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2010#pullrequestreview-4550923707 -> a8c2a994b
+
+Disposition: FIXED
+
+Commit: a8c2a994b
+
+Evidence: `tests/test_install_locked_python_requirements.py` centralizes expected optional RAG/vector package versions; `docs/orchestration/RAG_VECTOR_ST_TRANSFORMERS_REFRESH_PREMORTEM_2026-06-23.md` names the exact fallback-retirement tests and locked-installer preflight command that enforce no fallback and exact-version constraints.
 
 ## Implementation Commits
 
 - `bd6d57036` - bump optional RAG/vector direct pins, retire the stale
   `sentence-transformers` fallback, update guard tests and ledger evidence, and
   record premortem evidence.
+- `cd0c9d1da` - add the PR #2010 fixed-mapping artifact.
+- `a8c2a994b` - address Sourcery review feedback by centralizing expected RAG
+  package versions and tightening premortem enforcement references.
 
 Disposition: FIXED
 
