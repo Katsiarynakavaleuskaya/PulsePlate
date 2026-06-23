@@ -68,8 +68,8 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 - Finding PM-2011-003 Experiment Runner evidence missing new files:
   - Disposition: FIXED
   - Evidence: final oracle artifact
-    `artifacts/orchestration/experiments/results/exp-52048b390754.json` lists
-    all 9 changed files under `budget_observations.source_diff_paths`.
+    `artifacts/orchestration/experiments/results/pr2011-creative-code-final-oracle-result.json`
+    lists all 10 changed files under `budget_observations.source_diff_paths`.
 - Finding PM-2011-004 premature telemetry/runtime implication:
   - Disposition: FIXED
   - Evidence: PR-0 contract sets `gate_status=closed`, defines future telemetry
@@ -140,7 +140,14 @@ the wait-window.
     `3686f7edf204edf3cd351157d661edd30c7e198c`; this artifact now maps both
     Sourcery threads to that commit.
 - `bug-hunter`
-  - Status: pending post-open pass.
+  - Disposition: FIXED
+  - Commit: 76080ec1fd36f1a3db0c0de6e7ca8f5b9878b55c
+  - Evidence: post-open bug-hunter found stale premortem evidence and exact
+    `promotion_decision` schema/validator drift. This mapping now points PM-2011-003
+    to the final 10-path runner artifact; `scripts/orchestration/creative_code_contract.py`
+    now requires exact `promotion_decision="promote"` and
+    `tests/test_creative_code_contract.py` covers uppercase and whitespace
+    variants.
 - `security-auditor`
   - Status: pending post-open pass.
 - Codex Security diff scan / finding discovery:
