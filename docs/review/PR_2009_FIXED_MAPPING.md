@@ -10,18 +10,28 @@ frontend, iOS, billing, entitlement, AI, FoodDB, or route-handler drift.
 
 - `afa840d50e00ae5b457b50c00321c8fcee7eeb2e` - move paid-tier registration
   ownership into canonical bootstrap and preserve legacy compatibility attrs.
+- `1e17831a1bf156484d6e4773b2df94f7654aed6c` - address post-open
+  CodeRabbit/Sourcery review findings with exact routing-map evidence and
+  fail-closed compatibility mirroring.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Status: Completed for PR open; no actionable human or bot review threads were
-present at artifact creation time.
+Status: Completed for PR open and refreshed after post-open bot review.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2009#discussion_r3457758614 -> 1e17831a1bf156484d6e4773b2df94f7654aed6c
+Disposition: FIXED
+Commit: 1e17831a1bf156484d6e4773b2df94f7654aed6c
+Evidence: `docs/architecture/backend_routing_map.md:124` now names `app/main.py:829-832` for canonical VIP-before-PRO ownership, and `docs/architecture/backend_routing_map.md:126` names `app/routers/vip_registration.py:61-137` for the VIP implementation and `api_key_header` dependency.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2009#pullrequestreview-4550869584 -> 1e17831a1bf156484d6e4773b2df94f7654aed6c
+Disposition: FIXED
+Commit: 1e17831a1bf156484d6e4773b2df94f7654aed6c
+Evidence: `app/main.py:794-805` now catches only the missing VIP module case and re-raises unrelated import failures; `app/main.py:808-832` resolves all compatibility values before mutating `app.main` or `legacy_app`; `tests/test_main_paywall_bootstrap.py:847-896` covers the no-partial-mutation failure path.
 
 ## Governance Evidence
 
@@ -68,6 +78,12 @@ present at artifact creation time.
   `tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py`
 - `pre-commit run --all-files` - PASS
 - `git diff --check` - PASS
+- Post-review-fix validation:
+  `python -m py_compile app/main.py tests/test_main_paywall_bootstrap.py` -
+  PASS;
+  `pytest -q tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_pro_vip_route_dependency_guard.py`
+  - PASS; `make validate-changed` - PASS; `pre-commit run --all-files` -
+  PASS.
 - Pre-push hooks - PASS: changed-file mypy, pip-audit, backend tests, full
   Bandit, docker build test.
 
@@ -83,5 +99,7 @@ mapping, and strict merge-readiness checks all support it.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass.
 - [ ] Codex Security diff scan / finding discovery.
 - [ ] `pulseplate-pr-review`.
-- [ ] CodeRabbit/Sourcery/Cubic comments checked and dispositioned.
+- [x] CodeRabbit/Sourcery comments dispositioned for current post-open bot
+  findings.
+- [ ] Cubic comments checked and dispositioned.
 - [ ] Strict merge-readiness wrapper run with current-head evidence.
