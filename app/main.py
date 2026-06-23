@@ -791,17 +791,22 @@ def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     target_app.openapi_schema = None
 
 
+def _import_vip_module_for_compat() -> Any:
+    from app.routers import vip as vip_module
+
+    return vip_module
+
+
 def _resolve_vip_router_for_compat() -> APIRouter | None:
     if not is_vip_module_enabled():
         return None
 
     try:
-        from app.routers import vip as vip_module
+        vip_module = _import_vip_module_for_compat()
     except ModuleNotFoundError as exc:
         if exc.name == "app.routers.vip":
             return None
         raise
-
     return getattr(vip_module, "router", None)
 
 
