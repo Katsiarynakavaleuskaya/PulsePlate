@@ -306,11 +306,11 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
     assert 'input.VulnerabilityID == "CVE-2026-54297"' in policy
     assert "input.Fingerprint" not in faraday_policy
     assert 'input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.5"' in policy
-    assert 'input.FixedVersion == "2.14.3"' in policy
+    assert 'input.FixedVersion == ">= 2.14.3"' in policy
     assert 'input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"' in policy
     assert 'input.Severity == "HIGH"' in policy
     assert 'input.Status == "fixed"' in policy
-    assert 'input.DataSource.ID == "ghsa"' in policy
+    assert 'input.DataSource.ID == "ruby-advisory-db"' in policy
     assert 'input.PkgName == "faraday"' in policy
     assert 'input.InstalledVersion == "1.10.5"' in policy
     assert 'input.PkgID == "faraday@1.10.5"' in policy
