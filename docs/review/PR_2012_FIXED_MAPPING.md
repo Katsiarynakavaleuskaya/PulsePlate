@@ -6,8 +6,7 @@ Branch: `codex/deps-ruff-quality-refresh`
 
 ## Summary
 
-This PR replaces Dependabot PR #2002 with a human-owned Ruff-only dependency
-lane:
+This PR started as the human-owned Ruff replacement for Dependabot PR #2002:
 
 - `constraints.txt`: `ruff>=0.15.17` -> `ruff>=0.15.18`
 - `requirements-all.txt`: `ruff>=0.15.17` -> `ruff>=0.15.18`
@@ -15,12 +14,21 @@ lane:
 - `requirements-dev.txt`: `ruff==0.15.17` -> `ruff==0.15.18`
 - `requirements-lock.txt`: `ruff==0.15.17` -> `ruff==0.15.18`
 
+After PR open, current-head CI exposed a Docker Build `security-scan` failure
+from Trivy Code Scanning alert #613: `CVE-2026-54297` in
+`ios/Gemfile.lock` for Fastlane's `faraday 1.10.5` graph. The user explicitly
+asked to fix Docker in this lane, so the PR also includes a narrow Trivy policy
+compatibility fix for current Trivy v0.71.2 output. It does not update the
+Fastlane/Faraday dependency graph; that removal/remediation lane remains
+tracked separately.
+
 Out of scope: `requirements.txt`, testing stack PR #2001, runtime, RAG/vector,
-Docker, Torch alerts #160/#161/#162, and Faraday/Fastlane alert #224.
+Torch alerts #160/#161/#162, and full Faraday/Fastlane dependency remediation.
 
 ## Implementation Commit
 
 - `d30906288a8168d97192243203609be4f47a2397` - `fix(deps): bump Ruff quality toolchain`
+- `9657435215a11e1f203bcefb71ff5d3f6531dd63` - `fix(security): align Faraday Trivy suppression with current scan output`
 
 The implementation commit includes the governed Experiment Runner attribution
 trailer:
@@ -82,6 +90,11 @@ Focused local gates:
 - `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 2012 --body "$(cat artifacts/orchestration/pr_bodies/pr2012_live_body.md)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` - PASS after the Phase2 parser-shape correction.
 - `python scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_2012_FIXED_MAPPING.md` - PASS.
 - `bash scripts/ci/pr_scope_guard.sh` - PASS.
+- `python3 scripts/orchestration/task_bootstrap.py --goal "Fix PR #2012 Docker Build security-scan Faraday Trivy policy regression after Ruff dependency PR open" --task-class security --pr-phase post_open_review --path trivy/ignore-policy.rego --path tests/test_trivy_ignore_policy_expiry.py --path docs/security/CVE-2026-54297-faraday-fastlane.md --path docs/review/PR_2012_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent security-auditor --requested-agent qa-engineer-agent` - PASS; packet `artifacts/orchestration/task_packets/f80fa94eccc9.json`.
+- `python scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/f80fa94eccc9.json --pretty` - PASS; expanded Docker/Faraday security scope role order recorded.
+- `python3 scripts/ci/check_trivy_ignore_policy_expiry.py` - PASS.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py tests/test_ci_workflow_pr_size_governance_contract.py::test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload` - PASS; 14 passed, existing Starlette deprecation warning only.
+- `TRIVY_DB_REPOSITORY=ghcr.io/aquasecurity/trivy-db /tmp/pulseplate-trivy-0.71.2/trivy fs . --skip-dirs trivy --ignore-policy trivy/ignore-policy.rego --ignorefile .trivyignore --scanners vuln --severity CRITICAL,HIGH --format json --exit-code 1 --output /tmp/pr2012-trivy-fs-direct.json` - PASS; local Trivy v0.71.2 exited 0 and the JSON output had zero HIGH/CRITICAL vulnerabilities.
 
 Full local `make verify` was not run under the operator-approved machine-heavy
 exception for this dependency lane. Current-head CI is the required heavy parity
@@ -103,20 +116,34 @@ signal before any merge-readiness claim.
   finding found. Evidence: diff is Ruff dev/tooling only, approved proxy served
   `ruff==0.15.18`, `pip-audit` passed for dev and lock files, and no runtime,
   Docker, auth, secrets, API, or app-code surface changed.
+- `Codex Security diff scan` - PASS on scan
+  `3e2c0ae4-3db4-4944-b6b5-9bcaf4ebba40`; 0 findings. Artifact outputs:
+  `report.md`, `scan-manifest.json`, `coverage.json`, and `findings.json` in
+  the durable Codex Security scan directory. The canonical target remained
+  `git_diff` over base `df9ede804b22a956933c7981072a8b5a327cc01a` and head
+  `ccdf81b474a8d68b14077871ecdc178969129dca`.
+- `pulseplate-pr-review` - PASS in dry-run report mode; no deterministic
+  findings for the dependency/governance diff.
+- Expanded Docker/Faraday security scope - FIXED by commit
+  `9657435215a11e1f203bcefb71ff5d3f6531dd63`. Evidence: GitHub Code Scanning
+  alert #613 reports `CVE-2026-54297` for `faraday 1.10.5` with fixed version
+  `>= 2.14.3`; `trivy/ignore-policy.rego` now accepts both Trivy JSON
+  `2.14.3` and SARIF/GitHub `>= 2.14.3` fixed-version shapes while preserving
+  exact `CVE + faraday + 1.10.5 + PURL/PkgID + PrimaryURL + severity/status`
+  matching.
 
 ## Current-Head CI Notes
 
 - Latest `pr_scope_guard` and `PR Body Phase2 gates` runs pass on head
   `8eab3370564a71fbdd88ccfcde26a0887f13e2bd`; earlier failures were from the
   superseded parser-shape revision.
-- Docker Build and Push `security-scan` fails because Trivy filesystem scan
-  exits 1 with `severity: CRITICAL,HIGH`. The current PR diff does not touch
-  Docker, Trivy policy, `.trivyignore`, Fastlane, Faraday, `ios/Gemfile.lock`,
-  runtime requirements, or application code. Security-auditor classified this
-  as a current-head/baseline Docker filesystem security-scan blocker, not a
-  Ruff-diff finding on available evidence.
-- CodeRabbit and several current-head CI jobs were still pending when this
-  artifact was updated; no merge-readiness claim is made.
+- Docker Build and Push `security-scan` failure was traced to Trivy Code
+  Scanning alert #613 (`CVE-2026-54297`, `faraday 1.10.5`,
+  `ios/Gemfile.lock`). The PR now includes the scoped Rego compatibility fix in
+  commit `9657435215a11e1f203bcefb71ff5d3f6531dd63`; local Trivy v0.71.2
+  filesystem scan exits 0 with zero HIGH/CRITICAL findings after the patch.
+- Current-head CI must rerun on the latest pushed head before any readiness
+  claim.
 
 ## Discussion Thread Pass
 
@@ -125,8 +152,9 @@ signal before any merge-readiness claim.
 
 No actionable review threads existed at PR open.
 
-No actionable QA, bug-hunter, or security-auditor findings remain after the
-Phase2 parser-shape fix. Codex Security, CodeRabbit, and any later bot/review
+No actionable QA, bug-hunter, security-auditor, Codex Security, CodeRabbit, or
+pulseplate-pr-review findings are currently known after the Phase2
+parser-shape and Docker/Faraday Trivy policy fixes. Any later bot/review
 findings still require disposition before merge-readiness governance can pass.
 
 ## Fixed in Commit Mapping
@@ -136,6 +164,8 @@ findings still require disposition before merge-readiness governance can pass.
 ## Implementation Evidence
 
 - Ruff-only dependency update -> `d30906288a8168d97192243203609be4f47a2397`
+- Faraday Trivy policy compatibility fix ->
+  `9657435215a11e1f203bcefb71ff5d3f6531dd63`
 
 ## Deferred / Follow-ups
 
@@ -144,7 +174,9 @@ findings still require disposition before merge-readiness governance can pass.
 - Dependabot alerts #160/#161/#162 for `torch` remain deferred because the GHSA
   lane currently has no patched version.
 - Dependabot alert #224 for `faraday` remains a dedicated Fastlane/Ruby security
-  lane.
+  lane for dependency graph remediation/removal. This PR only fixes the current
+  Trivy policy mismatch that made Docker `security-scan` fail despite the
+  documented temporary suppression.
 - Dependabot PR #2002 should remain open until this replacement PR is merged or
   otherwise confirmed as superseding.
 
@@ -153,13 +185,11 @@ findings still require disposition before merge-readiness governance can pass.
 Not merge-ready at this point.
 
 - Current `main` is known red on current-head CI.
-- Current-head CI for PR #2012 is pending/failed: Docker Build and Push
-  `security-scan` fails, while other current-head jobs and bot reviews may still
-  be pending.
+- Current-head CI for PR #2012 must rerun on the latest pushed head after the
+  Docker/Faraday Trivy policy fix.
 - Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Codex Security diff scan/finding discovery remains required when callable in
-  this environment.
+- Codex Security diff scan/finding discovery completed with 0 findings.
 - CodeRabbit and other bot actionables must be reviewed and dispositioned.
 - Strict merge-readiness governance must be rerun after the latest head commit,
   current-head CI, bot comments, and review-thread state settle.
