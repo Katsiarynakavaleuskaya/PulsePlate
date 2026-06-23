@@ -348,6 +348,42 @@ def test_transient_safety_service_failure_retries_then_passes(
     assert "=== Safety attempt 2/3" in log_text
 
 
+def test_reportless_transient_safety_cli_failure_retries_then_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    calls = 0
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        report_path = _report_path_from_scan_command(command)
+        if calls == 1:
+            assert not report_path.exists()
+            return SimpleNamespace(
+                returncode=1,
+                stdout="",
+                stderr="Unhandled exception happened: '\"detail\"'\n",
+            )
+        _write_scan_report(report_path, [])
+        return SimpleNamespace(returncode=0, stdout="scan ok\n", stderr="")
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+    monkeypatch.setattr(safety_audit.time, "sleep", lambda _: None)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+    results = safety_audit.run_audit(config)
+
+    log_text = (tmp_path / "safety-requirements.log").read_text(encoding="utf-8")
+    assert calls == 2
+    assert safety_audit.exit_code_for_results(results) == 0
+    assert "Unhandled exception happened" in log_text
+    assert "Retrying Safety scan after transient service failure" in log_text
+    assert "=== Safety attempt 2/3" in log_text
+
+
 def test_persistent_transient_safety_service_failure_fails_after_retries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

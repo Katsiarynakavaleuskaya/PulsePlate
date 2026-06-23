@@ -40,6 +40,10 @@ SAFETY_TRANSIENT_ERROR_MARKERS = (
     "Sorry, something went wrong.",
     "Our engineers are working quickly to resolve the issue.",
 )
+SAFETY_REPORTLESS_TRANSIENT_ERROR_MARKERS = (
+    *SAFETY_TRANSIENT_ERROR_MARKERS,
+    "Unhandled exception happened:",
+)
 
 
 class SafetyAuditError(RuntimeError):
@@ -650,6 +654,14 @@ def _safety_transient_output(completed: subprocess.CompletedProcess[str]) -> str
     return (completed.stdout or "") + (completed.stderr or "")
 
 
+def _has_safety_transient_marker(
+    completed: subprocess.CompletedProcess[str],
+    markers: Sequence[str],
+) -> bool:
+    output = _safety_transient_output(completed)
+    return any(marker in output for marker in markers)
+
+
 def _should_retry_transient_safety_failure(
     completed: subprocess.CompletedProcess[str],
     analysis: SafetyAnalysis,
@@ -665,8 +677,33 @@ def _should_retry_transient_safety_failure(
         or analysis.repo_policy_ignored_count
     ):
         return False
-    output = _safety_transient_output(completed)
-    return any(marker in output for marker in SAFETY_TRANSIENT_ERROR_MARKERS)
+    return _has_safety_transient_marker(completed, SAFETY_TRANSIENT_ERROR_MARKERS)
+
+
+def _should_retry_reportless_transient_safety_failure(
+    completed: subprocess.CompletedProcess[str],
+) -> bool:
+    """Return whether Safety failed before report generation in a retryable shape."""
+
+    if completed.returncode == 0:
+        return False
+    return _has_safety_transient_marker(completed, SAFETY_REPORTLESS_TRANSIENT_ERROR_MARKERS)
+
+
+def _record_transient_retry(
+    *,
+    attempt_log_chunks: list[str],
+    console_log: Path,
+    manifest: Path,
+    attempt: int,
+) -> None:
+    retry_line = (
+        "Retrying Safety scan after transient service failure "
+        f"for {manifest.name} (attempt {attempt + 1}/{SAFETY_TRANSIENT_RETRY_ATTEMPTS}).\n"
+    )
+    attempt_log_chunks.append(retry_line)
+    console_log.write_text("".join(attempt_log_chunks), encoding="utf-8")
+    print(retry_line, end="")
 
 
 def run_safety_for_manifest(
@@ -726,6 +763,18 @@ def run_safety_for_manifest(
             print(console_log.read_text(encoding="utf-8"), end="")
 
         if not report_json.is_file() or report_json.stat().st_size == 0:
+            if (
+                attempt < SAFETY_TRANSIENT_RETRY_ATTEMPTS
+                and _should_retry_reportless_transient_safety_failure(completed)
+            ):
+                _record_transient_retry(
+                    attempt_log_chunks=attempt_log_chunks,
+                    console_log=console_log,
+                    manifest=manifest,
+                    attempt=attempt,
+                )
+                time.sleep(SAFETY_TRANSIENT_RETRY_DELAY_SECONDS)
+                continue
             break
 
         analysis = analyze_report(
@@ -737,13 +786,12 @@ def run_safety_for_manifest(
             break
         if attempt >= SAFETY_TRANSIENT_RETRY_ATTEMPTS:
             break
-        retry_line = (
-            "Retrying Safety scan after transient service failure "
-            f"for {manifest.name} (attempt {attempt + 1}/{SAFETY_TRANSIENT_RETRY_ATTEMPTS}).\n"
+        _record_transient_retry(
+            attempt_log_chunks=attempt_log_chunks,
+            console_log=console_log,
+            manifest=manifest,
+            attempt=attempt,
         )
-        attempt_log_chunks.append(retry_line)
-        console_log.write_text("".join(attempt_log_chunks), encoding="utf-8")
-        print(retry_line, end="")
         time.sleep(SAFETY_TRANSIENT_RETRY_DELAY_SECONDS)
 
     if completed is None:
