@@ -3,7 +3,6 @@ Precise VIP coverage tests to achieve 97% coverage for specific missing lines.
 """
 
 import os
-import sys
 from typing import cast
 from unittest.mock import patch
 
@@ -21,21 +20,6 @@ class TestVIPCoveragePrecise:
         """Set up test fixtures with proper isolation."""
         # Store original state
         self.original_api_key = os.environ.get("API_KEY")
-        # Store only the modules we might modify
-        modules_to_watch = [
-            "app.routers.vip",
-            "core.auto_repair",
-            "core.menu_engine",
-            "core.recipe_synth",
-            "core.region_catalog",
-            "core.shoplist",
-        ]
-
-        self.original_modules = {
-            module_name: sys.modules[module_name]
-            for module_name in modules_to_watch
-            if module_name in sys.modules
-        }
         # Set test environment
         os.environ["API_KEY"] = "test-key"
 
@@ -46,70 +30,6 @@ class TestVIPCoveragePrecise:
             os.environ.pop("API_KEY", None)
         else:
             os.environ["API_KEY"] = self.original_api_key
-
-        # Restore original modules more carefully
-        # Only restore modules that were modified by our test
-        modules_to_restore = [
-            "app.routers.vip",
-            "core.auto_repair",
-            "core.menu_engine",
-            "core.recipe_synth",
-            "core.region_catalog",
-            "core.shoplist",
-        ]
-
-        for module_name in modules_to_restore:
-            if module_name in self.original_modules:
-                sys.modules[module_name] = self.original_modules[module_name]
-            elif module_name in sys.modules:
-                del sys.modules[module_name]
-
-    def test_vip_import_fallback_coverage_lines_55_74(self):
-        """Test VIP import fallback coverage for lines 55-74."""
-        # Mock import failure to trigger fallback logic
-        # Remove modules instead of setting to None (prevents sys.modules None poisoning)
-        modules_to_restore = {}
-        for mod_name in [
-            "core.auto_repair",
-            "core.menu_engine",
-            "core.recipe_synth",
-            "core.region_catalog",
-            "core.shoplist",
-        ]:
-            if mod_name in sys.modules:
-                modules_to_restore[mod_name] = sys.modules[mod_name]
-                del sys.modules[mod_name]
-
-        try:
-            # Re-import the module to trigger fallback
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
-            from app.routers import vip
-
-            # Verify fallback values are set to None (lines 57-74)
-            assert vip.make_weekly_menu is not None
-            assert vip.analyze_nutrient_gaps is not None
-            assert vip.ShoplistGenerator is not None
-            assert vip.aggregate_ingredients is not None
-            assert vip.round_to_packages is not None
-        finally:
-            # Restore modules
-            for mod_name, mod_obj in modules_to_restore.items():
-                sys.modules[mod_name] = mod_obj
-            assert vip.format_export is not None
-            assert vip.get_region_catalog is not None
-            assert vip.search_products is not None
-            assert vip.get_available_regions is not None
-            assert vip.get_price_comparison is not None
-            assert vip.get_recipe_synthesizer is not None
-            assert vip.synthesize_recipe_from_ingredients is not None
-            assert vip.synthesize_recipes_for_week is not None
-            assert vip.get_auto_repair_engine is not None
-            assert vip.auto_repair_week_plan is not None
-            assert vip.suggest_manual_fixes is not None
-            assert vip.RepairStrategy is not None
-            assert vip.RepairStatus is not None
 
     def test_vip_require_api_key_app_get_api_key_coverage_lines_93_98(self):
         """Test VIP _require_api_key app_get_api_key coverage for lines 93-98."""

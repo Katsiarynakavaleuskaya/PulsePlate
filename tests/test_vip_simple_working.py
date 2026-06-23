@@ -30,16 +30,10 @@ class TestVIPRouterWorking:
             # Мокаем VIP функции
             mock_make_weekly_menu = MagicMock(return_value={"plan_id": "test123", "meals": []})
 
-            mock_shoplist_generator = MagicMock()
-            mock_shoplist_instance = MagicMock()
-            mock_shoplist_instance.generate_weekly.return_value = {"items": [], "total": 0}
-            mock_shoplist_generator.return_value = mock_shoplist_instance
-
             mock_get_available_regions = MagicMock(return_value=["BY", "RU"])
 
             with (
                 patch("app.routers.vip.make_weekly_menu", mock_make_weekly_menu),
-                patch("app.routers.vip.ShoplistGenerator", mock_shoplist_generator),
                 patch("app.routers.vip.get_available_regions", mock_get_available_regions),
             ):
                 import app

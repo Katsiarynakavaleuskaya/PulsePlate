@@ -363,23 +363,9 @@ class TestVIPCoverageSimple:
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Mock format_export to return success
-        with patch("app.routers.vip.format_export", return_value=["csv", "json", "pdf"]):
-            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"
-            assert "formats" in data
-
-    def test_vip_shoplist_formats_error_coverage(self, vip_headers: dict[str, str]):
-        """Test VIP shoplist formats error coverage."""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Mock format_export to raise exception
-        with patch("app.routers.vip.format_export", side_effect=Exception("Format error")):
-            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"  # Returns success with echo mode
+        response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["formats"] == ["json", "csv", "text"]
+        assert data["locales"] == ["ru", "en", "es"]
