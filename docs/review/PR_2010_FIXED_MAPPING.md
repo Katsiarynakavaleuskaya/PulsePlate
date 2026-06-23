@@ -70,9 +70,7 @@ Evidence: CodeRabbit's advisory docstring coverage warning applies to generated 
 - `a8c2a994b` - address Sourcery review feedback by centralizing expected RAG
   package versions and tightening premortem enforcement references.
 
-Disposition: FIXED
-
-Evidence:
+Implementation evidence:
 
 - `requirements-rag-vector.txt` changes only `sentence-transformers==5.6.0` and
   `transformers==5.12.1` among optional RAG/vector pins.
@@ -90,6 +88,8 @@ Finding: Local `pip-compile` can drift platform-sensitive ML closure.
 
 Disposition: FIXED
 
+Commit: bd6d57036
+
 Evidence: The final lockfile diff preserves prior CUDA/Triton closure in
 `requirements-rag-vector.txt` and preserves `torch==2.11.0+cpu` in
 `requirements-rag-vector-cpu.txt`; only the two direct RAG pins changed.
@@ -98,6 +98,8 @@ Finding: Stale `sentence-transformers==5.5.1` emergency fallback could remain
 active after the direct pin bump.
 
 Disposition: FIXED
+
+Commit: bd6d57036
 
 Evidence: Approved proxy probe served
 `sentence_transformers-5.6.0-py3-none-any.whl` and
