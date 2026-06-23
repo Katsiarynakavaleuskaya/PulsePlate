@@ -103,6 +103,7 @@ greenlet==3.3.2
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
+    #   sqlalchemy
 h11==0.16.0
     # via
     #   -c requirements.txt
@@ -275,7 +276,7 @@ pyparsing==3.2.5
     # via
     #   -c requirements.txt
     #   matplotlib
-pytest==9.1.0
+pytest==9.1.1
     # via -r requirements-ci-lite.in
 python-dateutil==2.9.0.post0
     # via
