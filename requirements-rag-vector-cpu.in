@@ -10,9 +10,10 @@
 # .txt lockfile is the actual deterministic contract.  Without the extra index,
 # `torch==2.11.0` from the default PyPI index may resolve to CUDA-enabled
 # builds on Linux.
-# PR #1825 updates only the direct RAG/vector pins; the full ML resolver closure
-# remains unchanged because it is platform-sensitive on local macOS hosts.
-sentence-transformers==5.5.1
-transformers==5.12.0
+# Dependency refresh lanes update only the direct RAG/vector pins; the full ML
+# resolver closure remains unchanged because it is platform-sensitive on local
+# macOS hosts.
+sentence-transformers==5.6.0
+transformers==5.12.1
 torch==2.11.0
 pgvector==0.4.2

@@ -380,6 +380,41 @@ def test_persistent_transient_safety_service_failure_fails_after_retries(
     assert calls == safety_audit.SAFETY_TRANSIENT_RETRY_ATTEMPTS
 
 
+def test_missing_report_safety_cli_internal_exception_retries_then_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path, "requirements.txt")
+    calls = 0
+
+    def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return SimpleNamespace(
+                returncode=1,
+                stdout="",
+                stderr="Unhandled exception happened: '\"detail\"'\n",
+            )
+        report_path = _report_path_from_scan_command(command)
+        _write_scan_report(report_path, [])
+        return SimpleNamespace(returncode=0, stdout="scan ok\n", stderr="")
+
+    monkeypatch.setenv("SAFETY_API_KEY", "test-key")
+    monkeypatch.setattr(safety_audit.shutil, "which", lambda _: "/usr/bin/safety")
+    monkeypatch.setattr(safety_audit.subprocess, "run", fake_run)
+    monkeypatch.setattr(safety_audit.time, "sleep", lambda _: None)
+
+    config = safety_audit.build_config(root=tmp_path, output_dir=tmp_path)
+    results = safety_audit.run_audit(config)
+
+    log_text = (tmp_path / "safety-requirements.log").read_text(encoding="utf-8")
+    assert calls == 2
+    assert safety_audit.exit_code_for_results(results) == 0
+    assert "Retrying Safety scan after transient service failure" in log_text
+    assert "=== Safety attempt 1/3" in log_text
+    assert "=== Safety attempt 2/3" in log_text
+
+
 def test_real_safety_vulnerability_does_not_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

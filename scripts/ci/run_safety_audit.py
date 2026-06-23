@@ -40,6 +40,7 @@ SAFETY_TRANSIENT_ERROR_MARKERS = (
     "Sorry, something went wrong.",
     "Our engineers are working quickly to resolve the issue.",
 )
+SAFETY_MISSING_REPORT_TRANSIENT_ERROR_MARKERS = ("Unhandled exception happened:",)
 
 
 class SafetyAuditError(RuntimeError):
@@ -669,6 +670,18 @@ def _should_retry_transient_safety_failure(
     return any(marker in output for marker in SAFETY_TRANSIENT_ERROR_MARKERS)
 
 
+def _should_retry_missing_report_safety_failure(
+    completed: subprocess.CompletedProcess[str],
+) -> bool:
+    """Return whether a missing-report Safety crash should be retried."""
+
+    if completed.returncode == 0:
+        return False
+    output = _safety_transient_output(completed)
+    markers = SAFETY_TRANSIENT_ERROR_MARKERS + SAFETY_MISSING_REPORT_TRANSIENT_ERROR_MARKERS
+    return any(marker in output for marker in markers)
+
+
 def run_safety_for_manifest(
     *,
     config: SafetyAuditConfig,
@@ -726,6 +739,19 @@ def run_safety_for_manifest(
             print(console_log.read_text(encoding="utf-8"), end="")
 
         if not report_json.is_file() or report_json.stat().st_size == 0:
+            if (
+                _should_retry_missing_report_safety_failure(completed)
+                and attempt < SAFETY_TRANSIENT_RETRY_ATTEMPTS
+            ):
+                retry_line = (
+                    "Retrying Safety scan after transient service failure "
+                    f"for {manifest.name} (attempt {attempt + 1}/{SAFETY_TRANSIENT_RETRY_ATTEMPTS}).\n"
+                )
+                attempt_log_chunks.append(retry_line)
+                console_log.write_text("".join(attempt_log_chunks), encoding="utf-8")
+                print(retry_line, end="")
+                time.sleep(SAFETY_TRANSIENT_RETRY_DELAY_SECONDS)
+                continue
             break
 
         analysis = analyze_report(
