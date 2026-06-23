@@ -58,6 +58,14 @@ Evidence: `tests/test_vip_coverage_additional.py` now parses responses through `
 Disposition: FIXED
 Commit: 7d9174698d07e7c6f23559721139fbf1a57ad81d
 Evidence: `tests/test_vip_coverage_simple.py` now parses responses through `assert_json_response_payload(...)` or `assert_vip_shoplist_formats_response(...)`; `tests/_helpers/vip_contracts.py` asserts `Content-Type` starts with `application/json` before calling `response.json()`. Focused validation passed: `pytest -q tests/test_vip_coverage_simple.py tests/test_vip_coverage_additional.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#pullrequestreview-4557050411 -> b97bed8f9aa8a3ec2171be99ba4d808953ae4eb5
+Disposition: FIXED
+Commit: b97bed8f9aa8a3ec2171be99ba4d808953ae4eb5
+Evidence: `tests/test_trivy_ignore_policy_expiry.py` now scopes Faraday CVE-2026-54297 suppression assertions to `faraday_policy` instead of the full Rego policy text. Focused validation passed: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`; `pytest -q tests/test_trivy_ignore_policy_expiry.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2013#discussion_r3462888780 -> b97bed8f9aa8a3ec2171be99ba4d808953ae4eb5
+Disposition: FIXED
+Commit: b97bed8f9aa8a3ec2171be99ba4d808953ae4eb5
+Evidence: `docs/review/PR_2013_FIXED_MAPPING.md` keeps only the two artifact-level checkboxes checked and leaves later review/merge-cycle checklist items unchecked until final merge readiness.
 
 ## Additional Fixed Findings
 
