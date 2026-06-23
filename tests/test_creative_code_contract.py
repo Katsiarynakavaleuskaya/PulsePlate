@@ -69,10 +69,46 @@ def test_cli_reports_one_fail_line_for_duplicate_json_keys(
 
     captured = capsys.readouterr()
     assert exit_code == 1
-    assert captured.out.count("\n") == 1
-    assert captured.out.startswith(
+    assert captured.out == ""
+    assert captured.err.count("\n") == 1
+    assert captured.err.startswith(
         "FAIL: creative-code candidate contract has duplicate JSON key: schema_version"
     )
+
+
+@pytest.mark.parametrize(
+    "packet_path",
+    [
+        Path("missing.json"),
+        Path("nested") / "missing.json",
+    ],
+)
+def test_cli_reports_missing_file_failures_on_stderr(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    packet_path: Path,
+) -> None:
+    exit_code = creative_code_contract.main(["--validate", str(tmp_path / packet_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert captured.err == "FAIL: Unable to read creative-code candidate contract JSON.\n"
+
+
+def test_cli_reports_malformed_json_failures_on_stderr(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    malformed_packet = tmp_path / "malformed.json"
+    malformed_packet.write_text('{"schema_version": ', encoding="utf-8")
+
+    exit_code = creative_code_contract.main(["--validate", str(malformed_packet)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert captured.err == "FAIL: Unable to read creative-code candidate contract JSON.\n"
 
 
 def test_source_must_be_promoted_creative_research() -> None:

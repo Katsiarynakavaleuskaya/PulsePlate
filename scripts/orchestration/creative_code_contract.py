@@ -510,7 +510,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = read_creative_code_candidate_packet(args.validate)
         validate_creative_code_candidate_packet(payload)
     except CreativeCodeContractError as exc:
-        print(f"FAIL: {exc}")
+        print(f"FAIL: {exc}", file=sys.stderr)
         return 1
     print(SUCCESS_OUTPUT)
     return 0
