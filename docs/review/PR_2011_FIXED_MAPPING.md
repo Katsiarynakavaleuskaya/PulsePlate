@@ -32,9 +32,9 @@
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
-- [ ] Current actionable bot/review comments must be fixed or dispositioned
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
+- [x] Current actionable bot/review comments are fixed or dispositioned
   before merge readiness.
 
 ## Fixed in Commit Mapping
@@ -124,6 +124,13 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 - PASS after security-auditor fix: `pre-commit run --all-files`
 - PASS after security-auditor fix: `make validate-changed` selected
   `tests/test_creative_code_contract.py` and passed (`62 passed`).
+- PASS: Codex Security current-head diff scan
+  `245e0e80-b9e0-4557-985a-3bec336b2063` completed with
+  `findingCount=0`; report:
+  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-ZtRbOu/creative-code-authority-pr0/7802645465e4c4d1c0fd431c83b75734fe149f9d_20260623T113907Z_lbks284w/report.md`.
+- PASS: `python3 scripts/orchestration/pr_review_context.py --pr 2011 --output /tmp/pulseplate_pr_2011_review_context.json`
+- PASS: `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2011_review_context.json --format markdown`
+- PASS: `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2011_review_context.json --format json`
 - PASS: pre-push hook during `git push`, including mypy changed files, backend
   pre-push pytest, full-repo Bandit, and docker build test.
 
@@ -170,14 +177,44 @@ the wait-window.
     target-surface bypass closure, no machine-local fixed-mapping command paths,
     and bug-hunter checklist consistency.
 - Codex Security diff scan / finding discovery:
-  - Status: pending.
+  - Disposition: NOT-A-BUG
+  - Evidence: current-head diff scan
+    `245e0e80-b9e0-4557-985a-3bec336b2063` on
+    `7802645465e4c4d1c0fd431c83b75734fe149f9d` completed with
+    `findingCount=0`; `artifacts/02_discovery/work_ledger.jsonl` records a
+    full-file receipt for `scripts/orchestration/creative_code_contract.py`
+    with `disposition=no_issue_found`.
+  - Report:
+    `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-ZtRbOu/creative-code-authority-pr0/7802645465e4c4d1c0fd431c83b75734fe149f9d_20260623T113907Z_lbks284w/report.md`.
 - `pulseplate-pr-review`
-  - Status: pending.
+  - Disposition: NOT-A-BUG
+  - Evidence: dry-run report generated one advisory `note` for large diff risk
+    because the diff has 10 files and 1687 added lines. PR-0 intentionally
+    includes the closed contract doc, schema, reference packet, validator,
+    focused tests, fixed mapping, and backlog/protocol synchronization as one
+    coherent authority-boundary lane; focused gates, `make validate-changed`,
+    pre-commit, pre-push, Experiment Runner oracle evidence, and Codex Security
+    all ran on the changed surface.
+  - Report: `/tmp/pulseplate_pr_2011_review_report.md`.
 
 ## Bot Review Disposition
 
 - CodeRabbit:
-  - Status: pending post-open bot review.
+  - Disposition: NOT-A-BUG
+  - Evidence:
+    <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3459399259>
+    asks to allow protected prompt/program docs such as
+    `docs/orchestration/prompts/*` through `target_surface`. PR-0 intentionally
+    narrows the shared mutable candidate allowlist: the governed contract says
+    target surfaces must reuse `validate_mutable_candidate_surface(...)` and
+    then reject protected governance, review, security, compliance, legal, test,
+    CI, AGENTS, and release surfaces. The dedicated regression at
+    `tests/test_creative_code_contract.py` rejects
+    `docs/orchestration/prompts/candidate.md`,
+    `docs/review/foo/program.md`, and `docs/security/program.md`; this is the
+    security-auditor fix, not a false-positive failure.
+  - Thread:
+    <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2011#discussion_r3459399259>
 - Sourcery:
   - Disposition: FIXED
   - Evidence:
@@ -187,15 +224,18 @@ the wait-window.
     are mapped to
     `3686f7edf204edf3cd351157d661edd30c7e198c`.
 - Cubic:
-  - Status: pending post-open bot review.
+  - Disposition: NOT-A-BUG
+  - Evidence: current GitHub status rollup reports `cubic · AI code reviewer`
+    as `NEUTRAL`; no Cubic review thread or actionable issue comment exists for
+    PR #2011.
 
 ## Merge Readiness
 
 - [x] Narrow local gates passed.
 - [x] Machine-heavy local `make verify` deferral documented.
 - [ ] Current-head CI parity clean.
-- [ ] Post-open review gates complete.
-- [ ] Bot reviews have no actionable comments or every actionable is
+- [x] Post-open review gates complete.
+- [x] Bot reviews have no actionable comments or every actionable is
   dispositioned.
 - [ ] Strict merge-readiness wrapper passes with auth.
 - [ ] Wait-window completed after latest review activity.
