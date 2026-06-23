@@ -797,8 +797,10 @@ def _resolve_vip_router_for_compat() -> APIRouter | None:
 
     try:
         from app.routers import vip as vip_module
-    except ImportError:
-        return None
+    except ModuleNotFoundError as exc:
+        if exc.name == "app.routers.vip":
+            return None
+        raise
 
     return getattr(vip_module, "router", None)
 
@@ -809,14 +811,19 @@ def _mirror_paid_tier_registration_attrs(
 ) -> None:
     global VIP_MODULE_ENABLED, vip_router, pro_router, premium_week_router
 
-    VIP_MODULE_ENABLED = is_vip_module_enabled()
-    vip_router = _resolve_vip_router_for_compat()
-    pro_router = registered_pro_router
-    premium_week_router = registered_premium_week_router
-    _legacy_module.VIP_MODULE_ENABLED = VIP_MODULE_ENABLED
-    _legacy_module.vip_router = vip_router
-    _legacy_module.pro_router = pro_router
-    _legacy_module.premium_week_router = premium_week_router
+    resolved_vip_module_enabled = is_vip_module_enabled()
+    resolved_vip_router = _resolve_vip_router_for_compat()
+    resolved_pro_router = registered_pro_router
+    resolved_premium_week_router = registered_premium_week_router
+
+    VIP_MODULE_ENABLED = resolved_vip_module_enabled
+    vip_router = resolved_vip_router
+    pro_router = resolved_pro_router
+    premium_week_router = resolved_premium_week_router
+    _legacy_module.VIP_MODULE_ENABLED = resolved_vip_module_enabled
+    _legacy_module.vip_router = resolved_vip_router
+    _legacy_module.pro_router = resolved_pro_router
+    _legacy_module.premium_week_router = resolved_premium_week_router
 
 
 def _register_paid_tier_routes(target_app: FastAPI) -> None:

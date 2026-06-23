@@ -121,8 +121,10 @@ OpenAPI effect:
 Anchor (stable): `app/main.py -> _register_paid_tier_routes(app)` delegates to `vip_registration.register_vip_routes()`
 
 Evidence:
-- `app/main.py` — `_register_paid_tier_routes(app)` calls VIP registration before PRO registration
-- `app/routers/vip_registration.py:23-58` — central function + `is_vip_module_enabled()` gate
+- `app/main.py:829-832` — `_register_paid_tier_routes(app)` calls VIP
+  registration before PRO registration.
+- `app/routers/vip_registration.py:61-137` — central VIP registration function
+  applies the `is_vip_module_enabled()` gate and `api_key_header` dependency.
 
 Runtime effect:
 - When VIP module is enabled, `vip_registration.register_vip_routes()` includes `app/routers/vip.py` with `api_key_header` dependency.
@@ -132,8 +134,11 @@ Runtime effect:
 Anchor (stable): `app/main.py -> _register_paid_tier_routes(app)` delegates to centralized `pro_registration.register_pro_routes()`
 
 Evidence:
-- `app/main.py` — `_register_paid_tier_routes(app)` mirrors returned PRO routers to `legacy_app.pro_router` / `legacy_app.premium_week_router`
-- `app/routers/pro_registration.py:26-86` — centralized registration + feature-flag gated `premium_week`
+- `app/main.py:808-832` — canonical bootstrap mirrors returned PRO routers to
+  `legacy_app.pro_router` / `legacy_app.premium_week_router` only after VIP and
+  PRO registration values are resolved.
+- `app/routers/pro_registration.py:26-104` — centralized registration +
+  feature-flag gated `premium_week`.
 
 Runtime effect:
 - In normal runtime: includes `app/routers/pro.py`.
