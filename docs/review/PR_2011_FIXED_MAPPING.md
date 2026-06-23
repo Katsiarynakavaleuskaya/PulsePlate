@@ -78,19 +78,18 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 
 ## Experiment Runner Evidence
 
-- Packet: `artifacts/orchestration/experiments/exp-52048b390754.json`
-- Artifact: `artifacts/orchestration/experiments/results/exp-52048b390754.json`
+- Packet: `artifacts/orchestration/experiments/pr2011-creative-code-final-oracle.json`
+- Artifact: `artifacts/orchestration/experiments/results/pr2011-creative-code-final-oracle-result.json`
 - Status: accepted.
 - Runner mode: `oracle_only_governance_reviewer`.
 - Shared tree untouched: `true`.
 - Source diff applied in isolated checkout: `true`.
-- Source diff paths: 9.
+- Source diff paths: 10.
 - Failure class: `null`.
 - Mutated paths: `[]`.
-- Contribution kind: `oracle_review`.
+- Contribution kind: `fixed_mapping_review`.
 - Co-author required: `true`.
-- Commit trailer included in implementation commit
-  `6cae213aa5e8480c8330226df8775ba7fcac710b`:
+- Commit trailer included in PR-0 commits:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 - Oracle commands:
   - `python -m scripts.orchestration.creative_code_contract --validate docs/orchestration/contracts/creative_code_candidate.v1.json`
