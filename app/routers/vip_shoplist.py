@@ -405,6 +405,7 @@ async def vip_shoplist_generate(
 @router.post(
     "/daily",
     response_model=ShoplistGenerateResponse,
+    operation_id="daily_shoplist_api_v1_vip_shoplist_daily_post",
     responses=COMMON_VIP_SHOPLIST_RESPONSES,
     summary="Generate daily VIP shoplist (deterministic)",
     description=(
@@ -445,6 +446,7 @@ async def vip_shoplist_daily(
 @router.post(
     "/weekly",
     response_model=ShoplistWeeklyResponse,
+    operation_id="weekly_shoplist_api_v1_vip_shoplist_weekly_post",
     responses=COMMON_VIP_SHOPLIST_RESPONSES,
     summary="Generate weekly VIP shoplist (deterministic)",
     description=(

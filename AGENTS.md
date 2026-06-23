@@ -54,6 +54,24 @@ dead interpreter. Missing scripts are OK; see
    normal PRs, or the documented narrow gate for an operator-approved
    machine-heavy PR)
 
+**Current-PR defect handling (hard rule):**
+
+- Any actionable defect surfaced by local gates, role agents, Codex Security,
+  CodeRabbit, Sourcery, Cubic, or human review inside the current PR surface
+  MUST be fixed in the same PR before mapping, thread resolution, or
+  merge-readiness claims. Do not classify such findings as "known inherited
+  debt" or leave them for a later PR merely to preserve the original narrow
+  diff.
+- Duplicate FastAPI method/path route registrations are forbidden. If a
+  duplicate route is found in the live app or touched route family, remove the
+  duplicate owner or add a fail-closed registration guard in the same PR. Do not
+  document duplicate routes as acceptable inherited debt.
+- Do not soften production invariants to satisfy stale tests, compatibility
+  placeholders, or legacy `None`/empty stubs. Production code must require real
+  configured objects, real keys, and real route owners; if an old test encodes a
+  false placeholder contract, update the test and keep runtime behavior
+  fail-closed.
+
 **PR merge readiness (hard rule):**
 
 - Green CI alone is NOT sufficient for merge.

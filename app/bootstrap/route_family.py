@@ -84,6 +84,47 @@ def route_has_dependency_call(
     )
 
 
+def route_member_contracts_from_router(
+    family_name: str,
+    router: APIRouter,
+    *,
+    extra_required_dependencies: Sequence[Callable[..., object]] = (),
+) -> tuple[RouteMemberContract, ...]:
+    """Build static route-family contracts from an APIRouter source."""
+
+    members: list[RouteMemberContract] = []
+    for route in router.routes:
+        if not isinstance(route, APIRoute):
+            raise RuntimeError(f"{family_name} router does not define the expected route family.")
+
+        route_dependencies: list[Callable[..., object]] = []
+        for call in _iter_dependency_calls(getattr(route.dependant, "dependencies", None)):
+            if callable(call):
+                route_dependencies.append(call)
+        required_dependencies = tuple(extra_required_dependencies) + tuple(route_dependencies)
+        methods = _route_methods(route) - _FRAMEWORK_METHODS
+        if not methods:
+            raise RuntimeError(f"{family_name} router does not define the expected route family.")
+        for method in sorted(methods):
+            members.append(
+                RouteMemberContract(
+                    path=str(route.path),
+                    method=method,
+                    include_in_schema=route.include_in_schema,
+                    required_status_codes=frozenset(
+                        status_code
+                        for status_code in (route.responses or {})
+                        if isinstance(status_code, int)
+                    ),
+                    required_dependencies=required_dependencies,
+                )
+            )
+
+    if not members:
+        raise RuntimeError(f"{family_name} router does not define the expected route family.")
+    return tuple(members)
+
+
 def ensure_route_family_registered(
     target_app: FastAPI,
     *,

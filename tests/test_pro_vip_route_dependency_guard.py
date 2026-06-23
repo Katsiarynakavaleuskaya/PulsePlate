@@ -44,6 +44,24 @@ def _canonical_pro_vip_routes(routes: list[APIRoute]) -> list[APIRoute]:
     return canonical
 
 
+def test_canonical_pro_vip_routes_do_not_duplicate_method_path(app: FastAPI) -> None:
+    seen: dict[tuple[str, str], str] = {}
+    duplicates: list[str] = []
+
+    for route in _canonical_pro_vip_routes(_load_routes(app)):
+        endpoint_name = f"{route.endpoint.__module__}.{route.endpoint.__name__}"
+        for method in sorted((route.methods or set()) - {"HEAD", "OPTIONS"}):
+            key = (method, route.path)
+            previous = seen.get(key)
+            if previous is not None:
+                duplicates.append(f"{method} {route.path}: {previous} and {endpoint_name}")
+            seen[key] = endpoint_name
+
+    assert not duplicates, "Duplicate canonical PRO/VIP route registrations:\n" + "\n".join(
+        duplicates
+    )
+
+
 def test_canonical_pro_vip_routes_require_expected_tier_dependency(app: FastAPI) -> None:
     routes = _canonical_pro_vip_routes(_load_routes(app))
     missing_guards: list[str] = []

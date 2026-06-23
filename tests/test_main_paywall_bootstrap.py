@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from typing import Generator, cast
+
 from fastapi import APIRouter, Depends, FastAPI, Response, WebSocket
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 import pytest
-from typing import Generator
+from starlette.routing import BaseRoute
 
 import app.main as app_main
 from app.bootstrap.route_family import (
     RouteMemberContract,
     ensure_route_family_registered,
+    route_member_contracts_from_router,
     route_has_dependency_call,
     same_callable_by_module_and_qualname,
 )
@@ -79,6 +83,70 @@ def test_route_family_rejects_duplicate_and_empty_member_contracts() -> None:
             family_name="Static family",
             routers=(),
             members=(),
+        )
+
+
+def test_route_member_contracts_reject_non_http_routes() -> None:
+    router = APIRouter()
+
+    async def _websocket_endpoint(websocket: WebSocket) -> None:
+        await websocket.close()
+
+    router.websocket("/ws/static-family")(_websocket_endpoint)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        route_member_contracts_from_router("Static family", router)
+
+
+def test_route_member_contracts_reject_framework_only_route_methods() -> None:
+    router = APIRouter()
+
+    async def _handler() -> dict[str, str]:
+        return {"status": "framework-only"}
+
+    route = APIRoute("/api/v1/static-family/head", endpoint=_handler, methods=["GET"])
+    route.methods = {"HEAD"}
+    router.routes.append(cast(BaseRoute, route))
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        route_member_contracts_from_router("Static family", router)
+
+
+def test_route_member_contracts_reject_empty_source_router() -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        route_member_contracts_from_router("Static family", APIRouter())
+
+
+def test_route_family_contract_builder_rejects_duplicate_source_routes() -> None:
+    router = APIRouter()
+
+    async def _first() -> dict[str, str]:
+        return {"status": "first"}
+
+    async def _second() -> dict[str, str]:
+        return {"status": "second"}
+
+    router.get("/api/v1/static-family/duplicate")(_first)
+    router.get("/api/v1/static-family/duplicate")(_second)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(router,),
+            members=route_member_contracts_from_router("Static family", router),
         )
 
 
@@ -713,6 +781,8 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "register_metrics", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_request_telemetry", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_tracing", lambda target_app: None)
+    monkeypatch.setattr(app_main, "register_vip_routes", lambda target_app: None)
+    monkeypatch.setattr(app_main, "register_pro_routes", lambda target_app: (None, None))
     monkeypatch.setattr(app_main, "register_pro_contract_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_billing_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "feedback_router", _stub_router("/api/v1/feedback/rag"))
@@ -748,6 +818,305 @@ def _bootstrap_temp_app(app: FastAPI) -> FastAPI:
         return app_main.ensure_canonical_app_bootstrap(app)
     finally:
         app_main.app = original_app
+
+
+def test_paid_tier_registration_runs_vip_then_pro_and_mirrors_legacy_attrs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    calls: list[str] = []
+    vip = APIRouter()
+    pro = APIRouter()
+    premium_week = APIRouter()
+
+    def _register_vip(target_app: FastAPI) -> None:
+        calls.append("vip")
+
+    def _register_pro(target_app: FastAPI) -> tuple[APIRouter, APIRouter]:
+        calls.append("pro")
+        return pro, premium_week
+
+    monkeypatch.setattr(app_main, "register_vip_routes", _register_vip)
+    monkeypatch.setattr(app_main, "register_pro_routes", _register_pro)
+    monkeypatch.setattr(app_main, "is_vip_module_enabled", lambda: True)
+    monkeypatch.setattr(app_main, "_resolve_vip_router_for_compat", lambda: vip)
+    monkeypatch.setattr(app_main, "VIP_MODULE_ENABLED", False)
+    monkeypatch.setattr(app_main, "vip_router", None)
+    monkeypatch.setattr(app_main, "pro_router", None)
+    monkeypatch.setattr(app_main, "premium_week_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "VIP_MODULE_ENABLED", False)
+    monkeypatch.setattr(app_main._legacy_module, "vip_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "pro_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "premium_week_router", None)
+
+    _bootstrap_temp_app(FastAPI())
+
+    assert calls == ["vip", "pro"]
+    assert app_main.VIP_MODULE_ENABLED is True
+    assert app_main.vip_router is vip
+    assert app_main.pro_router is pro
+    assert app_main.premium_week_router is premium_week
+    assert app_main._legacy_module.VIP_MODULE_ENABLED is True
+    assert app_main._legacy_module.vip_router is vip
+    assert app_main._legacy_module.pro_router is pro
+    assert app_main._legacy_module.premium_week_router is premium_week
+
+
+def test_vip_compat_resolver_returns_none_when_vip_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_main, "is_vip_module_enabled", lambda: False)
+
+    assert app_main._resolve_vip_router_for_compat() is None
+
+
+def test_vip_compat_resolver_returns_none_when_vip_module_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_missing_vip_module() -> object:
+        raise ModuleNotFoundError(
+            "No module named 'app.routers.vip'",
+            name="app.routers.vip",
+        )
+
+    monkeypatch.setattr(app_main, "is_vip_module_enabled", lambda: True)
+    monkeypatch.setattr(
+        app_main,
+        "_import_vip_module_for_compat",
+        _raise_missing_vip_module,
+    )
+
+    assert app_main._resolve_vip_router_for_compat() is None
+
+
+def test_vip_compat_resolver_reraises_nested_import_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_nested_import_failure() -> object:
+        raise ModuleNotFoundError(
+            "No module named 'vip_runtime_dependency'",
+            name="vip_runtime_dependency",
+        )
+
+    monkeypatch.setattr(app_main, "is_vip_module_enabled", lambda: True)
+    monkeypatch.setattr(
+        app_main,
+        "_import_vip_module_for_compat",
+        _raise_nested_import_failure,
+    )
+
+    with pytest.raises(ModuleNotFoundError, match="vip_runtime_dependency"):
+        app_main._resolve_vip_router_for_compat()
+
+
+def test_paid_tier_registration_keeps_legacy_attrs_unchanged_when_pro_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    calls: list[str] = []
+    original_vip_router = APIRouter()
+    original_pro_router = APIRouter()
+    original_premium_week_router = APIRouter()
+
+    def _register_vip(target_app: FastAPI) -> None:
+        calls.append("vip")
+
+    def _register_pro(target_app: FastAPI) -> tuple[APIRouter, APIRouter]:
+        calls.append("pro")
+        raise RuntimeError("pro registration failed")
+
+    monkeypatch.setattr(app_main, "register_vip_routes", _register_vip)
+    monkeypatch.setattr(app_main, "register_pro_routes", _register_pro)
+    monkeypatch.setattr(
+        app_main,
+        "_resolve_vip_router_for_compat",
+        lambda: pytest.fail("compat mirror should not run after PRO failure"),
+    )
+    monkeypatch.setattr(app_main, "VIP_MODULE_ENABLED", False)
+    monkeypatch.setattr(app_main, "vip_router", original_vip_router)
+    monkeypatch.setattr(app_main, "pro_router", original_pro_router)
+    monkeypatch.setattr(app_main, "premium_week_router", original_premium_week_router)
+    monkeypatch.setattr(app_main._legacy_module, "VIP_MODULE_ENABLED", False)
+    monkeypatch.setattr(app_main._legacy_module, "vip_router", original_vip_router)
+    monkeypatch.setattr(app_main._legacy_module, "pro_router", original_pro_router)
+    monkeypatch.setattr(
+        app_main._legacy_module,
+        "premium_week_router",
+        original_premium_week_router,
+    )
+
+    with pytest.raises(RuntimeError, match="pro registration failed"):
+        _bootstrap_temp_app(FastAPI())
+
+    assert calls == ["vip", "pro"]
+    assert app_main.VIP_MODULE_ENABLED is False
+    assert app_main.vip_router is original_vip_router
+    assert app_main.pro_router is original_pro_router
+    assert app_main.premium_week_router is original_premium_week_router
+    assert app_main._legacy_module.VIP_MODULE_ENABLED is False
+    assert app_main._legacy_module.vip_router is original_vip_router
+    assert app_main._legacy_module.pro_router is original_pro_router
+    assert app_main._legacy_module.premium_week_router is original_premium_week_router
+
+
+def test_paid_tier_registration_keeps_legacy_attrs_unchanged_when_compat_resolver_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    calls: list[str] = []
+    original_vip_router = APIRouter()
+    original_pro_router = APIRouter()
+    original_premium_week_router = APIRouter()
+    registered_pro_router = APIRouter()
+    registered_premium_week_router = APIRouter()
+
+    def _register_vip(target_app: FastAPI) -> None:
+        calls.append("vip")
+
+    def _register_pro(target_app: FastAPI) -> tuple[APIRouter, APIRouter]:
+        calls.append("pro")
+        return registered_pro_router, registered_premium_week_router
+
+    def _fail_resolve_vip_router() -> APIRouter:
+        raise RuntimeError("compat resolver failed")
+
+    monkeypatch.setattr(app_main, "register_vip_routes", _register_vip)
+    monkeypatch.setattr(app_main, "register_pro_routes", _register_pro)
+    monkeypatch.setattr(app_main, "is_vip_module_enabled", lambda: True)
+    monkeypatch.setattr(app_main, "_resolve_vip_router_for_compat", _fail_resolve_vip_router)
+    monkeypatch.setattr(app_main, "VIP_MODULE_ENABLED", False)
+    monkeypatch.setattr(app_main, "vip_router", original_vip_router)
+    monkeypatch.setattr(app_main, "pro_router", original_pro_router)
+    monkeypatch.setattr(app_main, "premium_week_router", original_premium_week_router)
+    monkeypatch.setattr(app_main._legacy_module, "VIP_MODULE_ENABLED", False)
+    monkeypatch.setattr(app_main._legacy_module, "vip_router", original_vip_router)
+    monkeypatch.setattr(app_main._legacy_module, "pro_router", original_pro_router)
+    monkeypatch.setattr(
+        app_main._legacy_module,
+        "premium_week_router",
+        original_premium_week_router,
+    )
+
+    with pytest.raises(RuntimeError, match="compat resolver failed"):
+        _bootstrap_temp_app(FastAPI())
+
+    assert calls == ["vip", "pro"]
+    assert app_main.VIP_MODULE_ENABLED is False
+    assert app_main.vip_router is original_vip_router
+    assert app_main.pro_router is original_pro_router
+    assert app_main.premium_week_router is original_premium_week_router
+    assert app_main._legacy_module.VIP_MODULE_ENABLED is False
+    assert app_main._legacy_module.vip_router is original_vip_router
+    assert app_main._legacy_module.pro_router is original_pro_router
+    assert app_main._legacy_module.premium_week_router is original_premium_week_router
+
+
+def test_paid_tier_registration_stops_before_pro_when_vip_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    original_pro_router = APIRouter()
+    original_premium_week_router = APIRouter()
+
+    def _register_vip(target_app: FastAPI) -> None:
+        raise RuntimeError("vip registration failed")
+
+    def _register_pro(target_app: FastAPI) -> tuple[APIRouter, APIRouter]:
+        pytest.fail("PRO registration should not run after VIP failure")
+
+    monkeypatch.setattr(app_main, "register_vip_routes", _register_vip)
+    monkeypatch.setattr(app_main, "register_pro_routes", _register_pro)
+    monkeypatch.setattr(app_main, "pro_router", original_pro_router)
+    monkeypatch.setattr(app_main, "premium_week_router", original_premium_week_router)
+    monkeypatch.setattr(app_main._legacy_module, "pro_router", original_pro_router)
+    monkeypatch.setattr(
+        app_main._legacy_module,
+        "premium_week_router",
+        original_premium_week_router,
+    )
+
+    with pytest.raises(RuntimeError, match="vip registration failed"):
+        _bootstrap_temp_app(FastAPI())
+
+    assert app_main.pro_router is original_pro_router
+    assert app_main.premium_week_router is original_premium_week_router
+    assert app_main._legacy_module.pro_router is original_pro_router
+    assert app_main._legacy_module.premium_week_router is original_premium_week_router
+
+
+def test_pro_registration_rejects_empty_canonical_pro_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.pro as pro_module
+    import app.utils.feature_flags as feature_flags
+    from app.routers.pro_registration import register_pro_routes
+
+    monkeypatch.setattr(pro_module, "router", APIRouter())
+    monkeypatch.delenv("FEATURE_PREMIUM_WEEK_ENABLED", raising=False)
+    monkeypatch.setattr(feature_flags, "is_vip_module_enabled", lambda: False)
+
+    with pytest.raises(
+        RuntimeError,
+        match="PRO router from app\\.routers\\.pro must be a non-empty APIRouter",
+    ):
+        register_pro_routes(FastAPI())
+
+
+def test_vip_registration_rejects_empty_canonical_vip_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.vip as vip_module
+    import app.utils.feature_flags as feature_flags
+    from app.routers.vip_registration import register_vip_routes
+
+    monkeypatch.setattr(vip_module, "router", APIRouter())
+    monkeypatch.setattr(feature_flags, "is_vip_module_enabled", lambda: True)
+
+    with pytest.raises(
+        RuntimeError,
+        match="VIP router from app\\.routers\\.vip must be a non-empty APIRouter",
+    ):
+        register_vip_routes(FastAPI())
+
+
+def test_vip_route_registration_rejects_foreign_existing_paid_tier_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.vip_registration import register_vip_routes
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    app = FastAPI()
+
+    async def _shadow_vip_regions() -> dict[str, str]:
+        return {"status": "shadow"}
+
+    app.add_api_route("/api/v1/vip/regions", _shadow_vip_regions, methods=["GET"])
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial vip route registration|Duplicate /api/v1/vip/regions route",
+    ):
+        register_vip_routes(app)
+
+
+def test_pro_route_registration_rejects_foreign_existing_paid_tier_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.pro_registration import register_pro_routes
+
+    monkeypatch.setenv("FEATURE_PREMIUM_WEEK_ENABLED", "false")
+    app = FastAPI()
+
+    async def _shadow_pro_weekly() -> dict[str, str]:
+        return {"status": "shadow"}
+
+    app.add_api_route("/api/v1/pro/meal/weekly", _shadow_pro_weekly, methods=["POST"])
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial pro route registration|Duplicate /api/v1/pro/meal/weekly route",
+    ):
+        register_pro_routes(app)
 
 
 def test_paywall_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:

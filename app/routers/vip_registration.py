@@ -12,7 +12,7 @@ VIP route registration explicit and testable.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -115,23 +115,25 @@ def register_vip_routes(app: FastAPI) -> None:
 
     from app.routers import vip as vip_module
     from app.routers.api_key import api_key_header
-    from fastapi import Depends
+    from app.bootstrap.route_family import (
+        ensure_route_family_registered,
+        route_member_contracts_from_router,
+    )
+    from fastapi import APIRouter, Depends
 
     # Register main VIP router (includes vip_shoplist and other VIP endpoints)
     # Route-level dependency: API key required for all VIP endpoints
-    vip_router = cast(Any, getattr(vip_module, "router", None))
-    vip_router_paths = (
-        {
-            getattr(route, "path", None)
-            for route in vip_router.routes
-            if getattr(route, "path", None) is not None
-        }
-        if vip_router is not None
-        else set()
-    )
-
-    if vip_router is not None and vip_router_paths.isdisjoint(existing_paths):
-        app.include_router(
+    vip_router = getattr(vip_module, "router", None)
+    if not isinstance(vip_router, APIRouter) or not vip_router.routes:
+        raise RuntimeError("VIP router from app.routers.vip must be a non-empty APIRouter.")
+    ensure_route_family_registered(
+        app,
+        family_name="VIP",
+        routers=(vip_router,),
+        members=route_member_contracts_from_router(
+            "VIP",
             vip_router,
-            dependencies=[Depends(api_key_header)],
-        )
+            extra_required_dependencies=(api_key_header,),
+        ),
+        registration_dependencies=(Depends(api_key_header),),
+    )

@@ -116,24 +116,29 @@ OpenAPI effect:
 - `legacy_app.py` no longer imports or registers `restaurant_moderation_router`; the
   legacy growth guard rejects reintroduced legacy registration.
 
-### VIP routes (feature-flag gated, centralized)
+### VIP routes (feature-flag gated, canonical-owned registration)
 
-Anchor (stable): `legacy_app.py -> register_vip_routes(app)` and `vip_registration.register_vip_routes()`
+Anchor (stable): `app/main.py -> _register_paid_tier_routes(app)` delegates to `vip_registration.register_vip_routes()`
 
 Evidence:
-- `legacy_app.py:822-825` — calls VIP registration if available
-- `app/routers/vip_registration.py:23-58` — central function + `is_vip_module_enabled()` gate
+- `app/main.py:829-832` — `_register_paid_tier_routes(app)` calls VIP
+  registration before PRO registration.
+- `app/routers/vip_registration.py:61-137` — central VIP registration function
+  applies the `is_vip_module_enabled()` gate and `api_key_header` dependency.
 
 Runtime effect:
 - When VIP module is enabled, `vip_registration.register_vip_routes()` includes `app/routers/vip.py` with `api_key_header` dependency.
 
-### PRO routes (centralized)
+### PRO routes (canonical-owned registration)
 
-Anchor (stable): `legacy_app.py -> _register_pro_routes(app)` delegates to centralized `pro_registration.register_pro_routes()`
+Anchor (stable): `app/main.py -> _register_paid_tier_routes(app)` delegates to centralized `pro_registration.register_pro_routes()`
 
 Evidence:
-- `legacy_app.py:848-849` — `pro_router, premium_week_router = _register_pro_routes(app)`
-- `app/routers/pro_registration.py:26-86` — centralized registration + feature-flag gated `premium_week`
+- `app/main.py:808-832` — canonical bootstrap mirrors returned PRO routers to
+  `legacy_app.pro_router` / `legacy_app.premium_week_router` only after VIP and
+  PRO registration values are resolved.
+- `app/routers/pro_registration.py:26-104` — centralized registration +
+  feature-flag gated `premium_week`.
 
 Runtime effect:
 - In normal runtime: includes `app/routers/pro.py`.

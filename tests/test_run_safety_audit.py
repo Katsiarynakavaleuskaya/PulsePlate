@@ -389,13 +389,14 @@ def test_missing_report_safety_cli_internal_exception_retries_then_passes(
     def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
         nonlocal calls
         calls += 1
+        report_path = _report_path_from_scan_command(command)
         if calls == 1:
+            assert not report_path.exists()
             return SimpleNamespace(
                 returncode=1,
                 stdout="",
                 stderr="Unhandled exception happened: '\"detail\"'\n",
             )
-        report_path = _report_path_from_scan_command(command)
         _write_scan_report(report_path, [])
         return SimpleNamespace(returncode=0, stdout="scan ok\n", stderr="")
 
@@ -410,6 +411,7 @@ def test_missing_report_safety_cli_internal_exception_retries_then_passes(
     log_text = (tmp_path / "safety-requirements.log").read_text(encoding="utf-8")
     assert calls == 2
     assert safety_audit.exit_code_for_results(results) == 0
+    assert "Unhandled exception happened" in log_text
     assert "Retrying Safety scan after transient service failure" in log_text
     assert "=== Safety attempt 1/3" in log_text
     assert "=== Safety attempt 2/3" in log_text

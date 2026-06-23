@@ -17,10 +17,39 @@ from typing import TYPE_CHECKING
 
 from fastapi.routing import APIRouter
 
+from app.bootstrap.route_family import (
+    RouteMemberContract,
+    ensure_route_family_registered,
+    route_member_contracts_from_router,
+)
+
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
 __all__ = ["register_pro_routes"]
+
+
+def _route_members_for_routers(
+    family_name: str,
+    routers: tuple[APIRouter, ...],
+) -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        member
+        for router in routers
+        for member in route_member_contracts_from_router(family_name, router)
+    )
+
+
+def _require_non_empty_router(
+    family_name: str,
+    router: object,
+    module_name: str,
+) -> APIRouter:
+    if not isinstance(router, APIRouter) or not router.routes:
+        raise RuntimeError(
+            f"{family_name} router from {module_name} must be a non-empty APIRouter."
+        )
+    return router
 
 
 def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | None]:
@@ -55,27 +84,43 @@ def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | N
 
     from app.routers.pro import router as pro_router_imported
 
-    if pro_router_imported is not None:
-        app.include_router(pro_router_imported)
-        pro_router_result = pro_router_imported
-
     from app.routers.pro_session import router as pro_session_router
 
-    app.include_router(pro_session_router)
-
-    # Include PRO nutrition insights router (coverage scoring)
     from app.routers.pro_nutrition_insights import router as pro_nutrition_insights_router
 
-    app.include_router(pro_nutrition_insights_router)
     from app.routers.pro_food_attribution import router as pro_food_attribution_router
 
-    app.include_router(pro_food_attribution_router)
     from app.routers.pro_payments import router as pro_payments_router
 
-    app.include_router(pro_payments_router)
     from app.routers.pro_restaurant_partner import router as pro_restaurant_partner_router
 
-    app.include_router(pro_restaurant_partner_router)
+    pro_routers = (
+        _require_non_empty_router("PRO", pro_router_imported, "app.routers.pro"),
+        _require_non_empty_router("PRO", pro_session_router, "app.routers.pro_session"),
+        _require_non_empty_router(
+            "PRO",
+            pro_nutrition_insights_router,
+            "app.routers.pro_nutrition_insights",
+        ),
+        _require_non_empty_router(
+            "PRO",
+            pro_food_attribution_router,
+            "app.routers.pro_food_attribution",
+        ),
+        _require_non_empty_router("PRO", pro_payments_router, "app.routers.pro_payments"),
+        _require_non_empty_router(
+            "PRO",
+            pro_restaurant_partner_router,
+            "app.routers.pro_restaurant_partner",
+        ),
+    )
+    ensure_route_family_registered(
+        app,
+        family_name="PRO",
+        routers=pro_routers,
+        members=_route_members_for_routers("PRO", pro_routers),
+    )
+    pro_router_result = pro_routers[0]
 
     # Include premium_week router for backward compatibility (deprecated)
     # Check FEATURE_PREMIUM_WEEK_ENABLED feature flag
@@ -92,9 +137,21 @@ def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | N
         # (e.g., require_pro_tier). Do not add the global API_KEY guard here, otherwise
         # PRO/VIP test keys (test_pro_key/test_vip_key) are rejected when API_KEY is set.
         # NOTE: This router is deprecated. Use /api/v1/pro/* endpoints instead.
-        if premium_week_router_imported is not None:
-            app.include_router(premium_week_router_imported)
-            premium_week_router_result = premium_week_router_imported
+        premium_week_router = _require_non_empty_router(
+            "Premium week",
+            premium_week_router_imported,
+            "app.routers.premium_week",
+        )
+        ensure_route_family_registered(
+            app,
+            family_name="Premium week",
+            routers=(premium_week_router,),
+            members=route_member_contracts_from_router(
+                "Premium week",
+                premium_week_router,
+            ),
+        )
+        premium_week_router_result = premium_week_router
 
     # Cache routers for idempotent return.
     app.state._pro_routes_registered = True

@@ -448,6 +448,39 @@ def test_legacy_growth_guard_rejects_legal_router_import() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                from app.routers.pro_registration import register_pro_routes as _register_pro_routes
+
+                pro_router, premium_week_router = _register_pro_routes(app)
+                """),
+            "legacy_app.py: unexpected app.routers import growth: "
+            "router_import:app.routers.pro_registration:register_pro_routes -> "
+            "_register_pro_routes",
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.vip_registration import register_vip_routes
+
+                register_vip_routes(app)
+                """),
+            "legacy_app.py: unexpected app.routers import growth: "
+            "router_import:app.routers.vip_registration:register_vip_routes",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_reintroduced_paid_tier_registration_imports(
+    source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [expected]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_plan_export_router_registration() -> None:
     source = textwrap.dedent("""
         from app.routers.plan_export import export_router, plan_router
