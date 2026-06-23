@@ -79,10 +79,44 @@ Focused local gates:
 - `make validate-changed` - PASS; selected no Python or cross-surface governance files, so the focused dependency/security pytest bundle remains the scoped test signal.
 - `pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push pytest, and full-repo Bandit.
+- `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 2012 --body "$(cat artifacts/orchestration/pr_bodies/pr2012_live_body.md)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required` - PASS after the Phase2 parser-shape correction.
+- `python scripts/ci/check_docs_phase1_gates.py --files docs/review/PR_2012_FIXED_MAPPING.md` - PASS.
+- `bash scripts/ci/pr_scope_guard.sh` - PASS.
 
 Full local `make verify` was not run under the operator-approved machine-heavy
 exception for this dependency lane. Current-head CI is the required heavy parity
 signal before any merge-readiness claim.
+
+## Post-Open Role Passes
+
+- `qa-engineer-agent` - initial BLOCKED on older head/body because the PR body
+  and mapping artifact used parser-rejected Phase2 shape. Disposition: FIXED by
+  commit `8eab3370564a71fbdd88ccfcde26a0887f13e2bd` and live PR body update.
+  Evidence: local required-mode Phase2 validation passed after correction.
+- `bug-hunter` - PASS on head
+  `8eab3370564a71fbdd88ccfcde26a0887f13e2bd`; no PR-diff bugs found.
+  Evidence: scoped dependency checks, `pip-audit`, `verify_requirements.py`,
+  `pr_scope_guard.sh`, and review-thread inspection passed or found no
+  unresolved threads.
+- `security-auditor` - PASS on head
+  `8eab3370564a71fbdd88ccfcde26a0887f13e2bd`; no Ruff supply-chain/security
+  finding found. Evidence: diff is Ruff dev/tooling only, approved proxy served
+  `ruff==0.15.18`, `pip-audit` passed for dev and lock files, and no runtime,
+  Docker, auth, secrets, API, or app-code surface changed.
+
+## Current-Head CI Notes
+
+- Latest `pr_scope_guard` and `PR Body Phase2 gates` runs pass on head
+  `8eab3370564a71fbdd88ccfcde26a0887f13e2bd`; earlier failures were from the
+  superseded parser-shape revision.
+- Docker Build and Push `security-scan` fails because Trivy filesystem scan
+  exits 1 with `severity: CRITICAL,HIGH`. The current PR diff does not touch
+  Docker, Trivy policy, `.trivyignore`, Fastlane, Faraday, `ios/Gemfile.lock`,
+  runtime requirements, or application code. Security-auditor classified this
+  as a current-head/baseline Docker filesystem security-scan blocker, not a
+  Ruff-diff finding on available evidence.
+- CodeRabbit and several current-head CI jobs were still pending when this
+  artifact was updated; no merge-readiness claim is made.
 
 ## Discussion Thread Pass
 
@@ -91,10 +125,9 @@ signal before any merge-readiness claim.
 
 No actionable review threads existed at PR open.
 
-Post-open review, bot comments, and review threads remain pending at this
-artifact creation point. Any actionable post-open finding must be added here
-with a `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before merge-readiness
-governance can pass.
+No actionable QA, bug-hunter, or security-auditor findings remain after the
+Phase2 parser-shape fix. Codex Security, CodeRabbit, and any later bot/review
+findings still require disposition before merge-readiness governance can pass.
 
 ## Fixed in Commit Mapping
 
@@ -120,8 +153,10 @@ governance can pass.
 Not merge-ready at this point.
 
 - Current `main` is known red on current-head CI.
-- Current-head CI for PR #2012 is pending/required.
-- Post-open role passes remain required:
+- Current-head CI for PR #2012 is pending/failed: Docker Build and Push
+  `security-scan` fails, while other current-head jobs and bot reviews may still
+  be pending.
+- Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - Codex Security diff scan/finding discovery remains required when callable in
   this environment.
