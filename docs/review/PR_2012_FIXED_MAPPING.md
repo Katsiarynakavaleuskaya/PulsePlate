@@ -31,7 +31,8 @@ trailer:
 
 - Worktree: `worktrees/deps-ruff-quality-refresh`
 - Branch: `codex/deps-ruff-quality-refresh`
-- Start packet: `artifacts/orchestration/task_packets/7f05a69c890f.json`
+- Packet: `artifacts/orchestration/task_packets/7f05a69c890f.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
 - Role dispatch:
   `python scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/7f05a69c890f.json --pretty`
 - Pre-open role order completed:
@@ -52,7 +53,7 @@ trailer:
 ## Experiment Runner Evidence
 
 - Packet: `artifacts/orchestration/experiments/exp-1efee9eb482c.json`
-- Result: `artifacts/orchestration/experiments/results/exp-1efee9eb482c.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-1efee9eb482c.json`
 - Status: `accepted`
 - Source diff paths:
   `constraints.txt`, `requirements-all.txt`, `requirements-dev.in`,
@@ -85,6 +86,9 @@ signal before any merge-readiness claim.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No actionable review threads existed at PR open.
 
 Post-open review, bot comments, and review threads remain pending at this
@@ -92,11 +96,11 @@ artifact creation point. Any actionable post-open finding must be added here
 with a `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before merge-readiness
 governance can pass.
 
-### Fixed in Commit Mapping
+## Fixed in Commit Mapping
 
-No review-thread URLs have been resolved for this PR yet.
+- No actionable review comments
 
-Implementation evidence:
+## Implementation Evidence
 
 - Ruff-only dependency update -> `d30906288a8168d97192243203609be4f47a2397`
 
