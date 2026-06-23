@@ -31,7 +31,7 @@
   `#2011`.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
+- [x] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] Current actionable bot/review comments must be fixed or dispositioned
@@ -68,7 +68,7 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 - Finding PM-2011-003 Experiment Runner evidence missing new files:
   - Disposition: FIXED
   - Evidence: final oracle artifact
-    `artifacts/orchestration/experiments/results/pr2011-creative-code-final-oracle-result.json`
+    `artifacts/orchestration/experiments/results/pr2011-creative-code-post-security-oracle-result.json`
     lists all 10 changed files under `budget_observations.source_diff_paths`.
 - Finding PM-2011-004 premature telemetry/runtime implication:
   - Disposition: FIXED
@@ -78,8 +78,8 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 
 ## Experiment Runner Evidence
 
-- Packet: `artifacts/orchestration/experiments/pr2011-creative-code-final-oracle.json`
-- Artifact: `artifacts/orchestration/experiments/results/pr2011-creative-code-final-oracle-result.json`
+- Packet: `artifacts/orchestration/experiments/pr2011-creative-code-post-security-oracle.json`
+- Artifact: `artifacts/orchestration/experiments/results/pr2011-creative-code-post-security-oracle-result.json`
 - Status: accepted.
 - Runner mode: `oracle_only_governance_reviewer`.
 - Shared tree untouched: `true`.
@@ -93,7 +93,7 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 - Oracle commands:
   - `python -m scripts.orchestration.creative_code_contract --validate docs/orchestration/contracts/creative_code_candidate.v1.json`
-  - `python -m pytest -q tests/test_creative_code_contract.py`
+  - `python -m pytest -q tests/test_creative_code_contract.py` (`62 passed`)
 
 ## Local Validation Evidence
 
@@ -118,12 +118,14 @@ Reason: Addresses Sourcery's CLI integration and missing negative-path test sugg
 - PASS after Sourcery fix: `pre-commit run --all-files`
 - PASS after security-auditor fix:
   `python -m pytest -q tests/test_creative_code_contract.py` (`62 passed`)
+- PASS after security-auditor fix: adjacent focused pytest for creative
+  research and Experiment Runner suites:
+  `tests/test_creative_code_contract.py tests/test_creative_research_eval_contract.py tests/test_creative_research_eval.py tests/test_experiment_bootstrap.py tests/test_experiment_promote.py tests/test_experiment_pipeline.py tests/test_experiment_notify.py tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py`
 - PASS after security-auditor fix: `pre-commit run --all-files`
+- PASS after security-auditor fix: `make validate-changed` selected
+  `tests/test_creative_code_contract.py` and passed (`62 passed`).
 - PASS: pre-push hook during `git push`, including mypy changed files, backend
   pre-push pytest, full-repo Bandit, and docker build test.
-- PASS with caveat: `make validate-changed` exited 0 but selected no files, so
-  the explicit focused tests and Experiment Runner oracles above are the
-  changed-surface evidence.
 
 ## Machine-Heavy Verification Deferral
 
@@ -163,6 +165,10 @@ the wait-window.
     prompt/program bypasses and protected CI/AGENTS/release paths. This artifact
     also removed machine-local absolute command paths and aligned the
     bug-hunter checklist with its recorded disposition.
+  - Verification: repeat security-auditor pass on
+    `9c980a91f25b17ee90ef7feb1eda2d66068dde0d` returned PASS for the protected
+    target-surface bypass closure, no machine-local fixed-mapping command paths,
+    and bug-hunter checklist consistency.
 - Codex Security diff scan / finding discovery:
   - Status: pending.
 - `pulseplate-pr-review`
