@@ -62,10 +62,6 @@ VIP_MODULE_ENABLED = is_vip_module_enabled()
 # Optional core dependencies (lazy-imported).
 make_weekly_menu: Optional[Callable[..., Any]] = None
 analyze_nutrient_gaps: Optional[Callable[..., Any]] = None
-ShoplistGenerator: Optional[Type[Any]] = None
-aggregate_ingredients: Optional[Callable[..., Any]] = None
-round_to_packages: Optional[Callable[..., Any]] = None
-format_export: Optional[Callable[..., Any]] = None
 get_region_catalog: Optional[Callable[..., Any]] = None
 search_products: Optional[Callable[..., Any]] = None
 get_available_regions: Optional[Callable[..., Any]] = None
@@ -99,12 +95,6 @@ try:
     from core.region_catalog import get_price_comparison as _get_price_comparison
     from core.region_catalog import get_region_catalog as _get_region_catalog
     from core.region_catalog import search_products as _search_products
-    from core.shoplist import (
-        ShoplistGenerator as _ShoplistGenerator,
-        aggregate_ingredients as _aggregate_ingredients,
-        format_export as _format_export,
-        round_to_packages as _round_to_packages,
-    )
 except ImportError:
     # Core modules are optional in some environments; keep graceful fallback to echo-mode.
     pass
@@ -126,11 +116,6 @@ else:
     search_products = _search_products
     get_available_regions = _get_available_regions
     get_price_comparison = _get_price_comparison
-
-    ShoplistGenerator = _ShoplistGenerator
-    aggregate_ingredients = _aggregate_ingredients
-    round_to_packages = _round_to_packages
-    format_export = _format_export
 
 router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 
@@ -872,104 +857,6 @@ def weekly_menu_repair(request: Dict[str, Any]) -> Dict[str, Any]:
             "calories_adjusted": False,
         },
         "message": "Weekly menu repaired (echo mode)",
-    }
-
-
-@router.post("/shoplist/weekly", dependencies=[Depends(require_vip_tier)])
-def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    RU: Создание списка покупок на неделю с округлением до упаковок
-    EN: Create weekly shopping list with package rounding
-
-    Args:
-        request: Недельный план питания
-
-    Returns:
-        Список покупок с округлением до упаковок
-    """
-    if (
-        ShoplistGenerator is None
-        or aggregate_ingredients is None
-        or round_to_packages is None
-        or format_export is None
-    ):
-        return {
-            "status": "success",
-            "echo": request,
-            "shopping_list": [],
-            "total_items": 0,
-            "message": "Shoplist module not available (echo mode)",
-        }
-    try:
-        aggregated = aggregate_ingredients(request)
-        shopping_list = round_to_packages(aggregated)
-        formatted = format_export(shopping_list, locale="ru", format_type="json")
-    except Exception:
-        logging.exception("Error generating shopping list")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Error generating shopping list"
-        return {
-            "status": "error",
-            "echo": request,
-            "shopping_list": [],
-            "total_items": 0,
-            "message": msg,
-        }
-    return {
-        "status": "success",
-        "echo": request,
-        "shopping_list": formatted,
-        "total_items": len(shopping_list),
-        "message": "Weekly shopping list generated with package rounding",
-    }
-
-
-@router.post("/shoplist/daily", dependencies=[Depends(require_vip_tier)])
-def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    RU: Создание списка покупок на день с округлением до упаковок
-    EN: Create daily shopping list with package rounding
-
-    Args:
-        request: Дневной план питания
-
-    Returns:
-        Список покупок с округлением до упаковок
-    """
-    if (
-        ShoplistGenerator is None
-        or aggregate_ingredients is None
-        or round_to_packages is None
-        or format_export is None
-    ):
-        return {
-            "status": "success",
-            "echo": request,
-            "shopping_list": [],
-            "total_items": 0,
-            "message": "Shoplist module not available (echo mode)",
-        }
-    try:
-        aggregated = aggregate_ingredients(request)
-        shopping_list = round_to_packages(aggregated)
-        formatted = format_export(shopping_list, locale="ru", format_type="json")
-    except Exception:
-        logging.exception("Error generating shopping list")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Error generating shopping list"
-        return {
-            "status": "error",
-            "echo": request,
-            "shopping_list": [],
-            "total_items": 0,
-            "message": msg,
-        }
-    return {
-        "status": "success",
-        "echo": request,
-        "shopping_list": formatted,
-        "total_items": len(shopping_list),
-        "message": "Daily shopping list generated with package rounding",
     }
 
 

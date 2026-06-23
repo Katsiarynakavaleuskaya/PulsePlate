@@ -5052,6 +5052,36 @@
         "title": "ShoplistAnalyticsDTO",
         "type": "object"
       },
+      "ShoplistDailyRequest": {
+        "description": "Request payload for POST /api/v1/vip/shoplist/daily.\n\nSame contract as ShoplistGenerateRequest.",
+        "properties": {
+          "items": {
+            "description": "Shopping list items (can be empty)",
+            "items": {
+              "$ref": "#/components/schemas/ShoplistItemDTO"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "packaging_rules": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PackageRuleDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. If missing/None, items without rules go to 'unpacked'.",
+            "title": "Packaging Rules"
+          }
+        },
+        "title": "ShoplistDailyRequest",
+        "type": "object"
+      },
       "ShoplistDayItemDTO": {
         "description": "One day shopping list item (server → iOS).\n\nkey: stable dedup key (server-side normalized slug or food_id-like).\ntitle: localized title for UI.\n\nRU: Одна строка списка покупок на день (сервер → iOS).",
         "properties": {
@@ -5427,6 +5457,69 @@
           }
         },
         "title": "ShoplistSourceDTO",
+        "type": "object"
+      },
+      "ShoplistWeeklyDayRequest": {
+        "description": "Request payload for one day in weekly shoplist.\n\nSame contract as ShoplistGenerateRequest per day.",
+        "properties": {
+          "items": {
+            "description": "Shopping list items for this day (can be empty)",
+            "items": {
+              "$ref": "#/components/schemas/ShoplistItemDTO"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "packaging_rules": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PackageRuleDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. If missing/None, items without rules go to 'unpacked'.",
+            "title": "Packaging Rules"
+          }
+        },
+        "title": "ShoplistWeeklyDayRequest",
+        "type": "object"
+      },
+      "ShoplistWeeklyRequest": {
+        "description": "Request payload for POST /api/v1/vip/shoplist/weekly.",
+        "properties": {
+          "days": {
+            "description": "One element per day. Contract: length = as requested by client (no fixed 7-day requirement).",
+            "items": {
+              "$ref": "#/components/schemas/ShoplistWeeklyDayRequest"
+            },
+            "title": "Days",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "title": "ShoplistWeeklyRequest",
+        "type": "object"
+      },
+      "ShoplistWeeklyResponse": {
+        "description": "Response for POST /api/v1/vip/shoplist/weekly.",
+        "properties": {
+          "days": {
+            "description": "One response per day (length = as requested by client)",
+            "items": {
+              "$ref": "#/components/schemas/ShoplistGenerateResponse"
+            },
+            "title": "Days",
+            "type": "array"
+          }
+        },
+        "title": "ShoplistWeeklyResponse",
         "type": "object"
       },
       "ShoppingListCategory": {
@@ -10251,15 +10344,51 @@
     },
     "/api/v1/vip/shoplist/daily": {
       "post": {
-        "description": "RU: Создание списка покупок на день с округлением до упаковок\nEN: Create daily shopping list with package rounding\n\nArgs:\n    request: Дневной план питания\n\nReturns:\n    Список покупок с округлением до упаковок",
+        "description": "Daily shoplist generation. Same contract as /generate: deterministic, includes explainability (reasons/reason) and analytics. Decimals serialized as strings. Optional catalog enrichment via region_id/store_id query params.",
         "operationId": "daily_shoplist_api_v1_vip_shoplist_daily_post",
+        "parameters": [
+          {
+            "description": "Optional region id (e.g. 'es', 'us')",
+            "in": "query",
+            "name": "region_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional region id (e.g. 'es', 'us')",
+              "title": "Region Id"
+            }
+          },
+          {
+            "description": "Optional store id (e.g. 'carrefour_es', 'walmart_us')",
+            "in": "query",
+            "name": "store_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional store id (e.g. 'carrefour_es', 'walmart_us')",
+              "title": "Store Id"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Request",
-                "type": "object"
+                "$ref": "#/components/schemas/ShoplistDailyRequest"
               }
             }
           },
@@ -10270,23 +10399,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Daily Shoplist Api V1 Vip Shoplist Daily Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ShoplistGenerateResponse"
                 }
               }
             },
             "description": "Successful Response"
           },
+          "401": {
+            "description": "Unauthorized: missing/invalid API key (auth-layer dependent)"
+          },
+          "403": {
+            "description": "Forbidden: valid auth but insufficient VIP tier"
+          },
+          "404": {
+            "description": "VIP module disabled"
+          },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Validation error (invalid enum / DTO)"
+          },
+          "500": {
+            "description": "Invariant violation (internal)"
           }
         },
         "security": [
@@ -10294,8 +10426,9 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Daily Shoplist",
+        "summary": "Generate daily VIP shoplist (deterministic)",
         "tags": [
+          "VIP Shoplist",
           "vip"
         ]
       }
@@ -10582,15 +10715,51 @@
     },
     "/api/v1/vip/shoplist/weekly": {
       "post": {
-        "description": "RU: Создание списка покупок на неделю с округлением до упаковок\nEN: Create weekly shopping list with package rounding\n\nArgs:\n    request: Недельный план питания\n\nReturns:\n    Список покупок с округлением до упаковок",
+        "description": "Weekly shoplist generation (multiple days). Each day processed independently with same contract as /generate: deterministic, includes explainability (reasons/reason) and analytics per day. Decimals serialized as strings. Days length = as requested (no fixed 7-day requirement). Optional catalog enrichment via region_id/store_id query params (applied to all days).",
         "operationId": "weekly_shoplist_api_v1_vip_shoplist_weekly_post",
+        "parameters": [
+          {
+            "description": "Optional region id (e.g. 'es', 'us')",
+            "in": "query",
+            "name": "region_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional region id (e.g. 'es', 'us')",
+              "title": "Region Id"
+            }
+          },
+          {
+            "description": "Optional store id (e.g. 'carrefour_es', 'walmart_us')",
+            "in": "query",
+            "name": "store_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional store id (e.g. 'carrefour_es', 'walmart_us')",
+              "title": "Store Id"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Request",
-                "type": "object"
+                "$ref": "#/components/schemas/ShoplistWeeklyRequest"
               }
             }
           },
@@ -10601,23 +10770,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Weekly Shoplist Api V1 Vip Shoplist Weekly Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ShoplistWeeklyResponse"
                 }
               }
             },
             "description": "Successful Response"
           },
+          "401": {
+            "description": "Unauthorized: missing/invalid API key (auth-layer dependent)"
+          },
+          "403": {
+            "description": "Forbidden: valid auth but insufficient VIP tier"
+          },
+          "404": {
+            "description": "VIP module disabled"
+          },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Validation error (invalid enum / DTO)"
+          },
+          "500": {
+            "description": "Invariant violation (internal)"
           }
         },
         "security": [
@@ -10625,8 +10797,9 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Weekly Shoplist",
+        "summary": "Generate weekly VIP shoplist (deterministic)",
         "tags": [
+          "VIP Shoplist",
           "vip"
         ]
       }

@@ -1335,15 +1335,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Daily Shoplist
-         * @description RU: Создание списка покупок на день с округлением до упаковок
-         *     EN: Create daily shopping list with package rounding
-         *
-         *     Args:
-         *         request: Дневной план питания
-         *
-         *     Returns:
-         *         Список покупок с округлением до упаковок
+         * Generate daily VIP shoplist (deterministic)
+         * @description Daily shoplist generation. Same contract as /generate: deterministic, includes explainability (reasons/reason) and analytics. Decimals serialized as strings. Optional catalog enrichment via region_id/store_id query params.
          */
         post: operations["daily_shoplist_api_v1_vip_shoplist_daily_post"];
         delete?: never;
@@ -1446,15 +1439,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Weekly Shoplist
-         * @description RU: Создание списка покупок на неделю с округлением до упаковок
-         *     EN: Create weekly shopping list with package rounding
-         *
-         *     Args:
-         *         request: Недельный план питания
-         *
-         *     Returns:
-         *         Список покупок с округлением до упаковок
+         * Generate weekly VIP shoplist (deterministic)
+         * @description Weekly shoplist generation (multiple days). Each day processed independently with same contract as /generate: deterministic, includes explainability (reasons/reason) and analytics per day. Decimals serialized as strings. Days length = as requested (no fixed 7-day requirement). Optional catalog enrichment via region_id/store_id query params (applied to all days).
          */
         post: operations["weekly_shoplist_api_v1_vip_shoplist_weekly_post"];
         delete?: never;
@@ -3979,6 +3965,24 @@ export interface components {
             unpacked_lines: number;
         };
         /**
+         * ShoplistDailyRequest
+         * @description Request payload for POST /api/v1/vip/shoplist/daily.
+         *
+         *     Same contract as ShoplistGenerateRequest.
+         */
+        ShoplistDailyRequest: {
+            /**
+             * Items
+             * @description Shopping list items (can be empty)
+             */
+            items?: components["schemas"]["ShoplistItemDTO"][];
+            /**
+             * Packaging Rules
+             * @description Optional. If missing/None, items without rules go to 'unpacked'.
+             */
+            packaging_rules?: components["schemas"]["PackageRuleDTO"][] | null;
+        };
+        /**
          * ShoplistDayItemDTO
          * @description One day shopping list item (server → iOS).
          *
@@ -4208,6 +4212,46 @@ export interface components {
              * @enum {string}
              */
             type: "plan" | "manual" | "import";
+        };
+        /**
+         * ShoplistWeeklyDayRequest
+         * @description Request payload for one day in weekly shoplist.
+         *
+         *     Same contract as ShoplistGenerateRequest per day.
+         */
+        ShoplistWeeklyDayRequest: {
+            /**
+             * Items
+             * @description Shopping list items for this day (can be empty)
+             */
+            items?: components["schemas"]["ShoplistItemDTO"][];
+            /**
+             * Packaging Rules
+             * @description Optional. If missing/None, items without rules go to 'unpacked'.
+             */
+            packaging_rules?: components["schemas"]["PackageRuleDTO"][] | null;
+        };
+        /**
+         * ShoplistWeeklyRequest
+         * @description Request payload for POST /api/v1/vip/shoplist/weekly.
+         */
+        ShoplistWeeklyRequest: {
+            /**
+             * Days
+             * @description One element per day. Contract: length = as requested by client (no fixed 7-day requirement).
+             */
+            days: components["schemas"]["ShoplistWeeklyDayRequest"][];
+        };
+        /**
+         * ShoplistWeeklyResponse
+         * @description Response for POST /api/v1/vip/shoplist/weekly.
+         */
+        ShoplistWeeklyResponse: {
+            /**
+             * Days
+             * @description One response per day (length = as requested by client)
+             */
+            days?: components["schemas"]["ShoplistGenerateResponse"][];
         };
         /**
          * ShoppingListCategory
@@ -7265,16 +7309,19 @@ export interface operations {
     };
     daily_shoplist_api_v1_vip_shoplist_daily_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional region id (e.g. 'es', 'us') */
+                region_id?: string | null;
+                /** @description Optional store id (e.g. 'carrefour_es', 'walmart_us') */
+                store_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ShoplistDailyRequest"];
             };
         };
         responses: {
@@ -7284,19 +7331,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ShoplistGenerateResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Unauthorized: missing/invalid API key (auth-layer dependent) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden: valid auth but insufficient VIP tier */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VIP module disabled */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation error (invalid enum / DTO) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                content?: never;
+            };
+            /** @description Invariant violation (internal) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };
@@ -7518,16 +7589,19 @@ export interface operations {
     };
     weekly_shoplist_api_v1_vip_shoplist_weekly_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional region id (e.g. 'es', 'us') */
+                region_id?: string | null;
+                /** @description Optional store id (e.g. 'carrefour_es', 'walmart_us') */
+                store_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ShoplistWeeklyRequest"];
             };
         };
         responses: {
@@ -7537,19 +7611,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ShoplistWeeklyResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Unauthorized: missing/invalid API key (auth-layer dependent) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden: valid auth but insufficient VIP tier */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VIP module disabled */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation error (invalid enum / DTO) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                content?: never;
+            };
+            /** @description Invariant violation (internal) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };

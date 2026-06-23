@@ -31,6 +31,16 @@ def _install_dummy_router_module(
     monkeypatch.setitem(sys.modules, module_name, dummy_mod)
 
 
+def _stub_router(path: str) -> APIRouter:
+    router = APIRouter()
+
+    async def _stub() -> dict[str, str]:
+        return {"status": path}
+
+    router.get(path)(_stub)
+    return router
+
+
 def test_register_pro_routes_idempotent_second_call_noop(monkeypatch: pytest.MonkeyPatch) -> None:
     """Second call should hit cached/idempotent branch (no new routes)."""
 
@@ -39,7 +49,7 @@ def test_register_pro_routes_idempotent_second_call_noop(monkeypatch: pytest.Mon
 
     app = FastAPI()
 
-    pro_router = APIRouter()
+    pro_router = _stub_router("/api/v1/pro/test-stub")
     _install_dummy_router_module(monkeypatch, "app.routers.pro", pro_router)
 
     # Ensure premium_week branch is NOT taken for this test.
@@ -65,8 +75,8 @@ def test_register_pro_routes_includes_premium_week_by_env(monkeypatch: pytest.Mo
 
     app = FastAPI()
 
-    pro_router = APIRouter()
-    week_router = APIRouter()
+    pro_router = _stub_router("/api/v1/pro/test-stub")
+    week_router = _stub_router("/api/v1/premium/test-stub")
     _install_dummy_router_module(monkeypatch, "app.routers.pro", pro_router)
     _install_dummy_router_module(monkeypatch, "app.routers.premium_week", week_router)
 
@@ -86,8 +96,8 @@ def test_register_pro_routes_includes_premium_week_by_vip(monkeypatch: pytest.Mo
 
     app = FastAPI()
 
-    pro_router = APIRouter()
-    week_router = APIRouter()
+    pro_router = _stub_router("/api/v1/pro/test-stub")
+    week_router = _stub_router("/api/v1/premium/test-stub")
     _install_dummy_router_module(monkeypatch, "app.routers.pro", pro_router)
     _install_dummy_router_module(monkeypatch, "app.routers.premium_week", week_router)
 
@@ -99,8 +109,10 @@ def test_register_pro_routes_includes_premium_week_by_vip(monkeypatch: pytest.Mo
     assert week_res is week_router
 
 
-def test_register_pro_routes_handles_none_routers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover `is not None` branches when imported routers are None."""
+def test_register_pro_routes_rejects_none_pro_router_export(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PRO registrar fails closed when a canonical module exports no real router."""
 
     import app.utils.feature_flags as feature_flags
     from app.routers.pro_registration import register_pro_routes
@@ -113,6 +125,37 @@ def test_register_pro_routes_handles_none_routers(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("FEATURE_PREMIUM_WEEK_ENABLED", "true")
     monkeypatch.setattr(feature_flags, "is_vip_module_enabled", lambda: False)
 
-    pro_res, week_res = register_pro_routes(app)
-    assert pro_res is None
-    assert week_res is None
+    with pytest.raises(
+        RuntimeError,
+        match="PRO router from app\\.routers\\.pro must be a non-empty APIRouter",
+    ):
+        register_pro_routes(app)
+
+
+def test_register_pro_routes_rejects_empty_premium_week_router_export(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enabled premium-week compatibility must still export a real route family."""
+
+    import app.utils.feature_flags as feature_flags
+    from app.routers.pro_registration import register_pro_routes
+
+    app = FastAPI()
+
+    _install_dummy_router_module(
+        monkeypatch,
+        "app.routers.pro",
+        _stub_router("/api/v1/pro/test-stub"),
+    )
+    _install_dummy_router_module(monkeypatch, "app.routers.premium_week", APIRouter())
+
+    monkeypatch.setenv("FEATURE_PREMIUM_WEEK_ENABLED", "true")
+    monkeypatch.setattr(feature_flags, "is_vip_module_enabled", lambda: False)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "Premium week router from app\\.routers\\.premium_week " "must be a non-empty APIRouter"
+        ),
+    ):
+        register_pro_routes(app)

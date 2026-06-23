@@ -277,6 +277,16 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - VIP router registration must be centralized via `app/routers/vip_registration.py:register_vip_routes`.
 - Do not scatter conditional `include_router(...)` calls across modules; keep registration explicit and safe to call multiple times.
+- FastAPI method/path duplicates are forbidden. When a route family is touched,
+  the registrar must either prove exact idempotent ownership or fail closed on
+  partial registration, duplicate source routes, foreign existing handlers, or
+  missing required dependencies. Never leave duplicate routes as "known inherited"
+  behavior after they surface in a PR.
+- Router/bootstrap production code must not accept `None`, empty placeholder
+  routers, fake keys, or softened compatibility branches as success. If a
+  canonical route family is enabled, missing or empty route owners are
+  configuration errors and must fail closed; update stale tests instead of
+  weakening runtime invariants.
 
 ### Static route-family bootstrap guard
 

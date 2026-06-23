@@ -131,7 +131,7 @@ POST_PAYLOADS = {
     },
     "/api/v1/vip/menu/weekly/repair": {"week_plan": {}},
     "/api/v1/vip/shoplist/weekly": {"days": []},
-    "/api/v1/vip/shoplist/daily": {"day_plan": {}},
+    "/api/v1/vip/shoplist/daily": {"items": [], "packaging_rules": None},
     "/api/v1/vip/recipes/synthesize": {"ingredients": []},
     "/api/v1/vip/recipes/weekly": {"week_plan": {}, "recipes_per_day": 1},
     "/api/v1/vip/auto-repair/weekly": {"week_plan": {}, "targets": {}},
@@ -181,16 +181,6 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
             "app.services.fitchef_runtime.run_weekly_plan_task",
             make_mock_run_weekly_plan_task(),
         )
-    elif path == "/api/v1/vip/shoplist/weekly":
-        # Mock all three functions in the chain
-        monkeypatch.setattr("app.routers.vip.aggregate_ingredients", lambda req: [])
-        monkeypatch.setattr("app.routers.vip.round_to_packages", lambda aggregated: [])
-        monkeypatch.setattr("app.routers.vip.format_export", lambda shopping_list, **kwargs: [])
-    elif path == "/api/v1/vip/shoplist/daily":
-        # Mock all three functions in the chain
-        monkeypatch.setattr("app.routers.vip.aggregate_ingredients", lambda req: [])
-        monkeypatch.setattr("app.routers.vip.round_to_packages", lambda aggregated: [])
-        monkeypatch.setattr("app.routers.vip.format_export", lambda shopping_list, **kwargs: [])
     elif path == "/api/v1/vip/recipes/weekly":
         # Conditional mock: only return success for expected function name
         def mock_safe_call(func_name: str, *args: Any, **kwargs: Any) -> dict[str, Any]:

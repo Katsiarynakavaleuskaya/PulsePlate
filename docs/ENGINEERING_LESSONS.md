@@ -685,6 +685,33 @@ pre-commit run --all-files
 - A full selected-bundle scan before pushing:
   `rg -n "pytest\\.mark\\.asyncio|async def" <selected-test-files>`.
 
+## 26) Duplicate routes are current-PR defects, not inherited debt
+
+### Problem
+FastAPI allows registering the same method/path more than once. Runtime dispatch
+uses the first matching route, while OpenAPI generation can describe a later
+matching route. That creates a security and contract blind spot: tests may hit
+one handler while generated clients and reviewers see another.
+
+### Rule
+If duplicate method/path routes or a foreign existing paid-tier route surface in
+a PR, fix them in that PR before mapping or merge-readiness claims. Do not leave
+them as "known inherited" behavior merely because the original task was narrow.
+
+Route-family registrars should fail closed on:
+
+1. duplicate source router method/path entries
+2. partial existing route-family registration
+3. foreign existing handlers
+4. missing required auth/tier dependencies
+
+### Use instead
+
+- One canonical owner per method/path.
+- `ensure_route_family_registered(...)` for static route families.
+- A focused live route-table test that fails on duplicate paid-tier
+  method/path entries.
+
 ---
 
 ## Repo Commands Reference

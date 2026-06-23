@@ -9,6 +9,7 @@ import app.main as app_main
 from app.bootstrap.route_family import (
     RouteMemberContract,
     ensure_route_family_registered,
+    route_member_contracts_from_router,
     route_has_dependency_call,
     same_callable_by_module_and_qualname,
 )
@@ -79,6 +80,30 @@ def test_route_family_rejects_duplicate_and_empty_member_contracts() -> None:
             family_name="Static family",
             routers=(),
             members=(),
+        )
+
+
+def test_route_family_contract_builder_rejects_duplicate_source_routes() -> None:
+    router = APIRouter()
+
+    async def _first() -> dict[str, str]:
+        return {"status": "first"}
+
+    async def _second() -> dict[str, str]:
+        return {"status": "second"}
+
+    router.get("/api/v1/static-family/duplicate")(_first)
+    router.get("/api/v1/static-family/duplicate")(_second)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Static family router does not define the expected route family",
+    ):
+        ensure_route_family_registered(
+            FastAPI(),
+            family_name="Static family",
+            routers=(router,),
+            members=route_member_contracts_from_router("Static family", router),
         )
 
 
@@ -927,6 +952,46 @@ def test_paid_tier_registration_stops_before_pro_when_vip_fails(
     assert app_main.premium_week_router is original_premium_week_router
     assert app_main._legacy_module.pro_router is original_pro_router
     assert app_main._legacy_module.premium_week_router is original_premium_week_router
+
+
+def test_vip_route_registration_rejects_foreign_existing_paid_tier_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.vip_registration import register_vip_routes
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    app = FastAPI()
+
+    async def _shadow_vip_regions() -> dict[str, str]:
+        return {"status": "shadow"}
+
+    app.add_api_route("/api/v1/vip/regions", _shadow_vip_regions, methods=["GET"])
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial vip route registration|Duplicate /api/v1/vip/regions route",
+    ):
+        register_vip_routes(app)
+
+
+def test_pro_route_registration_rejects_foreign_existing_paid_tier_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.pro_registration import register_pro_routes
+
+    monkeypatch.setenv("FEATURE_PREMIUM_WEEK_ENABLED", "false")
+    app = FastAPI()
+
+    async def _shadow_pro_weekly() -> dict[str, str]:
+        return {"status": "shadow"}
+
+    app.add_api_route("/api/v1/pro/meal/weekly", _shadow_pro_weekly, methods=["POST"])
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial pro route registration|Duplicate /api/v1/pro/meal/weekly route",
+    ):
+        register_pro_routes(app)
 
 
 def test_paywall_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
