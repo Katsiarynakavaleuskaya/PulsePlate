@@ -25,6 +25,8 @@ entitlement, AI, or FoodDB behavior changed.
   pre-push hooks.
 - `343bc4749d0a90f62175dab146bd82b1b50d359d` - retry reportless transient
   Safety CLI failures without weakening fail-closed vulnerability handling.
+- `b910fcf7d8de84a4d56b35b5961d2f09821ea5f3` - cover paid-tier bootstrap
+  guard branches that current-head CI `diff-coverage` identified as missing.
 
 ## Discussion Thread Pass
 
@@ -67,6 +69,21 @@ Current-head CI `security` job failed because Safety crashed before producing `s
 Disposition: FIXED
 Commit: 343bc4749d0a90f62175dab146bd82b1b50d359d
 Evidence: `scripts/ci/run_safety_audit.py:43-45` recognizes reportless Safety CLI transient crash markers; `scripts/ci/run_safety_audit.py:683-690` retries only non-zero reportless transient crashes; `scripts/ci/run_safety_audit.py:765-778` keeps fail-closed behavior after retry exhaustion; `tests/test_run_safety_audit.py:351-384` covers a reportless `Unhandled exception happened: '"detail"'` crash followed by a successful scan. `pytest -q tests/test_run_safety_audit.py -q` passed.
+
+Current-head CI `diff-coverage` failed on guard branches in the paid-tier
+bootstrap refactor.
+Disposition: FIXED
+Commit: b910fcf7d8de84a4d56b35b5961d2f09821ea5f3
+Evidence: `tests/test_main_paywall_bootstrap.py:102-139` covers
+non-HTTP/static family, framework-only method, and empty source-router
+fail-closed branches; `tests/test_main_paywall_bootstrap.py:878-934` covers the
+VIP compat disabled/missing/nested-import branches; and
+`tests/test_main_paywall_bootstrap.py:1072-1086` covers the empty canonical PRO
+router guard. Local repro passed:
+`diff-cover /tmp/pr2009-coverage.xml --compare-branch origin/main --fail-under 97 ...`
+reported `app/bootstrap/route_family.py (100%)`, `app/main.py (100%)`,
+`app/routers/pro_registration.py (100%)`, `app/routers/vip_registration.py (100%)`,
+`Coverage: 100%`.
 
 `pulseplate-pr-review` dry-run reported a `large-diff-risk` advisory note because the PR diff exceeds 800 changed lines.
 Disposition: NOT-A-BUG
@@ -146,6 +163,14 @@ Reason: The diff is intentionally larger because the operator required removing 
 - `git diff --check` - PASS
 - `pytest -q tests/test_run_safety_audit.py -q` - PASS after Safety retry
   remediation.
+- `pytest -q tests/test_main_paywall_bootstrap.py` - PASS after the
+  `diff-coverage` remediation; warning is from upstream
+  `.venv/.../fastapi/testclient.py:1` importing Starlette `TestClient` with
+  `# noqa`, not from this PR diff.
+- Targeted coverage repro:
+  `coverage run -m pytest -q tests/test_main_paywall_bootstrap.py tests/test_pro_vip_route_dependency_guard.py tests/test_openapi_determinism.py tests/test_pro_registration_router_coverage.py tests/test_vip_guard_consistency.py tests/vip/test_vip_diff_coverage.py`;
+  `coverage xml -o /tmp/pr2009-coverage.xml`; `diff-cover ... --fail-under 97`
+  - PASS, `Coverage: 100%`.
 - `python3 scripts/ci/check_pr_size_governance.py --base-sha 58fe0a81199e5ab0b08ecd643adc1b139a2072b7 --head-sha HEAD --event-path /tmp/pr2009-event.json`
   - PASS with live PR body/labels:
   `PR scope governance: OK (privileged CI/security/workflow policy)`.
@@ -155,15 +180,21 @@ Reason: The diff is intentionally larger because the operator required removing 
   `pytest -q tests/test_main_paywall_bootstrap.py tests/test_legacy_growth_guard.py tests/test_pro_vip_route_dependency_guard.py`
   - PASS; `make validate-changed` - PASS; `pre-commit run --all-files` -
   PASS.
-- Pre-push hooks - PASS: changed-file mypy, pip-audit, backend tests, full
-  Bandit, docker build test.
+- `make validate-changed` - PASS after commit
+  `b910fcf7d8de84a4d56b35b5961d2f09821ea5f3`; selected
+  `tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_pro_registration_router_coverage.py tests/test_pro_vip_route_dependency_guard.py tests/test_run_safety_audit.py tests/test_vip_guard_consistency.py`.
+- `pre-commit run --all-files` - PASS after commit
+  `b910fcf7d8de84a4d56b35b5961d2f09821ea5f3`.
+- Pre-push hooks - PASS: changed-file mypy where applicable, pip-audit,
+  backend tests, full Bandit, docker build test.
 
 Full local `make verify` was intentionally not run per operator machine-budget
 constraint for this narrow lane. This PR is not merge-ready until focused local
-gates, latest-head CI parity after commit `da9c3b355ac6e4a93928022bfd14b8cd7d4a56de`,
-post-open role review refresh if required, final Codex Security diff scan /
-finding discovery on latest head, CodeRabbit/Sourcery/Cubic disposition,
-review-thread mapping, and strict merge-readiness checks all support it.
+gates, latest-head CI parity after commit
+`b910fcf7d8de84a4d56b35b5961d2f09821ea5f3`, post-open role review refresh if
+required, final Codex Security diff scan / finding discovery on latest head,
+CodeRabbit/Sourcery/Cubic disposition, review-thread mapping, and strict
+merge-readiness checks all support it.
 
 ## Post-Open Requirements
 
