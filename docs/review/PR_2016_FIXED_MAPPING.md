@@ -72,6 +72,12 @@ Disposition: FIXED
 Commit: 68c1d4d6ecee59a1d01af7d00def0197df9ff4e0
 Evidence: `tests/test_bmi_registration_router_coverage.py` now covers the BMI registration guard branches Codecov reported for `app/routers/bmi_registration.py`: non-`APIRoute` members, multi-method source routes, duplicate source routes, and `include_in_schema` drift. Focused coverage proof reports `100.00%` line and branch coverage for the file; `make validate-changed`, `pre-commit run --all-files`, `git diff --check`, and commit hooks passed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#issuecomment-4787837121 -> 5e2e125a5cd733c96b1f3715d98f2a85c853d20b
+Disposition: FIXED
+Commit: 5e2e125a5cd733c96b1f3715d98f2a85c853d20b
+Evidence: `app/routers/bmi_registration.py` now documents the BMI registration helper functions used by the production route-family registrar. The PR body mirror also adds related-PR context and a split-justification section for the description-shape advisory. Focused pytest and selected-suite coverage proof passed after the docstring change.
+Reason: The remaining CodeRabbit docstring-coverage framing is advisory for test/helper surfaces, not a repo gate. PulsePlate tests do not require per-test docstrings; adding broad test docstrings would reduce signal without improving the runtime BMI contract.
+
 ## Implementation Commits
 
 - `ba1eabf3d` - moves BMI route registration to canonical bootstrap, preserves
@@ -88,6 +94,8 @@ Evidence: `tests/test_bmi_registration_router_coverage.py` now covers the BMI re
 - `855738ce7` - moves BMI registration coverage proof into the CI-selected
   `tests/test_main_paywall_bootstrap.py` suite so current-head `diff-coverage`
   uses the branch coverage evidence.
+- `5e2e125a5` - documents BMI registration production helpers in response to
+  CodeRabbit's advisory docstring-coverage warning.
 
 ## Premortem Findings
 
@@ -273,7 +281,18 @@ After CI-selected diff-coverage remediation `855738ce7`:
 - `git diff --check`
 - Commit hooks passed for `855738ce7`.
 
-Current-head CI is pending at mapping update.
+After CodeRabbit advisory docstring remediation `5e2e125a5`:
+
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_main_paywall_bootstrap.py tests/test_bmi_registration_router_coverage.py`
+- `COVERAGE_FILE=/tmp/pr2016_coverage_bmi_ci_selected_after_docstrings /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m coverage run --source=app.routers.bmi_registration -m pytest -q tests/test_main_paywall_bootstrap.py`
+- `COVERAGE_FILE=/tmp/pr2016_coverage_bmi_ci_selected_after_docstrings /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m coverage report -m app/routers/bmi_registration.py`
+  - Result: `app/routers/bmi_registration.py` `100.00%` line and branch
+    coverage from the CI-selected `tests/test_main_paywall_bootstrap.py` suite.
+- `git diff --check`
+- Commit hooks passed for `5e2e125a5`.
+
+Current-head CI passed at `ff7c6d335` before the CodeRabbit advisory docstring
+commit. New current-head CI is pending at mapping update.
 
 ## Security Notes
 
