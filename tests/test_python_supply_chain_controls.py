@@ -660,10 +660,10 @@ def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> 
 def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     requirements_test = (REPO_ROOT / "requirements-test.txt").read_text(encoding="utf-8")
 
-    assert "pytest==9.1.0" in requirements_test
+    assert "pytest==9.1.1" in requirements_test
     assert "pytest-cov==7.1.0" in requirements_test
     assert "pytest-xdist==3.8.0" in requirements_test
-    assert "coverage[toml]==7.14.1" in requirements_test
+    assert "coverage[toml]==7.14.3" in requirements_test
     assert "pgvector==" in requirements_test
     assert "bandit==" not in requirements_test
     assert "pre-commit==" not in requirements_test
