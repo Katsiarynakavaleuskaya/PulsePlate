@@ -162,6 +162,10 @@ dispositioned with evidence.
   `704e60699697c0dc9c64baf33efb2a14691cd68e` by bounding private-index
   health probes to 15 seconds per attempt while preserving the existing retry
   budget and fail-closed behavior.
+- Local dependency preflight: approved-proxy simple-index pages also returned
+  transient `HTTP 502` responses during floor checks; fixed in
+  `a74d5987444bc13f36b6f28404ec418cfc2028b8` by retrying only transient 5xx
+  health responses before failing closed on persistent proxy errors.
 
 ## Fixed in Commit Mapping
 
@@ -231,6 +235,10 @@ Disposition: FIXED
 Commit: 704e60699697c0dc9c64baf33efb2a14691cd68e
 Evidence: Local `requirements-dev.txt` preflight showed the simple-index floor check could still hang on a slow approved proxy read. Private-index health probes now use `PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS=15` with the existing retry budget; `tests/test_install_locked_python_requirements.py::test_private_index_project_health_retries_transient_probe_error` covers retry/close behavior and the dev/test/ci-lite locked install preflights pass.
 
+Disposition: FIXED
+Commit: a74d5987444bc13f36b6f28404ec418cfc2028b8
+Evidence: Local dev/test/ci-lite dependency preflights returned transient approved-proxy `HTTP 502` responses for simple-index floor pages. The private-index health probe now retries 5xx responses within the existing retry budget, and `tests/test_install_locked_python_requirements.py::test_private_index_project_health_retries_transient_http_5xx` covers the retry/close behavior.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -259,6 +267,8 @@ Evidence: Local `requirements-dev.txt` preflight showed the simple-index floor c
   `754f599a7b6c2a0d71aca1a2a6bb0483d328d726`
 - bounded private-index health probe fix ->
   `704e60699697c0dc9c64baf33efb2a14691cd68e`
+- transient private-index 5xx retry fix ->
+  `a74d5987444bc13f36b6f28404ec418cfc2028b8`
 
 ## Deferred / Follow-ups
 
