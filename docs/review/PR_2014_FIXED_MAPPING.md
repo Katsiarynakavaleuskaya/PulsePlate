@@ -126,8 +126,24 @@ dispositioned with evidence.
 
 Disposition: FIXED
 Commit: 15b0e0c403974b714aa6815cd3b49ec518e3847f
+Evidence: `qa-engineer-agent` missing-Hypothesis guard finding is covered by `tests/test_python_supply_chain_controls.py` asserting `hypothesis==6.155.7`.
+
+Disposition: FIXED
+Commit: 15b0e0c403974b714aa6815cd3b49ec518e3847f
 Evidence: `tests/test_python_supply_chain_controls.py` asserts `hypothesis==6.155.7` in the split test dependency profile.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#discussion_r3465713725 -> 15b0e0c403974b714aa6815cd3b49ec518e3847f
+
+Disposition: FIXED
+Commit: 6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca
+Evidence: `bug-hunter` stale active requirements guide finding is fixed by updating `REQUIREMENTS.md` testing-stack examples from `pytest==9.1.0` / `pytest>=9.1.0` to the refreshed stack.
+
+Disposition: FIXED
+Commit: 23635b2f4fb2575120d356b952898dc3796cfd41
+Evidence: Codex Security approved-proxy bypass finding is fixed by requiring `PULSEPLATE_PYTHON_INDEX_URL` for raw `pip` / `pip-compile` examples and by preferring `scripts/ci/install_locked_python_requirements.py` in shared install examples.
+
+Disposition: FIXED
+Commit: 23635b2f4fb2575120d356b952898dc3796cfd41
+Evidence: Codex Security unreachable-SHA finding is fixed by replacing the invalid mapping SHA with reachable commit `6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca`.
 
 ## Implementation Evidence
 

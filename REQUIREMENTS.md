@@ -101,11 +101,12 @@ pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-lock.t
 ```
 
 ### Update Dev Dependency
-1. Update version in `requirements-dev.txt`
+1. Update version in `requirements-dev.in`
 2. Update constraint in `constraints.txt` (if needed)
-3. Run `python verify_requirements.py`
-4. Test through the approved proxy:
-   `python scripts/ci/install_locked_python_requirements.py --requirements-profile runtime-dev --constraints-file constraints.txt --preflight-only`
+3. Regenerate `requirements-dev.txt` with `pip-compile`
+4. Run `python verify_requirements.py`
+5. Test through the approved proxy:
+   `python scripts/ci/install_locked_python_requirements.py --requirements-file requirements.txt --dev-requirements-file requirements-dev.txt --requirements-profile runtime-dev --constraints-file constraints.txt --preflight-only`
 
 ## 🛡️ Best Practices
 
@@ -124,11 +125,14 @@ source .venv/bin/activate
 
 # Install for development
 python scripts/ci/install_locked_python_requirements.py \
+  --requirements-file requirements.txt \
+  --dev-requirements-file requirements-dev.txt \
   --requirements-profile runtime-dev \
   --constraints-file constraints.txt
 
 # Install for production
 python scripts/ci/install_locked_python_requirements.py \
+  --requirements-file requirements.txt \
   --requirements-profile runtime \
   --constraints-file constraints.txt
 
