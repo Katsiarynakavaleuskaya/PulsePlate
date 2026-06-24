@@ -362,11 +362,7 @@ Evidence:
 Reason: the finding is a valid review-planning warning, but not a PR-surface
 code defect or a reason to split this already cohesive PR-1 layer.
 
-## Fixed in Commit Mapping
-
-No pre-open GitHub review-thread URLs existed at PR creation time.
-
-Implementation commits:
+## Implementation Commits
 
 - `977b48d2208453ae4c3a1eb6bb0c61ed50f717af` implements the PR-1 specification
   bundle contract, validator, CLI, rejection index, docs, and tests.
@@ -384,6 +380,53 @@ Implementation commits:
 - `5f58d3e8dbeb3a9076fa83055b5d6978849bccfa` closes Codex Security findings for
   rejection-index semantic tokens, artifact-root symlink creation, test-path
   containment, and provider/runtime/patch prose filtering.
+- `83e3f9603eaee6e4f7fa5fe5f9340580808784bd` closes CodeRabbit follow-up
+  findings for schema review-count scaling, immutable-oracle overlap, main
+  bundle secret-token rejection, and mutable variant-list isolation.
+- `af7946b210a10b8a0b1cd93748ca6a7a969af19e` adds the required
+  discussion-pass checkboxes in this fixed-mapping artifact.
+
+## Fixed in Commit Mapping
+
+Disposition: NOT-A-BUG
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#pullrequestreview-4560789968
+Evidence: scripts/orchestration/creative_code_spec_pipeline.py owns CLI I/O separately; docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md documents exact PR-1 boundaries; tests/test_creative_code_specification.py covers contract behavior.
+Reason: Sourcery raised high-level refactor suggestions, not a correctness/security defect; splitting the cohesive PR-1 executable contract further would widen this PR without changing behavior.
+
+Disposition: NOT-A-BUG
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#pullrequestreview-4560996547
+Evidence: Individual CodeRabbit inline findings from this review are mapped below with FIXED proof; focused tests and validators passed after the fixes.
+Reason: The review summary duplicates the inline comments and is not a separate PR-surface defect.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3466111164 -> 83e3f9603eaee6e4f7fa5fe5f9340580808784bd
+Commit: 83e3f9603eaee6e4f7fa5fe5f9340580808784bd
+Evidence: docs/orchestration/contracts/creative_code_specification.v1.schema.json exact 9/12/15 skeptic review constraints; tests/test_creative_code_specification.py::test_schema_review_count_constraints_scale_with_variant_count.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3466111177 -> af7946b210a10b8a0b1cd93748ca6a7a969af19e
+Commit: af7946b210a10b8a0b1cd93748ca6a7a969af19e
+Evidence: docs/review/PR_2015_FIXED_MAPPING.md includes - [x] Discussion-thread pass completed and - [x] Fixed in commit mapping completed under ## Discussion Thread Pass.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3466111182 -> 5f58d3e8dbeb3a9076fa83055b5d6978849bccfa
+Commit: 5f58d3e8dbeb3a9076fa83055b5d6978849bccfa
+Evidence: scripts/orchestration/creative_code_rejection_index.py rejects unsafe IDs/tokens; tests/test_creative_code_specification.py::test_rejection_index_rejects_unsafe_ids_and_tokens.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3466111193 -> 5f58d3e8dbeb3a9076fa83055b5d6978849bccfa
+Commit: 5f58d3e8dbeb3a9076fa83055b5d6978849bccfa
+Evidence: scripts/orchestration/creative_code_spec_pipeline.py checks artifact-root symlinks before mkdir; tests/test_creative_code_specification.py::test_pipeline_rejects_symlinked_artifact_root_before_creating_children.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3466111203 -> 83e3f9603eaee6e4f7fa5fe5f9340580808784bd
+Commit: 83e3f9603eaee6e4f7fa5fe5f9340580808784bd
+Evidence: scripts/orchestration/creative_code_specification.py rejects secret-shaped review tokens before rejection-index synthesis; tests/test_creative_code_specification.py::test_spec_rejects_secret_shaped_review_tokens_before_rejection_index.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3466111212 -> 83e3f9603eaee6e4f7fa5fe5f9340580808784bd
+Commit: 83e3f9603eaee6e4f7fa5fe5f9340580808784bd
+Evidence: scripts/orchestration/creative_code_specification.py rejects target_surface and immutable_oracles overlap; tests/test_creative_code_specification.py::test_target_surface_must_not_overlap_immutable_oracles.
 
 ## Merge Readiness
 
