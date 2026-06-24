@@ -85,6 +85,9 @@ Evidence: `tests/test_bmi_registration_router_coverage.py` now covers the BMI re
   the final merge-readiness pass.
 - `68c1d4d6e` - covers BMI registration guard drift branches reported by
   Codecov and proves 100% focused coverage for the canonical registrar.
+- `855738ce7` - moves BMI registration coverage proof into the CI-selected
+  `tests/test_main_paywall_bootstrap.py` suite so current-head `diff-coverage`
+  uses the branch coverage evidence.
 
 ## Premortem Findings
 
@@ -254,7 +257,23 @@ After Codecov patch-coverage remediation `68c1d4d6e`:
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pre-commit run --all-files`
 - `git diff --check`
 
-Current-head CI is pending at mapping creation.
+After CI-selected diff-coverage remediation `855738ce7`:
+
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_main_paywall_bootstrap.py tests/test_bmi_registration_router_coverage.py`
+- `COVERAGE_FILE=/tmp/pr2016_coverage_bmi_ci_selected /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m coverage run --source=app.routers.bmi_registration -m pytest -q tests/test_main_paywall_bootstrap.py`
+- `COVERAGE_FILE=/tmp/pr2016_coverage_bmi_ci_selected /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m coverage report -m app/routers/bmi_registration.py`
+  - Result: `app/routers/bmi_registration.py` `100.00%` line and branch
+    coverage from the CI-selected `tests/test_main_paywall_bootstrap.py` suite.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_preflight.py`
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_agent_consistency.py`
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/check_legacy_growth_guard.py`
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make openapi-check`
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python pre-commit run --all-files`
+- `git diff --check`
+- Commit hooks passed for `855738ce7`.
+
+Current-head CI is pending at mapping update.
 
 ## Security Notes
 
