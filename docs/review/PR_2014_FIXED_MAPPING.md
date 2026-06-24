@@ -25,6 +25,7 @@ iOS/Fastlane dependency surfaces.
 - `15b0e0c403974b714aa6815cd3b49ec518e3847f` - `test(deps): cover hypothesis testing stack pin`
 - `6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca` - `docs(deps): align testing requirements guide`
 - `23635b2f4fb2575120d356b952898dc3796cfd41` - `docs(deps): require approved proxy in requirements guide`
+- `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f` - `fix(deps): harden python dependency setup fallback`
 - Additional current-head CI/setup follow-up commits are listed in
   Implementation Evidence below.
 
@@ -83,22 +84,22 @@ Focused local gates:
 - Approved proxy exact-wheel proof for `pytest==9.1.1`,
   `hypothesis==6.155.7`, and `coverage==7.14.3` using
   `.venv/bin/python -m pip download --isolated --index-url "$PULSEPLATE_PYTHON_INDEX_URL" --only-binary=:all: --no-deps` - PASS
-- `.venv/bin/python scripts/ci/install_locked_python_requirements.py --requirements-file requirements-dev.txt --constraints-file constraints.txt --install-dev --preflight-only` - PASS
-- `.venv/bin/python scripts/ci/install_locked_python_requirements.py --requirements-file requirements-test.txt --constraints-file constraints.txt --preflight-only` - PASS
-- `.venv/bin/python scripts/ci/install_locked_python_requirements.py --requirements-file requirements-ci-lite.txt --constraints-file constraints.txt --preflight-only` - PASS
+- `python3 scripts/ci/install_locked_python_requirements.py --requirements-file requirements-dev.txt --constraints-file constraints.txt --install-dev --preflight-only` - PASS
+- `python3 scripts/ci/install_locked_python_requirements.py --requirements-file requirements-test.txt --constraints-file constraints.txt --preflight-only` - PASS
+- `python3 scripts/ci/install_locked_python_requirements.py --requirements-file requirements-ci-lite.txt --constraints-file constraints.txt --preflight-only` - PASS
 - `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py` - PASS
 - `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_accepts_pip26_no_candidate_shape tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolver_miss tests/test_install_locked_python_requirements.py::test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt` - PASS
 - `.venv/bin/python -m pip_audit -r requirements-dev.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-test.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-ci-lite.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-lock.txt` - PASS; no known vulnerabilities found.
-- `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS; selected `tests/test_python_supply_chain_controls.py`.
-- `pre-commit run --all-files` - PASS.
+- `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS; selected `tests/test_install_locked_python_requirements.py` and `tests/test_python_supply_chain_controls.py`.
+- `pre-commit run --all-files` - PASS after staging generated `.secrets.baseline` updates from detect-secrets.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push pytest, and full-repo Bandit.
-- Latest explicit dependency-floor retry for `requirements-test.txt` is not
-  counted as a current PASS claim: the approved private proxy timed out on
-  `cryptography==48.0.1`, and the installer correctly remained fail-closed for
-  full proxy transport failures.
+- Fresh dev/test/ci-lite dependency-floor preflight-only reruns passed after
+  `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f`. Exact, time-boxed emergency
+  fallback artifacts now bridge approved-proxy read timeouts for covered floor
+  packages; unlisted floors still fail closed.
 - Codex Security diff scan `e8ff0e1e-63f6-4932-aac3-b78356b41f32`
   against head `4be4fc1edebd9cdbf5fbafe2cf434fc8384a862c` - PASS;
   0 findings, 12/12 review receipts completed.
@@ -154,7 +155,7 @@ dispositioned with evidence.
 - Current-head CI: `OpenAPI sync` failed in `Setup Python environment` because
   pip 26 treated the selected exact pin `openai==2.29.0` plus redundant
   constraint floor `openai>=2.8.1` as a resolver conflict; fixed in
-  `e19e349c36e4ee5becd7780720ddf52e99d6b0e7`.
+  `e19e349c3eba9139252f1fa55c6e26ac4e7530a8`.
 - Current-head CI: `OpenAPI sync` job `83177933838` and `security` job
   `83177933855` were cancelled by job timeout in `Setup Python environment`
   after the exact-pin conflict was fixed; fixed in
@@ -170,21 +171,31 @@ dispositioned with evidence.
 - Local dependency preflight: the simple-index floor check initially used the
   full pip 60 second network timeout per read and could still hang on a slow
   approved proxy response; fixed in
-  `704e60699697c0dc9c64baf33efb2a14691cd68e` by bounding private-index
+  `704e60699b7f2ebe74763bf59fdd0d202feff08a` by bounding private-index
   health probes to 15 seconds per attempt while preserving the existing retry
   budget and fail-closed behavior.
 - Local dependency preflight: approved-proxy simple-index pages also returned
   transient `HTTP 502` responses during floor checks; fixed in
-  `a74d5987444bc13f36b6f28404ec418cfc2028b8` by retrying only transient 5xx
+  `a74d598741b5b2ab16c20c88fb60bf8df0162c86` by retrying only transient 5xx
   health responses before failing closed on persistent proxy errors.
 - Current-head CI: `CI`, `Frontend CI`, and `OpenAPI sync` setup jobs on head
   `79bd1f2007ae6e6ebb4c1d3d00e58eea4b9c009d` still failed in shared Python
   setup after the duplicate floor preflight and during `requirements-ci-lite`
-  direct-proxy install. Fixed in `fe2c923bf8a8a811429fc04e4f9ed218853ebf3e`
+  direct-proxy install. Fixed in `fe2c923bf2dcc3e5e5d1882816d2f9b50b2ed211`
   by removing the duplicate standalone action preflight, keeping
   `--preflight-only` as an explicit focused gate, hardening private-index
   health probes, and adding exact `jiter==0.12.0` cp313 manylinux emergency
   fallback metadata for the observed mirror miss.
+- Current-head Docker Build setup failed on head
+  `707c11b821a5004d6d70d09a72707a86a5deeece` because the approved proxy did
+  not provide `pydantic-core==2.41.5`; fixed in
+  `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f` with exact SHA-pinned
+  emergency fallback metadata and active fallback inventory coverage.
+- `Codex Security`: current continuation found the shared Python setup action
+  missing dependency-floor preflight, RAG release gates using raw public pip
+  installation for `requirements-ci-lite.txt`, and changed lockfile headers
+  missing `--no-emit-index-url`; all fixed in
+  `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f`.
 - Current-head CI: `pr_scope_guard` on head
   `028831a385adbdd73f5347c092d2c579f61453ea` failed because the coherent
   dependency/setup lane now touches 18 files in the privileged
@@ -248,7 +259,7 @@ Commit: 66ef96f848cb8d475c4ab699ce5fd00c0dc393bc
 Evidence: CodeRabbit fallback-health-probe coverage finding is fixed by asserting `_require_private_index_project_health` is invoked for the `pyopenssl` emergency fallback path before staging the exact local wheel.
 
 Disposition: FIXED
-Commit: e19e349c36e4ee5becd7780720ddf52e99d6b0e7
+Commit: e19e349c3eba9139252f1fa55c6e26ac4e7530a8
 Evidence: Current-head `OpenAPI sync` setup failure is fixed by generating per-requirement effective constraints that drop redundant constraint entries for packages already exact-pinned by the selected requirements file. Regression tests cover `openai==2.29.0` with `openai>=2.8.1` for both the effective constraints helper and direct-proxy install command construction.
 
 Disposition: FIXED
@@ -260,16 +271,36 @@ Commit: 754f599a7b6c2a0d71aca1a2a6bb0483d328d726
 Evidence: Current-head setup jobs still remained in `Setup Python environment` after the locked install no-deps fix because dependency-floor preflight still downloaded floor wheels in every job. The installer now checks exact version availability through the approved proxy simple-index project page and only downloads emergency wheels for verified proxy misses; `tests/test_install_locked_python_requirements.py` covers exact-version checks, proxy-health failures, missing-floor rejection, and emergency fallback verification.
 
 Disposition: FIXED
-Commit: 704e60699697c0dc9c64baf33efb2a14691cd68e
+Commit: 704e60699b7f2ebe74763bf59fdd0d202feff08a
 Evidence: Local `requirements-dev.txt` preflight showed the simple-index floor check could still hang on a slow approved proxy read. Private-index health probes now use `PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS=15` with the existing retry budget; `tests/test_install_locked_python_requirements.py::test_private_index_project_health_retries_transient_probe_error` covers retry/close behavior and the dev/test/ci-lite locked install preflights pass.
 
 Disposition: FIXED
-Commit: a74d5987444bc13f36b6f28404ec418cfc2028b8
+Commit: a74d598741b5b2ab16c20c88fb60bf8df0162c86
 Evidence: Local dev/test/ci-lite dependency preflights returned transient approved-proxy `HTTP 502` responses for simple-index floor pages. The private-index health probe now retries 5xx responses within the existing retry budget, and `tests/test_install_locked_python_requirements.py::test_private_index_project_health_retries_transient_http_5xx` covers the retry/close behavior.
 
 Disposition: FIXED
-Commit: fe2c923bf8a8a811429fc04e4f9ed218853ebf3e
+Commit: fe2c923bf2dcc3e5e5d1882816d2f9b50b2ed211
 Evidence: Current-head setup logs for `CI` job `83188391853`, `Frontend CI` job `83188383706`, and `OpenAPI sync` job `83188440400` showed the duplicate standalone action preflight plus direct-proxy install failure for `jiter==0.12.0`. `.github/actions/python-setup/action.yml` now avoids the duplicate `--preflight-only` action step, `scripts/ci/emergency_python_wheels.json` carries the exact SHA-pinned `jiter==0.12.0` cp313 manylinux wheel, `docs/roadmap/BACKLOG_LEDGER.md` tracks the new active fallback, and focused tests cover the action contract, manifest selection, private-index retry, and supply-chain guards.
+
+Disposition: FIXED
+Commit: b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f
+Evidence: Current-head Docker Build setup logs showed `pydantic-core==2.41.5` could not be installed from the approved private proxy. The exact cp313 manylinux wheel is now listed in `scripts/ci/emergency_python_wheels.json` with split SHA-256 evidence, `docs/roadmap/BACKLOG_LEDGER.md` tracks the active fallback, and `tests/test_install_locked_python_requirements.py::test_repo_emergency_manifest_tracks_current_active_fallback_set` covers the active manifest set.
+
+Disposition: FIXED
+Commit: b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f
+Evidence: Codex Security found the shared Python setup action no longer ran dependency-floor preflight before install. `.github/actions/python-setup/action.yml` now runs `install_locked_python_requirements.py --preflight-only` against the selected profile before the install command, and `tests/test_python_supply_chain_controls.py::test_python_setup_action_uses_locked_installer_not_floating_tools` asserts the preflight contract.
+
+Disposition: FIXED
+Commit: b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f
+Evidence: Codex Security found RAG release gates installed `requirements-ci-lite.txt` through raw public pip commands. `.github/workflows/rag-release-gates.yml` now uses the locked installer with `PULSEPLATE_PYTHON_INDEX_URL`, `constraints.txt`, `direct-proxy`, and the emergency wheel manifest; `tests/test_python_supply_chain_controls.py::test_rag_release_gates_use_locked_ci_lite_installer` covers both smoke and weekly jobs.
+
+Disposition: FIXED
+Commit: b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f
+Evidence: Codex Security found changed lockfile regeneration guidance missing `--no-emit-index-url`. Headers for `requirements-dev.txt`, `requirements-test.txt`, `requirements-ci-lite.txt`, and `requirements-lock.txt` now include `--no-emit-index-url`, and `REQUIREMENTS.md` plus `docs/DEPENDENCY_MANAGEMENT.md` include the test/CI-lite regeneration commands.
+
+Disposition: FIXED
+Commit: b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f
+Evidence: Local dependency preflights exposed approved-proxy read timeouts for exact security floors that already had time-boxed emergency manifest artifacts. `scripts/ci/install_locked_python_requirements.py` now tolerates proxy probe failure only after the exact floor artifact hash-verifies from the manifest; `tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_proxy_probe_failure` covers the narrow fallback, and unlisted floor failures remain fail-closed.
 
 ## Implementation Evidence
 
@@ -292,17 +323,20 @@ Evidence: Current-head setup logs for `CI` job `83188391853`, `Frontend CI` job 
 - CodeRabbit fallback health-probe test completion ->
   `66ef96f848cb8d475c4ab699ce5fd00c0dc393bc`
 - exact-pin effective constraints fix ->
-  `e19e349c36e4ee5becd7780720ddf52e99d6b0e7`
+  `e19e349c3eba9139252f1fa55c6e26ac4e7530a8`
 - locked install no-deps resolver-timeout fix ->
   `999a981e2dd009fa3892c1e77d1284f46e480d59`
 - simple-index dependency floor preflight fix ->
   `754f599a7b6c2a0d71aca1a2a6bb0483d328d726`
 - bounded private-index health probe fix ->
-  `704e60699697c0dc9c64baf33efb2a14691cd68e`
+  `704e60699b7f2ebe74763bf59fdd0d202feff08a`
 - transient private-index 5xx retry fix ->
-  `a74d5987444bc13f36b6f28404ec418cfc2028b8`
+  `a74d598741b5b2ab16c20c88fb60bf8df0162c86`
 - duplicate setup-preflight and jiter emergency fallback fix ->
-  `fe2c923bf8a8a811429fc04e4f9ed218853ebf3e`
+  `fe2c923bf2dcc3e5e5d1882816d2f9b50b2ed211`
+- pydantic-core Docker/setup fallback, shared setup preflight, RAG release
+  proxy install hardening, and lockfile header guidance fix ->
+  `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f`
 - privileged scope exception body/label governance fix ->
   PR metadata update, verified by local `check_pr_size_governance.py` with live
   PR metadata
