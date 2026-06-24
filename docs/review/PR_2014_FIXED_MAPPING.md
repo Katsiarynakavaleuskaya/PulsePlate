@@ -121,6 +121,9 @@ dispositioned with evidence.
   `e8ff0e1e-63f6-4932-aac3-b78356b41f32` completed against head
   `4be4fc1edebd9cdbf5fbafe2cf434fc8384a862c` after those fixes with
   0 findings and 12/12 review receipts.
+- `CodeRabbit CLI`: found incomplete disposition-specific proof in this mapping
+  artifact and two `REQUIREMENTS.md` command/source-of-truth consistency issues;
+  fixed in `5f2faa440f4aebf01f0192b41e232678b66a9b26`.
 
 ## Fixed in Commit Mapping
 
@@ -145,6 +148,18 @@ Disposition: FIXED
 Commit: 23635b2f4fb2575120d356b952898dc3796cfd41
 Evidence: Codex Security unreachable-SHA finding is fixed by replacing the invalid mapping SHA with reachable commit `6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca`.
 
+Disposition: FIXED
+Commit: 5f2faa440f4aebf01f0192b41e232678b66a9b26
+Evidence: CodeRabbit major mapping-completeness finding is fixed by adding disposition-specific proof entries for the QA, bug-hunter, and Codex Security post-open findings.
+
+Disposition: FIXED
+Commit: 5f2faa440f4aebf01f0192b41e232678b66a9b26
+Evidence: CodeRabbit minor requirements-guide source-of-truth finding is fixed by changing the dev dependency update flow to edit `requirements-dev.in` and regenerate `requirements-dev.txt`.
+
+Disposition: FIXED
+Commit: 5f2faa440f4aebf01f0192b41e232678b66a9b26
+Evidence: CodeRabbit minor install-helper consistency finding is fixed by adding explicit `--requirements-file requirements.txt` and `--dev-requirements-file requirements-dev.txt` flags to the common install examples.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -155,6 +170,8 @@ Evidence: Codex Security unreachable-SHA finding is fixed by replacing the inval
   `6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca`
 - Codex Security approved-proxy guide and reachable mapping proof ->
   `23635b2f4fb2575120d356b952898dc3796cfd41`
+- CodeRabbit mapping and requirements guide follow-up ->
+  `5f2faa440f4aebf01f0192b41e232678b66a9b26`
 
 ## Deferred / Follow-ups
 
