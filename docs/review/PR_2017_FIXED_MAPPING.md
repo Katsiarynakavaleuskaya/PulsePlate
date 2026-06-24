@@ -24,6 +24,13 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 - `11ee04235745b4083aa818ee68970c0ab1281bda` - guard empty devpi
   `.netrc` hostnames and add regression coverage for the Sourcery review
   finding.
+- `f04d2baf9eacf44b4a5d8faae52933df2e630ab1` - sync PR #2017 with
+  `origin/main` after PR #2014 merged, preserving the devpi hardening and
+  dependency-lane lockfile updates together.
+- `80db1bdf2f6927c02a0ce084ff14e192c804247f` - preserve non-root devpi
+  `.netrc` auth for Docker BuildKit installs, redact URL credentials through
+  the last userinfo separator, and remove bare `python` from the subprocess
+  wrapper test input.
 
 ## Discussion Thread Pass
 
@@ -36,7 +43,7 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 - [x] Post-open role pass completed.
 - [x] Codex Security diff scan / finding discovery completed.
 - [x] `pulseplate-pr-review` completed.
-- [ ] Later bot/human review comments are fixed or dispositioned before merge
+- [x] Later bot/human review comments are fixed or dispositioned before merge
   readiness.
 - [ ] Current-head CI is complete before merge readiness.
 - [ ] Strict merge-readiness check runs after the final review/check cycle.
@@ -45,9 +52,17 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4562642386 -> 11ee04235745b4083aa818ee68970c0ab1281bda
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467464705 -> 11ee04235745b4083aa818ee68970c0ab1281bda
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4563199452 -> 80db1bdf2f6927c02a0ce084ff14e192c804247f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467943722 -> 80db1bdf2f6927c02a0ce084ff14e192c804247f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467943730 -> 80db1bdf2f6927c02a0ce084ff14e192c804247f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467943759 -> 80db1bdf2f6927c02a0ce084ff14e192c804247f
 Disposition: FIXED
 Commit: 11ee04235745b4083aa818ee68970c0ab1281bda
 Evidence: scripts/ci/install_locked_python_requirements.py:952 and tests/test_install_locked_python_requirements.py:426
+
+Disposition: FIXED
+Commit: 80db1bdf2f6927c02a0ce084ff14e192c804247f
+Evidence: .github/workflows/build.yml:54, Dockerfile:58, scripts/ci/install_locked_python_requirements.py:1019, tests/test_install_locked_python_requirements.py:1748, tests/test_python_supply_chain_controls.py:1325
 
 ## Additional Fixed Findings
 
@@ -65,6 +80,30 @@ Evidence:
   hostname is empty.
 - `tests/test_install_locked_python_requirements.py` covers `None` and empty
   string hostnames without `.netrc` access.
+
+CodeRabbit post-sync review found that protected Docker builds did not receive
+the non-root devpi `.netrc` auth path, URL credential redaction stopped at the
+first `@`, and a subprocess-wrapper test still used bare `python`.
+
+Disposition: FIXED
+
+Commit: `80db1bdf2f6927c02a0ce084ff14e192c804247f`
+
+Evidence:
+
+- `.github/workflows/build.yml` now prepares
+  `$RUNNER_TEMP/pulseplate-docker-netrc` in both Docker build jobs, with
+  secrets withheld from `pull_request`, root/whitespace credential rejection,
+  and credential-free `PULSEPLATE_PYTHON_INDEX_URL` enforcement.
+- Docker build steps pass that file as BuildKit `secret-files` using
+  `pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc`.
+- `Dockerfile` consumes optional `pp_netrc` only inside install `RUN` layers,
+  copies it to `/root/.netrc` with `0600`, and removes it with an `EXIT` trap.
+- `scripts/ci/install_locked_python_requirements.py` redacts through the last
+  userinfo separator before the host.
+- `tests/test_install_locked_python_requirements.py`,
+  `tests/test_python_supply_chain_controls.py`, and
+  `tests/test_docker_workflow_build_path_contract.py` cover the regressions.
 
 Coordinator pre-open review found that workflow-level `ci.yml` package-index
 env still resolved `PULSEPLATE_PYTHON_INDEX_URL` from `secrets || vars`, which
@@ -195,14 +234,12 @@ Evidence:
 
 ## Not Merge-Ready Yet
 
-- PR #2014 dependency lane must merge to `main`.
-- This branch must sync/rebase after #2014 reaches `main`.
 - Rotated non-root devpi CI read credentials must be available as secrets.
 - Credentialed `scripts/ci/install_locked_python_requirements.py --preflight-only`
   must pass on current head.
 - Docker build package-host proof must pass on current head because Docker
   build paths consume package-index secrets separately from `python-setup`.
-- Current-head CI must pass after sync.
+- Current-head CI must pass after the final push.
 - Post-open role pass, Codex Security diff scan / finding discovery,
   and `pulseplate-pr-review` are complete.
 - Review-thread disposition, strict merge-readiness, current-head CI, and the
@@ -222,8 +259,14 @@ Starter: manual coordinator flow (`check_preflight.py` ->
   `codex/devpi-package-index-rollout`.
 - Lane packet:
   `artifacts/orchestration/task_packets/a4943868c687.json` (local artifact).
+- Merge-readiness sync packet:
+  `artifacts/orchestration/task_packets/78cafe802402.json` (local artifact).
 - Dispatch order completed before PR open:
   `agent-coordinator -> dev-operator -> security-auditor -> qa-engineer-agent -> bug-hunter`.
+- Post-#2014 sync completed:
+  PR #2014 merged to `main` as
+  `2201390000120b54e987fec937511a8ad7b6a4ba`, and this branch merged
+  `origin/main` as `f04d2baf9eacf44b4a5d8faae52933df2e630ab1`.
 - Premortem:
   `artifacts/orchestration/premortem/devpi-package-index-rollout-premortem.md`
   (local artifact), decision `proceed with changes`.
@@ -255,6 +298,14 @@ Starter: manual coordinator flow (`check_preflight.py` ->
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_ci_workflow_pr_size_governance_contract.py`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
+- PASS:
+  `python3 scripts/orchestration/check_preflight.py --path .github/workflows/build.yml --path Dockerfile --path scripts/ci/install_locked_python_requirements.py --path tests/test_install_locked_python_requirements.py --path tests/test_python_supply_chain_controls.py --path tests/test_docker_workflow_build_path_contract.py`
+- PASS:
+  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_docker_workflow_build_path_contract.py tests/test_ci_workflow_pr_size_governance_contract.py`
+- PASS:
+  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+- PASS:
+  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python pre-commit run --all-files`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: pre-push hooks during
   `git push -u origin codex/devpi-package-index-rollout`, including `mypy`,
