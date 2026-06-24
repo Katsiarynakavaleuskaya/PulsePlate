@@ -438,6 +438,41 @@ Evidence:
 - `tests/test_install_locked_python_requirements.py::test_main_reports_invalid_pip_network_env_cleanly`
 - PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
 
+Post retry-budget CodeRabbit review found two additional actionable
+PR-surface findings.
+
+Disposition: FIXED
+
+Finding: the exact `jiter==0.12.0` emergency wheel entry could be staged for an
+incompatible interpreter/platform because emergency artifact selection matched
+only package and version.
+
+Commit: `95dda464527443806e3d10ce6e4c13c8f4f0e25a`
+
+Evidence: `scripts/ci/install_locked_python_requirements.py` now filters
+parseable emergency wheels by runtime-compatible wheel tags before selection,
+staging, pip upgrade selection, and floor verification;
+`tests/test_install_locked_python_requirements.py::test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_tags`;
+`tests/test_install_locked_python_requirements.py::test_stage_emergency_artifacts_skips_incompatible_parseable_wheels`;
+`tests/test_install_locked_python_requirements.py::test_verify_emergency_artifact_for_floor_requires_compatible_wheel_tags`.
+
+Disposition: FIXED
+
+Finding: the mixed timeout plus resolver-miss fallback branch was covered for
+direct-proxy install but not the default wheelhouse fallback path.
+
+Commit: `95dda464527443806e3d10ce6e4c13c8f4f0e25a`
+
+Evidence:
+`tests/test_install_locked_python_requirements.py::test_build_wheelhouse_with_emergency_fallback_allows_partial_proxy_resolver_miss`
+covers the wheelhouse mixed-failure branch with proxy-health anchoring and
+staged exact emergency artifacts.
+
+CodeRabbit fix validation:
+
+- PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py::test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_tags tests/test_install_locked_python_requirements.py::test_stage_emergency_artifacts_skips_incompatible_parseable_wheels tests/test_install_locked_python_requirements.py::test_verify_emergency_artifact_for_floor_requires_compatible_wheel_tags tests/test_install_locked_python_requirements.py::test_build_wheelhouse_with_emergency_fallback_allows_partial_proxy_resolver_miss tests/test_install_locked_python_requirements.py::test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected tests/test_install_locked_python_requirements.py::test_repo_dev_quality_emergency_wheels_are_selected_from_active_manifest tests/test_install_locked_python_requirements.py::test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt`
+- PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
+
 ## Scope Approval
 
 Operator approval: approved for keeping the current-head CI setup unblock in
@@ -490,6 +525,9 @@ proxy as the authority, adds fail-closed tests, and expires on `2026-06-30`.
 - `8ece34585d4867af404ebd0ccb9b67abb878a03d` bounds CI package-proxy retry and
   timeout settings while preserving the default locked-install policy for
   non-CI callers.
+- `95dda464527443806e3d10ce6e4c13c8f4f0e25a` closes CodeRabbit emergency-wheel
+  review findings by making fallback artifact selection wheel-tag-aware and
+  adding wheelhouse mixed-failure regression coverage.
 
 ## Fixed in Commit Mapping
 
@@ -532,6 +570,21 @@ Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3466111212 -> 83e3f9603eaee6e4f7fa5fe5f9340580808784bd
 Commit: 83e3f9603eaee6e4f7fa5fe5f9340580808784bd
 Evidence: scripts/orchestration/creative_code_specification.py rejects target_surface and immutable_oracles overlap; tests/test_creative_code_specification.py::test_target_surface_must_not_overlap_immutable_oracles.
+
+Disposition: NOT-A-BUG
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#pullrequestreview-4562626104
+Evidence: Individual CodeRabbit inline findings from this review are mapped below with FIXED proof in commit 95dda464527443806e3d10ce6e4c13c8f4f0e25a; focused installer/security tests passed after the fixes.
+Reason: The review summary duplicates the inline comments and is not a separate PR-surface defect.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3467451595 -> 95dda464527443806e3d10ce6e4c13c8f4f0e25a
+Commit: 95dda464527443806e3d10ce6e4c13c8f4f0e25a
+Evidence: scripts/ci/install_locked_python_requirements.py filters parseable emergency wheels by runtime-compatible wheel tags before selection/staging/floor verification; tests/test_install_locked_python_requirements.py::test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_tags and tests/test_install_locked_python_requirements.py::test_stage_emergency_artifacts_skips_incompatible_parseable_wheels.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2015#discussion_r3467451598 -> 95dda464527443806e3d10ce6e4c13c8f4f0e25a
+Commit: 95dda464527443806e3d10ce6e4c13c8f4f0e25a
+Evidence: tests/test_install_locked_python_requirements.py::test_build_wheelhouse_with_emergency_fallback_allows_partial_proxy_resolver_miss covers the wheelhouse mixed timeout plus resolver-miss fallback branch.
 
 ## Merge Readiness
 
