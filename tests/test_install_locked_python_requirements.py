@@ -3725,6 +3725,124 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
     assert observed_health == [(APPROVED_PROXY_URL, "cryptography", None)]
 
 
+def test_run_dependency_floor_preflight_allows_partial_proxy_resolver_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "jiter",
+                        "version": "0.12.0",
+                        "filename": "jiter-0.12.0.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"jiter": "0.12.0"},
+    )
+    observed_health: list[str] = []
+    observed_downloads: list[tuple[str, str]] = []
+
+    def mixed_proxy_miss(_command: list[str]) -> None:
+        raise _mixed_network_resolver_miss_runtimeerror_like_run_command("jiter", "0.12.0")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        observed_health.append(package)
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "run_command", mixed_proxy_miss)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    installer.run_dependency_floor_preflight(
+        python_executable="python",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert observed_health == ["pip"]
+    assert observed_downloads == [
+        ("https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl", "b" * 64)
+    ]
+
+
+def test_run_dependency_floor_preflight_rejects_partial_proxy_miss_when_anchor_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "jiter",
+                        "version": "0.12.0",
+                        "filename": "jiter-0.12.0.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"jiter": "0.12.0"},
+    )
+
+    def mixed_proxy_miss(_command: list[str]) -> None:
+        raise _mixed_network_resolver_miss_runtimeerror_like_run_command("jiter", "0.12.0")
+
+    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "pip"
+        assert trusted_host is None
+        raise RuntimeError("approved proxy anchor health failed")
+
+    monkeypatch.setattr(installer, "run_command", mixed_proxy_miss)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
+    monkeypatch.setattr(
+        installer,
+        "_download_with_sha256",
+        lambda **_kwargs: downloads.__setitem__("count", downloads["count"] + 1),
+    )
+
+    with pytest.raises(RuntimeError, match="approved proxy anchor health failed"):
+        installer.run_dependency_floor_preflight(
+            python_executable="python",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
 def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -1192,15 +1192,32 @@ def run_dependency_floor_preflight(
                 run_command(command)
             except RuntimeError as exc:
                 if _resolver_miss_error(exc, package=package, version=version):
-                    _require_private_index_project_health(
-                        index_url=index_url,
-                        package=package,
-                        trusted_host=trusted_host,
-                    )
-                    if verify_emergency_artifact_for_floor(
-                        manifest_path=emergency_wheel_manifest,
+                    if _allow_floor_preflight_emergency_fallback(
+                        emergency_wheel_manifest=emergency_wheel_manifest,
                         package=package,
                         version=version,
+                        index_url=index_url,
+                        trusted_host=trusted_host,
+                        health_package=package,
+                    ):
+                        print(
+                            "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
+                            f"{package}=={version}"
+                        )
+                        continue
+                elif _pip_upgrade_network_failure(str(exc).lower()) and _resolver_miss_error(
+                    exc,
+                    package=package,
+                    version=version,
+                    allow_network_failure_markers=True,
+                ):
+                    if _allow_floor_preflight_emergency_fallback(
+                        emergency_wheel_manifest=emergency_wheel_manifest,
+                        package=package,
+                        version=version,
+                        index_url=index_url,
+                        trusted_host=trusted_host,
+                        health_package="pip",
                     ):
                         print(
                             "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
@@ -1211,6 +1228,28 @@ def run_dependency_floor_preflight(
                     "Dependency floor preflight failed for approved proxy: "
                     f"{package}=={version}: {exc}"
                 ) from exc
+
+
+def _allow_floor_preflight_emergency_fallback(
+    *,
+    emergency_wheel_manifest: Path | None,
+    package: str,
+    version: str,
+    index_url: str,
+    trusted_host: str | None,
+    health_package: str,
+) -> bool:
+    """Return True after proving proxy health and exact floor artifact fallback."""
+    _require_private_index_project_health(
+        index_url=index_url,
+        package=health_package,
+        trusted_host=trusted_host,
+    )
+    return verify_emergency_artifact_for_floor(
+        manifest_path=emergency_wheel_manifest,
+        package=package,
+        version=version,
+    )
 
 
 def is_virtualenv_python(python_executable: str) -> bool:
