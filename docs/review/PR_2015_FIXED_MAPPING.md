@@ -42,12 +42,11 @@ automation, or product-runtime behavior.
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/6bb7ee0c5548.json`
-- Worktree:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/creative-code-specification-pr1`
+- Worktree: `worktrees/creative-code-specification-pr1`
 - Branch: `codex/creative-code-specification-pr1`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Runtime dispatch manifest:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/6bb7ee0c5548.json --mode runtime --implementation-owner security-auditor --pretty`
+  `VENV_PYTHON=.venv/bin/python .venv/bin/python scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/6bb7ee0c5548.json --mode runtime --implementation-owner security-auditor --pretty`
 - Pre-open role order executed:
   `agent-coordinator -> ai-innovation-specialist -> architecture-specialist -> security-auditor -> qa-engineer-agent -> logic-agent -> epistemology-discovery-agent -> bug-hunter -> cursor-specialist-agent`
 - Packet creation was treated as provenance only, not role execution.

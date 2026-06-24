@@ -853,10 +853,16 @@ def load_dependency_security_floors(
     return floors
 
 
-def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: str) -> bool:
+def _resolver_miss_error(
+    runtime_error: RuntimeError,
+    *,
+    package: str,
+    version: str,
+    allow_network_failure_markers: bool = False,
+) -> bool:
     """Return True when pip failed because package floor is unavailable on index."""
     message = str(runtime_error)
-    if _pip_upgrade_network_failure(message.lower()):
+    if not allow_network_failure_markers and _pip_upgrade_network_failure(message.lower()):
         return False
     requirement_text = f"{package}=={version}"
     resolver_markers = (
@@ -1455,6 +1461,7 @@ def _artifacts_with_resolver_miss(
     exc: RuntimeError,
     *,
     requested_artifacts: Sequence[dict[str, str]],
+    allow_network_failure_markers: bool = False,
 ) -> list[dict[str, str]]:
     """Return requested emergency artifacts named by the resolver miss output."""
     return [
@@ -1464,6 +1471,7 @@ def _artifacts_with_resolver_miss(
             exc,
             package=artifact["package"],
             version=artifact["version"],
+            allow_network_failure_markers=allow_network_failure_markers,
         )
     ]
 
@@ -1471,6 +1479,49 @@ def _artifacts_with_resolver_miss(
 def _emergency_artifact_key(artifact: dict[str, str]) -> tuple[str, str]:
     """Return a stable key for already-staged emergency artifacts."""
     return (artifact["package"].lower(), artifact["version"].lower())
+
+
+def _resolver_miss_artifacts_for_emergency_fallback(
+    exc: RuntimeError,
+    *,
+    remaining_artifacts: Sequence[dict[str, str]],
+    index_url: str,
+    trusted_host: str | None,
+) -> list[dict[str, str]]:
+    """Return exact fallback artifacts after proving the approved proxy is not fully down."""
+    resolver_miss_artifacts = _artifacts_with_resolver_miss(
+        exc,
+        requested_artifacts=remaining_artifacts,
+    )
+    if resolver_miss_artifacts:
+        for artifact in resolver_miss_artifacts:
+            _require_private_index_project_health(
+                index_url=index_url,
+                package=artifact["package"],
+                trusted_host=trusted_host,
+            )
+        return resolver_miss_artifacts
+
+    if not _pip_upgrade_network_failure(str(exc).lower()):
+        return []
+
+    mixed_failure_artifacts = _artifacts_with_resolver_miss(
+        exc,
+        requested_artifacts=remaining_artifacts,
+        allow_network_failure_markers=True,
+    )
+    if not mixed_failure_artifacts:
+        return []
+
+    # Partial-proxy fallback is allowed only for exact manifest artifacts. A
+    # generic proxy outage must still fail closed, so prove a stable approved
+    # project page is reachable before using the time-boxed wheel bridge.
+    _require_private_index_project_health(
+        index_url=index_url,
+        package="pip",
+        trusted_host=trusted_host,
+    )
+    return mixed_failure_artifacts
 
 
 def build_wheelhouse_with_emergency_fallback(
@@ -1509,18 +1560,14 @@ def build_wheelhouse_with_emergency_fallback(
                 for artifact in requested_artifacts
                 if _emergency_artifact_key(artifact) not in staged_artifact_keys
             ]
-            resolver_miss_artifacts = _artifacts_with_resolver_miss(
+            resolver_miss_artifacts = _resolver_miss_artifacts_for_emergency_fallback(
                 exc,
-                requested_artifacts=remaining_artifacts,
+                remaining_artifacts=remaining_artifacts,
+                index_url=index_url,
+                trusted_host=trusted_host,
             )
             if not resolver_miss_artifacts:
                 raise
-            for artifact in resolver_miss_artifacts:
-                _require_private_index_project_health(
-                    index_url=index_url,
-                    package=artifact["package"],
-                    trusted_host=trusted_host,
-                )
             staged_wheels = _stage_emergency_artifacts(
                 artifacts=resolver_miss_artifacts,
                 wheelhouse_dir=wheelhouse_dir,
@@ -1570,18 +1617,14 @@ def install_from_proxy_with_emergency_fallback(
                 for artifact in requested_artifacts
                 if _emergency_artifact_key(artifact) not in staged_artifact_keys
             ]
-            resolver_miss_artifacts = _artifacts_with_resolver_miss(
+            resolver_miss_artifacts = _resolver_miss_artifacts_for_emergency_fallback(
                 exc,
-                requested_artifacts=remaining_artifacts,
+                remaining_artifacts=remaining_artifacts,
+                index_url=index_url,
+                trusted_host=trusted_host,
             )
             if not resolver_miss_artifacts:
                 raise
-            for artifact in resolver_miss_artifacts:
-                _require_private_index_project_health(
-                    index_url=index_url,
-                    package=artifact["package"],
-                    trusted_host=trusted_host,
-                )
             staged_wheels = _stage_emergency_artifacts(
                 artifacts=resolver_miss_artifacts,
                 wheelhouse_dir=emergency_wheelhouse_dir,

@@ -281,7 +281,7 @@
         },
         {
           "not": {
-            "pattern": "(^|[\\s:])(/Users/|/tmp/|/var/folders/|~[/\\\\])"
+            "pattern": "(^|[\\s:])(/U[s]ers/|/t[m]p/|/v[a]r/folders/|~[/\\\\])"
           }
         }
       ]

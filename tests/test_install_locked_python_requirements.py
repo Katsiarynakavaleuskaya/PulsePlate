@@ -123,6 +123,22 @@ def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> 
     )
 
 
+def _mixed_network_resolver_miss_runtimeerror_like_run_command(
+    package: str,
+    version: str,
+) -> RuntimeError:
+    """Shape like pip after a partial private-proxy timeout plus resolver miss."""
+    requirement = f"{package}=={version}"
+    return RuntimeError(
+        "Command failed: python -m pip install stub: exit 1\n"
+        "WARNING: Retrying after connection broken by "
+        "'ReadTimeoutError(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
+        "port=443): Read timed out. (read timeout=60.0)\")'\n"
+        f"ERROR: Could not find a version that satisfies the requirement {requirement}\n"
+        f"ERROR: No matching distribution found for {requirement}"
+    )
+
+
 class _FakeSimpleIndexResponse:
     def __init__(
         self,
@@ -350,6 +366,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "anyio",
         "bandit",
         "certifi",
+        "jiter",
         "pillow",
         "protobuf",
         "python-multipart",
@@ -380,6 +397,7 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
         )
     }
     hotfix_artifacts = {
+        _single_active_manifest_artifact("jiter")["filename"],
         _single_active_manifest_artifact("protobuf")["filename"],
         _single_active_manifest_artifact("wrapt")["filename"],
     }
@@ -2360,7 +2378,79 @@ def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
     assert install_attempts["count"] == 3
 
 
-def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolver_failure(
+def test_install_from_proxy_with_emergency_fallback_allows_partial_proxy_resolver_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("jiter==0.12.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-24",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "jiter",
+                        "version": "0.12.0",
+                        "filename": "jiter-0.12.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_attempts = {"count": 0}
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+
+    def fail_once_then_succeed(**kwargs: object) -> None:
+        install_attempts["count"] += 1
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if install_attempts["count"] == 1:
+            raise _mixed_network_resolver_miss_runtimeerror_like_run_command("jiter", "0.12.0")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["jiter"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        destination = (
+            wheelhouse_dir
+            / "jiter-0.12.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        )
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"wheel-bytes")
+        return [destination]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_once_then_succeed)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["pip"]
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+    assert install_attempts["count"] == 2
+
+
+def test_install_from_proxy_with_emergency_fallback_rejects_mixed_failure_when_anchor_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -2390,21 +2480,23 @@ def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolv
 
     def fail_mixed_network_resolver(**kwargs: object) -> None:
         assert kwargs["find_links_dir"] is None
-        raise RuntimeError(
-            "Command failed: python -m pip install: exit 1\n"
-            "WARNING: Retrying after Cloudflare 521 connection timed out\n"
-            "ERROR: Could not find a version that satisfies the requirement requests==2.33.0\n"
-            "ERROR: No matching distribution found for requests==2.33.0"
-        )
+        raise _mixed_network_resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
+
+    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "pip"
+        assert trusted_host is None
+        raise RuntimeError("approved proxy anchor health failed")
 
     def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
         stage_calls["count"] += 1
         return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
 
     monkeypatch.setattr(installer, "install_from_proxy", fail_mixed_network_resolver)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
-    with pytest.raises(RuntimeError, match="Cloudflare 521"):
+    with pytest.raises(RuntimeError, match="approved proxy anchor health failed"):
         installer.install_from_proxy_with_emergency_fallback(
             python_executable="python",
             requirement_files=[requirements],
