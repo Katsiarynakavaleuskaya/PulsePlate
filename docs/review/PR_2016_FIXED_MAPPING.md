@@ -1,0 +1,177 @@
+# PR #2016 Fixed in Commit Mapping
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016
+
+Branch: `codex/move-bmi-registration-to-canonical-bootstrap`
+
+## Summary
+
+This PR moves BMI route registration ownership from `legacy_app.py` into the
+canonical `app/main.py` bootstrap path without changing public BMI behavior.
+Free BMI remains always registered. BMI Pro and the deprecated legacy BMI Pro
+alias remain registered only when `FEATURE_BMI_PRO_ENABLED` is truthy.
+
+## Scope
+
+- Add `app/routers/bmi_registration.py` as the canonical BMI route-family
+  registrar.
+- Register BMI routes from `app/main.py` through
+  `ensure_route_family_registered(...)` and
+  `route_member_contracts_from_router(...)`.
+- Remove BMI router imports and BMI `include_router(...)` calls from
+  `legacy_app.py`.
+- Preserve compatibility exports for `FEATURE_BMI_PRO_ENABLED`, `bmi_router`,
+  `bmi_pro_router`, and `bmi_pro_legacy_alias_router`.
+- Tighten `check_legacy_growth_guard.py` and tests so BMI ownership cannot move
+  back into `legacy_app.py`.
+- Add focused tests for canonical ownership, route inventory, duplicate guards,
+  Pro tier dependency, deprecated alias metadata, and OpenAPI stability.
+
+## Out Of Scope
+
+No BMI math/schema changes, bodyfat work, FoodDB work, AI/runtime work,
+frontend/iOS change, dependency update, deprecated-endpoint removal, or root
+`AGENTS.md` process-rule edit.
+
+## Lane Start Provenance
+
+- Base branch: `main`
+- Start head: `827eee384a4fd7fa9e80b993d503b3183a6312db`
+- Packet: `artifacts/orchestration/task_packets/68028055c67e.json`
+- Dispatch manifest:
+  `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/68028055c67e.json --mode runtime --implementation-owner bug-hunter --implementation-owner qa-engineer-agent --implementation-owner security-auditor --pretty`
+- Pre-implementation role order executed:
+  `agent-coordinator -> architecture-specialist -> backend-engineer -> security-auditor -> qa-engineer-agent -> bug-hunter`
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed at PR open
+- [x] Fixed in commit mapping initialized
+
+No review threads existed at PR open. Any later CodeRabbit, Sourcery, Cubic,
+Codex Security, human, or role-agent actionable must be fixed or dispositioned
+below before merge readiness.
+
+## Fixed in Commit Mapping
+
+No review threads existed at PR open.
+
+## Implementation Commits
+
+- `71873aae9` - moves BMI route registration to canonical bootstrap, preserves
+  compatibility exports, removes legacy BMI ownership, tightens the legacy
+  growth guard, and adds focused route/bootstrap/security tests.
+
+## Premortem Findings
+
+Disposition: FIXED
+
+Finding: `PM-BMI-001` - validation could be too narrow for a route ownership
+move.
+
+Commit: `71873aae9`
+
+Evidence: focused BMI/bootstrap/security pytest bundle, route inventory proof,
+`make openapi-check`, `make validate-changed`, `pre-commit run --all-files`,
+and pre-push hooks passed.
+
+Disposition: FIXED
+
+Finding: `PM-BMI-002` - duplicate or lost BMI route guard could alter runtime
+behavior.
+
+Commit: `71873aae9`
+
+Evidence: `tests/test_bmi_registration_router_coverage.py` covers exact
+enabled/disabled route inventory, duplicate/foreign route rejection, partial Pro
+family rejection, and unguarded Pro route rejection.
+
+Disposition: NOT-A-BUG
+
+Finding: canonical app ownership assumption.
+
+Evidence: `app/main.py` calls the canonical BMI registrar during
+`ensure_canonical_app_bootstrap(...)`; direct `legacy_app.py` construction is
+compatibility surface only and no longer owns BMI router registration.
+
+Reason: This PR intentionally proves route ownership through canonical
+`app.main:app`, which is the backend runtime route owner.
+
+## Experiment Runner Evidence
+
+- Packet: `artifacts/orchestration/experiments/exp-fb358458ae4e.json`
+- Artifact: `artifacts/orchestration/experiments/results/exp-fb358458ae4e.json`
+- Status: accepted
+- Runner mode: `oracle_only_governance_reviewer`
+- Contribution kind: `oracle_review`
+- Co-author required: yes
+- Co-author trailer included in implementation commit `71873aae9`:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Oracles passed:
+  - `python3 -m pytest -q tests/test_bmi_registration_router_coverage.py tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_bmi_calculate_endpoint.py tests/test_bmi_pro_api.py tests/test_bmi_pro_endpoint_errors.py tests/test_bmi_pro_missing_hip.py tests/test_pro_vip_route_dependency_guard.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_paid_route_guards.py`
+  - `make openapi-check`
+  - `python3 scripts/ci/check_legacy_growth_guard.py`
+
+Rejected Runner context:
+
+- `artifacts/orchestration/experiments/results/exp-98bd49dad8d8.json` was
+  rejected because the temporary sandbox checkout could not resolve the shared
+  repo `.venv` for `make validate-changed`.
+- This rejection is not used as readiness evidence.
+- `make validate-changed` was rerun and passed in the real worktree, where the
+  shared repo `.venv` is intentionally available.
+
+## Local Validation
+
+Full local `make verify` was not run under the operator-approved machine-heavy
+exception. Current-head GitHub CI remains the full-suite signal.
+
+Passed locally on head `71873aae9`:
+
+- `python3 scripts/orchestration/check_preflight.py`
+- `python3 scripts/orchestration/check_agent_consistency.py`
+- `python3 scripts/ci/check_legacy_growth_guard.py`
+- `git diff --check origin/main...HEAD`
+- `FEATURE_BMI_PRO_ENABLED=0` route inventory proof: exactly
+  `POST /api/v1/bmi/calculate` for the BMI route-family set.
+- `FEATURE_BMI_PRO_ENABLED=1` route inventory proof: exactly
+  `POST /api/v1/bmi/calculate`, `POST /api/v1/pro/bmi`,
+  `POST /api/v1/pro/bmi/calculate`, and `POST /api/v1/bmi/pro`; Pro routes are
+  guarded by `require_pro_tier`; the legacy alias remains deprecated and keeps
+  migration metadata.
+- `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_registration_router_coverage.py tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_bmi_calculate_endpoint.py tests/test_bmi_pro_api.py tests/test_bmi_pro_endpoint_errors.py tests/test_bmi_pro_missing_hip.py tests/test_pro_vip_route_dependency_guard.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_paid_route_guards.py`
+- `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" make openapi-check`
+- `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" PREPUSH_DEBUG=1 make validate-changed`
+- `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" pre-commit run --all-files`
+- Pre-push hooks during `git push -u origin codex/move-bmi-registration-to-canonical-bootstrap`:
+  changed-files mypy, pip-audit, backend tests, full-repo Bandit, and Docker
+  build test.
+
+Current-head CI is pending at mapping creation.
+
+## Security Notes
+
+- Free BMI calculation remains unguarded/free.
+- BMI Pro canonical routes and the deprecated legacy BMI Pro alias remain behind
+  `require_pro_tier` when enabled.
+- Duplicate FastAPI method/path registration is guarded by the canonical route
+  family helper and focused tests.
+- This PR does not touch secrets, token handling, billing, deploy, migrations,
+  or LLM endpoints.
+
+## Merge Readiness
+
+Not merge-ready yet.
+
+Required before merge:
+
+- [ ] Current-head GitHub CI passes for the pushed head.
+- [ ] Post-open role passes completed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- [ ] Codex Security diff scan/finding discovery run if available.
+- [ ] `pulseplate-pr-review` passed.
+- [ ] CodeRabbit, Sourcery, Cubic, and human review comments inspected and all
+  actionables fixed or dispositioned.
+- [ ] PR body mirrors this fixed-mapping artifact.
+- [ ] Strict merge-readiness checks pass with the documented machine-heavy
+  exception.
