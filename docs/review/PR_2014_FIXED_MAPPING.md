@@ -16,9 +16,10 @@ The update is scoped to testing dependency surfaces and the guard expectation
 that asserts the split test profile. It does not touch Torch, Faraday,
 RAG/vector, Docker, runtime, app/core, iOS/Fastlane, or workflow surfaces.
 
-## Implementation Commit
+## Implementation Commits
 
 - `8f3b35906fcfc83b1602f4867673f837c3577b7b` - `fix(deps): refresh testing dependency stack`
+- `15b0e0c403974b714aa6815cd3b49ec518e3847f` - `test(deps): cover hypothesis testing stack pin`
 
 The implementation commit includes the governed Experiment Runner attribution
 trailer:
@@ -100,12 +101,18 @@ dispositioned with evidence.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at artifact creation time.
+Disposition: FIXED
+Commit: 15b0e0c403974b714aa6815cd3b49ec518e3847f
+Evidence: `tests/test_python_supply_chain_controls.py` asserts
+`hypothesis==6.155.7` in the split test dependency profile.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#discussion_r3465713725 -> 15b0e0c403974b714aa6815cd3b49ec518e3847f
 
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
   `8f3b35906fcfc83b1602f4867673f837c3577b7b`
+- Sourcery Hypothesis guard completion ->
+  `15b0e0c403974b714aa6815cd3b49ec518e3847f`
 
 ## Deferred / Follow-ups
 
