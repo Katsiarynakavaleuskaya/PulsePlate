@@ -169,10 +169,11 @@ Rules:
   `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md` and
   `docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md` define the
   closed PR-0 handoff from promoted `creative_research` output to future code
-  candidates. That handoff does not authorize model calls, generated patches,
-  repository writes, branch/push/PR creation, ready-for-review, review-thread
-  resolution, merge, release, public multi-tenant use, or Slack/GitHub authority
-  expansion.
+  candidates. `docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md`
+  defines the PR-1 local specification bundle layer. These artifacts do not
+  authorize model calls, generated patches, repository writes, branch/push/PR
+  creation, ready-for-review, review-thread resolution, merge, release, public
+  multi-tenant use, semantic-cache use, or Slack/GitHub authority expansion.
 
 ---
 

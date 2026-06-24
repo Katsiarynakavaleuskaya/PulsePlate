@@ -1,0 +1,339 @@
+{
+  "authority": {
+    "call_models": false,
+    "call_network": false,
+    "create_branch": false,
+    "generate_candidate_patch": false,
+    "generate_specifications": true,
+    "mark_ready_for_review": false,
+    "merge": false,
+    "modify_openapi_or_clients": false,
+    "open_draft_pr": false,
+    "open_pull_request": false,
+    "public_multi_tenant_use": false,
+    "push_branch": false,
+    "read_secrets": false,
+    "release": false,
+    "resolve_review_threads": false,
+    "slack_github_authority_expansion": false,
+    "use_semantic_cache": false,
+    "write_repository": false,
+    "write_shared_worktree": false
+  },
+  "bundle_id": "evidence:creative_code_specification_bundle:control_plane:1.0:07ddcf6a9ea0fc2616cc6c68",
+  "bundle_type": "creative_code_specification_bundle",
+  "cost_metadata_available": false,
+  "failure_class": null,
+  "fallback": "Discard the creative-code candidate and keep the promoted research output as documentation-only input.",
+  "generation_status": "specifications_generated",
+  "human_decision": "pending",
+  "idempotency_key": "idem:07ddcf6a9ea0fc2616cc6c680a8982745d6eeab3ea35e3e838369b0f7f458eff",
+  "immutable_oracles": [
+    "tests/test_creative_code_contract.py",
+    "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md"
+  ],
+  "oracle_status": "skeptic_review_passed",
+  "policy_version": "creative-code-specification-pr1",
+  "rejection_index": {
+    "idempotency_key": "idem:9427a0a0365c1721d679c88f97f4cd30faa4c3f3b6bd7414e771654deb810842",
+    "index_id": "evidence:creative_code_rejection_index:control_plane:1.0:9427a0a0365c1721d679c88f",
+    "index_type": "creative_code_rejection_index",
+    "policy_version": "creative-code-specification-pr1",
+    "records": [
+      {
+        "reason_codes": [
+          "review_reject",
+          "skeptic_rejected_variant"
+        ],
+        "reviewer_roles": [
+          "architecture-specialist",
+          "qa-engineer-agent",
+          "security-auditor"
+        ],
+        "variant_fingerprint": "sha256:dacd3e8a1eb2064649ddc02f9f820e712a71646fcdd966ccb82947b517316763",
+        "variant_id": "creative-code-pr0-reference:spec-2"
+      },
+      {
+        "reason_codes": [
+          "review_reject",
+          "skeptic_rejected_variant"
+        ],
+        "reviewer_roles": [
+          "architecture-specialist",
+          "qa-engineer-agent",
+          "security-auditor"
+        ],
+        "variant_fingerprint": "sha256:1a0d65736190911a225e5067902b50b1d2abb127a18661a7c32042bf15c16ff0",
+        "variant_id": "creative-code-pr0-reference:spec-3"
+      }
+    ],
+    "schema_version": "1.0",
+    "source_packet_fingerprint": "sha256:6f3dee18075072b96ef084a8c229d5a524cd4756dc8e96d51bac85b07c65aa95",
+    "source_packet_id": "creative-code-pr0-reference"
+  },
+  "schema_version": "1.0",
+  "skeptic_reviews": [
+    {
+      "blockers": [],
+      "decision": "pass",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:772805951e609b1b8efc263df402607d4af034e93c170925e2b73a06a2d99d63",
+      "review_id": "creative-code-pr0-reference:spec-1:architecture-specialist",
+      "reviewer_role": "architecture-specialist",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-1"
+    },
+    {
+      "blockers": [],
+      "decision": "pass",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:8877a993c0baa6b279bdd10ea29a5e0410ffe8aedca765b322e6efeddc2829ba",
+      "review_id": "creative-code-pr0-reference:spec-1:security-auditor",
+      "reviewer_role": "security-auditor",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-1"
+    },
+    {
+      "blockers": [],
+      "decision": "pass",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:24c0c516f02618b3df29bb61d96fbad09632c3072a8ea59bebdc5341a9d6c3c4",
+      "review_id": "creative-code-pr0-reference:spec-1:qa-engineer-agent",
+      "reviewer_role": "qa-engineer-agent",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-1"
+    },
+    {
+      "blockers": [
+        "skeptic_rejected_variant"
+      ],
+      "decision": "reject",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:2918da236afffdd39ecab208371f7f0404a53871bf65bf26ed48713df58a688e",
+      "review_id": "creative-code-pr0-reference:spec-2:architecture-specialist",
+      "reviewer_role": "architecture-specialist",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-2"
+    },
+    {
+      "blockers": [
+        "skeptic_rejected_variant"
+      ],
+      "decision": "reject",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:253915f1a9c05bb79b9e19ce2f93d7d56980999a15354f06d3fffbafc4b77c7b",
+      "review_id": "creative-code-pr0-reference:spec-2:security-auditor",
+      "reviewer_role": "security-auditor",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-2"
+    },
+    {
+      "blockers": [
+        "skeptic_rejected_variant"
+      ],
+      "decision": "reject",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:c7cc947ae0ea2c94ec40dc9f78ccb7c3ea750510e816f9f0a35870b88aa73400",
+      "review_id": "creative-code-pr0-reference:spec-2:qa-engineer-agent",
+      "reviewer_role": "qa-engineer-agent",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-2"
+    },
+    {
+      "blockers": [
+        "skeptic_rejected_variant"
+      ],
+      "decision": "reject",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:0d6452412800d07eeb99cbef5ab1e51943aad8dd8e2111d4420edaf113f49c2d",
+      "review_id": "creative-code-pr0-reference:spec-3:architecture-specialist",
+      "reviewer_role": "architecture-specialist",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-3"
+    },
+    {
+      "blockers": [
+        "skeptic_rejected_variant"
+      ],
+      "decision": "reject",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:dfe60408712adf7c15694f117b8a76495fe068235c68c795d8393dd15f1eb33f",
+      "review_id": "creative-code-pr0-reference:spec-3:security-auditor",
+      "reviewer_role": "security-auditor",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-3"
+    },
+    {
+      "blockers": [
+        "skeptic_rejected_variant"
+      ],
+      "decision": "reject",
+      "duplicate_reason": "none",
+      "required_revision": "none",
+      "review_fingerprint": "sha256:371ed2777dade67a8525da435f2b6655822e95d73cf6a3fe69c06fbd8d43c550",
+      "review_id": "creative-code-pr0-reference:spec-3:qa-engineer-agent",
+      "reviewer_role": "qa-engineer-agent",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "unsafe_authority_flags": [],
+      "variant_id": "creative-code-pr0-reference:spec-3"
+    }
+  ],
+  "source_candidate_id": "creative-research-reference-candidate",
+  "source_creative_research": {
+    "bundle_id": "creative-research-reference-bundle",
+    "candidate_id": "creative-research-reference-candidate",
+    "evidence_ref": "docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md",
+    "fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "promotion_decision": "promote"
+  },
+  "source_packet_fingerprint": "sha256:6f3dee18075072b96ef084a8c229d5a524cd4756dc8e96d51bac85b07c65aa95",
+  "source_packet_id": "creative-code-pr0-reference",
+  "source_packet_idempotency_key": "creative-code-pr0-reference-v1",
+  "synthesis": {
+    "fallback": "Discard the creative-code candidate and keep the promoted research output as documentation-only input.",
+    "next_authority": "human_review_required",
+    "ranking_policy": "pass_count_then_fingerprint_then_ordinal",
+    "rejected_variant_fingerprints": [
+      "sha256:1a0d65736190911a225e5067902b50b1d2abb127a18661a7c32042bf15c16ff0",
+      "sha256:dacd3e8a1eb2064649ddc02f9f820e712a71646fcdd966ccb82947b517316763"
+    ],
+    "selected_variant_fingerprint": "sha256:84f52e4a1e51c6f551191a555463c8abcb0c0249e1cf2eb41c4204f6c491e62a",
+    "selected_variant_id": "creative-code-pr0-reference:spec-1",
+    "selection_reason": "Selected the lowest-fingerprint fully passed specification.",
+    "synthesis_fingerprint": "sha256:8b945a086b5f0999e6696f251de1f6b66b08e1fe5c2833ab7388f7c534a6d1d5",
+    "unresolved_blockers": [
+      "review_reject",
+      "skeptic_rejected_variant"
+    ]
+  },
+  "target_surface": [
+    "core/rag/orchestration.py"
+  ],
+  "telemetry_summary": {
+    "cost_metadata_available": false,
+    "failure_class": null,
+    "generation_status": "specifications_generated",
+    "human_decision": "pending",
+    "oracle_status": "skeptic_review_passed",
+    "packet_id": "creative-code-pr0-reference",
+    "source_candidate_id": "creative-research-reference-candidate",
+    "variant_count": 3
+  },
+  "variants": [
+    {
+      "approach_family": "minimal_surgical_change",
+      "estimated_changed_files": 1,
+      "falsifier": "Reject if target paths, authority flags, or oracle boundaries drift.",
+      "implementation_steps": [
+        "Describe the minimal_surgical_change implementation inside target_paths only.",
+        "Preserve PR-0 authority flags and require human review before patch work.",
+        "Define deterministic acceptance criteria and rollback notes."
+      ],
+      "negative_controls": [
+        "non_promoted_source_rejected",
+        "repository_write_authority_rejected"
+      ],
+      "problem_statement": "Convert the promoted creative research into a bounded implementation specification for core/rag/orchestration.py without patch authority.",
+      "risk_notes": [
+        "Specification-only artifact; no provider, runtime, repo-write, or PR authority."
+      ],
+      "rollback_plan": "Discard the specification bundle; do not mutate repository files.",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "target_paths": [
+        "core/rag/orchestration.py"
+      ],
+      "tests_to_add": [
+        "tests/test_creative_code_contract.py"
+      ],
+      "variant_fingerprint": "sha256:84f52e4a1e51c6f551191a555463c8abcb0c0249e1cf2eb41c4204f6c491e62a",
+      "variant_id": "creative-code-pr0-reference:spec-1",
+      "wellness_boundary": "Wellness planning only with no health outcome promise."
+    },
+    {
+      "approach_family": "seam_extraction",
+      "estimated_changed_files": 1,
+      "falsifier": "Reject if target paths, authority flags, or oracle boundaries drift.",
+      "implementation_steps": [
+        "Describe the seam_extraction implementation inside target_paths only.",
+        "Preserve PR-0 authority flags and require human review before patch work.",
+        "Define deterministic acceptance criteria and rollback notes."
+      ],
+      "negative_controls": [
+        "non_promoted_source_rejected",
+        "repository_write_authority_rejected"
+      ],
+      "problem_statement": "Convert the promoted creative research into a bounded implementation specification for core/rag/orchestration.py without patch authority.",
+      "risk_notes": [
+        "Specification-only artifact; no provider, runtime, repo-write, or PR authority."
+      ],
+      "rollback_plan": "Discard the specification bundle; do not mutate repository files.",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "target_paths": [
+        "core/rag/orchestration.py"
+      ],
+      "tests_to_add": [
+        "tests/test_creative_code_contract.py"
+      ],
+      "variant_fingerprint": "sha256:dacd3e8a1eb2064649ddc02f9f820e712a71646fcdd966ccb82947b517316763",
+      "variant_id": "creative-code-pr0-reference:spec-2",
+      "wellness_boundary": "Wellness planning only with no health outcome promise."
+    },
+    {
+      "approach_family": "fail_closed_guard",
+      "estimated_changed_files": 1,
+      "falsifier": "Reject if target paths, authority flags, or oracle boundaries drift.",
+      "implementation_steps": [
+        "Describe the fail_closed_guard implementation inside target_paths only.",
+        "Preserve PR-0 authority flags and require human review before patch work.",
+        "Define deterministic acceptance criteria and rollback notes."
+      ],
+      "negative_controls": [
+        "non_promoted_source_rejected",
+        "repository_write_authority_rejected"
+      ],
+      "problem_statement": "Convert the promoted creative research into a bounded implementation specification for core/rag/orchestration.py without patch authority.",
+      "risk_notes": [
+        "Specification-only artifact; no provider, runtime, repo-write, or PR authority."
+      ],
+      "rollback_plan": "Discard the specification bundle; do not mutate repository files.",
+      "source_candidate_id": "creative-research-reference-candidate",
+      "source_packet_id": "creative-code-pr0-reference",
+      "target_paths": [
+        "core/rag/orchestration.py"
+      ],
+      "tests_to_add": [
+        "tests/test_creative_code_contract.py"
+      ],
+      "variant_fingerprint": "sha256:1a0d65736190911a225e5067902b50b1d2abb127a18661a7c32042bf15c16ff0",
+      "variant_id": "creative-code-pr0-reference:spec-3",
+      "wellness_boundary": "Wellness planning only with no health outcome promise."
+    }
+  ]
+}

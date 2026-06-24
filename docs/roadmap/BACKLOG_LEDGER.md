@@ -10902,8 +10902,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
-  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 -> PR-2 -> PR-3 -> PR-4 -> PR-5 -> PR-6
-  - Status: PR-0 planned/active as a repo-only closed authority contract; PR-1 through PR-6 remain gated future work
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 -> PR-3 -> PR-4 -> PR-5 -> PR-6
+  - Status: PR-0 merged baseline; PR-1 active/current as a repo-only specification-bundle control-plane layer; PR-2 through PR-6 remain gated future work
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
@@ -10913,11 +10913,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md`
     - `docs/orchestration/contracts/creative_code_candidate.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_candidate.v1.json`
+    - `docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md`
+    - `docs/orchestration/contracts/creative_code_specification.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_specification.v1.json`
     - `scripts/orchestration/creative_code_contract.py`
+    - `scripts/orchestration/creative_code_specification.py`
+    - `scripts/orchestration/creative_code_spec_pipeline.py`
+    - `scripts/orchestration/creative_code_rejection_index.py`
     - `tests/test_creative_code_contract.py`
   - PR train:
     - PR-0: closed authority contract, schema, reference packet, validator, and tests; no model calls, patches, workflows, Slack/GitHub settings, or `experiment_runner.py` changes.
-    - PR-1: emit implementation specifications from promoted creative research; no candidate patches.
+    - PR-1: emit deterministic implementation specification bundles from promoted creative research, with skeptic reviews, synthesis, telemetry summary, safe local artifact I/O, and fingerprint-only rejection indexes; no candidate patches, provider calls, repo writes, runtime truth, review-thread disposition authority, or merge-readiness evidence.
     - PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces.
     - PR-3: allow human-approved draft PR promotion under a separate operator exception.
     - PR-4: add candidate evaluation telemetry and rejection taxonomy.
@@ -10934,6 +10940,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `cost_metadata_available`
   - DoD:
     - PR-0 keeps `gate_status=closed` and all repository-write/promotion authority flags false
+    - PR-1 emits only validated `CreativeCodeSpecificationBundle` artifacts from validated PR-0 packets, with complete skeptic-review coverage and deterministic synthesis
     - Creative-code packets require promoted `creative_research` provenance, sandboxing, human review, fallback, repo-relative paths, and disjoint mutable/oracle surfaces
     - Future PRs cannot emit telemetry, generate patches, open PRs, or expand Slack/GitHub authority until their separate gates land
     - No PR in the train treats creative-code output as canonical product truth, scientific verified discovery, merge-readiness evidence, or review-thread disposition authority

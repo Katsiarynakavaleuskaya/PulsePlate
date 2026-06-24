@@ -1,0 +1,625 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_specification.v1.schema.json",
+  "title": "CreativeCodeSpecificationBundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_type",
+    "bundle_id",
+    "idempotency_key",
+    "policy_version",
+    "source_packet_id",
+    "source_packet_idempotency_key",
+    "source_packet_fingerprint",
+    "source_candidate_id",
+    "source_creative_research",
+    "target_surface",
+    "immutable_oracles",
+    "fallback",
+    "authority",
+    "variants",
+    "skeptic_reviews",
+    "synthesis",
+    "rejection_index",
+    "generation_status",
+    "oracle_status",
+    "failure_class",
+    "human_decision",
+    "cost_metadata_available",
+    "telemetry_summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "bundle_type": {
+      "const": "creative_code_specification_bundle"
+    },
+    "bundle_id": {
+      "$ref": "#/$defs/safe_id"
+    },
+    "idempotency_key": {
+      "$ref": "#/$defs/safe_id"
+    },
+    "policy_version": {
+      "const": "creative-code-specification-pr1"
+    },
+    "source_packet_id": {
+      "$ref": "#/$defs/safe_id"
+    },
+    "source_packet_idempotency_key": {
+      "$ref": "#/$defs/safe_id"
+    },
+    "source_packet_fingerprint": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_candidate_id": {
+      "$ref": "#/$defs/safe_id"
+    },
+    "source_creative_research": {
+      "$ref": "#/$defs/source_creative_research"
+    },
+    "target_surface": {
+      "$ref": "#/$defs/non_empty_paths"
+    },
+    "immutable_oracles": {
+      "$ref": "#/$defs/non_empty_paths"
+    },
+    "fallback": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "variants": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/variant"
+      }
+    },
+    "skeptic_reviews": {
+      "type": "array",
+      "minItems": 9,
+      "items": {
+        "$ref": "#/$defs/skeptic_review"
+      }
+    },
+    "synthesis": {
+      "$ref": "#/$defs/synthesis"
+    },
+    "rejection_index": {
+      "$ref": "#/$defs/rejection_index"
+    },
+    "generation_status": {
+      "enum": [
+        "specifications_generated",
+        "all_rejected",
+        "spec_blocked"
+      ]
+    },
+    "oracle_status": {
+      "enum": [
+        "not_run_specification_only",
+        "skeptic_review_passed",
+        "skeptic_review_blocked"
+      ]
+    },
+    "failure_class": {
+      "enum": [
+        null,
+        "policy_violation",
+        "unsafe_authority",
+        "duplicate_spec_fingerprint",
+        "review_blocker",
+        "invalid_input"
+      ]
+    },
+    "human_decision": {
+      "enum": [
+        "pending",
+        "review_required",
+        "discard",
+        "retry_with_new_evidence"
+      ]
+    },
+    "cost_metadata_available": {
+      "const": false
+    },
+    "telemetry_summary": {
+      "$ref": "#/$defs/telemetry_summary"
+    }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "safe_token": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "non_empty_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/path"
+      }
+    },
+    "token_array": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/safe_token"
+      }
+    },
+    "text_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source_creative_research": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_id",
+        "candidate_id",
+        "promotion_decision",
+        "fingerprint",
+        "evidence_ref"
+      ],
+      "properties": {
+        "bundle_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "candidate_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "promotion_decision": {
+          "const": "promote"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "evidence_ref": {
+          "$ref": "#/$defs/path"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generate_specifications",
+        "generate_candidate_patch",
+        "write_repository",
+        "write_shared_worktree",
+        "create_branch",
+        "push_branch",
+        "open_pull_request",
+        "open_draft_pr",
+        "mark_ready_for_review",
+        "resolve_review_threads",
+        "merge",
+        "release",
+        "call_models",
+        "call_network",
+        "read_secrets",
+        "modify_openapi_or_clients",
+        "use_semantic_cache",
+        "public_multi_tenant_use",
+        "slack_github_authority_expansion"
+      ],
+      "properties": {
+        "generate_specifications": {
+          "const": true
+        },
+        "generate_candidate_patch": {
+          "const": false
+        },
+        "write_repository": {
+          "const": false
+        },
+        "write_shared_worktree": {
+          "const": false
+        },
+        "create_branch": {
+          "const": false
+        },
+        "push_branch": {
+          "const": false
+        },
+        "open_pull_request": {
+          "const": false
+        },
+        "open_draft_pr": {
+          "const": false
+        },
+        "mark_ready_for_review": {
+          "const": false
+        },
+        "resolve_review_threads": {
+          "const": false
+        },
+        "merge": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        },
+        "call_models": {
+          "const": false
+        },
+        "call_network": {
+          "const": false
+        },
+        "read_secrets": {
+          "const": false
+        },
+        "modify_openapi_or_clients": {
+          "const": false
+        },
+        "use_semantic_cache": {
+          "const": false
+        },
+        "public_multi_tenant_use": {
+          "const": false
+        },
+        "slack_github_authority_expansion": {
+          "const": false
+        }
+      }
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variant_id",
+        "source_packet_id",
+        "source_candidate_id",
+        "variant_fingerprint",
+        "approach_family",
+        "problem_statement",
+        "implementation_steps",
+        "target_paths",
+        "tests_to_add",
+        "negative_controls",
+        "rollback_plan",
+        "falsifier",
+        "risk_notes",
+        "wellness_boundary",
+        "estimated_changed_files"
+      ],
+      "properties": {
+        "variant_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "source_packet_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "source_candidate_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "variant_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "approach_family": {
+          "enum": [
+            "minimal_surgical_change",
+            "seam_extraction",
+            "fail_closed_guard",
+            "observable_metadata_only",
+            "test_first_contract_lock"
+          ]
+        },
+        "problem_statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "implementation_steps": {
+          "$ref": "#/$defs/text_array"
+        },
+        "target_paths": {
+          "$ref": "#/$defs/non_empty_paths"
+        },
+        "tests_to_add": {
+          "$ref": "#/$defs/non_empty_paths"
+        },
+        "negative_controls": {
+          "$ref": "#/$defs/token_array"
+        },
+        "rollback_plan": {
+          "type": "string",
+          "minLength": 1
+        },
+        "falsifier": {
+          "type": "string",
+          "minLength": 1
+        },
+        "risk_notes": {
+          "$ref": "#/$defs/text_array"
+        },
+        "wellness_boundary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "estimated_changed_files": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
+    "skeptic_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_id",
+        "source_packet_id",
+        "source_candidate_id",
+        "variant_id",
+        "reviewer_role",
+        "decision",
+        "blockers",
+        "unsafe_authority_flags",
+        "duplicate_reason",
+        "required_revision",
+        "review_fingerprint"
+      ],
+      "properties": {
+        "review_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "source_packet_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "source_candidate_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "variant_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "reviewer_role": {
+          "enum": [
+            "architecture-specialist",
+            "security-auditor",
+            "qa-engineer-agent"
+          ]
+        },
+        "decision": {
+          "enum": [
+            "pass",
+            "revise",
+            "reject"
+          ]
+        },
+        "blockers": {
+          "$ref": "#/$defs/token_array"
+        },
+        "unsafe_authority_flags": {
+          "$ref": "#/$defs/token_array"
+        },
+        "duplicate_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "synthesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected_variant_id",
+        "selected_variant_fingerprint",
+        "selection_reason",
+        "ranking_policy",
+        "rejected_variant_fingerprints",
+        "unresolved_blockers",
+        "fallback",
+        "next_authority",
+        "synthesis_fingerprint"
+      ],
+      "properties": {
+        "selected_variant_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/safe_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selected_variant_fingerprint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selection_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ranking_policy": {
+          "const": "pass_count_then_fingerprint_then_ordinal"
+        },
+        "rejected_variant_fingerprints": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "unresolved_blockers": {
+          "$ref": "#/$defs/token_array"
+        },
+        "fallback": {
+          "type": "string",
+          "minLength": 1
+        },
+        "next_authority": {
+          "const": "human_review_required"
+        },
+        "synthesis_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "rejection_index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "index_type",
+        "index_id",
+        "idempotency_key",
+        "policy_version",
+        "source_packet_id",
+        "source_packet_fingerprint",
+        "records"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "index_type": {
+          "const": "creative_code_rejection_index"
+        },
+        "index_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "policy_version": {
+          "const": "creative-code-specification-pr1"
+        },
+        "source_packet_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "source_packet_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "variant_id",
+              "variant_fingerprint",
+              "reason_codes",
+              "reviewer_roles"
+            ],
+            "properties": {
+              "variant_id": {
+                "$ref": "#/$defs/safe_id"
+              },
+              "variant_fingerprint": {
+                "$ref": "#/$defs/sha256"
+              },
+              "reason_codes": {
+                "$ref": "#/$defs/token_array"
+              },
+              "reviewer_roles": {
+                "$ref": "#/$defs/token_array"
+              }
+            }
+          }
+        }
+      }
+    },
+    "telemetry_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packet_id",
+        "source_candidate_id",
+        "variant_count",
+        "generation_status",
+        "oracle_status",
+        "failure_class",
+        "human_decision",
+        "cost_metadata_available"
+      ],
+      "properties": {
+        "packet_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "source_candidate_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "variant_count": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 5
+        },
+        "generation_status": {
+          "enum": [
+            "specifications_generated",
+            "all_rejected",
+            "spec_blocked"
+          ]
+        },
+        "oracle_status": {
+          "enum": [
+            "not_run_specification_only",
+            "skeptic_review_passed",
+            "skeptic_review_blocked"
+          ]
+        },
+        "failure_class": {
+          "enum": [
+            null,
+            "policy_violation",
+            "unsafe_authority",
+            "duplicate_spec_fingerprint",
+            "review_blocker",
+            "invalid_input"
+          ]
+        },
+        "human_decision": {
+          "enum": [
+            "pending",
+            "review_required",
+            "discard",
+            "retry_with_new_evidence"
+          ]
+        },
+        "cost_metadata_available": {
+          "const": false
+        }
+      }
+    }
+  }
+}
