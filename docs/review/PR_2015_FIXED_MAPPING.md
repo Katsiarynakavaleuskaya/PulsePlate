@@ -413,15 +413,41 @@ Evidence:
 - PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_allows_partial_proxy_resolver_miss tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_rejects_partial_proxy_miss_when_anchor_fails tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_allows_exact_emergency_artifact tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_allows_partial_proxy_resolver_miss tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_rejects_mixed_failure_when_anchor_fails`
 - PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
 
+Second follow-up failure shape:
+
+- Current-head setup-dependent jobs reached the governed fallback branch but
+  still spent too long in package setup because the default `pip` retry budget
+  remained `5` retries with a `60` second timeout for each approved-proxy call.
+
+Disposition: FIXED
+
+Commit: `8ece34585d4867af404ebd0ccb9b67abb878a03d`
+
+Evidence:
+
+- `.github/actions/python-setup/action.yml` now scopes CI setup to bounded
+  `PULSEPLATE_PIP_NETWORK_RETRIES=1` and
+  `PULSEPLATE_PIP_NETWORK_TIMEOUT_SECONDS=15` for the preflight and install
+  steps only.
+- `scripts/ci/install_locked_python_requirements.py` keeps the default
+  production policy at `5` retries / `60` seconds while adding validated,
+  fail-closed env overrides for CI setup and emergency download/proxy probes.
+- `tests/test_install_locked_python_requirements.py::test_effective_pip_network_settings_default_to_policy_constants`
+- `tests/test_install_locked_python_requirements.py::test_build_pip_download_command_uses_bounded_network_env`
+- `tests/test_install_locked_python_requirements.py::test_effective_pip_network_settings_reject_invalid_env`
+- `tests/test_install_locked_python_requirements.py::test_main_reports_invalid_pip_network_env_cleanly`
+- PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
+
 ## Scope Approval
 
 Operator approval: approved for keeping the current-head CI setup unblock in
 this PR #2015 lane instead of splitting a separate privileged CI PR after the
 package mirror blocker prevented this PR's own current-head CI from running.
 
-Privileged scope exception: approved for the coherent 17-file PR #2015 surface:
+Privileged scope exception: approved for the coherent 18-file PR #2015 surface:
 the governed PR-1 specification layer plus the exact, hash-pinned, time-boxed
-CI setup bridge required to let GitHub current-head CI evaluate that same PR.
+CI setup bridge and bounded retry budget required to let GitHub current-head CI
+evaluate that same PR.
 
 Trusted labels required by `scripts/ci/check_pr_size_governance.py`:
 `scope/operator-approved` and `scope/privileged-approved`.
@@ -461,6 +487,9 @@ proxy as the authority, adds fail-closed tests, and expires on `2026-06-30`.
 - `18f1b20cbdcfac6efd33b0f6e983e5052e59cf20` applies the same exact emergency
   fallback policy to locked dependency floor preflight checks so setup-dependent
   current-head CI jobs can reach lint, tests, OpenAPI sync, and security gates.
+- `8ece34585d4867af404ebd0ccb9b67abb878a03d` bounds CI package-proxy retry and
+  timeout settings while preserving the default locked-install policy for
+  non-CI callers.
 
 ## Fixed in Commit Mapping
 
