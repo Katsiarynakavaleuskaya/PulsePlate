@@ -33,9 +33,9 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 - [x] Pre-open role findings fixed or dispositioned before PR open.
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2017`.
-- [ ] Post-open role pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Post-open role pass completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Later bot/human review comments are fixed or dispositioned before merge
   readiness.
 - [ ] Current-head CI is complete before merge readiness.
@@ -44,6 +44,7 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4562642386 -> 11ee04235745b4083aa818ee68970c0ab1281bda
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467464705 -> 11ee04235745b4083aa818ee68970c0ab1281bda
 Disposition: FIXED
 Commit: 11ee04235745b4083aa818ee68970c0ab1281bda
 Evidence: scripts/ci/install_locked_python_requirements.py:952 and tests/test_install_locked_python_requirements.py:426
@@ -154,6 +155,44 @@ Evidence:
 - `tests/test_python_supply_chain_controls.py` asserts marker creation precedes
   `.netrc` writes in both wrappers.
 
+Post-open `pulseplate-pr-review` reported one advisory `note` for large diff
+review risk because the diff is above the dry-run heuristic threshold.
+
+Disposition: NOT-A-BUG
+
+Evidence:
+
+- Scope is still one narrow CI/devpi rollout lane: package-index env contract,
+  `.netrc` auth lifecycle, installer health probes, docs, backlog, and tests.
+- Focused gates passed: `check_preflight`, `check_agent_consistency`, focused
+  pytest for the changed surfaces, `make validate-changed`,
+  `pre-commit run --all-files`, and pre-push hooks.
+- Full local `make verify` remains explicitly deferred under the
+  machine-heavy CI/tooling exception below; current-head CI is not green and no
+  merge-ready claim is made.
+
+Post-open role pass (`qa-engineer-agent -> bug-hunter -> security-auditor`)
+found no PR-owned P0/P1 blocker after the Sourcery fix. All three passes kept
+the current-head CI package-host timeout/root-pypi path as an external blocker
+for PR #2017 rather than an in-diff BMI/application defect.
+
+Codex Security diff scan completed for
+`827eee384a4fd7fa9e80b993d503b3183a6312db..0be6ace526fb2908d7d3dcf6aae25aba63695d2c`.
+
+Disposition: NOT-A-BUG
+
+Evidence:
+
+- Scan ID: `c10dfb9f-70b4-48f8-8712-6eee38af52cf`.
+- Coverage: 14/14 changed files reviewed, 0 reportable findings.
+- Finalized artifacts: `scan-manifest.json`, `coverage.json`,
+  `findings.json`, `report.md`, and SARIF under the Codex Security scan
+  directory.
+- The scan recorded the default diff-rank helper limitation: the helper emitted
+  zero rows for this workflow/docs/scripts/tests diff, so the parent scan used
+  the explicit `git diff --name-status` changed-file list as the canonical
+  manual worklist.
+
 ## Not Merge-Ready Yet
 
 - PR #2014 dependency lane must merge to `main`.
@@ -165,8 +204,15 @@ Evidence:
   build paths consume package-index secrets separately from `python-setup`.
 - Current-head CI must pass after sync.
 - Post-open role pass, Codex Security diff scan / finding discovery,
-  `pulseplate-pr-review`, review-thread disposition, strict merge-readiness,
-  and mandatory wait-window remain required.
+  and `pulseplate-pr-review` are complete.
+- Review-thread disposition, strict merge-readiness, current-head CI, and the
+  mandatory wait-window remain required.
+
+## Lane Start Provenance
+
+Packet: artifacts/orchestration/task_packets/a4943868c687.json
+Starter: manual coordinator flow (`check_preflight.py` ->
+`task_bootstrap.py` -> `role_dispatch_bridge.py`)
 
 ## Governance Evidence
 
@@ -209,6 +255,7 @@ Evidence:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_ci_workflow_pr_size_governance_contract.py`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: pre-push hooks during
   `git push -u origin codex/devpi-package-index-rollout`, including `mypy`,
   `pip-audit`, backend pytest, full-repo Bandit, and Docker build test.
@@ -216,6 +263,10 @@ Evidence:
 - PASS: static credential scan for exposed devpi root password,
   credentialed `packages.pulseplate.app` URLs, and public PyPI extra-index
   fallback returned no matches.
+- PASS: Codex Security diff scan `c10dfb9f-70b4-48f8-8712-6eee38af52cf`
+  finalized with 14/14 coverage rows and 0 findings.
+- PASS: `pulseplate-pr-review` dry-run report; its only advisory note was
+  dispositioned as NOT-A-BUG above.
 
 ## Machine-Heavy Verification Deferral
 
