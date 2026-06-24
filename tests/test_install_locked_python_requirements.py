@@ -164,6 +164,24 @@ class _FakeSimpleIndexResponse:
         return self._body[:size]
 
 
+def test_simple_project_page_has_version_requires_exact_version_boundary() -> None:
+    assert installer._simple_project_page_has_version(
+        package="pip",
+        version="26.1.1",
+        body=b'<a href="pip-26.1.1-py3-none-any.whl">pip</a>',
+    )
+    assert installer._simple_project_page_has_version(
+        package="pydantic-core",
+        version="2.41.5",
+        body=b'<a href="pydantic_core-2.41.5-cp313-cp313-manylinux.whl">pydantic</a>',
+    )
+    assert not installer._simple_project_page_has_version(
+        package="pip",
+        version="26.1.1",
+        body=b'<a href="pip-26.1.10-py3-none-any.whl">pip</a>',
+    )
+
+
 def _allow_private_index_project_health(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[tuple[str, str, int]]:
@@ -1182,6 +1200,24 @@ def test_effective_constraints_file_for_requirement_filters_floor_for_exact_pin(
         assert effective_constraints is not None
         assert effective_constraints != constraints
         assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+
+
+def test_effective_constraints_file_keeps_floor_for_marker_qualified_exact_pin(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text('uvloop==0.20.0 ; sys_platform != "win32"\n', encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text(
+        "uvloop>=0.20.0\nhttpx>=0.28.1\n",
+        encoding="utf-8",
+    )
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints == constraints
 
 
 def test_effective_constraints_file_for_requirement_keeps_relative_includes_resolvable(

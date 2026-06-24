@@ -455,7 +455,7 @@ def _collect_exact_requirement_pin_names(lines: Sequence[str]) -> set[str]:
     exact_pin_names: set[str] = set()
     for line in lines:
         stripped = line.split("#", 1)[0].strip().lower()
-        if "==" not in stripped or "===" in stripped:
+        if "==" not in stripped or "===" in stripped or ";" in stripped:
             continue
         package_name = _requirement_line_package_name(stripped)
         if package_name is not None:
@@ -985,12 +985,13 @@ def _simple_project_page_looks_valid(*, package: str, body: bytes) -> bool:
 def _simple_project_page_has_version(*, package: str, version: str, body: bytes) -> bool:
     """Return True when a PEP 503 project page advertises the exact package version."""
     normalized_package = re.sub(r"[-_.]+", "-", package).lower()
-    package_markers = (
-        f"{normalized_package}-{version}",
-        f"{normalized_package.replace('-', '_')}-{version}",
+    text = body[:100_000].decode("utf-8", errors="ignore").lower()
+    version_boundary = r"(?=[-_.]|(?:\.tar\.gz|\.zip|\.whl)|[\"'#<])"
+    patterns = (
+        rf"{re.escape(normalized_package)}-{re.escape(version)}{version_boundary}",
+        rf"{re.escape(normalized_package.replace('-', '_'))}-{re.escape(version)}{version_boundary}",
     )
-    text = body.decode("utf-8", errors="ignore").lower()
-    return any(marker in text for marker in package_markers)
+    return any(re.search(pattern, text) for pattern in patterns)
 
 
 def _redact_url_credentials(url: str) -> str:
