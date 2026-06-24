@@ -280,6 +280,8 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert "${{ inputs.test-requirements-file }}" in action_text
     assert "${{ inputs.install-mode }}" in action_text
     assert "${{ inputs.skip-base-install != 'true' }}" in action_text
+    assert "--preflight-only" not in action_text
+    assert "Preflight dependency floors via approved proxy" not in action_text
     assert (
         "::error::requirements-profile cannot be combined with install-dev-deps/install-test-deps"
         in action_text

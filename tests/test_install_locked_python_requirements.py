@@ -28,6 +28,19 @@ IDNA_DEPENDABOT_ALERT_REQUIREMENT_FILES = (
 )
 RAG_VECTOR_EXPECTED_SENTENCE_TRANSFORMERS_VERSION = "5.6.0"
 RAG_VECTOR_EXPECTED_TRANSFORMERS_VERSION = "5.12.1"
+MAIN_PREFLIGHT_TESTS = {
+    "test_main_preflight_only_skips_requirements_file_resolution",
+}
+
+
+@pytest.fixture(autouse=True)
+def _stub_dependency_floor_preflight_for_main_tests(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    """Keep main-flow tests deterministic; dedicated tests cover floor preflight."""
+    if request.node.name.startswith("test_main_") and request.node.name not in MAIN_PREFLIGHT_TESTS:
+        monkeypatch.setattr(installer, "run_dependency_floor_preflight", lambda **_kwargs: None)
 
 
 def _repo_emergency_manifest_path() -> Path:
@@ -145,8 +158,10 @@ class _FakeSimpleIndexResponse:
     def status(self) -> int:
         return self._status
 
-    def read(self) -> bytes:
-        return self._body
+    def read(self, size: int | None = None) -> bytes:
+        if size is None:
+            return self._body
+        return self._body[:size]
 
 
 def _allow_private_index_project_health(
@@ -271,11 +286,49 @@ def test_private_index_project_health_supports_approved_http_proxy(
     ]
 
 
+def test_private_index_project_health_reads_bounded_project_page_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_read_sizes: list[int | None] = []
+
+    class FakeResponse:
+        status = 200
+
+        def read(self, size: int | None = None) -> bytes:
+            observed_read_sizes.append(size)
+            body = b'<html><a href="pip-26.1.1-py3-none-any.whl">pip</a></html>'
+            return body + (b"x" * installer.PRIVATE_INDEX_PROJECT_PAGE_BYTES)
+
+    class FakeHTTPSConnection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> FakeResponse:
+            return FakeResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert observed_read_sizes == [installer.PRIVATE_INDEX_PROJECT_PAGE_BYTES]
+
+
 def test_private_index_project_health_retries_transient_probe_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     attempts = {"count": 0}
     closes = {"count": 0}
+    observed_sleeps: list[float] = []
 
     class FakeHTTPSConnection:
         def __init__(
@@ -310,6 +363,7 @@ def test_private_index_project_health_retries_transient_probe_error(
             closes["count"] += 1
 
     monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+    monkeypatch.setattr(installer.time, "sleep", lambda seconds: observed_sleeps.append(seconds))
 
     installer._require_private_index_project_health(
         index_url=APPROVED_PROXY_URL,
@@ -319,6 +373,7 @@ def test_private_index_project_health_retries_transient_probe_error(
 
     assert attempts["count"] == 2
     assert closes["count"] == 2
+    assert observed_sleeps == [1.0]
 
 
 def test_private_index_project_health_retries_transient_http_5xx(
@@ -326,6 +381,7 @@ def test_private_index_project_health_retries_transient_http_5xx(
 ) -> None:
     attempts = {"count": 0}
     closes = {"count": 0}
+    observed_sleeps: list[float] = []
 
     class FakeHTTPSConnection:
         def __init__(
@@ -360,6 +416,7 @@ def test_private_index_project_health_retries_transient_http_5xx(
             closes["count"] += 1
 
     monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+    monkeypatch.setattr(installer.time, "sleep", lambda seconds: observed_sleeps.append(seconds))
 
     installer._require_private_index_project_health(
         index_url=APPROVED_PROXY_URL,
@@ -369,6 +426,7 @@ def test_private_index_project_health_retries_transient_http_5xx(
 
     assert attempts["count"] == 2
     assert closes["count"] == 2
+    assert observed_sleeps == [1.0]
 
 
 @pytest.mark.parametrize(
@@ -452,6 +510,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "anyio",
         "bandit",
         "certifi",
+        "jiter",
         "pillow",
         "protobuf",
         "python-multipart",

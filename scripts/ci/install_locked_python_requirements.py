@@ -16,6 +16,7 @@ import ssl
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Iterator, Sequence, cast
 from urllib.parse import ParseResult, quote, unquote, urlparse
@@ -60,7 +61,9 @@ REQUIREMENTS_PROFILES: tuple[str, ...] = (
 )
 PIP_NETWORK_RETRIES = 5
 PIP_NETWORK_TIMEOUT_SECONDS = 60
+PRIVATE_INDEX_PROJECT_PAGE_BYTES = 100_000
 PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS = 15
+PRIVATE_INDEX_HEALTH_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0)
 DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
 DOCKER_PIP_LAYER_CACHE_ENV = "PULSEPLATE_DOCKER_PIP_LAYER_CACHE"
 
@@ -975,7 +978,7 @@ def _simple_project_page_looks_valid(*, package: str, body: bytes) -> bool:
     """Return True when a response body looks like a PEP 503 project page."""
     normalized_package = re.sub(r"[-_.]+", "-", package).lower()
     package_markers = (f"{normalized_package}-", f"{normalized_package.replace('-', '_')}-")
-    text = body[:100_000].decode("utf-8", errors="ignore").lower()
+    text = body.decode("utf-8", errors="ignore").lower()
     return "href=" in text and any(marker in text for marker in package_markers)
 
 
@@ -986,7 +989,7 @@ def _simple_project_page_has_version(*, package: str, version: str, body: bytes)
         f"{normalized_package}-{version}",
         f"{normalized_package.replace('-', '_')}-{version}",
     )
-    text = body[:100_000].decode("utf-8", errors="ignore").lower()
+    text = body.decode("utf-8", errors="ignore").lower()
     return any(marker in text for marker in package_markers)
 
 
@@ -1065,8 +1068,9 @@ def _read_private_index_project_page(
             conn.request("GET", path, headers=headers)
             response = conn.getresponse()
             status = response.status
-            body = response.read()
+            body = response.read(PRIVATE_INDEX_PROJECT_PAGE_BYTES)
             if status >= 500 and attempt < PIP_NETWORK_RETRIES:
+                _sleep_before_private_index_retry(attempt)
                 continue
             break
         except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
@@ -1075,6 +1079,7 @@ def _read_private_index_project_page(
                     "Approved Python package proxy health check failed before emergency fallback: "
                     f"{package}: {safe_url}: {exc}"
                 ) from exc
+            _sleep_before_private_index_retry(attempt)
         finally:
             conn.close()
     else:  # pragma: no cover - range is non-empty while PIP_NETWORK_RETRIES is positive.
@@ -1088,6 +1093,12 @@ def _read_private_index_project_page(
             f"{package}: {safe_url}: HTTP {status}"
         )
     return safe_url, body
+
+
+def _sleep_before_private_index_retry(attempt: int) -> None:
+    """Sleep briefly before retrying an approved-proxy health probe."""
+    index = max(0, min(attempt - 1, len(PRIVATE_INDEX_HEALTH_RETRY_BACKOFF_SECONDS) - 1))
+    time.sleep(PRIVATE_INDEX_HEALTH_RETRY_BACKOFF_SECONDS[index])
 
 
 def _require_private_index_project_health(
