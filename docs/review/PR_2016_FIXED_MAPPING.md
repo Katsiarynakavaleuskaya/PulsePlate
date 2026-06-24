@@ -56,13 +56,20 @@ below before merge readiness.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#pullrequestreview-4560935403 -> 6124584665aec4f6118f960f3787cdfbb8e34a42
+Disposition: FIXED
+Commit: 6124584665aec4f6118f960f3787cdfbb8e34a42
+Evidence: `app/routers/bmi_registration.py` now reports concrete route-family mismatches, duplicate keys, unsupported route types, method-shape problems, and `include_in_schema` drift; its docstring also documents per-app first-call feature-flag caching. `tests/test_bmi_registration_router_coverage.py` verifies unexpected source-route diagnostics. Focused pytest, `make openapi-check`, `make validate-changed`, `pre-commit run --all-files`, and Phase2 gates passed.
 
 ## Implementation Commits
 
 - `71873aae9` - moves BMI route registration to canonical bootstrap, preserves
   compatibility exports, removes legacy BMI ownership, tightens the legacy
   growth guard, and adds focused route/bootstrap/security tests.
+- `0e568f870` - adds PR #2016 fixed-mapping governance artifact.
+- `13ebb7fb8` - aligns PR #2016 mapping artifact with Phase2 parser contract.
+- `612458466` - fixes Sourcery review feedback by making BMI registration guard
+  failures diagnostic and documenting first-call feature flag caching.
 
 ## Premortem Findings
 
@@ -148,6 +155,14 @@ Passed locally on head `71873aae9`:
 - Pre-push hooks during `git push -u origin codex/move-bmi-registration-to-canonical-bootstrap`:
   changed-files mypy, pip-audit, backend tests, full-repo Bandit, and Docker
   build test.
+
+After Sourcery review remediation `612458466`:
+
+- `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_registration_router_coverage.py`
+- `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_registration_router_coverage.py tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_bmi_calculate_endpoint.py tests/test_bmi_pro_api.py tests/test_bmi_pro_endpoint_errors.py tests/test_bmi_pro_missing_hip.py tests/test_pro_vip_route_dependency_guard.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_paid_route_guards.py`
+- `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" make openapi-check`
+- `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" PREPUSH_DEBUG=1 make validate-changed`
+- `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" pre-commit run --all-files`
 
 Current-head CI is pending at mapping creation.
 
