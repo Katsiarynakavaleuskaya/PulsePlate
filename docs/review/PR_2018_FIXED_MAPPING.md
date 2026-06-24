@@ -1,0 +1,113 @@
+# PR #2018 Fixed in Commit Mapping
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018
+Title: `fix(deps): remove vulnerable Safety audit dependency`
+Branch: `codex/deps-safety-nltk-alert-fix`
+
+## Summary
+
+This PR removes the active Safety dependency-audit lane after new Dependabot
+alerts showed vulnerable transitive `nltk` re-entering the security tooling
+graph. The replacement audit path is strict `pip-audit` from the pinned
+`ci-lite` toolchain.
+
+In scope:
+
+- Delete the Safety runtime closure and policy surfaces:
+  `requirements-security.txt`, `scripts/ci/run_safety_audit.py`,
+  `.github/scripts/parse-safety-report.py`, `safety-policy.yaml`, and
+  `safety-policy.toml`.
+- Route CI, Security Scan, and nightly dependency audits through
+  `scripts/ci_pip_audit.sh`.
+- Pin `pip-audit` in `requirements-ci-lite.in/.txt`.
+- Keep the existing optional-RAG `torch` / `CVE-2025-3000` no-fixed-version
+  waiver scoped to `requirements-rag-vector*.txt` only.
+- Update supply-chain tests, security/devtooling guards, risk routing,
+  dependency docs, and advisory records.
+
+Out of scope:
+
+- Torch alerts `#160`, `#161`, `#162`: no patched version is available in the
+  current advisory metadata; remain a separate advisory lane.
+- Faraday alert `#224`: remains a dedicated Fastlane/Ruby lane.
+- Platform-aware RAG CPU/macOS lock work: separate dependency/tooling lane.
+
+## Implementation Commits
+
+- `26a03ac318643dd7a404f8e4f800ae0c3655bac0` - `fix(deps): remove vulnerable Safety audit dependency`
+
+## Lane Start Provenance
+
+- Worktree: `worktrees/deps-safety-nltk-alert-fix`
+- Branch: `codex/deps-safety-nltk-alert-fix`
+- Packet: `artifacts/orchestration/task_packets/fdfa5f023bcf.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Role dispatch manifest:
+  `scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/fdfa5f023bcf.json --mode runtime --implementation-owner qa-engineer-agent --implementation-owner security-auditor --pretty`
+- Dispatch order declared:
+  `agent-coordinator -> qa-engineer-agent -> security-auditor -> bug-hunter`
+- Transport note: native subagent transport for `agent-coordinator` did not
+  return and was closed to avoid an unbounded hang. This PR is not merge-ready
+  until post-open role/review passes and strict merge-readiness governance are
+  complete.
+
+## Local Validation
+
+- PASS: `python3 scripts/orchestration/check_preflight.py`
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS: `python3 scripts/ci/install_locked_python_requirements.py --requirements-file requirements-ci-lite.txt --constraints-file constraints.txt --preflight-only`
+- PASS: `pip-audit -r requirements-ci-lite.txt --no-deps --disable-pip -f json -o /tmp/deps-safety-nltk-ci-lite-pip-audit.json`
+- PASS: `bash scripts/ci_pip_audit.sh`
+  - `requirements.txt`: no known vulnerabilities
+  - `requirements-docker-runtime.txt`: no known vulnerabilities
+  - `requirements-data.txt`: no known vulnerabilities
+  - `requirements-evals.txt`: no known vulnerabilities
+  - `requirements-rag-vector.txt`: no known vulnerabilities, 1 ignored
+    documented optional-RAG `CVE-2025-3000` torch finding with no fixed version
+  - `requirements-rag-vector-cpu.txt`: no known vulnerabilities
+- PASS: `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py tests/test_ci_risk_profile.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_dependency_security_guard.py`
+- PASS: `VENV_PYTHON=.venv/bin/python make validate-changed`
+  - Note: selected no Python/cross-surface tests, so the focused pytest above is
+    the meaningful local test gate for this PR.
+- PASS: `pre-commit run --all-files`
+- PASS during push: changed-file mypy, pip-audit, backend pre-push pytest,
+  full-repo Bandit, and docker build test.
+
+Full local `make verify` was not run under the operator-approved machine-heavy
+dependency-lane exception. Current-head CI is the required heavy parity signal
+before any merge-readiness claim.
+
+## Discussion Thread Pass
+
+- [x] Fixed in commit mapping artifact created.
+- [ ] Discussion-thread pass pending post-open review activity.
+- [ ] Bot actionable pass pending CodeRabbit / Sourcery / Cubic / Codex Security
+  results.
+
+No actionable review threads existed at PR open. Any post-open bot, human,
+CodeRabbit, Sourcery, Cubic, Codex Security, QA, bug-hunter, security-auditor,
+or `pulseplate-pr-review` finding remains blocking until fixed or formally
+dispositioned with evidence.
+
+## Security Notes
+
+- Active vulnerable `nltk` is removed by deleting the Safety audit dependency
+  graph, not by suppressing the alert.
+- `scripts/ci_pip_audit.sh` no longer skips outside CI, no longer ignores
+  failures with `|| true`, and no longer invokes resolver installs for pinned
+  lockfiles.
+- The only retained waiver is `CVE-2025-3000`, scoped to optional RAG/vector
+  manifests and tracked in
+  `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md` plus
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`.
+
+## Merge Readiness
+
+- Current-head CI: pending.
+- CodeRabbit / Sourcery / Cubic actionables: pending.
+- Review thread disposition: pending.
+- Codex Security diff scan: pending.
+- Strict merge wrapper: pending.
+
+Do not call this PR green, ready, or mergeable until all items above pass on the
+current head SHA.
