@@ -50,7 +50,8 @@ SECRET_RE = re.compile(
 UNSAFE_TEXT_RE = re.compile(
     r"(candidate\.patch|diff --git|^\+\+\+ |^--- |@@ |provider[_ -]?payload|"
     r"raw[_ -]?(prompt|response|context)|chain[_ -]?of[_ -]?thought|"
-    r"open pull request|resolve review thread|mark ready for review|merge readiness|"
+    r"open (pull request|PR)|create (pull request|PR)|push branch|write repository|"
+    r"resolve review thread|mark ready for review|merge readiness|"
     r"semantic cache serving|use semantic cache|call model|call network|"
     r"guarantee[s]? (weight loss|health outcome|clinical outcome)|"
     r"\bdiagnose\b|\btreat\b|clinical efficacy|crisis support|emergency care)",

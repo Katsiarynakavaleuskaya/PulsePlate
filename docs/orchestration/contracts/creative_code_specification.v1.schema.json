@@ -151,7 +151,8 @@
     },
     "path": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "^(?!/)(?!~)(?![A-Za-z][A-Za-z0-9+.-]*:)(?!.*\\\\)(?!.*(^|/)\\.\\.($|/))(?!artifacts(?:/|$))(?!worktrees(?:/|$))(?!\\.venv(?:/|$))(?!\\.git(?:/|$))(?!\\.mypy_cache(?:/|$))(?!\\.pytest_cache(?:/|$))(?!\\.ruff_cache(?:/|$))(?!build(?:/|$))(?!dist(?:/|$))(?!node_modules(?:/|$)).+$"
     },
     "non_empty_paths": {
       "type": "array",

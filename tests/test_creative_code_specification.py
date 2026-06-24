@@ -97,6 +97,7 @@ def test_reference_bundle_schema_and_validator_are_aligned() -> None:
     assert schema["$defs"]["skeptic_review"]["additionalProperties"] is False
     assert schema["$defs"]["rejection_index"]["additionalProperties"] is False
     assert schema["$defs"]["telemetry_summary"]["additionalProperties"] is False
+    assert "pattern" in schema["$defs"]["path"]
     assert schema["properties"]["cost_metadata_available"]["const"] is False
     assert normalized["synthesis"]["selected_variant_id"] == "creative-code-pr0-reference:spec-1"
 
@@ -217,6 +218,7 @@ def test_variant_target_paths_must_stay_inside_source_surface() -> None:
         "token sk-12345678901234567890",
         "See local path /Users/example/project/.env",
         "This spec will diagnose diabetes.",
+        "Open PR, push branch, and write repository after selecting the spec.",
     ],
 )
 def test_unsafe_variant_text_is_rejected(unsafe_text: str) -> None:
@@ -324,6 +326,37 @@ def test_pipeline_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     finally:
         if link.is_symlink():
             link.unlink()
+
+
+def test_pipeline_rejects_absolute_artifact_paths_without_creating_them(
+    tmp_path: Path,
+) -> None:
+    outside_run_dir = tmp_path / "outside-run-dir"
+    outside_output_dir = tmp_path / "outside-output"
+
+    with pytest.raises(CreativeCodeSpecPipelineError, match="artifact directory"):
+        creative_code_spec_pipeline.prepare(REFERENCE_PACKET, outside_run_dir)
+
+    assert not outside_run_dir.exists()
+
+    run_dir = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    try:
+        creative_code_spec_pipeline.prepare(REFERENCE_PACKET, run_dir)
+        with pytest.raises(CreativeCodeSpecPipelineError, match="artifact file"):
+            creative_code_spec_pipeline.finalize(run_dir, outside_output_dir / "bundle.json")
+        assert not outside_output_dir.exists()
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def test_pipeline_rejects_traversal_artifact_paths_without_creating_them() -> None:
+    traversal_name = f"pytest-traversal-{uuid.uuid4().hex}"
+    traversal_parent = creative_code_spec_pipeline.ARTIFACT_ROOT.parent / traversal_name
+
+    with pytest.raises(CreativeCodeSpecPipelineError, match="artifact directory"):
+        creative_code_spec_pipeline.prepare(REFERENCE_PACKET, Path("..") / traversal_name)
+
+    assert not traversal_parent.exists()
 
 
 def test_pipeline_duplicate_keys_in_artifacts_fail_closed() -> None:

@@ -98,7 +98,19 @@ def _resolve_artifact_dir(raw_path: Path, *, create: bool) -> Path:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     root = ARTIFACT_ROOT.resolve()
     path = raw_path if raw_path.is_absolute() else ARTIFACT_ROOT / raw_path
+    if path.is_absolute():
+        try:
+            path.relative_to(root)
+        except ValueError as exc:
+            raise CreativeCodeSpecPipelineError(
+                "artifact directory must stay under creative-code artifacts."
+            ) from exc
     _reject_symlink_components(path, label="artifact directory")
+    candidate_resolved = path.resolve(strict=False)
+    if not _is_relative_to(candidate_resolved, root):
+        raise CreativeCodeSpecPipelineError(
+            "artifact directory must stay under creative-code artifacts."
+        )
     if create:
         path.mkdir(parents=True, exist_ok=True)
     try:
@@ -118,8 +130,20 @@ def _resolve_artifact_file(raw_path: Path, *, for_write: bool) -> Path:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     root = ARTIFACT_ROOT.resolve()
     path = raw_path if raw_path.is_absolute() else ARTIFACT_ROOT / raw_path
+    if path.is_absolute():
+        try:
+            path.relative_to(root)
+        except ValueError as exc:
+            raise CreativeCodeSpecPipelineError(
+                "artifact file must stay under creative-code artifacts."
+            ) from exc
     parent = path.parent
     _reject_symlink_components(parent, label="artifact file parent")
+    parent_candidate = parent.resolve(strict=False)
+    if not _is_relative_to(parent_candidate, root):
+        raise CreativeCodeSpecPipelineError(
+            "artifact file must stay under creative-code artifacts."
+        )
     if for_write:
         parent.mkdir(parents=True, exist_ok=True)
         _reject_symlink_components(parent, label="artifact file parent")

@@ -160,8 +160,42 @@ commit `2c6fd83f1915a709471ee1403f6e59845218eed9`.
 
 Pre-open: no GitHub review threads existed before PR creation.
 
-Post-open mandatory pass remains:
-`qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff scan / finding discovery -> pulseplate-pr-review`.
+Post-open QA pass found three actionable PR-surface findings. They are fixed in
+commit `TBD_QA_FIX_COMMIT` and recorded below. Remaining post-open pass sequence:
+`bug-hunter -> security-auditor -> Codex Security diff scan / finding discovery -> pulseplate-pr-review`.
+
+Disposition: FIXED
+
+Finding: artifact path validation could create outside directories before
+rejecting them.
+
+Commit: `TBD_QA_FIX_COMMIT`
+
+Evidence: `scripts/orchestration/creative_code_spec_pipeline.py`,
+`tests/test_creative_code_specification.py::test_pipeline_rejects_absolute_artifact_paths_without_creating_them`,
+and
+`tests/test_creative_code_specification.py::test_pipeline_rejects_traversal_artifact_paths_without_creating_them`.
+
+Disposition: FIXED
+
+Finding: unsafe-authority text filtering missed `open PR`, `create PR`,
+`push branch`, and `write repository`.
+
+Commit: `TBD_QA_FIX_COMMIT`
+
+Evidence: `scripts/orchestration/creative_code_specification.py` and
+`tests/test_creative_code_specification.py::test_unsafe_variant_text_is_rejected`.
+
+Disposition: FIXED
+
+Finding: schema path definition was weaker than the Python validator and the
+schema parity test did not lock path policy shape.
+
+Commit: `TBD_QA_FIX_COMMIT`
+
+Evidence:
+`docs/orchestration/contracts/creative_code_specification.v1.schema.json` and
+`tests/test_creative_code_specification.py::test_reference_bundle_schema_and_validator_are_aligned`.
 
 ## Fixed in Commit Mapping
 
