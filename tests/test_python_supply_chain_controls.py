@@ -25,6 +25,7 @@ LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
     ".github/workflows/frontend-ci.yml",
     ".github/workflows/nightly-tests.yml",
     ".github/workflows/nightly.yml",
+    ".github/workflows/rag-release-gates.yml",
     ".github/workflows/security.yml",
 )
 PROXY_WORKFLOW_ENV_PATHS: tuple[str, ...] = LOCKED_INSTALL_WORKFLOW_PATHS + (
@@ -280,8 +281,8 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert "${{ inputs.test-requirements-file }}" in action_text
     assert "${{ inputs.install-mode }}" in action_text
     assert "${{ inputs.skip-base-install != 'true' }}" in action_text
-    assert "--preflight-only" not in action_text
-    assert "Preflight dependency floors via approved proxy" not in action_text
+    assert "--preflight-only" in action_text
+    assert "Preflight dependency floors via approved proxy" in action_text
     assert (
         "::error::requirements-profile cannot be combined with install-dev-deps/install-test-deps"
         in action_text
@@ -636,6 +637,31 @@ def test_frontend_ci_workflow_uses_ci_lite_python_setup() -> None:
         event_paths = workflow_events[event_name]["paths"]
         for expected_path in expected_paths:
             assert expected_path in event_paths
+
+
+@pytest.mark.parametrize(
+    "job_name, step_name",
+    (
+        ("rag-release-gates-smoke", "Install CI-lite dependencies for smoke lane"),
+        ("rag-release-gates-weekly", "Install CI-lite dependencies for strict import path"),
+    ),
+)
+def test_rag_release_gates_use_locked_ci_lite_installer(job_name: str, step_name: str) -> None:
+    install_step = _workflow_step_by_name(
+        ".github/workflows/rag-release-gates.yml",
+        job_name,
+        step_name,
+    )
+    install_script = install_step["run"]
+
+    assert APPROVED_PROXY_ENV_EXPRESSION in (
+        REPO_ROOT / ".github" / "workflows" / "rag-release-gates.yml"
+    ).read_text(encoding="utf-8")
+    assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--requirements-profile ci-lite" in install_script
+    assert "--install-mode direct-proxy" in install_script
+    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
+    assert "python3 -m pip install" not in install_script
 
 
 def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> None:

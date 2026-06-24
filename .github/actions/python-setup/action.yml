@@ -156,6 +156,15 @@ runs:
           echo "::error::Expected requirements.txt for locked dependency install"
           exit 1
         fi
+        echo "::group::Preflight dependency floors via approved proxy"
+        python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
+          --python-executable python \
+          --constraints-file "${{ inputs.constraints-file }}" \
+          --install-mode "${{ inputs.install-mode }}" \
+          --emergency-wheel-manifest "${{ github.workspace }}/scripts/ci/emergency_python_wheels.json" \
+          --preflight-only \
+          "${install_args[@]}"
+        echo "::endgroup::"
         python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
           --python-executable python \
           --constraints-file "${{ inputs.constraints-file }}" \

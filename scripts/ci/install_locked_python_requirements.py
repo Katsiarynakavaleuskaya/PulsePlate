@@ -1271,6 +1271,7 @@ def run_dependency_floor_preflight(
     del python_executable
     floors = load_dependency_security_floors()
     for package, version in sorted(floors.items()):
+        proxy_error: RuntimeError | None = None
         try:
             if _private_index_project_has_version(
                 index_url=index_url,
@@ -1279,22 +1280,33 @@ def run_dependency_floor_preflight(
                 trusted_host=trusted_host,
             ):
                 continue
-            if verify_emergency_artifact_for_floor(
-                manifest_path=emergency_wheel_manifest,
-                package=package,
-                version=version,
-            ):
+        except RuntimeError as exc:
+            proxy_error = exc
+        if verify_emergency_artifact_for_floor(
+            manifest_path=emergency_wheel_manifest,
+            package=package,
+            version=version,
+        ):
+            if proxy_error is None:
                 print(
                     "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
                     f"{package}=={version}"
                 )
-                continue
-            raise RuntimeError("exact version is not advertised by approved proxy")
-        except RuntimeError as exc:
+            else:
+                print(
+                    "WARNING: floor preflight proxy probe failure tolerated via exact "
+                    f"emergency fallback: {package}=={version}: {proxy_error}"
+                )
+            continue
+        if proxy_error is not None:
             raise RuntimeError(
                 "Dependency floor preflight failed for approved proxy: "
-                f"{package}=={version}: {exc}"
-            ) from exc
+                f"{package}=={version}: {proxy_error}"
+            ) from proxy_error
+        raise RuntimeError(
+            "Dependency floor preflight failed for approved proxy: "
+            f"{package}=={version}: exact version is not advertised by approved proxy"
+        )
 
 
 def is_virtualenv_python(python_executable: str) -> bool:

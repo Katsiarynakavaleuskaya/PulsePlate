@@ -97,13 +97,16 @@ export PIP_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
 pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements.txt requirements.in
 pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-rag-vector.txt requirements-rag-vector.in
 pip-compile --allow-unsafe --no-emit-index-url --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-test.txt requirements-test.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-ci-lite.txt requirements-ci-lite.in
 pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-lock.txt requirements-dev.in requirements.in
 ```
 
 ### Update Dev Dependency
 1. Update version in `requirements-dev.in`
 2. Update constraint in `constraints.txt` (if needed)
-3. Regenerate `requirements-dev.txt` with `pip-compile`
+3. Regenerate `requirements-dev.txt`, `requirements-test.txt`, and
+   `requirements-ci-lite.txt` with `pip-compile --allow-unsafe --no-emit-index-url`
 4. Run `python verify_requirements.py`
 5. Test through the approved proxy:
    `python scripts/ci/install_locked_python_requirements.py --requirements-file requirements.txt --dev-requirements-file requirements-dev.txt --requirements-profile runtime-dev --constraints-file constraints.txt --preflight-only`

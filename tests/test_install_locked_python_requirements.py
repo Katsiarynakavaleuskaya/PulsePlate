@@ -513,6 +513,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "jiter",
         "pillow",
         "protobuf",
+        "pydantic-core",
         "python-multipart",
         "requests",
         "wrapt",
@@ -4013,6 +4014,70 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
     )
 
     assert observed_checks == [(APPROVED_PROXY_URL, "cryptography", "46.0.7", None)]
+
+
+def test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_proxy_probe_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"cryptography": "46.0.7"},
+    )
+    observed_downloads: list[tuple[str, str]] = []
+
+    def fail_version_check(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        assert (index_url, package, version, trusted_host) == (
+            APPROVED_PROXY_URL,
+            "cryptography",
+            "46.0.7",
+            None,
+        )
+        raise RuntimeError("proxy health check failed after retry budget")
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_private_index_project_has_version", fail_version_check)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    installer.run_dependency_floor_preflight(
+        python_executable="python",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert observed_downloads == [
+        ("https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl", "b" * 64)
+    ]
 
 
 def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_fails(
