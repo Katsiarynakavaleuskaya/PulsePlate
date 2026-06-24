@@ -140,6 +140,10 @@ dispositioned with evidence.
 - `CodeRabbit CLI`: follow-up rerun found the `pyopenssl` regression test did
   not assert that the private-index health probe still runs before emergency
   fallback; fixed in `66ef96f848cb8d475c4ab699ce5fd00c0dc393bc`.
+- Current-head CI: `OpenAPI sync` failed in `Setup Python environment` because
+  pip 26 treated the selected exact pin `openai==2.29.0` plus redundant
+  constraint floor `openai>=2.8.1` as a resolver conflict; fixed in
+  `e19e349c36e4ee5becd7780720ddf52e99d6b0e7`.
 
 ## Fixed in Commit Mapping
 
@@ -192,6 +196,10 @@ Disposition: FIXED
 Commit: 66ef96f848cb8d475c4ab699ce5fd00c0dc393bc
 Evidence: CodeRabbit fallback-health-probe coverage finding is fixed by asserting `_require_private_index_project_health` is invoked for the `pyopenssl` emergency fallback path before staging the exact local wheel.
 
+Disposition: FIXED
+Commit: e19e349c36e4ee5becd7780720ddf52e99d6b0e7
+Evidence: Current-head `OpenAPI sync` setup failure is fixed by generating per-requirement effective constraints that drop redundant constraint entries for packages already exact-pinned by the selected requirements file. Regression tests cover `openai==2.29.0` with `openai>=2.8.1` for both the effective constraints helper and direct-proxy install command construction.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -212,6 +220,8 @@ Evidence: CodeRabbit fallback-health-probe coverage finding is fixed by assertin
   `9401f3ed7dad2801deda2714739b650b8b32d7e9`
 - CodeRabbit fallback health-probe test completion ->
   `66ef96f848cb8d475c4ab699ce5fd00c0dc393bc`
+- exact-pin effective constraints fix ->
+  `e19e349c36e4ee5becd7780720ddf52e99d6b0e7`
 
 ## Deferred / Follow-ups
 
