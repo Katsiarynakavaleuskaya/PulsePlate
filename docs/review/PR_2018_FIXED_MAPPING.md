@@ -111,6 +111,8 @@ blocking until fixed or formally dispositioned with evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470273502
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470273520
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470586006
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#pullrequestreview-4565940676
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#pullrequestreview-4566313195
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: `scripts/ci_pip_audit.sh` now aggregates per-manifest `pip-audit` failures and exits nonzero only after every manifest has been scanned; `tests/test_python_supply_chain_controls.py` proves later manifests still run and write reports after an earlier manifest fails; `scripts/ci/ci_risk_profile.py` now classifies `scripts/ci_pip_audit.sh` as workflow-privileged, and `tests/test_ci_risk_profile.py` asserts that stronger governance routing. `tests/test_python_supply_chain_controls.py` now rejects any inline `pip install` invocation in the dependency-audit workflow steps, while `docs/security/CVE-2025-14009-nltk.md` broadens the Safety/NLTK validation search and both security advisories include file-line evidence anchors for Docs Phase1.
@@ -118,6 +120,8 @@ Evidence: `scripts/ci_pip_audit.sh` now aggregates per-manifest `pip-audit` fail
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470273502 -> 6f1bef1c9f745e8611fa2635adbe00bf2235106f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470273520 -> 6f1bef1c9f745e8611fa2635adbe00bf2235106f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470586006 -> 7ff04b686256c4792e8d146e7e4ec2028d4bed13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#pullrequestreview-4565940676 -> 6f1bef1c9f745e8611fa2635adbe00bf2235106f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#pullrequestreview-4566313195 -> 7ff04b686256c4792e8d146e7e4ec2028d4bed13
 
 ## Security Notes
 
