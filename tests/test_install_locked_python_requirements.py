@@ -2125,6 +2125,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         encoding="utf-8",
     )
     observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
 
     def fake_install_from_proxy(**kwargs: object) -> None:
         find_links_dir = kwargs["find_links_dir"]
@@ -2330,6 +2331,7 @@ def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_
         encoding="utf-8",
     )
     observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
 
     def fake_install_from_proxy(**kwargs: object) -> None:
         find_links_dir = kwargs["find_links_dir"]
@@ -2341,6 +2343,7 @@ def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_
         assert index_url == APPROVED_PROXY_URL
         assert package == "pyopenssl"
         assert trusted_host is None
+        health_packages.append(package)
 
     def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
         assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["pyopenssl"]
@@ -2365,6 +2368,7 @@ def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_
         emergency_wheel_manifest=manifest,
     )
 
+    assert health_packages == ["pyopenssl"]
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
 
 
