@@ -59,6 +59,7 @@ automation, or product-runtime behavior.
 - PASS: `python -m scripts.orchestration.creative_code_contract --validate docs/orchestration/contracts/creative_code_candidate.v1.json`
 - PASS: `python -m scripts.orchestration.creative_code_specification --validate docs/orchestration/contracts/creative_code_specification.v1.json`
 - PASS: `python -m pytest -q tests/test_creative_code_contract.py tests/test_creative_code_specification.py tests/test_context_pack_compression.py tests/core/evidence/test_fingerprints.py`
+- PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
 - PASS after commit: `make validate-changed` selected
   `tests/test_creative_code_specification.py`.
 - PASS: `pre-commit run --all-files`
@@ -361,6 +362,33 @@ Evidence:
 Reason: the finding is a valid review-planning warning, but not a PR-surface
 code defect or a reason to split this already cohesive PR-1 layer.
 
+## Current-Head CI Setup Fix
+
+GitHub current-head CI for PR #2015 failed during locked dependency setup before
+lint, tests, OpenAPI sync, and security jobs could run.
+
+Failure shape:
+
+- `pip install --index-url https://packages.pulseplate.app/root/pypi/+simple/ --requirement requirements-ci-lite.txt`
+- `ReadTimeoutError` against `packages.pulseplate.app`
+- `ERROR: Could not find a version that satisfies the requirement jiter==0.12.0`
+- `ERROR: No matching distribution found for jiter==0.12.0`
+
+Disposition: FIXED
+
+Commit: `3aa9947e6d2b456e5742d51269049b1e4aef04f5`
+
+Evidence:
+
+- `scripts/ci/emergency_python_wheels.json` adds an exact, hash-pinned,
+  time-boxed `jiter==0.12.0` emergency wheel artifact expiring `2026-06-30`.
+- `scripts/ci/install_locked_python_requirements.py` allows the emergency bridge
+  only for exact manifest artifacts when the approved private proxy is partially
+  healthy, proving the stable `pip` project page before staging the public wheel.
+- `tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_allows_partial_proxy_resolver_miss`
+- `tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_rejects_mixed_failure_when_anchor_fails`
+- PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
+
 ## Implementation Commits
 
 - `977b48d2208453ae4c3a1eb6bb0c61ed50f717af` implements the PR-1 specification
@@ -384,6 +412,9 @@ code defect or a reason to split this already cohesive PR-1 layer.
   bundle secret-token rejection, and mutable variant-list isolation.
 - `af7946b210a10b8a0b1cd93748ca6a7a969af19e` adds the required
   discussion-pass checkboxes in this fixed-mapping artifact.
+- `3aa9947e6d2b456e5742d51269049b1e4aef04f5` fixes the current-head GitHub CI
+  setup blocker by adding an exact, hash-pinned, time-boxed `jiter==0.12.0`
+  emergency wheel fallback for partial approved-proxy resolver misses.
 
 ## Fixed in Commit Mapping
 
