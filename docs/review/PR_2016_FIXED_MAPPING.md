@@ -61,6 +61,11 @@ Disposition: FIXED
 Commit: 3301be7d65a171c9cc029930ff9f73cec58a3b16
 Evidence: `app/routers/bmi_registration.py` now reports concrete route-family mismatches, duplicate keys, unsupported route types, method-shape problems, and `include_in_schema` drift; its docstring also documents per-app first-call feature-flag caching. `tests/test_bmi_registration_router_coverage.py` verifies unexpected source-route diagnostics. Focused pytest, `make openapi-check`, `make validate-changed`, `pre-commit run --all-files`, and Phase2 gates passed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#discussion_r3469821502 -> 42978e28e086aee0c007f71da44276b801ba87b6
+Disposition: FIXED
+Commit: 42978e28e086aee0c007f71da44276b801ba87b6
+Evidence: `docs/review/PR_2016_FIXED_MAPPING.md` keeps merge-readiness gate checklist items unchecked until final merge readiness while preserving completed-work evidence in prose above. `git diff --check`, `check_preflight.py`, and commit hooks passed.
+
 ## Implementation Commits
 
 - `ba1eabf3d` - moves BMI route registration to canonical bootstrap, preserves
@@ -70,6 +75,8 @@ Evidence: `app/routers/bmi_registration.py` now reports concrete route-family mi
 - `614c37f0c` - aligns PR #2016 mapping artifact with Phase2 parser contract.
 - `3301be7d6` - fixes Sourcery review feedback by making BMI registration guard
   failures diagnostic and documenting first-call feature flag caching.
+- `42978e28e` - keeps PR #2016 merge-readiness gate checkboxes unchecked until
+  the final merge-readiness pass.
 
 ## Premortem Findings
 
