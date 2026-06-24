@@ -300,11 +300,11 @@ Starter: manual coordinator flow (`check_preflight.py` ->
 - PASS:
   `python3 scripts/orchestration/check_preflight.py --path .github/workflows/build.yml --path Dockerfile --path scripts/ci/install_locked_python_requirements.py --path tests/test_install_locked_python_requirements.py --path tests/test_python_supply_chain_controls.py --path tests/test_docker_workflow_build_path_contract.py`
 - PASS:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_docker_workflow_build_path_contract.py tests/test_ci_workflow_pr_size_governance_contract.py`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_ci_workflow_pr_size_governance_contract.py`
 - PASS:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" make validate-changed`
 - PASS:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python pre-commit run --all-files`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" pre-commit run --all-files`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: pre-push hooks during
   `git push -u origin codex/devpi-package-index-rollout`, including `mypy`,
