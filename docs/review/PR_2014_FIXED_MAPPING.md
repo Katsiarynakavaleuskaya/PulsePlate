@@ -80,6 +80,7 @@ Focused local gates:
 - `.venv/bin/python scripts/ci/install_locked_python_requirements.py --requirements-file requirements-test.txt --constraints-file constraints.txt --preflight-only` - PASS
 - `.venv/bin/python scripts/ci/install_locked_python_requirements.py --requirements-file requirements-ci-lite.txt --constraints-file constraints.txt --preflight-only` - PASS
 - `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py` - PASS
+- `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_accepts_pip26_no_candidate_shape tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolver_miss tests/test_install_locked_python_requirements.py::test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt` - PASS
 - `.venv/bin/python -m pip_audit -r requirements-dev.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-test.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-ci-lite.txt` - PASS; no known vulnerabilities found.
@@ -128,6 +129,11 @@ dispositioned with evidence.
   because the PR has 302 changed lines. Disposition: NOT-A-BUG; this remains
   one split dependency lane with scoped lock/doc/test updates and passing
   targeted gates.
+- Current-head CI: `CI` and `Frontend CI` failed in `Setup Python environment`
+  because pip 26 reported `aiosqlite==0.22.1` as a no-candidate resolver
+  conflict while the exact emergency fallback was already listed in
+  `scripts/ci/emergency_python_wheels.json`; fixed in
+  `95f80caf6d6212f5a4bc738adbe3dd4b31cf5da2`.
 
 ## Fixed in Commit Mapping
 
@@ -168,6 +174,10 @@ Disposition: NOT-A-BUG
 Evidence: `pulseplate-pr-review` diff-size note is advisory only. The PR is intentionally split to the testing dependency lane, lists Torch/Faraday/RAG/Docker/runtime as out of scope, and has passing focused gates: dependency preflights, focused dependency/security pytest, `make validate-changed`, `pre-commit run --all-files`, and CodeRabbit CLI rerun with 0 issues.
 Reason: Changed-line count is driven by generated lockfile/doc/mapping churn for one dependency lane, not by mixed runtime scope.
 
+Disposition: FIXED
+Commit: 95f80caf6d6212f5a4bc738adbe3dd4b31cf5da2
+Evidence: Current-head `CI` and `Frontend CI` setup failures are fixed by classifying pip 26's exact no-candidate resolver-conflict message as an approved proxy mirror miss and retrying with the already-governed emergency wheel fallback. Targeted installer tests cover the new message shape and existing direct-proxy fallback behavior.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -182,6 +192,8 @@ Reason: Changed-line count is driven by generated lockfile/doc/mapping churn for
   `5f2faa440f4aebf01f0192b41e232678b66a9b26`
 - `pulseplate-pr-review` dry-run advisory disposition ->
   `NOT-A-BUG`
+- pip 26 direct-proxy emergency fallback classifier ->
+  `95f80caf6d6212f5a4bc738adbe3dd4b31cf5da2`
 
 ## Deferred / Follow-ups
 
