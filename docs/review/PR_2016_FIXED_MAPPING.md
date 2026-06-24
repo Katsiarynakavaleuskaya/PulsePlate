@@ -306,17 +306,35 @@ commit. New current-head CI is pending at mapping update.
 
 ## Merge Readiness
 
-Not merge-ready yet.
+Final merge-readiness pass completed with the documented operator-approved
+machine-heavy local `make verify` exception. Full-suite truth is current-head
+GitHub CI; local validation used the PR-scoped narrow gates recorded above.
 
-Required before merge:
-
-- [ ] Current-head GitHub CI passes for the pushed head.
-- [ ] Post-open role passes completed:
+- [x] Current-head GitHub CI passes for the pushed head.
+- [x] Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan/finding discovery run.
-- [ ] `pulseplate-pr-review` run; advisory large-diff-risk dispositioned.
-- [ ] CodeRabbit, Sourcery, Cubic, and human review comments inspected and all
+- [x] Codex Security diff scan/finding discovery run.
+- [x] `pulseplate-pr-review` run; advisory large-diff-risk dispositioned.
+- [x] CodeRabbit, Sourcery, Cubic, and human review comments inspected and all
   actionables fixed or dispositioned.
-- [ ] PR body mirrors this fixed-mapping artifact.
-- [ ] Strict merge-readiness checks pass with the documented machine-heavy
+- [x] PR body mirrors this fixed-mapping artifact.
+- [x] Strict merge-readiness checks pass with the documented machine-heavy
   exception.
+
+Final readiness evidence:
+
+- Current-head CI passed for the BMI/backend lane: `test-pr (3.13)`,
+  `coverage-pr`, `diff-coverage`, `codecov/patch`, `lint`, `security`,
+  `security-scan`, `OpenAPI sync`, `build`, CodeQL, PR body Phase2 gates,
+  merge-readiness gate, docs/governance guards, and PR automation.
+- Expected skips/neutral checks were limited to untouched specialized lanes
+  such as iOS, feature/main coverage lanes, publish, Trivy, Sourcery review, and
+  Cubic.
+- `GH_TOKEN="$(gh auth token)" GITHUB_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 2016 --require-auth`
+  passed: all resolved review threads have Disposition + proof and
+  commit-after-comment evidence.
+- `GH_TOKEN="$(gh auth token)" GITHUB_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_merge_ready.py --pr-number 2016 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
+  passed.
+- CodeRabbit, Sourcery, Cubic, Codecov, and human review surfaces were inspected
+  before this final pass; all current-PR actionables were fixed or dispositioned
+  above.
