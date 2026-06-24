@@ -27,6 +27,7 @@ iOS/Fastlane dependency surfaces.
 - `23635b2f4fb2575120d356b952898dc3796cfd41` - `docs(deps): require approved proxy in requirements guide`
 - `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f` - `fix(deps): harden python dependency setup fallback`
 - `0bc60437c08758d098ae59187c1ee841b9b57e8a` - `fix(deps): tighten locked installer guards`
+- `1b60f4502ccf3e3591f0d0720da164345b5df9a3` - `fix(ci): lock Safety runtime dependencies`
 - Additional current-head CI/setup follow-up commits are listed in
   Implementation Evidence below.
 
@@ -102,6 +103,12 @@ Focused local gates:
 - `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS after CodeRabbit exact-pin/simple-index guard fixes; selected `tests/test_install_locked_python_requirements.py` and `tests/test_python_supply_chain_controls.py`.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS after CodeRabbit exact-pin/simple-index guard fixes.
 - `pre-commit run --all-files` - PASS after CodeRabbit exact-pin/simple-index guard fixes and staged generated `.secrets.baseline` update.
+- `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py::test_security_scan_workflow_uses_ci_lite_direct_proxy_setup tests/test_python_supply_chain_controls.py::test_ci_security_job_installs_safety_through_locked_installer tests/test_python_supply_chain_controls.py::test_security_requirements_pin_safety_runtime_closure tests/test_python_supply_chain_controls.py::test_safety_dependency_audit_uses_shared_helper_without_shell_loop` - PASS after the Safety runtime dependency closure fix.
+- `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py tests/test_install_locked_python_requirements.py tests/guards/test_security_devtooling_regression_guards.py` - PASS after the Safety runtime dependency closure fix.
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS after the Safety runtime dependency closure fix.
+- `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS after the Safety runtime dependency closure fix; selected `tests/test_install_locked_python_requirements.py` and `tests/test_python_supply_chain_controls.py`.
+- `pre-commit run --all-files` - PASS after the Safety runtime dependency closure fix.
+- Pre-push hooks - PASS after the Safety runtime dependency closure fix, including `pip-audit`, backend pre-push pytest, and full-repo Bandit.
 - Fresh dev/test/ci-lite dependency-floor preflight-only reruns passed after
   `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f`. Exact, time-boxed emergency
   fallback artifacts now bridge approved-proxy read timeouts for covered floor
@@ -218,6 +225,16 @@ dispositioned with evidence.
 - `CodeRabbit`: found that approved-proxy simple-index version checks could
   match `pip-26.1.10` while checking for `pip==26.1.1`; fixed in
   `0bc60437c08758d098ae59187c1ee841b9b57e8a`.
+- Current-head CI: `security` job on head
+  `cbaf7a5494406a65f3458d1fd054b7a36efb243e` failed in
+  `Run Safety (dependency audit with policy)` because `safety==3.8.1` was
+  installed through the repo locked installer with `--no-deps`, but
+  `requirements-security.txt` did not include Safety's runtime dependency
+  closure and `typer` was missing. Fixed in
+  `1b60f4502ccf3e3591f0d0720da164345b5df9a3` by installing Safety through the
+  locked installer from `requirements-security.txt`, explicitly pinning the
+  runtime closure, and updating supply-chain guard tests so the workflow cannot
+  regress to a direct floating `pip install`.
 
 ## Fixed in Commit Mapping
 
@@ -326,6 +343,10 @@ Evidence: CodeRabbit simple-index exact-version finding is fixed by requiring a 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#discussion_r3466896795 -> 0bc60437c08758d098ae59187c1ee841b9b57e8a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#pullrequestreview-4561946959 -> 0bc60437c08758d098ae59187c1ee841b9b57e8a
 
+Disposition: FIXED
+Commit: 1b60f4502ccf3e3591f0d0720da164345b5df9a3
+Evidence: Current-head `security` job failed with `ModuleNotFoundError: No module named 'typer'` while running Safety. `.github/workflows/security.yml` now installs Safety through `scripts/ci/install_locked_python_requirements.py` from `requirements-security.txt`, `requirements-security.txt` explicitly pins Safety's runtime dependency closure for the repo `--no-deps` install policy, and `tests/test_python_supply_chain_controls.py` covers the locked workflow and expected security-tooling pins.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -364,6 +385,8 @@ Evidence: CodeRabbit simple-index exact-version finding is fixed by requiring a 
 - CodeRabbit marker-qualified exact-pin and simple-index exact-version guard
   fixes ->
   `0bc60437c08758d098ae59187c1ee841b9b57e8a`
+- Safety runtime dependency closure and locked security workflow fix ->
+  `1b60f4502ccf3e3591f0d0720da164345b5df9a3`
 - privileged scope exception body/label governance fix ->
   PR metadata update, verified by local `check_pr_size_governance.py` with live
   PR metadata
