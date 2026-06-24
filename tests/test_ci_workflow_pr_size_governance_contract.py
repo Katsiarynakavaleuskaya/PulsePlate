@@ -1816,6 +1816,13 @@ def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
 
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:
     workflow = _load_ci_workflow()
+    workflow_env = workflow["env"]
+    assert workflow_env["PULSEPLATE_PYTHON_INDEX_URL"] == "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+    assert (
+        workflow_env["PULSEPLATE_PYTHON_TRUSTED_HOST"]
+        == "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+    )
+
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
 

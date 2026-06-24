@@ -7,8 +7,8 @@ name: CI
 env:
   PYTHON_VERSION: "3.13.6"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
-  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 permissions:
   contents: read
@@ -502,6 +502,51 @@ jobs:
             --fail-on-high \
             --github-annotations
 
+      - name: Configure private Python index authentication for Safety
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            exit 0
+          fi
+          if [[ -z "${DEVPI_CI_USER:-}" || -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            echo "::error::Set both DEVPI_CI_USER and DEVPI_CI_PASSWORD, or neither."
+            exit 1
+          fi
+          case "$DEVPI_CI_USER$DEVPI_CI_PASSWORD" in
+            *[[:space:]]*)
+              echo "::error::DEVPI_CI_USER and DEVPI_CI_PASSWORD must not contain whitespace."
+              exit 1
+              ;;
+          esac
+          case "$DEVPI_CI_USER" in
+            [Rr][Oo][Oo][Tt])
+              echo "::error::Root devpi credentials are forbidden for CI package installs."
+              exit 1
+              ;;
+          esac
+          case "${PULSEPLATE_PYTHON_INDEX_URL:-}" in
+            *://*@*)
+              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must not contain credentials; use DEVPI_CI_USER/DEVPI_CI_PASSWORD."
+              exit 1
+              ;;
+          esac
+          if [[ -e "$HOME/.netrc" ]]; then
+            echo "::error::Refusing to overwrite an existing .netrc."
+            exit 1
+          fi
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for .netrc cleanup marker.}"
+          marker="$RUNNER_TEMP/pulseplate-safety-netrc-created"
+          umask 077
+          touch "$marker"
+          cat > "$HOME/.netrc" <<EOF
+          machine packages.pulseplate.app
+            login ${DEVPI_CI_USER}
+            password ${DEVPI_CI_PASSWORD}
+          EOF
+
       - name: Install Safety
         run: |
           set -euo pipefail
@@ -516,6 +561,15 @@ jobs:
             --install-mode direct-proxy \
             --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
             "${install_args[@]}"
+
+      - name: Remove private Python index authentication for Safety
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          marker="${RUNNER_TEMP:-}/pulseplate-safety-netrc-created"
+          if [[ -n "${RUNNER_TEMP:-}" && -f "$marker" ]]; then
+            rm -f "$HOME/.netrc" "$marker"
+          fi
 
       - name: Dependency audit with Safety
         env:

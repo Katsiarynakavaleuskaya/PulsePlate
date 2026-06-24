@@ -91,13 +91,14 @@ runs:
           exit 1
         fi
         : "${RUNNER_TEMP:?RUNNER_TEMP is required for .netrc cleanup marker.}"
+        marker="$RUNNER_TEMP/pulseplate-python-setup-netrc-created"
         umask 077
+        touch "$marker"
         cat > "$HOME/.netrc" <<EOF
         machine packages.pulseplate.app
           login ${DEVPI_CI_USER}
           password ${DEVPI_CI_PASSWORD}
         EOF
-        touch "$RUNNER_TEMP/pulseplate-python-setup-netrc-created"
 
     - name: Preflight dependency floors via approved proxy
       if: ${{ inputs.skip-base-install != 'true' }}

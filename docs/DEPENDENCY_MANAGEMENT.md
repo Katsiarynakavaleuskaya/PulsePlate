@@ -285,8 +285,8 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
 ```yaml
 - name: Install dependencies
   env:
-    PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-    PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+    PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+    PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
   run: |
     python scripts/ci/install_locked_python_requirements.py \
       --python-executable python \
@@ -294,13 +294,14 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
       --install-dev
 ```
 
-Workflow precedence is `secrets` first and `vars` second for
-`PULSEPLATE_PYTHON_INDEX_URL` and `PULSEPLATE_PYTHON_TRUSTED_HOST` only for
-protected contexts, but `PULSEPLATE_PYTHON_INDEX_URL` itself must remain
-credential-free. Authenticated devpi reads use `DEVPI_CI_USER` and
+Workflow-level and pull-request diagnostic package-index values must come from
+repository `vars` only because those jobs can execute untrusted pull-request
+code. Protected push/main contexts may resolve `PULSEPLATE_PYTHON_INDEX_URL` and
+`PULSEPLATE_PYTHON_TRUSTED_HOST` from `secrets` first and `vars` second inside a
+guarded protected-only resolver step, but `PULSEPLATE_PYTHON_INDEX_URL` itself
+must remain credential-free. Authenticated devpi reads use `DEVPI_CI_USER` and
 `DEVPI_CI_PASSWORD` secrets via a temporary `.netrc`. Repository variables are
-allowed only for credential-free diagnostic values used by untrusted
-pull-request diagnostics.
+allowed only for non-secret values.
 
 ### Option 2: pip-sync (For Exact Matching)
 
