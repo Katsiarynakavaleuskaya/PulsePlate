@@ -67,6 +67,11 @@ Disposition: FIXED
 Commit: 42978e28e086aee0c007f71da44276b801ba87b6
 Evidence: `docs/review/PR_2016_FIXED_MAPPING.md` keeps merge-readiness gate checklist items unchecked until final merge readiness while preserving completed-work evidence in prose above. `git diff --check`, `check_preflight.py`, and commit hooks passed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#issuecomment-4793153666 -> 68c1d4d6ecee59a1d01af7d00def0197df9ff4e0
+Disposition: FIXED
+Commit: 68c1d4d6ecee59a1d01af7d00def0197df9ff4e0
+Evidence: `tests/test_bmi_registration_router_coverage.py` now covers the BMI registration guard branches Codecov reported for `app/routers/bmi_registration.py`: non-`APIRoute` members, multi-method source routes, duplicate source routes, and `include_in_schema` drift. Focused coverage proof reports `100.00%` line and branch coverage for the file; `make validate-changed`, `pre-commit run --all-files`, `git diff --check`, and commit hooks passed.
+
 ## Implementation Commits
 
 - `ba1eabf3d` - moves BMI route registration to canonical bootstrap, preserves
@@ -78,6 +83,8 @@ Evidence: `docs/review/PR_2016_FIXED_MAPPING.md` keeps merge-readiness gate chec
   failures diagnostic and documenting first-call feature flag caching.
 - `42978e28e` - keeps PR #2016 merge-readiness gate checkboxes unchecked until
   the final merge-readiness pass.
+- `68c1d4d6e` - covers BMI registration guard drift branches reported by
+  Codecov and proves 100% focused coverage for the canonical registrar.
 
 ## Premortem Findings
 
@@ -236,6 +243,16 @@ After dependency-stack rebase onto `220139000`:
 - `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_registration_router_coverage.py tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_bmi_calculate_endpoint.py tests/test_bmi_pro_api.py tests/test_bmi_pro_endpoint_errors.py tests/test_bmi_pro_missing_hip.py tests/test_pro_vip_route_dependency_guard.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_paid_route_guards.py`
 - `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make openapi-check`
 - `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+
+After Codecov patch-coverage remediation `68c1d4d6e`:
+
+- `COVERAGE_FILE=/tmp/pr2016_coverage_bmi_current PYTHONPATH=. VIP_MODULE_ENABLED=true APP_ENV=test ENVIRONMENT=test FEATURE_PREMIUM_NUTRITION=true API_KEY=test_key /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m coverage run --source=app.routers.bmi_registration -m pytest -q tests/test_bmi_registration_router_coverage.py`
+- `COVERAGE_FILE=/tmp/pr2016_coverage_bmi_current /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m coverage report -m app/routers/bmi_registration.py`
+  - Result: `app/routers/bmi_registration.py` `100.00%` line and branch
+    coverage.
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pre-commit run --all-files`
+- `git diff --check`
 
 Current-head CI is pending at mapping creation.
 
