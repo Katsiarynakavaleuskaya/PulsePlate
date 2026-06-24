@@ -197,6 +197,32 @@ Evidence:
 `docs/orchestration/contracts/creative_code_specification.v1.schema.json` and
 `tests/test_creative_code_specification.py::test_reference_bundle_schema_and_validator_are_aligned`.
 
+Post-open bug-hunter pass found two additional actionable PR-surface findings.
+They are fixed in commit `TBD_BUG_FIX_COMMIT` and recorded below. Remaining
+post-open pass sequence:
+`security-auditor -> Codex Security diff scan / finding discovery -> pulseplate-pr-review`.
+
+Disposition: FIXED
+
+Finding: unsafe-authority filtering still accepted common variants such as
+`Open a PR`, `Create a pull request`, `Push the branch`, and
+`Write to the repository`.
+
+Commit: `TBD_BUG_FIX_COMMIT`
+
+Evidence: `scripts/orchestration/creative_code_specification.py` and
+`tests/test_creative_code_specification.py::test_unsafe_variant_text_is_rejected`.
+
+Disposition: FIXED
+
+Finding: source file targets accepted impossible child paths such as
+`core/rag/orchestration.py/child.py`.
+
+Commit: `TBD_BUG_FIX_COMMIT`
+
+Evidence: `scripts/orchestration/creative_code_specification.py` and
+`tests/test_creative_code_specification.py::test_variant_target_paths_cannot_create_children_under_file_surface`.
+
 ## Fixed in Commit Mapping
 
 No pre-open GitHub review-thread URLs existed at PR creation time.

@@ -210,6 +210,19 @@ def test_variant_target_paths_must_stay_inside_source_surface() -> None:
         validate_creative_code_specification_bundle(bundle)
 
 
+def test_variant_target_paths_cannot_create_children_under_file_surface() -> None:
+    bundle = _bundle()
+    variants = bundle["variants"]
+    assert isinstance(variants, list)
+    variant = variants[0]
+    assert isinstance(variant, dict)
+    variant["target_paths"] = ["core/rag/orchestration.py/child.py"]
+    _fingerprint_variant(variant)
+
+    with pytest.raises(CreativeCodeSpecificationError, match="target_paths must stay"):
+        validate_creative_code_specification_bundle(bundle)
+
+
 @pytest.mark.parametrize(
     "unsafe_text",
     [
@@ -219,6 +232,7 @@ def test_variant_target_paths_must_stay_inside_source_surface() -> None:
         "See local path /Users/example/project/.env",
         "This spec will diagnose diabetes.",
         "Open PR, push branch, and write repository after selecting the spec.",
+        "Open a PR, create a pull request, push the branch, and write to the repository.",
     ],
 )
 def test_unsafe_variant_text_is_rejected(unsafe_text: str) -> None:

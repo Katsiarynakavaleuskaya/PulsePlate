@@ -50,7 +50,8 @@ SECRET_RE = re.compile(
 UNSAFE_TEXT_RE = re.compile(
     r"(candidate\.patch|diff --git|^\+\+\+ |^--- |@@ |provider[_ -]?payload|"
     r"raw[_ -]?(prompt|response|context)|chain[_ -]?of[_ -]?thought|"
-    r"open (pull request|PR)|create (pull request|PR)|push branch|write repository|"
+    r"open (a )?(pull request|PR)|create (a )?(pull request|PR)|"
+    r"push (the )?branch|write (to )?the repository|write repository|"
     r"resolve review thread|mark ready for review|merge readiness|"
     r"semantic cache serving|use semantic cache|call model|call network|"
     r"guarantee[s]? (weight loss|health outcome|clinical outcome)|"
@@ -432,9 +433,14 @@ def _normalize_text_list(
 
 
 def _is_within_surface(path: str, target_surface: Sequence[str]) -> bool:
-    return any(
-        path == target or path.startswith(target.rstrip("/") + "/") for target in target_surface
-    )
+    for target in target_surface:
+        if path == target:
+            return True
+        if PurePosixPath(target).suffix:
+            continue
+        if path.startswith(target.rstrip("/") + "/"):
+            return True
+    return False
 
 
 def _variant_fingerprint_payload(variant: Mapping[str, Any]) -> dict[str, Any]:
