@@ -423,6 +423,18 @@ def test_private_index_project_health_rejects_root_netrc_credentials(
         )
 
 
+def test_netrc_basic_auth_header_ignores_empty_hostname(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_called() -> None:
+        raise AssertionError("empty hostname must not read .netrc")
+
+    monkeypatch.setattr(installer.netrc, "netrc", fail_if_called)
+
+    assert installer._netrc_basic_auth_header(None) is None
+    assert installer._netrc_basic_auth_header("") is None
+
+
 @pytest.mark.parametrize(
     ("status", "body", "match"),
     [

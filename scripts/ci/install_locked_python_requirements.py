@@ -949,8 +949,10 @@ def _redact_url_credentials_in_text(value: str) -> str:
     )
 
 
-def _netrc_basic_auth_header(hostname: str) -> str | None:
+def _netrc_basic_auth_header(hostname: str | None) -> str | None:
     """Return a Basic Auth header from the user's netrc for the package host."""
+    if not hostname:
+        return None
     try:
         credentials = netrc.netrc().authenticators(hostname)
     except FileNotFoundError:
