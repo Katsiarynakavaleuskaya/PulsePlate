@@ -124,6 +124,10 @@ dispositioned with evidence.
 - `CodeRabbit CLI`: found incomplete disposition-specific proof in this mapping
   artifact and two `REQUIREMENTS.md` command/source-of-truth consistency issues;
   fixed in `5f2faa440f4aebf01f0192b41e232678b66a9b26`.
+- `pulseplate-pr-review`: dry-run report found one advisory diff-size note
+  because the PR has 302 changed lines. Disposition: NOT-A-BUG; this remains
+  one split dependency lane with scoped lock/doc/test updates and passing
+  targeted gates.
 
 ## Fixed in Commit Mapping
 
@@ -160,6 +164,10 @@ Disposition: FIXED
 Commit: 5f2faa440f4aebf01f0192b41e232678b66a9b26
 Evidence: CodeRabbit minor install-helper consistency finding is fixed by adding explicit `--requirements-file requirements.txt` and `--dev-requirements-file requirements-dev.txt` flags to the common install examples.
 
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` diff-size note is advisory only. The PR is intentionally split to the testing dependency lane, lists Torch/Faraday/RAG/Docker/runtime as out of scope, and has passing focused gates: dependency preflights, focused dependency/security pytest, `make validate-changed`, `pre-commit run --all-files`, and CodeRabbit CLI rerun with 0 issues.
+Reason: Changed-line count is driven by generated lockfile/doc/mapping churn for one dependency lane, not by mixed runtime scope.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -172,6 +180,8 @@ Evidence: CodeRabbit minor install-helper consistency finding is fixed by adding
   `23635b2f4fb2575120d356b952898dc3796cfd41`
 - CodeRabbit mapping and requirements guide follow-up ->
   `5f2faa440f4aebf01f0192b41e232678b66a9b26`
+- `pulseplate-pr-review` dry-run advisory disposition ->
+  `NOT-A-BUG`
 
 ## Deferred / Follow-ups
 
@@ -193,8 +203,11 @@ Not merge-ready at artifact creation time.
   findings are fixed above.
 - Codex Security diff scan/finding discovery completed against head
   `4be4fc1edebd9cdbf5fbafe2cf434fc8384a862c` with 0 findings.
-  Fresh current-head Codex Security parity and `pulseplate-pr-review` are still
-  required if the branch head advances before readiness.
+  Fresh current-head Codex Security parity is still required if the branch head
+  advances before readiness.
+- `pulseplate-pr-review` dry-run completed against head
+  `71828a460bf30e9732e1eae8746a2c1411840138`; its only advisory finding is
+  dispositioned as NOT-A-BUG above.
 - CodeRabbit, Sourcery, Cubic, bot actionables, review-thread disposition,
   current-head CI, diff coverage, and strict
   `check_merge_ready.py --require-auth` must pass before any readiness or merge
