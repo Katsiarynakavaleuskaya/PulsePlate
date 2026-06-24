@@ -2303,6 +2303,71 @@ def test_install_from_proxy_with_emergency_fallback_accepts_pip26_no_candidate_s
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
 
 
+def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_as_network(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pyopenssl==26.0.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-24",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pyopenssl",
+                        "version": "26.0.0",
+                        "filename": "pyOpenSSL-26.0.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pyOpenSSL-26.0.0.whl",
+                        "sha256": "c" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_find_links: list[Path | None] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if find_links_dir is None:
+            raise _pip26_no_candidate_runtimeerror_like_run_command("pyopenssl", "26.0.0")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "pyopenssl"
+        assert trusted_host is None
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["pyopenssl"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / "pyOpenSSL-26.0.0-py3-none-any.whl"]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
 def test_install_from_proxy_with_emergency_fallback_continues_for_second_requested_miss(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
