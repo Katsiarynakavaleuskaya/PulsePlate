@@ -100,24 +100,6 @@ runs:
           password ${DEVPI_CI_PASSWORD}
         EOF
 
-    - name: Preflight dependency floors via approved proxy
-      if: ${{ inputs.skip-base-install != 'true' }}
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      run: |
-        set -euo pipefail
-        : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-        preflight_args=()
-        preflight_args+=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
-        if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-          preflight_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
-        fi
-        python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
-          --python-executable python \
-          --preflight-only \
-          --emergency-wheel-manifest "${{ github.workspace }}/scripts/ci/emergency_python_wheels.json" \
-          "${preflight_args[@]}"
-
     - name: Install base dependencies
       if: ${{ inputs.skip-base-install != 'true' }}
       shell: bash
@@ -218,6 +200,15 @@ runs:
           echo "::error::Expected requirements.txt for locked dependency install"
           exit 1
         fi
+        echo "::group::Preflight dependency floors via approved proxy"
+        python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
+          --python-executable python \
+          --constraints-file "${{ inputs.constraints-file }}" \
+          --install-mode "${{ inputs.install-mode }}" \
+          --emergency-wheel-manifest "${{ github.workspace }}/scripts/ci/emergency_python_wheels.json" \
+          --preflight-only \
+          "${install_args[@]}"
+        echo "::endgroup::"
         python "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" \
           --python-executable python \
           --constraints-file "${{ inputs.constraints-file }}" \

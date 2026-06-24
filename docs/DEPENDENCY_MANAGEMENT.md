@@ -239,14 +239,16 @@ interpreter.
 pip-compile requirements.in --upgrade -o requirements.txt
 
 # Update Docker runtime dependencies
-pip-compile --allow-unsafe --output-file=requirements-docker-runtime.txt requirements-docker-runtime.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-docker-runtime.txt requirements-docker-runtime.in
 
 # Update development dependencies
-pip-compile requirements-dev.in --upgrade -o requirements-dev.txt
+pip-compile --allow-unsafe --no-emit-index-url requirements-dev.in --upgrade -o requirements-dev.txt
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-test.txt requirements-test.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-ci-lite.txt requirements-ci-lite.in
 
 # Update optional vector/ML runtime dependencies
-pip-compile requirements-rag-vector.in --upgrade -o requirements-rag-vector.txt
-pip-compile requirements-rag-vector-cpu.in --upgrade -o requirements-rag-vector-cpu.txt
+pip-compile --allow-unsafe --no-emit-index-url requirements-rag-vector.in --upgrade -o requirements-rag-vector.txt
+pip-compile --allow-unsafe --no-emit-index-url requirements-rag-vector-cpu.in --upgrade -o requirements-rag-vector-cpu.txt
 
 # Recompile local/manual data and eval profiles
 pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-data.txt requirements-data.in

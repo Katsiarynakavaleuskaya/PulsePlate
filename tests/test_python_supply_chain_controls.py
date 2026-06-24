@@ -26,6 +26,7 @@ LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
     ".github/workflows/frontend-ci.yml",
     ".github/workflows/nightly-tests.yml",
     ".github/workflows/nightly.yml",
+    ".github/workflows/rag-release-gates.yml",
     ".github/workflows/security.yml",
 )
 PROXY_WORKFLOW_ENV_PATHS: tuple[str, ...] = LOCKED_INSTALL_WORKFLOW_PATHS + (
@@ -353,6 +354,8 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert "${{ inputs.test-requirements-file }}" in action_text
     assert "${{ inputs.install-mode }}" in action_text
     assert "${{ inputs.skip-base-install != 'true' }}" in action_text
+    assert "--preflight-only" in action_text
+    assert "Preflight dependency floors via approved proxy" in action_text
     assert (
         "::error::requirements-profile cannot be combined with install-dev-deps/install-test-deps"
         in action_text
@@ -824,9 +827,12 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
     )
     install_script = install_step["run"]
     assert "bandit==" not in install_script
-    assert '"safety>=3.8.1"' in install_script
-    assert 'python -m pip install "${pip_index_args[@]}"' in install_script
-    assert "-c constraints.txt" in install_script
+    assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--requirements-file requirements-security.txt" in install_script
+    assert "--constraints-file constraints.txt" in install_script
+    assert "--install-mode direct-proxy" in install_script
+    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
+    assert "python -m pip install" not in install_script
 
 
 def test_constraints_keep_dependency_security_floors_aligned() -> None:
@@ -872,15 +878,31 @@ def test_ci_security_job_installs_safety_through_locked_installer() -> None:
     assert "python -m pip install" not in install_script
 
 
-def test_security_requirements_pin_safety_and_regex_floor() -> None:
+def test_security_requirements_pin_safety_runtime_closure() -> None:
     requirements_text = (REPO_ROOT / "requirements-security.txt").read_text(encoding="utf-8")
     emergency_manifest = json.loads(
         (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
     )
 
-    assert "safety==3.8.1" in requirements_text
-    assert "pyyaml==6.0.3" in requirements_text
-    assert "regex==2026.5.9" in requirements_text
+    expected_pins = {
+        "authlib==1.7.2",
+        "dparse==0.6.4",
+        "joblib==1.5.3",
+        "joserfc==1.7.1",
+        "marshmallow==4.3.0",
+        "nltk==3.9.4",
+        "pyyaml==6.0.3",
+        "regex==2026.5.9",
+        "ruamel-yaml==0.19.1",
+        "safety==3.8.1",
+        "safety-schemas==0.0.16",
+        "shellingham==1.5.4",
+        "tomlkit==0.15.0",
+        "truststore==0.10.4",
+        "typer==0.25.1",
+    }
+    for expected_pin in expected_pins:
+        assert expected_pin in requirements_text
     assert any(
         artifact.get("package") == "regex"
         and artifact.get("version") == "2026.5.9"
@@ -970,6 +992,31 @@ def test_frontend_ci_workflow_uses_ci_lite_python_setup() -> None:
             assert expected_path in event_paths
 
 
+@pytest.mark.parametrize(
+    "job_name, step_name",
+    (
+        ("rag-release-gates-smoke", "Install CI-lite dependencies for smoke lane"),
+        ("rag-release-gates-weekly", "Install CI-lite dependencies for strict import path"),
+    ),
+)
+def test_rag_release_gates_use_locked_ci_lite_installer(job_name: str, step_name: str) -> None:
+    install_step = _workflow_step_by_name(
+        ".github/workflows/rag-release-gates.yml",
+        job_name,
+        step_name,
+    )
+    install_script = install_step["run"]
+
+    assert APPROVED_PROXY_ENV_EXPRESSION in (
+        REPO_ROOT / ".github" / "workflows" / "rag-release-gates.yml"
+    ).read_text(encoding="utf-8")
+    assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--requirements-profile ci-lite" in install_script
+    assert "--install-mode direct-proxy" in install_script
+    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
+    assert "python3 -m pip install" not in install_script
+
+
 def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> None:
     build_step = _workflow_step_by_name(
         ".github/workflows/frontend-ci.yml",
@@ -994,10 +1041,11 @@ def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> 
 def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     requirements_test = (REPO_ROOT / "requirements-test.txt").read_text(encoding="utf-8")
 
-    assert "pytest==9.1.0" in requirements_test
+    assert "pytest==9.1.1" in requirements_test
     assert "pytest-cov==7.1.0" in requirements_test
     assert "pytest-xdist==3.8.0" in requirements_test
-    assert "coverage[toml]==7.14.1" in requirements_test
+    assert "hypothesis==6.155.7" in requirements_test
+    assert "coverage[toml]==7.14.3" in requirements_test
     assert "pgvector==" in requirements_test
     assert "bandit==" not in requirements_test
     assert "pre-commit==" not in requirements_test
