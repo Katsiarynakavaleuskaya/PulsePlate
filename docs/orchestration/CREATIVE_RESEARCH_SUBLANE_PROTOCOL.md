@@ -281,6 +281,19 @@ If a promoted result is intended to seed future code implementation candidates, 
 
 That handoff is specification-only. It does not authorize model calls, candidate patches, shared worktree writes, branch or PR creation, ready-for-review, review-thread resolution, merge, release, public multi-tenant use, Slack/GitHub authority expansion, or scientific-discovery overclaims.
 
+When that PR-0 packet is admitted into the PR-1 control plane, the next artifact
+must be a validated `CreativeCodeSpecificationBundle`:
+
+- contract: `docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md`
+- schema: `docs/orchestration/contracts/creative_code_specification.v1.schema.json`
+- reference: `docs/orchestration/contracts/creative_code_specification.v1.json`
+- validator: `python -m scripts.orchestration.creative_code_specification --validate docs/orchestration/contracts/creative_code_specification.v1.json`
+
+The PR-1 bundle is still a human-review specification artifact only. It is not a
+candidate patch, fixed-mapping proof, review-thread disposition proof, merge
+readiness, product runtime truth, provider output, semantic-cache admission, or
+Slack/GitHub authority.
+
 If `current_outcome=defer`, the deferred work must be recorded immediately in `docs/roadmap/BACKLOG_LEDGER.md`.
 
 ---
