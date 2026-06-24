@@ -42,6 +42,8 @@ _FRAMEWORK_METHODS = frozenset({"HEAD", "OPTIONS"})
 
 
 def _format_route_keys(route_keys: set[tuple[str, str]]) -> str:
+    """Format route keys for diagnostic error messages."""
+
     if not route_keys:
         return "none"
     return ", ".join(f"{method} {path}" for path, method in sorted(route_keys))
@@ -70,6 +72,8 @@ def _route_members_for_routers(
     *,
     extra_required_dependencies: tuple[Callable[..., object], ...] = (),
 ) -> tuple[RouteMemberContract, ...]:
+    """Build route-family member contracts from one or more source routers."""
+
     return tuple(
         member
         for router in routers
@@ -87,6 +91,8 @@ def _require_exact_router_family(
     module_name: str,
     specs: tuple[tuple[str, str, bool], ...],
 ) -> APIRouter:
+    """Validate an imported BMI router against its canonical route specs."""
+
     if not isinstance(router, APIRouter) or not router.routes:
         raise RuntimeError(
             f"{family_name} router from {module_name} must be a non-empty APIRouter."
