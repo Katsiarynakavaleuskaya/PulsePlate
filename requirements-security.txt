@@ -1,5 +1,18 @@
 # Security CI tooling pins.
 # Keep Safety install deterministic through the approved private proxy and governed emergency wheel fallback.
+# This file is installed with --no-deps, so Safety runtime dependencies must be listed explicitly.
+authlib==1.7.2
+dparse==0.6.4
+joblib==1.5.3
+joserfc==1.7.1
+marshmallow==4.3.0
+nltk==3.9.4
+ruamel-yaml==0.19.1
 safety==3.8.1
+safety-schemas==0.0.16
+shellingham==1.5.4
+tomlkit==0.15.0
+truststore==0.10.4
+typer==0.25.1
 pyyaml==6.0.3
 regex==2026.5.9

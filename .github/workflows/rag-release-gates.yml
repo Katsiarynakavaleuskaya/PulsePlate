@@ -33,6 +33,10 @@ on:
 permissions:
   contents: read
 
+env:
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+
 jobs:
   rag-release-gates-smoke:
     name: RAG Release Gates Smoke
@@ -52,8 +56,20 @@ jobs:
 
       - name: Install CI-lite dependencies for smoke lane
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-ci-lite.txt
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
+          install_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          python3 scripts/ci/install_locked_python_requirements.py \
+            --python-executable python3 \
+            --requirements-profile ci-lite \
+            --ci-lite-requirements-file requirements-ci-lite.txt \
+            --constraints-file constraints.txt \
+            --install-mode direct-proxy \
+            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
+            "${install_args[@]}"
 
       - name: Run cheap smoke lane
         run: |
@@ -92,8 +108,20 @@ jobs:
 
       - name: Install CI-lite dependencies for strict import path
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-ci-lite.txt
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
+          install_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
+          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
+            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
+          fi
+          python3 scripts/ci/install_locked_python_requirements.py \
+            --python-executable python3 \
+            --requirements-profile ci-lite \
+            --ci-lite-requirements-file requirements-ci-lite.txt \
+            --constraints-file constraints.txt \
+            --install-mode direct-proxy \
+            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
+            "${install_args[@]}"
 
       - name: Run strict weekly/manual lane
         env:
