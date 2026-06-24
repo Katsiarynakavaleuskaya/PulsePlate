@@ -248,10 +248,10 @@ Not merge-ready yet.
 Required before merge:
 
 - [ ] Current-head GitHub CI passes for the pushed head.
-- [x] Post-open role passes completed:
+- [ ] Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [x] Codex Security diff scan/finding discovery run.
-- [x] `pulseplate-pr-review` run; advisory large-diff-risk dispositioned.
+- [ ] Codex Security diff scan/finding discovery run.
+- [ ] `pulseplate-pr-review` run; advisory large-diff-risk dispositioned.
 - [ ] CodeRabbit, Sourcery, Cubic, and human review comments inspected and all
   actionables fixed or dispositioned.
 - [ ] PR body mirrors this fixed-mapping artifact.
