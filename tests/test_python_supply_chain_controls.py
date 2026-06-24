@@ -493,9 +493,12 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
     )
     install_script = install_step["run"]
     assert "bandit==" not in install_script
-    assert '"safety>=3.8.1"' in install_script
-    assert 'python -m pip install "${pip_index_args[@]}"' in install_script
-    assert "-c constraints.txt" in install_script
+    assert "scripts/ci/install_locked_python_requirements.py" in install_script
+    assert "--requirements-file requirements-security.txt" in install_script
+    assert "--constraints-file constraints.txt" in install_script
+    assert "--install-mode direct-proxy" in install_script
+    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
+    assert "python -m pip install" not in install_script
 
 
 def test_constraints_keep_dependency_security_floors_aligned() -> None:
@@ -541,15 +544,31 @@ def test_ci_security_job_installs_safety_through_locked_installer() -> None:
     assert "python -m pip install" not in install_script
 
 
-def test_security_requirements_pin_safety_and_regex_floor() -> None:
+def test_security_requirements_pin_safety_runtime_closure() -> None:
     requirements_text = (REPO_ROOT / "requirements-security.txt").read_text(encoding="utf-8")
     emergency_manifest = json.loads(
         (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
     )
 
-    assert "safety==3.8.1" in requirements_text
-    assert "pyyaml==6.0.3" in requirements_text
-    assert "regex==2026.5.9" in requirements_text
+    expected_pins = {
+        "authlib==1.7.2",
+        "dparse==0.6.4",
+        "joblib==1.5.3",
+        "joserfc==1.7.1",
+        "marshmallow==4.3.0",
+        "nltk==3.9.4",
+        "pyyaml==6.0.3",
+        "regex==2026.5.9",
+        "ruamel-yaml==0.19.1",
+        "safety==3.8.1",
+        "safety-schemas==0.0.16",
+        "shellingham==1.5.4",
+        "tomlkit==0.15.0",
+        "truststore==0.10.4",
+        "typer==0.25.1",
+    }
+    for expected_pin in expected_pins:
+        assert expected_pin in requirements_text
     assert any(
         artifact.get("package") == "regex"
         and artifact.get("version") == "2026.5.9"
