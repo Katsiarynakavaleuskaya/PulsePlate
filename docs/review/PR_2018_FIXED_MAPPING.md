@@ -79,10 +79,10 @@ before any merge-readiness claim.
 
 ## Discussion Thread Pass
 
-- [x] Fixed in commit mapping artifact created.
-- [ ] Discussion-thread pass pending post-open review activity.
-- [ ] Bot actionable pass pending CodeRabbit / Sourcery / Cubic / Codex Security
-  results.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+- No actionable review comments
 
 No actionable review threads existed at PR open. Any post-open bot, human,
 CodeRabbit, Sourcery, Cubic, Codex Security, QA, bug-hunter, security-auditor,
