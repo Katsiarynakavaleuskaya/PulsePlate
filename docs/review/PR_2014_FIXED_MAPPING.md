@@ -26,6 +26,7 @@ iOS/Fastlane dependency surfaces.
 - `6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca` - `docs(deps): align testing requirements guide`
 - `23635b2f4fb2575120d356b952898dc3796cfd41` - `docs(deps): require approved proxy in requirements guide`
 - `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f` - `fix(deps): harden python dependency setup fallback`
+- `0bc60437c08758d098ae59187c1ee841b9b57e8a` - `fix(deps): tighten locked installer guards`
 - Additional current-head CI/setup follow-up commits are listed in
   Implementation Evidence below.
 
@@ -96,6 +97,11 @@ Focused local gates:
 - `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS; selected `tests/test_install_locked_python_requirements.py` and `tests/test_python_supply_chain_controls.py`.
 - `pre-commit run --all-files` - PASS after staging generated `.secrets.baseline` updates from detect-secrets.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push pytest, and full-repo Bandit.
+- `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py::test_effective_constraints_file_keeps_floor_for_marker_qualified_exact_pin tests/test_install_locked_python_requirements.py::test_simple_project_page_has_version_requires_exact_version_boundary tests/test_install_locked_python_requirements.py::test_effective_constraints_file_for_requirement_filters_floor_for_exact_pin tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_proxy_probe_failure tests/test_install_locked_python_requirements.py::test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected` - PASS after CodeRabbit exact-pin/simple-index guard fixes.
+- `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py` - PASS after CodeRabbit exact-pin/simple-index guard fixes.
+- `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS after CodeRabbit exact-pin/simple-index guard fixes; selected `tests/test_install_locked_python_requirements.py` and `tests/test_python_supply_chain_controls.py`.
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS after CodeRabbit exact-pin/simple-index guard fixes.
+- `pre-commit run --all-files` - PASS after CodeRabbit exact-pin/simple-index guard fixes and staged generated `.secrets.baseline` update.
 - Fresh dev/test/ci-lite dependency-floor preflight-only reruns passed after
   `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f`. Exact, time-boxed emergency
   fallback artifacts now bridge approved-proxy read timeouts for covered floor
@@ -205,6 +211,13 @@ dispositioned with evidence.
   `privileged scope exception: approved ...`, and applying the trusted labels
   `scope/operator-approved` and `scope/privileged-approved`. Local
   `check_pr_size_governance.py` with live PR metadata now passes.
+- `CodeRabbit`: found that marker-qualified exact requirement pins were treated
+  as unconditional pins, allowing floor constraints to be stripped on platforms
+  where the marker does not apply; fixed in
+  `0bc60437c08758d098ae59187c1ee841b9b57e8a`.
+- `CodeRabbit`: found that approved-proxy simple-index version checks could
+  match `pip-26.1.10` while checking for `pip==26.1.1`; fixed in
+  `0bc60437c08758d098ae59187c1ee841b9b57e8a`.
 
 ## Fixed in Commit Mapping
 
@@ -302,6 +315,17 @@ Disposition: FIXED
 Commit: b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f
 Evidence: Local dependency preflights exposed approved-proxy read timeouts for exact security floors that already had time-boxed emergency manifest artifacts. `scripts/ci/install_locked_python_requirements.py` now tolerates proxy probe failure only after the exact floor artifact hash-verifies from the manifest; `tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_proxy_probe_failure` covers the narrow fallback, and unlisted floor failures remain fail-closed.
 
+Disposition: FIXED
+Commit: 0bc60437c08758d098ae59187c1ee841b9b57e8a
+Evidence: CodeRabbit marker-qualified exact-pin finding is fixed by excluding marker-qualified requirement lines from unconditional exact-pin floor pruning. `tests/test_install_locked_python_requirements.py::test_effective_constraints_file_keeps_floor_for_marker_qualified_exact_pin` proves the original constraints file is preserved when an exact pin has an environment marker.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#discussion_r3466896786 -> 0bc60437c08758d098ae59187c1ee841b9b57e8a
+
+Disposition: FIXED
+Commit: 0bc60437c08758d098ae59187c1ee841b9b57e8a
+Evidence: CodeRabbit simple-index exact-version finding is fixed by requiring a version boundary after the requested version marker. `tests/test_install_locked_python_requirements.py::test_simple_project_page_has_version_requires_exact_version_boundary` proves `pip-26.1.1` is accepted while `pip-26.1.10` does not satisfy `pip==26.1.1`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#discussion_r3466896795 -> 0bc60437c08758d098ae59187c1ee841b9b57e8a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#pullrequestreview-4561946959 -> 0bc60437c08758d098ae59187c1ee841b9b57e8a
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -337,6 +361,9 @@ Evidence: Local dependency preflights exposed approved-proxy read timeouts for e
 - pydantic-core Docker/setup fallback, shared setup preflight, RAG release
   proxy install hardening, and lockfile header guidance fix ->
   `b7dd2b894c4ec2a758347e1f6b9bd7d4d1b3028f`
+- CodeRabbit marker-qualified exact-pin and simple-index exact-version guard
+  fixes ->
+  `0bc60437c08758d098ae59187c1ee841b9b57e8a`
 - privileged scope exception body/label governance fix ->
   PR metadata update, verified by local `check_pr_size_governance.py` with live
   PR metadata
