@@ -7,6 +7,7 @@ if ! command -v pip-audit >/dev/null 2>&1; then
 fi
 
 readonly PYTORCH_JIT_CVE_ID="CVE-2025-3000"
+overall_status=0
 
 manifests=("requirements.txt")
 if [[ -f "requirements-docker-runtime.txt" ]]; then
@@ -41,7 +42,18 @@ for manifest in "${manifests[@]}"; do
       audit_args+=(--ignore-vuln "${PYTORCH_JIT_CVE_ID}")
       ;;
   esac
-  pip-audit "${audit_args[@]}"
+  if pip-audit "${audit_args[@]}"; then
+    :
+  else
+    audit_status=$?
+    echo "[ci_pip_audit] ERROR: pip-audit failed for ${manifest} (exit ${audit_status})" >&2
+    overall_status="${audit_status}"
+  fi
 done
+
+if [[ "${overall_status}" -ne 0 ]]; then
+  echo "[ci_pip_audit] ERROR: one or more dependency manifests failed audit" >&2
+  exit "${overall_status}"
+fi
 
 echo "[ci_pip_audit] Done" >&2

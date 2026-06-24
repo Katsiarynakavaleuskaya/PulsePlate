@@ -152,9 +152,12 @@ def test_security_audit_helper_path_is_workflow_privileged() -> None:
         ["scripts/ci_pip_audit.sh"],
     )
 
+    assert profile.workflow_privileged is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
     assert profile.backend_shared is True
     assert profile.run_backend_blocking is True
     assert profile.run_security is True
+    assert profile.to_outputs()["workflow_privileged"] == "true"
     assert profile.to_outputs()["backend_shared"] == "true"
     assert profile.to_outputs()["run_security"] == "true"
 
@@ -306,9 +309,12 @@ def test_cpu_rag_manifest_change_routes_backend_and_security(changed_file: str) 
 def test_security_audit_helper_change_routes_backend_and_security() -> None:
     profile = risk_profile.build_risk_profile(["scripts/ci_pip_audit.sh"])
 
+    assert profile.workflow_privileged is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
     assert profile.backend_shared is True
     assert profile.run_backend_blocking is True
     assert profile.run_security is True
+    assert profile.to_outputs()["workflow_privileged"] == "true"
     assert profile.to_outputs()["backend_shared"] == "true"
     assert profile.to_outputs()["run_backend_blocking"] == "true"
     assert profile.to_outputs()["run_security"] == "true"

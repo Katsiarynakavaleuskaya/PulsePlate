@@ -1191,6 +1191,86 @@ fi
     assert (tmp_path / "pip-audit-requirements-evals.json").exists()
 
 
+def test_pip_audit_helper_scans_all_manifests_before_returning_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    log_path = tmp_path / "pip-audit-args.log"
+    fake_pip_audit = fake_bin / "pip-audit"
+    fake_pip_audit.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+manifest=""
+output=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    -r)
+      manifest="$2"
+      shift 2
+      ;;
+    -o)
+      output="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+printf '%s\n' "${manifest}" >> "${PIP_AUDIT_LOG}"
+if [[ "${manifest}" == "requirements.txt" ]]; then
+  exit 7
+fi
+if [[ -n "${output}" ]]; then
+  printf '{}\n' > "${output}"
+fi
+""",
+        encoding="utf-8",
+    )
+    fake_pip_audit.chmod(0o755)
+    for manifest in (
+        "requirements.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-data.txt",
+        "requirements-evals.txt",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
+    ):
+        (tmp_path / manifest).write_text("example==1.0.0\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["CI"] = "1"
+    env["PATH"] = os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin"))
+    env["PIP_AUDIT_LOG"] = str(log_path)
+
+    result = subprocess.run(
+        ["/bin/bash", str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 7
+    assert "requirements.txt" in result.stderr
+    assert "one or more dependency manifests failed audit" in result.stderr
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "requirements.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-data.txt",
+        "requirements-evals.txt",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
+    ]
+    assert (tmp_path / "pip-audit-requirements-docker-runtime.json").exists()
+    assert (tmp_path / "pip-audit-requirements-data.json").exists()
+    assert (tmp_path / "pip-audit-requirements-evals.json").exists()
+    assert (tmp_path / "pip-audit-requirements-rag-vector.json").exists()
+    assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
+
+
 def test_dependency_audit_uses_strict_pip_audit_helper_without_safety_legacy() -> None:
     workflow_paths = (
         ".github/workflows/ci.yml",
