@@ -597,7 +597,7 @@ def _fallback_supported_wheel_tags() -> set[str]:
 def _current_supported_wheel_tags() -> set[str]:
     """Return supported wheel tags without making packaging a hard dependency."""
     try:
-        from packaging import tags as packaging_tags  # type: ignore[import-not-found]
+        from packaging import tags as packaging_tags
     except Exception:  # noqa: BLE001 - installer must run before project deps are installed.
         return _fallback_supported_wheel_tags()
     return {str(tag) for tag in packaging_tags.sys_tags()}
