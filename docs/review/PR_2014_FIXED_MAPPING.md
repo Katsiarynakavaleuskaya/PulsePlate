@@ -134,6 +134,9 @@ dispositioned with evidence.
   conflict while the exact emergency fallback was already listed in
   `scripts/ci/emergency_python_wheels.json`; fixed in
   `95f80caf6d6212f5a4bc738adbe3dd4b31cf5da2`.
+- `CodeRabbit CLI`: final rerun found that the new resolver-miss classifier
+  could scan package names such as `pyopenssl` as network `ssl` markers; fixed
+  in `9401f3ed7dad2801deda2714739b650b8b32d7e9`.
 
 ## Fixed in Commit Mapping
 
@@ -178,6 +181,10 @@ Disposition: FIXED
 Commit: 95f80caf6d6212f5a4bc738adbe3dd4b31cf5da2
 Evidence: Current-head `CI` and `Frontend CI` setup failures are fixed by classifying pip 26's exact no-candidate resolver-conflict message as an approved proxy mirror miss and retrying with the already-governed emergency wheel fallback. Targeted installer tests cover the new message shape and existing direct-proxy fallback behavior.
 
+Disposition: FIXED
+Commit: 9401f3ed7dad2801deda2714739b650b8b32d7e9
+Evidence: CodeRabbit package-name/network false-positive finding is fixed by filtering resolver request lines before checking transport markers. Regression coverage proves `pyopenssl` no longer blocks exact emergency fallback selection while mixed network resolver failures still fail closed.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -194,6 +201,8 @@ Evidence: Current-head `CI` and `Frontend CI` setup failures are fixed by classi
   `NOT-A-BUG`
 - pip 26 direct-proxy emergency fallback classifier ->
   `95f80caf6d6212f5a4bc738adbe3dd4b31cf5da2`
+- CodeRabbit package-name/network false-positive fix ->
+  `9401f3ed7dad2801deda2714739b650b8b32d7e9`
 
 ## Deferred / Follow-ups
 
