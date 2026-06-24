@@ -166,6 +166,14 @@ dispositioned with evidence.
   transient `HTTP 502` responses during floor checks; fixed in
   `a74d5987444bc13f36b6f28404ec418cfc2028b8` by retrying only transient 5xx
   health responses before failing closed on persistent proxy errors.
+- Current-head CI: `CI`, `Frontend CI`, and `OpenAPI sync` setup jobs on head
+  `79bd1f2007ae6e6ebb4c1d3d00e58eea4b9c009d` still failed in shared Python
+  setup after the duplicate floor preflight and during `requirements-ci-lite`
+  direct-proxy install. Fixed in `fe2c923bf8a8a811429fc04e4f9ed218853ebf3e`
+  by removing the duplicate standalone action preflight, keeping
+  `--preflight-only` as an explicit focused gate, hardening private-index
+  health probes, and adding exact `jiter==0.12.0` cp313 manylinux emergency
+  fallback metadata for the observed mirror miss.
 
 ## Fixed in Commit Mapping
 
@@ -239,6 +247,10 @@ Disposition: FIXED
 Commit: a74d5987444bc13f36b6f28404ec418cfc2028b8
 Evidence: Local dev/test/ci-lite dependency preflights returned transient approved-proxy `HTTP 502` responses for simple-index floor pages. The private-index health probe now retries 5xx responses within the existing retry budget, and `tests/test_install_locked_python_requirements.py::test_private_index_project_health_retries_transient_http_5xx` covers the retry/close behavior.
 
+Disposition: FIXED
+Commit: fe2c923bf8a8a811429fc04e4f9ed218853ebf3e
+Evidence: Current-head setup logs for `CI` job `83188391853`, `Frontend CI` job `83188383706`, and `OpenAPI sync` job `83188440400` showed the duplicate standalone action preflight plus direct-proxy install failure for `jiter==0.12.0`. `.github/actions/python-setup/action.yml` now avoids the duplicate `--preflight-only` action step, `scripts/ci/emergency_python_wheels.json` carries the exact SHA-pinned `jiter==0.12.0` cp313 manylinux wheel, `docs/roadmap/BACKLOG_LEDGER.md` tracks the new active fallback, and focused tests cover the action contract, manifest selection, private-index retry, and supply-chain guards.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -269,6 +281,8 @@ Evidence: Local dev/test/ci-lite dependency preflights returned transient approv
   `704e60699697c0dc9c64baf33efb2a14691cd68e`
 - transient private-index 5xx retry fix ->
   `a74d5987444bc13f36b6f28404ec418cfc2028b8`
+- duplicate setup-preflight and jiter emergency fallback fix ->
+  `fe2c923bf8a8a811429fc04e4f9ed218853ebf3e`
 
 ## Deferred / Follow-ups
 
