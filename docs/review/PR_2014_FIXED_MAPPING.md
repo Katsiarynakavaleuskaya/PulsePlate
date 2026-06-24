@@ -83,7 +83,7 @@ Focused local gates:
 - `.venv/bin/python -m pip_audit -r requirements-test.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-ci-lite.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-lock.txt` - PASS; no known vulnerabilities found.
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` - PASS; selected `tests/test_python_supply_chain_controls.py`.
+- `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS; selected `tests/test_python_supply_chain_controls.py`.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push pytest, and full-repo Bandit.
 
