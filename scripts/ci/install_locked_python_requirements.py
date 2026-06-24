@@ -60,6 +60,7 @@ REQUIREMENTS_PROFILES: tuple[str, ...] = (
 )
 PIP_NETWORK_RETRIES = 5
 PIP_NETWORK_TIMEOUT_SECONDS = 60
+PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS = 15
 DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
 DOCKER_PIP_LAYER_CACHE_ENV = "PULSEPLATE_DOCKER_PIP_LAYER_CACHE"
 
@@ -1042,7 +1043,7 @@ def _read_private_index_project_page(
             conn = http.client.HTTPConnection(
                 parsed.hostname,
                 port=parsed.port,
-                timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
             )
         elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
             # fmt: off
@@ -1051,14 +1052,14 @@ def _read_private_index_project_page(
             conn = http.client.HTTPSConnection(
                 parsed.hostname,
                 port=parsed.port,
-                timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
                 context=trusted_context,
             )
         else:
             conn = http.client.HTTPSConnection(
                 parsed.hostname,
                 port=parsed.port,
-                timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
             )
         try:
             conn.request("GET", path, headers=headers)

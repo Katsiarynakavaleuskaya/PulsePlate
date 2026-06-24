@@ -202,7 +202,7 @@ def test_private_index_project_health_honors_matching_trusted_host(
             context: object | None = None,
         ) -> None:
             assert port is None
-            assert timeout == installer.PIP_NETWORK_TIMEOUT_SECONDS
+            assert timeout == installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
             observed_contexts.append(context)
 
         def request(
@@ -266,7 +266,9 @@ def test_private_index_project_health_supports_approved_http_proxy(
         trusted_host=None,
     )
 
-    assert observed == [("packages.example.internal", None, installer.PIP_NETWORK_TIMEOUT_SECONDS)]
+    assert observed == [
+        ("packages.example.internal", None, installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS)
+    ]
 
 
 def test_private_index_project_health_retries_transient_probe_error(
@@ -285,7 +287,7 @@ def test_private_index_project_health_retries_transient_probe_error(
             context: object | None = None,
         ) -> None:
             assert port is None
-            assert timeout == installer.PIP_NETWORK_TIMEOUT_SECONDS
+            assert timeout == installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
             assert context is None
 
         def request(
@@ -2791,7 +2793,11 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     assert "--index-url" not in observed_commands[1]
     assert observed_commands[1][-1] == "pip>=26.0,<27.0"
     assert observed_index_health_urls == [
-        ("packages.example.internal", "/simple/pip/", installer.PIP_NETWORK_TIMEOUT_SECONDS)
+        (
+            "packages.example.internal",
+            "/simple/pip/",
+            installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
+        )
     ]
     assert observed_downloads == [
         (
