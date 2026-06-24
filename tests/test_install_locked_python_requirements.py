@@ -28,6 +28,19 @@ IDNA_DEPENDABOT_ALERT_REQUIREMENT_FILES = (
 )
 RAG_VECTOR_EXPECTED_SENTENCE_TRANSFORMERS_VERSION = "5.6.0"
 RAG_VECTOR_EXPECTED_TRANSFORMERS_VERSION = "5.12.1"
+MAIN_PREFLIGHT_TESTS = {
+    "test_main_preflight_only_skips_requirements_file_resolution",
+}
+
+
+@pytest.fixture(autouse=True)
+def _stub_dependency_floor_preflight_for_main_tests(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    """Keep main-flow tests deterministic; dedicated tests cover floor preflight."""
+    if request.node.name.startswith("test_main_") and request.node.name not in MAIN_PREFLIGHT_TESTS:
+        monkeypatch.setattr(installer, "run_dependency_floor_preflight", lambda **_kwargs: None)
 
 
 def _repo_emergency_manifest_path() -> Path:
@@ -138,22 +151,6 @@ def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> 
     )
 
 
-def _mixed_network_resolver_miss_runtimeerror_like_run_command(
-    package: str,
-    version: str,
-) -> RuntimeError:
-    """Shape like pip after a partial private-proxy timeout plus resolver miss."""
-    requirement = f"{package}=={version}"
-    return RuntimeError(
-        "Command failed: python -m pip install stub: exit 1\n"
-        "WARNING: Retrying after connection broken by "
-        "'ReadTimeoutError(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
-        "port=443): Read timed out. (read timeout=60.0)\")'\n"
-        f"ERROR: Could not find a version that satisfies the requirement {requirement}\n"
-        f"ERROR: No matching distribution found for {requirement}"
-    )
-
-
 class _FakeSimpleIndexResponse:
     def __init__(
         self,
@@ -176,8 +173,28 @@ class _FakeSimpleIndexResponse:
     def status(self) -> int:
         return self._status
 
-    def read(self) -> bytes:
-        return self._body
+    def read(self, size: int | None = None) -> bytes:
+        if size is None:
+            return self._body
+        return self._body[:size]
+
+
+def test_simple_project_page_has_version_requires_exact_version_boundary() -> None:
+    assert installer._simple_project_page_has_version(
+        package="pip",
+        version="26.1.1",
+        body=b'<a href="pip-26.1.1-py3-none-any.whl">pip</a>',
+    )
+    assert installer._simple_project_page_has_version(
+        package="pydantic-core",
+        version="2.41.5",
+        body=b'<a href="pydantic_core-2.41.5-cp313-cp313-manylinux.whl">pydantic</a>',
+    )
+    assert not installer._simple_project_page_has_version(
+        package="pip",
+        version="26.1.1",
+        body=b'<a href="pip-26.1.10-py3-none-any.whl">pip</a>',
+    )
 
 
 def _allow_private_index_project_health(
@@ -233,7 +250,7 @@ def test_private_index_project_health_honors_matching_trusted_host(
             context: object | None = None,
         ) -> None:
             assert port is None
-            assert timeout == installer.PIP_NETWORK_TIMEOUT_SECONDS
+            assert timeout == installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
             observed_contexts.append(context)
 
         def request(
@@ -297,7 +314,152 @@ def test_private_index_project_health_supports_approved_http_proxy(
         trusted_host=None,
     )
 
-    assert observed == [("packages.example.internal", None, installer.PIP_NETWORK_TIMEOUT_SECONDS)]
+    assert observed == [
+        ("packages.example.internal", None, installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS)
+    ]
+
+
+def test_private_index_project_health_reads_bounded_project_page_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_read_sizes: list[int | None] = []
+
+    class FakeResponse:
+        status = 200
+
+        def read(self, size: int | None = None) -> bytes:
+            observed_read_sizes.append(size)
+            body = b'<html><a href="pip-26.1.1-py3-none-any.whl">pip</a></html>'
+            return body + (b"x" * installer.PRIVATE_INDEX_PROJECT_PAGE_BYTES)
+
+    class FakeHTTPSConnection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> FakeResponse:
+            return FakeResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert observed_read_sizes == [installer.PRIVATE_INDEX_PROJECT_PAGE_BYTES]
+
+
+def test_private_index_project_health_retries_transient_probe_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = {"count": 0}
+    closes = {"count": 0}
+    observed_sleeps: list[float] = []
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            _host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert port is None
+            assert timeout == installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
+            assert context is None
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise TimeoutError("read operation timed out")
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            closes["count"] += 1
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+    monkeypatch.setattr(installer.time, "sleep", lambda seconds: observed_sleeps.append(seconds))
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert attempts["count"] == 2
+    assert closes["count"] == 2
+    assert observed_sleeps == [1.0]
+
+
+def test_private_index_project_health_retries_transient_http_5xx(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = {"count": 0}
+    closes = {"count": 0}
+    observed_sleeps: list[float] = []
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            _host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert port is None
+            assert timeout == installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
+            assert context is None
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                return _FakeSimpleIndexResponse(status=502, body=b"bad gateway")
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            closes["count"] += 1
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+    monkeypatch.setattr(installer.time, "sleep", lambda seconds: observed_sleeps.append(seconds))
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert attempts["count"] == 2
+    assert closes["count"] == 2
+    assert observed_sleeps == [1.0]
 
 
 @pytest.mark.parametrize(
@@ -384,6 +546,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "jiter",
         "pillow",
         "protobuf",
+        "pydantic-core",
         "python-multipart",
         "requests",
         "wrapt",
@@ -413,7 +576,6 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
         )
     }
     hotfix_artifacts = {
-        _single_active_manifest_artifact("jiter")["filename"],
         _single_active_manifest_artifact("protobuf")["filename"],
         _single_active_manifest_artifact("wrapt")["filename"],
     }
@@ -527,24 +689,28 @@ def test_stage_emergency_artifacts_skips_incompatible_parseable_wheels(
     assert observed_downloads == [compatible_filename]
 
 
-def test_verify_emergency_artifact_for_floor_requires_compatible_wheel_tags(
+def test_emergency_artifact_filter_dedupes_exact_filename_digest_and_rejects_conflict(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    requirements = tmp_path / "requirements-ci-lite.txt"
+    requirements.write_text("jiter==0.12.0\n", encoding="utf-8")
     manifest = tmp_path / "emergency.json"
+    filename = "jiter-0.12.0-cp313-cp313-manylinux2014_x86_64.whl"
+    base_artifact = {
+        "package": "jiter",
+        "version": "0.12.0",
+        "filename": filename,
+        "url": "https://files.pythonhosted.org/packages/example/jiter-cp313.whl",
+    }
     manifest.write_text(
         json.dumps(
             {
                 "schema_version": 1,
                 "expires_at": "2099-12-31",
                 "artifacts": [
-                    {
-                        "package": "jiter",
-                        "version": "0.12.0",
-                        "filename": "jiter-0.12.0-cp312-cp312-manylinux2014_x86_64.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp312.whl",
-                        "sha256": "a" * 64,
-                    }
+                    {**base_artifact, "sha256_parts": ["a" * 32, "b" * 32]},
+                    {**base_artifact, "sha256": "a" * 32 + "b" * 32},
                 ],
             }
         ),
@@ -555,20 +721,37 @@ def test_verify_emergency_artifact_for_floor_requires_compatible_wheel_tags(
         "_current_supported_wheel_tags",
         lambda: {"cp313-cp313-manylinux2014_x86_64"},
     )
-    monkeypatch.setattr(
-        installer,
-        "_download_with_sha256",
-        lambda **_kwargs: pytest.fail("incompatible emergency artifact was downloaded"),
+
+    artifacts = installer.emergency_artifacts_requested_by_surfaces(
+        requirement_files=[requirements],
+        constraints_file=None,
+        manifest_path=manifest,
     )
 
-    assert (
-        installer.verify_emergency_artifact_for_floor(
-            manifest_path=manifest,
-            package="jiter",
-            version="0.12.0",
-        )
-        is False
+    assert [artifact["filename"] for artifact in artifacts] == [filename]
+
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {**base_artifact, "sha256": "a" * 64},
+                    {**base_artifact, "sha256": "b" * 64},
+                ],
+            }
+        ),
+        encoding="utf-8",
     )
+
+    with pytest.raises(
+        RuntimeError, match=f"Conflicting emergency artifact digests for {filename}"
+    ):
+        installer.emergency_artifacts_requested_by_surfaces(
+            requirement_files=[requirements],
+            constraints_file=None,
+            manifest_path=manifest,
+        )
 
 
 def test_repo_idna_security_floor_matches_dependabot_alert_surfaces() -> None:
@@ -671,6 +854,33 @@ def test_repo_dev_quality_emergency_wheels_are_selected_from_active_manifest(
     )
     assert not any(filename.startswith("black-") for _url, filename, _sha256 in observed_downloads)
     assert not any(filename.startswith("ruff-") for _url, filename, _sha256 in observed_downloads)
+
+
+def _assert_uses_effective_constraints(command: list[str]) -> None:
+    assert "--constraint" in command
+    constraint_path = Path(command[command.index("--constraint") + 1])
+    assert constraint_path != installer.DEFAULT_CONSTRAINTS_FILE
+    assert constraint_path.parent == installer.DEFAULT_CONSTRAINTS_FILE.parent
+    assert constraint_path.name.startswith(".constraints.effective-")
+    assert constraint_path.suffix == installer.DEFAULT_CONSTRAINTS_FILE.suffix
+
+
+def _pip26_no_candidate_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
+    """Shape like pip 26 when a private index lacks the exact requested artifact."""
+    requirement = f"{package}=={version}"
+    return RuntimeError(
+        "Command failed: python -m pip install stub: exit 1\n"
+        f"ERROR: Cannot install {requirement} because these package versions have "
+        "conflicting dependencies.\n"
+        "ERROR: ResolutionImpossible: for help visit "
+        "https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts\n"
+        "The conflict is caused by:\n"
+        f"    The user requested {requirement}\n"
+        f"    The user requested (constraint) {package}>={version}\n"
+        "Additionally, some packages in these conflicts have no matching distributions "
+        "available for your environment:\n"
+        f"    {package}\n"
+    )
 
 
 def test_repo_transformers_emergency_fallback_is_retired_after_proxy_sync() -> None:
@@ -1113,77 +1323,6 @@ def test_build_pip_download_command_uses_constraint_when_present(tmp_path: Path)
     assert "--constraint" in command
 
 
-def test_effective_pip_network_settings_default_to_policy_constants(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, raising=False)
-    monkeypatch.delenv(installer.PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR, raising=False)
-
-    assert installer.effective_pip_network_retries() == installer.PIP_NETWORK_RETRIES
-    assert (
-        installer.effective_pip_network_timeout_seconds() == installer.PIP_NETWORK_TIMEOUT_SECONDS
-    )
-
-
-def test_build_pip_download_command_uses_bounded_network_env(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    monkeypatch.setenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, "2")
-    monkeypatch.setenv(installer.PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR, "7")
-
-    command = installer.build_pip_download_command(
-        python_executable="python",
-        requirement_file=tmp_path / "requirements.txt",
-        wheelhouse_dir=tmp_path / "wheelhouse",
-        constraints_file=None,
-        index_url=APPROVED_PROXY_URL,
-        trusted_host=None,
-    )
-
-    download_idx = command.index("download")
-    assert command[download_idx + 1 : download_idx + 5] == [
-        "--retries",
-        "2",
-        "--timeout",
-        "7",
-    ]
-
-
-def test_effective_pip_network_settings_reject_invalid_env(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, "0")
-
-    with pytest.raises(ValueError, match=installer.PIP_NETWORK_RETRIES_ENV_VAR):
-        installer.effective_pip_network_retries()
-
-    monkeypatch.setenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, "1")
-    monkeypatch.setenv(installer.PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR, "4")
-
-    with pytest.raises(ValueError, match=installer.PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR):
-        installer.effective_pip_network_timeout_seconds()
-
-
-def test_main_reports_invalid_pip_network_env_cleanly(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, "0")
-    monkeypatch.setattr(
-        installer,
-        "load_dependency_security_floors",
-        lambda: {"jiter": "0.12.0"},
-    )
-
-    result = installer.main(["--index-url", APPROVED_PROXY_URL, "--preflight-only"])
-
-    assert result == 1
-    output = capsys.readouterr().out
-    assert "ERROR: locked install failed" in output
-    assert installer.PIP_NETWORK_RETRIES_ENV_VAR in output
-
-
 def test_build_pip_install_command_is_hermetic(tmp_path: Path) -> None:
     command = installer.build_pip_install_command(
         python_executable="python",
@@ -1215,6 +1354,44 @@ def test_effective_constraints_file_for_requirement_filters_duplicate_exact_pin(
         assert effective_constraints is not None
         assert effective_constraints != constraints
         assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+
+
+def test_effective_constraints_file_for_requirement_filters_floor_for_exact_pin(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text(
+        "openai>=2.8.1\nhttpx>=0.28.1\n",
+        encoding="utf-8",
+    )
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints is not None
+        assert effective_constraints != constraints
+        assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+
+
+def test_effective_constraints_file_keeps_floor_for_marker_qualified_exact_pin(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text('uvloop==0.20.0 ; sys_platform != "win32"\n', encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text(
+        "uvloop>=0.20.0\nhttpx>=0.28.1\n",
+        encoding="utf-8",
+    )
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints == constraints
 
 
 def test_effective_constraints_file_for_requirement_keeps_relative_includes_resolvable(
@@ -1261,6 +1438,33 @@ def test_install_from_proxy_omits_duplicate_exact_constraint_for_same_requiremen
     requirements.write_text("pillow==12.2.0\n", encoding="utf-8")
     constraints = tmp_path / "constraints.txt"
     constraints.write_text("pillow==12.2.0\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+
+    installer.install_from_proxy(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host="packages.example.internal",
+    )
+
+    assert len(observed_commands) == 1
+    assert "--constraint" not in observed_commands[0]
+
+
+def test_install_from_proxy_omits_redundant_floor_constraint_for_exact_pin(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("openai==2.29.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("openai>=2.8.1\n", encoding="utf-8")
     observed_commands: list[list[str]] = []
 
     def fake_run_command(command: list[str]) -> None:
@@ -1382,13 +1586,14 @@ def test_build_pip_proxy_install_command_uses_approved_proxy_without_cache(
 
     assert command[:4] == ["python", "-m", "pip", "install"]
     install_idx = command.index("install")
-    assert command[install_idx + 1 : install_idx + 5] == [
+    assert command[install_idx + 1 : install_idx + 6] == [
         "--no-cache-dir",
+        "--no-deps",
         "--retries",
         str(installer.PIP_NETWORK_RETRIES),
         "--timeout",
     ]
-    assert command[install_idx + 5] == str(installer.PIP_NETWORK_TIMEOUT_SECONDS)
+    assert command[install_idx + 6] == str(installer.PIP_NETWORK_TIMEOUT_SECONDS)
     assert "--only-binary" in command
     assert ":all:" in command
     assert "--index-url" in command
@@ -1414,7 +1619,8 @@ def test_build_pip_proxy_install_command_omits_no_cache_dir_when_cache_allowed(
 
     assert "--no-cache-dir" not in command
     install_idx = command.index("install")
-    assert command[install_idx + 1 : install_idx + 5] == [
+    assert command[install_idx + 1 : install_idx + 6] == [
+        "--no-deps",
         "--retries",
         str(installer.PIP_NETWORK_RETRIES),
         "--timeout",
@@ -1813,6 +2019,50 @@ def test_verify_emergency_artifact_for_floor_accepts_split_sha256_parts(
             "a" * 32 + "b" * 32,
         )
     ]
+
+
+def test_verify_emergency_artifact_for_floor_requires_compatible_wheel_tags(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "jiter",
+                        "version": "0.12.0",
+                        "filename": "jiter-0.12.0-cp312-cp312-manylinux2014_x86_64.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp312.whl",
+                        "sha256": "a" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        installer,
+        "_current_supported_wheel_tags",
+        lambda: {"cp313-cp313-manylinux2014_x86_64"},
+    )
+    monkeypatch.setattr(
+        installer,
+        "_download_with_sha256",
+        lambda **_kwargs: pytest.fail("incompatible emergency artifact was downloaded"),
+    )
+
+    assert (
+        installer.verify_emergency_artifact_for_floor(
+            manifest_path=manifest,
+            package="jiter",
+            version="0.12.0",
+        )
+        is False
+    )
 
 
 def test_load_emergency_wheel_manifest_mentions_split_sha256_contract(tmp_path: Path) -> None:
@@ -2322,82 +2572,6 @@ def test_build_wheelhouse_with_emergency_fallback_continues_for_second_requested
     assert build_attempts["count"] == 3
 
 
-def test_build_wheelhouse_with_emergency_fallback_allows_partial_proxy_resolver_miss(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    requirements = tmp_path / "requirements.txt"
-    requirements.write_text("jiter==0.12.0\n", encoding="utf-8")
-    manifest = tmp_path / "emergency.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "generated_at": "2026-06-24",
-                "expires_at": "2099-12-31",
-                "artifacts": [
-                    {
-                        "package": "jiter",
-                        "version": "0.12.0",
-                        "filename": "jiter-0.12.0-cp313-cp313-manylinux2014_x86_64.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl",
-                        "sha256": "b" * 64,
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    build_attempts = {"count": 0}
-    observed_wheelhouses: list[Path] = []
-    health_packages: list[str] = []
-    staged_packages: list[list[str]] = []
-
-    def fake_build_wheelhouse(**kwargs: object) -> None:
-        build_attempts["count"] += 1
-        observed_wheelhouses.append(Path(kwargs["wheelhouse_dir"]))
-        if build_attempts["count"] == 1:
-            raise _mixed_network_resolver_miss_runtimeerror_like_run_command("jiter", "0.12.0")
-
-    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        assert index_url == APPROVED_PROXY_URL
-        assert trusted_host is None
-        health_packages.append(package)
-
-    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
-        packages = [artifact["package"] for artifact in kwargs["artifacts"]]
-        staged_packages.append(packages)
-        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
-        destination = wheelhouse_dir / "jiter-0.12.0-cp313-cp313-manylinux2014_x86_64.whl"
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(b"wheel-bytes")
-        return [destination]
-
-    monkeypatch.setattr(
-        installer,
-        "_current_supported_wheel_tags",
-        lambda: {"cp313-cp313-manylinux2014_x86_64"},
-    )
-    monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
-    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
-
-    installer.build_wheelhouse_with_emergency_fallback(
-        python_executable="python",
-        requirement_files=[requirements],
-        constraints_file=None,
-        wheelhouse_dir=tmp_path / "wheelhouse",
-        index_url=APPROVED_PROXY_URL,
-        trusted_host=None,
-        emergency_wheel_manifest=manifest,
-    )
-
-    assert observed_wheelhouses == [tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
-    assert health_packages == ["pip"]
-    assert staged_packages == [["jiter"]]
-    assert build_attempts["count"] == 2
-
-
 def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_after_proxy_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -2425,6 +2599,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         encoding="utf-8",
     )
     observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
 
     def fake_install_from_proxy(**kwargs: object) -> None:
         find_links_dir = kwargs["find_links_dir"]
@@ -2448,7 +2623,6 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
     monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
     monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
-    monkeypatch.setattr(installer, "_current_supported_wheel_tags", _ci_linux_cp313_tags)
 
     installer.install_from_proxy_with_emergency_fallback(
         python_executable="python",
@@ -2522,7 +2696,6 @@ def test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolv
     monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
     monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
-    monkeypatch.setattr(installer, "_current_supported_wheel_tags", _ci_linux_cp313_tags)
 
     installer.install_from_proxy_with_emergency_fallback(
         python_executable="python",
@@ -2535,6 +2708,141 @@ def test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolv
     )
 
     assert health_packages == ["requests"]
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_accepts_pip26_no_candidate_shape(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-24",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "aiosqlite",
+                        "version": "0.22.1",
+                        "filename": "aiosqlite-0.22.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/aiosqlite-0.22.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if find_links_dir is None:
+            raise _pip26_no_candidate_runtimeerror_like_run_command("aiosqlite", "0.22.1")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["aiosqlite"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / "aiosqlite-0.22.1-py3-none-any.whl"]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["aiosqlite"]
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_as_network(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("pyopenssl==26.0.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-24",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pyopenssl",
+                        "version": "26.0.0",
+                        "filename": "pyOpenSSL-26.0.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pyOpenSSL-26.0.0.whl",
+                        "sha256": "c" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if find_links_dir is None:
+            raise _pip26_no_candidate_runtimeerror_like_run_command("pyopenssl", "26.0.0")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "pyopenssl"
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["pyopenssl"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / "pyOpenSSL-26.0.0-py3-none-any.whl"]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["pyopenssl"]
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
 
 
@@ -2681,80 +2989,7 @@ def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
     assert install_attempts["count"] == 3
 
 
-def test_install_from_proxy_with_emergency_fallback_allows_partial_proxy_resolver_miss(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    requirements = tmp_path / "requirements.txt"
-    requirements.write_text("jiter==0.12.0\n", encoding="utf-8")
-    manifest = tmp_path / "emergency.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "generated_at": "2026-06-24",
-                "expires_at": "2099-12-31",
-                "artifacts": [
-                    {
-                        "package": "jiter",
-                        "version": "0.12.0",
-                        "filename": "jiter-0.12.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl",
-                        "sha256": "b" * 64,
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    install_attempts = {"count": 0}
-    observed_find_links: list[Path | None] = []
-    health_packages: list[str] = []
-
-    def fail_once_then_succeed(**kwargs: object) -> None:
-        install_attempts["count"] += 1
-        find_links_dir = kwargs["find_links_dir"]
-        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
-        if install_attempts["count"] == 1:
-            raise _mixed_network_resolver_miss_runtimeerror_like_run_command("jiter", "0.12.0")
-
-    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        assert index_url == APPROVED_PROXY_URL
-        assert trusted_host is None
-        health_packages.append(package)
-
-    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
-        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["jiter"]
-        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
-        destination = (
-            wheelhouse_dir
-            / "jiter-0.12.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
-        )
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(b"wheel-bytes")
-        return [destination]
-
-    monkeypatch.setattr(installer, "install_from_proxy", fail_once_then_succeed)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
-    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
-    monkeypatch.setattr(installer, "_current_supported_wheel_tags", _ci_linux_cp313_tags)
-
-    installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
-        requirement_files=[requirements],
-        constraints_file=None,
-        index_url=APPROVED_PROXY_URL,
-        trusted_host=None,
-        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
-        emergency_wheel_manifest=manifest,
-    )
-
-    assert health_packages == ["pip"]
-    assert observed_find_links == [None, tmp_path / "wheelhouse"]
-    assert install_attempts["count"] == 2
-
-
-def test_install_from_proxy_with_emergency_fallback_rejects_mixed_failure_when_anchor_fails(
+def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolver_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -2784,23 +3019,21 @@ def test_install_from_proxy_with_emergency_fallback_rejects_mixed_failure_when_a
 
     def fail_mixed_network_resolver(**kwargs: object) -> None:
         assert kwargs["find_links_dir"] is None
-        raise _mixed_network_resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
-
-    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        assert index_url == APPROVED_PROXY_URL
-        assert package == "pip"
-        assert trusted_host is None
-        raise RuntimeError("approved proxy anchor health failed")
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "WARNING: Retrying after Cloudflare 521 connection timed out\n"
+            "ERROR: Could not find a version that satisfies the requirement requests==2.33.0\n"
+            "ERROR: No matching distribution found for requests==2.33.0"
+        )
 
     def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
         stage_calls["count"] += 1
         return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
 
     monkeypatch.setattr(installer, "install_from_proxy", fail_mixed_network_resolver)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
-    with pytest.raises(RuntimeError, match="approved proxy anchor health failed"):
+    with pytest.raises(RuntimeError, match="Cloudflare 521"):
         installer.install_from_proxy_with_emergency_fallback(
             python_executable="python",
             requirement_files=[requirements],
@@ -2925,7 +3158,11 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     assert "--index-url" not in observed_commands[1]
     assert observed_commands[1][-1] == "pip>=26.0,<27.0"
     assert observed_index_health_urls == [
-        ("packages.example.internal", "/simple/pip/", installer.PIP_NETWORK_TIMEOUT_SECONDS)
+        (
+            "packages.example.internal",
+            "/simple/pip/",
+            installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
+        )
     ]
     assert observed_downloads == [
         (
@@ -3365,24 +3602,21 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
     assert str(requirements) in download_command
     assert "--index-url" in download_command
     assert APPROVED_PROXY_URL in download_command
-    assert "--constraint" in download_command
-    assert str(installer.DEFAULT_CONSTRAINTS_FILE) in download_command
+    _assert_uses_effective_constraints(download_command)
 
     staging_install_command = observed_commands[1]
     assert staging_install_command[:4] == ["staging-python", "-m", "pip", "install"]
     assert "--no-index" in staging_install_command
     assert "--find-links" in staging_install_command
     assert str(wheelhouse_dir) in staging_install_command
-    assert "--constraint" in staging_install_command
-    assert str(installer.DEFAULT_CONSTRAINTS_FILE) in staging_install_command
+    _assert_uses_effective_constraints(staging_install_command)
 
     install_command = observed_commands[2]
     assert install_command[:4] == ["python", "-m", "pip", "install"]
     assert "--no-index" in install_command
     assert "--find-links" in install_command
     assert str(wheelhouse_dir) in install_command
-    assert "--constraint" in install_command
-    assert str(installer.DEFAULT_CONSTRAINTS_FILE) in install_command
+    _assert_uses_effective_constraints(install_command)
     assert observed_guard_python == ["staging-python"]
 
 
@@ -3658,15 +3892,16 @@ def test_main_runs_direct_proxy_install_and_static_guard(
     staging_install_command = observed_commands[0]
     assert staging_install_command[:4] == ["staging-python", "-m", "pip", "install"]
     assert "--no-cache-dir" in staging_install_command
+    assert "--no-deps" in staging_install_command
     assert "--index-url" in staging_install_command
     assert APPROVED_PROXY_URL in staging_install_command
     assert str(requirements) in staging_install_command
-    assert "--constraint" in staging_install_command
-    assert str(installer.DEFAULT_CONSTRAINTS_FILE) in staging_install_command
+    _assert_uses_effective_constraints(staging_install_command)
 
     install_command = observed_commands[1]
     assert install_command[:4] == ["python", "-m", "pip", "install"]
     assert "--no-cache-dir" in install_command
+    assert "--no-deps" in install_command
     assert "--index-url" in install_command
     assert APPROVED_PROXY_URL in install_command
     assert str(requirements) in install_command
@@ -3815,6 +4050,7 @@ def test_main_direct_proxy_docker_single_pass_runs_one_target_install_and_guard(
     assert result == 0
     assert len(observed_commands) == 1
     assert observed_commands[0][:4] == ["python", "-m", "pip", "install"]
+    assert "--no-deps" in observed_commands[0]
     assert "--no-cache-dir" not in observed_commands[0]
     assert observed_guard_python == ["python"]
 
@@ -3945,17 +4181,24 @@ def test_main_rejects_mixing_explicit_profile_with_legacy_flags(
 def test_run_dependency_floor_preflight_checks_each_floor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_commands: list[list[str]] = []
+    observed_checks: list[tuple[str, str, str, str | None]] = []
     monkeypatch.setattr(
         installer,
         "load_dependency_security_floors",
         lambda: {"cryptography": "46.0.7", "pillow": "12.2.0"},
     )
-    monkeypatch.setattr(
-        installer,
-        "run_command",
-        lambda command: observed_commands.append(list(command)),
-    )
+
+    def exact_version_present(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        observed_checks.append((index_url, package, version, trusted_host))
+        return True
+
+    monkeypatch.setattr(installer, "_private_index_project_has_version", exact_version_present)
 
     installer.run_dependency_floor_preflight(
         python_executable="python",
@@ -3964,14 +4207,10 @@ def test_run_dependency_floor_preflight_checks_each_floor(
         emergency_wheel_manifest=None,
     )
 
-    assert len(observed_commands) == 2
-    for command in observed_commands:
-        assert command[:4] == ["python", "-m", "pip", "download"]
-        assert "--no-deps" in command
-        assert "--index-url" in command
-        assert APPROVED_PROXY_URL in command
-        assert "--trusted-host" in command
-        assert "--dest" in command
+    assert observed_checks == [
+        (APPROVED_PROXY_URL, "cryptography", "46.0.7", "packages.example.internal"),
+        (APPROVED_PROXY_URL, "pillow", "12.2.0", "packages.example.internal"),
+    ]
 
 
 def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
@@ -4008,16 +4247,19 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
         lambda **kwargs: Path(kwargs["destination"]).write_bytes(b"wheel-bytes"),
     )
 
-    def fail_run_command(_command: list[str]) -> None:
-        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+    observed_checks: list[tuple[str, str, str, str | None]] = []
 
-    observed_health: list[tuple[str, str, str | None]] = []
+    def exact_version_missing(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        observed_checks.append((index_url, package, version, trusted_host))
+        return False
 
-    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        observed_health.append((index_url, package, trusted_host))
-
-    monkeypatch.setattr(installer, "run_command", fail_run_command)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_private_index_project_has_version", exact_version_missing)
 
     installer.run_dependency_floor_preflight(
         python_executable="python",
@@ -4026,10 +4268,10 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
         emergency_wheel_manifest=manifest,
     )
 
-    assert observed_health == [(APPROVED_PROXY_URL, "cryptography", None)]
+    assert observed_checks == [(APPROVED_PROXY_URL, "cryptography", "46.0.7", None)]
 
 
-def test_run_dependency_floor_preflight_allows_partial_proxy_resolver_miss(
+def test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_proxy_probe_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -4041,10 +4283,10 @@ def test_run_dependency_floor_preflight_allows_partial_proxy_resolver_miss(
                 "expires_at": "2099-12-31",
                 "artifacts": [
                     {
-                        "package": "jiter",
-                        "version": "0.12.0",
-                        "filename": "jiter-0.12.0.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl",
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -4055,25 +4297,30 @@ def test_run_dependency_floor_preflight_allows_partial_proxy_resolver_miss(
     monkeypatch.setattr(
         installer,
         "load_dependency_security_floors",
-        lambda: {"jiter": "0.12.0"},
+        lambda: {"cryptography": "46.0.7"},
     )
-    observed_health: list[str] = []
     observed_downloads: list[tuple[str, str]] = []
 
-    def mixed_proxy_miss(_command: list[str]) -> None:
-        raise _mixed_network_resolver_miss_runtimeerror_like_run_command("jiter", "0.12.0")
-
-    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        assert index_url == APPROVED_PROXY_URL
-        assert trusted_host is None
-        observed_health.append(package)
+    def fail_version_check(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        assert (index_url, package, version, trusted_host) == (
+            APPROVED_PROXY_URL,
+            "cryptography",
+            "46.0.7",
+            None,
+        )
+        raise RuntimeError("proxy health check failed after retry budget")
 
     def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
         observed_downloads.append((url, expected_sha256))
         destination.write_bytes(b"wheel-bytes")
 
-    monkeypatch.setattr(installer, "run_command", mixed_proxy_miss)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_private_index_project_has_version", fail_version_check)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(
@@ -4083,68 +4330,9 @@ def test_run_dependency_floor_preflight_allows_partial_proxy_resolver_miss(
         emergency_wheel_manifest=manifest,
     )
 
-    assert observed_health == ["pip"]
     assert observed_downloads == [
-        ("https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl", "b" * 64)
+        ("https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl", "b" * 64)
     ]
-
-
-def test_run_dependency_floor_preflight_rejects_partial_proxy_miss_when_anchor_fails(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    manifest = tmp_path / "emergency.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "expires_at": "2099-12-31",
-                "artifacts": [
-                    {
-                        "package": "jiter",
-                        "version": "0.12.0",
-                        "filename": "jiter-0.12.0.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/jiter-0.12.0.whl",
-                        "sha256": "b" * 64,
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    downloads = {"count": 0}
-    monkeypatch.setattr(
-        installer,
-        "load_dependency_security_floors",
-        lambda: {"jiter": "0.12.0"},
-    )
-
-    def mixed_proxy_miss(_command: list[str]) -> None:
-        raise _mixed_network_resolver_miss_runtimeerror_like_run_command("jiter", "0.12.0")
-
-    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        assert index_url == APPROVED_PROXY_URL
-        assert package == "pip"
-        assert trusted_host is None
-        raise RuntimeError("approved proxy anchor health failed")
-
-    monkeypatch.setattr(installer, "run_command", mixed_proxy_miss)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
-    monkeypatch.setattr(
-        installer,
-        "_download_with_sha256",
-        lambda **_kwargs: downloads.__setitem__("count", downloads["count"] + 1),
-    )
-
-    with pytest.raises(RuntimeError, match="approved proxy anchor health failed"):
-        installer.run_dependency_floor_preflight(
-            python_executable="python",
-            index_url=APPROVED_PROXY_URL,
-            trusted_host=None,
-            emergency_wheel_manifest=manifest,
-        )
-
-    assert downloads["count"] == 0
 
 
 def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_fails(
@@ -4160,9 +4348,9 @@ def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_
                 "artifacts": [
                     {
                         "package": "cryptography",
-                        "version": "46.0.7",
-                        "filename": "cryptography-46.0.7.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "version": "46.0.8",
+                        "filename": "cryptography-46.0.8.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.8.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -4182,14 +4370,17 @@ def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_
         lambda **_kwargs: downloads.__setitem__("count", downloads["count"] + 1),
     )
 
-    def resolver_miss(_command: list[str]) -> None:
-        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
-
-    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+    def fail_version_check(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        assert version == "46.0.7"
         raise RuntimeError(f"proxy health check failed: {package}: {index_url}: {trusted_host}")
 
-    monkeypatch.setattr(installer, "run_command", resolver_miss)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
+    monkeypatch.setattr(installer, "_private_index_project_has_version", fail_version_check)
 
     with pytest.raises(RuntimeError, match="proxy health check failed"):
         installer.run_dependency_floor_preflight(
@@ -4202,7 +4393,7 @@ def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_
     assert downloads["count"] == 0
 
 
-def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_emergency(
+def test_run_dependency_floor_preflight_rejects_missing_floor_without_emergency(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -4215,9 +4406,9 @@ def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_e
                 "artifacts": [
                     {
                         "package": "cryptography",
-                        "version": "46.0.7",
-                        "filename": "cryptography-46.0.7.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "version": "46.0.8",
+                        "filename": "cryptography-46.0.8.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.8.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -4225,24 +4416,28 @@ def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_e
         ),
         encoding="utf-8",
     )
+    downloads = {"count": 0}
     monkeypatch.setattr(
         installer,
         "load_dependency_security_floors",
         lambda: {"cryptography": "46.0.7"},
     )
+    monkeypatch.setattr(installer, "_private_index_project_has_version", lambda **_kwargs: False)
+    monkeypatch.setattr(
+        installer,
+        "_download_with_sha256",
+        lambda **_kwargs: downloads.__setitem__("count", downloads["count"] + 1),
+    )
 
-    def non_resolver_failure(_command: list[str]) -> None:
-        raise RuntimeError("Command failed: python -m pip download: SSL certificate verify failed")
-
-    monkeypatch.setattr(installer, "run_command", non_resolver_failure)
-
-    with pytest.raises(RuntimeError, match="Dependency floor preflight failed"):
+    with pytest.raises(RuntimeError, match="exact version is not advertised"):
         installer.run_dependency_floor_preflight(
             python_executable="python",
             index_url=APPROVED_PROXY_URL,
             trusted_host=None,
             emergency_wheel_manifest=manifest,
         )
+
+    assert downloads["count"] == 0
 
 
 def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
@@ -4275,20 +4470,11 @@ def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
     )
     observed_downloads: list[tuple[str, str]] = []
 
-    def resolver_miss(_command: list[str]) -> None:
-        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
-
-    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        assert index_url == APPROVED_PROXY_URL
-        assert package == "cryptography"
-        assert trusted_host is None
-
     def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
         observed_downloads.append((url, expected_sha256))
         destination.write_bytes(b"wheel-bytes")
 
-    monkeypatch.setattr(installer, "run_command", resolver_miss)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_private_index_project_has_version", lambda **_kwargs: False)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(

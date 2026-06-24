@@ -18,6 +18,7 @@ import subprocess  # nosec B404: subprocess is required for bounded pip/python i
 import sys
 import sysconfig
 import tempfile
+import time
 from pathlib import Path
 from typing import Iterator, Sequence, cast
 from urllib.parse import ParseResult, quote, unquote, urlparse
@@ -62,50 +63,11 @@ REQUIREMENTS_PROFILES: tuple[str, ...] = (
 )
 PIP_NETWORK_RETRIES = 5
 PIP_NETWORK_TIMEOUT_SECONDS = 60
-PIP_NETWORK_RETRIES_ENV_VAR = "PULSEPLATE_PIP_NETWORK_RETRIES"
-PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR = "PULSEPLATE_PIP_NETWORK_TIMEOUT_SECONDS"
+PRIVATE_INDEX_PROJECT_PAGE_BYTES = 100_000
+PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS = 15
+PRIVATE_INDEX_HEALTH_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0)
 DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
 DOCKER_PIP_LAYER_CACHE_ENV = "PULSEPLATE_DOCKER_PIP_LAYER_CACHE"
-
-
-def _bounded_int_env(
-    *,
-    name: str,
-    default: int,
-    minimum: int,
-    maximum: int,
-) -> int:
-    """Return a bounded integer env override or fail closed with a clear error."""
-    raw_value = os.environ.get(name)
-    if raw_value is None or not raw_value.strip():
-        return default
-    try:
-        value = int(raw_value)
-    except ValueError as exc:
-        raise ValueError(f"{name} must be an integer between {minimum} and {maximum}") from exc
-    if value < minimum or value > maximum:
-        raise ValueError(f"{name} must be between {minimum} and {maximum}")
-    return value
-
-
-def effective_pip_network_retries() -> int:
-    """Return the bounded pip retry count for package proxy calls."""
-    return _bounded_int_env(
-        name=PIP_NETWORK_RETRIES_ENV_VAR,
-        default=PIP_NETWORK_RETRIES,
-        minimum=1,
-        maximum=10,
-    )
-
-
-def effective_pip_network_timeout_seconds() -> int:
-    """Return the bounded pip/network timeout for package proxy calls."""
-    return _bounded_int_env(
-        name=PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR,
-        default=PIP_NETWORK_TIMEOUT_SECONDS,
-        minimum=5,
-        maximum=120,
-    )
 
 
 def _env_truthy(name: str) -> bool:
@@ -479,6 +441,30 @@ def _collect_exact_requirement_pins(lines: Sequence[str]) -> set[str]:
     return exact_pins
 
 
+def _requirement_line_package_name(line: str) -> str | None:
+    """Return the normalized package name requested by a requirement-like line."""
+    stripped = line.split("#", 1)[0].strip().lower()
+    if not stripped or stripped.startswith(("-r ", "--requirement ", "-c ", "--constraint ")):
+        return None
+    match = re.match(r"([a-z0-9][a-z0-9._-]*)(?:\[[^]]+\])?\s*(?:===|==|~=|!=|<=|>=|<|>)", stripped)
+    if match is None:
+        return None
+    return re.sub(r"[-_.]+", "-", match.group(1))
+
+
+def _collect_exact_requirement_pin_names(lines: Sequence[str]) -> set[str]:
+    """Return normalized package names for exact pins from requirement-like lines."""
+    exact_pin_names: set[str] = set()
+    for line in lines:
+        stripped = line.split("#", 1)[0].strip().lower()
+        if "==" not in stripped or "===" in stripped or ";" in stripped:
+            continue
+        package_name = _requirement_line_package_name(stripped)
+        if package_name is not None:
+            exact_pin_names.add(package_name)
+    return exact_pin_names
+
+
 def _load_exact_requirement_pins(requirement_file: Path) -> set[str]:
     """Read one requirement surface once and collect exact pins."""
     return _collect_exact_requirement_pins(
@@ -614,8 +600,22 @@ def _emergency_artifact_matches_runtime(artifact: dict[str, str]) -> bool:
 def _filter_runtime_compatible_artifacts(
     artifacts: Sequence[dict[str, str]],
 ) -> list[dict[str, str]]:
-    """Drop parseable emergency wheels that cannot match this interpreter."""
-    return [artifact for artifact in artifacts if _emergency_artifact_matches_runtime(artifact)]
+    """Drop incompatible wheels and collapse duplicate exact emergency artifacts."""
+    compatible_artifacts: list[dict[str, str]] = []
+    seen_artifact_digests_by_filename: dict[str, str] = {}
+    for artifact in artifacts:
+        if not _emergency_artifact_matches_runtime(artifact):
+            continue
+        filename = artifact["filename"]
+        digest = _emergency_artifact_sha256(artifact)
+        previous_digest = seen_artifact_digests_by_filename.get(filename)
+        if previous_digest is None:
+            seen_artifact_digests_by_filename[filename] = digest
+            compatible_artifacts.append(artifact)
+            continue
+        if previous_digest != digest:
+            raise RuntimeError(f"Conflicting emergency artifact digests for {filename}")
+    return compatible_artifacts
 
 
 def emergency_artifacts_requested_by_surfaces(
@@ -662,7 +662,7 @@ def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) 
         with os.fdopen(temp_file_descriptor, "wb") as file_handle:
             with urlopen(  # nosec B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-07-31, ref: PR-1378)
                 url,
-                timeout=effective_pip_network_timeout_seconds(),
+                timeout=60,
             ) as response:
                 while True:
                     chunk = response.read(1024 * 1024)
@@ -755,9 +755,9 @@ def build_pip_download_command(
         "pip",
         "download",
         "--retries",
-        str(effective_pip_network_retries()),
+        str(PIP_NETWORK_RETRIES),
         "--timeout",
-        str(effective_pip_network_timeout_seconds()),
+        str(PIP_NETWORK_TIMEOUT_SECONDS),
         "--only-binary",
         ":all:",
         "--find-links",
@@ -788,6 +788,7 @@ def build_pip_install_command(
         "-m",
         "pip",
         "install",
+        "--no-deps",
         "--no-index",
         "--find-links",
         str(wheelhouse_dir),
@@ -820,10 +821,11 @@ def build_pip_proxy_install_command(
         "-m",
         "pip",
         "install",
+        "--no-deps",
         "--retries",
-        str(effective_pip_network_retries()),
+        str(PIP_NETWORK_RETRIES),
         "--timeout",
-        str(effective_pip_network_timeout_seconds()),
+        str(PIP_NETWORK_TIMEOUT_SECONDS),
         "--only-binary",
         ":all:",
         "--index-url",
@@ -860,14 +862,16 @@ def effective_constraints_file_for_requirement(
     requirement_file: Path,
     constraints_file: Path | None,
 ) -> Iterator[Path | None]:
-    """Yield constraints with duplicate exact pins removed for one requirement surface."""
+    """Yield constraints with entries removed for exact-pinned requirement packages."""
     validated_constraints_file = validate_constraints_file(constraints_file)
     if validated_constraints_file is None:
         yield None
         return
 
-    requirement_exact_pins = _load_exact_requirement_pins(requirement_file)
-    if not requirement_exact_pins:
+    requirement_lines = requirement_file.read_text(encoding="utf-8").splitlines()
+    requirement_exact_pins = _collect_exact_requirement_pins(requirement_lines)
+    requirement_exact_pin_names = _collect_exact_requirement_pin_names(requirement_lines)
+    if not requirement_exact_pin_names:
         yield validated_constraints_file
         return
 
@@ -875,15 +879,19 @@ def effective_constraints_file_for_requirement(
         keepends=True
     )
     filtered_constraint_lines = []
-    removed_duplicate_pin = False
+    removed_redundant_constraint = False
     for line in constraint_lines:
         normalized_line = line.split("#", 1)[0].strip().lower()
         if normalized_line and normalized_line in requirement_exact_pins:
-            removed_duplicate_pin = True
+            removed_redundant_constraint = True
+            continue
+        constraint_package_name = _requirement_line_package_name(line)
+        if constraint_package_name in requirement_exact_pin_names:
+            removed_redundant_constraint = True
             continue
         filtered_constraint_lines.append(line)
 
-    if not removed_duplicate_pin:
+    if not removed_redundant_constraint:
         yield validated_constraints_file
         return
     if not filtered_constraint_lines:
@@ -996,23 +1004,45 @@ def load_dependency_security_floors(
     return floors
 
 
-def _resolver_miss_error(
-    runtime_error: RuntimeError,
-    *,
-    package: str,
-    version: str,
-    allow_network_failure_markers: bool = False,
-) -> bool:
+def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: str) -> bool:
     """Return True when pip failed because package floor is unavailable on index."""
     message = str(runtime_error)
-    if not allow_network_failure_markers and _pip_upgrade_network_failure(message.lower()):
-        return False
+    normalized_message = message.lower()
     requirement_text = f"{package}=={version}"
+    package_name = package.lower()
+    normalized_requirement = requirement_text.lower()
+
+    def line_mentions_only_requested_package(line: str) -> bool:
+        if normalized_requirement in line:
+            return True
+        if re.fullmatch(rf"\s*{re.escape(package_name)}\s*", line):
+            return True
+        return package_name in line and ("cannot install" in line or "the user requested" in line)
+
+    network_diagnostics = "\n".join(
+        line
+        for line in normalized_message.splitlines()
+        if not line_mentions_only_requested_package(line)
+    )
+    if _pip_upgrade_network_failure(network_diagnostics):
+        return False
     resolver_markers = (
         f"No matching distribution found for {requirement_text}",
         f"Could not find a version that satisfies the requirement {requirement_text}",
     )
-    return any(marker in message for marker in resolver_markers)
+    if any(marker in message for marker in resolver_markers):
+        return True
+
+    pip26_no_candidate_markers = (
+        f"cannot install {normalized_requirement} because these package versions have conflicting dependencies.",
+        f"the user requested {normalized_requirement}",
+        "no matching distributions available for your environment",
+    )
+    if not all(marker in normalized_message for marker in pip26_no_candidate_markers):
+        return False
+
+    missing_package_line = re.compile(rf"^\s*{re.escape(package_name)}\s*$", re.MULTILINE)
+    return bool(missing_package_line.search(normalized_message))
 
 
 def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
@@ -1063,8 +1093,20 @@ def _simple_project_page_looks_valid(*, package: str, body: bytes) -> bool:
     """Return True when a response body looks like a PEP 503 project page."""
     normalized_package = re.sub(r"[-_.]+", "-", package).lower()
     package_markers = (f"{normalized_package}-", f"{normalized_package.replace('-', '_')}-")
-    text = body[:100_000].decode("utf-8", errors="ignore").lower()
+    text = body.decode("utf-8", errors="ignore").lower()
     return "href=" in text and any(marker in text for marker in package_markers)
+
+
+def _simple_project_page_has_version(*, package: str, version: str, body: bytes) -> bool:
+    """Return True when a PEP 503 project page advertises the exact package version."""
+    normalized_package = re.sub(r"[-_.]+", "-", package).lower()
+    text = body[:100_000].decode("utf-8", errors="ignore").lower()
+    version_boundary = r"(?=[-_.]|(?:\.tar\.gz|\.zip|\.whl)|[\"'#<])"
+    patterns = (
+        rf"{re.escape(normalized_package)}-{re.escape(version)}{version_boundary}",
+        rf"{re.escape(normalized_package.replace('-', '_'))}-{re.escape(version)}{version_boundary}",
+    )
+    return any(re.search(pattern, text) for pattern in patterns)
 
 
 def _redact_url_credentials(url: str) -> str:
@@ -1090,13 +1132,13 @@ def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResu
     return trusted in {hostname, host_with_port}
 
 
-def _require_private_index_project_health(
+def _read_private_index_project_page(
     *,
     index_url: str,
     package: str,
     trusted_host: str | None,
-) -> None:
-    """Fail closed unless the approved proxy serves the package project page."""
+) -> tuple[str, bytes]:
+    """Return the approved proxy simple-index project page or fail closed."""
     project_url = _simple_project_url(index_url, package)
     safe_url = _redact_url_credentials(project_url)
     parsed = urlparse(project_url)
@@ -1113,50 +1155,106 @@ def _require_private_index_project_health(
         password = "" if parsed.password is None else unquote(parsed.password)
         credentials = f"{unquote(parsed.username)}:{password}".encode("utf-8")
         headers["Authorization"] = "Basic " + base64.b64encode(credentials).decode("ascii")
-    if parsed.scheme == "http":
-        conn = http.client.HTTPConnection(
-            parsed.hostname,
-            port=parsed.port,
-            timeout=effective_pip_network_timeout_seconds(),
-        )
-    elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
-        # fmt: off
-        trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
-        # fmt: on
-        conn = http.client.HTTPSConnection(
-            parsed.hostname,
-            port=parsed.port,
-            timeout=effective_pip_network_timeout_seconds(),
-            context=trusted_context,
-        )
-    else:
-        conn = http.client.HTTPSConnection(
-            parsed.hostname,
-            port=parsed.port,
-            timeout=effective_pip_network_timeout_seconds(),
-        )
-    try:
-        conn.request("GET", path, headers=headers)
-        response = conn.getresponse()
-        status = response.status
-        body = response.read()
-    except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
+    status: int
+    body: bytes
+    for attempt in range(1, PIP_NETWORK_RETRIES + 1):
+        if parsed.scheme == "http":
+            conn = http.client.HTTPConnection(
+                parsed.hostname,
+                port=parsed.port,
+                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
+            )
+        elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
+            # fmt: off
+            trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
+            # fmt: on
+            conn = http.client.HTTPSConnection(
+                parsed.hostname,
+                port=parsed.port,
+                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
+                context=trusted_context,
+            )
+        else:
+            conn = http.client.HTTPSConnection(
+                parsed.hostname,
+                port=parsed.port,
+                timeout=PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS,
+            )
+        try:
+            conn.request("GET", path, headers=headers)
+            response = conn.getresponse()
+            status = response.status
+            body = response.read(PRIVATE_INDEX_PROJECT_PAGE_BYTES)
+            if status >= 500 and attempt < PIP_NETWORK_RETRIES:
+                _sleep_before_private_index_retry(attempt)
+                continue
+            break
+        except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
+            if attempt == PIP_NETWORK_RETRIES:
+                raise RuntimeError(
+                    "Approved Python package proxy health check failed before emergency fallback: "
+                    f"{package}: {safe_url}: {exc}"
+                ) from exc
+            _sleep_before_private_index_retry(attempt)
+        finally:
+            conn.close()
+    else:  # pragma: no cover - range is non-empty while PIP_NETWORK_RETRIES is positive.
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
-            f"{package}: {safe_url}: {exc}"
-        ) from exc
-    finally:
-        conn.close()
+            f"{package}: {safe_url}: retry budget exhausted"
+        )
     if status < 200 or status >= 300:
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
             f"{package}: {safe_url}: HTTP {status}"
         )
+    return safe_url, body
+
+
+def _sleep_before_private_index_retry(attempt: int) -> None:
+    """Sleep briefly before retrying an approved-proxy health probe."""
+    index = max(0, min(attempt - 1, len(PRIVATE_INDEX_HEALTH_RETRY_BACKOFF_SECONDS) - 1))
+    time.sleep(PRIVATE_INDEX_HEALTH_RETRY_BACKOFF_SECONDS[index])
+
+
+def _require_private_index_project_health(
+    *,
+    index_url: str,
+    package: str,
+    trusted_host: str | None,
+) -> None:
+    """Fail closed unless the approved proxy serves the package project page."""
+    safe_url, body = _read_private_index_project_page(
+        index_url=index_url,
+        package=package,
+        trusted_host=trusted_host,
+    )
     if not _simple_project_page_looks_valid(package=package, body=body):
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
             f"{package}: {safe_url}: invalid simple-index project page"
         )
+
+
+def _private_index_project_has_version(
+    *,
+    index_url: str,
+    package: str,
+    version: str,
+    trusted_host: str | None,
+) -> bool:
+    """Return True when the approved proxy advertises the exact package version."""
+    safe_url, body = _read_private_index_project_page(
+        index_url=index_url,
+        package=package,
+        trusted_host=trusted_host,
+    )
+    if not _simple_project_page_looks_valid(package=package, body=body):
+        raise RuntimeError(
+            "Approved Python package proxy health check failed before dependency floor preflight: "
+            f"{package}: {safe_url}: invalid simple-index project page"
+        )
+    return _simple_project_page_has_version(package=package, version=version, body=body)
 
 
 def _parse_simple_version(value: str) -> tuple[int, ...]:
@@ -1280,38 +1378,6 @@ def verify_emergency_artifact_for_floor(
     return True
 
 
-def build_floor_preflight_command(
-    *,
-    python_executable: str,
-    package: str,
-    version: str,
-    index_url: str,
-    trusted_host: str | None,
-) -> list[str]:
-    """Build pip command for one floor availability check."""
-    command = [
-        python_executable,
-        "-m",
-        "pip",
-        "download",
-        "--retries",
-        str(effective_pip_network_retries()),
-        "--timeout",
-        str(effective_pip_network_timeout_seconds()),
-        "--only-binary",
-        ":all:",
-        "--no-deps",
-        "--dest",
-        ".",
-        "--index-url",
-        index_url,
-        f"{package}=={version}",
-    ]
-    if trusted_host:
-        command.extend(["--trusted-host", trusted_host])
-    return command
-
-
 def run_dependency_floor_preflight(
     *,
     python_executable: str,
@@ -1319,82 +1385,46 @@ def run_dependency_floor_preflight(
     trusted_host: str | None,
     emergency_wheel_manifest: Path | None,
 ) -> None:
-    """Fail fast when dependency floors are unavailable through approved path."""
+    """Fail fast when dependency floors are unavailable through the approved proxy."""
+    del python_executable
     floors = load_dependency_security_floors()
-    with tempfile.TemporaryDirectory(prefix="pulseplate-floor-preflight-") as temp_dir:
-        destination_dir = Path(temp_dir)
-        for package, version in sorted(floors.items()):
-            command = build_floor_preflight_command(
-                python_executable=python_executable,
+    for package, version in sorted(floors.items()):
+        proxy_error: RuntimeError | None = None
+        try:
+            if _private_index_project_has_version(
+                index_url=index_url,
                 package=package,
                 version=version,
-                index_url=index_url,
                 trusted_host=trusted_host,
-            )
-            dest_index = command.index("--dest")
-            command[dest_index + 1] = str(destination_dir)
-            try:
-                run_command(command)
-            except RuntimeError as exc:
-                if _resolver_miss_error(exc, package=package, version=version):
-                    if _allow_floor_preflight_emergency_fallback(
-                        emergency_wheel_manifest=emergency_wheel_manifest,
-                        package=package,
-                        version=version,
-                        index_url=index_url,
-                        trusted_host=trusted_host,
-                        health_package=package,
-                    ):
-                        print(
-                            "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
-                            f"{package}=={version}"
-                        )
-                        continue
-                elif _pip_upgrade_network_failure(str(exc).lower()) and _resolver_miss_error(
-                    exc,
-                    package=package,
-                    version=version,
-                    allow_network_failure_markers=True,
-                ):
-                    if _allow_floor_preflight_emergency_fallback(
-                        emergency_wheel_manifest=emergency_wheel_manifest,
-                        package=package,
-                        version=version,
-                        index_url=index_url,
-                        trusted_host=trusted_host,
-                        health_package="pip",
-                    ):
-                        print(
-                            "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
-                            f"{package}=={version}"
-                        )
-                        continue
-                raise RuntimeError(
-                    "Dependency floor preflight failed for approved proxy: "
-                    f"{package}=={version}: {exc}"
-                ) from exc
-
-
-def _allow_floor_preflight_emergency_fallback(
-    *,
-    emergency_wheel_manifest: Path | None,
-    package: str,
-    version: str,
-    index_url: str,
-    trusted_host: str | None,
-    health_package: str,
-) -> bool:
-    """Return True after proving proxy health and exact floor artifact fallback."""
-    _require_private_index_project_health(
-        index_url=index_url,
-        package=health_package,
-        trusted_host=trusted_host,
-    )
-    return verify_emergency_artifact_for_floor(
-        manifest_path=emergency_wheel_manifest,
-        package=package,
-        version=version,
-    )
+            ):
+                continue
+        except RuntimeError as exc:
+            proxy_error = exc
+        if verify_emergency_artifact_for_floor(
+            manifest_path=emergency_wheel_manifest,
+            package=package,
+            version=version,
+        ):
+            if proxy_error is None:
+                print(
+                    "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
+                    f"{package}=={version}"
+                )
+            else:
+                print(
+                    "WARNING: floor preflight proxy probe failure tolerated via exact "
+                    f"emergency fallback: {package}=={version}: {proxy_error}"
+                )
+            continue
+        if proxy_error is not None:
+            raise RuntimeError(
+                "Dependency floor preflight failed for approved proxy: "
+                f"{package}=={version}: {proxy_error}"
+            ) from proxy_error
+        raise RuntimeError(
+            "Dependency floor preflight failed for approved proxy: "
+            f"{package}=={version}: exact version is not advertised by approved proxy"
+        )
 
 
 def is_virtualenv_python(python_executable: str) -> bool:
@@ -1458,9 +1488,9 @@ def upgrade_pip(
         "install",
         "--upgrade",
         "--retries",
-        str(effective_pip_network_retries()),
+        str(PIP_NETWORK_RETRIES),
         "--timeout",
-        str(effective_pip_network_timeout_seconds()),
+        str(PIP_NETWORK_TIMEOUT_SECONDS),
         "--only-binary",
         ":all:",
         "--index-url",
@@ -1645,7 +1675,6 @@ def _artifacts_with_resolver_miss(
     exc: RuntimeError,
     *,
     requested_artifacts: Sequence[dict[str, str]],
-    allow_network_failure_markers: bool = False,
 ) -> list[dict[str, str]]:
     """Return requested emergency artifacts named by the resolver miss output."""
     return [
@@ -1655,7 +1684,6 @@ def _artifacts_with_resolver_miss(
             exc,
             package=artifact["package"],
             version=artifact["version"],
-            allow_network_failure_markers=allow_network_failure_markers,
         )
     ]
 
@@ -1663,49 +1691,6 @@ def _artifacts_with_resolver_miss(
 def _emergency_artifact_key(artifact: dict[str, str]) -> tuple[str, str]:
     """Return a stable key for already-staged emergency artifacts."""
     return (artifact["package"].lower(), artifact["version"].lower())
-
-
-def _resolver_miss_artifacts_for_emergency_fallback(
-    exc: RuntimeError,
-    *,
-    remaining_artifacts: Sequence[dict[str, str]],
-    index_url: str,
-    trusted_host: str | None,
-) -> list[dict[str, str]]:
-    """Return exact fallback artifacts after proving the approved proxy is not fully down."""
-    resolver_miss_artifacts = _artifacts_with_resolver_miss(
-        exc,
-        requested_artifacts=remaining_artifacts,
-    )
-    if resolver_miss_artifacts:
-        for artifact in resolver_miss_artifacts:
-            _require_private_index_project_health(
-                index_url=index_url,
-                package=artifact["package"],
-                trusted_host=trusted_host,
-            )
-        return resolver_miss_artifacts
-
-    if not _pip_upgrade_network_failure(str(exc).lower()):
-        return []
-
-    mixed_failure_artifacts = _artifacts_with_resolver_miss(
-        exc,
-        requested_artifacts=remaining_artifacts,
-        allow_network_failure_markers=True,
-    )
-    if not mixed_failure_artifacts:
-        return []
-
-    # Partial-proxy fallback is allowed only for exact manifest artifacts. A
-    # generic proxy outage must still fail closed, so prove a stable approved
-    # project page is reachable before using the time-boxed wheel bridge.
-    _require_private_index_project_health(
-        index_url=index_url,
-        package="pip",
-        trusted_host=trusted_host,
-    )
-    return mixed_failure_artifacts
 
 
 def build_wheelhouse_with_emergency_fallback(
@@ -1744,14 +1729,18 @@ def build_wheelhouse_with_emergency_fallback(
                 for artifact in requested_artifacts
                 if _emergency_artifact_key(artifact) not in staged_artifact_keys
             ]
-            resolver_miss_artifacts = _resolver_miss_artifacts_for_emergency_fallback(
+            resolver_miss_artifacts = _artifacts_with_resolver_miss(
                 exc,
-                remaining_artifacts=remaining_artifacts,
-                index_url=index_url,
-                trusted_host=trusted_host,
+                requested_artifacts=remaining_artifacts,
             )
             if not resolver_miss_artifacts:
                 raise
+            for artifact in resolver_miss_artifacts:
+                _require_private_index_project_health(
+                    index_url=index_url,
+                    package=artifact["package"],
+                    trusted_host=trusted_host,
+                )
             staged_wheels = _stage_emergency_artifacts(
                 artifacts=resolver_miss_artifacts,
                 wheelhouse_dir=wheelhouse_dir,
@@ -1801,14 +1790,18 @@ def install_from_proxy_with_emergency_fallback(
                 for artifact in requested_artifacts
                 if _emergency_artifact_key(artifact) not in staged_artifact_keys
             ]
-            resolver_miss_artifacts = _resolver_miss_artifacts_for_emergency_fallback(
+            resolver_miss_artifacts = _artifacts_with_resolver_miss(
                 exc,
-                remaining_artifacts=remaining_artifacts,
-                index_url=index_url,
-                trusted_host=trusted_host,
+                requested_artifacts=remaining_artifacts,
             )
             if not resolver_miss_artifacts:
                 raise
+            for artifact in resolver_miss_artifacts:
+                _require_private_index_project_health(
+                    index_url=index_url,
+                    package=artifact["package"],
+                    trusted_host=trusted_host,
+                )
             staged_wheels = _stage_emergency_artifacts(
                 artifacts=resolver_miss_artifacts,
                 wheelhouse_dir=emergency_wheelhouse_dir,
@@ -2039,7 +2032,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 trusted_host=trusted_host,
                 emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
-    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+    except (FileNotFoundError, RuntimeError) as exc:
         print(f"ERROR: locked install failed: {exc}")
         return 1
 

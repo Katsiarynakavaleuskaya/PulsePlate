@@ -22,21 +22,21 @@
 **`requirements-dev.txt`** - Development and testing tools
 ```bash
 -r requirements.txt  # Includes all production deps
-pytest==9.1.0
-pytest-cov==7.0.0
+pytest==9.1.1
+pytest-cov==7.1.0
 ...
 ```
 
 **`requirements-all.txt`** - All dependencies (prod + dev)
 ```bash
 -r requirements.txt  # Includes production deps
-pytest>=9.1.0      # Dev tools with minimum versions
+pytest>=9.1.1      # Dev tools with minimum versions
 ...
 ```
 
 **`constraints.txt`** - Minimum and bounded versions for reproducible dev resolution
 ```bash
-pytest>=9.1.0
+pytest>=9.1.1
 black>=26.5.0
 ...
 ```
@@ -45,17 +45,25 @@ black>=26.5.0
 
 ### Production Environment
 ```bash
-pip install -r requirements.txt
+python scripts/ci/install_locked_python_requirements.py \
+  --requirements-profile runtime \
+  --requirements-file requirements.txt \
+  --constraints-file constraints.txt
 ```
 
 ### Development Environment (with locked dev requirements and constraints)
 ```bash
-pip install -r requirements-dev.txt -c constraints.txt
+python scripts/ci/install_locked_python_requirements.py \
+  --requirements-profile runtime-dev \
+  --requirements-file requirements.txt \
+  --dev-requirements-file requirements-dev.txt \
+  --constraints-file constraints.txt
 ```
 
 ### All Dependencies (flexible versions)
 ```bash
-pip install -r requirements-all.txt
+PIP_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL:?approved private package proxy required}" \
+  python -m pip install -r requirements-all.txt -c constraints.txt
 ```
 
 ## ✅ Verification
@@ -84,17 +92,24 @@ To avoid environment drift, run this with the pinned Python from `.python-versio
 
 ```bash
 # Include setuptools/pip/wheel in lockfile for security fixes (--allow-unsafe)
-pip-compile --allow-unsafe --output-file=requirements.txt requirements.in
-pip-compile --allow-unsafe --output-file=requirements-rag-vector.txt requirements-rag-vector.in
-pip-compile --allow-unsafe --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
-pip-compile --allow-unsafe --output-file=requirements-lock.txt requirements-dev.in requirements.in
+export PIP_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL:?approved private package proxy required}"
+export PIP_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements.txt requirements.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-rag-vector.txt requirements-rag-vector.in
+pip-compile --allow-unsafe --no-emit-index-url --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-test.txt requirements-test.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-ci-lite.txt requirements-ci-lite.in
+pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-lock.txt requirements-dev.in requirements.in
 ```
 
 ### Update Dev Dependency
-1. Update version in `requirements-dev.txt`
+1. Update version in `requirements-dev.in`
 2. Update constraint in `constraints.txt` (if needed)
-3. Run `python verify_requirements.py`
-4. Test: `pip install -r requirements-dev.txt -c constraints.txt`
+3. Regenerate `requirements-dev.txt`, `requirements-test.txt`, and
+   `requirements-ci-lite.txt` with `pip-compile --allow-unsafe --no-emit-index-url`
+4. Run `python verify_requirements.py`
+5. Test through the approved proxy:
+   `python scripts/ci/install_locked_python_requirements.py --requirements-file requirements.txt --dev-requirements-file requirements-dev.txt --requirements-profile runtime-dev --constraints-file constraints.txt --preflight-only`
 
 ## 🛡️ Best Practices
 
@@ -112,16 +127,24 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install for development
-pip install -r requirements-dev.txt -c constraints.txt
+python scripts/ci/install_locked_python_requirements.py \
+  --requirements-file requirements.txt \
+  --dev-requirements-file requirements-dev.txt \
+  --requirements-profile runtime-dev \
+  --constraints-file constraints.txt
 
 # Install for production
-pip install -r requirements.txt
+python scripts/ci/install_locked_python_requirements.py \
+  --requirements-file requirements.txt \
+  --requirements-profile runtime \
+  --constraints-file constraints.txt
 
 # Verify consistency
 python verify_requirements.py
 
 # Update all to latest (within constraints)
-pip install -U -r requirements-all.txt -c constraints.txt
+PIP_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL:?approved private package proxy required}" \
+  python -m pip install -U -r requirements-all.txt -c constraints.txt
 ```
 
 ## 🔗 References
