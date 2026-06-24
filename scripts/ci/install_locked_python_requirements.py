@@ -1066,6 +1066,8 @@ def _read_private_index_project_page(
             response = conn.getresponse()
             status = response.status
             body = response.read()
+            if status >= 500 and attempt < PIP_NETWORK_RETRIES:
+                continue
             break
         except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
             if attempt == PIP_NETWORK_RETRIES:

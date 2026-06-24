@@ -321,6 +321,56 @@ def test_private_index_project_health_retries_transient_probe_error(
     assert closes["count"] == 2
 
 
+def test_private_index_project_health_retries_transient_http_5xx(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = {"count": 0}
+    closes = {"count": 0}
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            _host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert port is None
+            assert timeout == installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
+            assert context is None
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                return _FakeSimpleIndexResponse(status=502, body=b"bad gateway")
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            closes["count"] += 1
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert attempts["count"] == 2
+    assert closes["count"] == 2
+
+
 @pytest.mark.parametrize(
     ("status", "body", "match"),
     [
