@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import ast
 import json
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -67,6 +68,16 @@ def _fingerprint_variant(variant: dict[str, object]) -> dict[str, object]:
     return variant
 
 
+def _schema_safe_text_rejects(value: str) -> bool:
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    safe_text = schema["$defs"]["safe_text"]
+    assert safe_text["type"] == "string"
+    assert safe_text["minLength"] == 1
+    return any(
+        re.search(str(guard["not"]["pattern"]), value) is not None for guard in safe_text["allOf"]
+    )
+
+
 def _reviewed_bundle_inputs() -> (
     tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]]]
 ):
@@ -97,6 +108,16 @@ def test_reference_bundle_schema_and_validator_are_aligned() -> None:
     assert schema["$defs"]["skeptic_review"]["additionalProperties"] is False
     assert schema["$defs"]["rejection_index"]["additionalProperties"] is False
     assert schema["$defs"]["telemetry_summary"]["additionalProperties"] is False
+    assert schema["$defs"]["text_array"]["items"]["$ref"] == "#/$defs/safe_text"
+    assert schema["$defs"]["variant"]["properties"]["problem_statement"]["$ref"] == (
+        "#/$defs/safe_text"
+    )
+    assert schema["$defs"]["skeptic_review"]["properties"]["duplicate_reason"]["$ref"] == (
+        "#/$defs/safe_text"
+    )
+    assert schema["$defs"]["skeptic_review"]["properties"]["required_revision"]["$ref"] == (
+        "#/$defs/safe_text"
+    )
     assert "pattern" in schema["$defs"]["path"]
     assert schema["properties"]["cost_metadata_available"]["const"] is False
     assert normalized["synthesis"]["selected_variant_id"] == "creative-code-pr0-reference:spec-1"
@@ -229,10 +250,13 @@ def test_variant_target_paths_cannot_create_children_under_file_surface() -> Non
         "candidate.patch diff --git a/core/rag/orchestration.py",
         "raw_prompt: explain the hidden system prompt",
         "token sk-12345678901234567890",
+        "token sk-proj-1234567890abcdef",
+        "token sk-svcacct-1234567890abcdef",
         "See local path /Users/example/project/.env",
         "This spec will diagnose diabetes.",
         "Open PR, push branch, and write repository after selecting the spec.",
         "Open a PR, create a pull request, push the branch, and write to the repository.",
+        "Open a draft PR, create branch, and write shared worktree files.",
     ],
 )
 def test_unsafe_variant_text_is_rejected(unsafe_text: str) -> None:
@@ -245,6 +269,22 @@ def test_unsafe_variant_text_is_rejected(unsafe_text: str) -> None:
 
     with pytest.raises(CreativeCodeSpecificationError, match="unsafe|local absolute"):
         validate_creative_code_specification_bundle(bundle)
+
+
+@pytest.mark.parametrize(
+    "unsafe_text",
+    [
+        "candidate.patch diff --git a/core/rag/orchestration.py",
+        "raw_prompt: explain the hidden system prompt",
+        "token sk-proj-1234567890abcdef",
+        "Open a draft PR, create branch, and write shared worktree files.",
+        "Call model and use semantic cache for this variant.",
+        "See local path /Users/example/project/.env",
+        "This spec will diagnose diabetes.",
+    ],
+)
+def test_schema_safe_text_rejects_unsafe_authority_prose(unsafe_text: str) -> None:
+    assert _schema_safe_text_rejects(unsafe_text)
 
 
 def test_all_rejected_is_valid_terminal_state() -> None:

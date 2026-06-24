@@ -68,8 +68,7 @@
       "$ref": "#/$defs/non_empty_paths"
     },
     "fallback": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/safe_text"
     },
     "authority": {
       "$ref": "#/$defs/authority"
@@ -149,6 +148,47 @@
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
     },
+    "safe_text": {
+      "type": "string",
+      "minLength": 1,
+      "allOf": [
+        {
+          "not": {
+            "pattern": "candidate\\.patch|diff --git|\\+\\+\\+ |--- |@@ "
+          }
+        },
+        {
+          "not": {
+            "pattern": "[sS][kK]-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_]{12,}|github_pat_|xox[abprs]-|[aA][uU][tT][hH][oO][rR][iI][zZ][aA][tT][iI][oO][nN]:\\s*[bB][eE][aA][rR][eE][rR]|[pP][rR][iI][vV][aA][tT][eE][_ -]?[kK][eE][yY]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "[pP][rR][oO][vV][iI][dD][eE][rR][_ -]?[pP][aA][yY][lL][oO][aA][dD]|[rR][aA][wW][_ -]?([pP][rR][oO][mM][pP][tT]|[rR][eE][sS][pP][oO][nN][sS][eE]|[cC][oO][nN][tT][eE][xX][tT])|[cC][hH][aA][iI][nN][_ -]?[oO][fF][_ -]?[tT][hH][oO][uU][gG][hH][tT]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "[oO][pP][eE][nN] (?:[aA] )?(?:[dD][rR][aA][fF][tT] )?(?:[pP][uU][lL][lL] [rR][eE][qQ][uU][eE][sS][tT]|[pP][rR])|[cC][rR][eE][aA][tT][eE] (?:[aA] )?(?:[pP][uU][lL][lL] [rR][eE][qQ][uU][eE][sS][tT]|[pP][rR]|[bB][rR][aA][nN][cC][hH])|[pP][uU][sS][hH] (?:[tT][hH][eE] )?[bB][rR][aA][nN][cC][hH]|[wW][rR][iI][tT][eE] (?:[tT][oO] )?(?:[tT][hH][eE] )?(?:[rR][eE][pP][oO][sS][iI][tT][oO][rR][yY]|(?:[sS][hH][aA][rR][eE][dD] )?[wW][oO][rR][kK][tT][rR][eE][eE](?: [fF][iI][lL][eE][sS])?)"
+          }
+        },
+        {
+          "not": {
+            "pattern": "[rR][eE][sS][oO][lL][vV][eE] [rR][eE][vV][iI][eE][wW] [tT][hH][rR][eE][aA][dD]|[mM][aA][rR][kK] [rR][eE][aA][dD][yY] [fF][oO][rR] [rR][eE][vV][iI][eE][wW]|[mM][eE][rR][gG][eE] [rR][eE][aA][dD][iI][nN][eE][sS][sS]|[sS][eE][mM][aA][nN][tT][iI][cC] [cC][aA][cC][hH][eE] (?:[sS][eE][rR][vV][iI][nN][gG]|[uU][sS][eE])|[uU][sS][eE] [sS][eE][mM][aA][nN][tT][iI][cC] [cC][aA][cC][hH][eE]|[cC][aA][lL][lL] (?:[mM][oO][dD][eE][lL]|[nN][eE][tT][wW][oO][rR][kK])"
+          }
+        },
+        {
+          "not": {
+            "pattern": "[gG][uU][aA][rR][aA][nN][tT][eE][eE][sS]? (?:[wW][eE][iI][gG][hH][tT] [lL][oO][sS][sS]|[hH][eE][aA][lL][tT][hH] [oO][uU][tT][cC][oO][mM][eE]|[cC][lL][iI][nN][iI][cC][aA][lL] [oO][uU][tT][cC][oO][mM][eE])|\\b[dD][iI][aA][gG][nN][oO][sS][eE]\\b|\\b[tT][rR][eE][aA][tT]\\b|[cC][lL][iI][nN][iI][cC][aA][lL] [eE][fF][fF][iI][cC][aA][cC][yY]|[cC][rR][iI][sS][iI][sS] [sS][uU][pP][pP][oO][rR][tT]|[eE][mM][eE][rR][gG][eE][nN][cC][yY] [cC][aA][rR][eE]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "(^|[\\s:])(/Users/|/tmp/|/var/folders/|~[/\\\\])"
+          }
+        }
+      ]
+    },
     "path": {
       "type": "string",
       "minLength": 1,
@@ -174,8 +214,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "type": "string",
-        "minLength": 1
+        "$ref": "#/$defs/safe_text"
       }
     },
     "source_creative_research": {
@@ -333,8 +372,7 @@
           ]
         },
         "problem_statement": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/safe_text"
         },
         "implementation_steps": {
           "$ref": "#/$defs/text_array"
@@ -349,19 +387,16 @@
           "$ref": "#/$defs/token_array"
         },
         "rollback_plan": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/safe_text"
         },
         "falsifier": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/safe_text"
         },
         "risk_notes": {
           "$ref": "#/$defs/text_array"
         },
         "wellness_boundary": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/safe_text"
         },
         "estimated_changed_files": {
           "type": "integer",
@@ -420,12 +455,10 @@
           "$ref": "#/$defs/token_array"
         },
         "duplicate_reason": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/safe_text"
         },
         "required_revision": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/safe_text"
         },
         "review_fingerprint": {
           "$ref": "#/$defs/sha256"
@@ -468,8 +501,7 @@
           ]
         },
         "selection_reason": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/safe_text"
         },
         "ranking_policy": {
           "const": "pass_count_then_fingerprint_then_ordinal"
@@ -485,8 +517,7 @@
           "$ref": "#/$defs/token_array"
         },
         "fallback": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/safe_text"
         },
         "next_authority": {
           "const": "human_review_required"

@@ -43,15 +43,18 @@ SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 SECRET_RE = re.compile(
-    r"(sk-[A-Za-z0-9]{12,}|gh[psoru]_[A-Za-z0-9_]{12,}|github_pat_|"
+    r"(sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_]{12,}|github_pat_|"
     r"xox[abprs]-|authorization:\s*bearer|private[_ -]?key)",
     re.IGNORECASE,
 )
 UNSAFE_TEXT_RE = re.compile(
     r"(candidate\.patch|diff --git|^\+\+\+ |^--- |@@ |provider[_ -]?payload|"
     r"raw[_ -]?(prompt|response|context)|chain[_ -]?of[_ -]?thought|"
-    r"open (a )?(pull request|PR)|create (a )?(pull request|PR)|"
-    r"push (the )?branch|write (to )?the repository|write repository|"
+    r"open (a )?(draft )?(pull request|PR)|"
+    r"create (a )?(pull request|PR|branch)|"
+    r"push (the )?branch|"
+    r"write (to )?(the )?repository|write repository|"
+    r"write (to )?(the )?(shared )?worktree( files)?|"
     r"resolve review thread|mark ready for review|merge readiness|"
     r"semantic cache serving|use semantic cache|call model|call network|"
     r"guarantee[s]? (weight loss|health outcome|clinical outcome)|"
