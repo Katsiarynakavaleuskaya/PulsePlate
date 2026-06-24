@@ -34,7 +34,7 @@ Out of scope:
 
 ## Implementation Commits
 
-- `26a03ac318643dd7a404f8e4f800ae0c3655bac0` - `fix(deps): remove vulnerable Safety audit dependency`
+- `3275af6c630ce043d0395ab8104f298ec125e361` - `fix(deps): remove vulnerable Safety audit dependency`
 
 ## Lane Start Provenance
 
@@ -72,6 +72,12 @@ Out of scope:
 - PASS: `pre-commit run --all-files`
 - PASS during push: changed-file mypy, pip-audit, backend pre-push pytest,
   full-repo Bandit, and docker build test.
+- PASS after rebase: `pulseplate-pr-review` dry-run report against
+  `4e832857e40d79a3a0183ee044fd311d75f7bc07...3bd2d3386` confirmed the scoped
+  28-file diff. Its large-diff note is expected because this no-legacy lane
+  deletes the dead Safety wrapper/test/policy graph; split rationale is the
+  Safety/NLTK alert remediation only, with Torch/Faraday/RAG platform work kept
+  out of scope.
 
 Full local `make verify` was not run under the operator-approved machine-heavy
 dependency-lane exception. Current-head CI is the required heavy parity signal
