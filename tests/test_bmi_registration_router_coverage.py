@@ -125,6 +125,34 @@ def test_register_bmi_routes_rejects_empty_free_router(
         register_bmi_routes(FastAPI())
 
 
+def test_register_bmi_routes_reports_unexpected_source_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.bmi as bmi_module
+
+    router = APIRouter(prefix="/api/v1/bmi")
+
+    async def _calculate() -> dict[str, str]:
+        return {"status": "calculate"}
+
+    async def _extra() -> dict[str, str]:
+        return {"status": "extra"}
+
+    router.post("/calculate")(_calculate)
+    router.get("/extra")(_extra)
+    monkeypatch.setattr(bmi_module, "router", router)
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "BMI router from app\\.routers\\.bmi route family mismatch: "
+            "missing none; unexpected GET /api/v1/bmi/extra"
+        ),
+    ):
+        register_bmi_routes(FastAPI())
+
+
 def test_register_bmi_routes_rejects_foreign_existing_bmi_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

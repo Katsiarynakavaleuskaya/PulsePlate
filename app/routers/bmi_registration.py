@@ -41,6 +41,12 @@ BMI_PRO_LEGACY_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
 _FRAMEWORK_METHODS = frozenset({"HEAD", "OPTIONS"})
 
 
+def _format_route_keys(route_keys: set[tuple[str, str]]) -> str:
+    if not route_keys:
+        return "none"
+    return ", ".join(f"{method} {path}" for path, method in sorted(route_keys))
+
+
 @dataclass(frozen=True, slots=True)
 class BmiRouteRegistration:
     """Routers registered by canonical BMI bootstrap."""
@@ -90,7 +96,10 @@ def _require_exact_router_family(
     actual: dict[tuple[str, str], APIRoute] = {}
     for route in router.routes:
         if not isinstance(route, APIRoute):
-            raise RuntimeError(f"{family_name} router does not define the expected route family.")
+            raise RuntimeError(
+                f"{family_name} router from {module_name} contains "
+                f"{type(route).__name__}; expected APIRoute-only members."
+            )
 
         methods = {
             str(method).upper()
@@ -98,25 +107,47 @@ def _require_exact_router_family(
             if str(method).upper() not in _FRAMEWORK_METHODS
         }
         if len(methods) != 1:
-            raise RuntimeError(f"{family_name} router does not define the expected route family.")
+            raise RuntimeError(
+                f"{family_name} router from {module_name} route {route.path} exposes "
+                f"methods {sorted(methods)}; expected exactly one non-framework method."
+            )
         method = next(iter(methods))
         key = (str(route.path), method)
         if key in actual:
-            raise RuntimeError(f"{family_name} router does not define the expected route family.")
+            raise RuntimeError(
+                f"{family_name} router from {module_name} defines duplicate route "
+                f"{method} {route.path}."
+            )
         actual[key] = route
 
-    if set(actual) != set(expected):
-        raise RuntimeError(f"{family_name} router does not define the expected route family.")
+    actual_keys = set(actual)
+    expected_keys = set(expected)
+    if actual_keys != expected_keys:
+        raise RuntimeError(
+            f"{family_name} router from {module_name} route family mismatch: "
+            f"missing {_format_route_keys(expected_keys - actual_keys)}; "
+            f"unexpected {_format_route_keys(actual_keys - expected_keys)}."
+        )
 
     for key, include_in_schema in expected.items():
         if actual[key].include_in_schema is not include_in_schema:
-            raise RuntimeError(f"{family_name} router does not preserve OpenAPI visibility.")
+            path, method = key
+            raise RuntimeError(
+                f"{family_name} router from {module_name} route {method} {path} has "
+                f"include_in_schema={actual[key].include_in_schema}; expected "
+                f"include_in_schema={include_in_schema}."
+            )
 
     return router
 
 
 def register_bmi_routes(app: "FastAPI") -> BmiRouteRegistration:
-    """Register BMI route families with the FastAPI application."""
+    """Register BMI route families with the FastAPI application.
+
+    Registration is idempotent per app instance. The first call evaluates
+    `FEATURE_BMI_PRO_ENABLED` and caches the registered router set on
+    `app.state`; use a fresh app/process when that environment flag changes.
+    """
 
     cached = getattr(app.state, "_cached_bmi_route_registration", None)
     if getattr(app.state, "_bmi_routes_registered", False) and isinstance(
