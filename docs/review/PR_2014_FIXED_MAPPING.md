@@ -150,6 +150,18 @@ dispositioned with evidence.
   `999a981e2dd009fa3892c1e77d1284f46e480d59` by installing pip-compiled
   locked requirement surfaces with `--no-deps` while preserving approved proxy,
   constraints, emergency fallback, and startup-hook guardrails.
+- Current-head CI: setup jobs still spent machine time in dependency-floor
+  preflight after the locked install `--no-deps` fix because the floor check
+  downloaded large approved-proxy wheels in every setup job; fixed in
+  `754f599a7b6c2a0d71aca1a2a6bb0483d328d726` by checking exact floor
+  availability through the approved proxy simple-index project page and keeping
+  emergency wheel downloads only for verified proxy misses.
+- Local dependency preflight: the simple-index floor check initially used the
+  full pip 60 second network timeout per read and could still hang on a slow
+  approved proxy response; fixed in
+  `704e60699697c0dc9c64baf33efb2a14691cd68e` by bounding private-index
+  health probes to 15 seconds per attempt while preserving the existing retry
+  budget and fail-closed behavior.
 
 ## Fixed in Commit Mapping
 
@@ -211,6 +223,14 @@ Disposition: FIXED
 Commit: 999a981e2dd009fa3892c1e77d1284f46e480d59
 Evidence: Current-head `OpenAPI sync` job `83177933838` and `security` job `83177933855` were cancelled by job timeout in `Setup Python environment`. The installer now passes `--no-deps` to locked `pip install` commands for pip-compiled requirement surfaces, and `tests/test_install_locked_python_requirements.py` asserts direct-proxy and Docker single-pass command construction include `--no-deps`.
 
+Disposition: FIXED
+Commit: 754f599a7b6c2a0d71aca1a2a6bb0483d328d726
+Evidence: Current-head setup jobs still remained in `Setup Python environment` after the locked install no-deps fix because dependency-floor preflight still downloaded floor wheels in every job. The installer now checks exact version availability through the approved proxy simple-index project page and only downloads emergency wheels for verified proxy misses; `tests/test_install_locked_python_requirements.py` covers exact-version checks, proxy-health failures, missing-floor rejection, and emergency fallback verification.
+
+Disposition: FIXED
+Commit: 704e60699697c0dc9c64baf33efb2a14691cd68e
+Evidence: Local `requirements-dev.txt` preflight showed the simple-index floor check could still hang on a slow approved proxy read. Private-index health probes now use `PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS=15` with the existing retry budget; `tests/test_install_locked_python_requirements.py::test_private_index_project_health_retries_transient_probe_error` covers retry/close behavior and the dev/test/ci-lite locked install preflights pass.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -235,6 +255,10 @@ Evidence: Current-head `OpenAPI sync` job `83177933838` and `security` job `8317
   `e19e349c36e4ee5becd7780720ddf52e99d6b0e7`
 - locked install no-deps resolver-timeout fix ->
   `999a981e2dd009fa3892c1e77d1284f46e480d59`
+- simple-index dependency floor preflight fix ->
+  `754f599a7b6c2a0d71aca1a2a6bb0483d328d726`
+- bounded private-index health probe fix ->
+  `704e60699697c0dc9c64baf33efb2a14691cd68e`
 
 ## Deferred / Follow-ups
 
