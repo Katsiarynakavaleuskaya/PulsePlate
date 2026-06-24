@@ -130,6 +130,53 @@ Rejected Runner context:
 - `make validate-changed` was rerun and passed in the real worktree, where the
   shared repo `.venv` is intentionally available.
 
+## Post-Open Review Evidence
+
+- PASS: post-open packet
+  `artifacts/orchestration/task_packets/b9100128481b.json`.
+- PASS: dispatch manifest from
+  `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/b9100128481b.json --mode runtime --pretty`.
+- PASS: mandatory post-open role order executed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- PASS: `qa-engineer-agent` found no current-PR QA actionables and reran
+  focused route inventory, `make validate-changed`, `make openapi-check`, and
+  Phase2 gates.
+- PASS: `bug-hunter` found no current-PR regressions; it confirmed idempotent
+  per-app BMI registration, no BMI compatibility route conflicts, and parser
+  contract validity.
+- PASS: `security-auditor` found no current-head security actionables on
+  `a4aa36c11048cdf3f33fea16ae92433bbe88c26f`; the Sourcery delta only adds
+  diagnostic messages, a docstring, a focused test, and mapping evidence.
+
+## Codex Security Diff Scan / Finding Discovery
+
+- Artifact:
+  `artifacts/security_lab/pr_2016_bmi_bootstrap/diff_security_scan.md`
+- Scope: `origin/main...HEAD`.
+- Result: no reportable findings.
+- Evidence: static pattern scan found no added subprocess, `# nosec`, hardcoded
+  secret assignment, `eval`, or `exec` in changed files; route exposure and tier
+  guard behavior are covered by focused tests, route inventory proof, and
+  pre-push Bandit.
+
+## PulsePlate PR Review Disposition
+
+Finding: `large-diff-risk` advisory from `pulseplate-pr-review`.
+
+Disposition: NOT-A-BUG
+
+Evidence: the diff is intentionally concentrated in one narrow BMI route
+ownership lane, with production changes limited to canonical registration,
+compatibility exports, and the legacy-growth guard. `make validate-changed`
+selected the relevant new/changed Python tests and passed; focused BMI,
+security/auth tier, OpenAPI, pre-commit, pre-push, Experiment Runner, and
+post-open role passes also passed.
+
+Reason: The line-count threshold is crossed by focused tests and the canonical
+review artifact, not by broad unrelated production scope. No bodyfat, FoodDB,
+AI, frontend/iOS, dependency, deprecated-endpoint removal, or root-process-rule
+change is included.
+
 ## Local Validation
 
 Full local `make verify` was not run under the operator-approved machine-heavy
@@ -183,10 +230,10 @@ Not merge-ready yet.
 Required before merge:
 
 - [ ] Current-head GitHub CI passes for the pushed head.
-- [ ] Post-open role passes completed:
+- [x] Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan/finding discovery run if available.
-- [ ] `pulseplate-pr-review` passed.
+- [x] Codex Security diff scan/finding discovery run.
+- [x] `pulseplate-pr-review` run; advisory large-diff-risk dispositioned.
 - [ ] CodeRabbit, Sourcery, Cubic, and human review comments inspected and all
   actionables fixed or dispositioned.
 - [ ] PR body mirrors this fixed-mapping artifact.
