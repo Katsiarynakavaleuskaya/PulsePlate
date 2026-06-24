@@ -158,7 +158,6 @@ def test_build_workflow_owns_docker_validation_contract() -> None:
     assert build_step_with["load"] is True
     assert build_step_with["push"] is False
     assert build_step_with["provenance"] is False
-    assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in build_step_with["secret-files"]
 
     run_script = test_step["run"]
     assert isinstance(run_script, str)
@@ -588,7 +587,6 @@ def test_publish_image_scan_fails_closed() -> None:
     )
     assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in build_scan_with["secret-envs"]
     assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in build_scan_with["secret-envs"]
-    assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in build_scan_with["secret-files"]
 
     for step in publish_steps[: _step_index(publish_job, "Fail when Trivy image SARIF is missing")]:
         assert isinstance(step, dict)

@@ -101,9 +101,8 @@ Evidence:
   copies it to `/root/.netrc` with `0600`, and removes it with an `EXIT` trap.
 - `scripts/ci/install_locked_python_requirements.py` redacts through the last
   userinfo separator before the host.
-- `tests/test_install_locked_python_requirements.py`,
-  `tests/test_python_supply_chain_controls.py`, and
-  `tests/test_docker_workflow_build_path_contract.py` cover the regressions.
+- `tests/test_install_locked_python_requirements.py` and
+  `tests/test_python_supply_chain_controls.py` cover the regressions.
 
 Coordinator pre-open review found that workflow-level `ci.yml` package-index
 env still resolved `PULSEPLATE_PYTHON_INDEX_URL` from `secrets || vars`, which
