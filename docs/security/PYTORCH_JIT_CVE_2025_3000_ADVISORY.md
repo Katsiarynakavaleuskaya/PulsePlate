@@ -39,7 +39,7 @@ finding is limited to the optional vector profile.
 
 - `requirements-rag-vector.txt:162`
 - `requirements-rag-vector-cpu.txt:119`
-- `scripts/ci_pip_audit.sh`
+- `scripts/ci_pip_audit.sh:40`
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
 
 ## Exposure Assessment

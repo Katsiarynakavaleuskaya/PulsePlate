@@ -40,6 +40,9 @@ APPROVED_TRUSTED_HOST_EXPRESSION = (
     "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
 )
 PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
+PIP_INSTALL_INVOCATION_PATTERN = re.compile(
+    r"(?:^|[;&|]\s*)(?:\S*python\S*\s+-m\s+)?pip\s+install\b",
+)
 PIP_REQUIREMENT_DIRECTIVE_PREFIXES = (
     "-i ",
     "--index-url ",
@@ -496,7 +499,7 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
     audit_script = audit_step["run"]
     assert "bash scripts/ci_pip_audit.sh" in audit_script
     assert "requirements-security.txt" not in audit_script
-    assert "python -m pip install" not in audit_script
+    assert not PIP_INSTALL_INVOCATION_PATTERN.search(audit_script)
 
 
 def test_constraints_keep_dependency_security_floors_aligned() -> None:
@@ -541,7 +544,7 @@ def test_ci_security_job_runs_pip_audit_from_ci_lite_toolchain() -> None:
 
     assert "bash scripts/ci_pip_audit.sh" in audit_script
     assert "requirements-security.txt" not in audit_script
-    assert "python -m pip install" not in audit_script
+    assert not PIP_INSTALL_INVOCATION_PATTERN.search(audit_script)
 
 
 def test_safety_nltk_security_tooling_surface_is_removed() -> None:
