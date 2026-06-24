@@ -1214,13 +1214,14 @@ def test_build_pip_proxy_install_command_uses_approved_proxy_without_cache(
 
     assert command[:4] == ["python", "-m", "pip", "install"]
     install_idx = command.index("install")
-    assert command[install_idx + 1 : install_idx + 5] == [
+    assert command[install_idx + 1 : install_idx + 6] == [
         "--no-cache-dir",
+        "--no-deps",
         "--retries",
         str(installer.PIP_NETWORK_RETRIES),
         "--timeout",
     ]
-    assert command[install_idx + 5] == str(installer.PIP_NETWORK_TIMEOUT_SECONDS)
+    assert command[install_idx + 6] == str(installer.PIP_NETWORK_TIMEOUT_SECONDS)
     assert "--only-binary" in command
     assert ":all:" in command
     assert "--index-url" in command
@@ -1246,7 +1247,8 @@ def test_build_pip_proxy_install_command_omits_no_cache_dir_when_cache_allowed(
 
     assert "--no-cache-dir" not in command
     install_idx = command.index("install")
-    assert command[install_idx + 1 : install_idx + 5] == [
+    assert command[install_idx + 1 : install_idx + 6] == [
+        "--no-deps",
         "--retries",
         str(installer.PIP_NETWORK_RETRIES),
         "--timeout",
@@ -3469,6 +3471,7 @@ def test_main_runs_direct_proxy_install_and_static_guard(
     staging_install_command = observed_commands[0]
     assert staging_install_command[:4] == ["staging-python", "-m", "pip", "install"]
     assert "--no-cache-dir" in staging_install_command
+    assert "--no-deps" in staging_install_command
     assert "--index-url" in staging_install_command
     assert APPROVED_PROXY_URL in staging_install_command
     assert str(requirements) in staging_install_command
@@ -3477,6 +3480,7 @@ def test_main_runs_direct_proxy_install_and_static_guard(
     install_command = observed_commands[1]
     assert install_command[:4] == ["python", "-m", "pip", "install"]
     assert "--no-cache-dir" in install_command
+    assert "--no-deps" in install_command
     assert "--index-url" in install_command
     assert APPROVED_PROXY_URL in install_command
     assert str(requirements) in install_command
@@ -3625,6 +3629,7 @@ def test_main_direct_proxy_docker_single_pass_runs_one_target_install_and_guard(
     assert result == 0
     assert len(observed_commands) == 1
     assert observed_commands[0][:4] == ["python", "-m", "pip", "install"]
+    assert "--no-deps" in observed_commands[0]
     assert "--no-cache-dir" not in observed_commands[0]
     assert observed_guard_python == ["python"]
 
