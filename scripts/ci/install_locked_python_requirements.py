@@ -435,6 +435,30 @@ def _collect_exact_requirement_pins(lines: Sequence[str]) -> set[str]:
     return exact_pins
 
 
+def _requirement_line_package_name(line: str) -> str | None:
+    """Return the normalized package name requested by a requirement-like line."""
+    stripped = line.split("#", 1)[0].strip().lower()
+    if not stripped or stripped.startswith(("-r ", "--requirement ", "-c ", "--constraint ")):
+        return None
+    match = re.match(r"([a-z0-9][a-z0-9._-]*)(?:\[[^]]+\])?\s*(?:===|==|~=|!=|<=|>=|<|>)", stripped)
+    if match is None:
+        return None
+    return re.sub(r"[-_.]+", "-", match.group(1))
+
+
+def _collect_exact_requirement_pin_names(lines: Sequence[str]) -> set[str]:
+    """Return normalized package names for exact pins from requirement-like lines."""
+    exact_pin_names: set[str] = set()
+    for line in lines:
+        stripped = line.split("#", 1)[0].strip().lower()
+        if "==" not in stripped or "===" in stripped:
+            continue
+        package_name = _requirement_line_package_name(stripped)
+        if package_name is not None:
+            exact_pin_names.add(package_name)
+    return exact_pin_names
+
+
 def _load_exact_requirement_pins(requirement_file: Path) -> set[str]:
     """Read one requirement surface once and collect exact pins."""
     return _collect_exact_requirement_pins(
@@ -717,14 +741,16 @@ def effective_constraints_file_for_requirement(
     requirement_file: Path,
     constraints_file: Path | None,
 ) -> Iterator[Path | None]:
-    """Yield constraints with duplicate exact pins removed for one requirement surface."""
+    """Yield constraints with entries removed for exact-pinned requirement packages."""
     validated_constraints_file = validate_constraints_file(constraints_file)
     if validated_constraints_file is None:
         yield None
         return
 
-    requirement_exact_pins = _load_exact_requirement_pins(requirement_file)
-    if not requirement_exact_pins:
+    requirement_lines = requirement_file.read_text(encoding="utf-8").splitlines()
+    requirement_exact_pins = _collect_exact_requirement_pins(requirement_lines)
+    requirement_exact_pin_names = _collect_exact_requirement_pin_names(requirement_lines)
+    if not requirement_exact_pin_names:
         yield validated_constraints_file
         return
 
@@ -732,15 +758,19 @@ def effective_constraints_file_for_requirement(
         keepends=True
     )
     filtered_constraint_lines = []
-    removed_duplicate_pin = False
+    removed_redundant_constraint = False
     for line in constraint_lines:
         normalized_line = line.split("#", 1)[0].strip().lower()
         if normalized_line and normalized_line in requirement_exact_pins:
-            removed_duplicate_pin = True
+            removed_redundant_constraint = True
+            continue
+        constraint_package_name = _requirement_line_package_name(line)
+        if constraint_package_name in requirement_exact_pin_names:
+            removed_redundant_constraint = True
             continue
         filtered_constraint_lines.append(line)
 
-    if not removed_duplicate_pin:
+    if not removed_redundant_constraint:
         yield validated_constraints_file
         return
     if not filtered_constraint_lines:
