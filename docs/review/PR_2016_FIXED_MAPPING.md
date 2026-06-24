@@ -47,6 +47,8 @@ frontend/iOS change, dependency update, deprecated-endpoint removal, or root
 
 - [x] Discussion-thread pass completed at PR open
 - [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 No review threads existed at PR open. Any later CodeRabbit, Sourcery, Cubic,
 Codex Security, human, or role-agent actionable must be fixed or dispositioned
@@ -54,7 +56,7 @@ below before merge readiness.
 
 ## Fixed in Commit Mapping
 
-No review threads existed at PR open.
+- No actionable review comments
 
 ## Implementation Commits
 
