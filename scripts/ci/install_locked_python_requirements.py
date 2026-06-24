@@ -60,8 +60,50 @@ REQUIREMENTS_PROFILES: tuple[str, ...] = (
 )
 PIP_NETWORK_RETRIES = 5
 PIP_NETWORK_TIMEOUT_SECONDS = 60
+PIP_NETWORK_RETRIES_ENV_VAR = "PULSEPLATE_PIP_NETWORK_RETRIES"
+PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR = "PULSEPLATE_PIP_NETWORK_TIMEOUT_SECONDS"
 DOCKER_SINGLE_PASS_LOCKED_INSTALL_ENV = "PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL"  # nosec B105: public env key contract, not a password (remove-by: 2026-12-31, ref: PR-docker-gha-buildx-pip-cache)
 DOCKER_PIP_LAYER_CACHE_ENV = "PULSEPLATE_DOCKER_PIP_LAYER_CACHE"
+
+
+def _bounded_int_env(
+    *,
+    name: str,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    """Return a bounded integer env override or fail closed with a clear error."""
+    raw_value = os.environ.get(name)
+    if raw_value is None or not raw_value.strip():
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer between {minimum} and {maximum}") from exc
+    if value < minimum or value > maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def effective_pip_network_retries() -> int:
+    """Return the bounded pip retry count for package proxy calls."""
+    return _bounded_int_env(
+        name=PIP_NETWORK_RETRIES_ENV_VAR,
+        default=PIP_NETWORK_RETRIES,
+        minimum=1,
+        maximum=10,
+    )
+
+
+def effective_pip_network_timeout_seconds() -> int:
+    """Return the bounded pip/network timeout for package proxy calls."""
+    return _bounded_int_env(
+        name=PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR,
+        default=PIP_NETWORK_TIMEOUT_SECONDS,
+        minimum=5,
+        maximum=120,
+    )
 
 
 def _env_truthy(name: str) -> bool:
@@ -519,7 +561,7 @@ def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) 
         with os.fdopen(temp_file_descriptor, "wb") as file_handle:
             with urlopen(  # nosec B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-07-31, ref: PR-1378)
                 url,
-                timeout=60,
+                timeout=effective_pip_network_timeout_seconds(),
             ) as response:
                 while True:
                     chunk = response.read(1024 * 1024)
@@ -612,9 +654,9 @@ def build_pip_download_command(
         "pip",
         "download",
         "--retries",
-        str(PIP_NETWORK_RETRIES),
+        str(effective_pip_network_retries()),
         "--timeout",
-        str(PIP_NETWORK_TIMEOUT_SECONDS),
+        str(effective_pip_network_timeout_seconds()),
         "--only-binary",
         ":all:",
         "--find-links",
@@ -678,9 +720,9 @@ def build_pip_proxy_install_command(
         "pip",
         "install",
         "--retries",
-        str(PIP_NETWORK_RETRIES),
+        str(effective_pip_network_retries()),
         "--timeout",
-        str(PIP_NETWORK_TIMEOUT_SECONDS),
+        str(effective_pip_network_timeout_seconds()),
         "--only-binary",
         ":all:",
         "--index-url",
@@ -974,7 +1016,7 @@ def _require_private_index_project_health(
         conn = http.client.HTTPConnection(
             parsed.hostname,
             port=parsed.port,
-            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+            timeout=effective_pip_network_timeout_seconds(),
         )
     elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
         # fmt: off
@@ -983,14 +1025,14 @@ def _require_private_index_project_health(
         conn = http.client.HTTPSConnection(
             parsed.hostname,
             port=parsed.port,
-            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+            timeout=effective_pip_network_timeout_seconds(),
             context=trusted_context,
         )
     else:
         conn = http.client.HTTPSConnection(
             parsed.hostname,
             port=parsed.port,
-            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+            timeout=effective_pip_network_timeout_seconds(),
         )
     try:
         conn.request("GET", path, headers=headers)
@@ -1150,9 +1192,9 @@ def build_floor_preflight_command(
         "pip",
         "download",
         "--retries",
-        str(PIP_NETWORK_RETRIES),
+        str(effective_pip_network_retries()),
         "--timeout",
-        str(PIP_NETWORK_TIMEOUT_SECONDS),
+        str(effective_pip_network_timeout_seconds()),
         "--only-binary",
         ":all:",
         "--no-deps",
@@ -1313,9 +1355,9 @@ def upgrade_pip(
         "install",
         "--upgrade",
         "--retries",
-        str(PIP_NETWORK_RETRIES),
+        str(effective_pip_network_retries()),
         "--timeout",
-        str(PIP_NETWORK_TIMEOUT_SECONDS),
+        str(effective_pip_network_timeout_seconds()),
         "--only-binary",
         ":all:",
         "--index-url",
@@ -1894,7 +1936,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 trusted_host=trusted_host,
                 emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
-    except (FileNotFoundError, RuntimeError) as exc:
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: locked install failed: {exc}")
         return 1
 

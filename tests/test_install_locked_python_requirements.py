@@ -960,6 +960,77 @@ def test_build_pip_download_command_uses_constraint_when_present(tmp_path: Path)
     assert "--constraint" in command
 
 
+def test_effective_pip_network_settings_default_to_policy_constants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, raising=False)
+    monkeypatch.delenv(installer.PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR, raising=False)
+
+    assert installer.effective_pip_network_retries() == installer.PIP_NETWORK_RETRIES
+    assert (
+        installer.effective_pip_network_timeout_seconds() == installer.PIP_NETWORK_TIMEOUT_SECONDS
+    )
+
+
+def test_build_pip_download_command_uses_bounded_network_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, "2")
+    monkeypatch.setenv(installer.PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR, "7")
+
+    command = installer.build_pip_download_command(
+        python_executable="python",
+        requirement_file=tmp_path / "requirements.txt",
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+    )
+
+    download_idx = command.index("download")
+    assert command[download_idx + 1 : download_idx + 5] == [
+        "--retries",
+        "2",
+        "--timeout",
+        "7",
+    ]
+
+
+def test_effective_pip_network_settings_reject_invalid_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, "0")
+
+    with pytest.raises(ValueError, match=installer.PIP_NETWORK_RETRIES_ENV_VAR):
+        installer.effective_pip_network_retries()
+
+    monkeypatch.setenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, "1")
+    monkeypatch.setenv(installer.PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR, "4")
+
+    with pytest.raises(ValueError, match=installer.PIP_NETWORK_TIMEOUT_SECONDS_ENV_VAR):
+        installer.effective_pip_network_timeout_seconds()
+
+
+def test_main_reports_invalid_pip_network_env_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv(installer.PIP_NETWORK_RETRIES_ENV_VAR, "0")
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"jiter": "0.12.0"},
+    )
+
+    result = installer.main(["--index-url", APPROVED_PROXY_URL, "--preflight-only"])
+
+    assert result == 1
+    output = capsys.readouterr().out
+    assert "ERROR: locked install failed" in output
+    assert installer.PIP_NETWORK_RETRIES_ENV_VAR in output
+
+
 def test_build_pip_install_command_is_hermetic(tmp_path: Path) -> None:
     command = installer.build_pip_install_command(
         python_executable="python",

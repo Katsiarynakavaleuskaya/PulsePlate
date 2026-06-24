@@ -60,6 +60,9 @@ runs:
       if: ${{ inputs.skip-base-install != 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        PULSEPLATE_PIP_NETWORK_RETRIES: '1'
+        PULSEPLATE_PIP_NETWORK_TIMEOUT_SECONDS: '15'
       run: |
         set -euo pipefail
         : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
@@ -78,6 +81,9 @@ runs:
       if: ${{ inputs.skip-base-install != 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        PULSEPLATE_PIP_NETWORK_RETRIES: '1'
+        PULSEPLATE_PIP_NETWORK_TIMEOUT_SECONDS: '15'
       run: |
         set -euo pipefail
         : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
