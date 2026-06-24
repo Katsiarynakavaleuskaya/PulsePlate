@@ -56,19 +56,19 @@ below before merge readiness.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#pullrequestreview-4560935403 -> 6124584665aec4f6118f960f3787cdfbb8e34a42
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#pullrequestreview-4560935403 -> 3301be7d65a171c9cc029930ff9f73cec58a3b16
 Disposition: FIXED
-Commit: 6124584665aec4f6118f960f3787cdfbb8e34a42
+Commit: 3301be7d65a171c9cc029930ff9f73cec58a3b16
 Evidence: `app/routers/bmi_registration.py` now reports concrete route-family mismatches, duplicate keys, unsupported route types, method-shape problems, and `include_in_schema` drift; its docstring also documents per-app first-call feature-flag caching. `tests/test_bmi_registration_router_coverage.py` verifies unexpected source-route diagnostics. Focused pytest, `make openapi-check`, `make validate-changed`, `pre-commit run --all-files`, and Phase2 gates passed.
 
 ## Implementation Commits
 
-- `71873aae9` - moves BMI route registration to canonical bootstrap, preserves
+- `ba1eabf3d` - moves BMI route registration to canonical bootstrap, preserves
   compatibility exports, removes legacy BMI ownership, tightens the legacy
   growth guard, and adds focused route/bootstrap/security tests.
-- `0e568f870` - adds PR #2016 fixed-mapping governance artifact.
-- `13ebb7fb8` - aligns PR #2016 mapping artifact with Phase2 parser contract.
-- `612458466` - fixes Sourcery review feedback by making BMI registration guard
+- `761e2637a` - adds PR #2016 fixed-mapping governance artifact.
+- `614c37f0c` - aligns PR #2016 mapping artifact with Phase2 parser contract.
+- `3301be7d6` - fixes Sourcery review feedback by making BMI registration guard
   failures diagnostic and documenting first-call feature flag caching.
 
 ## Premortem Findings
@@ -78,7 +78,7 @@ Disposition: FIXED
 Finding: `PM-BMI-001` - validation could be too narrow for a route ownership
 move.
 
-Commit: `71873aae9`
+Commit: `ba1eabf3d`
 
 Evidence: focused BMI/bootstrap/security pytest bundle, route inventory proof,
 `make openapi-check`, `make validate-changed`, `pre-commit run --all-files`,
@@ -89,7 +89,7 @@ Disposition: FIXED
 Finding: `PM-BMI-002` - duplicate or lost BMI route guard could alter runtime
 behavior.
 
-Commit: `71873aae9`
+Commit: `ba1eabf3d`
 
 Evidence: `tests/test_bmi_registration_router_coverage.py` covers exact
 enabled/disabled route inventory, duplicate/foreign route rejection, partial Pro
@@ -114,7 +114,7 @@ Reason: This PR intentionally proves route ownership through canonical
 - Runner mode: `oracle_only_governance_reviewer`
 - Contribution kind: `oracle_review`
 - Co-author required: yes
-- Co-author trailer included in implementation commit `71873aae9`:
+- Co-author trailer included in implementation commit `ba1eabf3d`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 - Oracles passed:
   - `python3 -m pytest -q tests/test_bmi_registration_router_coverage.py tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_bmi_calculate_endpoint.py tests/test_bmi_pro_api.py tests/test_bmi_pro_endpoint_errors.py tests/test_bmi_pro_missing_hip.py tests/test_pro_vip_route_dependency_guard.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_paid_route_guards.py`
@@ -145,7 +145,7 @@ Rejected Runner context:
   per-app BMI registration, no BMI compatibility route conflicts, and parser
   contract validity.
 - PASS: `security-auditor` found no current-head security actionables on
-  `a4aa36c11048cdf3f33fea16ae92433bbe88c26f`; the Sourcery delta only adds
+  `b045a55a3deeaedd880d713c646cc41f83ba068e`; the Sourcery delta only adds
   diagnostic messages, a docstring, a focused test, and mapping evidence.
 
 ## Codex Security Diff Scan / Finding Discovery
@@ -182,7 +182,7 @@ change is included.
 Full local `make verify` was not run under the operator-approved machine-heavy
 exception. Current-head GitHub CI remains the full-suite signal.
 
-Passed locally on head `71873aae9`:
+Passed locally before the dependency-stack rebase:
 
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
@@ -203,13 +203,31 @@ Passed locally on head `71873aae9`:
   changed-files mypy, pip-audit, backend tests, full-repo Bandit, and Docker
   build test.
 
-After Sourcery review remediation `612458466`:
+After Sourcery review remediation `3301be7d6`:
 
 - `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_registration_router_coverage.py`
 - `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_registration_router_coverage.py tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_bmi_calculate_endpoint.py tests/test_bmi_pro_api.py tests/test_bmi_pro_endpoint_errors.py tests/test_bmi_pro_missing_hip.py tests/test_pro_vip_route_dependency_guard.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_paid_route_guards.py`
 - `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" make openapi-check`
 - `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" PREPUSH_DEBUG=1 make validate-changed`
 - `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" pre-commit run --all-files`
+
+After dependency-stack rebase onto `220139000`:
+
+- `python3 scripts/orchestration/check_preflight.py`
+- `python3 scripts/orchestration/check_agent_consistency.py`
+- `python3 scripts/ci/check_legacy_growth_guard.py`
+- `FEATURE_BMI_PRO_ENABLED=0` canonical BMI family proof: exactly
+  `POST /api/v1/bmi/calculate`; pre-existing legacy compatibility endpoints
+  `/bmi`, `/api/v1/bmi`, and `/legacy/bmi-calculator` remain preserved and out
+  of this PR's removal scope.
+- `FEATURE_BMI_PRO_ENABLED=1` canonical BMI/BMI Pro family proof: exactly
+  `POST /api/v1/bmi/calculate`, `POST /api/v1/pro/bmi`,
+  `POST /api/v1/pro/bmi/calculate`, and `POST /api/v1/bmi/pro`; Pro routes are
+  guarded by `require_pro_tier`; the legacy alias remains deprecated and keeps
+  migration metadata.
+- `PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bmi_registration_router_coverage.py tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_bmi_calculate_endpoint.py tests/test_bmi_pro_api.py tests/test_bmi_pro_endpoint_errors.py tests/test_bmi_pro_missing_hip.py tests/test_pro_vip_route_dependency_guard.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_paid_route_guards.py`
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make openapi-check`
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
 
 Current-head CI is pending at mapping creation.
 
