@@ -1748,8 +1748,9 @@ def test_resolve_private_proxy_settings_rejects_ambient_overrides(
 def test_run_command_redacts_url_credentials_from_failure_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    token_with_at_sign = "tok@en-123"
     credentialed_url = (
-        f"https://{DEVPI_SIMPLE_USER}:{DEVPI_SIMPLE_TOKEN}"
+        f"https://{DEVPI_SIMPLE_USER}:{token_with_at_sign}"
         "@packages.pulseplate.app/root/pulseplate/+simple/"
     )
 
@@ -1764,10 +1765,20 @@ def test_run_command_redacts_url_credentials_from_failure_output(
     monkeypatch.setattr(installer.subprocess, "run", fake_run)
 
     with pytest.raises(RuntimeError, match="Command failed") as excinfo:
-        installer.run_command(["python", "-m", "pip", "download", "--index-url", credentialed_url])
+        installer.run_command(
+            [
+                installer.sys.executable,
+                "-m",
+                "pip",
+                "download",
+                "--index-url",
+                credentialed_url,
+            ]
+        )
 
     message = str(excinfo.value)
-    assert "token-123" not in message
+    assert token_with_at_sign not in message
+    assert "tok@en" not in message
     assert "ci-reader" not in message
     assert "https://packages.pulseplate.app/root/pulseplate/+simple/" in message
 

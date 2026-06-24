@@ -421,16 +421,12 @@ def _private_index_auth_env(
     home.mkdir()
     runner_temp.mkdir()
 
-    env = os.environ.copy()
-    env.update(
-        {
-            "HOME": str(home),
-            "RUNNER_TEMP": str(runner_temp),
-            "PULSEPLATE_PYTHON_INDEX_URL": index_url,
-        }
-    )
-    env.pop("DEVPI_CI_USER", None)
-    env.pop("DEVPI_CI_PASSWORD", None)
+    env = {
+        "HOME": str(home),
+        "RUNNER_TEMP": str(runner_temp),
+        "PULSEPLATE_PYTHON_INDEX_URL": index_url,
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+    }
     if user is not None:
         env["DEVPI_CI_USER"] = user
     if password is not None:
@@ -1305,6 +1301,7 @@ def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args()
     publish_scan_with = publish_scan_step["with"]
     publish_scan_build_args = publish_scan_with["build-args"]
     publish_scan_secret_envs = publish_scan_with["secret-envs"]
+    publish_scan_secret_files = publish_scan_with["secret-files"]
 
     assert publish_scan_with["push"] is False
     assert publish_scan_with["load"] is True
@@ -1313,6 +1310,7 @@ def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args()
     assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in publish_scan_build_args
     assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in publish_scan_secret_envs
     assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in publish_scan_secret_envs
+    assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in publish_scan_secret_files
 
     for step in _pushed_docker_steps_with_secret_index_args():
         assert step["with"]["provenance"] == "mode=min"
@@ -1322,6 +1320,52 @@ def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args()
         build_secret_envs = step["with"]["secret-envs"]
         assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in build_secret_envs
         assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in build_secret_envs
+
+
+def test_build_workflow_passes_netrc_secret_file_to_private_index_docker_builds() -> None:
+    dockerfile_text = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "--mount=type=secret,id=pp_netrc,required=false" in dockerfile_text
+    assert "cp /run/secrets/pp_netrc /root/.netrc" in dockerfile_text
+    assert "trap 'rm -f /root/.netrc' EXIT" in dockerfile_text
+
+    for job_name, build_step_name in (
+        ("build", "Build Docker image (local, for tests)"),
+        ("publish", "Build Docker image for publish scan"),
+    ):
+        steps = _workflow_steps(".github/workflows/build.yml", job_name)
+        step_names = [str(step["name"]) for step in steps]
+        auth_step = _workflow_step_by_name(
+            ".github/workflows/build.yml",
+            job_name,
+            "Prepare private Python index Docker authentication",
+        )
+        build_step = _workflow_step_by_name(
+            ".github/workflows/build.yml",
+            job_name,
+            build_step_name,
+        )
+
+        assert step_names.index(
+            "Prepare private Python index Docker authentication"
+        ) < step_names.index(build_step_name)
+
+        auth_env = auth_step["env"]
+        assert auth_env["DEVPI_CI_USER"] == (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
+        )
+        assert auth_env["DEVPI_CI_PASSWORD"] == (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+        )
+        assert auth_env["PULSEPLATE_PYTHON_INDEX_URL"] == "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+
+        auth_script = auth_step["run"]
+        assert 'auth_file="$RUNNER_TEMP/pulseplate-docker-netrc"' in auth_script
+        assert ': > "$auth_file"' in auth_script
+        assert "Root devpi credentials are forbidden" in auth_script
+        assert "PULSEPLATE_PYTHON_INDEX_URL must not contain credentials" in auth_script
+
+        build_with = build_step["with"]
+        assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in build_with["secret-files"]
 
 
 def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:

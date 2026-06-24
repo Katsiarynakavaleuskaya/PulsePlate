@@ -1019,7 +1019,7 @@ def _redact_url_credentials(url: str) -> str:
 def _redact_url_credentials_in_text(value: str) -> str:
     """Remove inline URL credentials from arbitrary diagnostic text."""
     return re.sub(
-        r"\b(?P<scheme>https?://)(?P<userinfo>[^/\s@]+@)(?P<host>[^/\s?#]+)",
+        r"\b(?P<scheme>https?://)(?P<userinfo>[^/\s?#]+@)(?P<host>[^@\s/?#]+)",
         lambda match: f"{match.group('scheme')}{match.group('host')}",
         value,
     )
