@@ -61,6 +61,7 @@ Disposition: FIXED
 Commit: 3301be7d65a171c9cc029930ff9f73cec58a3b16
 Evidence: `app/routers/bmi_registration.py` now reports concrete route-family mismatches, duplicate keys, unsupported route types, method-shape problems, and `include_in_schema` drift; its docstring also documents per-app first-call feature-flag caching. `tests/test_bmi_registration_router_coverage.py` verifies unexpected source-route diagnostics. Focused pytest, `make openapi-check`, `make validate-changed`, `pre-commit run --all-files`, and Phase2 gates passed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#pullrequestreview-4565385286 -> 42978e28e086aee0c007f71da44276b801ba87b6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#discussion_r3469821502 -> 42978e28e086aee0c007f71da44276b801ba87b6
 Disposition: FIXED
 Commit: 42978e28e086aee0c007f71da44276b801ba87b6
