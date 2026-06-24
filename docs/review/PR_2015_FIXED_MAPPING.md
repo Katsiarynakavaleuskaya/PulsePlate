@@ -269,6 +269,71 @@ Security-fix validation:
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 
+Codex Security diff scan / finding discovery found four additional actionable
+PR-surface findings.
+
+Scan: `d8cd3e1b-48ee-4c54-b15f-b1627954bfe7`
+
+They are fixed in commit `5f58d3e8dbeb3a9076fa83055b5d6978849bccfa` and
+recorded below. Remaining post-open pass sequence: `pulseplate-pr-review`.
+
+Disposition: FIXED
+
+Finding: fingerprint-only rejection-index validation accepted semantic
+authority/secret-shaped IDs and tokens such as `github:write`,
+`provider_payload`, `openai:gpt-5`, and `slack:admin`.
+
+Commit: `5f58d3e8dbeb3a9076fa83055b5d6978849bccfa`
+
+Evidence: `scripts/orchestration/creative_code_rejection_index.py`,
+`docs/orchestration/contracts/creative_code_specification.v1.schema.json`,
+`tests/test_creative_code_specification.py::test_rejection_index_rejects_unsafe_ids_and_tokens`,
+and
+`tests/test_creative_code_specification.py::test_schema_rejection_labels_reject_unsafe_authority_tokens`.
+
+Disposition: FIXED
+
+Finding: `ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)` could follow a
+pre-existing symlinked artifact-root ancestor before the pipeline rejected
+symlinks.
+
+Commit: `5f58d3e8dbeb3a9076fa83055b5d6978849bccfa`
+
+Evidence: `scripts/orchestration/creative_code_spec_pipeline.py` and
+`tests/test_creative_code_specification.py::test_pipeline_rejects_symlinked_artifact_root_before_creating_children`.
+
+Disposition: FIXED
+
+Finding: `variants[].tests_to_add` accepted out-of-scope product/client/iOS or
+OpenAPI paths even though PR-1 artifacts must stay specification-only and narrow.
+
+Commit: `5f58d3e8dbeb3a9076fa83055b5d6978849bccfa`
+
+Evidence: `scripts/orchestration/creative_code_specification.py`,
+`docs/orchestration/contracts/creative_code_specification.v1.schema.json`, and
+`tests/test_creative_code_specification.py::test_variant_tests_to_add_must_stay_under_tests`.
+
+Disposition: FIXED
+
+Finding: free-text unsafe-authority filtering still accepted provider/runtime
+and patch-authority prose such as OpenAI API calls, HTTP requests, repository
+patches, and commit changes.
+
+Commit: `5f58d3e8dbeb3a9076fa83055b5d6978849bccfa`
+
+Evidence: `scripts/orchestration/creative_code_specification.py`,
+`docs/orchestration/contracts/creative_code_specification.v1.schema.json`,
+`tests/test_creative_code_specification.py::test_unsafe_variant_text_is_rejected`,
+and
+`tests/test_creative_code_specification.py::test_schema_safe_text_rejects_unsafe_authority_prose`.
+
+Codex Security fix validation:
+
+- PASS: `python -m scripts.orchestration.creative_code_specification --validate docs/orchestration/contracts/creative_code_specification.v1.json`
+- PASS: `python -m pytest -q tests/test_creative_code_contract.py tests/test_creative_code_specification.py tests/test_context_pack_compression.py tests/core/evidence/test_fingerprints.py`
+- PASS: `make validate-changed`
+- PASS: `pre-commit run --all-files`
+
 ## Fixed in Commit Mapping
 
 No pre-open GitHub review-thread URLs existed at PR creation time.
@@ -288,6 +353,9 @@ Implementation commits:
 - `c7740821d7dfd963f5b1b3c511e075a7666b6af0` closes post-open security-auditor
   findings for authority variants, hyphenated secret prefixes, and schema
   free-text safety parity.
+- `5f58d3e8dbeb3a9076fa83055b5d6978849bccfa` closes Codex Security findings for
+  rejection-index semantic tokens, artifact-root symlink creation, test-path
+  containment, and provider/runtime/patch prose filtering.
 
 ## Merge Readiness
 
