@@ -61,7 +61,8 @@ automation, or product-runtime behavior.
 - PASS: `python -m pytest -q tests/test_creative_code_contract.py tests/test_creative_code_specification.py tests/test_context_pack_compression.py tests/core/evidence/test_fingerprints.py`
 - PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
 - PASS after commit: `make validate-changed` selected
-  `tests/test_creative_code_specification.py`.
+  `tests/test_creative_code_specification.py` and
+  `tests/test_install_locked_python_requirements.py`.
 - PASS: `pre-commit run --all-files`
 - PASS on push hook: changed-files mypy, backend pytest, full-repo Bandit, and
   Docker build test.
@@ -389,6 +390,29 @@ Evidence:
 - `tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_rejects_mixed_failure_when_anchor_fails`
 - PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
 
+Follow-up failure shape:
+
+- Setup-dependent current-head jobs run
+  `scripts/ci/install_locked_python_requirements.py --preflight-only` before the
+  install path.
+- The preflight-only floor check still rejected mixed approved-proxy timeout plus
+  resolver-miss output before the exact emergency artifact fallback could apply.
+
+Disposition: FIXED
+
+Commit: `18f1b20cbdcfac6efd33b0f6e983e5052e59cf20`
+
+Evidence:
+
+- `scripts/ci/install_locked_python_requirements.py` now applies the same
+  fail-closed exact emergency fallback policy to floor preflight checks, using
+  the stable `pip` project page as the proxy-health anchor for mixed timeout
+  plus resolver-miss output.
+- `tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_allows_partial_proxy_resolver_miss`
+- `tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_rejects_partial_proxy_miss_when_anchor_fails`
+- PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_allows_partial_proxy_resolver_miss tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_rejects_partial_proxy_miss_when_anchor_fails tests/test_install_locked_python_requirements.py::test_run_dependency_floor_preflight_allows_exact_emergency_artifact tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_allows_partial_proxy_resolver_miss tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_rejects_mixed_failure_when_anchor_fails`
+- PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
+
 ## Scope Approval
 
 Operator approval: approved for keeping the current-head CI setup unblock in
@@ -434,6 +458,9 @@ proxy as the authority, adds fail-closed tests, and expires on `2026-06-30`.
 - `3aa9947e6d2b456e5742d51269049b1e4aef04f5` fixes the current-head GitHub CI
   setup blocker by adding an exact, hash-pinned, time-boxed `jiter==0.12.0`
   emergency wheel fallback for partial approved-proxy resolver misses.
+- `18f1b20cbdcfac6efd33b0f6e983e5052e59cf20` applies the same exact emergency
+  fallback policy to locked dependency floor preflight checks so setup-dependent
+  current-head CI jobs can reach lint, tests, OpenAPI sync, and security gates.
 
 ## Fixed in Commit Mapping
 
