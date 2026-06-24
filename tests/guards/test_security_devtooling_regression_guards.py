@@ -23,7 +23,6 @@ from typing import Any
 import yaml
 
 from scripts.ci import ci_risk_profile
-from scripts.ci import run_safety_audit
 from scripts.evals import eval_validity_contract
 from scripts.evals import judgment_validity
 
@@ -47,8 +46,8 @@ SECURITY_DEPENDENCY_PROFILE_FILES: tuple[str, ...] = (
 SECURITY_DEPENDENCY_LOCKFILES: tuple[str, ...] = tuple(
     name for name in SECURITY_DEPENDENCY_PROFILE_FILES if name.endswith(".txt")
 )
-PYTORCH_JIT_SAFETY_ID = "SFTY-20250331-30014"
 PYTORCH_JIT_CVE_ID = "CVE-2025-3000"
+PYTORCH_JIT_GHSA_ID = "GHSA-rrmf-rvhw-rf47"
 PYTORCH_JIT_WAIVER_REMOVE_BY = "2026-07-17"
 BANDIT_SUMMARY_HELPER = "python3 scripts/ci/summarize_bandit_report.py"
 PRODUCTION_RUNTIME_INVARIANT_HELPER = (
@@ -404,13 +403,11 @@ def test_optional_rag_vector_dependency_profiles_have_canonical_security_registr
 
 
 def test_dependency_profiles_are_covered_by_all_security_surfaces() -> None:
-    safety_manifests = set(run_safety_audit.OPTIONAL_MANIFESTS)
     pip_audit_text = PIP_AUDIT_HELPER.read_text(encoding="utf-8")
     workflow_filters = _workflow_path_filters()
     risk_profile_files = set(ci_risk_profile.BACKEND_SHARED_EXACT)
 
     for lockfile in SECURITY_DEPENDENCY_LOCKFILES:
-        assert lockfile in safety_manifests
         assert lockfile in pip_audit_text
 
     for profile_file in SECURITY_DEPENDENCY_PROFILE_FILES:
@@ -424,15 +421,13 @@ def test_dependency_profiles_are_covered_by_all_security_surfaces() -> None:
         assert profile.run_security is True
 
 
-def test_pytorch_jit_cve_waiver_evidence_is_scoped_and_current() -> None:
-    safety_policy = yaml.safe_load((REPO_ROOT / "safety-policy.yaml").read_text(encoding="utf-8"))
-    assert isinstance(safety_policy, dict)
-    vulnerabilities = safety_policy["report"]["dependency-vulnerabilities"][
-        "auto-ignore-in-report"
-    ]["vulnerabilities"]
-    torch_waiver = vulnerabilities[PYTORCH_JIT_SAFETY_ID]
+def test_pytorch_jit_cve_pip_audit_waiver_evidence_is_scoped_and_current() -> None:
+    pip_audit_text = PIP_AUDIT_HELPER.read_text(encoding="utf-8")
 
-    assert torch_waiver["expires"] == PYTORCH_JIT_WAIVER_REMOVE_BY
+    assert 'readonly PYTORCH_JIT_CVE_ID="CVE-2025-3000"' in pip_audit_text
+    assert "requirements-rag-vector.txt | requirements-rag-vector-cpu.txt" in pip_audit_text
+    assert '--ignore-vuln "${PYTORCH_JIT_CVE_ID}"' in pip_audit_text
+    assert "requirements.txt | requirements-ci-lite.txt" not in pip_audit_text
 
     advisory_text = (REPO_ROOT / "docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md").read_text(
         encoding="utf-8"
@@ -440,8 +435,8 @@ def test_pytorch_jit_cve_waiver_evidence_is_scoped_and_current() -> None:
     backlog_text = (REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md").read_text(encoding="utf-8")
 
     for evidence_text in (advisory_text, backlog_text):
-        assert PYTORCH_JIT_SAFETY_ID in evidence_text
         assert PYTORCH_JIT_CVE_ID in evidence_text
+        assert PYTORCH_JIT_GHSA_ID in evidence_text
         assert PYTORCH_JIT_WAIVER_REMOVE_BY in evidence_text
         assert "optional RAG/vector" in evidence_text
 

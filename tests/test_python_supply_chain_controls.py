@@ -486,19 +486,17 @@ def test_security_scan_workflow_uses_ci_lite_direct_proxy_setup() -> None:
     assert setup_step["with"]["requirements-profile"] == "ci-lite"
     assert setup_step["with"]["install-mode"] == "direct-proxy"
 
-    install_step = next(
-        step
-        for step in _workflow_steps(".github/workflows/security.yml", "bandit")
-        if step.get("name") == "Install security tooling"
+    step_names = _workflow_step_names(".github/workflows/security.yml", "bandit")
+    assert "Install security tooling" not in step_names
+    audit_step = _workflow_step_by_name(
+        ".github/workflows/security.yml",
+        "bandit",
+        "Run pip-audit (dependency audit)",
     )
-    install_script = install_step["run"]
-    assert "bandit==" not in install_script
-    assert "scripts/ci/install_locked_python_requirements.py" in install_script
-    assert "--requirements-file requirements-security.txt" in install_script
-    assert "--constraints-file constraints.txt" in install_script
-    assert "--install-mode direct-proxy" in install_script
-    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
-    assert "python -m pip install" not in install_script
+    audit_script = audit_step["run"]
+    assert "bash scripts/ci_pip_audit.sh" in audit_script
+    assert "requirements-security.txt" not in audit_script
+    assert "python -m pip install" not in audit_script
 
 
 def test_constraints_keep_dependency_security_floors_aligned() -> None:
@@ -509,7 +507,9 @@ def test_constraints_keep_dependency_security_floors_aligned() -> None:
     constraints_text = constraints_path.read_text(encoding="utf-8")
     assert "flake8 removed in favor of ruff" not in constraints_text
     assert "replaces flake8" not in constraints_text
-    assert _requirement_package_versions(constraints_path, "safety") == {"3.8.1"}
+    assert _requirement_package_versions(constraints_path, "pip-audit") == {"2.10.1"}
+    assert not _requirement_package_versions(constraints_path, "safety")
+    assert _requirement_package_versions(requirements_ci_lite_in, "pip-audit") == {"2.10.1"}
 
     constraints_pyarrow = _requirement_package_versions(constraints_path, "pyarrow")
     assert constraints_pyarrow == {"20.0.0"}
@@ -528,54 +528,54 @@ def test_constraints_keep_dependency_security_floors_aligned() -> None:
         assert all(Version(version) >= Version("20.0.0") for version in pinned_versions)
 
 
-def test_ci_security_job_installs_safety_through_locked_installer() -> None:
-    install_step = next(
-        step
-        for step in _workflow_steps(".github/workflows/ci.yml", "security")
-        if step.get("name") == "Install Safety"
+def test_ci_security_job_runs_pip_audit_from_ci_lite_toolchain() -> None:
+    step_names = _workflow_step_names(".github/workflows/ci.yml", "security")
+    assert "Install Safety" not in step_names
+
+    audit_step = _workflow_step_by_name(
+        ".github/workflows/ci.yml",
+        "security",
+        "Dependency audit with pip-audit",
     )
-    install_script = install_step["run"]
+    audit_script = audit_step["run"]
 
-    assert "scripts/ci/install_locked_python_requirements.py" in install_script
-    assert "--python-executable python" not in install_script
-    assert "--requirements-file requirements-security.txt" in install_script
-    assert "--install-mode direct-proxy" in install_script
-    assert "--emergency-wheel-manifest scripts/ci/emergency_python_wheels.json" in install_script
-    assert "python -m pip install" not in install_script
+    assert "bash scripts/ci_pip_audit.sh" in audit_script
+    assert "requirements-security.txt" not in audit_script
+    assert "python -m pip install" not in audit_script
 
 
-def test_security_requirements_pin_safety_runtime_closure() -> None:
-    requirements_text = (REPO_ROOT / "requirements-security.txt").read_text(encoding="utf-8")
-    emergency_manifest = json.loads(
-        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
+def test_safety_nltk_security_tooling_surface_is_removed() -> None:
+    removed_paths = (
+        REPO_ROOT / "requirements-security.txt",
+        REPO_ROOT / "scripts" / "ci" / "run_safety_audit.py",
+        REPO_ROOT / ".github" / "scripts" / "parse-safety-report.py",
+        REPO_ROOT / "safety-policy.yaml",
+        REPO_ROOT / "safety-policy.toml",
     )
+    for removed_path in removed_paths:
+        assert not removed_path.exists(), f"{removed_path} must not be restored"
 
-    expected_pins = {
-        "authlib==1.7.2",
-        "dparse==0.6.4",
-        "joblib==1.5.3",
-        "joserfc==1.7.1",
-        "marshmallow==4.3.0",
-        "nltk==3.9.4",
-        "pyyaml==6.0.3",
-        "regex==2026.5.9",
-        "ruamel-yaml==0.19.1",
-        "safety==3.8.1",
-        "safety-schemas==0.0.16",
-        "shellingham==1.5.4",
-        "tomlkit==0.15.0",
-        "truststore==0.10.4",
-        "typer==0.25.1",
-    }
-    for expected_pin in expected_pins:
-        assert expected_pin in requirements_text
-    assert any(
-        artifact.get("package") == "regex"
-        and artifact.get("version") == "2026.5.9"
-        and artifact.get("filename", "").endswith("manylinux_2_28_x86_64.whl")
-        and "sha256_parts" in artifact
-        for artifact in emergency_manifest["artifacts"]
+    for requirement_path in (
+        REPO_ROOT / "constraints.txt",
+        REPO_ROOT / "requirements-all.txt",
+        REPO_ROOT / "requirements-ci-lite.in",
+        REPO_ROOT / "requirements-ci-lite.txt",
+    ):
+        package_names = _requirement_package_names(requirement_path)
+        assert "safety" not in package_names
+        assert "safety-schemas" not in package_names
+        assert "nltk" not in package_names
+
+    workflow_text = "\n".join(
+        (
+            (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"),
+            (REPO_ROOT / ".github" / "workflows" / "security.yml").read_text(encoding="utf-8"),
+            (REPO_ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8"),
+        )
     )
+    assert "SAFETY_API_KEY" not in workflow_text
+    assert "run_safety_audit.py" not in workflow_text
+    assert "requirements-security.txt" not in workflow_text
 
 
 @pytest.mark.parametrize(
@@ -1104,22 +1104,18 @@ def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
         encoding="utf-8"
     )
     ci_pip_audit_text = (REPO_ROOT / "scripts" / "ci_pip_audit.sh").read_text(encoding="utf-8")
-    safety_audit_text = (REPO_ROOT / "scripts" / "ci" / "run_safety_audit.py").read_text(
-        encoding="utf-8"
-    )
 
-    assert "python3 scripts/ci/run_safety_audit.py" in ci_text
-    assert "python3 scripts/ci/run_safety_audit.py" in security_text
-    assert "requirements-docker-runtime.txt" in safety_audit_text
+    assert "bash scripts/ci_pip_audit.sh" in ci_text
+    assert "bash scripts/ci_pip_audit.sh" in security_text
     assert "requirements-docker-runtime.txt" in ci_pip_audit_text
-    assert "requirements-data.txt" in safety_audit_text
     assert "requirements-data.txt" in ci_pip_audit_text
-    assert "requirements-evals.txt" in safety_audit_text
     assert "requirements-evals.txt" in ci_pip_audit_text
-    assert "requirements-rag-vector.txt" in safety_audit_text
     assert "requirements-rag-vector.txt" in ci_pip_audit_text
-    assert "requirements-rag-vector-cpu.txt" in safety_audit_text
     assert "requirements-rag-vector-cpu.txt" in ci_pip_audit_text
+    assert "|| true" not in ci_pip_audit_text
+    assert "--no-deps" in ci_pip_audit_text
+    assert "--disable-pip" in ci_pip_audit_text
+    assert '--ignore-vuln "${PYTORCH_JIT_CVE_ID}"' in ci_pip_audit_text
 
 
 def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(
@@ -1178,57 +1174,56 @@ fi
 
     assert result.returncode == 0
     assert (
-        "-r requirements-rag-vector-cpu.txt -f json -o pip-audit-requirements-rag-vector-cpu.json"
+        "-r requirements-rag-vector-cpu.txt --no-deps --disable-pip -f json "
+        "-o pip-audit-requirements-rag-vector-cpu.json --ignore-vuln CVE-2025-3000"
         in log_path.read_text(encoding="utf-8")
     )
     assert (
-        "-r requirements-data.txt -f json -o pip-audit-requirements-data.json"
-        in log_path.read_text(encoding="utf-8")
+        "-r requirements-data.txt --no-deps --disable-pip -f json "
+        "-o pip-audit-requirements-data.json" in log_path.read_text(encoding="utf-8")
     )
     assert (
-        "-r requirements-evals.txt -f json -o pip-audit-requirements-evals.json"
-        in log_path.read_text(encoding="utf-8")
+        "-r requirements-evals.txt --no-deps --disable-pip -f json "
+        "-o pip-audit-requirements-evals.json" in log_path.read_text(encoding="utf-8")
     )
     assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
     assert (tmp_path / "pip-audit-requirements-data.json").exists()
     assert (tmp_path / "pip-audit-requirements-evals.json").exists()
 
 
-def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None:
+def test_dependency_audit_uses_strict_pip_audit_helper_without_safety_legacy() -> None:
     workflow_paths = (
         ".github/workflows/ci.yml",
         ".github/workflows/security.yml",
-    )
-    safety_audit_text = (REPO_ROOT / "scripts" / "ci" / "run_safety_audit.py").read_text(
-        encoding="utf-8"
     )
 
     for workflow_path in workflow_paths:
         workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
         step_name = (
-            "Dependency audit with Safety"
+            "Dependency audit with pip-audit"
             if workflow_path.endswith("ci.yml")
-            else "Run Safety (dependency audit with policy)"
+            else "Run pip-audit (dependency audit)"
         )
         job_name = "security" if workflow_path.endswith("ci.yml") else "bandit"
-        safety_step = _workflow_step_by_name(workflow_path, job_name, step_name)
+        audit_step = _workflow_step_by_name(workflow_path, job_name, step_name)
 
-        assert "python3 scripts/ci/run_safety_audit.py" in workflow_text
-        assert safety_step["env"]["SAFETY_API_KEY"] == "${{ secrets.SAFETY_API_KEY }}"
-        assert "safety-*.json" in workflow_text
-        assert "safety-*.txt" in workflow_text
-        assert "safety-*.log" in workflow_text
+        assert "bash scripts/ci_pip_audit.sh" in audit_step["run"]
+        assert "SAFETY_API_KEY" not in workflow_text
+        assert "run_safety_audit.py" not in workflow_text
+        assert "requirements-security.txt" not in workflow_text
+        assert "safety-*.json" not in workflow_text
+        assert "safety-*.txt" not in workflow_text
+        assert "safety-*.log" not in workflow_text
+        assert "pip-audit-*.json" in workflow_text
         assert 'manifests=("requirements.txt")' not in workflow_text
         assert 'cp "${report_json}" safety-report.json' not in workflow_text
         assert ".github/scripts/parse-safety-report.py" not in workflow_text
 
-    assert '"scan"' in safety_audit_text
-    assert '"check"' not in safety_audit_text
-    assert "SAFETY_API_KEY" in safety_audit_text
-
     nightly_text = (REPO_ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
     assert "safety check --json" not in nightly_text
-    assert "SAFETY_API_KEY" in nightly_text
+    assert "SAFETY_API_KEY" not in nightly_text
+    assert "bash scripts/ci_pip_audit.sh" in nightly_text
+    assert "pip-audit-*.json" in nightly_text
 
 
 def test_bandit_high_gate_uses_shared_summary_helper_without_inline_parsers() -> None:

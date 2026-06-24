@@ -1400,7 +1400,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {
                 "name": "security-reports",
-                "path": ("bandit-report.json\nsafety-*.json\nsafety-*.txt\nsafety-*.log\n"),
+                "path": ("bandit-report.json\npip-audit-*.json\n"),
                 "if-no-files-found": "ignore",
             },
             "always()",
