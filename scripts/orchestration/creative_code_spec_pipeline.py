@@ -77,6 +77,19 @@ def _reject_symlink_components(path: Path, *, label: str) -> None:
             raise CreativeCodeSpecPipelineError(f"{label} must not traverse symlinks.")
 
 
+def _ensure_artifact_root() -> Path:
+    _reject_symlink_components(ARTIFACT_ROOT, label="artifact root")
+    try:
+        ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise CreativeCodeSpecPipelineError("artifact root could not be created.") from exc
+    _reject_symlink_components(ARTIFACT_ROOT, label="artifact root")
+    root = ARTIFACT_ROOT.resolve(strict=True)
+    if not root.is_dir():
+        raise CreativeCodeSpecPipelineError("artifact root must be a directory.")
+    return root
+
+
 def _resolve_repo_input_file(raw_path: Path) -> Path:
     path = raw_path if raw_path.is_absolute() else REPO_ROOT / raw_path
     _reject_symlink_components(path, label="input path")
@@ -95,8 +108,7 @@ def _resolve_repo_input_file(raw_path: Path) -> Path:
 
 
 def _resolve_artifact_dir(raw_path: Path, *, create: bool) -> Path:
-    ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
-    root = ARTIFACT_ROOT.resolve()
+    root = _ensure_artifact_root()
     path = raw_path if raw_path.is_absolute() else ARTIFACT_ROOT / raw_path
     if path.is_absolute():
         try:
@@ -127,8 +139,7 @@ def _resolve_artifact_dir(raw_path: Path, *, create: bool) -> Path:
 
 
 def _resolve_artifact_file(raw_path: Path, *, for_write: bool) -> Path:
-    ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
-    root = ARTIFACT_ROOT.resolve()
+    root = _ensure_artifact_root()
     path = raw_path if raw_path.is_absolute() else ARTIFACT_ROOT / raw_path
     if path.is_absolute():
         try:

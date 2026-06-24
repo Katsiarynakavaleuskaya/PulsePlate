@@ -50,6 +50,10 @@ SECRET_RE = re.compile(
 UNSAFE_TEXT_RE = re.compile(
     r"(candidate\.patch|diff --git|^\+\+\+ |^--- |@@ |provider[_ -]?payload|"
     r"raw[_ -]?(prompt|response|context)|chain[_ -]?of[_ -]?thought|"
+    r"https?://|http request|"
+    r"(openai|anthropic|provider) (api|scoring|model)|api\.openai\.com|"
+    r"runtime service|product runtime|"
+    r"apply (a )?(repository )?patch|repository patch|commit changes|git commit|git push|"
     r"open (a )?(draft )?(pull request|PR)|"
     r"create (a )?(pull request|PR|branch)|"
     r"push (the )?branch|"
@@ -380,6 +384,17 @@ def _normalize_path_list(
     return normalized
 
 
+def _normalize_test_path_list(payload: Mapping[str, Any], key: str, *, label: str) -> list[str]:
+    normalized = _normalize_path_list(payload, key, label=label)
+    invalid_paths = [path for path in normalized if not path.startswith("tests/")]
+    if invalid_paths:
+        joined = ", ".join(invalid_paths)
+        raise CreativeCodeSpecificationError(
+            f"{label}.{key} must stay under tests/. Invalid paths: {joined}"
+        )
+    return normalized
+
+
 def _normalize_token_list(
     payload: Mapping[str, Any],
     key: str,
@@ -556,7 +571,7 @@ def _validate_variant(
             label=label,
         ),
         "target_paths": _normalize_path_list(raw_variant, "target_paths", label=label),
-        "tests_to_add": _normalize_path_list(raw_variant, "tests_to_add", label=label),
+        "tests_to_add": _normalize_test_path_list(raw_variant, "tests_to_add", label=label),
         "negative_controls": _normalize_token_list(
             raw_variant,
             "negative_controls",

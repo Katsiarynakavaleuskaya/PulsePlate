@@ -78,6 +78,16 @@ def _schema_safe_text_rejects(value: str) -> bool:
     )
 
 
+def _schema_rejection_label_rejects(value: str) -> bool:
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    rejection_safe_id = schema["$defs"]["rejection_safe_id"]
+    return any(
+        re.search(str(guard["not"]["pattern"]), value) is not None
+        for guard in rejection_safe_id["allOf"]
+        if "not" in guard
+    )
+
+
 def _reviewed_bundle_inputs() -> (
     tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]]]
 ):
@@ -117,6 +127,15 @@ def test_reference_bundle_schema_and_validator_are_aligned() -> None:
     )
     assert schema["$defs"]["skeptic_review"]["properties"]["required_revision"]["$ref"] == (
         "#/$defs/safe_text"
+    )
+    assert schema["$defs"]["variant"]["properties"]["tests_to_add"]["$ref"] == (
+        "#/$defs/non_empty_test_paths"
+    )
+    assert (
+        schema["$defs"]["rejection_index"]["properties"]["records"]["items"]["properties"][
+            "reason_codes"
+        ]["$ref"]
+        == "#/$defs/rejection_token_array"
     )
     assert "pattern" in schema["$defs"]["path"]
     assert schema["properties"]["cost_metadata_available"]["const"] is False
@@ -257,6 +276,9 @@ def test_variant_target_paths_cannot_create_children_under_file_surface() -> Non
         "Open PR, push branch, and write repository after selecting the spec.",
         "Open a PR, create a pull request, push the branch, and write to the repository.",
         "Open a draft PR, create branch, and write shared worktree files.",
+        "Call the OpenAI API from the runtime service.",
+        "Make an HTTP request to https://api.openai.com for provider scoring.",
+        "Apply a repository patch and commit changes.",
     ],
 )
 def test_unsafe_variant_text_is_rejected(unsafe_text: str) -> None:
@@ -279,12 +301,26 @@ def test_unsafe_variant_text_is_rejected(unsafe_text: str) -> None:
         "token sk-proj-1234567890abcdef",
         "Open a draft PR, create branch, and write shared worktree files.",
         "Call model and use semantic cache for this variant.",
+        "Make an HTTP request to https://api.openai.com for provider scoring.",
+        "Apply a repository patch and commit changes.",
         "See local path /Users/example/project/.env",
         "This spec will diagnose diabetes.",
     ],
 )
 def test_schema_safe_text_rejects_unsafe_authority_prose(unsafe_text: str) -> None:
     assert _schema_safe_text_rejects(unsafe_text)
+
+
+def test_variant_tests_to_add_must_stay_under_tests() -> None:
+    bundle = _bundle()
+    variants = bundle["variants"]
+    assert isinstance(variants, list)
+    variant = variants[0]
+    assert isinstance(variant, dict)
+    variant["tests_to_add"] = ["ios/PulsePlate/App.swift"]
+
+    with pytest.raises(CreativeCodeSpecificationError, match="tests_to_add"):
+        validate_creative_code_specification_bundle(bundle)
 
 
 def test_all_rejected_is_valid_terminal_state() -> None:
@@ -346,6 +382,50 @@ def test_rejection_index_duplicate_keys_fail_closed(
         read_creative_code_rejection_index(duplicate)
 
 
+@pytest.mark.parametrize(
+    ("field", "unsafe_value"),
+    [
+        ("source_packet_id", "sk-test-placeholder-not-a-secret"),
+        ("variant_id", "github:write"),
+        ("reason_codes", "provider_payload"),
+        ("reviewer_roles", "slack:admin"),
+    ],
+)
+def test_rejection_index_rejects_unsafe_ids_and_tokens(
+    field: str,
+    unsafe_value: str,
+) -> None:
+    rejection_index = deepcopy(_bundle()["rejection_index"])
+    assert isinstance(rejection_index, dict)
+    records = rejection_index["records"]
+    assert isinstance(records, list)
+    first_record = records[0]
+    assert isinstance(first_record, dict)
+    if field == "source_packet_id":
+        rejection_index[field] = unsafe_value
+    elif field == "variant_id":
+        first_record[field] = unsafe_value
+    else:
+        first_record[field] = [unsafe_value]
+
+    with pytest.raises(CreativeCodeRejectionIndexError, match="unsafe"):
+        validate_creative_code_rejection_index(rejection_index)
+
+
+@pytest.mark.parametrize(
+    "unsafe_value",
+    [
+        "sk-test-placeholder-not-a-secret",
+        "github:write",
+        "provider_payload",
+        "openai:gpt-5",
+        "slack:admin",
+    ],
+)
+def test_schema_rejection_labels_reject_unsafe_authority_tokens(unsafe_value: str) -> None:
+    assert _schema_rejection_label_rejects(unsafe_value)
+
+
 def test_pipeline_prepare_and_finalize_write_valid_bundle() -> None:
     run_dir = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
     try:
@@ -380,6 +460,26 @@ def test_pipeline_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     finally:
         if link.is_symlink():
             link.unlink()
+
+
+def test_pipeline_rejects_symlinked_artifact_root_before_creating_children(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = tmp_path / "artifact-root-link"
+    link.symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(
+        creative_code_spec_pipeline,
+        "ARTIFACT_ROOT",
+        link / "orchestration" / "creative_code",
+    )
+
+    with pytest.raises(CreativeCodeSpecPipelineError, match="artifact root"):
+        creative_code_spec_pipeline.prepare(REFERENCE_PACKET, Path("pytest-run"))
+
+    assert not (outside / "orchestration").exists()
 
 
 def test_pipeline_rejects_absolute_artifact_paths_without_creating_them(

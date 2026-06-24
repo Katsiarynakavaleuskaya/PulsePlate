@@ -144,6 +144,33 @@
       "minLength": 1,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
     },
+    "rejection_safe_id": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/safe_id"
+        },
+        {
+          "not": {
+            "pattern": "[sS][kK]-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_]{12,}|github_pat_|xox[abprs]-|[aA][uU][tT][hH][oO][rR][iI][zZ][aA][tT][iI][oO][nN][_.:-]?[bB][eE][aA][rR][eE][rR]|[pP][rR][iI][vV][aA][tT][eE][_.:-]?[kK][eE][yY]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "(^|[._:-])([cC][aA][nN][dD][iI][dD][aA][tT][eE][._:-]?[pP][aA][tT][cC][hH]|[pP][rR][oO][vV][iI][dD][eE][rR][._:-]?[pP][aA][yY][lL][oO][aA][dD]|[rR][aA][wW][._:-]?([pP][rR][oO][mM][pP][tT]|[rR][eE][sS][pP][oO][nN][sS][eE]|[cC][oO][nN][tT][eE][xX][tT])|[oO][pP][eE][nN][aA][iI]|[aA][nN][tT][hH][rR][oO][pP][iI][cC]|[sS][lL][aA][cC][kK]|[gG][iI][tT][hH][uU][bB]|[mM][oO][dD][eE][lL]|[nN][eE][tT][wW][oO][rR][kK]|[rR][uU][nN][tT][iI][mM][eE]|[rR][eE][pP][oO][sS][iI][tT][oO][rR][yY]|[wW][oO][rR][kK][tT][rR][eE][eE]|[pP][uU][lL][lL][._:-]?[rR][eE][qQ][uU][eE][sS][tT]|[bB][rR][aA][nN][cC][hH]|[mM][eE][rR][gG][eE]|[rR][eE][lL][eE][aA][sS][eE]|[sS][eE][mM][aA][nN][tT][iI][cC][._:-]?[cC][aA][cC][hH][eE])([._:-]|$)"
+          }
+        }
+      ]
+    },
+    "rejection_token": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/safe_token"
+        },
+        {
+          "$ref": "#/$defs/rejection_safe_id"
+        }
+      ]
+    },
     "sha256": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
@@ -165,6 +192,11 @@
         {
           "not": {
             "pattern": "[pP][rR][oO][vV][iI][dD][eE][rR][_ -]?[pP][aA][yY][lL][oO][aA][dD]|[rR][aA][wW][_ -]?([pP][rR][oO][mM][pP][tT]|[rR][eE][sS][pP][oO][nN][sS][eE]|[cC][oO][nN][tT][eE][xX][tT])|[cC][hH][aA][iI][nN][_ -]?[oO][fF][_ -]?[tT][hH][oO][uU][gG][hH][tT]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "https?://|[hH][tT][tT][pP] [rR][eE][qQ][uU][eE][sS][tT]|([oO][pP][eE][nN][aA][iI]|[aA][nN][tT][hH][rR][oO][pP][iI][cC]|[pP][rR][oO][vV][iI][dD][eE][rR]) ([aA][pP][iI]|[sS][cC][oO][rR][iI][nN][gG]|[mM][oO][dD][eE][lL])|api\\.openai\\.com|[rR][uU][nN][tT][iI][mM][eE] [sS][eE][rR][vV][iI][cC][eE]|[pP][rR][oO][dD][uU][cC][tT] [rR][uU][nN][tT][iI][mM][eE]|[aA][pP][pP][lL][yY] (?:[aA] )?(?:[rR][eE][pP][oO][sS][iI][tT][oO][rR][yY] )?[pP][aA][tT][cC][hH]|[rR][eE][pP][oO][sS][iI][tT][oO][rR][yY] [pP][aA][tT][cC][hH]|[cC][oO][mM][mM][iI][tT] [cC][hH][aA][nN][gG][eE][sS]|git commit|git push"
           }
         },
         {
@@ -202,11 +234,36 @@
         "$ref": "#/$defs/path"
       }
     },
+    "test_path": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/path"
+        },
+        {
+          "pattern": "^tests/"
+        }
+      ]
+    },
+    "non_empty_test_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/test_path"
+      }
+    },
     "token_array": {
       "type": "array",
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/safe_token"
+      }
+    },
+    "rejection_token_array": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/rejection_token"
       }
     },
     "text_array": {
@@ -381,7 +438,7 @@
           "$ref": "#/$defs/non_empty_paths"
         },
         "tests_to_add": {
-          "$ref": "#/$defs/non_empty_paths"
+          "$ref": "#/$defs/non_empty_test_paths"
         },
         "negative_controls": {
           "$ref": "#/$defs/token_array"
@@ -426,7 +483,7 @@
           "$ref": "#/$defs/safe_id"
         },
         "source_packet_id": {
-          "$ref": "#/$defs/safe_id"
+          "$ref": "#/$defs/rejection_safe_id"
         },
         "source_candidate_id": {
           "$ref": "#/$defs/safe_id"
@@ -575,16 +632,16 @@
             ],
             "properties": {
               "variant_id": {
-                "$ref": "#/$defs/safe_id"
+                "$ref": "#/$defs/rejection_safe_id"
               },
               "variant_fingerprint": {
                 "$ref": "#/$defs/sha256"
               },
               "reason_codes": {
-                "$ref": "#/$defs/token_array"
+                "$ref": "#/$defs/rejection_token_array"
               },
               "reviewer_roles": {
-                "$ref": "#/$defs/token_array"
+                "$ref": "#/$defs/rejection_token_array"
               }
             }
           }

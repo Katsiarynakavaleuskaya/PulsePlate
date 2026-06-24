@@ -24,6 +24,19 @@ SUCCESS_OUTPUT = "PASS: creative-code rejection index valid"
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
+SECRET_RE = re.compile(
+    r"(sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_]{12,}|github_pat_|"
+    r"xox[abprs]-|authorization[:._-]?bearer|private[_.:-]?key)",
+    re.IGNORECASE,
+)
+UNSAFE_TOKEN_SEGMENT_RE = re.compile(
+    r"(^|[._:-])("
+    r"candidate[._:-]?patch|provider[._:-]?payload|raw[._:-]?(prompt|response|context)|"
+    r"openai|anthropic|slack|github|model|network|runtime|repository|worktree|"
+    r"pull[._:-]?request|branch|merge|release|semantic[._:-]?cache"
+    r")([._:-]|$)",
+    re.IGNORECASE,
+)
 
 TOP_LEVEL_KEYS = frozenset(
     {
@@ -120,6 +133,7 @@ def _require_safe_id(payload: Mapping[str, Any], key: str, *, label: str) -> str
     normalized = value.strip()
     if not normalized or not SAFE_ID_RE.fullmatch(normalized):
         raise CreativeCodeRejectionIndexError(f"{label}.{key} must be a safe identifier.")
+    _reject_unsafe_label(normalized, label=f"{label}.{key}")
     return normalized
 
 
@@ -128,6 +142,13 @@ def _require_fingerprint(payload: Mapping[str, Any], key: str, *, label: str) ->
     if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
         raise CreativeCodeRejectionIndexError(f"{label}.{key} must be a sha256 digest.")
     return value
+
+
+def _reject_unsafe_label(value: str, *, label: str) -> None:
+    if SECRET_RE.search(value) or UNSAFE_TOKEN_SEGMENT_RE.search(value):
+        raise CreativeCodeRejectionIndexError(
+            f"{label} must not contain unsafe creative-code authority labels."
+        )
 
 
 def _normalize_token_list(
@@ -150,6 +171,7 @@ def _normalize_token_list(
         token = item.strip()
         if not token or not SAFE_TOKEN_RE.fullmatch(token):
             raise CreativeCodeRejectionIndexError(f"{label}.{key}[{index}] must be a safe token.")
+        _reject_unsafe_label(token, label=f"{label}.{key}[{index}]")
         if token in seen:
             raise CreativeCodeRejectionIndexError(f"{label}.{key} must not contain duplicates.")
         seen.add(token)
