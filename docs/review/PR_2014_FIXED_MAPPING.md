@@ -87,6 +87,9 @@ Focused local gates:
 - `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS; selected `tests/test_python_supply_chain_controls.py`.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push pytest, and full-repo Bandit.
+- Codex Security diff scan `e8ff0e1e-63f6-4932-aac3-b78356b41f32`
+  against head `4be4fc1edebd9cdbf5fbafe2cf434fc8384a862c` - PASS;
+  0 findings, 12/12 review receipts completed.
 
 Full local `make verify` was not run under the operator-approved machine-heavy
 exception for this dependency lane. Current-head CI is the required heavy parity
@@ -114,6 +117,10 @@ dispositioned with evidence.
   `REQUIREMENTS.md` commands that could bypass the approved private proxy and
   an unreachable full SHA in this mapping artifact; both fixed in
   `23635b2f4fb2575120d356b952898dc3796cfd41`.
+- `Codex Security`: diff scan
+  `e8ff0e1e-63f6-4932-aac3-b78356b41f32` completed against head
+  `4be4fc1edebd9cdbf5fbafe2cf434fc8384a862c` after those fixes with
+  0 findings and 12/12 review receipts.
 
 ## Fixed in Commit Mapping
 
@@ -148,10 +155,13 @@ Not merge-ready at artifact creation time.
 
 - Full local `make verify` is deferred under the operator-approved machine-heavy
   exception documented above.
-- Post-open role passes are still required:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Codex Security diff scan/finding discovery and `pulseplate-pr-review` are
-  still required.
+- Post-open role passes ran in order:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`; their actionable
+  findings are fixed above.
+- Codex Security diff scan/finding discovery completed against head
+  `4be4fc1edebd9cdbf5fbafe2cf434fc8384a862c` with 0 findings.
+  Fresh current-head Codex Security parity and `pulseplate-pr-review` are still
+  required if the branch head advances before readiness.
 - CodeRabbit, Sourcery, Cubic, bot actionables, review-thread disposition,
   current-head CI, diff coverage, and strict
   `check_merge_ready.py --require-auth` must pass before any readiness or merge
