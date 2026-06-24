@@ -144,6 +144,12 @@ dispositioned with evidence.
   pip 26 treated the selected exact pin `openai==2.29.0` plus redundant
   constraint floor `openai>=2.8.1` as a resolver conflict; fixed in
   `e19e349c36e4ee5becd7780720ddf52e99d6b0e7`.
+- Current-head CI: `OpenAPI sync` job `83177933838` and `security` job
+  `83177933855` were cancelled by job timeout in `Setup Python environment`
+  after the exact-pin conflict was fixed; fixed in
+  `999a981e2dd009fa3892c1e77d1284f46e480d59` by installing pip-compiled
+  locked requirement surfaces with `--no-deps` while preserving approved proxy,
+  constraints, emergency fallback, and startup-hook guardrails.
 
 ## Fixed in Commit Mapping
 
@@ -201,6 +207,10 @@ Disposition: FIXED
 Commit: e19e349c36e4ee5becd7780720ddf52e99d6b0e7
 Evidence: Current-head `OpenAPI sync` setup failure is fixed by generating per-requirement effective constraints that drop redundant constraint entries for packages already exact-pinned by the selected requirements file. Regression tests cover `openai==2.29.0` with `openai>=2.8.1` for both the effective constraints helper and direct-proxy install command construction.
 
+Disposition: FIXED
+Commit: 999a981e2dd009fa3892c1e77d1284f46e480d59
+Evidence: Current-head `OpenAPI sync` job `83177933838` and `security` job `83177933855` were cancelled by job timeout in `Setup Python environment`. The installer now passes `--no-deps` to locked `pip install` commands for pip-compiled requirement surfaces, and `tests/test_install_locked_python_requirements.py` asserts direct-proxy and Docker single-pass command construction include `--no-deps`.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -223,6 +233,8 @@ Evidence: Current-head `OpenAPI sync` setup failure is fixed by generating per-r
   `66ef96f848cb8d475c4ab699ce5fd00c0dc393bc`
 - exact-pin effective constraints fix ->
   `e19e349c36e4ee5becd7780720ddf52e99d6b0e7`
+- locked install no-deps resolver-timeout fix ->
+  `999a981e2dd009fa3892c1e77d1284f46e480d59`
 
 ## Deferred / Follow-ups
 
