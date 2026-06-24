@@ -496,27 +496,10 @@ jobs:
             --fail-on-high \
             --github-annotations
 
-      - name: Install Safety
+      - name: Dependency audit with pip-audit
         run: |
           set -euo pipefail
-          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-          install_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
-          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
-          fi
-          python scripts/ci/install_locked_python_requirements.py \
-            --requirements-file requirements-security.txt \
-            --constraints-file constraints.txt \
-            --install-mode direct-proxy \
-            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
-            "${install_args[@]}"
-
-      - name: Dependency audit with Safety
-        env:
-          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
-        run: |
-          set -euo pipefail
-          python3 scripts/ci/run_safety_audit.py
+          bash scripts/ci_pip_audit.sh
 
       - name: Upload bandit artifact
         if: always()
@@ -525,9 +508,7 @@ jobs:
           name: security-reports
           path: |
             bandit-report.json
-            safety-*.json
-            safety-*.txt
-            safety-*.log
+            pip-audit-*.json
           if-no-files-found: ignore
           retention-days: 7
 

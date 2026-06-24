@@ -28,6 +28,12 @@ anyio==4.12.0
     #   starlette
 bandit==1.9.4
     # via -r requirements-ci-lite.in
+boolean-py==5.0
+    # via license-expression
+cachecontrol[filecache]==0.14.4
+    # via
+    #   cachecontrol
+    #   pip-audit
 certifi==2026.1.4
     # via
     #   -c requirements.txt
@@ -63,6 +69,10 @@ cycler==0.12.1
     # via
     #   -c requirements.txt
     #   matplotlib
+cyclonedx-python-lib==11.11.0
+    # via pip-audit
+defusedxml==0.7.1
+    # via py-serializable
 deprecated==1.3.1
     # via
     #   -c requirements.txt
@@ -89,6 +99,7 @@ fastapi==0.136.1
     #   -r requirements-ci-lite.in
 filelock==3.24.3
     # via
+    #   cachecontrol
     #   python-discovery
     #   virtualenv
 fonttools==4.61.1
@@ -142,6 +153,8 @@ kiwisolver==1.4.9
     # via
     #   -c requirements.txt
     #   matplotlib
+license-expression==30.4.4
+    # via cyclonedx-python-lib
 limits==5.6.0
     # via
     #   -c requirements.txt
@@ -164,6 +177,8 @@ matplotlib==3.10.8
     #   -r requirements-ci-lite.in
 mdurl==0.1.2
     # via markdown-it-py
+msgpack==1.2.1
+    # via cachecontrol
 nh3==0.3.2
     # via
     #   -c requirements.txt
@@ -208,11 +223,15 @@ opentelemetry-semantic-conventions==0.61b0
     # via
     #   -c requirements.txt
     #   opentelemetry-sdk
+packageurl-python==0.17.6
+    # via cyclonedx-python-lib
 packaging==25.0
     # via
     #   -c requirements.txt
     #   limits
     #   matplotlib
+    #   pip-audit
+    #   pip-requirements-parser
     #   pytest
 pillow==12.2.0
     # via
@@ -220,8 +239,15 @@ pillow==12.2.0
     #   -r requirements-ci-lite.in
     #   matplotlib
     #   reportlab
+pip-api==0.0.34
+    # via pip-audit
+pip-audit==2.10.1
+    # via -r requirements-ci-lite.in
+pip-requirements-parser==32.0.1
+    # via pip-audit
 platformdirs==4.9.4
     # via
+    #   pip-audit
     #   python-discovery
     #   virtualenv
 pluggy==1.6.0
@@ -247,6 +273,8 @@ psycopg-binary==3.3.3
     # via
     #   -c requirements.txt
     #   psycopg
+py-serializable==2.1.0
+    # via cyclonedx-python-lib
 pyarrow==23.0.1
     # via
     #   -c requirements.txt
@@ -275,6 +303,7 @@ pyparsing==3.2.5
     # via
     #   -c requirements.txt
     #   matplotlib
+    #   pip-requirements-parser
 pytest==9.1.1
     # via -r requirements-ci-lite.in
 python-dateutil==2.9.0.post0
@@ -303,9 +332,13 @@ requests==2.33.0
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
+    #   cachecontrol
     #   opentelemetry-exporter-otlp-proto-http
+    #   pip-audit
 rich==14.3.3
-    # via bandit
+    # via
+    #   bandit
+    #   pip-audit
 six==1.17.0
     # via
     #   -c requirements.txt
@@ -318,6 +351,8 @@ sniffio==1.3.1
     # via
     #   -c requirements.txt
     #   openai
+sortedcontainers==2.4.0
+    # via cyclonedx-python-lib
 sqlalchemy==2.0.48
     # via
     #   -c requirements.txt
@@ -334,6 +369,10 @@ tenacity==9.1.4
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
+tomli==2.4.1
+    # via pip-audit
+tomli-w==1.2.0
+    # via pip-audit
 tqdm==4.67.1
     # via
     #   -c requirements.txt

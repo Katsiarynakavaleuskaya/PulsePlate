@@ -129,5 +129,5 @@ When touching Makefile devcontainer project-name generation, dependency audit
 helpers, dependency-submission filters, CI risk routing, or eval artifact
 writers, update the focused guards in
 `tests/guards/test_security_devtooling_regression_guards.py`. Optional
-RAG/vector dependency profiles must be covered consistently by Safety,
-pip-audit, Python dependency submission, and CI risk-profile routing.
+RAG/vector dependency profiles must be covered consistently by pip-audit,
+Python dependency submission, and CI risk-profile routing.
