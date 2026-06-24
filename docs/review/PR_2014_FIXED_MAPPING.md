@@ -22,6 +22,7 @@ RAG/vector, Docker, runtime, app/core, iOS/Fastlane, or workflow surfaces.
 - `8f3b35906fcfc83b1602f4867673f837c3577b7b` - `fix(deps): refresh testing dependency stack`
 - `15b0e0c403974b714aa6815cd3b49ec518e3847f` - `test(deps): cover hypothesis testing stack pin`
 - `6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca` - `docs(deps): align testing requirements guide`
+- `23635b2f4fb2575120d356b952898dc3796cfd41` - `docs(deps): require approved proxy in requirements guide`
 
 The implementation commit includes the governed Experiment Runner attribution
 trailer:
@@ -109,6 +110,10 @@ dispositioned with evidence.
 - `bug-hunter`: initially found stale active requirements guide examples for
   `pytest==9.1.0` / `pytest>=9.1.0`; fixed in
   `6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca`.
+- `Codex Security`: initial diff scan candidate validation found active
+  `REQUIREMENTS.md` commands that could bypass the approved private proxy and
+  an unreachable full SHA in this mapping artifact; both fixed in
+  `23635b2f4fb2575120d356b952898dc3796cfd41`.
 
 ## Fixed in Commit Mapping
 
@@ -125,6 +130,8 @@ Evidence: `tests/test_python_supply_chain_controls.py` asserts `hypothesis==6.15
   `15b0e0c403974b714aa6815cd3b49ec518e3847f`
 - Active requirements guide alignment ->
   `6c85ab9ac763ae2aadd6aa846f3435f2f74d61ca`
+- Codex Security approved-proxy guide and reachable mapping proof ->
+  `23635b2f4fb2575120d356b952898dc3796cfd41`
 
 ## Deferred / Follow-ups
 
