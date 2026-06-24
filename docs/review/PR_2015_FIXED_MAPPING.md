@@ -389,6 +389,25 @@ Evidence:
 - `tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_rejects_mixed_failure_when_anchor_fails`
 - PASS: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_dependency_security_guard.py tests/guards/test_security_devtooling_regression_guards.py`
 
+## Scope Approval
+
+Operator approval: approved for keeping the current-head CI setup unblock in
+this PR #2015 lane instead of splitting a separate privileged CI PR after the
+package mirror blocker prevented this PR's own current-head CI from running.
+
+Privileged scope exception: approved for the coherent 17-file PR #2015 surface:
+the governed PR-1 specification layer plus the exact, hash-pinned, time-boxed
+CI setup bridge required to let GitHub current-head CI evaluate that same PR.
+
+Trusted labels required by `scripts/ci/check_pr_size_governance.py`:
+`scope/operator-approved` and `scope/privileged-approved`.
+
+Split justification: splitting the `jiter==0.12.0` emergency fallback into a
+separate PR would leave PR #2015 unable to produce current-head CI truth while
+waiting on the same package mirror blocker. The CI change is narrowly scoped to
+existing locked-install emergency-wheel controls, keeps the approved private
+proxy as the authority, adds fail-closed tests, and expires on `2026-06-30`.
+
 ## Implementation Commits
 
 - `977b48d2208453ae4c3a1eb6bb0c61ed50f717af` implements the PR-1 specification
