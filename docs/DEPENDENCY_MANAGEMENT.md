@@ -119,9 +119,10 @@ If `pip-tools` is not available or you need standard pip compatibility, use cons
 
 ```bash
 # Install pinned dependencies through a local wheelhouse
-export PULSEPLATE_PYTHON_INDEX_URL="https://packages.example.internal/simple"
-# Optional: only when the approved proxy requires an explicit trusted host
-export PULSEPLATE_PYTHON_TRUSTED_HOST="packages.example.internal"
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
+# Optional: only when the approved proxy requires an explicit trusted host.
+# Keep unset when TLS verification succeeds.
+export PULSEPLATE_PYTHON_TRUSTED_HOST=""
 python scripts/ci/install_locked_python_requirements.py \
   --python-executable python \
   --constraints-file constraints.txt \
@@ -180,9 +181,11 @@ generic CI installs.
 
 Canonical contract for shared CI/Docker/bootstrap paths:
 
-- `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy.
-- `PULSEPLATE_PYTHON_TRUSTED_HOST` is optional and should only be set when the approved proxy requires it.
-- GitHub Actions source these values from `secrets` first and fall back to repository `vars`, so an emergency secret override can immediately replace a stale repository-level default without editing every workflow file.
+- `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy simple-index root. For devpi this is the credential-free URL `https://packages.pulseplate.app/root/pulseplate/+simple/`.
+- GitHub Actions authenticated installs must keep the index URL credential-free and use rotated non-root CI read credentials through `.netrc`. The composite `python-setup` action creates that temporary `.netrc` only when both `DEVPI_CI_USER` and `DEVPI_CI_PASSWORD` secrets are present, then removes it with an `always()` cleanup step.
+- Root credentials are forbidden for CI. The devpi root password is an operator break-glass/admin credential only and must be rotated out of band if exposed.
+- Repository variables must stay credential-free. They may hold only non-secret diagnostic package-proxy values; never store Basic Auth URLs, upload credentials, or root credentials in repository `vars`.
+- `PULSEPLATE_PYTHON_TRUSTED_HOST` is optional and should only be set when the approved proxy requires it. Keep it unset for the `packages.pulseplate.app` devpi host while normal TLS verification succeeds.
 - Public package hosts such as `pypi.org`, `files.pythonhosted.org`, and `test.pypi.org` are rejected by the shared installer.
 - Ambient overrides such as `PIP_INDEX_URL` / `PIP_EXTRA_INDEX_URL` are rejected for canonical installs.
 - Time-boxed exceptions must stay exact and manifest-driven. Current example:
@@ -200,7 +203,7 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 For this repo, the canonical local path is still the Makefile bootstrap:
 
 ```bash
-export PULSEPLATE_PYTHON_INDEX_URL="https://packages.example.internal/simple"
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 make venv
 make verify
 ```
@@ -292,9 +295,12 @@ GitHub Actions workflows should use the shared installer instead of ad hoc
 ```
 
 Workflow precedence is `secrets` first and `vars` second for
-`PULSEPLATE_PYTHON_INDEX_URL` and `PULSEPLATE_PYTHON_TRUSTED_HOST`. This keeps
-the repository variable as a non-authoritative fallback and lets an emergency
-secret override immediately replace stale or broken repository-level values.
+`PULSEPLATE_PYTHON_INDEX_URL` and `PULSEPLATE_PYTHON_TRUSTED_HOST` only for
+protected contexts, but `PULSEPLATE_PYTHON_INDEX_URL` itself must remain
+credential-free. Authenticated devpi reads use `DEVPI_CI_USER` and
+`DEVPI_CI_PASSWORD` secrets via a temporary `.netrc`. Repository variables are
+allowed only for credential-free diagnostic values used by untrusted
+pull-request diagnostics.
 
 ### Option 2: pip-sync (For Exact Matching)
 

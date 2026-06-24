@@ -272,6 +272,16 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" in action_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in action_text
     assert '--index-url "$PULSEPLATE_PYTHON_INDEX_URL"' in action_text
+    assert "Configure private Python index authentication" in action_text
+    assert "DEVPI_CI_USER" in action_text
+    assert "DEVPI_CI_PASSWORD" in action_text
+    assert "*[[:space:]]*)" in action_text
+    assert "must not contain whitespace" in action_text
+    assert 'cat > "$HOME/.netrc"' in action_text
+    assert "Root devpi credentials are forbidden" in action_text
+    assert "PULSEPLATE_PYTHON_INDEX_URL must not contain credentials" in action_text
+    assert "Remove private Python index authentication" in action_text
+    assert 'rm -f "$HOME/.netrc"' in action_text
     assert "${{ inputs.requirements-profile }}" in action_text
     assert "${{ inputs.ci-lite-requirements-file }}" in action_text
     assert "${{ inputs.rag-vector-requirements-file }}" in action_text
@@ -331,6 +341,31 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
         "${{ inputs.test-requirements-file }} via install_locked_python_requirements.py"
         in action_text
     )
+
+
+def test_ci_python_setup_steps_receive_devpi_secrets_only_outside_pull_requests() -> None:
+    workflow = _load_workflow(".github/workflows/ci.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    setup_steps: list[dict[str, object]] = []
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and step.get("uses") == "./.github/actions/python-setup":
+                setup_steps.append(step)
+
+    assert setup_steps
+    for step in setup_steps:
+        env = step.get("env")
+        assert isinstance(env, dict), f"Missing protected devpi env on {step}"
+        assert env["DEVPI_CI_USER"] == (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
+        )
+        assert env["DEVPI_CI_PASSWORD"] == (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+        )
 
 
 def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() -> None:
@@ -463,6 +498,40 @@ def test_proxy_backed_workflows_support_vars_or_secrets(workflow_path: str) -> N
 
     assert APPROVED_PROXY_ENV_EXPRESSION in workflow_text
     assert APPROVED_TRUSTED_HOST_EXPRESSION in workflow_text
+
+
+def test_pr_diagnostic_proxy_vars_must_stay_credential_free() -> None:
+    workflow_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    pr_resolver = workflow_text.split("- name: Resolve PR diagnostic package proxy", 1)[1].split(
+        "- name: Resolve protected package proxy",
+        1,
+    )[0]
+
+    assert "secrets." not in pr_resolver
+    assert "PULSEPLATE_PR_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}" in pr_resolver
+    assert "*://*@*)" in pr_resolver
+    assert "must be credential-free" in pr_resolver
+    assert "DEVPI_CI_USER/DEVPI_CI_PASSWORD" in pr_resolver
+
+
+def test_private_proxy_docs_use_devpi_shape_without_real_credentials() -> None:
+    dependency_docs = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
+    runbook_text = (REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
+    env_example_text = (REPO_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    devpi_simple_root = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+    assert devpi_simple_root in dependency_docs
+    assert devpi_simple_root in runbook_text
+    assert devpi_simple_root in env_example_text
+
+    assert "DEVPI_CI_USER" in dependency_docs
+    assert "DEVPI_CI_PASSWORD" in dependency_docs
+    assert ".netrc" in dependency_docs
+    assert "<ci-user>:<token>@" not in dependency_docs
+    assert "root credentials are forbidden for ci" in dependency_docs.lower()
+    assert "Repository variables must stay credential-free" in dependency_docs
+    assert "root:" not in env_example_text
+    assert "@" not in env_example_text.split("PULSEPLATE_PYTHON_INDEX_URL=", 1)[1].splitlines()[0]
 
 
 def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:

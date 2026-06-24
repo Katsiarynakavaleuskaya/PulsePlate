@@ -14,6 +14,10 @@ import pytest
 import scripts.ci.install_locked_python_requirements as installer
 
 APPROVED_PROXY_URL = "https://packages.example.internal/simple"
+DEVPI_SIMPLE_USER = "ci-reader"
+DEVPI_SIMPLE_TOKEN = "token-123"
+DEVPI_SIMPLE_URL = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+DEVPI_ROOT_USER = "root"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 IDNA_SECURITY_FLOOR = "3.15"
 IDNA_PREVIOUS_VULNERABLE_PIN = "3.11"
@@ -269,6 +273,156 @@ def test_private_index_project_health_supports_approved_http_proxy(
     assert observed == [("packages.example.internal", None, installer.PIP_NETWORK_TIMEOUT_SECONDS)]
 
 
+def test_private_index_project_health_supports_devpi_netrc_auth(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed_requests: list[tuple[str, str, dict[str, str]]] = []
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.write_text(
+        "\n".join(
+            [
+                "machine packages.pulseplate.app",
+                f"  login {DEVPI_SIMPLE_USER}",
+                f"  password {DEVPI_SIMPLE_TOKEN}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    netrc_path.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert host == "packages.pulseplate.app"
+            assert port is None
+            assert timeout == installer.PIP_NETWORK_TIMEOUT_SECONDS
+            assert context is None
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            observed_requests.append((method, path, headers))
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=DEVPI_SIMPLE_URL,
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert observed_requests == [
+        (
+            "GET",
+            "/root/pulseplate/+simple/pip/",
+            {"Authorization": "Basic Y2ktcmVhZGVyOnRva2VuLTEyMw=="},
+        )
+    ]
+
+
+def test_private_index_project_health_rejects_credentialed_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("credentialed HTTP must fail before opening a connection")
+
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", fail_if_called)
+
+    credentialed_http_url = (
+        f"http://{DEVPI_SIMPLE_USER}:{DEVPI_SIMPLE_TOKEN}" "@packages.example.internal/simple"
+    )
+    with pytest.raises(RuntimeError, match="URLs are forbidden") as excinfo:
+        installer._require_private_index_project_health(
+            index_url=credentialed_http_url,
+            package="pip",
+            trusted_host=None,
+        )
+
+    message = str(excinfo.value)
+    assert "token-123" not in message
+    assert "ci-reader" not in message
+    assert "http://packages.example.internal/simple/pip/" in message
+
+
+def test_private_index_project_health_rejects_devpi_root_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("root credentials must fail before opening a connection")
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", fail_if_called)
+    encoded_root_url = "".join(
+        [
+            "https://",
+            "ro%6ft",
+            ":",
+            DEVPI_SIMPLE_TOKEN,
+            "@packages.pulseplate.app/root/pulseplate/+simple/",
+        ]
+    )
+
+    with pytest.raises(RuntimeError, match="URLs are forbidden") as excinfo:
+        installer._require_private_index_project_health(
+            index_url=encoded_root_url,
+            package="pip",
+            trusted_host=None,
+        )
+
+    message = str(excinfo.value)
+    assert DEVPI_SIMPLE_TOKEN not in message
+    assert "https://packages.pulseplate.app/root/pulseplate/+simple/pip/" in message
+
+
+def test_private_index_project_health_rejects_root_netrc_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("root .netrc credentials must fail before opening a connection")
+
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.write_text(
+        "\n".join(
+            [
+                "machine packages.pulseplate.app",
+                f"  login {DEVPI_ROOT_USER}",
+                f"  password {DEVPI_SIMPLE_TOKEN}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    netrc_path.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", fail_if_called)
+
+    with pytest.raises(RuntimeError, match="Root devpi credentials are forbidden"):
+        installer._require_private_index_project_health(
+            index_url=DEVPI_SIMPLE_URL,
+            package="pip",
+            trusted_host=None,
+        )
+
+
 @pytest.mark.parametrize(
     ("status", "body", "match"),
     [
@@ -303,6 +457,53 @@ def test_private_index_project_health_rejects_redirects_and_non_project_pages(
             package="pip",
             trusted_host=None,
         )
+
+
+def test_private_index_project_health_omits_netrc_credentials_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.write_text(
+        "\n".join(
+            [
+                "machine packages.pulseplate.app",
+                f"  login {DEVPI_SIMPLE_USER}",
+                f"  password {DEVPI_SIMPLE_TOKEN}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    netrc_path.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    class FakeHTTPSConnection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse(status=503)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    with pytest.raises(RuntimeError, match="HTTP 503") as excinfo:
+        installer._require_private_index_project_health(
+            index_url=DEVPI_SIMPLE_URL,
+            package="pip",
+            trusted_host=None,
+        )
+
+    message = str(excinfo.value)
+    assert "token-123" not in message
+    assert "ci-reader" not in message
+    assert "https://packages.pulseplate.app/root/pulseplate/+simple/pip/" in message
 
 
 def test_private_index_project_health_accepts_underscore_wheel_name(
@@ -1199,6 +1400,35 @@ def test_validate_private_proxy_url_rejects_public_hosts() -> None:
         installer.validate_private_proxy_url("https://pypi.org/simple")
 
 
+def test_validate_private_proxy_url_rejects_credentialed_http() -> None:
+    with pytest.raises(RuntimeError, match="Credentialed Python package proxy URLs are forbidden"):
+        installer.validate_private_proxy_url(
+            f"http://{DEVPI_SIMPLE_USER}:{DEVPI_SIMPLE_TOKEN}" "@packages.example.internal/simple"
+        )
+
+
+def test_validate_private_proxy_url_requires_https_for_packages_host() -> None:
+    with pytest.raises(RuntimeError, match="must use https"):
+        installer.validate_private_proxy_url(
+            "http://packages.pulseplate.app/root/pulseplate/+simple/"
+        )
+
+
+def test_validate_private_proxy_url_rejects_devpi_root_credentials() -> None:
+    encoded_root_url = "".join(
+        [
+            "https://",
+            "ro%6ft",
+            ":",
+            DEVPI_SIMPLE_TOKEN,
+            "@packages.pulseplate.app/root/pulseplate/+simple/",
+        ]
+    )
+
+    with pytest.raises(RuntimeError, match="Credentialed Python package proxy URLs are forbidden"):
+        installer.validate_private_proxy_url(encoded_root_url)
+
+
 def test_validate_private_proxy_url_strips_whitespace_and_trailing_dot() -> None:
     normalized = installer.validate_private_proxy_url(
         "  https://packages.example.internal/simple  "
@@ -1227,6 +1457,33 @@ def test_resolve_private_proxy_settings_rejects_ambient_overrides(
             index_url=APPROVED_PROXY_URL,
             trusted_host=None,
         )
+
+
+def test_run_command_redacts_url_credentials_from_failure_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credentialed_url = (
+        f"https://{DEVPI_SIMPLE_USER}:{DEVPI_SIMPLE_TOKEN}"
+        "@packages.pulseplate.app/root/pulseplate/+simple/"
+    )
+
+    class FailedResult:
+        returncode = 1
+        stderr = f"Could not fetch {credentialed_url}pip/"
+        stdout = f"Looking in indexes: {credentialed_url}"
+
+    def fake_run(*_args: object, **_kwargs: object) -> FailedResult:
+        return FailedResult()
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="Command failed") as excinfo:
+        installer.run_command(["python", "-m", "pip", "download", "--index-url", credentialed_url])
+
+    message = str(excinfo.value)
+    assert "token-123" not in message
+    assert "ci-reader" not in message
+    assert "https://packages.pulseplate.app/root/pulseplate/+simple/" in message
 
 
 def test_load_emergency_wheel_manifest_rejects_expired_file(tmp_path: Path) -> None:

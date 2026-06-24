@@ -1860,7 +1860,10 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "secrets." not in pr_proxy_script
     assert "PULSEPLATE_PR_PYTHON_INDEX_URL" in pr_proxy_script
     assert 'if [[ -z "$resolved_index" ]]; then' in pr_proxy_script
-    assert "Set repository variable PULSEPLATE_PYTHON_INDEX_URL" in pr_proxy_script
+    assert "credential-free diagnostic package proxy" in pr_proxy_script
+    assert "must be credential-free" in pr_proxy_script
+    assert "*://*@*)" in pr_proxy_script
+    assert "DEVPI_CI_USER/DEVPI_CI_PASSWORD" in pr_proxy_script
     assert "exit 1" in pr_proxy_script
     assert "*$'\\n'*|*$'\\r'*)" in pr_proxy_script
     assert "must be single-line values" in pr_proxy_script
@@ -1885,6 +1888,9 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
         protected_proxy_script
     )
     assert "exit 1" in protected_proxy_script
+    assert "*://*@*)" in protected_proxy_script
+    assert "PULSEPLATE_PYTHON_INDEX_URL must be credential-free" in protected_proxy_script
+    assert "DEVPI_CI_USER/DEVPI_CI_PASSWORD" in protected_proxy_script
     assert "*$'\\n'*|*$'\\r'*)" in protected_proxy_script
     assert "must be single-line values" in protected_proxy_script
     assert "$GITHUB_ENV" in protected_proxy_script

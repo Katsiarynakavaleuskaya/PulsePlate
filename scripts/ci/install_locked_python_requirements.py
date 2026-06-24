@@ -7,6 +7,7 @@ import argparse
 import base64
 import http.client
 import hashlib
+import netrc
 from contextlib import contextmanager
 from datetime import date
 import json
@@ -18,7 +19,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Iterator, Sequence, cast
-from urllib.parse import ParseResult, quote, unquote, urlparse
+from urllib.parse import ParseResult, quote, urlparse
 from urllib.request import urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -48,6 +49,7 @@ BLOCKED_INDEX_HOSTS: tuple[str, ...] = (
     "files.pythonhosted.org",
     "test.pypi.org",
 )
+REQUIRED_HTTPS_INDEX_HOSTS: tuple[str, ...] = ("packages.pulseplate.app",)
 ALLOWED_EMERGENCY_WHEEL_HOSTS: tuple[str, ...] = ("files.pythonhosted.org",)
 INSTALL_MODES: tuple[str, ...] = ("wheelhouse", "direct-proxy")
 REQUIREMENTS_PROFILES: tuple[str, ...] = (
@@ -786,6 +788,15 @@ def validate_private_proxy_url(index_url: str) -> str:
         raise RuntimeError(
             f"Approved Python package proxy must not point to public host: {canonical_hostname}"
         )
+    if parsed.username is not None or parsed.password is not None:
+        raise RuntimeError(
+            "Credentialed Python package proxy URLs are forbidden; use a clean "
+            "index URL with .netrc-backed CI credentials."
+        )
+    if canonical_hostname in REQUIRED_HTTPS_INDEX_HOSTS and parsed.scheme != "https":
+        raise RuntimeError(
+            "Approved Python package proxy host must use https: " f"{canonical_hostname}"
+        )
     return normalized
 
 
@@ -929,6 +940,34 @@ def _redact_url_credentials(url: str) -> str:
     return parsed._replace(netloc=netloc).geturl()
 
 
+def _redact_url_credentials_in_text(value: str) -> str:
+    """Remove inline URL credentials from arbitrary diagnostic text."""
+    return re.sub(
+        r"\b(?P<scheme>https?://)(?P<userinfo>[^/\s@]+@)(?P<host>[^/\s?#]+)",
+        lambda match: f"{match.group('scheme')}{match.group('host')}",
+        value,
+    )
+
+
+def _netrc_basic_auth_header(hostname: str) -> str | None:
+    """Return a Basic Auth header from the user's netrc for the package host."""
+    try:
+        credentials = netrc.netrc().authenticators(hostname)
+    except FileNotFoundError:
+        return None
+    except (netrc.NetrcParseError, OSError) as exc:
+        raise RuntimeError(f"Unable to read .netrc credentials for {hostname}: {exc}") from exc
+    if credentials is None:
+        return None
+    login, _account, password = credentials
+    if not login:
+        return None
+    if login.strip().lower() == "root":
+        raise RuntimeError("Root devpi credentials are forbidden in .netrc.")
+    encoded = f"{login}:{password or ''}".encode("utf-8")
+    return "Basic " + base64.b64encode(encoded).decode("ascii")
+
+
 def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResult) -> bool:
     """Return True when the operator trusted-host applies to the project URL host."""
     if not trusted_host:
@@ -956,14 +995,19 @@ def _require_private_index_project_health(
             "Approved Python package proxy health check requires an http(s) project URL: "
             f"{package}: {safe_url}"
         )
+    if parsed.username is not None or parsed.password is not None:
+        raise RuntimeError(
+            "Credentialed Python package proxy health check URLs are forbidden: "
+            f"{package}: {safe_url}"
+        )
     path = parsed.path or "/"
     if parsed.query:
         path = f"{path}?{parsed.query}"
     headers: dict[str, str] = {}
-    if parsed.username is not None:
-        password = "" if parsed.password is None else unquote(parsed.password)
-        credentials = f"{unquote(parsed.username)}:{password}".encode("utf-8")
-        headers["Authorization"] = "Basic " + base64.b64encode(credentials).decode("ascii")
+    if parsed.scheme == "https":
+        netrc_header = _netrc_basic_auth_header(parsed.hostname)
+        if netrc_header:
+            headers["Authorization"] = netrc_header
     if parsed.scheme == "http":
         conn = http.client.HTTPConnection(
             parsed.hostname,
@@ -1230,7 +1274,7 @@ def is_virtualenv_python(python_executable: str) -> bool:
 
 def run_command(command: Sequence[str]) -> None:
     """Run a subprocess command; include captured stdout/stderr on failure for pip diagnostics."""
-    command_text = " ".join(str(part) for part in command)
+    command_text = " ".join(_redact_url_credentials_in_text(str(part)) for part in command)
     try:
         result = subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
             list(command),
@@ -1239,11 +1283,12 @@ def run_command(command: Sequence[str]) -> None:
             text=True,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError(f"Command failed: {command_text}: {exc}") from exc
+        detail = _redact_url_credentials_in_text(str(exc))
+        raise RuntimeError(f"Command failed: {command_text}: {detail}") from exc
     if result.returncode != 0:
         parts: list[str] = [f"exit {result.returncode}"]
-        stderr = (result.stderr or "").strip()
-        stdout = (result.stdout or "").strip()
+        stderr = _redact_url_credentials_in_text(result.stderr or "").strip()
+        stdout = _redact_url_credentials_in_text(result.stdout or "").strip()
         if stderr:
             parts.append(stderr)
         if stdout:
@@ -1813,7 +1858,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
     except (FileNotFoundError, RuntimeError) as exc:
-        print(f"ERROR: locked install failed: {exc}")
+        print("ERROR: locked install failed: " f"{_redact_url_credentials_in_text(str(exc))}")
         return 1
 
 

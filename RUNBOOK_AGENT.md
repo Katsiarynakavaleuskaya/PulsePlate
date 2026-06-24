@@ -1,6 +1,6 @@
 # PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2026-05-10 (Python private index proxy triage; Cloudflare 521 checklist scoped to packages hostname; marketing origin gate is intentional; HTTP probe corrected to PEP 503 `/simple/<package>/` path and bounded with `--connect-timeout` / `--max-time`)
+**Last updated:** 2026-06-24 (devpi private index rollout; canonical simple root is `https://packages.pulseplate.app/root/pulseplate/+simple/`; authenticated URLs are secret-only and root credentials are forbidden for CI)
 
 **What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
@@ -403,8 +403,8 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 
 **Operator checks (dev-operator / SRE)**
 
-1. Confirm env is set: `test -n "$PULSEPLATE_PYTHON_INDEX_URL"` and URL ends with policy-allowed form (see installer + docs).
-2. **HTTP probe** (no secrets in command output, bounded so a hung origin cannot stall triage): `curl -sS --connect-timeout 5 --max-time 10 -o /dev/null -w '%{http_code}\n' "${PULSEPLATE_PYTHON_INDEX_URL%/}/simple/aiosqlite/"` — expect **200** when healthy. Use the **PEP 503 `/simple/<package>/` path** (here `aiosqlite`) — probing the bare package path (e.g. `…/aiosqlite/`) does not exercise the simple-index surface that pip actually consumes and can return 200 from a cache while pip still fails. If your `PULSEPLATE_PYTHON_INDEX_URL` is **already** the simple-index root (i.e. ends with `/simple` or `/simple/`), drop the extra `/simple` so the path stays `…/simple/aiosqlite/` (do not double up to `…/simple/simple/aiosqlite/`).
+1. Confirm env is set: `test -n "$PULSEPLATE_PYTHON_INDEX_URL"` and points to the approved devpi simple-index root. Canonical shape: `https://packages.pulseplate.app/root/pulseplate/+simple/`. Keep this URL credential-free; authenticated CI reads use rotated non-root `DEVPI_CI_USER` / `DEVPI_CI_PASSWORD` secrets through the temporary `.netrc` created by `.github/actions/python-setup/action.yml`. Root credentials are forbidden for CI.
+2. **HTTP probe** (bounded so a hung origin cannot stall triage): `curl -sS --connect-timeout 5 --max-time 10 -o /dev/null -w '%{http_code}\n' "${PULSEPLATE_PYTHON_INDEX_URL%/}/aiosqlite/"` — expect **200** when healthy. Use the **PEP 503 project page path** under the configured simple-index root (here `aiosqlite`) — probing the bare host or adding another `/simple` does not exercise the same project page that pip consumes and can return misleading results. For authenticated private-read checks, prefer the installer preflight below because it uses `.netrc` and redacts inline URL credentials defensively.
 3. **Preflight without full install:** from repo root with venv active,
    `python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
    (reads the same index + optional `scripts/ci/emergency_python_wheels.json` per policy).
@@ -420,10 +420,10 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 > down on purpose until the public site is ready. **Do not "revive" the
 > marketing origin** as part of CI triage. The only CI-blocking surface is the
 > **packages hostname** behind `PULSEPLATE_PYTHON_INDEX_URL` (e.g.
-> `packages.pulseplate.app`), which **must** serve PEP 503 `/simple/` for the
-> locked pins. Treat the two hostnames as independent origins behind the same
-> Cloudflare zone. If both share one origin today, splitting them is part of the
-> backlog parity work — see
+> `packages.pulseplate.app`), which **must** serve PEP 503 project pages under
+> the devpi `root/pulseplate/+simple/` root for the locked pins. Treat the two
+> hostnames as independent origins behind the same Cloudflare zone. If both
+> share one origin today, splitting them is part of the backlog parity work — see
 > `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity`.
 
 - **Root cause (when the packages hostname is the one returning 521):** HTTP **521** means Cloudflare reached the edge but the **origin** did not return a valid HTTP response (origin down, wrong port, TLS mismatch, firewall dropping CF IPs, overload). Fix the **origin** behind the *packages* proxied hostname only; do not touch the marketing origin without explicit operator approval.
@@ -431,7 +431,7 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 - **Origin / mirror:** restore Bandersnatch / devpi / Nexus / Artifactory sync, disk, egress for the *packages* origin; ensure **full** PEP 503 simple index for locked pins (including `aiosqlite` and CI manylinux wheels).
 - **Repo agents / Cursor:** this assistant has **no** login to your Cloudflare account; use the dashboard or API-token-backed tooling (`curl` / Terraform / WAF API). **Wrangler** can be used when Cloudflare credentials are already configured — it supports both `wrangler login` (browser-based OAuth) and API-token / API-key auth (e.g. `CLOUDFLARE_API_TOKEN`, or `CLOUDFLARE_EMAIL` + `CLOUDFLARE_API_KEY` for legacy global-key flows) — but it does **not** replace zone SSL/DNS/origin fixes for a custom origin, and it must not be used to flip the intentional-gate state of the marketing origin without an explicit operator decision logged in the backlog.
 
-**Leak guard:** GitHub `python-setup` uses `set -euo pipefail` without `xtrace` so expanded index URLs are not echoed to logs (see `docs/review/PR_1429_FIXED_MAPPING.md` evidence).
+**Leak guard:** GitHub `python-setup` uses `set -euo pipefail` without `xtrace`, rejects credentialed `PULSEPLATE_PYTHON_INDEX_URL` values, writes optional devpi credentials only to a temporary `.netrc`, and removes that file in an `always()` cleanup step.
 
 Run from repo root before any push/PR:
 
