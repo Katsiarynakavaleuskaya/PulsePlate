@@ -243,6 +243,14 @@
             "sha256": "3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b"
         },
         {
+            "package": "jiter",
+            "version": "0.12.0",
+            "expires_at": "2026-06-30",
+            "filename": "jiter-0.12.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/5f/c3/c9fc0232e736c8877d9e6d83d6eeb0ba4e90c6c073835cc2e8f73fdeef51/jiter-0.12.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "sha256": "4e017c417b1ebda911bd13b1e40612704b1f5420e30695112efdbed8a4b389ed"
+        },
+        {
             "package": "regex",
             "version": "2026.5.9",
             "expires_at": "2026-06-30",
