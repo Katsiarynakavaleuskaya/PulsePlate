@@ -223,6 +223,52 @@ Commit: `dae4e3a98d53632cf7f070f1214bbe4a210e9981`
 Evidence: `scripts/orchestration/creative_code_specification.py` and
 `tests/test_creative_code_specification.py::test_variant_target_paths_cannot_create_children_under_file_surface`.
 
+Post-open security-auditor pass found three additional actionable PR-surface
+findings. They are fixed in commit
+`c7740821d7dfd963f5b1b3c511e075a7666b6af0` and recorded below. Remaining
+post-open pass sequence:
+`Codex Security diff scan / finding discovery -> pulseplate-pr-review`.
+
+Disposition: FIXED
+
+Finding: unsafe-authority filtering still accepted authority variants such as
+`open a draft PR`, `create branch`, and `write shared worktree files`.
+
+Commit: `c7740821d7dfd963f5b1b3c511e075a7666b6af0`
+
+Evidence: `scripts/orchestration/creative_code_specification.py` and
+`tests/test_creative_code_specification.py::test_unsafe_variant_text_is_rejected`.
+
+Disposition: FIXED
+
+Finding: secret filtering missed modern hyphenated OpenAI-style key prefixes
+such as `sk-proj-...` and `sk-svcacct-...`.
+
+Commit: `c7740821d7dfd963f5b1b3c511e075a7666b6af0`
+
+Evidence: `scripts/orchestration/creative_code_specification.py` and
+`tests/test_creative_code_specification.py::test_unsafe_variant_text_is_rejected`.
+
+Disposition: FIXED
+
+Finding: schema-only consumers could accept unsafe prose in free-text fields
+that the Python validator rejects.
+
+Commit: `c7740821d7dfd963f5b1b3c511e075a7666b6af0`
+
+Evidence:
+`docs/orchestration/contracts/creative_code_specification.v1.schema.json`,
+`tests/test_creative_code_specification.py::test_reference_bundle_schema_and_validator_are_aligned`,
+and
+`tests/test_creative_code_specification.py::test_schema_safe_text_rejects_unsafe_authority_prose`.
+
+Security-fix validation:
+
+- PASS: `python -m scripts.orchestration.creative_code_specification --validate docs/orchestration/contracts/creative_code_specification.v1.json`
+- PASS: `python -m pytest -q tests/test_creative_code_contract.py tests/test_creative_code_specification.py tests/test_context_pack_compression.py tests/core/evidence/test_fingerprints.py`
+- PASS: `make validate-changed`
+- PASS: `pre-commit run --all-files`
+
 ## Fixed in Commit Mapping
 
 No pre-open GitHub review-thread URLs existed at PR creation time.
@@ -235,6 +281,13 @@ Implementation commits:
   artifact with Experiment Runner attribution.
 - `245a55d8533915f8cd1a309c679f2524b112b948` fixes PR-1 changed-file mypy
   typing for source packet fingerprints.
+- `c043263f6cb23e0f9718d8a21e988663d6967c5b` closes post-open QA findings for
+  artifact path rejection, authority filtering, and schema path parity.
+- `dae4e3a98d53632cf7f070f1214bbe4a210e9981` closes post-open bug-hunter
+  findings for authority phrase variants and file-target containment.
+- `c7740821d7dfd963f5b1b3c511e075a7666b6af0` closes post-open security-auditor
+  findings for authority variants, hyphenated secret prefixes, and schema
+  free-text safety parity.
 
 ## Merge Readiness
 
