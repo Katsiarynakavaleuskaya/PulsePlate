@@ -269,6 +269,56 @@ def test_private_index_project_health_supports_approved_http_proxy(
     assert observed == [("packages.example.internal", None, installer.PIP_NETWORK_TIMEOUT_SECONDS)]
 
 
+def test_private_index_project_health_retries_transient_probe_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = {"count": 0}
+    closes = {"count": 0}
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            _host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert port is None
+            assert timeout == installer.PIP_NETWORK_TIMEOUT_SECONDS
+            assert context is None
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise TimeoutError("read operation timed out")
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            closes["count"] += 1
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert attempts["count"] == 2
+    assert closes["count"] == 2
+
+
 @pytest.mark.parametrize(
     ("status", "body", "match"),
     [
@@ -3760,17 +3810,24 @@ def test_main_rejects_mixing_explicit_profile_with_legacy_flags(
 def test_run_dependency_floor_preflight_checks_each_floor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_commands: list[list[str]] = []
+    observed_checks: list[tuple[str, str, str, str | None]] = []
     monkeypatch.setattr(
         installer,
         "load_dependency_security_floors",
         lambda: {"cryptography": "46.0.7", "pillow": "12.2.0"},
     )
-    monkeypatch.setattr(
-        installer,
-        "run_command",
-        lambda command: observed_commands.append(list(command)),
-    )
+
+    def exact_version_present(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        observed_checks.append((index_url, package, version, trusted_host))
+        return True
+
+    monkeypatch.setattr(installer, "_private_index_project_has_version", exact_version_present)
 
     installer.run_dependency_floor_preflight(
         python_executable="python",
@@ -3779,14 +3836,10 @@ def test_run_dependency_floor_preflight_checks_each_floor(
         emergency_wheel_manifest=None,
     )
 
-    assert len(observed_commands) == 2
-    for command in observed_commands:
-        assert command[:4] == ["python", "-m", "pip", "download"]
-        assert "--no-deps" in command
-        assert "--index-url" in command
-        assert APPROVED_PROXY_URL in command
-        assert "--trusted-host" in command
-        assert "--dest" in command
+    assert observed_checks == [
+        (APPROVED_PROXY_URL, "cryptography", "46.0.7", "packages.example.internal"),
+        (APPROVED_PROXY_URL, "pillow", "12.2.0", "packages.example.internal"),
+    ]
 
 
 def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
@@ -3823,16 +3876,19 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
         lambda **kwargs: Path(kwargs["destination"]).write_bytes(b"wheel-bytes"),
     )
 
-    def fail_run_command(_command: list[str]) -> None:
-        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+    observed_checks: list[tuple[str, str, str, str | None]] = []
 
-    observed_health: list[tuple[str, str, str | None]] = []
+    def exact_version_missing(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        observed_checks.append((index_url, package, version, trusted_host))
+        return False
 
-    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        observed_health.append((index_url, package, trusted_host))
-
-    monkeypatch.setattr(installer, "run_command", fail_run_command)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_private_index_project_has_version", exact_version_missing)
 
     installer.run_dependency_floor_preflight(
         python_executable="python",
@@ -3841,7 +3897,7 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
         emergency_wheel_manifest=manifest,
     )
 
-    assert observed_health == [(APPROVED_PROXY_URL, "cryptography", None)]
+    assert observed_checks == [(APPROVED_PROXY_URL, "cryptography", "46.0.7", None)]
 
 
 def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_fails(
@@ -3857,9 +3913,9 @@ def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_
                 "artifacts": [
                     {
                         "package": "cryptography",
-                        "version": "46.0.7",
-                        "filename": "cryptography-46.0.7.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "version": "46.0.8",
+                        "filename": "cryptography-46.0.8.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.8.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -3879,14 +3935,17 @@ def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_
         lambda **_kwargs: downloads.__setitem__("count", downloads["count"] + 1),
     )
 
-    def resolver_miss(_command: list[str]) -> None:
-        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
-
-    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+    def fail_version_check(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        assert version == "46.0.7"
         raise RuntimeError(f"proxy health check failed: {package}: {index_url}: {trusted_host}")
 
-    monkeypatch.setattr(installer, "run_command", resolver_miss)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
+    monkeypatch.setattr(installer, "_private_index_project_has_version", fail_version_check)
 
     with pytest.raises(RuntimeError, match="proxy health check failed"):
         installer.run_dependency_floor_preflight(
@@ -3899,7 +3958,7 @@ def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_
     assert downloads["count"] == 0
 
 
-def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_emergency(
+def test_run_dependency_floor_preflight_rejects_missing_floor_without_emergency(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -3912,9 +3971,9 @@ def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_e
                 "artifacts": [
                     {
                         "package": "cryptography",
-                        "version": "46.0.7",
-                        "filename": "cryptography-46.0.7.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "version": "46.0.8",
+                        "filename": "cryptography-46.0.8.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.8.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -3922,24 +3981,28 @@ def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_e
         ),
         encoding="utf-8",
     )
+    downloads = {"count": 0}
     monkeypatch.setattr(
         installer,
         "load_dependency_security_floors",
         lambda: {"cryptography": "46.0.7"},
     )
+    monkeypatch.setattr(installer, "_private_index_project_has_version", lambda **_kwargs: False)
+    monkeypatch.setattr(
+        installer,
+        "_download_with_sha256",
+        lambda **_kwargs: downloads.__setitem__("count", downloads["count"] + 1),
+    )
 
-    def non_resolver_failure(_command: list[str]) -> None:
-        raise RuntimeError("Command failed: python -m pip download: SSL certificate verify failed")
-
-    monkeypatch.setattr(installer, "run_command", non_resolver_failure)
-
-    with pytest.raises(RuntimeError, match="Dependency floor preflight failed"):
+    with pytest.raises(RuntimeError, match="exact version is not advertised"):
         installer.run_dependency_floor_preflight(
             python_executable="python",
             index_url=APPROVED_PROXY_URL,
             trusted_host=None,
             emergency_wheel_manifest=manifest,
         )
+
+    assert downloads["count"] == 0
 
 
 def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
@@ -3972,20 +4035,11 @@ def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
     )
     observed_downloads: list[tuple[str, str]] = []
 
-    def resolver_miss(_command: list[str]) -> None:
-        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
-
-    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
-        assert index_url == APPROVED_PROXY_URL
-        assert package == "cryptography"
-        assert trusted_host is None
-
     def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
         observed_downloads.append((url, expected_sha256))
         destination.write_bytes(b"wheel-bytes")
 
-    monkeypatch.setattr(installer, "run_command", resolver_miss)
-    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_private_index_project_has_version", lambda **_kwargs: False)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(

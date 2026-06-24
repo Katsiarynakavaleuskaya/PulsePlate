@@ -978,6 +978,17 @@ def _simple_project_page_looks_valid(*, package: str, body: bytes) -> bool:
     return "href=" in text and any(marker in text for marker in package_markers)
 
 
+def _simple_project_page_has_version(*, package: str, version: str, body: bytes) -> bool:
+    """Return True when a PEP 503 project page advertises the exact package version."""
+    normalized_package = re.sub(r"[-_.]+", "-", package).lower()
+    package_markers = (
+        f"{normalized_package}-{version}",
+        f"{normalized_package.replace('-', '_')}-{version}",
+    )
+    text = body[:100_000].decode("utf-8", errors="ignore").lower()
+    return any(marker in text for marker in package_markers)
+
+
 def _redact_url_credentials(url: str) -> str:
     """Remove inline credentials from a URL before including it in diagnostics."""
     parsed = urlparse(url)
@@ -1001,13 +1012,13 @@ def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResu
     return trusted in {hostname, host_with_port}
 
 
-def _require_private_index_project_health(
+def _read_private_index_project_page(
     *,
     index_url: str,
     package: str,
     trusted_host: str | None,
-) -> None:
-    """Fail closed unless the approved proxy serves the package project page."""
+) -> tuple[str, bytes]:
+    """Return the approved proxy simple-index project page or fail closed."""
     project_url = _simple_project_url(index_url, package)
     safe_url = _redact_url_credentials(project_url)
     parsed = urlparse(project_url)
@@ -1024,50 +1035,96 @@ def _require_private_index_project_health(
         password = "" if parsed.password is None else unquote(parsed.password)
         credentials = f"{unquote(parsed.username)}:{password}".encode("utf-8")
         headers["Authorization"] = "Basic " + base64.b64encode(credentials).decode("ascii")
-    if parsed.scheme == "http":
-        conn = http.client.HTTPConnection(
-            parsed.hostname,
-            port=parsed.port,
-            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
-        )
-    elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
-        # fmt: off
-        trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
-        # fmt: on
-        conn = http.client.HTTPSConnection(
-            parsed.hostname,
-            port=parsed.port,
-            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
-            context=trusted_context,
-        )
-    else:
-        conn = http.client.HTTPSConnection(
-            parsed.hostname,
-            port=parsed.port,
-            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
-        )
-    try:
-        conn.request("GET", path, headers=headers)
-        response = conn.getresponse()
-        status = response.status
-        body = response.read()
-    except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
+    status: int
+    body: bytes
+    for attempt in range(1, PIP_NETWORK_RETRIES + 1):
+        if parsed.scheme == "http":
+            conn = http.client.HTTPConnection(
+                parsed.hostname,
+                port=parsed.port,
+                timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+            )
+        elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
+            # fmt: off
+            trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
+            # fmt: on
+            conn = http.client.HTTPSConnection(
+                parsed.hostname,
+                port=parsed.port,
+                timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+                context=trusted_context,
+            )
+        else:
+            conn = http.client.HTTPSConnection(
+                parsed.hostname,
+                port=parsed.port,
+                timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+            )
+        try:
+            conn.request("GET", path, headers=headers)
+            response = conn.getresponse()
+            status = response.status
+            body = response.read()
+            break
+        except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
+            if attempt == PIP_NETWORK_RETRIES:
+                raise RuntimeError(
+                    "Approved Python package proxy health check failed before emergency fallback: "
+                    f"{package}: {safe_url}: {exc}"
+                ) from exc
+        finally:
+            conn.close()
+    else:  # pragma: no cover - range is non-empty while PIP_NETWORK_RETRIES is positive.
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
-            f"{package}: {safe_url}: {exc}"
-        ) from exc
-    finally:
-        conn.close()
+            f"{package}: {safe_url}: retry budget exhausted"
+        )
     if status < 200 or status >= 300:
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
             f"{package}: {safe_url}: HTTP {status}"
         )
+    return safe_url, body
+
+
+def _require_private_index_project_health(
+    *,
+    index_url: str,
+    package: str,
+    trusted_host: str | None,
+) -> None:
+    """Fail closed unless the approved proxy serves the package project page."""
+    safe_url, body = _read_private_index_project_page(
+        index_url=index_url,
+        package=package,
+        trusted_host=trusted_host,
+    )
     if not _simple_project_page_looks_valid(package=package, body=body):
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
             f"{package}: {safe_url}: invalid simple-index project page"
         )
+
+
+def _private_index_project_has_version(
+    *,
+    index_url: str,
+    package: str,
+    version: str,
+    trusted_host: str | None,
+) -> bool:
+    """Return True when the approved proxy advertises the exact package version."""
+    safe_url, body = _read_private_index_project_page(
+        index_url=index_url,
+        package=package,
+        trusted_host=trusted_host,
+    )
+    if not _simple_project_page_looks_valid(package=package, body=body):
+        raise RuntimeError(
+            "Approved Python package proxy health check failed before dependency floor preflight: "
+            f"{package}: {safe_url}: invalid simple-index project page"
+        )
+    return _simple_project_page_has_version(package=package, version=version, body=body)
 
 
 def _parse_simple_version(value: str) -> tuple[int, ...]:
@@ -1189,38 +1246,6 @@ def verify_emergency_artifact_for_floor(
     return True
 
 
-def build_floor_preflight_command(
-    *,
-    python_executable: str,
-    package: str,
-    version: str,
-    index_url: str,
-    trusted_host: str | None,
-) -> list[str]:
-    """Build pip command for one floor availability check."""
-    command = [
-        python_executable,
-        "-m",
-        "pip",
-        "download",
-        "--retries",
-        str(PIP_NETWORK_RETRIES),
-        "--timeout",
-        str(PIP_NETWORK_TIMEOUT_SECONDS),
-        "--only-binary",
-        ":all:",
-        "--no-deps",
-        "--dest",
-        ".",
-        "--index-url",
-        index_url,
-        f"{package}=={version}",
-    ]
-    if trusted_host:
-        command.extend(["--trusted-host", trusted_host])
-    return command
-
-
 def run_dependency_floor_preflight(
     *,
     python_executable: str,
@@ -1228,43 +1253,34 @@ def run_dependency_floor_preflight(
     trusted_host: str | None,
     emergency_wheel_manifest: Path | None,
 ) -> None:
-    """Fail fast when dependency floors are unavailable through approved path."""
+    """Fail fast when dependency floors are unavailable through the approved proxy."""
+    del python_executable
     floors = load_dependency_security_floors()
-    with tempfile.TemporaryDirectory(prefix="pulseplate-floor-preflight-") as temp_dir:
-        destination_dir = Path(temp_dir)
-        for package, version in sorted(floors.items()):
-            command = build_floor_preflight_command(
-                python_executable=python_executable,
+    for package, version in sorted(floors.items()):
+        try:
+            if _private_index_project_has_version(
+                index_url=index_url,
                 package=package,
                 version=version,
-                index_url=index_url,
                 trusted_host=trusted_host,
-            )
-            dest_index = command.index("--dest")
-            command[dest_index + 1] = str(destination_dir)
-            try:
-                run_command(command)
-            except RuntimeError as exc:
-                if _resolver_miss_error(exc, package=package, version=version):
-                    _require_private_index_project_health(
-                        index_url=index_url,
-                        package=package,
-                        trusted_host=trusted_host,
-                    )
-                    if verify_emergency_artifact_for_floor(
-                        manifest_path=emergency_wheel_manifest,
-                        package=package,
-                        version=version,
-                    ):
-                        print(
-                            "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
-                            f"{package}=={version}"
-                        )
-                        continue
-                raise RuntimeError(
-                    "Dependency floor preflight failed for approved proxy: "
-                    f"{package}=={version}: {exc}"
-                ) from exc
+            ):
+                continue
+            if verify_emergency_artifact_for_floor(
+                manifest_path=emergency_wheel_manifest,
+                package=package,
+                version=version,
+            ):
+                print(
+                    "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
+                    f"{package}=={version}"
+                )
+                continue
+            raise RuntimeError("exact version is not advertised by approved proxy")
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "Dependency floor preflight failed for approved proxy: "
+                f"{package}=={version}: {exc}"
+            ) from exc
 
 
 def is_virtualenv_python(python_executable: str) -> bool:
