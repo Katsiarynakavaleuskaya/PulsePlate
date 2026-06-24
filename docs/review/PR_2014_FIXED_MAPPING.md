@@ -154,6 +154,7 @@ Evidence: `qa-engineer-agent` missing-Hypothesis guard finding is covered by `te
 Disposition: FIXED
 Commit: 15b0e0c403974b714aa6815cd3b49ec518e3847f
 Evidence: `tests/test_python_supply_chain_controls.py` asserts `hypothesis==6.155.7` in the split test dependency profile.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#pullrequestreview-4560525882 -> 15b0e0c403974b714aa6815cd3b49ec518e3847f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#discussion_r3465713725 -> 15b0e0c403974b714aa6815cd3b49ec518e3847f
 
 Disposition: FIXED
