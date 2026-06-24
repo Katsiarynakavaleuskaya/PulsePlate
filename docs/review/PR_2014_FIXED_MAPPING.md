@@ -12,14 +12,16 @@ This PR is the human-owned replacement for Dependabot PR #2001.
 - `hypothesis`: `6.155.2` -> `6.155.7`
 - `coverage`: `7.14.1` -> `7.14.3`
 
-The update is scoped to testing dependency surfaces and the guard expectation
-that asserts the split test profile. It does not touch Torch, Faraday,
+The update is scoped to testing dependency surfaces, active requirements
+documentation, and the guard expectation that asserts the split test profile.
+It does not touch Torch, Faraday,
 RAG/vector, Docker, runtime, app/core, iOS/Fastlane, or workflow surfaces.
 
 ## Implementation Commits
 
 - `8f3b35906fcfc83b1602f4867673f837c3577b7b` - `fix(deps): refresh testing dependency stack`
 - `15b0e0c403974b714aa6815cd3b49ec518e3847f` - `test(deps): cover hypothesis testing stack pin`
+- `6c85ab9accc625a2f3d4d8b5f4a7d12f464f51ef` - `docs(deps): align testing requirements guide`
 
 The implementation commit includes the governed Experiment Runner attribution
 trailer:
@@ -81,7 +83,7 @@ Focused local gates:
 - `.venv/bin/python -m pip_audit -r requirements-test.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-ci-lite.txt` - PASS; no known vulnerabilities found.
 - `.venv/bin/python -m pip_audit -r requirements-lock.txt` - PASS; no known vulnerabilities found.
-- `VENV_PYTHON=.venv/bin/python make validate-changed` - PASS; selected no Python or cross-surface governance files, so it is not sufficient alone for this dependency lane.
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` - PASS; selected `tests/test_python_supply_chain_controls.py`.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including `pip-audit`, backend pre-push pytest, and full-repo Bandit.
 
@@ -99,6 +101,15 @@ CodeRabbit, Sourcery, Cubic, Codex Security, QA, bug-hunter, security-auditor,
 or `pulseplate-pr-review` finding remains blocking until fixed or formally
 dispositioned with evidence.
 
+## Post-Open Role Findings
+
+- `qa-engineer-agent`: initially found missing `hypothesis==6.155.7` coverage
+  in `tests/test_python_supply_chain_controls.py`; fixed in
+  `15b0e0c403974b714aa6815cd3b49ec518e3847f`.
+- `bug-hunter`: initially found stale active requirements guide examples for
+  `pytest==9.1.0` / `pytest>=9.1.0`; fixed in
+  `6c85ab9accc625a2f3d4d8b5f4a7d12f464f51ef`.
+
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
@@ -112,6 +123,8 @@ Evidence: `tests/test_python_supply_chain_controls.py` asserts `hypothesis==6.15
   `8f3b35906fcfc83b1602f4867673f837c3577b7b`
 - Sourcery Hypothesis guard completion ->
   `15b0e0c403974b714aa6815cd3b49ec518e3847f`
+- Active requirements guide alignment ->
+  `6c85ab9accc625a2f3d4d8b5f4a7d12f464f51ef`
 
 ## Deferred / Follow-ups
 
