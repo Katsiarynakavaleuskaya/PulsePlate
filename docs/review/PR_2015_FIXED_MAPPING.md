@@ -158,6 +158,9 @@ commit `2c6fd83f1915a709471ee1403f6e59845218eed9`.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 Pre-open: no GitHub review threads existed before PR creation.
 
 Post-open QA pass found three actionable PR-surface findings. They are fixed in
