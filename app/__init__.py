@@ -38,6 +38,11 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     "build_nutrition_targets": ("core.recommendations", "build_nutrition_targets"),
     # Expose metrics_endpoint for patch-based tests (patch("app.metrics"))
     "metrics": ("app.bootstrap.metrics", "metrics_endpoint"),
+    # BMI router ownership lives in app.main; these remain compatibility attrs.
+    "FEATURE_BMI_PRO_ENABLED": ("app.main", "FEATURE_BMI_PRO_ENABLED"),
+    "bmi_router": ("app.main", "bmi_router"),
+    "bmi_pro_router": ("app.main", "bmi_pro_router"),
+    "bmi_pro_legacy_alias_router": ("app.main", "bmi_pro_legacy_alias_router"),
 }
 
 
@@ -129,6 +134,10 @@ __all__ = [
     "resolve_attr",
     "make_weekly_menu",
     "build_nutrition_targets",
+    "FEATURE_BMI_PRO_ENABLED",
+    "bmi_router",
+    "bmi_pro_router",
+    "bmi_pro_legacy_alias_router",
     "MATPLOTLIB_AVAILABLE",
     "generate_bmi_visualization",
 ]

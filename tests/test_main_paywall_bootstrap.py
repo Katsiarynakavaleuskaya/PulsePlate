@@ -16,6 +16,7 @@ from app.bootstrap.route_family import (
     route_has_dependency_call,
     same_callable_by_module_and_qualname,
 )
+from app.routers.bmi_registration import BmiRouteRegistration
 
 
 @pytest.fixture(autouse=True)
@@ -783,6 +784,16 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "register_tracing", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_vip_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_pro_routes", lambda target_app: (None, None))
+    monkeypatch.setattr(
+        app_main,
+        "register_bmi_routes",
+        lambda target_app: BmiRouteRegistration(
+            bmi_router=APIRouter(),
+            bmi_pro_router=None,
+            bmi_pro_legacy_alias_router=None,
+            feature_bmi_pro_enabled=False,
+        ),
+    )
     monkeypatch.setattr(app_main, "register_pro_contract_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_billing_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "feedback_router", _stub_router("/api/v1/feedback/rag"))
@@ -860,6 +871,47 @@ def test_paid_tier_registration_runs_vip_then_pro_and_mirrors_legacy_attrs(
     assert app_main._legacy_module.vip_router is vip
     assert app_main._legacy_module.pro_router is pro
     assert app_main._legacy_module.premium_week_router is premium_week
+
+
+def test_bmi_registration_runs_and_mirrors_legacy_attrs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    calls: list[str] = []
+    bmi = APIRouter()
+    bmi_pro = APIRouter()
+    bmi_pro_alias = APIRouter()
+
+    def _register_bmi(target_app: FastAPI) -> BmiRouteRegistration:
+        calls.append("bmi")
+        return BmiRouteRegistration(
+            bmi_router=bmi,
+            bmi_pro_router=bmi_pro,
+            bmi_pro_legacy_alias_router=bmi_pro_alias,
+            feature_bmi_pro_enabled=True,
+        )
+
+    monkeypatch.setattr(app_main, "register_bmi_routes", _register_bmi)
+    monkeypatch.setattr(app_main, "FEATURE_BMI_PRO_ENABLED", False)
+    monkeypatch.setattr(app_main, "bmi_router", None)
+    monkeypatch.setattr(app_main, "bmi_pro_router", None)
+    monkeypatch.setattr(app_main, "bmi_pro_legacy_alias_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "FEATURE_BMI_PRO_ENABLED", False)
+    monkeypatch.setattr(app_main._legacy_module, "bmi_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "bmi_pro_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "bmi_pro_legacy_alias_router", None)
+
+    _bootstrap_temp_app(FastAPI())
+
+    assert calls == ["bmi"]
+    assert app_main.FEATURE_BMI_PRO_ENABLED is True
+    assert app_main.bmi_router is bmi
+    assert app_main.bmi_pro_router is bmi_pro
+    assert app_main.bmi_pro_legacy_alias_router is bmi_pro_alias
+    assert app_main._legacy_module.FEATURE_BMI_PRO_ENABLED is True
+    assert app_main._legacy_module.bmi_router is bmi
+    assert app_main._legacy_module.bmi_pro_router is bmi_pro
+    assert app_main._legacy_module.bmi_pro_legacy_alias_router is bmi_pro_alias
 
 
 def test_vip_compat_resolver_returns_none_when_vip_disabled(

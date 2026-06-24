@@ -183,12 +183,15 @@ Evidence:
 
 ### Conditional routers: Bodyfat / BMI Pro / Business
 
-Anchor (stable): `legacy_app.py -> feature-flag gated routers (BMI Pro, Business) + optional bodyfat`
+Anchor (stable): `app/main.py -> app/routers/bmi_registration.py` owns BMI route registration; `legacy_app.py` remains a compatibility seam for direct-call shims and mirrored attrs.
 
-Evidence: `legacy_app.py:5226-5248`
+Evidence:
+- `app/main.py -> ensure_canonical_app_bootstrap()`
+- `app/routers/bmi_registration.py -> register_bmi_routes()`
 
 - Bodyfat: included if router factory is available (`get_bodyfat_router`)
-- BMI Pro: included only if `FEATURE_BMI_PRO_ENABLED` is truthy
+- BMI Free: canonical `/api/v1/bmi/calculate` is registered by `app/main.py` via `app/routers/bmi_registration.py`
+- BMI Pro: registered by `app/main.py` via `app/routers/bmi_registration.py`, included only if `FEATURE_BMI_PRO_ENABLED` is truthy
   - canonical: `/api/v1/pro/bmi`
   - legacy alias: `/api/v1/bmi/pro`
 - Business: included only if `BUSINESS_MODULE_ENABLED` is truthy
