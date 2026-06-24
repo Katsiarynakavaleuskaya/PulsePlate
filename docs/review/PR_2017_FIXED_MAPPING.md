@@ -21,6 +21,9 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 - `f6d212fc12efd1fd977baf10b994e2d529139796` - close PR-triggered workflow
   secret-boundary gaps, add scoped Safety install auth cleanup, add offline
   `.netrc` lifecycle tests, and refresh `.secrets.baseline` metadata.
+- `11ee04235745b4083aa818ee68970c0ab1281bda` - guard empty devpi
+  `.netrc` hostnames and add regression coverage for the Sourcery review
+  finding.
 
 ## Discussion Thread Pass
 
@@ -40,9 +43,27 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4562642386 -> 11ee04235745b4083aa818ee68970c0ab1281bda
+Disposition: FIXED
+Commit: 11ee04235745b4083aa818ee68970c0ab1281bda
+Evidence: scripts/ci/install_locked_python_requirements.py:952 and tests/test_install_locked_python_requirements.py:426
 
 ## Additional Fixed Findings
+
+Sourcery post-open review found that `_netrc_basic_auth_header` should guard
+against falsy hostnames before looking up `.netrc` credentials.
+
+Disposition: FIXED
+
+Commit: `11ee04235745b4083aa818ee68970c0ab1281bda`
+
+Evidence:
+
+- `scripts/ci/install_locked_python_requirements.py` now accepts
+  `str | None` hostnames and returns `None` without reading `.netrc` when the
+  hostname is empty.
+- `tests/test_install_locked_python_requirements.py` covers `None` and empty
+  string hostnames without `.netrc` access.
 
 Coordinator pre-open review found that workflow-level `ci.yml` package-index
 env still resolved `PULSEPLATE_PYTHON_INDEX_URL` from `secrets || vars`, which
