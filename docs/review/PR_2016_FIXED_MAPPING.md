@@ -78,6 +78,11 @@ Commit: 5e2e125a5cd733c96b1f3715d98f2a85c853d20b
 Evidence: `app/routers/bmi_registration.py` now documents the BMI registration helper functions used by the production route-family registrar. The PR body mirror also adds related-PR context and a split-justification section for the description-shape advisory. Focused pytest and selected-suite coverage proof passed after the docstring change.
 Reason: The remaining CodeRabbit docstring-coverage framing is advisory for test/helper surfaces, not a repo gate. PulsePlate tests do not require per-test docstrings; adding broad test docstrings would reduce signal without improving the runtime BMI contract.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2016#pullrequestreview-4566649513 -> d2748ac9b109bfedaf74b7e3c6360f4eab04602c
+Disposition: FIXED
+Commit: d2748ac9b109bfedaf74b7e3c6360f4eab04602c
+Evidence: `tests/test_bmi_registration_router_coverage.py` no longer duplicates the router-validation regex assertions now owned by the CI-selected `tests/test_main_paywall_bootstrap.py` suite. Focused pytest across both BMI test files and selected-suite coverage proof passed after the de-duplication.
+
 ## Implementation Commits
 
 - `ba1eabf3d` - moves BMI route registration to canonical bootstrap, preserves
@@ -96,6 +101,8 @@ Reason: The remaining CodeRabbit docstring-coverage framing is advisory for test
   uses the branch coverage evidence.
 - `5e2e125a5` - documents BMI registration production helpers in response to
   CodeRabbit's advisory docstring-coverage warning.
+- `d2748ac9b` - removes duplicate BMI registrar guard assertions from the
+  dedicated coverage file after CodeRabbit's final nitpick.
 
 ## Premortem Findings
 
@@ -291,8 +298,18 @@ After CodeRabbit advisory docstring remediation `5e2e125a5`:
 - `git diff --check`
 - Commit hooks passed for `5e2e125a5`.
 
-Current-head CI passed at `ff7c6d335` before the CodeRabbit advisory docstring
-commit. New current-head CI is pending at mapping update.
+After CodeRabbit duplicate-test nitpick remediation `d2748ac9b`:
+
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python PYTHONPATH=. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_main_paywall_bootstrap.py tests/test_bmi_registration_router_coverage.py`
+- `COVERAGE_FILE=/tmp/pr2016_coverage_bmi_ci_selected_after_dedupe /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m coverage run --source=app.routers.bmi_registration -m pytest -q tests/test_main_paywall_bootstrap.py`
+- `COVERAGE_FILE=/tmp/pr2016_coverage_bmi_ci_selected_after_dedupe /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m coverage report -m app/routers/bmi_registration.py`
+  - Result: `app/routers/bmi_registration.py` `100.00%` line and branch
+    coverage from the CI-selected `tests/test_main_paywall_bootstrap.py` suite.
+- `git diff --check`
+- Commit hooks passed for `d2748ac9b`.
+
+Current-head CI must pass after this final CodeRabbit nitpick remediation before
+merge.
 
 ## Security Notes
 
