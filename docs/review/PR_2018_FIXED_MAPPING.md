@@ -40,6 +40,7 @@ Out of scope:
 
 - `3275af6c630ce043d0395ab8104f298ec125e361` - `fix(deps): remove vulnerable Safety audit dependency`
 - `6f1bef1c9f745e8611fa2635adbe00bf2235106f` - `fix(ci): address pip-audit review findings`
+- `7ff04b686256c4792e8d146e7e4ec2028d4bed13` - `fix(ci): harden pip-audit workflow guards`
 
 ## Lane Start Provenance
 
@@ -72,6 +73,8 @@ Out of scope:
   - `requirements-rag-vector-cpu.txt`: no known vulnerabilities
 - PASS: `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py tests/test_ci_risk_profile.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_dependency_security_guard.py`
 - PASS after CodeRabbit fixes: `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py::test_pip_audit_helper_invokes_cpu_rag_vector_manifest tests/test_python_supply_chain_controls.py::test_pip_audit_helper_scans_all_manifests_before_returning_failure tests/test_ci_risk_profile.py::test_security_audit_helper_path_is_workflow_privileged tests/test_ci_risk_profile.py::test_security_audit_helper_change_routes_backend_and_security`
+- PASS after CodeRabbit follow-up: `python3 scripts/ci/check_docs_phase1_gates.py --files docs/DEPENDENCY_MANAGEMENT.md docs/review/PR_2018_FIXED_MAPPING.md docs/roadmap/BACKLOG_LEDGER.md docs/security/CVE-2025-14009-nltk.md docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md`
+- PASS after CodeRabbit follow-up: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py::test_security_scan_workflow_uses_ci_lite_direct_proxy_setup tests/test_python_supply_chain_controls.py::test_ci_security_job_runs_pip_audit_from_ci_lite_toolchain tests/test_python_supply_chain_controls.py::test_pip_audit_helper_scans_all_manifests_before_returning_failure tests/test_python_supply_chain_controls.py::test_pip_audit_helper_invokes_cpu_rag_vector_manifest`
 - PASS after CodeRabbit fixes: `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py tests/guards/test_security_devtooling_regression_guards.py tests/test_ci_risk_profile.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_dependency_security_guard.py`
 - PASS after CodeRabbit fixes: `PATH=.venv/bin:$PATH bash scripts/ci_pip_audit.sh`
 - PASS: `VENV_PYTHON=.venv/bin/python make validate-changed`
@@ -105,11 +108,16 @@ blocking until fixed or formally dispositioned with evidence.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470273502
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470273520
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470586006
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `scripts/ci_pip_audit.sh` now aggregates per-manifest `pip-audit` failures and exits nonzero only after every manifest has been scanned; `tests/test_python_supply_chain_controls.py` proves later manifests still run and write reports after an earlier manifest fails; `scripts/ci/ci_risk_profile.py` now classifies `scripts/ci_pip_audit.sh` as workflow-privileged, and `tests/test_ci_risk_profile.py` asserts that stronger governance routing. `tests/test_python_supply_chain_controls.py` now rejects any inline `pip install` invocation in the dependency-audit workflow steps, while `docs/security/CVE-2025-14009-nltk.md` broadens the Safety/NLTK validation search and both security advisories include file-line evidence anchors for Docs Phase1.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470273502 -> 6f1bef1c9f745e8611fa2635adbe00bf2235106f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470273520 -> 6f1bef1c9f745e8611fa2635adbe00bf2235106f
-Disposition: FIXED
-Commit: 6f1bef1c9f745e8611fa2635adbe00bf2235106f
-Evidence: `scripts/ci_pip_audit.sh` now aggregates per-manifest `pip-audit` failures and exits nonzero only after every manifest has been scanned; `tests/test_python_supply_chain_controls.py` proves later manifests still run and write reports after an earlier manifest fails; `scripts/ci/ci_risk_profile.py` now classifies `scripts/ci_pip_audit.sh` as workflow-privileged, and `tests/test_ci_risk_profile.py` asserts that stronger governance routing.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2018#discussion_r3470586006 -> 7ff04b686256c4792e8d146e7e4ec2028d4bed13
 
 ## Security Notes
 
