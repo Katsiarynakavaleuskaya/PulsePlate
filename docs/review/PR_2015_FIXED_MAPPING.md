@@ -198,7 +198,7 @@ Evidence:
 `tests/test_creative_code_specification.py::test_reference_bundle_schema_and_validator_are_aligned`.
 
 Post-open bug-hunter pass found two additional actionable PR-surface findings.
-They are fixed in commit `TBD_BUG_FIX_COMMIT` and recorded below. Remaining
+They are fixed in commit `dae4e3a98d53632cf7f070f1214bbe4a210e9981` and recorded below. Remaining
 post-open pass sequence:
 `security-auditor -> Codex Security diff scan / finding discovery -> pulseplate-pr-review`.
 
@@ -208,7 +208,7 @@ Finding: unsafe-authority filtering still accepted common variants such as
 `Open a PR`, `Create a pull request`, `Push the branch`, and
 `Write to the repository`.
 
-Commit: `TBD_BUG_FIX_COMMIT`
+Commit: `dae4e3a98d53632cf7f070f1214bbe4a210e9981`
 
 Evidence: `scripts/orchestration/creative_code_specification.py` and
 `tests/test_creative_code_specification.py::test_unsafe_variant_text_is_rejected`.
@@ -218,7 +218,7 @@ Disposition: FIXED
 Finding: source file targets accepted impossible child paths such as
 `core/rag/orchestration.py/child.py`.
 
-Commit: `TBD_BUG_FIX_COMMIT`
+Commit: `dae4e3a98d53632cf7f070f1214bbe4a210e9981`
 
 Evidence: `scripts/orchestration/creative_code_specification.py` and
 `tests/test_creative_code_specification.py::test_variant_target_paths_cannot_create_children_under_file_surface`.
