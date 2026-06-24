@@ -415,6 +415,10 @@ def _normalize_token_list(
         token = item.strip()
         if not token or not SAFE_TOKEN_RE.fullmatch(token):
             raise CreativeCodeSpecificationError(f"{label}.{key}[{index}] must be a safe token.")
+        if SECRET_RE.search(token):
+            raise CreativeCodeSpecificationError(
+                f"{label}.{key}[{index}] must not contain secret-shaped values."
+            )
         if token in seen:
             raise CreativeCodeSpecificationError(f"{label}.{key} must not contain duplicates.")
         seen.add(token)
@@ -459,6 +463,29 @@ def _is_within_surface(path: str, target_surface: Sequence[str]) -> bool:
         if path.startswith(target.rstrip("/") + "/"):
             return True
     return False
+
+
+def _paths_overlap(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    left_is_file = bool(PurePosixPath(left).suffix)
+    right_is_file = bool(PurePosixPath(right).suffix)
+    return (not left_is_file and right.startswith(left.rstrip("/") + "/")) or (
+        not right_is_file and left.startswith(right.rstrip("/") + "/")
+    )
+
+
+def _reject_immutable_oracle_overlap(
+    *,
+    target_surface: Sequence[str],
+    immutable_oracles: Sequence[str],
+) -> None:
+    for target in target_surface:
+        for oracle in immutable_oracles:
+            if _paths_overlap(target, oracle):
+                raise CreativeCodeSpecificationError(
+                    "target_surface must not overlap immutable_oracles."
+                )
 
 
 def _variant_fingerprint_payload(variant: Mapping[str, Any]) -> dict[str, Any]:
@@ -1115,9 +1142,9 @@ def build_default_specification_variants(
                 "Preserve PR-0 authority flags and require human review before patch work.",
                 "Define deterministic acceptance criteria and rollback notes.",
             ],
-            "target_paths": target_paths,
-            "tests_to_add": tests_to_add,
-            "negative_controls": negative_controls,
+            "target_paths": list(target_paths),
+            "tests_to_add": list(tests_to_add),
+            "negative_controls": list(negative_controls),
             "rollback_plan": "Discard the specification bundle; do not mutate repository files.",
             "falsifier": "Reject if target paths, authority flags, or oracle boundaries drift.",
             "risk_notes": [
@@ -1317,6 +1344,10 @@ def validate_creative_code_specification_bundle(payload: Mapping[str, Any]) -> d
         payload,
         "immutable_oracles",
         label="CreativeCodeSpecificationBundle",
+    )
+    _reject_immutable_oracle_overlap(
+        target_surface=normalized["target_surface"],
+        immutable_oracles=normalized["immutable_oracles"],
     )
     normalized["fallback"] = _require_text(
         payload,

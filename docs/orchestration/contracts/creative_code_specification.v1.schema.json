@@ -133,6 +133,71 @@
       "$ref": "#/$defs/telemetry_summary"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "variants"
+        ],
+        "properties": {
+          "variants": {
+            "minItems": 3,
+            "maxItems": 3
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "skeptic_reviews": {
+            "minItems": 9,
+            "maxItems": 9
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "variants"
+        ],
+        "properties": {
+          "variants": {
+            "minItems": 4,
+            "maxItems": 4
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "skeptic_reviews": {
+            "minItems": 12,
+            "maxItems": 12
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "variants"
+        ],
+        "properties": {
+          "variants": {
+            "minItems": 5,
+            "maxItems": 5
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "skeptic_reviews": {
+            "minItems": 15,
+            "maxItems": 15
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "safe_id": {
       "type": "string",

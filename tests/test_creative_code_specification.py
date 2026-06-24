@@ -142,6 +142,19 @@ def test_reference_bundle_schema_and_validator_are_aligned() -> None:
     assert normalized["synthesis"]["selected_variant_id"] == "creative-code-pr0-reference:spec-1"
 
 
+def test_schema_review_count_constraints_scale_with_variant_count() -> None:
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    constraints: dict[int, tuple[int, int]] = {}
+    for rule in schema["allOf"]:
+        variant_count = rule["if"]["properties"]["variants"]["minItems"]
+        assert rule["if"]["required"] == ["variants"]
+        assert rule["if"]["properties"]["variants"]["maxItems"] == variant_count
+        review_rules = rule["then"]["properties"]["skeptic_reviews"]
+        constraints[variant_count] = (review_rules["minItems"], review_rules["maxItems"])
+
+    assert constraints == {3: (9, 9), 4: (12, 12), 5: (15, 15)}
+
+
 def test_builder_replays_reference_bundle_deterministically() -> None:
     packet, variants, reviews = _reviewed_bundle_inputs()
 
@@ -260,6 +273,16 @@ def test_variant_target_paths_cannot_create_children_under_file_surface() -> Non
     _fingerprint_variant(variant)
 
     with pytest.raises(CreativeCodeSpecificationError, match="target_paths must stay"):
+        validate_creative_code_specification_bundle(bundle)
+
+
+def test_target_surface_must_not_overlap_immutable_oracles() -> None:
+    bundle = _bundle()
+    target_surface = bundle["target_surface"]
+    assert isinstance(target_surface, list)
+    bundle["immutable_oracles"] = [target_surface[0]]
+
+    with pytest.raises(CreativeCodeSpecificationError, match="target_surface"):
         validate_creative_code_specification_bundle(bundle)
 
 
@@ -386,7 +409,9 @@ def test_rejection_index_duplicate_keys_fail_closed(
     ("field", "unsafe_value"),
     [
         ("source_packet_id", "sk-test-placeholder-not-a-secret"),
+        ("variant_id", "sk-test-placeholder-not-a-secret"),
         ("variant_id", "github:write"),
+        ("reason_codes", "ghp_placeholder_not_a_secret"),
         ("reason_codes", "provider_payload"),
         ("reviewer_roles", "slack:admin"),
     ],
@@ -410,6 +435,18 @@ def test_rejection_index_rejects_unsafe_ids_and_tokens(
 
     with pytest.raises(CreativeCodeRejectionIndexError, match="unsafe"):
         validate_creative_code_rejection_index(rejection_index)
+
+
+def test_spec_rejects_secret_shaped_review_tokens_before_rejection_index() -> None:
+    bundle = _bundle()
+    reviews = bundle["skeptic_reviews"]
+    assert isinstance(reviews, list)
+    review = reviews[0]
+    assert isinstance(review, dict)
+    review["blockers"] = ["ghp_placeholder_not_a_secret"]
+
+    with pytest.raises(CreativeCodeSpecificationError, match="secret-shaped"):
+        validate_creative_code_specification_bundle(bundle)
 
 
 @pytest.mark.parametrize(
@@ -448,6 +485,25 @@ def test_pipeline_prepare_and_finalize_write_valid_bundle() -> None:
         assert bundle["synthesis"]["selected_variant_id"] == variants[0]["variant_id"]
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def test_default_variants_do_not_share_mutable_lists() -> None:
+    variants = build_default_specification_variants(_packet())
+    first = variants[0]
+    second = variants[1]
+    for field in ("target_paths", "tests_to_add", "negative_controls"):
+        assert isinstance(first[field], list)
+        assert isinstance(second[field], list)
+        assert first[field] is not second[field]
+
+    first["target_paths"].append(
+        "docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md"
+    )
+
+    assert (
+        "docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md"
+        not in second["target_paths"]
+    )
 
 
 def test_pipeline_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:

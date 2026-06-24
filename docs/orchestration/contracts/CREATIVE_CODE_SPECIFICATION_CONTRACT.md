@@ -91,6 +91,10 @@ merge-readiness claims, semantic-cache serving claims, and medical overclaims.
 Every variant must have one review from each required skeptic role. Missing,
 duplicate, skipped, errored, or pending reviews block selection.
 
+The JSON Schema mirrors the executable coverage floor with exact review counts:
+9 reviews for 3 variants, 12 for 4 variants, and 15 for 5 variants. The Python
+validator remains the authority for per-variant reviewer-role uniqueness.
+
 `pass` reviews must be clean: no blockers, unsafe authority flags, duplicate
 reason, or required revision. `reject` reviews require blockers. `revise`
 reviews require revision notes and are not selectable.
