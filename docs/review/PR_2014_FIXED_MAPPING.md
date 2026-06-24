@@ -103,8 +103,7 @@ dispositioned with evidence.
 
 Disposition: FIXED
 Commit: 15b0e0c403974b714aa6815cd3b49ec518e3847f
-Evidence: `tests/test_python_supply_chain_controls.py` asserts
-`hypothesis==6.155.7` in the split test dependency profile.
+Evidence: `tests/test_python_supply_chain_controls.py` asserts `hypothesis==6.155.7` in the split test dependency profile.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2014#discussion_r3465713725 -> 15b0e0c403974b714aa6815cd3b49ec518e3847f
 
 ## Implementation Evidence
