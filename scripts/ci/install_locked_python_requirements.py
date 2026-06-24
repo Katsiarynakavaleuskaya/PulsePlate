@@ -856,14 +856,29 @@ def load_dependency_security_floors(
 def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: str) -> bool:
     """Return True when pip failed because package floor is unavailable on index."""
     message = str(runtime_error)
-    if _pip_upgrade_network_failure(message.lower()):
+    normalized_message = message.lower()
+    if _pip_upgrade_network_failure(normalized_message):
         return False
     requirement_text = f"{package}=={version}"
     resolver_markers = (
         f"No matching distribution found for {requirement_text}",
         f"Could not find a version that satisfies the requirement {requirement_text}",
     )
-    return any(marker in message for marker in resolver_markers)
+    if any(marker in message for marker in resolver_markers):
+        return True
+
+    package_name = package.lower()
+    normalized_requirement = requirement_text.lower()
+    pip26_no_candidate_markers = (
+        f"cannot install {normalized_requirement} because these package versions have conflicting dependencies.",
+        f"the user requested {normalized_requirement}",
+        "no matching distributions available for your environment",
+    )
+    if not all(marker in normalized_message for marker in pip26_no_candidate_markers):
+        return False
+
+    missing_package_line = re.compile(rf"^\s*{re.escape(package_name)}\s*$", re.MULTILINE)
+    return bool(missing_package_line.search(normalized_message))
 
 
 def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
