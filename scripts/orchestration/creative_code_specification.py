@@ -14,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 import re
 import sys
-from typing import Any
+from typing import Any, cast
 
 from core.evidence.fingerprints import (
     build_asset_id,
@@ -975,7 +975,10 @@ def _build_bundle_identity(bundle: Mapping[str, Any]) -> tuple[str, str]:
 
 
 def _source_packet_fingerprint(packet: Mapping[str, Any]) -> str:
-    return fingerprint_payload(packet)
+    fingerprint = fingerprint_payload(packet)
+    if not isinstance(fingerprint, str):
+        raise CreativeCodeSpecificationError("source packet fingerprint must be a string.")
+    return fingerprint
 
 
 def _validate_variant_collection(
@@ -1138,7 +1141,7 @@ def validate_source_candidate_packet(payload: Mapping[str, Any]) -> dict[str, An
     """Validate PR-0 source packet and convert contract errors to PR-1 errors."""
 
     try:
-        return validate_creative_code_candidate_packet(dict(payload))
+        return cast(dict[str, Any], validate_creative_code_candidate_packet(dict(payload)))
     except CreativeCodeContractError as exc:
         raise CreativeCodeSpecificationError(str(exc)) from exc
 
