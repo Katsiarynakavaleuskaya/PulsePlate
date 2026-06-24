@@ -137,6 +137,9 @@ dispositioned with evidence.
 - `CodeRabbit CLI`: final rerun found that the new resolver-miss classifier
   could scan package names such as `pyopenssl` as network `ssl` markers; fixed
   in `9401f3ed7dad2801deda2714739b650b8b32d7e9`.
+- `CodeRabbit CLI`: follow-up rerun found the `pyopenssl` regression test did
+  not assert that the private-index health probe still runs before emergency
+  fallback; fixed in `66ef96f848cb8d475c4ab699ce5fd00c0dc393bc`.
 
 ## Fixed in Commit Mapping
 
@@ -185,6 +188,10 @@ Disposition: FIXED
 Commit: 9401f3ed7dad2801deda2714739b650b8b32d7e9
 Evidence: CodeRabbit package-name/network false-positive finding is fixed by filtering resolver request lines before checking transport markers. Regression coverage proves `pyopenssl` no longer blocks exact emergency fallback selection while mixed network resolver failures still fail closed.
 
+Disposition: FIXED
+Commit: 66ef96f848cb8d475c4ab699ce5fd00c0dc393bc
+Evidence: CodeRabbit fallback-health-probe coverage finding is fixed by asserting `_require_private_index_project_health` is invoked for the `pyopenssl` emergency fallback path before staging the exact local wheel.
+
 ## Implementation Evidence
 
 - Testing stack dependency refresh ->
@@ -203,6 +210,8 @@ Evidence: CodeRabbit package-name/network false-positive finding is fixed by fil
   `95f80caf6d6212f5a4bc738adbe3dd4b31cf5da2`
 - CodeRabbit package-name/network false-positive fix ->
   `9401f3ed7dad2801deda2714739b650b8b32d7e9`
+- CodeRabbit fallback health-probe test completion ->
+  `66ef96f848cb8d475c4ab699ce5fd00c0dc393bc`
 
 ## Deferred / Follow-ups
 
