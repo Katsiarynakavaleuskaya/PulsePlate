@@ -56,6 +56,50 @@ runs:
         cache-dependency-path: |
           ${{ inputs.working-directory }}/requirements*.txt
 
+    - name: Configure private Python index authentication
+      if: ${{ inputs.skip-base-install != 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+          exit 0
+        fi
+        if [[ -z "${DEVPI_CI_USER:-}" || -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+          echo "::error::Set both DEVPI_CI_USER and DEVPI_CI_PASSWORD, or neither."
+          exit 1
+        fi
+        case "$DEVPI_CI_USER$DEVPI_CI_PASSWORD" in
+          *[[:space:]]*)
+            echo "::error::DEVPI_CI_USER and DEVPI_CI_PASSWORD must not contain whitespace."
+            exit 1
+            ;;
+        esac
+        case "$DEVPI_CI_USER" in
+          [Rr][Oo][Oo][Tt])
+            echo "::error::Root devpi credentials are forbidden for CI package installs."
+            exit 1
+            ;;
+        esac
+        case "${PULSEPLATE_PYTHON_INDEX_URL:-}" in
+          *://*@*)
+            echo "::error::PULSEPLATE_PYTHON_INDEX_URL must not contain credentials; use DEVPI_CI_USER/DEVPI_CI_PASSWORD."
+            exit 1
+            ;;
+        esac
+        if [[ -e "$HOME/.netrc" ]]; then
+          echo "::error::Refusing to overwrite an existing .netrc."
+          exit 1
+        fi
+        : "${RUNNER_TEMP:?RUNNER_TEMP is required for .netrc cleanup marker.}"
+        marker="$RUNNER_TEMP/pulseplate-python-setup-netrc-created"
+        umask 077
+        touch "$marker"
+        cat > "$HOME/.netrc" <<EOF
+        machine packages.pulseplate.app
+          login ${DEVPI_CI_USER}
+          password ${DEVPI_CI_PASSWORD}
+        EOF
+
     - name: Install base dependencies
       if: ${{ inputs.skip-base-install != 'true' }}
       shell: bash
@@ -191,3 +235,13 @@ runs:
       run: |
         set -euo pipefail
         echo "::notice::Pinned test tooling is provided by ${{ inputs.test-requirements-file }} via install_locked_python_requirements.py"
+
+    - name: Remove private Python index authentication
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        marker="${RUNNER_TEMP:-}/pulseplate-python-setup-netrc-created"
+        if [[ -n "${RUNNER_TEMP:-}" && -f "$marker" ]]; then
+          rm -f "$HOME/.netrc" "$marker"
+        fi

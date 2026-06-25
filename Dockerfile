@@ -55,8 +55,18 @@ COPY scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_pytho
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=secret,id=pp_py_index,required=false \
     --mount=type=secret,id=pp_py_host,required=false \
+    --mount=type=secret,id=pp_netrc,required=false \
     PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
     PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
+    if [ -f /run/secrets/pp_netrc ]; then \
+      if [ -e /root/.netrc ]; then \
+        echo "Refusing to overwrite an existing /root/.netrc." >&2; \
+        exit 1; \
+      fi; \
+      cp /run/secrets/pp_netrc /root/.netrc; \
+      chmod 600 /root/.netrc; \
+    fi; \
+    trap 'rm -f /root/.netrc' EXIT; \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
@@ -85,8 +95,18 @@ COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_r
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=secret,id=pp_py_index,required=false \
     --mount=type=secret,id=pp_py_host,required=false \
+    --mount=type=secret,id=pp_netrc,required=false \
     PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
     PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
+    if [ -f /run/secrets/pp_netrc ]; then \
+      if [ -e /root/.netrc ]; then \
+        echo "Refusing to overwrite an existing /root/.netrc." >&2; \
+        exit 1; \
+      fi; \
+      cp /run/secrets/pp_netrc /root/.netrc; \
+      chmod 600 /root/.netrc; \
+    fi; \
+    trap 'rm -f /root/.netrc' EXIT; \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
@@ -206,8 +226,18 @@ COPY scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_pytho
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=secret,id=pp_py_index,required=false \
     --mount=type=secret,id=pp_py_host,required=false \
+    --mount=type=secret,id=pp_netrc,required=false \
     PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
     PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
+    if [ -f /run/secrets/pp_netrc ]; then \
+      if [ -e /root/.netrc ]; then \
+        echo "Refusing to overwrite an existing /root/.netrc." >&2; \
+        exit 1; \
+      fi; \
+      cp /run/secrets/pp_netrc /root/.netrc; \
+      chmod 600 /root/.netrc; \
+    fi; \
+    trap 'rm -f /root/.netrc' EXIT; \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
@@ -460,8 +490,18 @@ COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_r
 # Security mitigation (GHSA-58pv-8j8x-9vj2) applies to runtime/production images only.
 RUN --mount=type=secret,id=pp_py_index,required=false \
     --mount=type=secret,id=pp_py_host,required=false \
+    --mount=type=secret,id=pp_netrc,required=false \
     PULSEPLATE_PYTHON_INDEX_URL="$(cat /run/secrets/pp_py_index 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_INDEX_URL:-}")"; \
     PULSEPLATE_PYTHON_TRUSTED_HOST="$(cat /run/secrets/pp_py_host 2>/dev/null || printf '%s' "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}")"; \
+    if [ -f /run/secrets/pp_netrc ]; then \
+      if [ -e /root/.netrc ]; then \
+        echo "Refusing to overwrite an existing /root/.netrc." >&2; \
+        exit 1; \
+      fi; \
+      cp /run/secrets/pp_netrc /root/.netrc; \
+      chmod 600 /root/.netrc; \
+    fi; \
+    trap 'rm -f /root/.netrc' EXIT; \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \

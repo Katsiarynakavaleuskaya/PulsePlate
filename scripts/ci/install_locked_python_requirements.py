@@ -7,6 +7,7 @@ import argparse
 import base64
 import http.client
 import hashlib
+import netrc
 import platform
 from contextlib import contextmanager
 from datetime import date
@@ -21,7 +22,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Iterator, Sequence, cast
-from urllib.parse import ParseResult, quote, unquote, urlparse
+from urllib.parse import ParseResult, quote, urlparse
 from urllib.request import urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -51,6 +52,7 @@ BLOCKED_INDEX_HOSTS: tuple[str, ...] = (
     "files.pythonhosted.org",
     "test.pypi.org",
 )
+REQUIRED_HTTPS_INDEX_HOSTS: tuple[str, ...] = ("packages.pulseplate.app",)
 ALLOWED_EMERGENCY_WHEEL_HOSTS: tuple[str, ...] = ("files.pythonhosted.org",)
 INSTALL_MODES: tuple[str, ...] = ("wheelhouse", "direct-proxy")
 REQUIREMENTS_PROFILES: tuple[str, ...] = (
@@ -529,11 +531,17 @@ def _wheel_filename_tags(filename: str) -> set[str] | None:
     }
 
 
-def _fallback_supported_wheel_tags() -> set[str]:
-    """Return conservative stdlib-only wheel tags for the current interpreter."""
-    major = sys.version_info.major
-    minor = sys.version_info.minor
-    if sys.implementation.name == "cpython":
+def _fallback_supported_wheel_tags_for_runtime(
+    *,
+    major: int,
+    minor: int,
+    implementation_name: str,
+    platform_name: str,
+    sysconfig_platform: str,
+    machine_name: str,
+) -> set[str]:
+    """Return conservative stdlib-only wheel tags for one interpreter/platform."""
+    if implementation_name == "cpython":
         current_python_tag = f"cp{major}{minor}"
         python_abi_tags = {f"{current_python_tag}-{current_python_tag}"}
         python_abi_tags.update(f"cp{major}{abi_minor}-abi3" for abi_minor in range(2, minor + 1))
@@ -542,17 +550,17 @@ def _fallback_supported_wheel_tags() -> set[str]:
         python_abi_tags = {f"{current_python_tag}-none"}
 
     platform_tags = {"any"}
-    normalized_platform = sysconfig.get_platform().replace("-", "_").replace(".", "_")
+    normalized_platform = sysconfig_platform.replace("-", "_").replace(".", "_")
     if normalized_platform:
         platform_tags.add(normalized_platform)
 
-    machine = platform.machine().lower().replace("-", "_")
+    machine = machine_name.lower().replace("-", "_")
     if machine in {"amd64", "x86_64"}:
         machine = "x86_64"
     elif machine in {"aarch64", "arm64"}:
         machine = "aarch64"
 
-    if sys.platform.startswith("linux") and machine:
+    if platform_name.startswith("linux") and machine:
         platform_tags.add(f"linux_{machine}")
         if machine == "x86_64":
             platform_tags.update(
@@ -561,14 +569,14 @@ def _fallback_supported_wheel_tags() -> set[str]:
             platform_tags.update(
                 f"manylinux_2_{glibc_minor}_x86_64" for glibc_minor in range(17, 40)
             )
-    elif sys.platform == "darwin":
+    elif platform_name == "darwin":
         if "arm64" in normalized_platform:
             platform_tags.add("macosx_11_0_arm64")
             platform_tags.add("macosx_11_0_universal2")
         elif "x86_64" in normalized_platform:
             platform_tags.add("macosx_10_9_x86_64")
             platform_tags.add("macosx_10_9_universal2")
-    elif sys.platform.startswith("win"):
+    elif platform_name.startswith("win"):
         platform_tags.add("win_amd64" if machine == "x86_64" else f"win_{machine}")
 
     supported_tags = {"py3-none-any", f"py{major}-none-any"}
@@ -580,6 +588,18 @@ def _fallback_supported_wheel_tags() -> set[str]:
     return supported_tags
 
 
+def _fallback_supported_wheel_tags() -> set[str]:
+    """Return conservative stdlib-only wheel tags for the current interpreter."""
+    return _fallback_supported_wheel_tags_for_runtime(
+        major=sys.version_info.major,
+        minor=sys.version_info.minor,
+        implementation_name=sys.implementation.name,
+        platform_name=sys.platform,
+        sysconfig_platform=sysconfig.get_platform(),
+        machine_name=platform.machine(),
+    )
+
+
 def _current_supported_wheel_tags() -> set[str]:
     """Return supported wheel tags without making packaging a hard dependency."""
     try:
@@ -589,22 +609,140 @@ def _current_supported_wheel_tags() -> set[str]:
     return {str(tag) for tag in packaging_tags.sys_tags()}
 
 
-def _emergency_artifact_matches_runtime(artifact: dict[str, str]) -> bool:
+def _path_qualified_python_executable_for_probe(python_executable: str) -> str:
+    """Return a non-PATH-resolved Python executable for wheel-tag probing."""
+    candidate = python_executable.strip()
+    if not candidate:
+        raise RuntimeError("Target Python executable for wheel-tag probe is empty")
+    candidate_path = Path(candidate)
+    if candidate_path.is_absolute():
+        return candidate
+    has_path_separator = os.sep in candidate or (os.altsep is not None and os.altsep in candidate)
+    if has_path_separator:
+        return str(candidate_path.resolve())
+    current_interpreter_aliases = {
+        "python",
+        f"python{sys.version_info.major}",
+        f"python{sys.version_info.major}.{sys.version_info.minor}",
+        Path(sys.executable).name,
+    }
+    if candidate in current_interpreter_aliases:
+        return sys.executable
+    raise RuntimeError(
+        "Target Python executable for wheel-tag probe must be absolute or "
+        f"path-qualified; refusing to resolve through PATH: {python_executable}"
+    )
+
+
+def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object]:
+    """Probe wheel-tag data from the requested target interpreter."""
+    probe_python = _path_qualified_python_executable_for_probe(python_executable)
+    probe = "\n".join(
+        (
+            "import json",
+            "import platform",
+            "import sys",
+            "import sysconfig",
+            "try:",
+            "    from packaging import tags as packaging_tags",
+            "except Exception:",
+            "    wheel_tags = []",
+            "else:",
+            "    wheel_tags = [str(tag) for tag in packaging_tags.sys_tags()]",
+            "print(json.dumps({",
+            "    'tags': wheel_tags,",
+            "    'major': sys.version_info.major,",
+            "    'minor': sys.version_info.minor,",
+            "    'implementation_name': sys.implementation.name,",
+            "    'platform_name': sys.platform,",
+            "    'sysconfig_platform': sysconfig.get_platform(),",
+            "    'machine_name': platform.machine(),",
+            "}))",
+        )
+    )
+    result = subprocess.run(  # nosec B603: argv starts with the selected target Python interpreter and a fixed metadata probe (remove-by: 2026-07-31, ref: PR-2017)
+        [probe_python, "-c", probe],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = _redact_url_credentials_in_text((result.stderr or result.stdout).strip())
+        raise RuntimeError(f"Unable to probe supported wheel tags for {probe_python}: {detail}")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Invalid wheel-tag probe output from {probe_python}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Invalid wheel-tag probe payload from {probe_python}")
+    return payload
+
+
+def _target_wheel_tag_payload_int(
+    payload: dict[str, object],
+    key: str,
+    *,
+    python_executable: str,
+) -> int:
+    value = payload.get(key)
+    if not isinstance(value, int):
+        raise RuntimeError(f"Invalid wheel-tag probe payload from {python_executable}")
+    return value
+
+
+def _supported_wheel_tags_for_python(python_executable: str | None) -> set[str]:
+    """Return wheel tags for the target interpreter, defaulting to the current process."""
+    if python_executable is None or python_executable == sys.executable:
+        return _current_supported_wheel_tags()
+
+    payload = _target_python_wheel_tag_payload(python_executable)
+    tags = payload.get("tags")
+    if isinstance(tags, list) and all(isinstance(tag, str) for tag in tags) and tags:
+        return set(tags)
+    try:
+        return _fallback_supported_wheel_tags_for_runtime(
+            major=_target_wheel_tag_payload_int(
+                payload,
+                "major",
+                python_executable=python_executable,
+            ),
+            minor=_target_wheel_tag_payload_int(
+                payload,
+                "minor",
+                python_executable=python_executable,
+            ),
+            implementation_name=str(payload["implementation_name"]),
+            platform_name=str(payload["platform_name"]),
+            sysconfig_platform=str(payload["sysconfig_platform"]),
+            machine_name=str(payload["machine_name"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"Invalid wheel-tag probe payload from {python_executable}") from exc
+
+
+def _emergency_artifact_matches_runtime(
+    artifact: dict[str, str],
+    *,
+    supported_tags: set[str],
+) -> bool:
     """Return True when an emergency wheel can be installed by this runtime."""
     wheel_tags = _wheel_filename_tags(artifact["filename"])
     if wheel_tags is None:
         return True
-    return bool(wheel_tags & _current_supported_wheel_tags())
+    return bool(wheel_tags & supported_tags)
 
 
 def _filter_runtime_compatible_artifacts(
     artifacts: Sequence[dict[str, str]],
+    *,
+    python_executable: str | None = None,
 ) -> list[dict[str, str]]:
     """Drop incompatible wheels and collapse duplicate exact emergency artifacts."""
     compatible_artifacts: list[dict[str, str]] = []
     seen_artifact_digests_by_filename: dict[str, str] = {}
+    supported_tags = _supported_wheel_tags_for_python(python_executable)
     for artifact in artifacts:
-        if not _emergency_artifact_matches_runtime(artifact):
+        if not _emergency_artifact_matches_runtime(artifact, supported_tags=supported_tags):
             continue
         filename = artifact["filename"]
         digest = _emergency_artifact_sha256(artifact)
@@ -623,6 +761,7 @@ def emergency_artifacts_requested_by_surfaces(
     requirement_files: Sequence[Path],
     constraints_file: Path | None,
     manifest_path: Path | None,
+    python_executable: str | None = None,
 ) -> list[dict[str, str]]:
     """Return active emergency artifacts requested by selected requirement surfaces."""
     requested_requirement_pins: set[str] = set()
@@ -645,7 +784,10 @@ def emergency_artifacts_requested_by_surfaces(
         ):
             continue
         requested_artifacts.append(artifact)
-    return _filter_runtime_compatible_artifacts(requested_artifacts)
+    return _filter_runtime_compatible_artifacts(
+        requested_artifacts,
+        python_executable=python_executable,
+    )
 
 
 def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
@@ -702,16 +844,19 @@ def stage_emergency_wheels(
     constraints_file: Path | None,
     wheelhouse_dir: Path,
     manifest_path: Path | None,
+    python_executable: str | None = None,
 ) -> list[Path]:
     """Download exact emergency wheels requested by the selected requirement files."""
     requested_artifacts = emergency_artifacts_requested_by_surfaces(
         requirement_files=requirement_files,
         constraints_file=constraints_file,
         manifest_path=manifest_path,
+        python_executable=python_executable,
     )
     return _stage_emergency_artifacts(
         artifacts=requested_artifacts,
         wheelhouse_dir=wheelhouse_dir,
+        python_executable=python_executable,
     )
 
 
@@ -719,10 +864,14 @@ def _stage_emergency_artifacts(
     *,
     artifacts: Sequence[dict[str, str]],
     wheelhouse_dir: Path,
+    python_executable: str | None = None,
 ) -> list[Path]:
     """Download selected exact emergency artifacts into a wheelhouse."""
     staged_paths: list[Path] = []
-    for artifact in _filter_runtime_compatible_artifacts(artifacts):
+    for artifact in _filter_runtime_compatible_artifacts(
+        artifacts,
+        python_executable=python_executable,
+    ):
         wheelhouse_dir.mkdir(parents=True, exist_ok=True)
         destination = wheelhouse_dir / artifact["filename"]
         if destination.exists():
@@ -937,6 +1086,15 @@ def validate_private_proxy_url(index_url: str) -> str:
         raise RuntimeError(
             f"Approved Python package proxy must not point to public host: {canonical_hostname}"
         )
+    if parsed.username is not None or parsed.password is not None:
+        raise RuntimeError(
+            "Credentialed Python package proxy URLs are forbidden; use a clean "
+            "index URL with .netrc-backed CI credentials."
+        )
+    if canonical_hostname in REQUIRED_HTTPS_INDEX_HOSTS and parsed.scheme != "https":
+        raise RuntimeError(
+            "Approved Python package proxy host must use https: " f"{canonical_hostname}"
+        )
     return normalized
 
 
@@ -1101,7 +1259,7 @@ def _simple_project_page_has_version(*, package: str, version: str, body: bytes)
     """Return True when a PEP 503 project page advertises the exact package version."""
     normalized_package = re.sub(r"[-_.]+", "-", package).lower()
     text = body[:100_000].decode("utf-8", errors="ignore").lower()
-    version_boundary = r"(?=[-_.]|(?:\.tar\.gz|\.zip|\.whl)|[\"'#<])"
+    version_boundary = r"(?=(?:-|\.tar\.gz|\.zip|\.whl|[\"'#<]))"
     patterns = (
         rf"{re.escape(normalized_package)}-{re.escape(version)}{version_boundary}",
         rf"{re.escape(normalized_package.replace('-', '_'))}-{re.escape(version)}{version_boundary}",
@@ -1118,6 +1276,36 @@ def _redact_url_credentials(url: str) -> str:
     if parsed.port is not None:
         netloc = f"{netloc}:{parsed.port}"
     return parsed._replace(netloc=netloc).geturl()
+
+
+def _redact_url_credentials_in_text(value: str) -> str:
+    """Remove inline URL credentials from arbitrary diagnostic text."""
+    return re.sub(
+        r"\b(?P<scheme>https?://)(?P<userinfo>[^/\s?#]+@)(?P<host>[^@\s/?#]+)",
+        lambda match: f"{match.group('scheme')}{match.group('host')}",
+        value,
+    )
+
+
+def _netrc_basic_auth_header(hostname: str | None) -> str | None:
+    """Return a Basic Auth header from the user's netrc for the package host."""
+    if not hostname:
+        return None
+    try:
+        credentials = netrc.netrc().authenticators(hostname)
+    except FileNotFoundError:
+        return None
+    except (netrc.NetrcParseError, OSError) as exc:
+        raise RuntimeError(f"Unable to read .netrc credentials for {hostname}: {exc}") from exc
+    if credentials is None:
+        return None
+    login, _account, password = credentials
+    if not login:
+        return None
+    if login.strip().lower() == "root":
+        raise RuntimeError("Root devpi credentials are forbidden in .netrc.")
+    encoded = f"{login}:{password or ''}".encode("utf-8")
+    return "Basic " + base64.b64encode(encoded).decode("ascii")
 
 
 def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResult) -> bool:
@@ -1147,14 +1335,19 @@ def _read_private_index_project_page(
             "Approved Python package proxy health check requires an http(s) project URL: "
             f"{package}: {safe_url}"
         )
+    if parsed.username is not None or parsed.password is not None:
+        raise RuntimeError(
+            "Credentialed Python package proxy health check URLs are forbidden: "
+            f"{package}: {safe_url}"
+        )
     path = parsed.path or "/"
     if parsed.query:
         path = f"{path}?{parsed.query}"
     headers: dict[str, str] = {}
-    if parsed.username is not None:
-        password = "" if parsed.password is None else unquote(parsed.password)
-        credentials = f"{unquote(parsed.username)}:{password}".encode("utf-8")
-        headers["Authorization"] = "Basic " + base64.b64encode(credentials).decode("ascii")
+    if parsed.scheme == "https":
+        netrc_header = _netrc_basic_auth_header(parsed.hostname)
+        if netrc_header:
+            headers["Authorization"] = netrc_header
     status: int
     body: bytes
     for attempt in range(1, PIP_NETWORK_RETRIES + 1):
@@ -1313,6 +1506,7 @@ def _select_pip_emergency_artifact(
     *,
     manifest_path: Path | None,
     pip_spec: str,
+    python_executable: str | None = None,
 ) -> dict[str, str]:
     """Select the highest active emergency pip artifact allowed by the Docker range."""
     candidates = [
@@ -1321,7 +1515,10 @@ def _select_pip_emergency_artifact(
         if artifact["package"].lower() == "pip"
         and _pip_spec_allows_version(pip_spec, artifact["version"])
     ]
-    candidates = _filter_runtime_compatible_artifacts(candidates)
+    candidates = _filter_runtime_compatible_artifacts(
+        candidates,
+        python_executable=python_executable,
+    )
     if not candidates:
         raise RuntimeError(f"No active emergency pip artifact satisfies upgrade spec {pip_spec!r}.")
     return max(candidates, key=lambda artifact: _parse_simple_version(artifact["version"]))
@@ -1332,11 +1529,13 @@ def _stage_pip_upgrade_emergency_wheel(
     wheelhouse_dir: Path,
     manifest_path: Path | None,
     pip_spec: str,
+    python_executable: str | None = None,
 ) -> Path:
     """Download the exact emergency pip wheel selected for the upgrade range."""
     artifact = _select_pip_emergency_artifact(
         manifest_path=manifest_path,
         pip_spec=pip_spec,
+        python_executable=python_executable,
     )
     destination = wheelhouse_dir / artifact["filename"]
     if destination.exists():
@@ -1357,6 +1556,7 @@ def verify_emergency_artifact_for_floor(
     manifest_path: Path | None,
     package: str,
     version: str,
+    python_executable: str | None = None,
 ) -> bool:
     """Return True when exact emergency fallback artifact exists and verifies."""
     artifacts = [
@@ -1364,7 +1564,10 @@ def verify_emergency_artifact_for_floor(
         for artifact in load_emergency_wheel_manifest(manifest_path)
         if artifact["package"].lower() == package.lower() and artifact["version"] == version
     ]
-    artifacts = _filter_runtime_compatible_artifacts(artifacts)
+    artifacts = _filter_runtime_compatible_artifacts(
+        artifacts,
+        python_executable=python_executable,
+    )
     if not artifacts:
         return False
     with tempfile.TemporaryDirectory(prefix="pulseplate-floor-emergency-") as temp_dir:
@@ -1386,7 +1589,6 @@ def run_dependency_floor_preflight(
     emergency_wheel_manifest: Path | None,
 ) -> None:
     """Fail fast when dependency floors are unavailable through the approved proxy."""
-    del python_executable
     floors = load_dependency_security_floors()
     for package, version in sorted(floors.items()):
         proxy_error: RuntimeError | None = None
@@ -1404,6 +1606,7 @@ def run_dependency_floor_preflight(
             manifest_path=emergency_wheel_manifest,
             package=package,
             version=version,
+            python_executable=python_executable,
         ):
             if proxy_error is None:
                 print(
@@ -1450,7 +1653,7 @@ def is_virtualenv_python(python_executable: str) -> bool:
 
 def run_command(command: Sequence[str]) -> None:
     """Run a subprocess command; include captured stdout/stderr on failure for pip diagnostics."""
-    command_text = " ".join(str(part) for part in command)
+    command_text = " ".join(_redact_url_credentials_in_text(str(part)) for part in command)
     try:
         result = subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
             list(command),
@@ -1459,11 +1662,12 @@ def run_command(command: Sequence[str]) -> None:
             text=True,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError(f"Command failed: {command_text}: {exc}") from exc
+        detail = _redact_url_credentials_in_text(str(exc))
+        raise RuntimeError(f"Command failed: {command_text}: {detail}") from exc
     if result.returncode != 0:
         parts: list[str] = [f"exit {result.returncode}"]
-        stderr = (result.stderr or "").strip()
-        stdout = (result.stdout or "").strip()
+        stderr = _redact_url_credentials_in_text(result.stderr or "").strip()
+        stdout = _redact_url_credentials_in_text(result.stdout or "").strip()
         if stderr:
             parts.append(stderr)
         if stdout:
@@ -1519,6 +1723,7 @@ def upgrade_pip(
             wheelhouse_dir=wheelhouse_dir,
             manifest_path=emergency_wheel_manifest,
             pip_spec=pip_spec,
+            python_executable=python_executable,
         )
         fallback_command = [
             python_executable,
@@ -1723,6 +1928,7 @@ def build_wheelhouse_with_emergency_fallback(
                     requirement_files=requirement_files,
                     constraints_file=constraints_file,
                     manifest_path=emergency_wheel_manifest,
+                    python_executable=python_executable,
                 )
             remaining_artifacts = [
                 artifact
@@ -1744,6 +1950,7 @@ def build_wheelhouse_with_emergency_fallback(
             staged_wheels = _stage_emergency_artifacts(
                 artifacts=resolver_miss_artifacts,
                 wheelhouse_dir=wheelhouse_dir,
+                python_executable=python_executable,
             )
             if not staged_wheels:
                 raise
@@ -1784,6 +1991,7 @@ def install_from_proxy_with_emergency_fallback(
                     requirement_files=requirement_files,
                     constraints_file=constraints_file,
                     manifest_path=emergency_wheel_manifest,
+                    python_executable=python_executable,
                 )
             remaining_artifacts = [
                 artifact
@@ -1805,6 +2013,7 @@ def install_from_proxy_with_emergency_fallback(
             staged_wheels = _stage_emergency_artifacts(
                 artifacts=resolver_miss_artifacts,
                 wheelhouse_dir=emergency_wheelhouse_dir,
+                python_executable=python_executable,
             )
             if not staged_wheels:
                 raise
@@ -2033,7 +2242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
     except (FileNotFoundError, RuntimeError) as exc:
-        print(f"ERROR: locked install failed: {exc}")
+        print("ERROR: locked install failed: " f"{_redact_url_credentials_in_text(str(exc))}")
         return 1
 
 

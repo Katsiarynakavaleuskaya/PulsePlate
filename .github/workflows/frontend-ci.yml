@@ -3,8 +3,8 @@ name: Frontend CI
 env:
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
   PYTHON_VERSION: "3.13.6"
-  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 permissions:
   contents: read
@@ -133,6 +133,9 @@ jobs:
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite

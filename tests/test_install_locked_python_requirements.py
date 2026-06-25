@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 from typing import Any
 
 import pytest
@@ -14,6 +15,10 @@ import pytest
 import scripts.ci.install_locked_python_requirements as installer
 
 APPROVED_PROXY_URL = "https://packages.example.internal/simple"
+DEVPI_SIMPLE_USER = "ci-reader"
+DEVPI_SIMPLE_TOKEN = "token-123"
+DEVPI_SIMPLE_URL = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+DEVPI_ROOT_USER = "root"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 IDNA_SECURITY_FLOOR = "3.15"
 IDNA_PREVIOUS_VULNERABLE_PIN = "3.11"
@@ -194,6 +199,16 @@ def test_simple_project_page_has_version_requires_exact_version_boundary() -> No
         package="pip",
         version="26.1.1",
         body=b'<a href="pip-26.1.10-py3-none-any.whl">pip</a>',
+    )
+    assert not installer._simple_project_page_has_version(
+        package="pip",
+        version="26.1.1",
+        body=b'<a href="pip-26.1.1.post1-py3-none-any.whl">pip</a>',
+    )
+    assert not installer._simple_project_page_has_version(
+        package="pydantic-core",
+        version="2.41.5",
+        body=b'<a href="pydantic_core-2.41.5_rc1-cp313-cp313-manylinux.whl">pydantic</a>',
     )
 
 
@@ -462,6 +477,168 @@ def test_private_index_project_health_retries_transient_http_5xx(
     assert observed_sleeps == [1.0]
 
 
+def test_private_index_project_health_supports_devpi_netrc_auth(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed_requests: list[tuple[str, str, dict[str, str]]] = []
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.write_text(
+        "\n".join(
+            [
+                "machine packages.pulseplate.app",
+                f"  login {DEVPI_SIMPLE_USER}",
+                f"  password {DEVPI_SIMPLE_TOKEN}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    netrc_path.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert host == "packages.pulseplate.app"
+            assert port is None
+            assert timeout == installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
+            assert context is None
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            observed_requests.append((method, path, headers))
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=DEVPI_SIMPLE_URL,
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert observed_requests == [
+        (
+            "GET",
+            "/root/pulseplate/+simple/pip/",
+            {"Authorization": "Basic Y2ktcmVhZGVyOnRva2VuLTEyMw=="},
+        )
+    ]
+
+
+def test_private_index_project_health_rejects_credentialed_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("credentialed HTTP must fail before opening a connection")
+
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", fail_if_called)
+
+    credentialed_http_url = (
+        f"http://{DEVPI_SIMPLE_USER}:{DEVPI_SIMPLE_TOKEN}" "@packages.example.internal/simple"
+    )
+    with pytest.raises(RuntimeError, match="URLs are forbidden") as excinfo:
+        installer._require_private_index_project_health(
+            index_url=credentialed_http_url,
+            package="pip",
+            trusted_host=None,
+        )
+
+    message = str(excinfo.value)
+    assert "token-123" not in message
+    assert "ci-reader" not in message
+    assert "http://packages.example.internal/simple/pip/" in message
+
+
+def test_private_index_project_health_rejects_devpi_root_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("root credentials must fail before opening a connection")
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", fail_if_called)
+    encoded_root_url = "".join(
+        [
+            "https://",
+            "ro%6ft",
+            ":",
+            DEVPI_SIMPLE_TOKEN,
+            "@packages.pulseplate.app/root/pulseplate/+simple/",
+        ]
+    )
+
+    with pytest.raises(RuntimeError, match="URLs are forbidden") as excinfo:
+        installer._require_private_index_project_health(
+            index_url=encoded_root_url,
+            package="pip",
+            trusted_host=None,
+        )
+
+    message = str(excinfo.value)
+    assert DEVPI_SIMPLE_TOKEN not in message
+    assert "https://packages.pulseplate.app/root/pulseplate/+simple/pip/" in message
+
+
+def test_private_index_project_health_rejects_root_netrc_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("root .netrc credentials must fail before opening a connection")
+
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.write_text(
+        "\n".join(
+            [
+                "machine packages.pulseplate.app",
+                f"  login {DEVPI_ROOT_USER}",
+                f"  password {DEVPI_SIMPLE_TOKEN}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    netrc_path.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", fail_if_called)
+
+    with pytest.raises(RuntimeError, match="Root devpi credentials are forbidden"):
+        installer._require_private_index_project_health(
+            index_url=DEVPI_SIMPLE_URL,
+            package="pip",
+            trusted_host=None,
+        )
+
+
+def test_netrc_basic_auth_header_ignores_empty_hostname(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_called() -> None:
+        raise AssertionError("empty hostname must not read .netrc")
+
+    monkeypatch.setattr(installer.netrc, "netrc", fail_if_called)
+
+    assert installer._netrc_basic_auth_header(None) is None
+    assert installer._netrc_basic_auth_header("") is None
+
+
 @pytest.mark.parametrize(
     ("status", "body", "match"),
     [
@@ -496,6 +673,53 @@ def test_private_index_project_health_rejects_redirects_and_non_project_pages(
             package="pip",
             trusted_host=None,
         )
+
+
+def test_private_index_project_health_omits_netrc_credentials_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.write_text(
+        "\n".join(
+            [
+                "machine packages.pulseplate.app",
+                f"  login {DEVPI_SIMPLE_USER}",
+                f"  password {DEVPI_SIMPLE_TOKEN}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    netrc_path.chmod(0o600)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    class FakeHTTPSConnection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse(status=503)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    with pytest.raises(RuntimeError, match="HTTP 503") as excinfo:
+        installer._require_private_index_project_health(
+            index_url=DEVPI_SIMPLE_URL,
+            package="pip",
+            trusted_host=None,
+        )
+
+    message = str(excinfo.value)
+    assert "token-123" not in message
+    assert "ci-reader" not in message
+    assert "https://packages.pulseplate.app/root/pulseplate/+simple/pip/" in message
 
 
 def test_private_index_project_health_accepts_underscore_wheel_name(
@@ -566,7 +790,11 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
         destination.write_bytes(b"wheel-bytes")
 
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
-    monkeypatch.setattr(installer, "_current_supported_wheel_tags", _ci_linux_cp313_tags)
+    monkeypatch.setattr(
+        installer,
+        "_supported_wheel_tags_for_python",
+        lambda _python_executable: _ci_linux_cp313_tags(),
+    )
     expected_artifacts = {
         artifact["filename"]: (artifact["url"], artifact["sha256"])
         for artifact in installer.emergency_artifacts_requested_by_surfaces(
@@ -644,6 +872,131 @@ def test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_ta
     )
 
     assert [artifact["filename"] for artifact in artifacts] == [compatible_filename]
+
+
+def test_emergency_artifacts_requested_by_surfaces_uses_target_python_tags(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements-ci-lite.txt"
+    requirements.write_text("jiter==0.12.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    cp313_filename = "jiter-0.12.0-cp313-cp313-manylinux2014_x86_64.whl"
+    cp312_filename = "jiter-0.12.0-cp312-cp312-manylinux2014_x86_64.whl"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "jiter",
+                        "version": "0.12.0",
+                        "filename": cp312_filename,
+                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp312.whl",
+                        "sha256": "a" * 64,
+                    },
+                    {
+                        "package": "jiter",
+                        "version": "0.12.0",
+                        "filename": cp313_filename,
+                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp313.whl",
+                        "sha256": "b" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_python_executables: list[str | None] = []
+
+    def fake_supported_tags(python_executable: str | None) -> set[str]:
+        observed_python_executables.append(python_executable)
+        if python_executable == "/opt/python/3.13/bin/python":
+            return {"cp313-cp313-manylinux2014_x86_64"}
+        return {"cp312-cp312-manylinux2014_x86_64"}
+
+    monkeypatch.setattr(installer, "_supported_wheel_tags_for_python", fake_supported_tags)
+
+    artifacts = installer.emergency_artifacts_requested_by_surfaces(
+        requirement_files=[requirements],
+        constraints_file=None,
+        manifest_path=manifest,
+        python_executable="/opt/python/3.13/bin/python",
+    )
+
+    assert [artifact["filename"] for artifact in artifacts] == [cp313_filename]
+    assert observed_python_executables == ["/opt/python/3.13/bin/python"]
+
+
+def test_supported_wheel_tags_normalizes_current_python_alias_without_path_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_commands: list[list[str]] = []
+
+    def fake_subprocess_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        observed_commands.append(command)
+        payload = {
+            "tags": ["py3-none-any"],
+            "major": sys.version_info.major,
+            "minor": sys.version_info.minor,
+            "implementation_name": "cpython",
+            "platform_name": "linux",
+            "sysconfig_platform": "linux-x86_64",
+            "machine_name": "x86_64",
+        }
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
+
+    assert installer._supported_wheel_tags_for_python("python") == {"py3-none-any"}
+    assert observed_commands[0][0] == sys.executable
+
+
+def test_supported_wheel_tags_rejects_unknown_bare_target_python_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_subprocess_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError(
+            "unknown bare Python executable must be rejected before subprocess.run"
+        )
+
+    monkeypatch.setattr(installer.subprocess, "run", fail_subprocess_run)
+
+    with pytest.raises(RuntimeError, match="path-qualified"):
+        installer._supported_wheel_tags_for_python("python9.99")
+
+
+def test_supported_wheel_tags_normalizes_path_qualified_relative_python(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed_commands: list[list[str]] = []
+
+    def fake_subprocess_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        observed_commands.append(command)
+        payload = {
+            "tags": ["py3-none-any"],
+            "major": 3,
+            "minor": 13,
+            "implementation_name": "cpython",
+            "platform_name": "linux",
+            "sysconfig_platform": "linux-x86_64",
+            "machine_name": "x86_64",
+        }
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
+
+    assert installer._supported_wheel_tags_for_python(".venv/bin/python") == {"py3-none-any"}
+    assert observed_commands[0][0] == str(tmp_path / ".venv/bin/python")
 
 
 def test_stage_emergency_artifacts_skips_incompatible_parseable_wheels(
@@ -1647,6 +2000,35 @@ def test_validate_private_proxy_url_rejects_public_hosts() -> None:
         installer.validate_private_proxy_url("https://pypi.org/simple")
 
 
+def test_validate_private_proxy_url_rejects_credentialed_http() -> None:
+    with pytest.raises(RuntimeError, match="Credentialed Python package proxy URLs are forbidden"):
+        installer.validate_private_proxy_url(
+            f"http://{DEVPI_SIMPLE_USER}:{DEVPI_SIMPLE_TOKEN}" "@packages.example.internal/simple"
+        )
+
+
+def test_validate_private_proxy_url_requires_https_for_packages_host() -> None:
+    with pytest.raises(RuntimeError, match="must use https"):
+        installer.validate_private_proxy_url(
+            "http://packages.pulseplate.app/root/pulseplate/+simple/"
+        )
+
+
+def test_validate_private_proxy_url_rejects_devpi_root_credentials() -> None:
+    encoded_root_url = "".join(
+        [
+            "https://",
+            "ro%6ft",
+            ":",
+            DEVPI_SIMPLE_TOKEN,
+            "@packages.pulseplate.app/root/pulseplate/+simple/",
+        ]
+    )
+
+    with pytest.raises(RuntimeError, match="Credentialed Python package proxy URLs are forbidden"):
+        installer.validate_private_proxy_url(encoded_root_url)
+
+
 def test_validate_private_proxy_url_strips_whitespace_and_trailing_dot() -> None:
     normalized = installer.validate_private_proxy_url(
         "  https://packages.example.internal/simple  "
@@ -1675,6 +2057,44 @@ def test_resolve_private_proxy_settings_rejects_ambient_overrides(
             index_url=APPROVED_PROXY_URL,
             trusted_host=None,
         )
+
+
+def test_run_command_redacts_url_credentials_from_failure_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token_with_at_sign = "tok@en-123"
+    credentialed_url = (
+        f"https://{DEVPI_SIMPLE_USER}:{token_with_at_sign}"
+        "@packages.pulseplate.app/root/pulseplate/+simple/"
+    )
+
+    class FailedResult:
+        returncode = 1
+        stderr = f"Could not fetch {credentialed_url}pip/"
+        stdout = f"Looking in indexes: {credentialed_url}"
+
+    def fake_run(*_args: object, **_kwargs: object) -> FailedResult:
+        return FailedResult()
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="Command failed") as excinfo:
+        installer.run_command(
+            [
+                installer.sys.executable,
+                "-m",
+                "pip",
+                "download",
+                "--index-url",
+                credentialed_url,
+            ]
+        )
+
+    message = str(excinfo.value)
+    assert token_with_at_sign not in message
+    assert "tok@en" not in message
+    assert "ci-reader" not in message
+    assert "https://packages.pulseplate.app/root/pulseplate/+simple/" in message
 
 
 def test_load_emergency_wheel_manifest_rejects_expired_file(tmp_path: Path) -> None:
@@ -2968,7 +3388,11 @@ def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
     monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
     monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
-    monkeypatch.setattr(installer, "_current_supported_wheel_tags", _ci_linux_cp313_tags)
+    monkeypatch.setattr(
+        installer,
+        "_supported_wheel_tags_for_python",
+        lambda _python_executable: _ci_linux_cp313_tags(),
+    )
 
     installer.install_from_proxy_with_emergency_fallback(
         python_executable="python",

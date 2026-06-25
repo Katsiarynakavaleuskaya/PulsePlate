@@ -6,6 +6,7 @@ import json
 import os
 import re
 from pathlib import Path
+import shutil
 import subprocess
 
 from packaging.requirements import InvalidRequirement
@@ -39,9 +40,18 @@ APPROVED_PROXY_ENV_EXPRESSION = (
 APPROVED_TRUSTED_HOST_EXPRESSION = (
     "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
 )
+APPROVED_PR_PROXY_ENV_EXPRESSION = "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+APPROVED_PR_TRUSTED_HOST_EXPRESSION = "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+PR_TRIGGERED_PROXY_WORKFLOWS = frozenset(
+    {
+        ".github/workflows/ci.yml",
+        ".github/workflows/frontend-ci.yml",
+        ".github/workflows/build.yml",
+    }
+)
 PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
 PIP_INSTALL_INVOCATION_PATTERN = re.compile(
-    r"(?:^|[;&|]\s*)(?:\S*python\S*\s+-m\s+)?pip\s+install\b",
+    r"(?:^|[;&|]\s*)(?:\S*python\S*\s+-m\s+)?(?:\S*/)?pip(?:\d+(?:\.\d+)?)?\s+install\b",
 )
 PIP_REQUIREMENT_DIRECTIVE_PREFIXES = (
     "-i ",
@@ -111,6 +121,30 @@ def _load_workflow(path: str) -> dict[str, object]:
     return yaml.safe_load((REPO_ROOT / path).read_text(encoding="utf-8"))
 
 
+def _iter_step_env_values(workflow: dict[str, object], env_name: str) -> list[str]:
+    """Return all step-level env values for a GitHub Actions variable."""
+
+    values: list[str] = []
+    jobs = workflow.get("jobs", {})
+    assert isinstance(jobs, dict)
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        steps = job.get("steps", [])
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            env = step.get("env", {})
+            if not isinstance(env, dict) or env_name not in env:
+                continue
+            value = env[env_name]
+            assert isinstance(value, str)
+            values.append(value)
+    return values
+
+
 def _workflow_events(path: str) -> dict[str, object]:
     """Return the GitHub Actions `on` block, including YAML boolean-key normalization."""
 
@@ -118,6 +152,12 @@ def _workflow_events(path: str) -> dict[str, object]:
     events = workflow.get("on", workflow.get(True))
     assert isinstance(events, dict), f"Missing workflow events block for {path}"
     return events
+
+
+def test_pip_install_invocation_pattern_catches_path_and_versioned_pip() -> None:
+    assert PIP_INSTALL_INVOCATION_PATTERN.search("/opt/venv/bin/pip install safety")
+    assert PIP_INSTALL_INVOCATION_PATTERN.search("pip3 install safety")
+    assert PIP_INSTALL_INVOCATION_PATTERN.search("python -m pip install safety")
 
 
 def _workflow_steps(path: str, job_name: str) -> list[dict[str, object]]:
@@ -141,6 +181,34 @@ def _workflow_step_by_name(path: str, job_name: str, step_name: str) -> dict[str
         if step.get("name") == step_name:
             return step
     raise AssertionError(f"Missing step {step_name!r} for {path}:{job_name}")
+
+
+def _python_setup_action_script(step_name: str) -> str:
+    """Return a shell script block from the local python-setup action."""
+
+    action = _load_workflow(".github/actions/python-setup/action.yml")
+    steps = action["runs"]["steps"]
+    assert isinstance(steps, list)
+    for step in steps:
+        if not isinstance(step, dict) or step.get("name") != step_name:
+            continue
+        script = step["run"]
+        assert isinstance(script, str)
+        return script
+    raise AssertionError(f"Missing python-setup action step: {step_name}")
+
+
+def _run_bash_script(script: str, *, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    bash = shutil.which("bash")
+    assert bash is not None
+    return subprocess.run(
+        [bash],
+        input=script,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
 
 
 def _pushed_docker_steps_with_secret_index_args() -> tuple[dict[str, object], ...]:
@@ -276,6 +344,17 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
     assert "${{ github.workspace }}/scripts/ci/install_locked_python_requirements.py" in action_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in action_text
     assert '--index-url "$PULSEPLATE_PYTHON_INDEX_URL"' in action_text
+    assert "Configure private Python index authentication" in action_text
+    assert "DEVPI_CI_USER" in action_text
+    assert "DEVPI_CI_PASSWORD" in action_text
+    assert "*[[:space:]]*)" in action_text
+    assert "must not contain whitespace" in action_text
+    assert 'cat > "$HOME/.netrc"' in action_text
+    assert action_text.index('touch "$marker"') < action_text.index('cat > "$HOME/.netrc"')
+    assert "Root devpi credentials are forbidden" in action_text
+    assert "PULSEPLATE_PYTHON_INDEX_URL must not contain credentials" in action_text
+    assert "Remove private Python index authentication" in action_text
+    assert 'rm -f "$HOME/.netrc"' in action_text
     assert "${{ inputs.requirements-profile }}" in action_text
     assert "${{ inputs.ci-lite-requirements-file }}" in action_text
     assert "${{ inputs.rag-vector-requirements-file }}" in action_text
@@ -337,6 +416,194 @@ def test_python_setup_action_uses_locked_installer_not_floating_tools() -> None:
         "${{ inputs.test-requirements-file }} via install_locked_python_requirements.py"
         in action_text
     )
+
+
+def _private_index_auth_env(
+    tmp_path: Path,
+    *,
+    user: str | None = None,
+    password: str | None = None,
+    index_url: str = "https://packages.pulseplate.app/root/pulseplate/+simple/",
+) -> dict[str, str]:
+    home = tmp_path / "home"
+    runner_temp = tmp_path / "runner-temp"
+    home.mkdir()
+    runner_temp.mkdir()
+
+    env = {
+        "HOME": str(home),
+        "RUNNER_TEMP": str(runner_temp),
+        "PULSEPLATE_PYTHON_INDEX_URL": index_url,
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+    }
+    if user is not None:
+        env["DEVPI_CI_USER"] = user
+    if password is not None:
+        env["DEVPI_CI_PASSWORD"] = password
+    return env
+
+
+def test_python_setup_action_netrc_lifecycle_accepts_valid_non_root_creds(
+    tmp_path: Path,
+) -> None:
+    configure_script = _python_setup_action_script("Configure private Python index authentication")
+    cleanup_script = _python_setup_action_script("Remove private Python index authentication")
+    env = _private_index_auth_env(tmp_path, user="pulse-ci", password="rotated-token")
+
+    configure = _run_bash_script(configure_script, env=env)
+
+    assert configure.returncode == 0, configure.stderr + configure.stdout
+    netrc_path = Path(env["HOME"]) / ".netrc"
+    marker_path = Path(env["RUNNER_TEMP"]) / "pulseplate-python-setup-netrc-created"
+    assert netrc_path.exists()
+    assert marker_path.exists()
+    netrc_text = netrc_path.read_text(encoding="utf-8")
+    assert "machine packages.pulseplate.app" in netrc_text
+    assert "login pulse-ci" in netrc_text
+    assert "password rotated-token" in netrc_text
+    assert netrc_path.stat().st_mode & 0o777 == 0o600
+
+    cleanup = _run_bash_script(cleanup_script, env=env)
+
+    assert cleanup.returncode == 0, cleanup.stderr + cleanup.stdout
+    assert not netrc_path.exists()
+    assert not marker_path.exists()
+
+
+def test_python_setup_action_netrc_lifecycle_noops_without_creds(tmp_path: Path) -> None:
+    configure_script = _python_setup_action_script("Configure private Python index authentication")
+    env = _private_index_auth_env(tmp_path)
+
+    configure = _run_bash_script(configure_script, env=env)
+
+    assert configure.returncode == 0, configure.stderr + configure.stdout
+    assert not (Path(env["HOME"]) / ".netrc").exists()
+    assert not (Path(env["RUNNER_TEMP"]) / "pulseplate-python-setup-netrc-created").exists()
+
+
+@pytest.mark.parametrize(
+    ("user", "password", "index_url", "preexisting_netrc", "expected_error"),
+    (
+        (
+            "pulse-ci",
+            None,
+            "https://packages.pulseplate.app/root/pulseplate/+simple/",
+            False,
+            "Set both DEVPI_CI_USER and DEVPI_CI_PASSWORD",
+        ),
+        (
+            "pulse ci",
+            "token",
+            "https://packages.pulseplate.app/root/pulseplate/+simple/",
+            False,
+            "must not contain whitespace",
+        ),
+        (
+            "root",
+            "token",
+            "https://packages.pulseplate.app/root/pulseplate/+simple/",
+            False,
+            "Root devpi credentials are forbidden",
+        ),
+        (
+            "pulse-ci",
+            "token",
+            "https://user" + ":" + "token@packages.pulseplate.app/root/pulseplate/+simple/",
+            False,
+            "must not contain credentials",
+        ),
+        (
+            "pulse-ci",
+            "token",
+            "https://packages.pulseplate.app/root/pulseplate/+simple/",
+            True,
+            "Refusing to overwrite an existing .netrc",
+        ),
+    ),
+)
+def test_python_setup_action_netrc_lifecycle_rejects_unsafe_auth_inputs(
+    tmp_path: Path,
+    user: str | None,
+    password: str | None,
+    index_url: str,
+    preexisting_netrc: bool,
+    expected_error: str,
+) -> None:
+    configure_script = _python_setup_action_script("Configure private Python index authentication")
+    env = _private_index_auth_env(
+        tmp_path,
+        user=user,
+        password=password,
+        index_url=index_url,
+    )
+    netrc_path = Path(env["HOME"]) / ".netrc"
+    if preexisting_netrc:
+        netrc_path.write_text("machine example.invalid\n", encoding="utf-8")
+
+    configure = _run_bash_script(configure_script, env=env)
+
+    assert configure.returncode != 0
+    assert expected_error in configure.stdout + configure.stderr
+    marker_path = Path(env["RUNNER_TEMP"]) / "pulseplate-python-setup-netrc-created"
+    assert not marker_path.exists()
+    if preexisting_netrc:
+        assert netrc_path.read_text(encoding="utf-8") == "machine example.invalid\n"
+    else:
+        assert not netrc_path.exists()
+
+
+def test_ci_python_setup_steps_receive_devpi_secrets_only_outside_pull_requests() -> None:
+    workflow = _load_workflow(".github/workflows/ci.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    setup_steps: list[dict[str, object]] = []
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and step.get("uses") == "./.github/actions/python-setup":
+                setup_steps.append(step)
+
+    assert setup_steps
+    for step in setup_steps:
+        env = step.get("env")
+        assert isinstance(env, dict), f"Missing protected devpi env on {step}"
+        assert env["DEVPI_CI_USER"] == (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
+        )
+        assert env["DEVPI_CI_PASSWORD"] == (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+        )
+
+
+def test_ci_security_job_keeps_devpi_setup_and_uses_pip_audit() -> None:
+    steps = _workflow_steps(".github/workflows/ci.yml", "security")
+    step_names = [str(step["name"]) for step in steps]
+
+    assert "Configure private Python index authentication for Safety" not in step_names
+    assert "Install Safety" not in step_names
+    assert "Remove private Python index authentication for Safety" not in step_names
+    assert "Dependency audit with Safety" not in step_names
+
+    setup_step = _python_setup_step(".github/workflows/ci.yml", "security")
+    assert setup_step["with"]["requirements-profile"] == "ci-lite"
+    assert setup_step["with"]["install-mode"] == "direct-proxy"
+    setup_env = setup_step["env"]
+    assert setup_env["DEVPI_CI_USER"] == (
+        "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
+    )
+    assert setup_env["DEVPI_CI_PASSWORD"] == (
+        "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+    )
+
+    audit_step = _workflow_step_by_name(
+        ".github/workflows/ci.yml",
+        "security",
+        "Dependency audit with pip-audit",
+    )
+    assert "bash scripts/ci_pip_audit.sh" in audit_step["run"]
+    assert "requirements-security.txt" not in audit_step["run"]
 
 
 def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() -> None:
@@ -467,8 +734,62 @@ def test_all_changed_python_install_surfaces_use_locked_installer(workflow_path:
 def test_proxy_backed_workflows_support_vars_or_secrets(workflow_path: str) -> None:
     workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
 
+    if workflow_path in PR_TRIGGERED_PROXY_WORKFLOWS:
+        workflow = _load_workflow(workflow_path)
+        pulseplate_envs = list(_iter_step_env_values(workflow, "PULSEPLATE_PYTHON_INDEX_URL"))
+        pulseplate_envs.extend(_iter_step_env_values(workflow, "PULSEPLATE_PYTHON_TRUSTED_HOST"))
+
+        workflow_env = workflow.get("env", {})
+        if "PULSEPLATE_PYTHON_INDEX_URL" in workflow_env:
+            pulseplate_envs.append(workflow_env["PULSEPLATE_PYTHON_INDEX_URL"])
+        if "PULSEPLATE_PYTHON_TRUSTED_HOST" in workflow_env:
+            pulseplate_envs.append(workflow_env["PULSEPLATE_PYTHON_TRUSTED_HOST"])
+
+        assert pulseplate_envs, f"Expected Python proxy env in {workflow_path}"
+        assert all("secrets." not in value for value in pulseplate_envs)
+        assert APPROVED_PR_PROXY_ENV_EXPRESSION in pulseplate_envs
+        assert APPROVED_PR_TRUSTED_HOST_EXPRESSION in pulseplate_envs
+        if workflow_path != ".github/workflows/ci.yml":
+            assert "secrets.PULSEPLATE_PYTHON_INDEX_URL" not in workflow_text
+            assert "secrets.PULSEPLATE_PYTHON_TRUSTED_HOST" not in workflow_text
+        return
+
     assert APPROVED_PROXY_ENV_EXPRESSION in workflow_text
     assert APPROVED_TRUSTED_HOST_EXPRESSION in workflow_text
+
+
+def test_pr_diagnostic_proxy_vars_must_stay_credential_free() -> None:
+    workflow_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    pr_resolver = workflow_text.split("- name: Resolve PR diagnostic package proxy", 1)[1].split(
+        "- name: Resolve protected package proxy",
+        1,
+    )[0]
+
+    assert "secrets." not in pr_resolver
+    assert "PULSEPLATE_PR_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}" in pr_resolver
+    assert "*://*@*)" in pr_resolver
+    assert "must be credential-free" in pr_resolver
+    assert "DEVPI_CI_USER/DEVPI_CI_PASSWORD" in pr_resolver
+
+
+def test_private_proxy_docs_use_devpi_shape_without_real_credentials() -> None:
+    dependency_docs = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
+    runbook_text = (REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
+    env_example_text = (REPO_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    devpi_simple_root = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+    assert devpi_simple_root in dependency_docs
+    assert devpi_simple_root in runbook_text
+    assert devpi_simple_root in env_example_text
+
+    assert "DEVPI_CI_USER" in dependency_docs
+    assert "DEVPI_CI_PASSWORD" in dependency_docs
+    assert ".netrc" in dependency_docs
+    assert "<ci-user>:<token>@" not in dependency_docs
+    assert "root credentials are forbidden for ci" in dependency_docs.lower()
+    assert "Repository variables must stay credential-free" in dependency_docs
+    assert "root:" not in env_example_text
+    assert "@" not in env_example_text.split("PULSEPLATE_PYTHON_INDEX_URL=", 1)[1].splitlines()[0]
 
 
 def test_no_canonical_workflow_uses_unscoped_public_pip_install() -> None:
@@ -974,6 +1295,7 @@ def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args()
     publish_scan_with = publish_scan_step["with"]
     publish_scan_build_args = publish_scan_with["build-args"]
     publish_scan_secret_envs = publish_scan_with["secret-envs"]
+    publish_scan_secret_files = publish_scan_with["secret-files"]
 
     assert publish_scan_with["push"] is False
     assert publish_scan_with["load"] is True
@@ -982,6 +1304,7 @@ def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args()
     assert "PULSEPLATE_PYTHON_TRUSTED_HOST" not in publish_scan_build_args
     assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in publish_scan_secret_envs
     assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in publish_scan_secret_envs
+    assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in publish_scan_secret_files
 
     for step in _pushed_docker_steps_with_secret_index_args():
         assert step["with"]["provenance"] == "mode=min"
@@ -991,6 +1314,63 @@ def test_provenance_enabled_docker_builds_keep_private_index_out_of_build_args()
         build_secret_envs = step["with"]["secret-envs"]
         assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in build_secret_envs
         assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in build_secret_envs
+
+
+def test_build_workflow_passes_netrc_secret_file_to_private_index_docker_builds() -> None:
+    dockerfile_text = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "--mount=type=secret,id=pp_netrc,required=false" in dockerfile_text
+    assert "cp /run/secrets/pp_netrc /root/.netrc" in dockerfile_text
+    assert "trap 'rm -f /root/.netrc' EXIT" in dockerfile_text
+
+    for job_name, build_step_name in (
+        ("build", "Build Docker image (local, for tests)"),
+        ("publish", "Build Docker image for publish scan"),
+    ):
+        steps = _workflow_steps(".github/workflows/build.yml", job_name)
+        step_names = [str(step["name"]) for step in steps]
+        auth_step = _workflow_step_by_name(
+            ".github/workflows/build.yml",
+            job_name,
+            "Prepare private Python index Docker authentication",
+        )
+        build_step = _workflow_step_by_name(
+            ".github/workflows/build.yml",
+            job_name,
+            build_step_name,
+        )
+        cleanup_step = _workflow_step_by_name(
+            ".github/workflows/build.yml",
+            job_name,
+            "Remove private Python index Docker authentication",
+        )
+
+        assert step_names.index(
+            "Prepare private Python index Docker authentication"
+        ) < step_names.index(build_step_name)
+        assert step_names.index(build_step_name) < step_names.index(
+            "Remove private Python index Docker authentication"
+        )
+
+        auth_env = auth_step["env"]
+        assert auth_env["DEVPI_CI_USER"] == (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
+        )
+        assert auth_env["DEVPI_CI_PASSWORD"] == (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+        )
+        assert auth_env["PULSEPLATE_PYTHON_INDEX_URL"] == "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+
+        auth_script = auth_step["run"]
+        assert 'auth_file="$RUNNER_TEMP/pulseplate-docker-netrc"' in auth_script
+        assert ': > "$auth_file"' in auth_script
+        assert "Root devpi credentials are forbidden" in auth_script
+        assert "PULSEPLATE_PYTHON_INDEX_URL must not contain credentials" in auth_script
+
+        build_with = build_step["with"]
+        assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in build_with["secret-files"]
+        assert cleanup_step["if"] == "${{ always() }}"
+        assert cleanup_step["shell"] == "bash"
+        assert 'rm -f "$RUNNER_TEMP/pulseplate-docker-netrc"' in cleanup_step["run"]
 
 
 def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:

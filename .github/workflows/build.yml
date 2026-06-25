@@ -51,11 +51,54 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
 
+      - name: Prepare private Python index Docker authentication
+        shell: bash
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+        run: |
+          set -euo pipefail
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for Docker package auth.}"
+          auth_file="$RUNNER_TEMP/pulseplate-docker-netrc"
+          umask 077
+          : > "$auth_file"
+          if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            exit 0
+          fi
+          if [[ -z "${DEVPI_CI_USER:-}" || -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            echo "::error::Set both DEVPI_CI_USER and DEVPI_CI_PASSWORD, or neither."
+            exit 1
+          fi
+          case "$DEVPI_CI_USER$DEVPI_CI_PASSWORD" in
+            *[[:space:]]*)
+              echo "::error::DEVPI_CI_USER and DEVPI_CI_PASSWORD must not contain whitespace."
+              exit 1
+              ;;
+          esac
+          case "$DEVPI_CI_USER" in
+            [Rr][Oo][Oo][Tt])
+              echo "::error::Root devpi credentials are forbidden for Docker package installs."
+              exit 1
+              ;;
+          esac
+          case "${PULSEPLATE_PYTHON_INDEX_URL:-}" in
+            *://*@*)
+              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must not contain credentials; use DEVPI_CI_USER/DEVPI_CI_PASSWORD."
+              exit 1
+              ;;
+          esac
+          {
+            printf 'machine packages.pulseplate.app\n'
+            printf '  login %s\n' "$DEVPI_CI_USER"
+            printf '  password %s\n' "$DEVPI_CI_PASSWORD"
+          } > "$auth_file"
+
       - name: Build Docker image (local, for tests)
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         env:
-          PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
         with:
           context: .
           build-args: |
@@ -63,6 +106,8 @@ jobs:
           secret-envs: |
             pp_py_index=PULSEPLATE_PYTHON_INDEX_URL
             pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST
+          secret-files: |
+            pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc
           platforms: linux/amd64
           push: false
           load: true
@@ -71,6 +116,15 @@ jobs:
           cache-to: type=gha,scope=build-production-${{ github.ref_name }},mode=min,ignore-error=true
           provenance: false
           target: production
+
+      - name: Remove private Python index Docker authentication
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${RUNNER_TEMP:-}" ]; then
+            rm -f "$RUNNER_TEMP/pulseplate-docker-netrc"
+          fi
 
       - name: Check Docker runtime dependency surface
         run: |
@@ -407,12 +461,55 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
 
+      - name: Prepare private Python index Docker authentication
+        shell: bash
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+        run: |
+          set -euo pipefail
+          : "${RUNNER_TEMP:?RUNNER_TEMP is required for Docker package auth.}"
+          auth_file="$RUNNER_TEMP/pulseplate-docker-netrc"
+          umask 077
+          : > "$auth_file"
+          if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            exit 0
+          fi
+          if [[ -z "${DEVPI_CI_USER:-}" || -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            echo "::error::Set both DEVPI_CI_USER and DEVPI_CI_PASSWORD, or neither."
+            exit 1
+          fi
+          case "$DEVPI_CI_USER$DEVPI_CI_PASSWORD" in
+            *[[:space:]]*)
+              echo "::error::DEVPI_CI_USER and DEVPI_CI_PASSWORD must not contain whitespace."
+              exit 1
+              ;;
+          esac
+          case "$DEVPI_CI_USER" in
+            [Rr][Oo][Oo][Tt])
+              echo "::error::Root devpi credentials are forbidden for Docker package installs."
+              exit 1
+              ;;
+          esac
+          case "${PULSEPLATE_PYTHON_INDEX_URL:-}" in
+            *://*@*)
+              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must not contain credentials; use DEVPI_CI_USER/DEVPI_CI_PASSWORD."
+              exit 1
+              ;;
+          esac
+          {
+            printf 'machine packages.pulseplate.app\n'
+            printf '  login %s\n' "$DEVPI_CI_USER"
+            printf '  password %s\n' "$DEVPI_CI_PASSWORD"
+          } > "$auth_file"
+
       - name: Build Docker image for publish scan
         id: docker-build-scan
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         env:
-          PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
         with:
           context: .
           build-args: |
@@ -420,6 +517,8 @@ jobs:
           secret-envs: |
             pp_py_index=PULSEPLATE_PYTHON_INDEX_URL
             pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST
+          secret-files: |
+            pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc
           # Single-arch for cache/push stability (CodeRabbit discussion_r2869743452). Restore linux/arm64 when GHA cache/provenance is stable.
           platforms: linux/amd64
           push: false
@@ -435,6 +534,15 @@ jobs:
           # image is pushed and its registry digest is known.
           provenance: false
           target: production
+
+      - name: Remove private Python index Docker authentication
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${RUNNER_TEMP:-}" ]; then
+            rm -f "$RUNNER_TEMP/pulseplate-docker-netrc"
+          fi
 
       - name: Set image ref for SBOM and image scan
         id: image-ref

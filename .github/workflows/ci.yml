@@ -7,8 +7,8 @@ name: CI
 env:
   PYTHON_VERSION: "3.13.6"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
-  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+  PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 permissions:
   contents: read
@@ -444,6 +444,9 @@ jobs:
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
@@ -467,6 +470,9 @@ jobs:
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
@@ -527,6 +533,9 @@ jobs:
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
@@ -573,6 +582,9 @@ jobs:
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-test
@@ -852,6 +864,9 @@ jobs:
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-test
@@ -1194,9 +1209,15 @@ jobs:
           resolved_index="${PULSEPLATE_PR_PYTHON_INDEX_URL:-}"
           resolved_trusted_host="${PULSEPLATE_PR_PYTHON_TRUSTED_HOST:-}"
           if [[ -z "$resolved_index" ]]; then
-            echo "::error::Set repository variable PULSEPLATE_PYTHON_INDEX_URL for PR test-main diagnostics."
+            echo "::error::Set repository variable PULSEPLATE_PYTHON_INDEX_URL to a credential-free diagnostic package proxy for PR test-main diagnostics."
             exit 1
           fi
+          case "$resolved_index" in
+            *://*@*)
+              echo "::error::Repository variable PULSEPLATE_PYTHON_INDEX_URL must be credential-free; use DEVPI_CI_USER/DEVPI_CI_PASSWORD secrets for authenticated package proxy access."
+              exit 1
+              ;;
+          esac
           case "$resolved_index$resolved_trusted_host" in
             *$'\n'*|*$'\r'*)
               echo "::error::Resolved Python package proxy settings must be single-line values."
@@ -1221,6 +1242,12 @@ jobs:
             echo "::error::Set PULSEPLATE_PYTHON_INDEX_URL secret or repository variable for protected test-main runs."
             exit 1
           fi
+          case "$resolved_index" in
+            *://*@*)
+              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must be credential-free; use DEVPI_CI_USER/DEVPI_CI_PASSWORD secrets for authenticated package proxy access."
+              exit 1
+              ;;
+          esac
           case "$resolved_index$resolved_trusted_host" in
             *$'\n'*|*$'\r'*)
               echo "::error::Resolved Python package proxy settings must be single-line values."
@@ -1234,6 +1261,9 @@ jobs:
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || matrix.python-version }}
           requirements-profile: ci-test
@@ -1428,6 +1458,9 @@ jobs:
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
