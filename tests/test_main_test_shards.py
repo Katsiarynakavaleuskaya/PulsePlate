@@ -571,14 +571,18 @@ def test_remove_previous_outputs_deletes_stale_shard_files(tmp_path: Path) -> No
     shard = runner.TestShard(index=1, artifact_label="py312")
     coverage_file = tmp_path / shard.coverage_file
     junit_file = tmp_path / shard.junit_file
+    htmlcov_file = tmp_path / "htmlcov" / "index.html"
     coverage_file.write_text("old", encoding="utf-8")
     junit_file.parent.mkdir(parents=True, exist_ok=True)
     junit_file.write_text("old", encoding="utf-8")
+    htmlcov_file.parent.mkdir(parents=True, exist_ok=True)
+    htmlcov_file.write_text("<html></html>", encoding="utf-8")
 
     runner.remove_previous_outputs(tmp_path, [shard])
 
     assert not coverage_file.exists()
     assert not junit_file.exists()
+    assert not htmlcov_file.parent.exists()
 
 
 def test_run_all_shards_rejects_invalid_parallelism(tmp_path: Path) -> None:
