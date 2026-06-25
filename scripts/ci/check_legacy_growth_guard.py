@@ -137,6 +137,7 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
             "router",
             "nutrition_recommendations_router",
         ),
+        LegacyFact("router_import", "dynamic", "app.routers.plan_export", "_plan_mod"),
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_plate", ""
         ),
@@ -334,7 +335,48 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
             for alias in node.names:
                 if alias.name == "app.routers" or alias.name.startswith("app.routers."):
                     facts.add(LegacyFact("router_import", "import", alias.name, alias.asname or ""))
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value = node.value
+            if value is None:
+                continue
+            targets = list(node.targets) if isinstance(node, ast.Assign) else [node.target]
+            target_names = [target.id for target in targets if isinstance(target, ast.Name)]
+            if not target_names:
+                continue
+            for module_name in _dynamic_app_router_import_modules(value):
+                for target_name in target_names:
+                    facts.add(LegacyFact("router_import", "dynamic", module_name, target_name))
     return facts
+
+
+def _dynamic_app_router_import_modules(node: ast.AST) -> frozenset[str]:
+    """Return dynamic app.routers module imports embedded in an AST node."""
+
+    modules: set[str] = set()
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Call):
+            continue
+        module_name = _dynamic_import_module_name(child)
+        if module_name is None:
+            continue
+        if module_name == "app.routers" or module_name.startswith("app.routers."):
+            modules.add(module_name)
+    return frozenset(modules)
+
+
+def _dynamic_import_module_name(call: ast.Call) -> str | None:
+    if not call.args:
+        return None
+    first_arg = call.args[0]
+    if not isinstance(first_arg, ast.Constant) or not isinstance(first_arg.value, str):
+        return None
+
+    func = call.func
+    if isinstance(func, ast.Name) and func.id in {"__import__", "import_module"}:
+        return first_arg.value
+    if isinstance(func, ast.Attribute) and func.attr == "import_module":
+        return first_arg.value
+    return None
 
 
 def collect_sensitive_call_counts(
