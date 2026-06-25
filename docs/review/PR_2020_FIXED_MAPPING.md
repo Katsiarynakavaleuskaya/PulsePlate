@@ -34,6 +34,8 @@ Out of scope:
 
 - `ae8e98264fa320e345a04349bf8368adb73001be` -
   `fix(ci): shard nightly full tests without xdist`
+- `9352af82dc191193824ca7880170e8b9c67f21d7` -
+  `test(ci): cover stale nightly html coverage cleanup`
 
 ## Lane Start Provenance
 
@@ -95,6 +97,13 @@ Passed locally:
   changed-file backend tests, and conventional commit checks passed.
 - Pre-push hooks: YAML, formatting, lint, changed-file mypy, pip-audit,
   backend pre-push pytest, full-repo Bandit, and Docker build test passed.
+- PASS after bug-hunter hardening fix:
+  `.venv/bin/python -m pytest -q tests/test_main_test_shards.py::test_remove_previous_outputs_deletes_stale_shard_files tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
+- PASS after bug-hunter hardening fix: `make validate-changed`
+- PASS during commit `9352af82`: formatting, lint, changed-file backend tests,
+  and conventional commit checks passed.
+- PASS during push after `9352af82`: pip-audit, backend pre-push pytest, and
+  full-repo Bandit passed.
 
 Full local `make verify` was not run under the operator-approved
 machine-heavy CI/tooling exception. Current-head CI is the required heavy
@@ -112,6 +121,17 @@ blocking until fixed or formally dispositioned with evidence.
 ## Fixed in Commit Mapping
 
 - No actionable review comments
+
+## Post-Open Role Findings
+
+Finding: `bug-hunter` noted that stale shard coverage and JUnit cleanup were
+covered, but stale `htmlcov` cleanup did not yet have a direct regression test.
+
+Disposition: FIXED
+Commit: `9352af82dc191193824ca7880170e8b9c67f21d7`
+Evidence: `tests/test_main_test_shards.py::test_remove_previous_outputs_deletes_stale_shard_files`
+now creates `htmlcov/index.html` and asserts `remove_previous_outputs(...)`
+removes the stale `htmlcov` directory before a new run.
 
 ## Security Notes
 
