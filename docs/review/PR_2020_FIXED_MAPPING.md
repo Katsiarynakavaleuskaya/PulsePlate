@@ -32,21 +32,21 @@ Out of scope:
 
 ## Implementation Commits
 
-- `ae8e98264fa320e345a04349bf8368adb73001be` -
+- `768721bbe94e606b569a33513f6863b7a282afc7` -
   `fix(ci): shard nightly full tests without xdist`
-- `9352af82dc191193824ca7880170e8b9c67f21d7` -
+- `0308bc80278ecb322baad64322c695f26a9e01b4` -
   `test(ci): cover stale nightly html coverage cleanup`
-- `0dfb47a6929c266e8378e80d55d656f32f8f10af` -
+- `1538c543a1615977f1bb50cc8e7834d269184e3d` -
   `fix(ci): isolate nightly shard history artifacts`
-- `fb6b651078fc1779a0f100bf40a345a26b515c28` -
+- `9e21f181fac84d7d4acd8c0420efc9e7f273aa49` -
   `docs(review): record PR 2020 post-open fixes`
-- `96eb82b8fa1a7e822f0d84387dbf472da374dbe4` -
+- `8549f0c60f34bceafdeadcb2b3833eaee7e0562c` -
   `docs(review): fix PR 2020 replay command`
-- `91b1c8f1f5b61943f27f7751661d1f3d6a239166` -
+- `1472836233f733c34e8839d68841ac3ec117d1c8` -
   `fix(ci): keep shard history path idempotent`
-- `b6304b1a9c3615df805ac8c7b7d7b428fad5c052` -
+- `c006a5f2562dc5a31535bcd136d918ed0c24bb7f` -
   `fix(ci): fetch full history for nightly full tests`
-- `3e280fe02bcb08a119cda75a914d111a77477487` -
+- `68b20f9e714673e877d1284bcc0ae7311f48cf99` -
   `fix(ci): bound nightly shard cleanup and coverage phases`
 
 ## Lane Start Provenance
@@ -85,7 +85,7 @@ Out of scope:
 - Runner mode: `oracle_only_governance_reviewer`
 - Contribution kind: `oracle_review`
 - Co-author required: yes
-- Co-author trailer included in `ae8e98264fa320e345a04349bf8368adb73001be`:
+- Co-author trailer included in `768721bbe94e606b569a33513f6863b7a282afc7`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 ## Local Validation
@@ -105,16 +105,16 @@ Passed locally:
     `tests/test_ci_workflow_pr_size_governance_contract.py` and
     `tests/test_main_test_shards.py` and passed.
 - `pre-commit run --all-files`
-- Commit hooks during `ae8e98264`: YAML, formatting, lint, Bandit,
+- Commit hooks during `768721bbe`: YAML, formatting, lint, Bandit,
   changed-file backend tests, and conventional commit checks passed.
 - Pre-push hooks: YAML, formatting, lint, changed-file mypy, pip-audit,
   backend pre-push pytest, full-repo Bandit, and Docker build test passed.
 - PASS after bug-hunter hardening fix:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py::test_remove_previous_outputs_deletes_stale_shard_files tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
 - PASS after bug-hunter hardening fix: `make validate-changed`
-- PASS during commit `9352af82`: formatting, lint, changed-file backend tests,
+- PASS during commit `0308bc802`: formatting, lint, changed-file backend tests,
   and conventional commit checks passed.
-- PASS during push after `9352af82`: pip-audit, backend pre-push pytest, and
+- PASS during push after `0308bc802`: pip-audit, backend pre-push pytest, and
   full-repo Bandit passed.
 - PASS after post-open cursor and Codex Security hardening fixes:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
@@ -122,7 +122,7 @@ Passed locally:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m mypy scripts/ci/run_main_test_shards.py`
 - PASS after post-open cursor and Codex Security hardening fixes:
   `make validate-changed`
-- PASS during commit `0dfb47a`: formatting, lint, changed-file backend tests,
+- PASS during commit `1538c543`: formatting, lint, changed-file backend tests,
   Bandit, and conventional commit checks passed.
 - PASS after bug-hunter double-scope fix:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
@@ -130,13 +130,13 @@ Passed locally:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m mypy scripts/ci/run_main_test_shards.py`
 - PASS after bug-hunter double-scope fix:
   `make validate-changed`
-- PASS during commit `91b1c8f`: formatting, lint, changed-file backend tests,
+- PASS during commit `147283623`: formatting, lint, changed-file backend tests,
   Bandit, and conventional commit checks passed.
 - PASS after manual nightly dispatch failure fix:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only`
 - PASS after manual nightly dispatch failure fix:
   `make validate-changed`
-- PASS during commit `b6304b1a`: YAML, workflow, formatting, lint,
+- PASS during commit `c006a5f`: YAML, workflow, formatting, lint,
   changed-file backend tests, and conventional commit checks passed.
 - PASS after manual nightly timeout fix:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
@@ -148,7 +148,7 @@ Passed locally:
     `tests/test_ci_workflow_pr_size_governance_contract.py` and
     `tests/test_main_test_shards.py` and passed.
 - PASS after manual nightly timeout fix: `pre-commit run --all-files`
-- PASS during commit `3e280fe02`: YAML, workflow, formatting, lint, Bandit,
+- PASS during commit `68b20f9e`: YAML, workflow, formatting, lint, Bandit,
   changed-file backend tests, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
@@ -174,7 +174,7 @@ Finding: `bug-hunter` noted that stale shard coverage and JUnit cleanup were
 covered, but stale `htmlcov` cleanup did not yet have a direct regression test.
 
 Disposition: FIXED
-Commit: `9352af82dc191193824ca7880170e8b9c67f21d7`
+Commit: `0308bc80278ecb322baad64322c695f26a9e01b4`
 Evidence: `tests/test_main_test_shards.py::test_remove_previous_outputs_deletes_stale_shard_files`
 now creates `htmlcov/index.html` and asserts `remove_previous_outputs(...)`
 removes the stale `htmlcov` directory before a new run.
@@ -184,7 +184,7 @@ parallelism could make every shard write to the same `BAYESIAN_HISTORY_PATH`
 when `BAYESIAN_PERSIST=1`.
 
 Disposition: FIXED
-Commit: `0dfb47a6929c266e8378e80d55d656f32f8f10af`
+Commit: `1538c543a1615977f1bb50cc8e7834d269184e3d`
 Evidence: `scripts/ci/run_main_test_shards.py::shard_bayesian_history_path`
 scopes enabled Bayesian history persistence per shard, and
 `tests/test_main_test_shards.py::test_build_shard_env_scopes_bayesian_history_when_persisting`
@@ -196,7 +196,7 @@ they used `.venv/bin/python` while the shared repo virtualenv is resolved by
 `scripts/hooks/repo_python.sh`.
 
 Disposition: FIXED
-Commit: `96eb82b8fa1a7e822f0d84387dbf472da374dbe4`
+Commit: `8549f0c60f34bceafdeadcb2b3833eaee7e0562c`
 Evidence: local validation commands in this artifact now use
 `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" ...`.
 
@@ -205,7 +205,7 @@ the workflow was fail-closed, but the workflow contract test did not assert
 `test_exit_code=$?` and `exit "$test_exit_code"`.
 
 Disposition: FIXED
-Commit: `0dfb47a6929c266e8378e80d55d656f32f8f10af`
+Commit: `1538c543a1615977f1bb50cc8e7834d269184e3d`
 Evidence:
 `tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist`
 now asserts the `set +e` runner invocation, captured exit code, restored
@@ -217,7 +217,7 @@ turning `/tmp/test_execution_history-py313-shard-3.json` into
 `/tmp/test_execution_history-py313-shard-3-py313-shard-3.json`.
 
 Disposition: FIXED
-Commit: `91b1c8f1f5b61943f27f7751661d1f3d6a239166`
+Commit: `1472836233f733c34e8839d68841ac3ec117d1c8`
 Evidence: `scripts/ci/run_main_test_shards.py::shard_bayesian_history_path`
 now returns an already shard-scoped history path unchanged, and
 `tests/test_main_test_shards.py::test_build_shard_env_keeps_parent_scoped_bayesian_history_idempotent`
@@ -230,7 +230,7 @@ could not inspect `origin/main...HEAD` in the shallow `workflow_dispatch`
 checkout: `fatal: origin/main...HEAD: no merge base`.
 
 Disposition: FIXED
-Commit: `b6304b1a9c3615df805ac8c7b7d7b428fad5c052`
+Commit: `c006a5f2562dc5a31535bcd136d918ed0c24bb7f`
 Evidence: `.github/workflows/nightly-tests.yml` now checks out full history
 with `fetch-depth: 0`, matching existing CI jobs that need `origin/main`
 merge-base visibility. The workflow contract test
@@ -246,7 +246,7 @@ post-shard `coverage combine/xml/html/report` diagnostics or coverage artifacts
 were emitted.
 
 Disposition: FIXED
-Commit: `3e280fe02bcb08a119cda75a914d111a77477487`
+Commit: `68b20f9e714673e877d1284bcc0ae7311f48cf99`
 Evidence: `scripts/ci/run_main_test_shards.py` now terminates known shard
 workers after shard results are collected, shuts down the process pool with
 `wait=False, cancel_futures=True`, runs each post-shard coverage phase through
