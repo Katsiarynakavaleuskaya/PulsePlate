@@ -22,6 +22,11 @@ DB, dependency, Slack, or GitHub authority.
 - `3e703c0d8` - fix post-open QA findings: reject executable new candidate
   files, align request/result schema forbidden path policy with the Python
   validator, and add deterministic regression coverage.
+- `35936558a` - fix post-open bug-hunter findings: verify `candidate.patch`
+  against stored metadata before evaluation, reject stale prepare run
+  directories, align result schema failure/authority constraints with the
+  Python validator, and resolve executor/git binaries to absolute executable
+  paths.
 
 ## Discussion Thread Pass
 
@@ -57,6 +62,24 @@ DB, dependency, Slack, or GitHub authority.
   `tests/test_creative_code_patch_builder.py::test_patch_path_schemas_match_validator_for_forbidden_surfaces`,
   and
   `tests/test_creative_code_patch_builder.py::test_patch_request_allows_allowed_new_only_requests`.
+- Post-open `bug-hunter`: stale or tampered `candidate.patch` could be
+  evaluated with old patch metadata. Disposition: FIXED. Commit:
+  `35936558a`. Evidence:
+  `scripts/orchestration/creative_code_patch_builder.py`,
+  `tests/test_creative_code_patch_builder.py::test_evaluate_rejects_tampered_candidate_patch`,
+  and
+  `tests/test_creative_code_patch_builder.py::test_prepare_rejects_non_empty_run_directory`.
+- Post-open `bug-hunter`: result schema allowed failure classes and authority
+  flags the Python validator rejects. Disposition: FIXED. Commit:
+  `35936558a`. Evidence:
+  `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json` and
+  `tests/test_creative_code_patch_builder.py::test_reference_patch_contracts_validate_and_schema_is_closed`.
+- Post-open `bug-hunter`: `codex` and `git` resolvers could return relative
+  paths when `PATH` contained relative entries. Disposition: FIXED. Commit:
+  `35936558a`. Evidence:
+  `scripts/orchestration/creative_code_patch_executor.py`,
+  `scripts/orchestration/creative_code_patch_workspace.py`, and
+  `tests/test_creative_code_patch_builder.py::test_binary_resolvers_return_absolute_executables_for_relative_path`.
 
 ## Premortem Closure
 
@@ -97,7 +120,7 @@ Evidence:
   `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`.
 - The `make validate-changed` false-green risk is closed by rerunning
   `make validate-changed` after commit; it selected
-  `tests/test_creative_code_patch_builder.py` and ran 14 tests.
+  `tests/test_creative_code_patch_builder.py` and ran 17 tests.
 
 ## Experiment Runner Evidence
 
