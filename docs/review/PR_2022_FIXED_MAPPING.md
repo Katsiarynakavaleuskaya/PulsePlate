@@ -69,8 +69,8 @@ DB, dependency, Slack, or GitHub authority.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: dd497f16c
 Evidence: CodeRabbit PR-2 comments fixed in `dd497f16c` with focused regression coverage.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474702983 -> dd497f16c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474702987 -> dd497f16c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474703006 -> dd497f16c
