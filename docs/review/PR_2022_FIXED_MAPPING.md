@@ -91,7 +91,7 @@ Evidence:
   `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`.
 - The `make validate-changed` false-green risk is closed by rerunning
   `make validate-changed` after commit; it selected
-  `tests/test_creative_code_patch_builder.py` and ran 11 tests.
+  `tests/test_creative_code_patch_builder.py` and ran 14 tests.
 
 ## Experiment Runner Evidence
 
