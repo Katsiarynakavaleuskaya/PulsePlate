@@ -88,17 +88,7 @@ frontend runtime, iOS, or migration changes.
 
 Disposition: FIXED
 
-Evidence: commit `87a931b921098fb2da1de486753a988ad99b9ff2` adds typed
-bodyfat response-model metadata for both hidden/direct registrations, closes
-`builtins.__import__` alias and walrus import-function alias bypasses in
-`scripts/ci/check_legacy_growth_guard.py`, adds matching guard regressions,
-fixes the review artifact `openapi-check` command/checklist state, and asserts
-JSON content type before parsing the direct bodyfat compatibility response.
-Validation passed: focused bodyfat/bootstrap/API/legacy-guard pytest suite
-(`41 passed`), `python3 scripts/ci/check_legacy_growth_guard.py`,
-`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`,
-`make validate-changed`, `python3 scripts/orchestration/check_agent_consistency.py`,
-`pre-commit run --all-files`, and `git diff --check`.
+Evidence: commit `87a931b921098fb2da1de486753a988ad99b9ff2` adds typed bodyfat response metadata, closes `builtins.__import__` alias and walrus import-function alias bypasses, fixes review artifact command/checklist hygiene, and adds JSON content-type test clarity; validation passed via focused pytest (`41 passed`), legacy guard script, openapi-check, validate-changed, agent consistency, pre-commit all-files, and diff check.
 
 ## Mapping Notes
 
