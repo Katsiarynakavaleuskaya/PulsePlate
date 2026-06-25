@@ -654,6 +654,18 @@ def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object
     return payload
 
 
+def _target_wheel_tag_payload_int(
+    payload: dict[str, object],
+    key: str,
+    *,
+    python_executable: str,
+) -> int:
+    value = payload.get(key)
+    if not isinstance(value, int):
+        raise RuntimeError(f"Invalid wheel-tag probe payload from {python_executable}")
+    return value
+
+
 def _supported_wheel_tags_for_python(python_executable: str | None) -> set[str]:
     """Return wheel tags for the target interpreter, defaulting to the current process."""
     if python_executable is None or python_executable == sys.executable:
@@ -665,8 +677,16 @@ def _supported_wheel_tags_for_python(python_executable: str | None) -> set[str]:
         return set(tags)
     try:
         return _fallback_supported_wheel_tags_for_runtime(
-            major=int(payload["major"]),
-            minor=int(payload["minor"]),
+            major=_target_wheel_tag_payload_int(
+                payload,
+                "major",
+                python_executable=python_executable,
+            ),
+            minor=_target_wheel_tag_payload_int(
+                payload,
+                "minor",
+                python_executable=python_executable,
+            ),
             implementation_name=str(payload["implementation_name"]),
             platform_name=str(payload["platform_name"]),
             sysconfig_platform=str(payload["sysconfig_platform"]),
