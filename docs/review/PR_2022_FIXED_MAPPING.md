@@ -16,6 +16,9 @@ DB, dependency, Slack, or GitHub authority.
 - `7837abd5f` - add PR-2 patch-builder contracts, local workspace/executor/
   builder CLIs, strict patch validation, sanitized Experiment Runner candidate
   evaluation, docs, ledger, premortem, and focused tests.
+- `9fc5499fa` - remove tracked request/result example JSON and the generated
+  detect-secrets baseline delta so the final privileged orchestration PR
+  surface stays within the CI hard cap.
 
 ## Discussion Thread Pass
 
@@ -96,6 +99,10 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 
 - PASS: `python scripts/orchestration/check_preflight.py`
 - PASS: `python scripts/orchestration/check_agent_consistency.py`
+- PASS: `python3 scripts/ci/check_pr_size_governance.py --base-sha "$(git
+  merge-base origin/main HEAD)" --head-sha "$(git rev-parse HEAD)" --body
+  "$(gh pr view 2022 --json body -q .body)"` (`Counted files: 15`;
+  `PR scope governance: OK (privileged CI/security/workflow policy).`)
 - PASS:
   `python -m pytest -q tests/test_creative_code_patch_builder.py tests/test_creative_code_specification.py tests/test_experiment_bootstrap.py tests/test_experiment_runner.py tests/test_codex_ollama_operator_doctor.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/guards/test_nosec_policy_guard.py tests/test_repo_policy_guards.py`
 - PASS: PR-2 request/result contract validation and `additionalProperties:
