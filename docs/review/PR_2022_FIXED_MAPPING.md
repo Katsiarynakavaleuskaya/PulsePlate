@@ -19,6 +19,9 @@ DB, dependency, Slack, or GitHub authority.
 - `9fc5499fa` - remove tracked request/result example JSON and the generated
   detect-secrets baseline delta so the final privileged orchestration PR
   surface stays within the CI hard cap.
+- `3e703c0d8` - fix post-open QA findings: reject executable new candidate
+  files, align request/result schema forbidden path policy with the Python
+  validator, and add deterministic regression coverage.
 
 ## Discussion Thread Pass
 
@@ -35,7 +38,19 @@ DB, dependency, Slack, or GitHub authority.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- Post-open `qa-engineer-agent`: executable new allowlisted files could bypass
+  the PR-2 patch policy. Disposition: FIXED. Commit: `3e703c0d8`. Evidence:
+  `scripts/orchestration/creative_code_patch_builder.py`,
+  `tests/test_creative_code_patch_builder.py::test_patch_metadata_rejects_new_executable_file`.
+- Post-open `qa-engineer-agent`: request/result schemas could drift from the
+  Python validator forbidden-path policy and request schema contradicted the
+  allowed-new-only validator path. Disposition: FIXED. Commit: `3e703c0d8`.
+  Evidence:
+  `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`,
+  `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`,
+  `tests/test_creative_code_patch_builder.py::test_patch_path_schemas_match_validator_for_forbidden_surfaces`,
+  and
+  `tests/test_creative_code_patch_builder.py::test_patch_request_allows_allowed_new_only_requests`.
 
 ## Premortem Closure
 
@@ -68,6 +83,7 @@ Evidence:
   `scripts/orchestration/creative_code_patch_contract.py`,
   `tests/test_creative_code_patch_builder.py::test_patch_metadata_accepts_allowed_modified_file`,
   `tests/test_creative_code_patch_builder.py::test_patch_metadata_rejects_unapproved_untracked_file`,
+  `tests/test_creative_code_patch_builder.py::test_patch_metadata_rejects_new_executable_file`,
   and
   `tests/test_creative_code_patch_builder.py::test_patch_metadata_rejects_symlink_mode_change`.
 - Runner-evidence confusion is closed by `scripts/AGENTS.md`,
