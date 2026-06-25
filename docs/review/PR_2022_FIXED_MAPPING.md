@@ -38,6 +38,8 @@ DB, dependency, Slack, or GitHub authority.
   finding by overriding checkout-local Git execution config, disabling
   external diff/textconv during patch inspection/export, and adding regression
   tests.
+- `c010fe251` - map the checkout-local Git config fix and post-fix
+  security-auditor PASS evidence.
 
 ## Discussion Thread Pass
 
@@ -46,7 +48,8 @@ DB, dependency, Slack, or GitHub authority.
 - [x] Initial PR open: no GitHub review threads existed at artifact creation.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` review
   lane completed; actionable role findings are mapped below.
-- [ ] Codex Security diff scan / finding discovery is still required.
+- [x] Codex Security exact PR-base diff scan / finding discovery completed
+  with no reportable findings.
 - [ ] CodeRabbit, Sourcery, Cubic, and human review comments must be fixed or
   dispositioned before merge readiness.
 - [ ] Current-head CI and strict merge-readiness wrapper evidence are still
@@ -167,6 +170,22 @@ commit `7837abd5f` includes the canonical co-author trailer. The refreshed
 final-diff oracle result also shaped the post-scope-cap mapping/PR-body sync
 and the post-security-hardening validation.
 
+## Codex Security Evidence
+
+Exact PR-base scan: `a542bde4-173d-4925-bacd-22c8d19c38cf`
+
+Report:
+`/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-SLl3Ro/creative-code-sandboxed-patch-builder-pr2/c010fe2510f20807cbda3b9049b420506c697955_20260625T103439Z__tokqhnb/report.md`
+
+Result: 0 findings, complete branch-diff coverage for the exact PR base
+`8a637a9ad2ab618ec2e7e550132f5a615146d968` to local head
+`c010fe2510f20807cbda3b9049b420506c697955`.
+
+Note: an earlier Codex Security setup resolved `origin/main` to
+`9e26d11ce86279437488af94fadd9b828ad80c93`, which included 14 unrelated
+main-drift files. That wrong-base scan was explicitly failed and replaced by
+the exact PR-base scan above.
+
 ## Lane Start Provenance
 
 Packet: `artifacts/orchestration/task_packets/904282be7567.json`
@@ -189,6 +208,8 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - PASS: `make validate-changed`
   (`tests/test_creative_code_patch_builder.py tests/test_experiment_runner.py`)
 - PASS: `pre-commit run --all-files`
+- PASS: Codex Security exact PR-base diff scan
+  (`a542bde4-173d-4925-bacd-22c8d19c38cf`, 0 findings)
 - PASS during push: changed-file mypy, pip-audit, backend tests, bandit full,
   and docker build test.
 
@@ -200,7 +221,6 @@ current-head CI parity before any merge-readiness claim.
 
 ## Merge Readiness
 
-Not claimed. PR #2022 still requires current-head CI, Codex Security diff
-scan/finding discovery, `pulseplate-pr-review`, bot review
-disposition, fixed mapping sync for any later comments, and strict
+Not claimed. PR #2022 still requires current-head CI, `pulseplate-pr-review`,
+bot review disposition, fixed mapping sync for any later comments, and strict
 `check_merge_ready.py --require-auth` evidence before any merge-readiness claim.
