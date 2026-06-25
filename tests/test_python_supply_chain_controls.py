@@ -1574,6 +1574,63 @@ fi
     assert (tmp_path / "pip-audit-requirements-evals.json").exists()
 
 
+def test_pip_audit_helper_rejects_expired_pytorch_jit_waiver(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_pip_audit = fake_bin / "pip-audit"
+    fake_pip_audit.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+output=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    -o)
+      output="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -n "${output}" ]]; then
+  printf '{}\n' > "${output}"
+fi
+""",
+        encoding="utf-8",
+    )
+    fake_pip_audit.chmod(0o755)
+    fake_date = fake_bin / "date"
+    fake_date.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+printf '2026-07-18\n'
+""",
+        encoding="utf-8",
+    )
+    fake_date.chmod(0o755)
+
+    for manifest in ("requirements.txt", "requirements-rag-vector.txt"):
+        (tmp_path / manifest).write_text("example==1.0.0\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["CI"] = "1"
+    env["PATH"] = os.pathsep.join((str(fake_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin"))
+
+    result = subprocess.run(
+        ["/bin/bash", str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "CVE-2025-3000 waiver expired on 2026-07-17" in result.stderr
+    assert not (tmp_path / "pip-audit-requirements-rag-vector.json").exists()
+
+
 def test_pip_audit_helper_scans_all_manifests_before_returning_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

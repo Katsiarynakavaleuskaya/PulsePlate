@@ -425,7 +425,11 @@ def test_pytorch_jit_cve_pip_audit_waiver_evidence_is_scoped_and_current() -> No
     pip_audit_text = PIP_AUDIT_HELPER.read_text(encoding="utf-8")
 
     assert 'readonly PYTORCH_JIT_CVE_ID="CVE-2025-3000"' in pip_audit_text
+    assert 'readonly PYTORCH_JIT_WAIVER_REMOVE_BY="2026-07-17"' in pip_audit_text
     assert "requirements-rag-vector.txt | requirements-rag-vector-cpu.txt" in pip_audit_text
+    assert 'date -u +%Y-%m-%d' in pip_audit_text
+    assert '"${today}" > "${PYTORCH_JIT_WAIVER_REMOVE_BY}"' in pip_audit_text
+    assert "${PYTORCH_JIT_CVE_ID} waiver expired" in pip_audit_text
     assert '--ignore-vuln "${PYTORCH_JIT_CVE_ID}"' in pip_audit_text
     assert "requirements.txt | requirements-ci-lite.txt" not in pip_audit_text
 

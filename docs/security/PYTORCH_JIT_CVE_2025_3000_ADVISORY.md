@@ -13,7 +13,8 @@ finding is limited to the optional vector profile.
 - **Owner:** @katsiaryna_kavaleuskaya
 - **Remove-by:** 2026-07-17
 - **Backlog:** `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
-- **pip-audit waiver:** `scripts/ci_pip_audit.sh`
+- **pip-audit waiver:** `scripts/ci_pip_audit.sh` (fail-closed after the
+  remove-by date)
 - **Last checked:** 2026-06-24
 
 ## Current Repo State
@@ -39,7 +40,8 @@ finding is limited to the optional vector profile.
 
 - `requirements-rag-vector.txt:162`
 - `requirements-rag-vector-cpu.txt:119`
-- `scripts/ci_pip_audit.sh:40`
+- `scripts/ci_pip_audit.sh`: scoped `pip-audit` waiver with executable
+  remove-by enforcement.
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
 
 ## Exposure Assessment

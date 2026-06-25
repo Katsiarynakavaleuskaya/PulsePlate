@@ -7,6 +7,7 @@ if ! command -v pip-audit >/dev/null 2>&1; then
 fi
 
 readonly PYTORCH_JIT_CVE_ID="CVE-2025-3000"
+readonly PYTORCH_JIT_WAIVER_REMOVE_BY="2026-07-17"
 overall_status=0
 
 manifests=("requirements.txt")
@@ -39,6 +40,11 @@ for manifest in "${manifests[@]}"; do
   )
   case "${manifest}" in
     requirements-rag-vector.txt | requirements-rag-vector-cpu.txt)
+      today="$(date -u +%Y-%m-%d)"
+      if [[ "${today}" > "${PYTORCH_JIT_WAIVER_REMOVE_BY}" ]]; then
+        echo "[ci_pip_audit] ERROR: ${PYTORCH_JIT_CVE_ID} waiver expired on ${PYTORCH_JIT_WAIVER_REMOVE_BY}; remove the waiver or refresh the advisory with reviewed evidence" >&2
+        exit 1
+      fi
       audit_args+=(--ignore-vuln "${PYTORCH_JIT_CVE_ID}")
       ;;
   esac
