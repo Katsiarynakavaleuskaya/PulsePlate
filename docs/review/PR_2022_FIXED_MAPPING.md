@@ -27,6 +27,9 @@ DB, dependency, Slack, or GitHub authority.
   directories, align result schema failure/authority constraints with the
   Python validator, and resolve executor/git binaries to absolute executable
   paths.
+- `b656cf801` - fix post-open security-auditor finding by replacing broad Git
+  subprocess environment inheritance with an allowlisted, secret-stripped,
+  normalized environment and focused regression coverage.
 
 ## Discussion Thread Pass
 
@@ -80,6 +83,11 @@ DB, dependency, Slack, or GitHub authority.
   `scripts/orchestration/creative_code_patch_executor.py`,
   `scripts/orchestration/creative_code_patch_workspace.py`, and
   `tests/test_creative_code_patch_builder.py::test_binary_resolvers_return_absolute_executables_for_relative_path`.
+- Post-open `security-auditor`: Git subprocesses inherited almost the entire
+  parent environment and could receive local secrets or credential-shaped
+  values. Disposition: FIXED. Commit: `b656cf801`. Evidence:
+  `scripts/orchestration/creative_code_patch_workspace.py` and
+  `tests/test_creative_code_patch_builder.py::test_git_env_strips_secret_and_parent_state`.
 
 ## Premortem Closure
 
@@ -120,7 +128,7 @@ Evidence:
   `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`.
 - The `make validate-changed` false-green risk is closed by rerunning
   `make validate-changed` after commit; it selected
-  `tests/test_creative_code_patch_builder.py` and ran 17 tests.
+  `tests/test_creative_code_patch_builder.py` and ran 18 tests.
 
 ## Experiment Runner Evidence
 
