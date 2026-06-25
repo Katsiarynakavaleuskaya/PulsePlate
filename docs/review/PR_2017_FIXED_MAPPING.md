@@ -31,6 +31,11 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
   `.netrc` auth for Docker BuildKit installs, redact URL credentials through
   the last userinfo separator, and remove bare `python` from the subprocess
   wrapper test input.
+- `a4b0b1405a203119e2ee4f307acd2ca6e0461d97` - clean up Docker BuildKit
+  devpi `.netrc` files after use, select emergency wheels using target
+  interpreter tags, tighten exact-version proxy preflight matching, broaden the
+  direct-pip workflow guard, and keep final merge-readiness checklist items
+  unchecked until the final merge cycle.
 
 ## Discussion Thread Pass
 
@@ -56,6 +61,8 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467943722 -> 80db1bdf2f6927c02a0ce084ff14e192c804247f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467943730 -> 80db1bdf2f6927c02a0ce084ff14e192c804247f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467943759 -> 80db1bdf2f6927c02a0ce084ff14e192c804247f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4567713068 -> a4b0b1405a203119e2ee4f307acd2ca6e0461d97
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4567713857 -> a4b0b1405a203119e2ee4f307acd2ca6e0461d97
 Disposition: FIXED
 Commit: 11ee04235745b4083aa818ee68970c0ab1281bda
 Evidence: scripts/ci/install_locked_python_requirements.py:952 and tests/test_install_locked_python_requirements.py:426
@@ -63,6 +70,10 @@ Evidence: scripts/ci/install_locked_python_requirements.py:952 and tests/test_in
 Disposition: FIXED
 Commit: 80db1bdf2f6927c02a0ce084ff14e192c804247f
 Evidence: .github/workflows/build.yml:54, Dockerfile:58, scripts/ci/install_locked_python_requirements.py:1019, tests/test_install_locked_python_requirements.py:1748, tests/test_python_supply_chain_controls.py:1325
+
+Disposition: FIXED
+Commit: a4b0b1405a203119e2ee4f307acd2ca6e0461d97
+Evidence: .github/workflows/build.yml:120, .github/workflows/build.yml:538, scripts/ci/install_locked_python_requirements.py:612, scripts/ci/install_locked_python_requirements.py:1218, tests/test_install_locked_python_requirements.py:202, tests/test_install_locked_python_requirements.py:876, tests/test_python_supply_chain_controls.py:157, tests/test_python_supply_chain_controls.py:1371
 
 ## Additional Fixed Findings
 
