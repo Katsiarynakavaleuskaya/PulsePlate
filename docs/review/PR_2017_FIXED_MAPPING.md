@@ -38,6 +38,10 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
   unchecked until the final merge cycle.
 - `823b10d53c63b77990401f1e1ab2383861ecd2ab` - keep the target wheel-tag probe
   payload validation explicit enough for local and pre-push mypy.
+- `2bd1a5a1a4037fa89f33716e7affbb3bb6ecb47b` - normalize target Python
+  wheel-tag probes through absolute/path-qualified interpreters, map current
+  interpreter aliases to `sys.executable`, and reject unknown bare names before
+  `subprocess.run`.
 
 ## Discussion Thread Pass
 
@@ -65,6 +69,8 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3467943759 -> 80db1bdf2f6927c02a0ce084ff14e192c804247f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4567713068 -> a4b0b1405a203119e2ee4f307acd2ca6e0461d97
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4567713857 -> a4b0b1405a203119e2ee4f307acd2ca6e0461d97
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#pullrequestreview-4568822608 -> 2bd1a5a1a4037fa89f33716e7affbb3bb6ecb47b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2017#discussion_r3472628124 -> 2bd1a5a1a4037fa89f33716e7affbb3bb6ecb47b
 Disposition: FIXED
 Commit: 11ee04235745b4083aa818ee68970c0ab1281bda
 Evidence: scripts/ci/install_locked_python_requirements.py:952 and tests/test_install_locked_python_requirements.py:426
@@ -76,6 +82,10 @@ Evidence: .github/workflows/build.yml:54, Dockerfile:58, scripts/ci/install_lock
 Disposition: FIXED
 Commit: a4b0b1405a203119e2ee4f307acd2ca6e0461d97
 Evidence: .github/workflows/build.yml:120, .github/workflows/build.yml:538, scripts/ci/install_locked_python_requirements.py:612, scripts/ci/install_locked_python_requirements.py:1218, tests/test_install_locked_python_requirements.py:202, tests/test_install_locked_python_requirements.py:876, tests/test_python_supply_chain_controls.py:157, tests/test_python_supply_chain_controls.py:1371
+
+Disposition: FIXED
+Commit: 2bd1a5a1a4037fa89f33716e7affbb3bb6ecb47b
+Evidence: scripts/ci/install_locked_python_requirements.py:612 and tests/test_install_locked_python_requirements.py:932
 
 ## Additional Fixed Findings
 
