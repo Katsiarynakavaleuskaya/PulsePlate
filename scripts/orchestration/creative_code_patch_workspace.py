@@ -42,6 +42,11 @@ SECRET_ENV_SUBSTRINGS = (
     "DATABASE_URL",
     "DSN",
 )
+SAFE_GIT_CONFIG_PAIRS = (
+    ("diff.external", ""),
+    ("core.fsmonitor", "false"),
+    ("core.hooksPath", os.devnull),
+)
 
 
 class CreativeCodePatchWorkspaceError(ValueError):
@@ -213,6 +218,15 @@ def git_env_without_parent_state() -> dict[str, str]:
     return sanitized
 
 
+def safe_git_config_args() -> list[str]:
+    """Return command-line config clamps that override checkout-local Git config."""
+
+    args: list[str] = []
+    for key, value in SAFE_GIT_CONFIG_PAIRS:
+        args.extend(["-c", f"{key}={value}"])
+    return args
+
+
 def run_git(
     args: list[str],
     *,
@@ -223,7 +237,7 @@ def run_git(
     """Run git with a resolved binary, no shell, and bounded capture."""
 
     process = subprocess.run(  # nosec B603: absolute git binary with bounded argv for isolated PR-2 checkouts (remove-by: 2026-07-31, ref: PR-2)
-        [resolve_git_binary(), *args],
+        [resolve_git_binary(), *safe_git_config_args(), *args],
         cwd=str(cwd),
         env=git_env_without_parent_state(),
         capture_output=True,

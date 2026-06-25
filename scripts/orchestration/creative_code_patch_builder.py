@@ -58,6 +58,7 @@ RESULT_FILE = "result.json"
 ALLOWED_DIFF_STATUSES = frozenset({"A", "M"})
 REJECTED_DIFF_STATUS_PREFIXES = ("D", "R", "C", "T", "U", "X", "B")
 REJECTED_MODES = frozenset({"120000", "160000"})
+SAFE_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv")
 
 
 class CreativeCodePatchBuilderError(ValueError):
@@ -216,7 +217,7 @@ def _parse_name_status(output: str) -> list[tuple[str, str]]:
 
 
 def _reject_forbidden_name_status(checkout: Path) -> None:
-    detected = run_git(["diff", "--name-status", "HEAD"], cwd=checkout).stdout
+    detected = run_git(["diff", *SAFE_DIFF_FLAGS, "--name-status", "HEAD"], cwd=checkout).stdout
     for status, path in _parse_name_status(detected):
         if status.startswith(REJECTED_DIFF_STATUS_PREFIXES):
             raise CreativeCodePatchBuilderError(
@@ -225,7 +226,10 @@ def _reject_forbidden_name_status(checkout: Path) -> None:
 
 
 def _changed_paths_by_status(checkout: Path) -> dict[str, str]:
-    no_renames = run_git(["diff", "--name-status", "--no-renames", "HEAD"], cwd=checkout).stdout
+    no_renames = run_git(
+        ["diff", *SAFE_DIFF_FLAGS, "--name-status", "--no-renames", "HEAD"],
+        cwd=checkout,
+    ).stdout
     changed: dict[str, str] = {}
     for status, path in _parse_name_status(no_renames):
         if status not in ALLOWED_DIFF_STATUSES:
@@ -235,7 +239,7 @@ def _changed_paths_by_status(checkout: Path) -> dict[str, str]:
 
 
 def _reject_binary_numstat(checkout: Path) -> None:
-    numstat = run_git(["diff", "--numstat", "HEAD"], cwd=checkout).stdout
+    numstat = run_git(["diff", *SAFE_DIFF_FLAGS, "--numstat", "HEAD"], cwd=checkout).stdout
     for line in numstat.splitlines():
         if not line.strip():
             continue
@@ -247,7 +251,7 @@ def _reject_binary_numstat(checkout: Path) -> None:
 
 
 def _reject_modes(checkout: Path) -> None:
-    raw = run_git(["diff", "--raw", "HEAD"], cwd=checkout).stdout
+    raw = run_git(["diff", *SAFE_DIFF_FLAGS, "--raw", "HEAD"], cwd=checkout).stdout
     for line in raw.splitlines():
         if not line.startswith(":"):
             continue
@@ -268,7 +272,7 @@ def _reject_modes(checkout: Path) -> None:
             raise CreativeCodePatchBuilderError(f"candidate patch changes file mode for {path}.")
         if status.startswith("D"):
             raise CreativeCodePatchBuilderError(f"candidate patch deletes a file: {path}")
-    summary = run_git(["diff", "--summary", "HEAD"], cwd=checkout).stdout
+    summary = run_git(["diff", *SAFE_DIFF_FLAGS, "--summary", "HEAD"], cwd=checkout).stdout
     if (
         "mode change" in summary
         or "create mode 120000" in summary
@@ -350,11 +354,11 @@ def _patch_metadata(
     changed_by_status = _changed_paths_by_status(checkout)
     _reject_binary_numstat(checkout)
     _reject_modes(checkout)
-    run_git(["diff", "--check", "HEAD"], cwd=checkout)
+    run_git(["diff", *SAFE_DIFF_FLAGS, "--check", "HEAD"], cwd=checkout)
     changed_paths = _validate_paths(
         changed_by_status=changed_by_status, request=request, bundle=bundle
     )
-    patch_text = run_git(["diff", "--binary", "HEAD"], cwd=checkout).stdout
+    patch_text = run_git(["diff", *SAFE_DIFF_FLAGS, "--binary", "HEAD"], cwd=checkout).stdout
     if not patch_text.strip():
         raise CreativeCodePatchBuilderError("candidate patch is empty.")
     patch_bytes = len(patch_text.encode("utf-8"))

@@ -423,6 +423,33 @@ def test_git_env_strips_secret_and_parent_state(
         assert forbidden not in env
 
 
+def test_run_git_overrides_checkout_local_execution_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, _base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    marker = tmp_path / "external-diff-ran"
+    helper = tmp_path / "external_diff.sh"
+    helper.write_text(f"#!/bin/sh\ntouch {marker}\nexit 0\n", encoding="utf-8")
+    helper.chmod(0o755)
+    _git(repo, "config", "diff.external", str(helper))
+    _git(repo, "config", "core.fsmonitor", str(helper))
+    _git(repo, "config", "core.hooksPath", str(tmp_path))
+    (repo / "core" / "rag" / "orchestration.py").write_text(
+        "def value() -> int:\n    return 2\n",
+        encoding="utf-8",
+    )
+
+    diff = creative_code_patch_workspace.run_git(
+        ["diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD"],
+        cwd=repo,
+    ).stdout
+
+    assert "return 2" in diff
+    assert not marker.exists()
+
+
 def test_experiment_runner_uses_sanitized_git_env(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -447,6 +474,11 @@ def test_experiment_runner_uses_sanitized_git_env(
 
     experiment_runner._run_git(["status", "--short"], cwd=repo)
 
+    argv = captured["args"][0]
+    assert argv[:2] == ["/usr/bin/git", "-c"]
+    assert "diff.external=" in argv
+    assert "core.fsmonitor=false" in argv
+    assert f"core.hooksPath={os.devnull}" in argv
     env = captured["kwargs"]["env"]
     assert env["GIT_CONFIG_GLOBAL"] == os.devnull
     assert env["GIT_CONFIG_NOSYSTEM"] == "1"
@@ -511,6 +543,42 @@ def test_patch_metadata_accepts_allowed_modified_file(
     assert metadata["changed_paths"] == ["core/rag/orchestration.py"]
     assert metadata["patch_fingerprint"].startswith("sha256:")
     assert (run_dir / "candidate.patch").is_file()
+
+
+def test_patch_metadata_ignores_candidate_local_external_diff_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    bundle = _reference_bundle()
+    request = _request_for_base(base_sha)
+    run_dir = creative_code_patch_workspace.resolve_run_dir("patch-no-ext-diff", create=True)
+    creative_code_patch_workspace.prepare_generation_checkout(
+        run_dir=run_dir, base_commit_sha=base_sha
+    )
+    checkout = creative_code_patch_workspace.generation_checkout(run_dir)
+    marker = tmp_path / "candidate-external-diff-ran"
+    helper = tmp_path / "candidate_external_diff.sh"
+    helper.write_text(f"#!/bin/sh\ntouch {marker}\nexit 0\n", encoding="utf-8")
+    helper.chmod(0o755)
+    _git(checkout, "config", "diff.external", str(helper))
+    _git(checkout, "config", "core.fsmonitor", str(helper))
+    _git(checkout, "config", "core.hooksPath", str(tmp_path))
+    (checkout / "core" / "rag" / "orchestration.py").write_text(
+        "def value() -> int:\n    return 2\n",
+        encoding="utf-8",
+    )
+
+    metadata = creative_code_patch_builder._patch_metadata(
+        checkout=checkout,
+        run_dir=run_dir,
+        request=request,
+        bundle=bundle,
+    )
+
+    assert metadata["changed_paths"] == ["core/rag/orchestration.py"]
+    assert not marker.exists()
 
 
 def test_patch_metadata_rejects_unapproved_untracked_file(
