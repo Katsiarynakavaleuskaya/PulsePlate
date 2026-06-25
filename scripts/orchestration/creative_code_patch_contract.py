@@ -32,7 +32,6 @@ from scripts.orchestration.experiment_contract import (
     validate_immutable_oracles,
     validate_metrics,
     validate_mutable_candidate_surface,
-    validate_negative_controls,
 )
 
 SCHEMA_VERSION = "1.0"
@@ -863,23 +862,59 @@ def build_creative_code_patch_build_request(
 def _safe_runner_summary(runner_result: Mapping[str, Any]) -> dict[str, Any]:
     budget_observations = runner_result.get("budget_observations", {})
     if not isinstance(budget_observations, dict):
-        budget_observations = {}
+        raise CreativeCodePatchContractError(
+            "runner_result.budget_observations must be a JSON object."
+        )
     oracle_results = runner_result.get("oracle_results", [])
-    oracle_count = len(oracle_results) if isinstance(oracle_results, list) else 0
+    if not isinstance(oracle_results, list):
+        raise CreativeCodePatchContractError("runner_result.oracle_results must be an array.")
+    mutated_paths = runner_result.get("mutated_paths", [])
+    if not isinstance(mutated_paths, list) or not all(
+        isinstance(path, str) for path in mutated_paths
+    ):
+        raise CreativeCodePatchContractError("runner_result.mutated_paths must be a string array.")
+    experiment_id = runner_result.get("experiment_id")
+    if not isinstance(experiment_id, str):
+        raise CreativeCodePatchContractError("runner_result.experiment_id must be a string.")
+    status = runner_result.get("status", "rejected")
+    if not isinstance(status, str):
+        raise CreativeCodePatchContractError("runner_result.status must be a string.")
+    failure_class = runner_result.get("failure_class")
+    if failure_class is not None and not isinstance(failure_class, str):
+        raise CreativeCodePatchContractError("runner_result.failure_class must be null or string.")
+    shared_tree_untouched = runner_result.get("shared_tree_untouched")
+    if not isinstance(shared_tree_untouched, bool):
+        raise CreativeCodePatchContractError(
+            "runner_result.shared_tree_untouched must be a boolean."
+        )
+    oracle_commands_configured = budget_observations.get("oracle_commands_configured", 0)
+    attempts = budget_observations.get("attempts", 0)
+    retries_consumed = budget_observations.get("retries_consumed", 0)
+    for key, value in (
+        ("oracle_commands_configured", oracle_commands_configured),
+        ("attempts", attempts),
+        ("retries_consumed", retries_consumed),
+    ):
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise CreativeCodePatchContractError(
+                f"runner_result.budget_observations.{key} must be an integer."
+            )
     runner_error = budget_observations.get("runner_error")
-    runner_error_text = str(runner_error) if runner_error is not None else ""
+    if runner_error is not None and not isinstance(runner_error, str):
+        raise CreativeCodePatchContractError(
+            "runner_result.budget_observations.runner_error must be null or string."
+        )
+    runner_error_text = runner_error or ""
     return {
-        "experiment_id": str(runner_result.get("experiment_id", "")),
-        "status": str(runner_result.get("status", "rejected")),
-        "failure_class": runner_result.get("failure_class"),
-        "mutated_path_count": len(runner_result.get("mutated_paths", []) or []),
-        "oracle_commands_configured": int(
-            budget_observations.get("oracle_commands_configured", 0) or 0
-        ),
-        "oracle_commands_executed": oracle_count,
-        "attempts": int(budget_observations.get("attempts", 0) or 0),
-        "retries_consumed": int(budget_observations.get("retries_consumed", 0) or 0),
-        "shared_tree_untouched": bool(runner_result.get("shared_tree_untouched") is True),
+        "experiment_id": experiment_id,
+        "status": status,
+        "failure_class": failure_class,
+        "mutated_path_count": len(mutated_paths),
+        "oracle_commands_configured": oracle_commands_configured,
+        "oracle_commands_executed": len(oracle_results),
+        "attempts": attempts,
+        "retries_consumed": retries_consumed,
+        "shared_tree_untouched": shared_tree_untouched,
         "runner_result_fingerprint": fingerprint_payload(runner_result),
         "runner_error_present": bool(runner_error_text),
         "runner_error_fingerprint": (
@@ -1060,6 +1095,10 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
     workspace_summary = _validate_workspace_summary(normalized["workspace_summary"])
     runner_summary = _validate_runner_summary(normalized["runner_summary"])
     _validate_result_authority(normalized["authority"])
+    if workspace_summary["detached_base_sha"] != normalized["base_commit_sha"]:
+        raise CreativeCodePatchContractError(
+            "workspace_summary.detached_base_sha must match base_commit_sha."
+        )
     if normalized["status"] == "accepted":
         if normalized["failure_class"] is not None:
             raise CreativeCodePatchContractError("accepted results must not have failure_class.")

@@ -189,6 +189,72 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert request_schema["properties"]["allowed_existing_paths"]["$ref"].endswith(
         "path_array_allow_empty"
     )
+    leak_pattern = re.compile(
+        request_schema["$defs"]["non_empty_string_array"]["items"]["not"]["pattern"],
+        re.IGNORECASE,
+    )
+    for blocked in (
+        "authorization: bearer token",
+        "private key material",
+        "api key value",
+    ):
+        assert leak_pattern.search(blocked), blocked
+
+
+def test_patch_result_rejects_workspace_base_sha_mismatch() -> None:
+    result = _reference_result()
+    result["workspace_summary"]["detached_base_sha"] = "b" * 40
+
+    with pytest.raises(CreativeCodePatchContractError, match="detached_base_sha"):
+        validate_creative_code_patch_result(result)
+
+
+def test_build_result_rejects_malformed_runner_summary_inputs() -> None:
+    request = _reference_request()
+    runner_result: dict[str, Any] = {
+        "experiment_id": "exp-pr2-reference",
+        "status": "rejected",
+        "failure_class": "guard_failure",
+        "mutated_paths": ["core/rag/orchestration.py"],
+        "budget_observations": {
+            "oracle_commands_configured": "1",
+            "attempts": 1,
+            "retries_consumed": 0,
+        },
+        "oracle_results": [],
+        "shared_tree_untouched": True,
+    }
+
+    with pytest.raises(CreativeCodePatchContractError, match="oracle_commands_configured"):
+        build_creative_code_patch_result(
+            request=request,
+            changed_paths=["core/rag/orchestration.py"],
+            patch_fingerprint="sha256:" + ("b" * 64),
+            patch_bytes=128,
+            diff_lines=8,
+            runner_result=runner_result,
+            checkout_destroyed=True,
+            origin_removed=True,
+            shared_tree_untouched=True,
+            failure_class="guard_failure",
+        )
+
+    runner_result["budget_observations"]["oracle_commands_configured"] = 1
+    runner_result["mutated_paths"] = "core/rag/orchestration.py"
+
+    with pytest.raises(CreativeCodePatchContractError, match="mutated_paths"):
+        build_creative_code_patch_result(
+            request=request,
+            changed_paths=["core/rag/orchestration.py"],
+            patch_fingerprint="sha256:" + ("b" * 64),
+            patch_bytes=128,
+            diff_lines=8,
+            runner_result=runner_result,
+            checkout_destroyed=True,
+            origin_removed=True,
+            shared_tree_untouched=True,
+            failure_class="guard_failure",
+        )
 
 
 def test_patch_path_schemas_match_validator_for_forbidden_surfaces() -> None:
@@ -363,6 +429,14 @@ def test_executor_builds_fixed_argv_and_strips_secret_env(
     assert openai_key_name not in kwargs["env"]
     assert gh_token_name not in kwargs["env"]
     assert "CODEX_HOME" not in kwargs["env"]
+
+
+def test_executor_honors_explicitly_empty_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", "/home/parent")
+    monkeypatch.setenv("PATH", "/bin")
+    monkeypatch.setenv("OPENAI_API_KEY", "redacted")
+
+    assert creative_code_patch_executor.sanitized_codex_env({}) == {"PATH": ""}
 
 
 def test_binary_resolvers_return_absolute_executables_for_relative_path(
@@ -744,6 +818,56 @@ def test_evaluate_writes_sanitized_result_without_runner_leaks(
     assert "/Users/example" not in encoded
     assert "sk-secret" not in encoded
     assert "diff --git leak" not in encoded
+
+
+def test_evaluate_fallback_stores_error_class_not_raw_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_dir = creative_code_patch_workspace.resolve_run_dir("eval-error-class", create=True)
+    request = _request_for_base(base_sha)
+    state = {
+        "run_id": "eval-error-class",
+        "request_id": request["request_id"],
+        "source_bundle_id": request["source_bundle_id"],
+        "selected_variant_id": request["selected_variant_id"],
+        "base_commit_sha": base_sha,
+        "workspace": {"origin_removed": True},
+        "candidate_patch_generated": True,
+        "checkout_destroyed": True,
+    }
+    patch_text = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+    metadata = {
+        "changed_paths": ["core/rag/orchestration.py"],
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "diff_lines": len(patch_text.splitlines()),
+    }
+    creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
+    creative_code_patch_workspace.write_json_atomic(
+        run_dir / "source_bundle.json", _reference_bundle()
+    )
+    creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
+    creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
+    (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
+
+    def fake_evaluate_candidate(
+        packet: dict[str, Any], candidate_patch_path: Path
+    ) -> dict[str, Any]:
+        raise RuntimeError("/Users/example/ghp_secretsecretsecret")
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fake_evaluate_candidate)
+
+    result = creative_code_patch_builder.evaluate(run_id="eval-error-class")
+    encoded = json.dumps(result, sort_keys=True)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "infra_flake"
+    assert result["runner_summary"]["runner_error_present"] is True
+    assert "/Users/example" not in encoded
+    assert "ghp_secret" not in encoded
 
 
 def test_evaluate_rejects_tampered_candidate_patch(

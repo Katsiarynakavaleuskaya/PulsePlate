@@ -69,7 +69,7 @@ def _absolute_path_env(raw_path: str | None) -> str:
 def sanitized_codex_env(env: dict[str, str] | None = None) -> dict[str, str]:
     """Return a tiny env allowlist with secret-shaped values removed."""
 
-    source = env or os.environ
+    source = os.environ if env is None else env
     sanitized: dict[str, str] = {}
     for key, value in source.items():
         upper_key = key.upper()

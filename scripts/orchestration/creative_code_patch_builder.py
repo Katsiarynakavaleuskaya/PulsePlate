@@ -506,6 +506,7 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
         runner_result = evaluate_candidate(packet, patch_file)
     except Exception as exc:
         failure_class = "infra_flake"
+        runner_error = exc.__class__.__name__
         runner_result = {
             "experiment_id": packet["experiment_id"],
             "runner_mode": "candidate_patch",
@@ -521,7 +522,7 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
                 "candidate_changed_files": len(changed_paths),
                 "attempts": 0,
                 "retries_consumed": 0,
-                "runner_error": str(exc),
+                "runner_error": runner_error,
             },
             "shared_tree_untouched": False,
         }
