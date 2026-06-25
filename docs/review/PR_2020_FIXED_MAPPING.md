@@ -42,6 +42,8 @@ Out of scope:
   `docs(review): record PR 2020 post-open fixes`
 - `96eb82b8fa1a7e822f0d84387dbf472da374dbe4` -
   `docs(review): fix PR 2020 replay command`
+- `91b1c8f1f5b61943f27f7751661d1f3d6a239166` -
+  `fix(ci): keep shard history path idempotent`
 
 ## Lane Start Provenance
 
@@ -118,6 +120,14 @@ Passed locally:
   `make validate-changed`
 - PASS during commit `0dfb47a`: formatting, lint, changed-file backend tests,
   Bandit, and conventional commit checks passed.
+- PASS after bug-hunter double-scope fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
+- PASS after bug-hunter double-scope fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m mypy scripts/ci/run_main_test_shards.py`
+- PASS after bug-hunter double-scope fix:
+  `make validate-changed`
+- PASS during commit `91b1c8f`: formatting, lint, changed-file backend tests,
+  Bandit, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
 machine-heavy CI/tooling exception. Current-head CI is the required heavy
@@ -178,6 +188,18 @@ Evidence:
 `tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist`
 now asserts the `set +e` runner invocation, captured exit code, restored
 `set -e`, and explicit `exit "$test_exit_code"` propagation.
+
+Finding: post-open `bug-hunter` noted that `BAYESIAN_HISTORY_PATH` was scoped in
+the parent shard process and then scoped a second time in explicit child mode,
+turning `/tmp/test_execution_history-py313-shard-3.json` into
+`/tmp/test_execution_history-py313-shard-3-py313-shard-3.json`.
+
+Disposition: FIXED
+Commit: `91b1c8f1f5b61943f27f7751661d1f3d6a239166`
+Evidence: `scripts/ci/run_main_test_shards.py::shard_bayesian_history_path`
+now returns an already shard-scoped history path unchanged, and
+`tests/test_main_test_shards.py::test_build_shard_env_keeps_parent_scoped_bayesian_history_idempotent`
+covers the parent-to-child env path.
 
 ## Security Notes
 
