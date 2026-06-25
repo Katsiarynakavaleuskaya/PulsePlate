@@ -49,6 +49,8 @@ changes.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Fixed mapping artifact created after GitHub assigned PR number `#2021`.
 - [ ] Post-open discussion-thread pass pending.
 - [ ] CodeRabbit comments/actionables inspected.
@@ -59,11 +61,14 @@ changes.
 
 ## Fixed in Commit Mapping
 
-Initial PR open: no human review threads existed at artifact creation.
+- No actionable review comments
 
-No review-thread FIXED mappings are recorded yet. Any post-open actionable bot
-or human findings must be fixed, mapped here with disposition proof, mirrored in
-the PR body, and only then resolved.
+## Mapping Notes
+
+Initial PR open: no human review threads existed at artifact creation. Any
+post-open actionable bot or human findings must be fixed, mapped in
+`## Fixed in Commit Mapping` with disposition proof, mirrored in the PR body,
+and only then resolved.
 
 ## Premortem Findings
 
