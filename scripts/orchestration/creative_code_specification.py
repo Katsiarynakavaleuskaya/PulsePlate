@@ -47,6 +47,12 @@ SECRET_RE = re.compile(
     r"xox[abprs]-|authorization:\s*bearer|private[_ -]?key)",
     re.IGNORECASE,
 )
+LOCAL_ABSOLUTE_PATH_TEXT_RE = re.compile(
+    r"(^|[\s:])"
+    r"(?:~[/\\]|/(?:Users|home|root|etc|var|tmp|private|workspace|workspaces|"
+    r"opt|srv|mnt|media|Volumes|run|proc|sys|dev)(?:/|$))"
+)
+
 UNSAFE_TEXT_RE = re.compile(
     r"(candidate\.patch|diff --git|^\+\+\+ |^--- |@@ |provider[_ -]?payload|"
     r"raw[_ -]?(prompt|response|context)|chain[_ -]?of[_ -]?thought|"
@@ -332,7 +338,7 @@ def _reject_unsafe_text(value: str, *, label: str) -> None:
         raise CreativeCodeSpecificationError(f"{label} must not contain control characters.")
     if SECRET_RE.search(value) or UNSAFE_TEXT_RE.search(value):
         raise CreativeCodeSpecificationError(f"{label} contains unsafe creative-code authority.")
-    if re.search(r"(^|[\s:])(/Users/|/tmp/|/var/folders/|~[/\\])", value):
+    if LOCAL_ABSOLUTE_PATH_TEXT_RE.search(value):
         raise CreativeCodeSpecificationError(f"{label} must not contain local absolute paths.")
 
 

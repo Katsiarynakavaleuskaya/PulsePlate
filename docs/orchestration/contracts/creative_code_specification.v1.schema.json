@@ -281,7 +281,7 @@
         },
         {
           "not": {
-            "pattern": "(^|[\\s:])(/U[s]ers/|/t[m]p/|/v[a]r/folders/|~[/\\\\])"
+            "pattern": "(^|[\\s:])(?:~[/\\\\]|/(?:U[s]ers|h[o]me|r[o]ot|e[t]c|v[a]r|t[m]p|p[r]ivate|w[o]rkspace|w[o]rkspaces|o[p]t|s[r]v|m[n]t|m[e]dia|V[o]lumes|r[u]n|p[r]oc|s[y]s|d[e]v)(?:/|$))"
           }
         }
       ]
