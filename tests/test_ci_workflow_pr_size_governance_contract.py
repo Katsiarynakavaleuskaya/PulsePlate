@@ -555,6 +555,10 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     """Nightly full coverage keeps slow tests but avoids xdist worker shutdown hangs."""
 
     workflow = _load_workflow(NIGHTLY_FULL_TESTS_WORKFLOW_PATH)
+    checkout_step = _job_step_by_name(workflow, job_id="tests", step_name="Checkout")
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["with"]["fetch-depth"] == 0
+
     test_step = _job_step_by_name(
         workflow,
         job_id="tests",
