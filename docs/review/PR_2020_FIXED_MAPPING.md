@@ -54,6 +54,8 @@ Out of scope:
   `fix(ci): avoid nightly shard pool shutdown hang`
 - `7033ea15ded7616be277c2bc6b5be097ff4559dc` -
   `fix(ci): harden nightly shard inputs`
+- `079b8264c40394c6783c3c6f4602d7497a1e3ed7` -
+  `fix(ci): prevent bayesian history deadlocks in shards`
 
 Artifact-only mapping commits may be the latest PR head while carrying no
 code/test behavior. They are not used as self-referential FIXED proof; this
@@ -197,6 +199,23 @@ Passed locally:
     `tests/test_main_test_shards.py` and passed.
 - PASS after CodeRabbit hardening fixes: `pre-commit run --all-files`
 - PASS during commit `7033ea15`: YAML, workflow, formatting, lint, Bandit,
+  changed-file backend tests, and conventional commit checks passed.
+- PASS guard-first after Bayesian history shard fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest tests/test_repo_policy_guards.py tests/guards/test_nosec_policy_guard.py -q`
+- PASS after Bayesian history shard fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; BAYESIAN_PERSIST=1 BAYESIAN_HISTORY_PATH=/tmp/pulseplate-pr2020-bayesian-history-full.json PULSEPLATE_DISABLE_BAYESIAN_HISTORY_IO=1 "$VENV_PYTHON" -m pytest tests/test_bayesian_test_analyzer_additional.py tests/test_bayesian_test_analyzer.py -q`
+- PASS after Bayesian history shard fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; BAYESIAN_PERSIST=1 BAYESIAN_HISTORY_PATH=/tmp/pulseplate-pr2020-bayesian-history-combined.json PULSEPLATE_DISABLE_BAYESIAN_HISTORY_IO=1 "$VENV_PYTHON" -m pytest tests/test_main_test_shards.py tests/test_bayesian_test_analyzer_additional.py tests/test_bayesian_test_analyzer.py -q`
+- PASS after Bayesian history shard fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m py_compile core/bayesian_test_analyzer.py scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py tests/test_bayesian_test_analyzer_additional.py`
+- PASS after Bayesian history shard fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; MYPYPATH=. "$VENV_PYTHON" -m mypy --explicit-package-bases --no-incremental --cache-dir=/dev/null core/bayesian_test_analyzer.py scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py tests/test_bayesian_test_analyzer_additional.py`
+- PASS after Bayesian history shard fix: `make validate-changed`
+  - This selected
+    `tests/test_ci_workflow_pr_size_governance_contract.py` and
+    `tests/test_main_test_shards.py` and passed; focused Bayesian tests above
+    cover the new analyzer surface that branch selection did not select.
+- PASS during commit `079b8264`: formatting, lint, type-hints check, Bandit,
   changed-file backend tests, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
@@ -381,6 +400,27 @@ requires a finite non-negative value, and
 `tests/test_main_test_shards.py::test_main_rejects_unsafe_cli_values` covers
 `nan`, `inf`, and `-inf`.
 
+Finding: manual `Nightly Full Tests` dispatch `28197581540` on head
+`999dce478361f3b00613bc49c7186a43f034e9fb` completed every shard except
+shard 2, then failed with `MAIN_TEST_SHARD_TIMEOUT_FAILED label=py313 index=2
+timeout_seconds=4800`. The earlier faulthandler stacks showed module-level
+Bayesian helper tests blocked in
+`core/bayesian_test_analyzer.py::save_history` while `BAYESIAN_PERSIST=1` was
+enabled under the new no-xdist process shard runner.
+
+Disposition: FIXED
+Commit: `079b8264c40394c6783c3c6f4602d7497a1e3ed7`
+Evidence: `core/bayesian_test_analyzer.py` now uses a reentrant analyzer lock
+for module-level helper reentry and honors
+`PULSEPLATE_DISABLE_BAYESIAN_HISTORY_IO=1` for env-managed shard history file
+I/O only; explicit `data_file` persistence tests still write history.
+`scripts/ci/run_main_test_shards.py::build_shard_env` keeps
+`BAYESIAN_PERSIST` and shard-local `BAYESIAN_HISTORY_PATH` while setting the
+shard-isolation guard. Regression coverage:
+`tests/test_bayesian_test_analyzer_additional.py::test_module_record_execution_persists_without_reentrant_deadlock`,
+`tests/test_bayesian_test_analyzer_additional.py::test_shard_history_io_disable_keeps_persisted_env_stateless`,
+and `tests/test_main_test_shards.py::test_build_shard_env_scopes_bayesian_history_when_persisting`.
+
 ## Security Notes
 
 - Workflow permissions remain `contents: read`.
@@ -392,6 +432,9 @@ requires a finite non-negative value, and
   `|| true` masking were added.
 - The shard runner no longer uses a process pool around subprocess shards; the
   parent process owns and terminates child process groups directly.
+- Process-sharded nightly runs keep the Bayesian persistence env contract but
+  disable env-managed Bayesian history file I/O inside pytest shards to match
+  the old xdist-effective isolation and prevent cross-test state leaks.
 - The new post-shard coverage subprocess is bounded by
   `MAIN_TEST_COVERAGE_TIMEOUT_SECONDS`, uses argv-list execution with
   `sys.executable -m coverage`, does not invoke a shell, and includes a scoped
