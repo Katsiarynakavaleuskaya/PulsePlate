@@ -10,6 +10,7 @@ import sys
 import tempfile
 from concurrent.futures import Future
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -625,7 +626,7 @@ def test_terminate_process_group_sends_sigterm_on_posix(
     monkeypatch.setattr(runner.os, "name", "posix")
     monkeypatch.setattr(runner.os, "killpg", fake_killpg)
 
-    runner._terminate_process_group(FakeProcess())
+    runner._terminate_process_group(cast(subprocess.Popen[bytes], FakeProcess()))
 
     assert signals_sent == [(12_345, signal.SIGTERM)]
 
@@ -654,7 +655,7 @@ def test_terminate_process_group_escalates_to_sigkill_on_timeout(
     monkeypatch.setattr(runner.os, "name", "posix")
     monkeypatch.setattr(runner.os, "killpg", fake_killpg)
 
-    runner._terminate_process_group(FakeProcess())
+    runner._terminate_process_group(cast(subprocess.Popen[bytes], FakeProcess()))
 
     assert signals_sent == [
         (12_345, signal.SIGTERM),
@@ -751,44 +752,39 @@ def test_run_all_shards_stops_refilling_after_first_failure(
         runner.TestShard(index=4, files=[runner.TestFile(Path("tests/test_4.py"), 1)]),
     ]
     submitted: list[int] = []
-    shutdown_calls: list[tuple[bool, bool]] = []
+    terminated: list[int] = []
 
-    class FakeExecutor:
-        _processes: dict[int, object] = {}
+    class FakeProcess:
+        def __init__(self, shard_index: int) -> None:
+            self.pid = shard_index
+            self.shard_index = shard_index
 
-        def __init__(self, **kwargs: object) -> None:
-            del kwargs
+        def poll(self) -> int | None:
+            if self.shard_index == 1:
+                return 124
+            return None
 
-        def shutdown(self, *, wait: bool, cancel_futures: bool = False) -> None:
-            shutdown_calls.append((wait, cancel_futures))
+    def fake_start_shard_process(
+        repo_root: Path,
+        shard: runner.TestShard,
+        base_env: dict[str, str],
+        *args: object,
+    ) -> runner.RunningShard:
+        del repo_root, base_env, args
+        process = FakeProcess(shard.index)
+        submitted.append(shard.index)
+        return runner.RunningShard(
+            shard=shard,
+            process=cast(subprocess.Popen[bytes], process),
+            started_at=runner.time.monotonic(),
+            timeout_seconds=999_999,
+        )
 
-        def submit(
-            self,
-            func: object,
-            repo_root: Path,
-            shard: runner.TestShard,
-            base_env: dict[str, str],
-            *args: object,
-        ) -> Future[int]:
-            del func, repo_root, base_env, args
-            submitted.append(shard.index)
-            future: Future[int] = Future()
-            if shard.index == 1:
-                future.set_result(124)
-            return future
+    def fake_terminate_process_group(process: FakeProcess) -> None:
+        terminated.append(process.shard_index)
 
-    def fake_wait(
-        futures: set[Future[int]] | dict[Future[int], int],
-        *,
-        return_when: object,
-    ) -> tuple[set[Future[int]], set[Future[int]]]:
-        assert return_when is runner.concurrent.futures.FIRST_COMPLETED
-        first = next(iter(futures))
-        remaining = set(futures) - {first}
-        return {first}, remaining
-
-    monkeypatch.setattr(runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
-    monkeypatch.setattr(runner.concurrent.futures, "wait", fake_wait)
+    monkeypatch.setattr(runner, "start_shard_process", fake_start_shard_process)
+    monkeypatch.setattr(runner, "_terminate_process_group", fake_terminate_process_group)
     monkeypatch.setattr(
         runner,
         "run_coverage_command",
@@ -797,9 +793,61 @@ def test_run_all_shards_stops_refilling_after_first_failure(
 
     assert runner.run_all_shards(tmp_path, shards, 2, {}) == 1
     assert submitted == [1, 2]
-    assert shutdown_calls == [(False, True)]
+    assert terminated == [2]
     stderr = capsys.readouterr().err
     assert "MAIN_TEST_SHARD_CANCELLED index=2 reason=fail_fast" in stderr
+    assert "MAIN_TEST_SHARDS_FAILED shards=[1]" in stderr
+
+
+def test_run_all_shards_times_out_and_reports_selected_files(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=1,
+        artifact_label="py313",
+        files=[runner.TestFile(Path("tests/test_slow.py"), 1)],
+    )
+    terminated: list[int] = []
+
+    class FakeProcess:
+        pid = 1
+
+        def poll(self) -> None:
+            return None
+
+    def fake_start_shard_process(
+        repo_root: Path,
+        submitted_shard: runner.TestShard,
+        base_env: dict[str, str],
+        *args: object,
+    ) -> runner.RunningShard:
+        del repo_root, base_env, args
+        return runner.RunningShard(
+            shard=submitted_shard,
+            process=cast(subprocess.Popen[bytes], FakeProcess()),
+            started_at=0.0,
+            timeout_seconds=120,
+        )
+
+    def fake_terminate_process_group(process: FakeProcess) -> None:
+        terminated.append(process.pid)
+
+    monkeypatch.setattr(runner, "start_shard_process", fake_start_shard_process)
+    monkeypatch.setattr(runner, "_terminate_process_group", fake_terminate_process_group)
+    monkeypatch.setattr(runner.time, "monotonic", lambda: 121.0)
+    monkeypatch.setattr(
+        runner,
+        "run_coverage_command",
+        lambda *args, **kwargs: pytest.fail("coverage must not run after shard timeout"),
+    )
+
+    assert runner.run_all_shards(tmp_path, [shard], 1, {}) == 1
+    assert terminated == [1]
+    stderr = capsys.readouterr().err
+    assert "MAIN_TEST_SHARD_TIMEOUT_FAILED label=py313 index=1 timeout_seconds=120" in stderr
+    assert "MAIN_TEST_SHARD_TIMEOUT_FILE label=py313 index=1 path=tests/test_slow.py" in stderr
     assert "MAIN_TEST_SHARDS_FAILED shards=[1]" in stderr
 
 
@@ -898,37 +946,28 @@ def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
     coverage_calls: list[list[str]] = []
     submitted: list[int] = []
 
-    class FakeExecutor:
-        def __init__(self, **kwargs: object) -> None:
-            del kwargs
+    class FakeProcess:
+        pid = 1
 
-        def shutdown(self, *, wait: bool, cancel_futures: bool = False) -> None:
-            assert wait is False
-            assert cancel_futures is True
+        def poll(self) -> int:
+            return 0
 
-        def submit(
-            self,
-            func: object,
-            repo_root: Path,
-            submitted_shard: runner.TestShard,
-            base_env: dict[str, str],
-            *args: object,
-        ) -> Future[int]:
-            del func, args
-            assert repo_root == tmp_path
-            assert base_env == {}
-            submitted.append(submitted_shard.index)
-            future: Future[int] = Future()
-            future.set_result(0)
-            return future
-
-    def fake_wait(
-        futures: set[Future[int]] | dict[Future[int], int],
-        *,
-        return_when: object,
-    ) -> tuple[set[Future[int]], set[Future[int]]]:
-        assert return_when is runner.concurrent.futures.FIRST_COMPLETED
-        return set(futures), set()
+    def fake_start_shard_process(
+        repo_root: Path,
+        submitted_shard: runner.TestShard,
+        base_env: dict[str, str],
+        *args: object,
+    ) -> runner.RunningShard:
+        del args
+        assert repo_root == tmp_path
+        assert base_env == {}
+        submitted.append(submitted_shard.index)
+        return runner.RunningShard(
+            shard=submitted_shard,
+            process=cast(subprocess.Popen[bytes], FakeProcess()),
+            started_at=0.0,
+            timeout_seconds=120,
+        )
 
     def fake_coverage(repo_root: Path, args: list[str], **kwargs: object) -> int:
         del kwargs
@@ -936,8 +975,7 @@ def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
         coverage_calls.append(list(args))
         return 0
 
-    monkeypatch.setattr(runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
-    monkeypatch.setattr(runner.concurrent.futures, "wait", fake_wait)
+    monkeypatch.setattr(runner, "start_shard_process", fake_start_shard_process)
     monkeypatch.setattr(runner, "run_coverage_command", fake_coverage)
 
     assert (
@@ -970,34 +1008,25 @@ def test_run_all_shards_generates_htmlcov_when_requested(
     )
     coverage_calls: list[list[str]] = []
 
-    class FakeExecutor:
-        def __init__(self, **kwargs: object) -> None:
-            del kwargs
+    class FakeProcess:
+        pid = 1
 
-        def shutdown(self, *, wait: bool, cancel_futures: bool = False) -> None:
-            assert wait is False
-            assert cancel_futures is True
+        def poll(self) -> int:
+            return 0
 
-        def submit(
-            self,
-            func: object,
-            repo_root: Path,
-            submitted_shard: runner.TestShard,
-            base_env: dict[str, str],
-            *args: object,
-        ) -> Future[int]:
-            del func, repo_root, submitted_shard, base_env, args
-            future: Future[int] = Future()
-            future.set_result(0)
-            return future
-
-    def fake_wait(
-        futures: set[Future[int]] | dict[Future[int], int],
-        *,
-        return_when: object,
-    ) -> tuple[set[Future[int]], set[Future[int]]]:
-        assert return_when is runner.concurrent.futures.FIRST_COMPLETED
-        return set(futures), set()
+    def fake_start_shard_process(
+        repo_root: Path,
+        submitted_shard: runner.TestShard,
+        base_env: dict[str, str],
+        *args: object,
+    ) -> runner.RunningShard:
+        del repo_root, base_env, args
+        return runner.RunningShard(
+            shard=submitted_shard,
+            process=cast(subprocess.Popen[bytes], FakeProcess()),
+            started_at=0.0,
+            timeout_seconds=120,
+        )
 
     def fake_coverage(repo_root: Path, args: list[str], **kwargs: object) -> int:
         del kwargs
@@ -1005,8 +1034,7 @@ def test_run_all_shards_generates_htmlcov_when_requested(
         coverage_calls.append(list(args))
         return 0
 
-    monkeypatch.setattr(runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
-    monkeypatch.setattr(runner.concurrent.futures, "wait", fake_wait)
+    monkeypatch.setattr(runner, "start_shard_process", fake_start_shard_process)
     monkeypatch.setattr(runner, "run_coverage_command", fake_coverage)
 
     assert runner.run_all_shards(tmp_path, [shard], 1, {}, htmlcov=True) == 0
