@@ -555,6 +555,10 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     """Nightly full coverage keeps slow tests but avoids xdist worker shutdown hangs."""
 
     workflow = _load_workflow(NIGHTLY_FULL_TESTS_WORKFLOW_PATH)
+    assert workflow["permissions"] == {"contents": "read"}
+    job = workflow["jobs"]["tests"]
+    assert "continue-on-error" not in job
+
     checkout_step = _job_step_by_name(workflow, job_id="tests", step_name="Checkout")
     assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
     assert checkout_step["with"]["fetch-depth"] == 0
@@ -568,6 +572,7 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     assert isinstance(run_script, str)
     env = test_step["env"]
     assert isinstance(env, dict)
+    assert "continue-on-error" not in test_step
 
     assert env["BAYESIAN_PERSIST"] == "1"
     assert env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history.json"

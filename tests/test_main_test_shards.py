@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -549,10 +550,17 @@ def test_run_shard_fails_timeout_even_with_clean_artifacts(
     def fake_popen(*args: object, **kwargs: object) -> FakeTimeoutProcess:
         return FakeTimeoutProcess()
 
+    terminated_processes: list[FakeTimeoutProcess] = []
+
+    def fake_terminate_process_group(process: FakeTimeoutProcess) -> None:
+        terminated_processes.append(process)
+
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(runner, "_terminate_process_group", lambda process: None)
+    monkeypatch.setattr(runner, "_terminate_process_group", fake_terminate_process_group)
 
     assert runner.run_shard(tmp_path, shard, {}) == 124
+    assert len(terminated_processes) == 1
+    assert terminated_processes[0].pid == 999_999
     stderr = capsys.readouterr().err
     assert "MAIN_TEST_SHARD_TIMEOUT_FAILED" in stderr
     assert "MAIN_TEST_SHARD_TIMEOUT_FILE label=py312 index=4 path=tests/test_alpha.py" in stderr
@@ -582,11 +590,77 @@ def test_run_shard_fails_timeout_without_clean_artifacts(
     def fake_popen(*args: object, **kwargs: object) -> FakeTimeoutProcess:
         return FakeTimeoutProcess()
 
+    terminated_processes: list[FakeTimeoutProcess] = []
+
+    def fake_terminate_process_group(process: FakeTimeoutProcess) -> None:
+        terminated_processes.append(process)
+
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(runner, "_terminate_process_group", lambda process: None)
+    monkeypatch.setattr(runner, "_terminate_process_group", fake_terminate_process_group)
 
     assert runner.run_shard(tmp_path, shard, {}) == 124
+    assert len(terminated_processes) == 1
+    assert terminated_processes[0].pid == 999_999
     assert "MAIN_TEST_SHARD_TIMEOUT_FAILED" in capsys.readouterr().err
+
+
+def test_terminate_process_group_sends_sigterm_on_posix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signals_sent: list[tuple[int, signal.Signals]] = []
+
+    class FakeProcess:
+        pid = 12_345
+
+        def poll(self) -> None:
+            return None
+
+        def wait(self, *, timeout: int) -> int:
+            assert timeout == 10
+            return 0
+
+    def fake_killpg(pid: int, signum: signal.Signals) -> None:
+        signals_sent.append((pid, signum))
+
+    monkeypatch.setattr(runner.os, "name", "posix")
+    monkeypatch.setattr(runner.os, "killpg", fake_killpg)
+
+    runner._terminate_process_group(FakeProcess())
+
+    assert signals_sent == [(12_345, signal.SIGTERM)]
+
+
+def test_terminate_process_group_escalates_to_sigkill_on_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signals_sent: list[tuple[int, signal.Signals]] = []
+    waits: list[int] = []
+
+    class FakeProcess:
+        pid = 12_345
+
+        def poll(self) -> None:
+            return None
+
+        def wait(self, *, timeout: int) -> int:
+            waits.append(timeout)
+            if len(waits) == 1:
+                raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=timeout)
+            return 0
+
+    def fake_killpg(pid: int, signum: signal.Signals) -> None:
+        signals_sent.append((pid, signum))
+
+    monkeypatch.setattr(runner.os, "name", "posix")
+    monkeypatch.setattr(runner.os, "killpg", fake_killpg)
+
+    runner._terminate_process_group(FakeProcess())
+
+    assert signals_sent == [
+        (12_345, signal.SIGTERM),
+        (12_345, signal.SIGKILL),
+    ]
+    assert waits == [10, 10]
 
 
 def test_run_shard_child_forces_exit_after_pytest_returns(
