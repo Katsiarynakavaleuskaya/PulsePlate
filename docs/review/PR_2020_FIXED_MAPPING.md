@@ -44,6 +44,8 @@ Out of scope:
   `docs(review): fix PR 2020 replay command`
 - `91b1c8f1f5b61943f27f7751661d1f3d6a239166` -
   `fix(ci): keep shard history path idempotent`
+- `b6304b1a9c3615df805ac8c7b7d7b428fad5c052` -
+  `fix(ci): fetch full history for nightly full tests`
 
 ## Lane Start Provenance
 
@@ -128,6 +130,12 @@ Passed locally:
   `make validate-changed`
 - PASS during commit `91b1c8f`: formatting, lint, changed-file backend tests,
   Bandit, and conventional commit checks passed.
+- PASS after manual nightly dispatch failure fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only`
+- PASS after manual nightly dispatch failure fix:
+  `make validate-changed`
+- PASS during commit `b6304b1a`: YAML, workflow, formatting, lint,
+  changed-file backend tests, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
 machine-heavy CI/tooling exception. Current-head CI is the required heavy
@@ -200,6 +208,22 @@ Evidence: `scripts/ci/run_main_test_shards.py::shard_bayesian_history_path`
 now returns an already shard-scoped history path unchanged, and
 `tests/test_main_test_shards.py::test_build_shard_env_keeps_parent_scoped_bayesian_history_idempotent`
 covers the parent-to-child env path.
+
+Finding: manual `Nightly Full Tests` dispatch `28159837728` on head
+`7a690b9e010c4d1d231af6c80b9d91ec40edeed6` failed in shard 16 because
+`tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only`
+could not inspect `origin/main...HEAD` in the shallow `workflow_dispatch`
+checkout: `fatal: origin/main...HEAD: no merge base`.
+
+Disposition: FIXED
+Commit: `b6304b1a9c3615df805ac8c7b7d7b428fad5c052`
+Evidence: `.github/workflows/nightly-tests.yml` now checks out full history
+with `fetch-depth: 0`, matching existing CI jobs that need `origin/main`
+merge-base visibility. The workflow contract test
+`tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist`
+asserts the full-history checkout, and the previously failing guard passed
+locally with
+`tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only`.
 
 ## Security Notes
 
