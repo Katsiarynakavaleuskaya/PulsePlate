@@ -51,7 +51,7 @@ the current runtime contract is hidden-but-routable.
 Closure: FIXED. The source route keeps `include_in_schema=True` to preserve
 source metadata, the final canonical OpenAPI builder continues filtering the
 path, and tests cover both bootstrap visibility drift and final OpenAPI hiding.
-`make openapi-check DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`
+`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" make openapi-check DEV_PYTHON="$VENV_PYTHON"`
 passed with no generated artifact diff.
 
 ### 4. Validation looked green while changed files were not selected
