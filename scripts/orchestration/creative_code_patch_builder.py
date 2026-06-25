@@ -258,6 +258,10 @@ def _reject_modes(checkout: Path) -> None:
         status = parts[4]
         if old_mode in REJECTED_MODES or new_mode in REJECTED_MODES:
             raise CreativeCodePatchBuilderError(f"candidate patch has forbidden mode for {path}.")
+        if (old_mode == "000000" or status.startswith("A")) and new_mode != "100644":
+            raise CreativeCodePatchBuilderError(
+                f"candidate patch creates forbidden mode for {path}."
+            )
         if old_mode != new_mode and old_mode != "000000":
             raise CreativeCodePatchBuilderError(f"candidate patch changes file mode for {path}.")
         if status.startswith("D"):

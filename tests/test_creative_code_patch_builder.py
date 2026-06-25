@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 from typing import Any
@@ -53,16 +54,17 @@ def _git(repo: Path, *args: str, input_text: str | None = None) -> subprocess.Co
     )
 
 
-def _init_patch_repo(tmp_path: Path) -> tuple[Path, str]:
+def _init_patch_repo(tmp_path: Path, *, include_target_file: bool = True) -> tuple[Path, str]:
     repo = tmp_path / "repo"
     (repo / "core" / "rag").mkdir(parents=True)
     (repo / "tests").mkdir()
     (repo / "docs" / "orchestration").mkdir(parents=True)
     (repo / ".gitignore").write_text("artifacts/\n", encoding="utf-8")
-    (repo / "core" / "rag" / "orchestration.py").write_text(
-        "def value() -> int:\n    return 1\n",
-        encoding="utf-8",
-    )
+    if include_target_file:
+        (repo / "core" / "rag" / "orchestration.py").write_text(
+            "def value() -> int:\n    return 1\n",
+            encoding="utf-8",
+        )
     (repo / "tests" / "test_creative_code_patch_builder.py").write_text(
         "def test_placeholder() -> None:\n    assert True\n",
         encoding="utf-8",
@@ -160,6 +162,79 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert request_schema["$defs"]["executor"]["additionalProperties"] is False
     assert result_schema["$defs"]["runner_summary"]["additionalProperties"] is False
     assert result_schema["$defs"]["authority"]["properties"]["write_repository"]["const"] is False
+    assert request_schema["properties"]["allowed_existing_paths"]["$ref"].endswith(
+        "path_array_allow_empty"
+    )
+
+
+def test_patch_path_schemas_match_validator_for_forbidden_surfaces() -> None:
+    request_schema = json.loads(REQUEST_SCHEMA.read_text(encoding="utf-8"))
+    result_schema = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
+    request_pattern = re.compile(request_schema["$defs"]["repo_path"]["pattern"])
+    result_pattern = re.compile(result_schema["$defs"]["repo_path"]["pattern"])
+    forbidden_paths = [
+        "AGENTS.md",
+        "RUNBOOK_AGENT.md",
+        ".github/workflows/ci.yml",
+        ".mypy_cache/cache.json",
+        ".pytest_cache/v/cache/nodeids",
+        ".ruff_cache/cache",
+        ".venv/bin/python",
+        "artifacts/orchestration/result.json",
+        "build/output.txt",
+        "dist/package.whl",
+        "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md",
+        "docs/review/PR_2022_FIXED_MAPPING.md",
+        "frontend/src/App.tsx",
+        "ios/PulsePlate/App.swift",
+        "node_modules/pkg/index.js",
+        "scripts/ci/check.py",
+        "tests/test_example.py",
+        "worktrees/lane/file.py",
+    ]
+    allowed_path = "core/rag/orchestration.py"
+
+    for path in forbidden_paths:
+        assert not request_pattern.fullmatch(path), path
+        assert not result_pattern.fullmatch(path), path
+        request = _reference_request()
+        request["allowed_existing_paths"] = [path]
+        with pytest.raises(CreativeCodePatchContractError, match="forbidden patch surface"):
+            validate_creative_code_patch_build_request(
+                request,
+                source_bundle=_reference_bundle(),
+            )
+
+    assert request_pattern.fullmatch(allowed_path)
+    assert result_pattern.fullmatch(allowed_path)
+
+
+def test_patch_request_allows_allowed_new_only_requests() -> None:
+    request = build_creative_code_patch_build_request(
+        source_bundle=_reference_bundle(),
+        base_commit_sha="a" * 40,
+        approval_ref="PR-2-test-approval",
+        allowed_existing_paths=[],
+        allowed_new_paths=["core/rag/orchestration.py"],
+        oracle_commands=["pytest -q tests/test_creative_code_patch_builder.py"],
+        metrics=["candidate patch supports allowed-new-only requests"],
+        budgets={
+            "generation_attempts": 1,
+            "generation_timeout_seconds": 60,
+            "evaluation_timeout_seconds": 60,
+            "max_changed_files": 3,
+            "max_diff_lines": 200,
+            "max_patch_bytes": 20000,
+        },
+    )
+
+    validated = validate_creative_code_patch_build_request(
+        request,
+        source_bundle=_reference_bundle(),
+    )
+
+    assert validated["allowed_existing_paths"] == []
+    assert validated["allowed_new_paths"] == ["core/rag/orchestration.py"]
 
 
 def test_patch_request_rejects_duplicate_keys(tmp_path: Path) -> None:
@@ -358,6 +433,48 @@ def test_patch_metadata_rejects_symlink_mode_change(
     target.symlink_to("target.py")
 
     with pytest.raises(CreativeCodePatchBuilderError, match="forbidden"):
+        creative_code_patch_builder._patch_metadata(
+            checkout=checkout,
+            run_dir=run_dir,
+            request=request,
+            bundle=_reference_bundle(),
+        )
+
+
+def test_patch_metadata_rejects_new_executable_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path, include_target_file=False)
+    _patch_modules_to_repo(monkeypatch, repo)
+    request = build_creative_code_patch_build_request(
+        source_bundle=_reference_bundle(),
+        base_commit_sha=base_sha,
+        approval_ref="PR-2-test-approval",
+        allowed_existing_paths=[],
+        allowed_new_paths=["core/rag/orchestration.py"],
+        oracle_commands=["pytest -q tests/test_creative_code_patch_builder.py"],
+        metrics=["candidate patch rejects executable new files"],
+        budgets={
+            "generation_attempts": 1,
+            "generation_timeout_seconds": 60,
+            "evaluation_timeout_seconds": 60,
+            "max_changed_files": 3,
+            "max_diff_lines": 200,
+            "max_patch_bytes": 20000,
+        },
+    )
+    run_dir = creative_code_patch_workspace.resolve_run_dir("patch-executable", create=True)
+    creative_code_patch_workspace.prepare_generation_checkout(
+        run_dir=run_dir, base_commit_sha=base_sha
+    )
+    checkout = creative_code_patch_workspace.generation_checkout(run_dir)
+    target = checkout / "core" / "rag" / "orchestration.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("#!/usr/bin/env python3\nprint('x')\n", encoding="utf-8")
+    target.chmod(0o755)
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="forbidden mode"):
         creative_code_patch_builder._patch_metadata(
             checkout=checkout,
             run_dir=run_dir,

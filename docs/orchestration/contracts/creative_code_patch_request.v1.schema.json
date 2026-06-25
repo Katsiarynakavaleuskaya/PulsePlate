@@ -40,7 +40,7 @@
     "human_admission": { "$ref": "#/$defs/human_admission" },
     "authority": { "$ref": "#/$defs/authority" },
     "executor": { "$ref": "#/$defs/executor" },
-    "allowed_existing_paths": { "$ref": "#/$defs/path_array" },
+    "allowed_existing_paths": { "$ref": "#/$defs/path_array_allow_empty" },
     "allowed_new_paths": { "$ref": "#/$defs/path_array_allow_empty" },
     "oracle_commands": { "$ref": "#/$defs/non_empty_string_array" },
     "metrics": { "$ref": "#/$defs/non_empty_string_array" },
@@ -64,7 +64,7 @@
     "repo_path": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!\\.git(?:/|$))(?!\\.github(?:/|$))(?!artifacts(?:/|$))(?!worktrees(?:/|$))(?!tests(?:/|$))(?!docs/orchestration(?:/|$))(?!docs/review(?:/|$))(?!scripts/ci(?:/|$))(?!frontend(?:/|$))(?!ios(?:/|$))(?!node_modules(?:/|$)).+"
+      "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!\\.git(?:/|$))(?!\\.github(?:/|$))(?!\\.gitmodules$)(?!\\.mypy_cache(?:/|$))(?!\\.pytest_cache(?:/|$))(?!\\.ruff_cache(?:/|$))(?!\\.venv(?:/|$))(?!AGENTS\\.md$)(?!RUNBOOK_AGENT\\.md$)(?!artifacts(?:/|$))(?!build(?:/|$))(?!dist(?:/|$))(?!docs/orchestration(?:/|$))(?!docs/review(?:/|$))(?!frontend(?:/|$))(?!ios(?:/|$))(?!node_modules(?:/|$))(?!scripts/ci(?:/|$))(?!tests(?:/|$))(?!worktrees(?:/|$)).+"
     },
     "path_array": {
       "type": "array",
