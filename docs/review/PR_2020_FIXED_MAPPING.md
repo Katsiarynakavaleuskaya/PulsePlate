@@ -217,6 +217,9 @@ blocking until fixed or formally dispositioned with evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2020#discussion_r3476816398 -> 7033ea15ded7616be277c2bc6b5be097ff4559dc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2020#discussion_r3476816414 -> 7033ea15ded7616be277c2bc6b5be097ff4559dc
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2020#pullrequestreview-4573974281 -> 7033ea15ded7616be277c2bc6b5be097ff4559dc
+Disposition: FIXED
+Commit: 7033ea15ded7616be277c2bc6b5be097ff4559dc
+Evidence: `.github/workflows/nightly-tests.yml` sets `persist-credentials: false`; `scripts/ci/run_main_test_shards.py::validate_durations_min` rejects non-finite values; tests cover both contracts.
 
 ## Post-Open Role Findings
 
