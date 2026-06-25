@@ -46,6 +46,8 @@ Out of scope:
   `fix(ci): keep shard history path idempotent`
 - `b6304b1a9c3615df805ac8c7b7d7b428fad5c052` -
   `fix(ci): fetch full history for nightly full tests`
+- `3e280fe02bcb08a119cda75a914d111a77477487` -
+  `fix(ci): bound nightly shard cleanup and coverage phases`
 
 ## Lane Start Provenance
 
@@ -136,6 +138,18 @@ Passed locally:
   `make validate-changed`
 - PASS during commit `b6304b1a`: YAML, workflow, formatting, lint,
   changed-file backend tests, and conventional commit checks passed.
+- PASS after manual nightly timeout fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
+- PASS after manual nightly timeout fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m mypy scripts/ci/run_main_test_shards.py`
+- PASS after manual nightly timeout fix: `git diff --check`
+- PASS after manual nightly timeout fix: `make validate-changed`
+  - This selected
+    `tests/test_ci_workflow_pr_size_governance_contract.py` and
+    `tests/test_main_test_shards.py` and passed.
+- PASS after manual nightly timeout fix: `pre-commit run --all-files`
+- PASS during commit `3e280fe02`: YAML, workflow, formatting, lint, Bandit,
+  changed-file backend tests, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
 machine-heavy CI/tooling exception. Current-head CI is the required heavy
@@ -225,6 +239,25 @@ asserts the full-history checkout, and the previously failing guard passed
 locally with
 `tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only`.
 
+Finding: manual `Nightly Full Tests` dispatch `28163474872` on head
+`f359d81c084aab519de84667ae6bf00ce63fc7c1` was canceled by the 90 minute job
+timeout after all 16 process shards had already reported `exit_code=0`; no
+post-shard `coverage combine/xml/html/report` diagnostics or coverage artifacts
+were emitted.
+
+Disposition: FIXED
+Commit: `3e280fe02bcb08a119cda75a914d111a77477487`
+Evidence: `scripts/ci/run_main_test_shards.py` now terminates known shard
+workers after shard results are collected, shuts down the process pool with
+`wait=False, cancel_futures=True`, runs each post-shard coverage phase through
+the current interpreter as a bounded subprocess, and emits start/success/failure
+or timeout diagnostics for `combine`, `xml`, `html`, and `report`.
+`.github/workflows/nightly-tests.yml` sets and logs
+`MAIN_TEST_COVERAGE_TIMEOUT_SECONDS=1200`, and
+`tests/test_main_test_shards.py` plus
+`tests/test_ci_workflow_pr_size_governance_contract.py` cover the timeout,
+subprocess, shutdown, and workflow contract behavior.
+
 ## Security Notes
 
 - Workflow permissions remain `contents: read`.
@@ -232,8 +265,10 @@ locally with
   private-index env flow.
 - No public PyPI fallback, no dependency upgrade, no `continue-on-error`, and no
   `|| true` masking were added.
-- Runner subprocess behavior remains argv-list based with `sys.executable` and
-  no new subprocess or `# nosec` surface.
+- The new post-shard coverage subprocess is bounded by
+  `MAIN_TEST_COVERAGE_TIMEOUT_SECONDS`, uses argv-list execution with
+  `sys.executable -m coverage`, does not invoke a shell, and includes a scoped
+  Bandit justification on the subprocess call.
 
 ## Merge Readiness
 
