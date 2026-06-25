@@ -34,14 +34,18 @@ DB, dependency, Slack, or GitHub authority.
   Experiment Runner evaluation path, add safe Git config clamps, and fold the
   premortem closure into this parser-safe mapping artifact to preserve the
   15-file privileged hard cap.
+- `1acb0e5ff` - fix the post-open security-auditor `.git/config` escape
+  finding by overriding checkout-local Git execution config, disabling
+  external diff/textconv during patch inspection/export, and adding regression
+  tests.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Initial PR open: no GitHub review threads existed at artifact creation.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` review
-  lane is still required.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` review
+  lane completed; actionable role findings are mapped below.
 - [ ] Codex Security diff scan / finding discovery is still required.
 - [ ] CodeRabbit, Sourcery, Cubic, and human review comments must be fixed or
   dispositioned before merge readiness.
@@ -95,6 +99,16 @@ DB, dependency, Slack, or GitHub authority.
   `tests/test_creative_code_patch_builder.py::test_git_env_strips_secret_and_parent_state`,
   and
   `tests/test_creative_code_patch_builder.py::test_experiment_runner_uses_sanitized_git_env`.
+- Post-open `security-auditor`: candidate-controlled checkout-local
+  `.git/config` could configure `diff.external`, `core.fsmonitor`, or
+  `core.hooksPath` so post-generation Git inspection/export could execute
+  outside the Codex sandbox. Disposition: FIXED. Commit: `1acb0e5ff`.
+  Evidence: `scripts/orchestration/creative_code_patch_workspace.py`,
+  `scripts/orchestration/creative_code_patch_builder.py`,
+  `scripts/orchestration/experiment_runner.py`,
+  `tests/test_creative_code_patch_builder.py::test_run_git_overrides_checkout_local_execution_config`,
+  `tests/test_creative_code_patch_builder.py::test_patch_metadata_ignores_candidate_local_external_diff_config`,
+  and post-fix `security-auditor` rerun PASS.
 
 ## Premortem Closure
 
@@ -137,7 +151,7 @@ Evidence:
   `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`.
 - The `make validate-changed` false-green risk is closed by rerunning
   `make validate-changed` after commit; it selected
-  `tests/test_creative_code_patch_builder.py` and ran 19 tests.
+  `tests/test_creative_code_patch_builder.py tests/test_experiment_runner.py`.
 
 ## Experiment Runner Evidence
 
@@ -145,12 +159,13 @@ Artifact: `artifacts/orchestration/experiments/results/pr2-creative-code-patch-b
 
 Mode: `oracle_only_governance_reviewer`
 
-Result: accepted, `exp-4561b190580c`, `source_diff_paths_count=15`,
+Result: accepted, `exp-f1c3710f58e9`, `source_diff_paths_count=15`,
 `shared_tree_untouched=true`, `coauthor_required=true`.
 
 The accepted oracle-only result shaped the PR-2 validation and commit decision;
 commit `7837abd5f` includes the canonical co-author trailer. The refreshed
-final-diff oracle result also shaped the post-scope-cap mapping/PR-body sync.
+final-diff oracle result also shaped the post-scope-cap mapping/PR-body sync
+and the post-security-hardening validation.
 
 ## Lane Start Provenance
 
@@ -172,6 +187,7 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
   false` schema guards are covered by
   `tests/test_creative_code_patch_builder.py::test_reference_patch_contracts_validate_and_schema_is_closed`.
 - PASS: `make validate-changed`
+  (`tests/test_creative_code_patch_builder.py tests/test_experiment_runner.py`)
 - PASS: `pre-commit run --all-files`
 - PASS during push: changed-file mypy, pip-audit, backend tests, bandit full,
   and docker build test.
@@ -184,7 +200,7 @@ current-head CI parity before any merge-readiness claim.
 
 ## Merge Readiness
 
-Not claimed. PR #2022 still requires current-head CI, post-open role review,
-Codex Security diff scan/finding discovery, `pulseplate-pr-review`, bot review
+Not claimed. PR #2022 still requires current-head CI, Codex Security diff
+scan/finding discovery, `pulseplate-pr-review`, bot review
 disposition, fixed mapping sync for any later comments, and strict
 `check_merge_ready.py --require-auth` evidence before any merge-readiness claim.
