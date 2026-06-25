@@ -685,6 +685,86 @@ def test_legacy_growth_guard_rejects_dunder_import_bodyfat_router_hidden_as_allo
     ]
 
 
+def test_legacy_growth_guard_rejects_aliased_import_module_bodyfat_router() -> None:
+    source = textwrap.dedent("""
+        from importlib import import_module as load_router_module
+
+        business_router = load_router_module("app.routers.bodyfat").router
+        app.include_router(business_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> business_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_simple_import_module_alias_bodyfat_router() -> None:
+    source = textwrap.dedent("""
+        import importlib
+
+        load_router_module = importlib.import_module
+        business_router = load_router_module("app.routers.bodyfat").router
+        app.include_router(business_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> business_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_simple_dunder_import_alias_bodyfat_router() -> None:
+    source = textwrap.dedent("""
+        load_router_module = __import__
+        business_router = load_router_module("app.routers.bodyfat", fromlist=["router"]).router
+        app.include_router(business_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> business_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_destructured_dynamic_bodyfat_router() -> None:
+    source = textwrap.dedent("""
+        import importlib
+
+        business_router, _ = (importlib.import_module("app.routers.bodyfat").router, None)
+        app.include_router(business_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> business_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_walrus_dynamic_bodyfat_router() -> None:
+    source = textwrap.dedent("""
+        import importlib
+
+        if (business_router := importlib.import_module("app.routers.bodyfat").router):
+            app.include_router(business_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> business_router",
+    ]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_restaurant_moderation_registration() -> None:
     source = textwrap.dedent("""
         from app.routers.restaurants import moderation_router as restaurant_moderation_router
