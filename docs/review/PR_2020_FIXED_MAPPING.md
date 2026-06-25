@@ -52,6 +52,8 @@ Out of scope:
   `test(ci): guard nightly fail-closed controls`
 - `f36164b0a5dca55546675befa2358fdf78d7fc40` -
   `fix(ci): avoid nightly shard pool shutdown hang`
+- `7033ea15ded7616be277c2bc6b5be097ff4559dc` -
+  `fix(ci): harden nightly shard inputs`
 
 Artifact-only mapping commits may be the latest PR head while carrying no
 code/test behavior. They are not used as self-referential FIXED proof; this
@@ -183,6 +185,19 @@ Passed locally:
   `pre-commit run --all-files`
 - PASS during commit `f36164b0`: formatting, lint, changed-file backend tests,
   Bandit, and conventional commit checks passed.
+- PASS guard-first after CodeRabbit hardening fixes:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths -q`
+- PASS after CodeRabbit hardening fixes:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py -q`
+- PASS after CodeRabbit hardening fixes:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; MYPYPATH=. "$VENV_PYTHON" -m mypy --explicit-package-bases --no-incremental --cache-dir=/dev/null scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py`
+- PASS after CodeRabbit hardening fixes: `make validate-changed`
+  - This selected
+    `tests/test_ci_workflow_pr_size_governance_contract.py` and
+    `tests/test_main_test_shards.py` and passed.
+- PASS after CodeRabbit hardening fixes: `pre-commit run --all-files`
+- PASS during commit `7033ea15`: YAML, workflow, formatting, lint, Bandit,
+  changed-file backend tests, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
 machine-heavy CI/tooling exception. Current-head CI is the required heavy
@@ -199,7 +214,9 @@ blocking until fixed or formally dispositioned with evidence.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2020#discussion_r3476816398 -> 7033ea15ded7616be277c2bc6b5be097ff4559dc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2020#discussion_r3476816414 -> 7033ea15ded7616be277c2bc6b5be097ff4559dc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2020#pullrequestreview-4573974281 -> 7033ea15ded7616be277c2bc6b5be097ff4559dc
 
 ## Post-Open Role Findings
 
@@ -338,9 +355,34 @@ Reason: Requiring the artifact to map its own final docs-only mapping commit
 would create an endless self-reference loop and would not improve disposition
 proof quality.
 
+Finding: CodeRabbit review comment
+`discussion_r3476816398` noted that `actions/checkout` persisted GitHub
+credentials in the nightly workflow even though the job only needs read-only
+checkout access.
+
+Disposition: FIXED
+Commit: `7033ea15ded7616be277c2bc6b5be097ff4559dc`
+Evidence: `.github/workflows/nightly-tests.yml` now keeps `fetch-depth: 0` for
+merge-base visibility while setting `persist-credentials: false`, and
+`tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist`
+guards the checkout contract.
+
+Finding: CodeRabbit review comment
+`discussion_r3476816414` noted that `--durations-min nan` or infinite values
+could pass CLI validation and poison deterministic shard ordering.
+
+Disposition: FIXED
+Commit: `7033ea15ded7616be277c2bc6b5be097ff4559dc`
+Evidence: `scripts/ci/run_main_test_shards.py::validate_durations_min` now
+requires a finite non-negative value, and
+`tests/test_main_test_shards.py::test_main_rejects_unsafe_cli_values` covers
+`nan`, `inf`, and `-inf`.
+
 ## Security Notes
 
 - Workflow permissions remain `contents: read`.
+- Nightly checkout keeps full history for merge-base guards while disabling
+  persisted checkout credentials.
 - Dependency install continues through the existing `python-setup` action and
   private-index env flow.
 - No public PyPI fallback, no dependency upgrade, no `continue-on-error`, and no
