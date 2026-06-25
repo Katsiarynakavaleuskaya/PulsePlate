@@ -40,6 +40,8 @@ Out of scope:
   `fix(ci): isolate nightly shard history artifacts`
 - `fb6b651078fc1779a0f100bf40a345a26b515c28` -
   `docs(review): record PR 2020 post-open fixes`
+- `96eb82b8fa1a7e822f0d84387dbf472da374dbe4` -
+  `docs(review): fix PR 2020 replay command`
 
 ## Lane Start Provenance
 
@@ -162,7 +164,7 @@ they used `.venv/bin/python` while the shared repo virtualenv is resolved by
 `scripts/hooks/repo_python.sh`.
 
 Disposition: FIXED
-Commit: `fb6b651078fc1779a0f100bf40a345a26b515c28`
+Commit: `96eb82b8fa1a7e822f0d84387dbf472da374dbe4`
 Evidence: local validation commands in this artifact now use
 `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" ...`.
 
