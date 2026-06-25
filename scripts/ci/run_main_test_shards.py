@@ -29,6 +29,7 @@ SLOW_MARK_EXPRESSION = "not slow"
 DEFAULT_MARK_EXPRESSION = SLOW_MARK_EXPRESSION
 DEFAULT_DURATIONS_MIN_SECONDS = "10.0"
 BAYESIAN_PERSIST_TRUTHY = {"1", "true", "yes", "on"}
+BAYESIAN_HISTORY_IO_DISABLED_ENV = "PULSEPLATE_DISABLE_BAYESIAN_HISTORY_IO"
 PYTEST_BASETEMP_ROOT_NAME = "pulseplate-main-test-shards"
 PYTEST_BASETEMP_FALLBACK_ROOT_NAME = "pulseplate-main-test-shards-external"
 POSIX_TEMP_ROOT = Path(os.sep) / "tmp"
@@ -330,6 +331,7 @@ def build_shard_env(base_env: dict[str, str], shard: TestShard, repo_root: Path)
     env.setdefault("PYTEST_FAULTHANDLER_TIMEOUT_S", str(DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS))
     if bayesian_persist_enabled(base_env):
         env["BAYESIAN_HISTORY_PATH"] = shard_bayesian_history_path(base_env, shard)
+        env[BAYESIAN_HISTORY_IO_DISABLED_ENV] = "1"
     return env
 
 

@@ -398,6 +398,7 @@ def test_build_shard_env_scopes_bayesian_history_when_persisting(tmp_path: Path)
     )
 
     assert env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history-py313-shard-3.json"
+    assert env["PULSEPLATE_DISABLE_BAYESIAN_HISTORY_IO"] == "1"
 
 
 def test_build_shard_env_keeps_parent_scoped_bayesian_history_idempotent(
@@ -416,6 +417,7 @@ def test_build_shard_env_keeps_parent_scoped_bayesian_history_idempotent(
     child_env = runner.build_shard_env(parent_env, shard, tmp_path)
 
     assert child_env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history-py313-shard-3.json"
+    assert child_env["PULSEPLATE_DISABLE_BAYESIAN_HISTORY_IO"] == "1"
 
 
 def test_build_shard_env_leaves_bayesian_history_alone_when_not_persisting(tmp_path: Path) -> None:
@@ -427,6 +429,7 @@ def test_build_shard_env_leaves_bayesian_history_alone_when_not_persisting(tmp_p
     )
 
     assert env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history.json"
+    assert "PULSEPLATE_DISABLE_BAYESIAN_HISTORY_IO" not in env
 
 
 def test_shard_timeout_seconds_validates_env(capsys: pytest.CaptureFixture[str]) -> None:

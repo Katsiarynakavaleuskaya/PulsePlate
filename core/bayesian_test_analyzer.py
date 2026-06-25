@@ -30,9 +30,12 @@ from core.bayesian_technical_utils import analyze_technical_aspects_common
 
 logger = logging.getLogger(__name__)
 
-# Thread-safe lock for global analyzer access
-# Protects bayesian_analyzer singleton from race conditions in multi-threaded tests
-_analyzer_lock = threading.Lock()
+BAYESIAN_HISTORY_IO_DISABLED_ENV = "PULSEPLATE_DISABLE_BAYESIAN_HISTORY_IO"
+BAYESIAN_HISTORY_IO_DISABLED_VALUES = {"1", "true", "yes", "on"}
+
+# Thread-safe lock for global analyzer access. Module-level helpers can call
+# analyzer methods that take the same lock while persistence is enabled.
+_analyzer_lock = threading.RLock()
 
 
 class TestStatus(Enum):
@@ -75,6 +78,16 @@ class TestCategory(Enum):
     COVERAGE = "coverage"
     MONTE_CARLO = "monte_carlo"
     BAYESIAN = "bayesian"
+
+
+def _history_io_disabled() -> bool:
+    """Return whether runtime/test isolation should skip history file I/O."""
+
+    return (
+        os.environ.get("PYTEST_XDIST_WORKER") is not None
+        or os.environ.get(BAYESIAN_HISTORY_IO_DISABLED_ENV, "").strip().lower()
+        in BAYESIAN_HISTORY_IO_DISABLED_VALUES
+    )
 
 
 @dataclass
@@ -152,6 +165,7 @@ class BayesianTestAnalyzer:
         # Управление персистентностью истории:
         # Если явно передан data_file в конструктор (как в тестах), считаем, что запись включена.
         truthy = {"1", "true", "yes", "on"}
+        self._history_path_from_env = data_file is None
         if data_file is not None:
             self.persist_enabled = True
             self.data_file = Path(data_file)
@@ -302,7 +316,7 @@ class BayesianTestAnalyzer:
         Skips loading when persist_enabled is False to ensure CI runs are stateless.
         """
         # Skip loading in stateless mode (e.g., CI) to avoid flaky behavior
-        if not self.persist_enabled:
+        if not self.persist_enabled or (self._history_path_from_env and _history_io_disabled()):
             logger.info("Persistence disabled, skipping history load")
             return
 
@@ -343,10 +357,9 @@ class BayesianTestAnalyzer:
         Thread-safe: Acquires _analyzer_lock to read execution_history,
         then releases it before file I/O to avoid blocking other operations.
         """
-        # Disable persistence under xdist to prevent in-process reentrant deadlock
-        import os
-
-        if os.environ.get("PYTEST_XDIST_WORKER"):
+        # Disable file I/O under isolated pytest worker/shard modes. Tests still
+        # exercise in-memory analyzer behavior without cross-test history leaks.
+        if self._history_path_from_env and _history_io_disabled():
             return
 
         # В CI по умолчанию отключаем запись истории, чтобы избежать нестабильных тестов и гонок
