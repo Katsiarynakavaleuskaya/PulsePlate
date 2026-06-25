@@ -56,6 +56,8 @@ Out of scope:
   `fix(ci): harden nightly shard inputs`
 - `079b8264c40394c6783c3c6f4602d7497a1e3ed7` -
   `fix(ci): prevent bayesian history deadlocks in shards`
+- `eebc0299a40421d32eb897eba2a131ece288a926` -
+  `fix(ci): type bayesian analyzer helper`
 
 Artifact-only mapping commits may be the latest PR head while carrying no
 code/test behavior. They are not used as self-referential FIXED proof; this
@@ -216,6 +218,8 @@ Passed locally:
     `tests/test_main_test_shards.py` and passed; focused Bayesian tests above
     cover the new analyzer surface that branch selection did not select.
 - PASS during commit `079b8264`: formatting, lint, type-hints check, Bandit,
+  changed-file backend tests, and conventional commit checks passed.
+- PASS during commit `eebc0299`: formatting, lint, type-hints check, Bandit,
   changed-file backend tests, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
