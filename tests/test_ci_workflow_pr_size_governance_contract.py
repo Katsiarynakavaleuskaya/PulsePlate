@@ -562,6 +562,7 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     checkout_step = _job_step_by_name(workflow, job_id="tests", step_name="Checkout")
     assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
     assert checkout_step["with"]["fetch-depth"] == 0
+    assert checkout_step["with"]["persist-credentials"] is False
 
     test_step = _job_step_by_name(
         workflow,

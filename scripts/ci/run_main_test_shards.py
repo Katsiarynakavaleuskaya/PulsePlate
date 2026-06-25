@@ -7,6 +7,7 @@ import argparse
 import concurrent.futures
 import hashlib
 import importlib.util
+import math
 import os
 import signal
 import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-07-31, ref: PR-1748)
@@ -191,8 +192,8 @@ def validate_durations_min(value: str) -> str:
         parsed_value = float(durations_min)
     except ValueError as exc:
         raise ValueError("durations-min must be numeric") from exc
-    if parsed_value < 0:
-        raise ValueError("durations-min must be non-negative")
+    if not math.isfinite(parsed_value) or parsed_value < 0:
+        raise ValueError("durations-min must be finite and non-negative")
     return durations_min
 
 
