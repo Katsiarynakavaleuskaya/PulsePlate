@@ -154,6 +154,35 @@ def test_legacy_growth_guard_rejects_reintroduced_bmi_plan_routes(
     assert errors == [expected]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_bmi_router_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.bmi import router as bmi_router
+        from app.routers.bmi_pro import router as bmi_pro_router
+        from app.routers.bmi_pro_legacy_alias import router as bmi_pro_legacy_alias_router
+
+        app.include_router(bmi_router)
+        app.include_router(bmi_pro_router)
+        app.include_router(bmi_pro_legacy_alias_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:bmi_pro_legacy_alias_router",
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:bmi_pro_router",
+        "legacy_app.py: unexpected legacy route growth: registration:include_router:bmi_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.bmi:router -> bmi_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.bmi_pro:router -> bmi_pro_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.bmi_pro_legacy_alias:router -> "
+        "bmi_pro_legacy_alias_router",
+    ]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_export_alias_routes() -> None:
     source = textwrap.dedent("""
         @app.get("/api/v1/premium/exports/day/{plan_id}.csv")

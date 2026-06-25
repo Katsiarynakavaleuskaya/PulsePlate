@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, FastAPI, Response, WebSocket
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 import pytest
-from starlette.routing import BaseRoute
+from starlette.responses import JSONResponse
+from starlette.routing import BaseRoute, Route
 
 import app.main as app_main
 from app.bootstrap.route_family import (
@@ -16,6 +17,7 @@ from app.bootstrap.route_family import (
     route_has_dependency_call,
     same_callable_by_module_and_qualname,
 )
+from app.routers.bmi_registration import BmiRouteRegistration, register_bmi_routes
 
 
 @pytest.fixture(autouse=True)
@@ -783,6 +785,16 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "register_tracing", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_vip_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_pro_routes", lambda target_app: (None, None))
+    monkeypatch.setattr(
+        app_main,
+        "register_bmi_routes",
+        lambda target_app: BmiRouteRegistration(
+            bmi_router=APIRouter(),
+            bmi_pro_router=None,
+            bmi_pro_legacy_alias_router=None,
+            feature_bmi_pro_enabled=False,
+        ),
+    )
     monkeypatch.setattr(app_main, "register_pro_contract_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_billing_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "feedback_router", _stub_router("/api/v1/feedback/rag"))
@@ -860,6 +872,240 @@ def test_paid_tier_registration_runs_vip_then_pro_and_mirrors_legacy_attrs(
     assert app_main._legacy_module.vip_router is vip
     assert app_main._legacy_module.pro_router is pro
     assert app_main._legacy_module.premium_week_router is premium_week
+
+
+def test_bmi_registration_runs_and_mirrors_legacy_attrs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    calls: list[str] = []
+    bmi = APIRouter()
+    bmi_pro = APIRouter()
+    bmi_pro_alias = APIRouter()
+
+    def _register_bmi(target_app: FastAPI) -> BmiRouteRegistration:
+        calls.append("bmi")
+        return BmiRouteRegistration(
+            bmi_router=bmi,
+            bmi_pro_router=bmi_pro,
+            bmi_pro_legacy_alias_router=bmi_pro_alias,
+            feature_bmi_pro_enabled=True,
+        )
+
+    monkeypatch.setattr(app_main, "register_bmi_routes", _register_bmi)
+    monkeypatch.setattr(app_main, "FEATURE_BMI_PRO_ENABLED", False)
+    monkeypatch.setattr(app_main, "bmi_router", None)
+    monkeypatch.setattr(app_main, "bmi_pro_router", None)
+    monkeypatch.setattr(app_main, "bmi_pro_legacy_alias_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "FEATURE_BMI_PRO_ENABLED", False)
+    monkeypatch.setattr(app_main._legacy_module, "bmi_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "bmi_pro_router", None)
+    monkeypatch.setattr(app_main._legacy_module, "bmi_pro_legacy_alias_router", None)
+
+    _bootstrap_temp_app(FastAPI())
+
+    assert calls == ["bmi"]
+    assert app_main.FEATURE_BMI_PRO_ENABLED is True
+    assert app_main.bmi_router is bmi
+    assert app_main.bmi_pro_router is bmi_pro
+    assert app_main.bmi_pro_legacy_alias_router is bmi_pro_alias
+    assert app_main._legacy_module.FEATURE_BMI_PRO_ENABLED is True
+    assert app_main._legacy_module.bmi_router is bmi
+    assert app_main._legacy_module.bmi_pro_router is bmi_pro
+    assert app_main._legacy_module.bmi_pro_legacy_alias_router is bmi_pro_alias
+
+
+def _bmi_route_counts(app: FastAPI) -> dict[tuple[str, str], int]:
+    counts: dict[tuple[str, str], int] = {}
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        for method in sorted((route.methods or set()) - {"HEAD", "OPTIONS"}):
+            key = (method, route.path)
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def test_bmi_registration_defaults_to_free_route_only_and_caches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+    app = FastAPI()
+
+    first = register_bmi_routes(app)
+    second = register_bmi_routes(app)
+
+    assert second is first
+    assert first.feature_bmi_pro_enabled is False
+    assert first.bmi_pro_router is None
+    assert first.bmi_pro_legacy_alias_router is None
+    counts = _bmi_route_counts(app)
+    assert counts[("POST", "/api/v1/bmi/calculate")] == 1
+    assert ("POST", "/api/v1/pro/bmi") not in counts
+    assert ("POST", "/api/v1/pro/bmi/calculate") not in counts
+    assert ("POST", "/api/v1/bmi/pro") not in counts
+
+
+def test_bmi_registration_enabled_registers_pro_family_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "true")
+    app = FastAPI()
+
+    registration = register_bmi_routes(app)
+
+    assert registration.feature_bmi_pro_enabled is True
+    assert registration.bmi_pro_router is not None
+    assert registration.bmi_pro_legacy_alias_router is not None
+    counts = _bmi_route_counts(app)
+    assert counts[("POST", "/api/v1/bmi/calculate")] == 1
+    assert counts[("POST", "/api/v1/pro/bmi")] == 1
+    assert counts[("POST", "/api/v1/pro/bmi/calculate")] == 1
+    assert counts[("POST", "/api/v1/bmi/pro")] == 1
+
+
+def test_bmi_registration_rejects_empty_free_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.bmi as bmi_module
+
+    monkeypatch.setattr(bmi_module, "router", APIRouter())
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+
+    with pytest.raises(
+        RuntimeError,
+        match="BMI router from app\\.routers\\.bmi must be a non-empty APIRouter",
+    ):
+        register_bmi_routes(FastAPI())
+
+
+def test_bmi_registration_reports_unexpected_source_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.bmi as bmi_module
+
+    router = APIRouter(prefix="/api/v1/bmi")
+
+    async def _calculate() -> dict[str, str]:
+        return {"status": "calculate"}
+
+    async def _extra() -> dict[str, str]:
+        return {"status": "extra"}
+
+    router.post("/calculate")(_calculate)
+    router.get("/extra")(_extra)
+    monkeypatch.setattr(bmi_module, "router", router)
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "BMI router from app\\.routers\\.bmi route family mismatch: "
+            "missing none; unexpected GET /api/v1/bmi/extra"
+        ),
+    ):
+        register_bmi_routes(FastAPI())
+
+
+def test_bmi_registration_rejects_non_api_route_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.bmi as bmi_module
+
+    router = APIRouter(prefix="/api/v1/bmi")
+
+    async def _plain_route(request: object) -> JSONResponse:
+        return JSONResponse({"path": str(request)})
+
+    router.routes.append(Route("/calculate", _plain_route, methods=["POST"]))
+    monkeypatch.setattr(bmi_module, "router", router)
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "BMI router from app\\.routers\\.bmi contains Route; " "expected APIRoute-only members"
+        ),
+    ):
+        register_bmi_routes(FastAPI())
+
+
+def test_bmi_registration_rejects_multi_method_source_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.bmi as bmi_module
+
+    router = APIRouter(prefix="/api/v1/bmi")
+
+    async def _calculate() -> dict[str, str]:
+        return {"status": "calculate"}
+
+    router.add_api_route("/calculate", _calculate, methods=["GET", "POST"])
+    monkeypatch.setattr(bmi_module, "router", router)
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "BMI router from app\\.routers\\.bmi route /api/v1/bmi/calculate "
+            "exposes methods \\['GET', 'POST'\\]; expected exactly one "
+            "non-framework method"
+        ),
+    ):
+        register_bmi_routes(FastAPI())
+
+
+def test_bmi_registration_rejects_duplicate_source_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.bmi as bmi_module
+
+    router = APIRouter(prefix="/api/v1/bmi")
+
+    async def _calculate() -> dict[str, str]:
+        return {"status": "calculate"}
+
+    async def _duplicate_calculate() -> dict[str, str]:
+        return {"status": "duplicate"}
+
+    router.post("/calculate")(_calculate)
+    router.post("/calculate")(_duplicate_calculate)
+    monkeypatch.setattr(bmi_module, "router", router)
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "BMI router from app\\.routers\\.bmi defines duplicate route "
+            "POST /api/v1/bmi/calculate"
+        ),
+    ):
+        register_bmi_routes(FastAPI())
+
+
+def test_bmi_registration_rejects_source_route_openapi_visibility_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.bmi as bmi_module
+
+    router = APIRouter(prefix="/api/v1/bmi")
+
+    async def _calculate() -> dict[str, str]:
+        return {"status": "calculate"}
+
+    router.post("/calculate", include_in_schema=False)(_calculate)
+    monkeypatch.setattr(bmi_module, "router", router)
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "BMI router from app\\.routers\\.bmi route POST "
+            "/api/v1/bmi/calculate has include_in_schema=False; "
+            "expected include_in_schema=True"
+        ),
+    ):
+        register_bmi_routes(FastAPI())
 
 
 def test_vip_compat_resolver_returns_none_when_vip_disabled(
