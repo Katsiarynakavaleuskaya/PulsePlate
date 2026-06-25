@@ -49,9 +49,6 @@ from app.http_error_details import (
     INVALID_PREMIUM_PLATE_INPUT_DETAIL,
 )
 from app.routers.api_key import api_key_header
-from app.routers.bmi import router as bmi_router
-from app.routers.bmi_pro import router as bmi_pro_router
-from app.routers.bmi_pro_legacy_alias import router as bmi_pro_legacy_alias_router
 from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
@@ -181,6 +178,13 @@ except ImportError:  # pragma: no cover - optional dependency in runtime
 # Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
 premium_week_router: Optional[APIRouter] = None
 pro_router: Optional[APIRouter] = None
+
+# BMI route registration is owned by app.main canonical bootstrap.
+# Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
+FEATURE_BMI_PRO_ENABLED: bool = False
+bmi_router: Optional[APIRouter] = None
+bmi_pro_router: Optional[APIRouter] = None
+bmi_pro_legacy_alias_router: Optional[APIRouter] = None
 
 # Preserve import-time references so later monkeypatching does not mask availability checks
 _BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
@@ -4316,18 +4320,7 @@ if EXPORTS_ENABLED:
 if get_bodyfat_router is not None:
     app.include_router(get_bodyfat_router(), prefix="/api/v1")
 
-# Include BMI Pro router (with feature flag). Defaults to disabled for safety.
-_bmi_pro_flag = os.getenv("FEATURE_BMI_PRO_ENABLED")
-FEATURE_BMI_PRO_ENABLED = _is_truthy(_bmi_pro_flag) if _bmi_pro_flag is not None else False
-if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
-    # Register canonical PRO endpoint: /api/v1/pro/bmi
-    app.include_router(bmi_pro_router)
-    # Register legacy shim for backward compatibility: /api/v1/bmi/pro (deprecated)
-    if bmi_pro_legacy_alias_router:
-        app.include_router(bmi_pro_legacy_alias_router)
-
-# Include BMI router (FREE tier, no API key required)
-app.include_router(bmi_router)
+# BMI and BMI Pro route registration is owned by app.main canonical bootstrap.
 
 # Include Business router (with feature flag). Defaults to disabled for safety.
 

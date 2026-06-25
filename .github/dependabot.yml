@@ -51,7 +51,6 @@ updates:
       dev-tools:
         patterns:
           - "pip-audit"
-          - "safety"
           - "pre-commit"
         update-types:
           - "minor"

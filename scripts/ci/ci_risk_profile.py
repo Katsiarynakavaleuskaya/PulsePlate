@@ -59,7 +59,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "requirements-rag-vector.txt",
     "requirements-rag-vector-cpu.in",
     "requirements-rag-vector-cpu.txt",
-    "requirements-security.txt",
+    "scripts/ci_pip_audit.sh",
     "requirements.txt",
 )
 # Provider implementations can change auth, network, or model routing behavior,
@@ -80,6 +80,7 @@ WORKFLOW_PRIVILEGED_EXACT: tuple[str, ...] = (
     ".github/pull_request_template.md",
     "AGENTS.md",
     "RUNBOOK_AGENT.md",
+    "scripts/ci_pip_audit.sh",
     "scripts/orchestration/check_agent_consistency.py",
     "scripts/orchestration/check_merge_ready.py",
     "scripts/orchestration/check_review_threads_disposition.py",

@@ -171,8 +171,8 @@ coverage registry is:
 
 Every file in this registry must be covered consistently by Python dependency
 submission path filters and CI risk-profile routing. Every compiled lockfile in
-this registry must also be covered by the shared Safety audit helper and the
-pip-audit helper. The supply-chain guard in
+this registry must also be covered by the shared pip-audit helper. The
+supply-chain guard in
 `tests/test_python_supply_chain_controls.py` fails if the local/manual eval/data
 profiles drift from those security surfaces. This registry does not make
 `requirements-data.txt` or `requirements-evals.txt` shared install profiles;

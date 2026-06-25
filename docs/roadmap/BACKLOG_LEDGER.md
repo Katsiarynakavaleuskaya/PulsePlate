@@ -700,36 +700,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Follow-up surfaces (`paywall-copy-alignment`, CBT premium packaging, business-wave follow-through) remain explicitly deferred until after PR-3
 
 <a id="ledger-p1-fonttools-private-index-bump"></a>
-- [ ] P1: Bump fonttools to >=4.62.0 after private Python index mirrors fixed wheels (remove Safety ignore 88739)
+- [ ] P1: Recheck fonttools >=4.62.0 after private Python index mirrors fixed wheels
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain / CVE debt; mirrors `docs/security/` waiver discipline)
   - Target PR: TBD (land when `PULSEPLATE_PYTHON_INDEX_URL` resolves `fonttools>=4.62.0` with locked install + Docker)
   - Area: security / CI / dependencies
-  - Reason (EN): Public PyPI ships patched `fonttools`; the approved private index currently exposes only `4.61.1`, so pins and Safety policy ignore PyUp `88739` are intentional until the mirror syncs. (RU: зеркало пакетов отстаёт от PyPI — после появления колеса >=4.62.0 убрать ignore и поднять пин.)
+  - Reason (EN): Public PyPI ships patched `fonttools`; the approved private index currently exposes only `4.61.1`, so pins stay unchanged until the mirror syncs. The former Safety policy ignore was removed when Safety was retired from CI dependency auditing; keep this item as the mirror-sync recheck record. (RU: зеркало пакетов отстаёт от PyPI — после появления колеса >=4.62.0 поднять пин; Safety policy больше не активная поверхность.)
   - Links:
     - `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md:1`
-    - `safety-policy.yaml:12`
     - `requirements.txt:57`
     - `scripts/ci/install_locked_python_requirements.py:277`
   - DoD:
     - `requirements.txt`, `requirements-ci-lite.txt`, `requirements-lock.txt` pin `fonttools>=4.62.0` (or exact fixed version available on the private index)
-    - Remove `88739` from `safety-policy.yaml`
+    - `pip-audit` and Dependabot alert state do not report an active fonttools finding
     - Locked install + Docker production target succeed against the private index; `make verify` green
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
 <a id="ledger-p1-pytorch-jit-cve-2025-3000-vector-profile"></a>
-- [ ] P1: Retire PyTorch TorchScript CVE-2025-3000 Safety waiver for optional vector profile
+- [ ] P1: Retire PyTorch TorchScript CVE-2025-3000 pip-audit waiver for optional vector profile
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain / optional RAG-vector profile)
   - Target PR: PR2 security-alert sequence (land by 2026-07-17 or earlier if fixed torch builds are available)
   - Area: security / CI / dependencies / RAG-vector
-  - Reason (EN): Recheck on 2026-06-18 found GitHub Advisory
-    `GHSA-rrmf-rvhw-rf47` and Safety `SFTY-20250331-30014` still marking
+  - Reason (EN): Recheck on 2026-06-24 found GitHub Advisory
+    `GHSA-rrmf-rvhw-rf47` and `pip-audit` / OSV still marking
     `torch <=2.12.0` as affected by `CVE-2025-3000`, with no patched torch
-    release listed in advisory metadata. PyPI has a newer `torch 2.12.1`
-    release, but it is not treated as fixed until advisory and approved
-    private-index evidence agree. PulsePlate pins `torch==2.11.0` /
-    `torch==2.11.0+cpu` only in optional RAG/vector manifests.
+    release listed in advisory metadata. Do not treat a newer upstream release
+    as fixed until advisory and approved private-index evidence agree.
+    PulsePlate pins `torch==2.11.0` / `torch==2.11.0+cpu` only in optional
+    RAG/vector manifests.
     `requirements.txt`, `requirements-ci-lite.txt`,
     `requirements-docker-runtime.txt`, and `requirements-lock.txt` have no
     direct `torch` pin, so any CI-lite Dependabot alert is dependency graph lag
@@ -738,20 +737,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     advisory correction, or vector-profile replacement is available.
   - Links:
     - `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md:1`
-    - `safety-policy.yaml:16`
+    - `scripts/ci_pip_audit.sh`
     - `requirements-rag-vector.txt:162`
     - `requirements-rag-vector-cpu.txt:119`
     - `requirements-ci-lite.txt`: no direct `torch` pin
   - DoD:
-    - Re-check Safety, OSV, GitHub Advisory Database, and PyTorch upstream for
+    - Re-check OSV, GitHub Advisory Database, pip-audit, and PyTorch upstream for
       fixed-version truth before changing pins.
     - If fixed torch builds exist and the approved index serves them, bump
       `requirements-rag-vector.txt` and `requirements-rag-vector-cpu.txt`.
     - If no fixed build exists, replace or disable the TorchScript-dependent
       optional vector capability, or extend the waiver with fresh evidence and a
       new remove-by date.
-    - Remove `SFTY-20250331-30014` from `safety-policy.yaml` and close this
-      ledger item in the same PR.
+    - Remove the `CVE-2025-3000` waiver from `scripts/ci_pip_audit.sh` and close
+      this ledger item in the same PR.
 
 <a id="ledger-p1-msgpack-ci-lite-alert-recheck"></a>
 - [ ] P1: Recheck msgpack Dependabot alert #225 after dev/full-lock remediation
@@ -1028,15 +1027,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover the promoted install-profile contract
 
 <a id="ledger-p1-safety-audit-shared-script-after-pr1479"></a>
-- [x] P1: Shared Safety audit script after install-profile split
+- [x] P1: Shared dependency audit script after install-profile split
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1515 (`codex/shared-safety-audit-script`)
   - Area: CI / security workflow / supply-chain
-  - Status note: Merged via `PR #1515`. The canonical Safety multi-manifest audit now lives in `scripts/ci/run_safety_audit.py`, while `.github/workflows/ci.yml` and `.github/workflows/security.yml` delegate to the helper and keep the existing `safety-*` artifact contract.
+  - Status note: Merged via `PR #1515`; superseded on 2026-06-24 by the
+    no-legacy Safety retirement lane, which moves blocking dependency audit to
+    `scripts/ci_pip_audit.sh` and removes the Safety helper/policy/artifacts.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
-  - Reason: PR #1479 intentionally keeps the install-profile split narrow. The multi-manifest Safety audit loop now exists in both `.github/workflows/ci.yml` and `.github/workflows/security.yml`; extract the shared invocation/reporting path into a single script only after the split lands so future Safety changes happen in one place without reopening the current stabilization slice.
+  - Reason: PR #1479 intentionally kept the install-profile split narrow. The
+    follow-up first extracted a shared Safety audit helper; the 2026-06-24
+    no-legacy remediation superseded that implementation with the shared
+    `pip-audit` helper after Safety reintroduced vulnerable transitive `nltk`.
   - Links:
     - `.github/workflows/ci.yml`
     - `.github/workflows/security.yml`
@@ -1045,11 +1049,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Evidence:
     - `.github/workflows/ci.yml:440-485`
     - `.github/workflows/security.yml:120-167`
-    - `.github/scripts/parse-safety-report.py:1-83`
+    - `scripts/ci_pip_audit.sh`
   - DoD:
-    - Canonical Safety multi-manifest invocation and report generation live in one shared script under `scripts/ci/`
-    - `ci.yml` and `security.yml` both delegate to the shared helper instead of duplicating the loop logic
-    - Deterministic tests cover per-manifest artifact naming and fail-closed severity aggregation
+    - Canonical multi-manifest dependency audit invocation and report generation
+      live in one shared script.
+    - `ci.yml`, `security.yml`, and nightly security checks delegate to the shared
+      helper instead of duplicating audit loops.
+    - Deterministic tests cover per-manifest artifact naming, fail-closed
+      execution, and the scoped optional-RAG torch waiver.
 
 <a id="ledger-p1-docker-deploy-contract-reconciliation"></a>
 - [x] P1: Docker deploy contract reconciliation after install-profile split

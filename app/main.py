@@ -39,6 +39,7 @@ from app.routers.admin_operations import (
     router as admin_operations_router,
 )
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router as bmi_compat_router
+from app.routers.bmi_registration import BmiRouteRegistration, register_bmi_routes
 from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
@@ -75,6 +76,14 @@ VIP_MODULE_ENABLED: bool = bool(getattr(_legacy_module, "VIP_MODULE_ENABLED", Fa
 vip_router: APIRouter | None = getattr(_legacy_module, "vip_router", None)
 pro_router: APIRouter | None = getattr(_legacy_module, "pro_router", None)
 premium_week_router: APIRouter | None = getattr(_legacy_module, "premium_week_router", None)
+FEATURE_BMI_PRO_ENABLED: bool = bool(getattr(_legacy_module, "FEATURE_BMI_PRO_ENABLED", False))
+bmi_router: APIRouter | None = getattr(_legacy_module, "bmi_router", None)
+bmi_pro_router: APIRouter | None = getattr(_legacy_module, "bmi_pro_router", None)
+bmi_pro_legacy_alias_router: APIRouter | None = getattr(
+    _legacy_module,
+    "bmi_pro_legacy_alias_router",
+    None,
+)
 
 _WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
 _FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
@@ -837,6 +846,23 @@ def _register_paid_tier_routes(target_app: FastAPI) -> None:
     _mirror_paid_tier_registration_attrs(registered_pro_router, registered_premium_week_router)
 
 
+def _mirror_bmi_registration_attrs(registration: BmiRouteRegistration) -> None:
+    global FEATURE_BMI_PRO_ENABLED, bmi_router, bmi_pro_router, bmi_pro_legacy_alias_router
+
+    FEATURE_BMI_PRO_ENABLED = registration.feature_bmi_pro_enabled
+    bmi_router = registration.bmi_router
+    bmi_pro_router = registration.bmi_pro_router
+    bmi_pro_legacy_alias_router = registration.bmi_pro_legacy_alias_router
+    _legacy_module.FEATURE_BMI_PRO_ENABLED = registration.feature_bmi_pro_enabled
+    _legacy_module.bmi_router = registration.bmi_router
+    _legacy_module.bmi_pro_router = registration.bmi_pro_router
+    _legacy_module.bmi_pro_legacy_alias_router = registration.bmi_pro_legacy_alias_router
+
+
+def _register_bmi_routes(target_app: FastAPI) -> None:
+    _mirror_bmi_registration_attrs(register_bmi_routes(target_app))
+
+
 def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     """Apply canonical additive bootstrap to the provided FastAPI instance.
 
@@ -896,6 +922,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_legal_router_if_needed(app)
     _include_favicon_router_if_needed(app)
     _include_admin_operations_router_if_needed(app)
+    _register_bmi_routes(app)
     _include_bmi_compat_router_if_needed(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)

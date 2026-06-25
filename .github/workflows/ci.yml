@@ -502,81 +502,10 @@ jobs:
             --fail-on-high \
             --github-annotations
 
-      - name: Configure private Python index authentication for Safety
-        env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+      - name: Dependency audit with pip-audit
         run: |
           set -euo pipefail
-          if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then
-            exit 0
-          fi
-          if [[ -z "${DEVPI_CI_USER:-}" || -z "${DEVPI_CI_PASSWORD:-}" ]]; then
-            echo "::error::Set both DEVPI_CI_USER and DEVPI_CI_PASSWORD, or neither."
-            exit 1
-          fi
-          case "$DEVPI_CI_USER$DEVPI_CI_PASSWORD" in
-            *[[:space:]]*)
-              echo "::error::DEVPI_CI_USER and DEVPI_CI_PASSWORD must not contain whitespace."
-              exit 1
-              ;;
-          esac
-          case "$DEVPI_CI_USER" in
-            [Rr][Oo][Oo][Tt])
-              echo "::error::Root devpi credentials are forbidden for CI package installs."
-              exit 1
-              ;;
-          esac
-          case "${PULSEPLATE_PYTHON_INDEX_URL:-}" in
-            *://*@*)
-              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must not contain credentials; use DEVPI_CI_USER/DEVPI_CI_PASSWORD."
-              exit 1
-              ;;
-          esac
-          if [[ -e "$HOME/.netrc" ]]; then
-            echo "::error::Refusing to overwrite an existing .netrc."
-            exit 1
-          fi
-          : "${RUNNER_TEMP:?RUNNER_TEMP is required for .netrc cleanup marker.}"
-          marker="$RUNNER_TEMP/pulseplate-safety-netrc-created"
-          umask 077
-          touch "$marker"
-          cat > "$HOME/.netrc" <<EOF
-          machine packages.pulseplate.app
-            login ${DEVPI_CI_USER}
-            password ${DEVPI_CI_PASSWORD}
-          EOF
-
-      - name: Install Safety
-        run: |
-          set -euo pipefail
-          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-          install_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
-          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
-          fi
-          python scripts/ci/install_locked_python_requirements.py \
-            --requirements-file requirements-security.txt \
-            --constraints-file constraints.txt \
-            --install-mode direct-proxy \
-            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
-            "${install_args[@]}"
-
-      - name: Remove private Python index authentication for Safety
-        if: ${{ always() }}
-        run: |
-          set -euo pipefail
-          marker="${RUNNER_TEMP:-}/pulseplate-safety-netrc-created"
-          if [[ -n "${RUNNER_TEMP:-}" && -f "$marker" ]]; then
-            rm -f "$HOME/.netrc" "$marker"
-          fi
-
-      - name: Dependency audit with Safety
-        env:
-          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
-        run: |
-          set -euo pipefail
-          python3 scripts/ci/run_safety_audit.py
+          bash scripts/ci_pip_audit.sh
 
       - name: Upload bandit artifact
         if: always()
@@ -585,9 +514,7 @@ jobs:
           name: security-reports
           path: |
             bandit-report.json
-            safety-*.json
-            safety-*.txt
-            safety-*.log
+            pip-audit-*.json
           if-no-files-found: ignore
           retention-days: 7
 

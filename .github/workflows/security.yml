@@ -32,21 +32,6 @@ jobs:
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
-      - name: Install security tooling
-        run: |
-          set -euo pipefail
-          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set PULSEPLATE_PYTHON_INDEX_URL to the approved private package proxy URL.}"
-          install_args=(--index-url "$PULSEPLATE_PYTHON_INDEX_URL")
-          if [[ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]]; then
-            install_args+=(--trusted-host "$PULSEPLATE_PYTHON_TRUSTED_HOST")
-          fi
-          python scripts/ci/install_locked_python_requirements.py \
-            --requirements-file requirements-security.txt \
-            --constraints-file constraints.txt \
-            --install-mode direct-proxy \
-            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
-            "${install_args[@]}"
-
       - name: Production runtime invariant guard
         run: |
           set -euo pipefail
@@ -94,13 +79,10 @@ jobs:
             echo "::warning::Bandit reported issues in test scan output – review the Bandit log"
           fi
 
-      - name: Run Safety (dependency audit with policy)
-        env:
-          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
+      - name: Run pip-audit (dependency audit)
         run: |
           set -euo pipefail
-          python3 scripts/ci/run_safety_audit.py
-
+          bash scripts/ci_pip_audit.sh
 
       - name: Upload security reports
         if: always()
@@ -109,7 +91,5 @@ jobs:
           name: security-reports
           path: |
             bandit-report.json
-            safety-*.json
-            safety-*.txt
-            safety-*.log
+            pip-audit-*.json
           if-no-files-found: ignore
