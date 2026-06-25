@@ -36,6 +36,8 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
   interpreter tags, tighten exact-version proxy preflight matching, broaden the
   direct-pip workflow guard, and keep final merge-readiness checklist items
   unchecked until the final merge cycle.
+- `823b10d53c63b77990401f1e1ab2383861ecd2ab` - keep the target wheel-tag probe
+  payload validation explicit enough for local and pre-push mypy.
 
 ## Discussion Thread Pass
 
