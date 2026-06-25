@@ -30,6 +30,10 @@ DB, dependency, Slack, or GitHub authority.
 - `b656cf801` - fix post-open security-auditor finding by replacing broad Git
   subprocess environment inheritance with an allowlisted, secret-stripped,
   normalized environment and focused regression coverage.
+- `f44ba19c8` - extend the Git environment clamp through the direct
+  Experiment Runner evaluation path, add safe Git config clamps, and fold the
+  premortem closure into this parser-safe mapping artifact to preserve the
+  15-file privileged hard cap.
 
 ## Discussion Thread Pass
 
@@ -85,7 +89,7 @@ DB, dependency, Slack, or GitHub authority.
   `tests/test_creative_code_patch_builder.py::test_binary_resolvers_return_absolute_executables_for_relative_path`.
 - Post-open `security-auditor`: Git subprocesses inherited almost the entire
   parent environment and could receive local secrets or credential-shaped
-  values. Disposition: FIXED. Commit: `b656cf801`. Evidence:
+  values. Disposition: FIXED. Commit: `f44ba19c8`. Evidence:
   `scripts/orchestration/creative_code_patch_workspace.py`,
   `scripts/orchestration/experiment_runner.py`,
   `tests/test_creative_code_patch_builder.py::test_git_env_strips_secret_and_parent_state`,
@@ -133,7 +137,7 @@ Evidence:
   `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`.
 - The `make validate-changed` false-green risk is closed by rerunning
   `make validate-changed` after commit; it selected
-  `tests/test_creative_code_patch_builder.py` and ran 18 tests.
+  `tests/test_creative_code_patch_builder.py` and ran 19 tests.
 
 ## Experiment Runner Evidence
 
