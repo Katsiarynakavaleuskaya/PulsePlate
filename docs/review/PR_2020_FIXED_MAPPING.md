@@ -170,11 +170,11 @@ Passed locally:
 - PASS during commit `8a610447`: formatting, lint, changed-file backend
   tests, and conventional commit checks passed.
 - PASS after current-head nightly parent-hang fix:
-  `VENV_PYTHON="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python"; "$VENV_PYTHON" -m pytest tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py -q`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py -q`
 - PASS after current-head nightly parent-hang fix:
-  `VENV_PYTHON="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python"; MYPYPATH=. "$VENV_PYTHON" -m mypy --explicit-package-bases --no-incremental --cache-dir=/dev/null scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; MYPYPATH=. "$VENV_PYTHON" -m mypy --explicit-package-bases --no-incremental --cache-dir=/dev/null scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py`
 - PASS after current-head nightly parent-hang fix:
-  `VENV_PYTHON="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python"; "$VENV_PYTHON" scripts/ci/run_main_test_shards.py --python-version 3.13 --shard-count 16 --max-parallel 4 --marker-expression 'not demo' --durations-min 1.0 --report-chars fEsxXw --htmlcov --list-shards`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" scripts/ci/run_main_test_shards.py --python-version 3.13 --shard-count 16 --max-parallel 4 --marker-expression 'not demo' --durations-min 1.0 --report-chars fEsxXw --htmlcov --list-shards`
 - PASS after current-head nightly parent-hang fix: `make validate-changed`
   - This selected
     `tests/test_ci_workflow_pr_size_governance_contract.py` and
