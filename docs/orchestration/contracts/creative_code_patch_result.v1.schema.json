@@ -39,7 +39,7 @@
     "selected_variant_fingerprint": { "$ref": "#/$defs/sha256" },
     "base_commit_sha": { "$ref": "#/$defs/git_sha" },
     "status": { "enum": ["accepted", "rejected"] },
-    "failure_class": { "type": ["string", "null"] },
+    "failure_class": { "$ref": "#/$defs/failure_class" },
     "changed_paths": { "$ref": "#/$defs/path_array" },
     "patch_summary": { "$ref": "#/$defs/patch_summary" },
     "workspace_summary": { "$ref": "#/$defs/workspace_summary" },
@@ -62,6 +62,18 @@
     "git_sha": {
       "type": "string",
       "pattern": "^[a-f0-9]{40}$"
+    },
+    "failure_class": {
+      "enum": [
+        null,
+        "timeout",
+        "oom",
+        "metric_regression",
+        "guard_failure",
+        "policy_violation",
+        "unchanged_result",
+        "infra_flake"
+      ]
     },
     "repo_path": {
       "type": "string",
@@ -120,7 +132,7 @@
       "properties": {
         "experiment_id": { "$ref": "#/$defs/safe_id" },
         "status": { "enum": ["accepted", "rejected"] },
-        "failure_class": { "type": ["string", "null"] },
+        "failure_class": { "$ref": "#/$defs/failure_class" },
         "mutated_path_count": { "type": "integer", "minimum": 0, "maximum": 5 },
         "oracle_commands_configured": { "type": "integer", "minimum": 0, "maximum": 20 },
         "oracle_commands_executed": { "type": "integer", "minimum": 0, "maximum": 20 },
@@ -145,8 +157,8 @@
         "promotion"
       ],
       "properties": {
-        "candidate_patch_generated": { "type": "boolean" },
-        "candidate_patch_evaluated": { "type": "boolean" },
+        "candidate_patch_generated": { "const": true },
+        "candidate_patch_evaluated": { "const": true },
         "write_repository": { "const": false },
         "open_pull_request": { "const": false },
         "resolve_review_threads": { "const": false },

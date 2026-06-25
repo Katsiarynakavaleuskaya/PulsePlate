@@ -46,7 +46,10 @@ def resolve_codex_binary() -> str:
     codex = shutil.which("codex")
     if not codex:
         raise CreativeCodePatchExecutorError("codex CLI is required for PR-2 generation.")
-    return codex
+    resolved = Path(codex).expanduser().resolve(strict=True)
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        raise CreativeCodePatchExecutorError("codex CLI must resolve to an executable file.")
+    return str(resolved)
 
 
 def _absolute_path_env(raw_path: str | None) -> str:

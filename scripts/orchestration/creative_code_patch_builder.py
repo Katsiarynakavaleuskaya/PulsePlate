@@ -116,6 +116,8 @@ def prepare(*, spec_bundle_path: Path, request_path: Path, run_id: str) -> dict[
     """Validate source artifacts and create the isolated generation checkout."""
 
     run_dir = resolve_run_dir(run_id, create=True)
+    if any(run_dir.iterdir()):
+        raise CreativeCodePatchBuilderError("run directory must be empty before prepare.")
     source_bundle = read_creative_code_specification_bundle(spec_bundle_path)
     request = read_creative_code_patch_build_request(str(request_path))
     normalized_request = validate_creative_code_patch_build_request(
@@ -432,6 +434,40 @@ def _creative_research_origin(bundle: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _verified_patch_metadata(
+    *,
+    run_dir: Path,
+    state: dict[str, Any],
+    metadata: dict[str, Any],
+) -> tuple[Path, list[str], str, int, int]:
+    """Return patch metadata only when it matches the current candidate patch."""
+
+    if state.get("candidate_patch_generated") is not True:
+        raise CreativeCodePatchBuilderError("candidate patch must be generated before evaluate.")
+    changed_paths = metadata.get("changed_paths")
+    if not isinstance(changed_paths, list) or not all(
+        isinstance(path, str) for path in changed_paths
+    ):
+        raise CreativeCodePatchBuilderError("patch metadata changed_paths must be a string list.")
+    patch_file = resolve_run_file(run_dir, CANDIDATE_PATCH_FILE)
+    try:
+        patch_text = patch_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CreativeCodePatchBuilderError("candidate patch could not be read.") from exc
+    current_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
+    current_bytes = len(patch_text.encode("utf-8"))
+    current_lines = len(patch_text.splitlines())
+    expected = {
+        "patch_fingerprint": current_fingerprint,
+        "patch_bytes": current_bytes,
+        "diff_lines": current_lines,
+    }
+    for key, value in expected.items():
+        if metadata.get(key) != value:
+            raise CreativeCodePatchBuilderError("candidate patch metadata does not match patch.")
+    return patch_file, sorted(changed_paths), current_fingerprint, current_bytes, current_lines
+
+
 def evaluate(*, run_id: str) -> dict[str, Any]:
     """Evaluate the generated candidate patch with Experiment Runner candidate mode."""
 
@@ -440,13 +476,19 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
     metadata = read_json(resolve_run_file(run_dir, PATCH_METADATA_FILE))
     if not isinstance(metadata, dict):
         raise CreativeCodePatchBuilderError("patch metadata must be a JSON object.")
-    patch_file = resolve_run_file(run_dir, CANDIDATE_PATCH_FILE)
+    patch_file, changed_paths, patch_fingerprint, patch_bytes, diff_lines = (
+        _verified_patch_metadata(
+            run_dir=run_dir,
+            state=state,
+            metadata=metadata,
+        )
+    )
     selected_variant = _selected_variant(bundle)
     shared_status_before = shared_tree_status()
     packet = build_experiment_packet(
         decision_question=selected_variant["problem_statement"],
         task_class="Experimentation",
-        mutable_paths=metadata["changed_paths"],
+        mutable_paths=changed_paths,
         oracle_commands=normalized_request["oracle_commands"],
         metrics=normalized_request["metrics"],
         negative_controls=selected_variant["negative_controls"],
@@ -472,7 +514,7 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
                 "configured_budgets": packet["budgets"],
                 "oracle_commands_configured": len(packet["immutable_oracles"]),
                 "oracle_commands_executed": 0,
-                "candidate_changed_files": len(metadata["changed_paths"]),
+                "candidate_changed_files": len(changed_paths),
                 "attempts": 0,
                 "retries_consumed": 0,
                 "runner_error": str(exc),
@@ -483,10 +525,10 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
     shared_untouched = shared_status_before == shared_status_after
     result = build_creative_code_patch_result(
         request=normalized_request,
-        changed_paths=metadata["changed_paths"],
-        patch_fingerprint=metadata["patch_fingerprint"],
-        patch_bytes=metadata["patch_bytes"],
-        diff_lines=metadata["diff_lines"],
+        changed_paths=changed_paths,
+        patch_fingerprint=patch_fingerprint,
+        patch_bytes=patch_bytes,
+        diff_lines=diff_lines,
         runner_result=runner_result,
         checkout_destroyed=bool(state.get("checkout_destroyed") is True),
         origin_removed=bool(state.get("workspace", {}).get("origin_removed") is True),

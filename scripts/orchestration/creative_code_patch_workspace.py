@@ -147,7 +147,10 @@ def resolve_git_binary() -> str:
     git_binary = shutil.which("git")
     if not git_binary:
         raise CreativeCodePatchWorkspaceError("git binary is required.")
-    return git_binary
+    resolved = Path(git_binary).expanduser().resolve(strict=True)
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        raise CreativeCodePatchWorkspaceError("git binary must resolve to an executable file.")
+    return str(resolved)
 
 
 def git_env_without_parent_state() -> dict[str, str]:

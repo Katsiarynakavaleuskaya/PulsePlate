@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import (
     creative_code_patch_builder,
     creative_code_patch_executor,
@@ -162,6 +163,28 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert request_schema["$defs"]["executor"]["additionalProperties"] is False
     assert result_schema["$defs"]["runner_summary"]["additionalProperties"] is False
     assert result_schema["$defs"]["authority"]["properties"]["write_repository"]["const"] is False
+    assert result_schema["$defs"]["failure_class"]["enum"] == [
+        None,
+        "timeout",
+        "oom",
+        "metric_regression",
+        "guard_failure",
+        "policy_violation",
+        "unchanged_result",
+        "infra_flake",
+    ]
+    assert result_schema["properties"]["failure_class"]["$ref"].endswith("failure_class")
+    assert result_schema["$defs"]["runner_summary"]["properties"]["failure_class"]["$ref"].endswith(
+        "failure_class"
+    )
+    assert (
+        result_schema["$defs"]["authority"]["properties"]["candidate_patch_generated"]["const"]
+        is True
+    )
+    assert (
+        result_schema["$defs"]["authority"]["properties"]["candidate_patch_evaluated"]["const"]
+        is True
+    )
     assert request_schema["properties"]["allowed_existing_paths"]["$ref"].endswith(
         "path_array_allow_empty"
     )
@@ -341,6 +364,25 @@ def test_executor_builds_fixed_argv_and_strips_secret_env(
     assert "CODEX_HOME" not in kwargs["env"]
 
 
+def test_binary_resolvers_return_absolute_executables_for_relative_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    codex = tools / "codex"
+    git = tools / "git"
+    codex.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    git.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    codex.chmod(0o755)
+    git.chmod(0o755)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", "tools")
+
+    assert creative_code_patch_executor.resolve_codex_binary() == str(codex.resolve())
+    assert creative_code_patch_workspace.resolve_git_binary() == str(git.resolve())
+
+
 def test_workspace_creates_detached_no_remote_checkout_and_cleanup(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -501,11 +543,12 @@ def test_evaluate_writes_sanitized_result_without_runner_leaks(
         "candidate_patch_generated": True,
         "checkout_destroyed": True,
     }
+    patch_text = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
     metadata = {
         "changed_paths": ["core/rag/orchestration.py"],
-        "patch_fingerprint": "sha256:" + "2" * 64,
-        "patch_bytes": 123,
-        "diff_lines": 12,
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "diff_lines": len(patch_text.splitlines()),
     }
     creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
     creative_code_patch_workspace.write_json_atomic(
@@ -513,10 +556,7 @@ def test_evaluate_writes_sanitized_result_without_runner_leaks(
     )
     creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
     creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
-    (run_dir / "candidate.patch").write_text(
-        "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n",
-        encoding="utf-8",
-    )
+    (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
 
     def fake_evaluate_candidate(
         packet: dict[str, Any], candidate_patch_path: Path
@@ -558,6 +598,71 @@ def test_evaluate_writes_sanitized_result_without_runner_leaks(
     assert "/Users/example" not in encoded
     assert "sk-secret" not in encoded
     assert "diff --git leak" not in encoded
+
+
+def test_evaluate_rejects_tampered_candidate_patch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_dir = creative_code_patch_workspace.resolve_run_dir("eval-tamper", create=True)
+    request = _request_for_base(base_sha)
+    original_patch = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+    metadata = {
+        "changed_paths": ["core/rag/orchestration.py"],
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": original_patch}),
+        "patch_bytes": len(original_patch.encode("utf-8")),
+        "diff_lines": len(original_patch.splitlines()),
+    }
+    state = {
+        "run_id": "eval-tamper",
+        "request_id": request["request_id"],
+        "source_bundle_id": request["source_bundle_id"],
+        "selected_variant_id": request["selected_variant_id"],
+        "base_commit_sha": base_sha,
+        "workspace": {"origin_removed": True},
+        "candidate_patch_generated": True,
+        "checkout_destroyed": True,
+    }
+    creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
+    creative_code_patch_workspace.write_json_atomic(
+        run_dir / "source_bundle.json", _reference_bundle()
+    )
+    creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
+    creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
+    (run_dir / "candidate.patch").write_text(original_patch + "# tampered\n", encoding="utf-8")
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("evaluate_candidate must not run for tampered patches")
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_if_called)
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="metadata does not match"):
+        creative_code_patch_builder.evaluate(run_id="eval-tamper")
+
+
+def test_prepare_rejects_non_empty_run_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "prepare-stale"
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=True)
+    (run_dir / "candidate.patch").write_text("stale\n", encoding="utf-8")
+    request = _request_for_base(base_sha)
+    bundle_path = tmp_path / "bundle.json"
+    request_path = tmp_path / "request.json"
+    bundle_path.write_text(json.dumps(_reference_bundle()), encoding="utf-8")
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="run directory must be empty"):
+        creative_code_patch_builder.prepare(
+            spec_bundle_path=bundle_path,
+            request_path=request_path,
+            run_id=run_id,
+        )
 
 
 def test_cli_prepare_generate_evaluate_cleanup(
