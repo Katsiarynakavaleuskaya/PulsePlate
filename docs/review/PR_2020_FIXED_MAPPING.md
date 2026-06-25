@@ -48,6 +48,12 @@ Out of scope:
   `fix(ci): fetch full history for nightly full tests`
 - `68b20f9e714673e877d1284bcc0ae7311f48cf99` -
   `fix(ci): bound nightly shard cleanup and coverage phases`
+- `8a610447a8a4b13113090d208f65ec9f4c2709a9` -
+  `test(ci): guard nightly fail-closed controls`
+
+Artifact-only mapping commits may be the latest PR head while carrying no
+code/test behavior. They are not used as self-referential FIXED proof; this
+artifact maps the code or test commit that changed the reviewed behavior.
 
 ## Lane Start Provenance
 
@@ -150,6 +156,17 @@ Passed locally:
 - PASS after manual nightly timeout fix: `pre-commit run --all-files`
 - PASS during commit `68b20f9e`: YAML, workflow, formatting, lint, Bandit,
   changed-file backend tests, and conventional commit checks passed.
+- PASS after Codex Security current-head test-gap fixes:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
+- PASS after Codex Security current-head test-gap fixes: `make validate-changed`
+  - This selected
+    `tests/test_ci_workflow_pr_size_governance_contract.py` and
+    `tests/test_main_test_shards.py` and passed.
+- PASS after Codex Security current-head test-gap fixes: `git diff --check`
+- PASS after Codex Security current-head test-gap fixes:
+  `pre-commit run --all-files`
+- PASS during commit `8a610447`: formatting, lint, changed-file backend
+  tests, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
 machine-heavy CI/tooling exception. Current-head CI is the required heavy
@@ -257,6 +274,46 @@ or timeout diagnostics for `combine`, `xml`, `html`, and `report`.
 `tests/test_main_test_shards.py` plus
 `tests/test_ci_workflow_pr_size_governance_contract.py` cover the timeout,
 subprocess, shutdown, and workflow contract behavior.
+
+Finding: Codex Security current-head file review noted that the nightly
+workflow contract test observed the current fail-closed workflow, but did not
+explicitly guard `permissions: contents: read` or the absence of
+`continue-on-error`.
+
+Disposition: FIXED
+Commit: `8a610447a8a4b13113090d208f65ec9f4c2709a9`
+Evidence:
+`tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist`
+now asserts the nightly workflow permission block stays exactly
+`{"contents": "read"}` and asserts `continue-on-error` is absent from both the
+`tests` job and the full-suite step.
+
+Finding: Codex Security current-head file review noted that shard timeout tests
+proved the `124` timeout result, but did not prove that timed-out child
+processes are terminated.
+
+Disposition: FIXED
+Commit: `8a610447a8a4b13113090d208f65ec9f4c2709a9`
+Evidence: `tests/test_main_test_shards.py::test_run_shard_fails_timeout_even_with_clean_artifacts`
+and `tests/test_main_test_shards.py::test_run_shard_fails_timeout_without_clean_artifacts`
+now assert the timeout path calls `_terminate_process_group(...)`.
+`tests/test_main_test_shards.py::test_terminate_process_group_sends_sigterm_on_posix`
+and
+`tests/test_main_test_shards.py::test_terminate_process_group_escalates_to_sigkill_on_timeout`
+cover the POSIX SIGTERM and SIGKILL escalation behavior directly.
+
+Finding: Codex Security current-head file review noted that the latest
+artifact-only mapping head may not appear in its own implementation commit
+list.
+
+Disposition: NOT-A-BUG
+Evidence: This artifact now explicitly states that artifact-only mapping commits
+may be the latest PR head and are not used as self-referential FIXED proof. The
+behavior-changing Codex Security fixes are mapped to
+`8a610447a8a4b13113090d208f65ec9f4c2709a9`.
+Reason: Requiring the artifact to map its own final docs-only mapping commit
+would create an endless self-reference loop and would not improve disposition
+proof quality.
 
 ## Security Notes
 
