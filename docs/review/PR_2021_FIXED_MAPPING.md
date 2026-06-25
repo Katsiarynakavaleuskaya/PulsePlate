@@ -36,6 +36,10 @@ changes.
 - `d8c2313fc157ca39109268e262af7644056e028b` - moves bodyfat route
   registration to canonical bootstrap, removes legacy ownership, adds guards
   and tests, and records premortem/backlog evidence.
+- `44bc4440a` - rejects direct dynamic bodyfat imports assigned to allowlisted
+  legacy router names.
+- `90c185114` - closes security-auditor dynamic import bypasses for alias,
+  destructuring, and walrus assignment shapes.
 
 ## Lane Start Provenance
 
@@ -55,10 +59,15 @@ changes.
 - [x] Post-open `qa-engineer-agent` pass completed: no actionable findings.
 - [x] Post-open `bug-hunter` pass completed; actionable finding fixed and
   dispositioned below.
-- [ ] Post-open discussion-thread pass pending.
-- [ ] CodeRabbit comments/actionables inspected.
-- [ ] Sourcery comments/actionables inspected.
-- [ ] Cubic comments/actionables inspected.
+- [x] Post-open `security-auditor` pass completed; actionable finding fixed and
+  dispositioned below.
+- [x] Codex Security diff scan completed: 5/5 reviewed, 0 findings.
+- [x] `pulseplate-pr-review` completed; advisory large-diff note dispositioned
+  below.
+- [ ] Post-open discussion-thread pass pending final current-head bot/CI refresh.
+- [ ] CodeRabbit comments/actionables inspected on final current head.
+- [ ] Sourcery comments/actionables inspected on final current head.
+- [ ] Cubic comments/actionables inspected on final current head.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
@@ -103,6 +112,60 @@ validation passed:
 `python3 scripts/ci/check_legacy_growth_guard.py`,
 `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py`, and
 `make validate-changed`.
+
+Role: `security-auditor`
+
+Disposition: FIXED
+
+Finding: `scripts/ci/check_legacy_growth_guard.py` still missed dynamic bodyfat
+route re-registration when `import_module` was aliased, when the imported router
+was assigned through tuple/list destructuring, or when a walrus assignment wrote
+the router into the already allowlisted `business_router` name.
+
+Commit: `90c185114`
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py` now tracks aliases to
+`importlib.import_module` and `__import__`, pairs dynamic `app.routers.*` imports
+with concrete assignment targets, and records `ast.NamedExpr` targets.
+`tests/test_legacy_growth_guard.py` covers aliased import-module calls,
+simple aliases, destructuring, and walrus assignment hidden behind
+`business_router`. Validation passed:
+`python3 scripts/ci/check_legacy_growth_guard.py`,
+`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py`,
+focused bodyfat/bootstrap/API suite (`39 passed`), `make validate-changed`,
+`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`,
+`pre-commit run --all-files`, and `git diff --check`.
+
+Role: Codex Security diff scan
+
+Disposition: NOT-A-BUG
+
+Evidence: Codex Security scan `d9f75240-8a67-4c76-b8d6-e2062323022a`
+completed for range
+`8a637a9ad2ab618ec2e7e550132f5a615146d968..90c1851147c806761a776ee4821cc39b7b88a64c`.
+Report:
+`/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-i7T2Pe/bodyfat-canonical-bootstrap/90c1851147c806761a776ee4821cc39b7b88a64c_20260625T090928Z_01vnvpd2/report.md`.
+Coverage: 5/5 reviewed surfaces, 0 reportable findings. Reviewed surfaces:
+`app/__init__.py`, `app/main.py`, `app/routers/bodyfat.py`, `legacy_app.py`,
+and `scripts/ci/check_legacy_growth_guard.py`.
+
+Role: `pulseplate-pr-review`
+
+Disposition: NOT-A-BUG
+
+Finding: advisory `large-diff-risk` note because the PR diff exceeds the
+review-risk threshold.
+
+Evidence: The diff is intentionally cohesive despite size: one bodyfat
+route-ownership migration, its bootstrap/legacy guard tests, review artifact,
+premortem, routing docs, and one backlog follow-up. Local narrow gates selected
+the changed backend tests and passed: focused bodyfat/bootstrap/API suite
+(`39 passed`), `tests/test_legacy_growth_guard.py` (`68 passed`),
+`python3 scripts/ci/check_legacy_growth_guard.py`, `make validate-changed`,
+`make openapi-check` via repo venv, `pre-commit run --all-files`, and
+`git diff --check`. Report artifacts:
+`/tmp/pulseplate_pr_2021_review_report.md` and
+`/tmp/pulseplate_pr_2021_review_report.json`.
 
 ## Premortem Findings
 
@@ -194,6 +257,21 @@ passed. The post-commit run selected `tests/test_api.py`,
 - PASS: `pre-commit run --all-files`
 - PASS: `make validate-changed`
 - PASS: `git show --check --oneline HEAD`
+- PASS after security-auditor fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py`
+- PASS after security-auditor fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_paywall_bootstrap.py -k bodyfat tests/test_api.py::test_v1_bodyfat tests/test_api.py::test_v1_bodyfat_missing_hip tests/test_api.py::test_bodyfat_router_export_uses_canonical_package_path tests/test_app_bodyfat_v1.py tests/test_bodyfat_labels_coverage.py tests/edges/test_bodyfat_edges.py tests/test_bodyfat_shim.py tests/test_docker_workflow_build_path_contract.py::test_docker_entrypoint_keeps_bodyfat_hidden_but_routable tests/test_app_public_surface.py::test_app_public_surface_smoke tests/test_legacy_growth_guard.py`
+- PASS after security-auditor fix: `python3 scripts/ci/check_legacy_growth_guard.py`
+- PASS after security-auditor fix: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS after security-auditor fix: `make validate-changed`
+- PASS after security-auditor fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`
+- PASS after security-auditor fix: `pre-commit run --all-files`
+- PASS after security-auditor fix: `git diff --check`
+- PASS: Codex Security scan `d9f75240-8a67-4c76-b8d6-e2062323022a`
+  completed, 5/5 reviewed, 0 findings.
+- PASS: `pulseplate-pr-review` dry-run report generated; only advisory
+  `large-diff-risk` note, dispositioned above.
 - PASS on push hook: changed-files mypy, pre-push backend pytest, full-repo
   Bandit, and Docker build test.
 
@@ -230,10 +308,11 @@ Not merge-ready.
 Required before merge:
 
 - [ ] Current-head CI passes.
-- [ ] Post-open role passes completed:
+- [x] Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff scan / finding discovery run if available.
-- [ ] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit/Sourcery/Cubic comments inspected and dispositioned.
+- [x] Codex Security diff scan / finding discovery run.
+- [x] `pulseplate-pr-review` completed.
+- [ ] CodeRabbit/Sourcery/Cubic comments inspected and dispositioned on final
+  current head.
 - [ ] PR body mirrors this fixed-mapping artifact after artifact commit lands.
 - [ ] Strict merge-readiness checks pass.
