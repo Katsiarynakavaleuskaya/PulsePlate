@@ -40,6 +40,8 @@ DB, dependency, Slack, or GitHub authority.
   tests.
 - `c010fe251` - map the checkout-local Git config fix and post-fix
   security-auditor PASS evidence.
+- `e1887584a` - record exact-base Codex Security scan evidence and replace the
+  earlier wrong-base scan attempt.
 
 ## Discussion Thread Pass
 
@@ -50,6 +52,8 @@ DB, dependency, Slack, or GitHub authority.
   lane completed; actionable role findings are mapped below.
 - [x] Codex Security exact PR-base diff scan / finding discovery completed
   with no reportable findings.
+- [x] `pulseplate-pr-review` dry-run completed; advisory large-diff planning
+  note is dispositioned below.
 - [ ] CodeRabbit, Sourcery, Cubic, and human review comments must be fixed or
   dispositioned before merge readiness.
 - [ ] Current-head CI and strict merge-readiness wrapper evidence are still
@@ -112,6 +116,12 @@ DB, dependency, Slack, or GitHub authority.
   `tests/test_creative_code_patch_builder.py::test_run_git_overrides_checkout_local_execution_config`,
   `tests/test_creative_code_patch_builder.py::test_patch_metadata_ignores_candidate_local_external_diff_config`,
   and post-fix `security-auditor` rerun PASS.
+- `pulseplate-pr-review`: advisory large-diff planning note for 4131 changed
+  lines above the 800-line review-risk threshold. Disposition: NOT-A-BUG.
+  Evidence: PR size governance passes at the 15-file privileged hard cap,
+  PR body records the split rationale, `make validate-changed` passed on the
+  selected builder/runner tests, and the report marks the note non-postable
+  review-planning evidence rather than a merge-readiness claim.
 
 ## Premortem Closure
 
@@ -210,6 +220,9 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - PASS: `pre-commit run --all-files`
 - PASS: Codex Security exact PR-base diff scan
   (`a542bde4-173d-4925-bacd-22c8d19c38cf`, 0 findings)
+- PASS: `pulseplate-pr-review` dry-run report; only advisory large-diff
+  planning note, dispositioned as NOT-A-BUG above with split rationale and
+  targeted-gate evidence.
 - PASS during push: changed-file mypy, pip-audit, backend tests, bandit full,
   and docker build test.
 
@@ -221,6 +234,6 @@ current-head CI parity before any merge-readiness claim.
 
 ## Merge Readiness
 
-Not claimed. PR #2022 still requires current-head CI, `pulseplate-pr-review`,
-bot review disposition, fixed mapping sync for any later comments, and strict
+Not claimed. PR #2022 still requires current-head CI, bot review disposition,
+fixed mapping sync for any later comments, and strict
 `check_merge_ready.py --require-auth` evidence before any merge-readiness claim.
