@@ -52,6 +52,9 @@ changes.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Fixed mapping artifact created after GitHub assigned PR number `#2021`.
+- [x] Post-open `qa-engineer-agent` pass completed: no actionable findings.
+- [x] Post-open `bug-hunter` pass completed; actionable finding fixed and
+  dispositioned below.
 - [ ] Post-open discussion-thread pass pending.
 - [ ] CodeRabbit comments/actionables inspected.
 - [ ] Sourcery comments/actionables inspected.
@@ -69,6 +72,37 @@ Initial PR open: no human review threads existed at artifact creation. Any
 post-open actionable bot or human findings must be fixed, mapped in
 `## Fixed in Commit Mapping` with disposition proof, mirrored in the PR body,
 and only then resolved.
+
+## Post-Open Role Findings
+
+Role: `qa-engineer-agent`
+
+Disposition: NOT-A-BUG
+
+Evidence: Post-open QA pass found no actionable findings. Residual risk was
+limited to intentionally deferred full local `make verify`, pending current-head
+CI at review time, and external bot rate-limit/no-actionable states.
+
+Role: `bug-hunter`
+
+Disposition: FIXED
+
+Finding: `scripts/ci/check_legacy_growth_guard.py` could miss bodyfat route
+ownership reintroduced through a dynamic import assigned to an already
+allowlisted router name, for example
+`business_router = importlib.import_module("app.routers.bodyfat").router`.
+
+Commit: `44bc4440a`
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py` now records dynamic
+`app.routers.*` imports assigned to local names as `router_import:dynamic`
+facts, while preserving the existing plan-export dynamic alias baseline.
+`tests/test_legacy_growth_guard.py` adds `importlib.import_module(...)` and
+`__import__(...)` bodyfat regressions hidden as `business_router`. Focused
+validation passed:
+`python3 scripts/ci/check_legacy_growth_guard.py`,
+`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py`, and
+`make validate-changed`.
 
 ## Premortem Findings
 
