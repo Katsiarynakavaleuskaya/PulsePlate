@@ -207,6 +207,9 @@ def git_env_without_parent_state() -> dict[str, str]:
             continue
         sanitized[key] = value
     sanitized["PATH"] = _absolute_path_env(os.environ.get("PATH"))
+    sanitized["GIT_CONFIG_GLOBAL"] = os.devnull
+    sanitized["GIT_CONFIG_NOSYSTEM"] = "1"
+    sanitized["GIT_TERMINAL_PROMPT"] = "0"
     return sanitized
 
 

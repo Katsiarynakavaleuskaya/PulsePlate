@@ -32,6 +32,9 @@ from app.security import agent_control_plane as cp
 from app.security import execution_sandbox as sandbox
 from app.security.execution_sandbox import SandboxRequest
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state as _sanitized_git_env_without_parent_state,
+)
 from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
     DEFAULT_STOP_CONDITION,
@@ -219,7 +222,10 @@ def _resolve_git_binary() -> str:
     git_binary = shutil.which("git")
     if not git_binary:
         raise InfraFlakeError("git binary is required for experiment_runner.")
-    return git_binary
+    resolved = Path(git_binary).expanduser().resolve(strict=True)
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        raise InfraFlakeError("git binary must resolve to an executable file.")
+    return str(resolved)
 
 
 def _run_git(
@@ -231,11 +237,10 @@ def _run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run git with an absolute binary and stable text capture."""
 
-    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2026-07-31, ref: PR-1082)
         [_resolve_git_binary(), *args],
         cwd=str(cwd),
-        env=git_env,
+        env=_sanitized_git_env_without_parent_state(),
         capture_output=True,
         text=True,
         check=False,

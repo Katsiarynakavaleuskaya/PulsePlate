@@ -86,13 +86,18 @@ DB, dependency, Slack, or GitHub authority.
 - Post-open `security-auditor`: Git subprocesses inherited almost the entire
   parent environment and could receive local secrets or credential-shaped
   values. Disposition: FIXED. Commit: `b656cf801`. Evidence:
-  `scripts/orchestration/creative_code_patch_workspace.py` and
-  `tests/test_creative_code_patch_builder.py::test_git_env_strips_secret_and_parent_state`.
+  `scripts/orchestration/creative_code_patch_workspace.py`,
+  `scripts/orchestration/experiment_runner.py`,
+  `tests/test_creative_code_patch_builder.py::test_git_env_strips_secret_and_parent_state`,
+  and
+  `tests/test_creative_code_patch_builder.py::test_experiment_runner_uses_sanitized_git_env`.
 
 ## Premortem Closure
 
-Premortem artifact:
-`docs/review/PR_CREATIVE_CODE_PATCH_BUILDER_PR2_PREMORTEM.md`.
+Premortem closure is recorded in this artifact. The standalone premortem draft
+was folded into this parser-safe mapping artifact to keep the final privileged
+PR surface within the 15-file hard cap while preserving the finding/fix
+evidence below.
 
 Disposition: FIXED
 

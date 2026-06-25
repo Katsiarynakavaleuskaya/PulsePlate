@@ -15,6 +15,7 @@ from scripts.orchestration import (
     creative_code_patch_builder,
     creative_code_patch_executor,
     creative_code_patch_workspace,
+    experiment_runner,
 )
 from scripts.orchestration.creative_code_patch_builder import CreativeCodePatchBuilderError
 from scripts.orchestration.creative_code_patch_contract import (
@@ -407,6 +408,9 @@ def test_git_env_strips_secret_and_parent_state(
     assert env["HOME"] == str(tmp_path)
     assert env["LANG"] == "C.UTF-8"
     assert env["PATH"] == str(tools.resolve())
+    assert env["GIT_CONFIG_GLOBAL"] == os.devnull
+    assert env["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
     for forbidden in (
         "GH_TOKEN",
         "GITHUB_TOKEN",
@@ -415,7 +419,44 @@ def test_git_env_strips_secret_and_parent_state(
         "PYTHONPATH",
         "DATABASE_URL",
         "SESSION_COOKIE",
-        "GIT_CONFIG_GLOBAL",
+    ):
+        assert forbidden not in env
+
+
+def test_experiment_runner_uses_sanitized_git_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    captured: dict[str, Any] = {}
+
+    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setenv("GH_TOKEN", "redacted")
+    monkeypatch.setenv("GITHUB_TOKEN", "redacted")
+    monkeypatch.setenv("OPENAI_API_KEY", "redacted")
+    monkeypatch.setenv("CODEX_HOME", "/tmp/codex")
+    monkeypatch.setenv("PYTHONPATH", "/tmp/python")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/tmp/unsafe-gitconfig")
+    monkeypatch.setattr(experiment_runner, "_resolve_git_binary", lambda: "/usr/bin/git")
+    monkeypatch.setattr(experiment_runner.subprocess, "run", fake_run)
+
+    experiment_runner._run_git(["status", "--short"], cwd=repo)
+
+    env = captured["kwargs"]["env"]
+    assert env["GIT_CONFIG_GLOBAL"] == os.devnull
+    assert env["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    for forbidden in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        "CODEX_HOME",
+        "PYTHONPATH",
     ):
         assert forbidden not in env
 
