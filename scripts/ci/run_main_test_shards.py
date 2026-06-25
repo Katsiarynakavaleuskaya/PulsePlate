@@ -300,6 +300,8 @@ def shard_bayesian_history_path(base_env: Mapping[str, str], shard: TestShard) -
     raw_path = base_env.get("BAYESIAN_HISTORY_PATH", "test_execution_history.json").strip()
     history_path = Path(raw_path or "test_execution_history.json")
     shard_suffix = f"{shard.artifact_label}-shard-{shard.index}"
+    if history_path.stem.endswith(f"-{shard_suffix}"):
+        return str(history_path)
     scoped_name = f"{history_path.stem}-{shard_suffix}{history_path.suffix}"
     return str(history_path.with_name(scoped_name))
 

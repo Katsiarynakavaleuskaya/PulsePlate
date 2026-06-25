@@ -395,6 +395,24 @@ def test_build_shard_env_scopes_bayesian_history_when_persisting(tmp_path: Path)
     assert env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history-py313-shard-3.json"
 
 
+def test_build_shard_env_keeps_parent_scoped_bayesian_history_idempotent(
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(index=3, artifact_label="py313")
+    parent_env = runner.build_shard_env(
+        {
+            "BAYESIAN_PERSIST": "1",
+            "BAYESIAN_HISTORY_PATH": "/tmp/test_execution_history.json",
+        },
+        shard,
+        tmp_path,
+    )
+
+    child_env = runner.build_shard_env(parent_env, shard, tmp_path)
+
+    assert child_env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history-py313-shard-3.json"
+
+
 def test_build_shard_env_leaves_bayesian_history_alone_when_not_persisting(tmp_path: Path) -> None:
     shard = runner.TestShard(index=3, artifact_label="py313")
     env = runner.build_shard_env(
@@ -456,7 +474,18 @@ def test_run_shard_invokes_explicit_child_interpreter(
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
 
-    assert runner.run_shard(tmp_path, shard, {"PYTEST_XDIST_WORKER": "gw0"}) == 5
+    assert (
+        runner.run_shard(
+            tmp_path,
+            shard,
+            {
+                "BAYESIAN_PERSIST": "1",
+                "BAYESIAN_HISTORY_PATH": "/tmp/test_execution_history.json",
+                "PYTEST_XDIST_WORKER": "gw0",
+            },
+        )
+        == 5
+    )
 
     command = captured["command"]
     assert isinstance(command, list)
@@ -473,6 +502,7 @@ def test_run_shard_invokes_explicit_child_interpreter(
     assert "PYTEST_XDIST_WORKER" not in env
     assert env["MAIN_TEST_SHARD"] == "3"
     assert env["COVERAGE_FILE"] == str(tmp_path / ".coverage.py313-main-shard-3")
+    assert env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history-py313-shard-3.json"
 
 
 def test_run_shard_fails_timeout_even_with_clean_artifacts(
