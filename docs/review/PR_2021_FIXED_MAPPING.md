@@ -40,6 +40,8 @@ changes.
   legacy router names.
 - `90c185114` - closes security-auditor dynamic import bypasses for alias,
   destructuring, and walrus assignment shapes.
+- `bf5436342` - preserves the security-auditor guard fix while satisfying the
+  changed-file mypy pre-push hook.
 
 ## Lane Start Provenance
 
@@ -135,6 +137,11 @@ simple aliases, destructuring, and walrus assignment hidden behind
 focused bodyfat/bootstrap/API suite (`39 passed`), `make validate-changed`,
 `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`,
 `pre-commit run --all-files`, and `git diff --check`.
+Follow-up hook fix commit `bf5436342` only renames an internal accumulator in
+the same helper to satisfy changed-file mypy; behavior remains covered by
+`tests/test_legacy_growth_guard.py` (`68 passed`),
+`python3 scripts/ci/check_legacy_growth_guard.py`, and
+`pre-commit run --hook-stage pre-push mypy --files scripts/ci/check_legacy_growth_guard.py`.
 
 Role: Codex Security diff scan
 
@@ -268,6 +275,12 @@ passed. The post-commit run selected `tests/test_api.py`,
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`
 - PASS after security-auditor fix: `pre-commit run --all-files`
 - PASS after security-auditor fix: `git diff --check`
+- PASS after mypy hook fix:
+  `pre-commit run --hook-stage pre-push mypy --files scripts/ci/check_legacy_growth_guard.py`
+- PASS after mypy hook fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py`
+- PASS after mypy hook fix: `python3 scripts/ci/check_legacy_growth_guard.py`
+- PASS after mypy hook fix: `pre-commit run --all-files`
 - PASS: Codex Security scan `d9f75240-8a67-4c76-b8d6-e2062323022a`
   completed, 5/5 reviewed, 0 findings.
 - PASS: `pulseplate-pr-review` dry-run report generated; only advisory
