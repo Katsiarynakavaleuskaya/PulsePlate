@@ -18,7 +18,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Literal, cast
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Literal, cast
 
 from core.bayesian_recommendations import (
     DEFAULT_LANGUAGE,
@@ -27,6 +27,8 @@ from core.bayesian_recommendations import (
     get_symptom_key,
 )
 from core.bayesian_technical_utils import analyze_technical_aspects_common
+
+_analyze_technical_aspects_common: Callable[[str], List[str]] = analyze_technical_aspects_common
 
 logger = logging.getLogger(__name__)
 
@@ -920,7 +922,7 @@ class BayesianTestAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Анализирует технические аспекты теста."""
-        return analyze_technical_aspects_common(code)
+        return _analyze_technical_aspects_common(code)
 
     def analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Public wrapper for analyzing technical aspects of a test.
