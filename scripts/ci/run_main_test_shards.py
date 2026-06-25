@@ -21,6 +21,7 @@ DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
 DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS = 300
 DEFAULT_SHARD_TIMEOUT_SECONDS = 1800
+DEFAULT_COVERAGE_TIMEOUT_SECONDS = 1200
 DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
 SLOW_MARK_EXPRESSION = "not slow"
@@ -348,6 +349,33 @@ def shard_timeout_seconds(base_env: Mapping[str, str]) -> int:
     return timeout
 
 
+def coverage_timeout_seconds(base_env: Mapping[str, str]) -> int:
+    """Return the watchdog timeout for one post-shard coverage phase."""
+
+    raw_value = base_env.get("MAIN_TEST_COVERAGE_TIMEOUT_SECONDS", "").strip()
+    if not raw_value:
+        return DEFAULT_COVERAGE_TIMEOUT_SECONDS
+    try:
+        timeout = int(raw_value)
+    except ValueError:
+        print(
+            f"MAIN_TEST_COVERAGE_TIMEOUT_INVALID value={raw_value!r} "
+            f"default={DEFAULT_COVERAGE_TIMEOUT_SECONDS}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return DEFAULT_COVERAGE_TIMEOUT_SECONDS
+    if timeout < 60:
+        print(
+            f"MAIN_TEST_COVERAGE_TIMEOUT_TOO_LOW value={timeout} "
+            f"default={DEFAULT_COVERAGE_TIMEOUT_SECONDS}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return DEFAULT_COVERAGE_TIMEOUT_SECONDS
+    return timeout
+
+
 def run_shard_child(
     repo_root: Path,
     shard: TestShard,
@@ -514,13 +542,34 @@ def run_coverage_command(
     repo_root: Path,
     args: Sequence[str],
     coverage_main: Callable[[list[str]], int | None] | None = None,
+    timeout_seconds: int = DEFAULT_COVERAGE_TIMEOUT_SECONDS,
 ) -> int:
     """Run a coverage command after all pytest shards pass."""
 
-    if coverage_main is None:
-        import coverage.cmdline
+    if timeout_seconds < 1:
+        raise ValueError("coverage timeout must be >= 1")
 
-        coverage_main = coverage.cmdline.main
+    if coverage_main is None:
+        env = os.environ.copy()
+        env.pop("COVERAGE_FILE", None)
+        env.pop("COV_CORE_DATAFILE", None)
+        try:
+            result = subprocess.run(  # nosec B603: argv uses sys.executable and coverage module without shell (remove-by: 2026-07-31, ref: PR-2020)
+                [sys.executable, "-m", "coverage", *args],
+                cwd=repo_root,
+                env=env,
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            print(
+                "MAIN_TEST_COVERAGE_COMMAND_TIMEOUT "
+                f"phase={args[0] if args else 'unknown'} timeout_seconds={timeout_seconds}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 124
+        return int(result.returncode)
 
     old_cwd = Path.cwd()
     old_coverage_file = os.environ.pop("COVERAGE_FILE", None)
@@ -586,10 +635,52 @@ def _log_coverage_failure(phase: str, returncode: int) -> None:
     )
 
 
+def _log_coverage_phase_started(
+    phase: str,
+    args: Sequence[str],
+    timeout_seconds: int,
+) -> None:
+    """Log a coverage phase before running it so timeout context is visible."""
+
+    print(
+        f"MAIN_TEST_COVERAGE_{phase.upper()}_STARTED "
+        f"timeout_seconds={timeout_seconds} args={list(args)!r}",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def _log_coverage_phase_succeeded(phase: str) -> None:
+    """Log coverage phase success for post-shard diagnostics."""
+
+    print(
+        f"MAIN_TEST_COVERAGE_{phase.upper()}_SUCCEEDED",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def run_coverage_phase(
+    repo_root: Path,
+    phase: str,
+    args: Sequence[str],
+    timeout_seconds: int,
+) -> int:
+    """Run one coverage phase with start/success/failure diagnostics."""
+
+    _log_coverage_phase_started(phase, args, timeout_seconds)
+    status = run_coverage_command(repo_root, args, timeout_seconds=timeout_seconds)
+    if status != 0:
+        _log_coverage_failure(phase, status)
+        return status
+    _log_coverage_phase_succeeded(phase)
+    return 0
+
+
 def _terminate_executor_workers(
     executor: concurrent.futures.ProcessPoolExecutor,
 ) -> None:
-    """Terminate process-pool workers after a fail-fast shard result."""
+    """Terminate process-pool workers after shard results are known."""
 
     worker_processes = list((getattr(executor, "_processes", None) or {}).values())
     for worker_process in worker_processes:
@@ -697,7 +788,8 @@ def run_all_shards(
                     break
     finally:
         if not executor_shutdown:
-            executor.shutdown(wait=True)
+            _terminate_executor_workers(executor)
+            executor.shutdown(wait=False, cancel_futures=True)
 
     failing_shards = [
         shard_index for shard_index, exit_code in sorted(results.items()) if exit_code != 0
@@ -706,24 +798,29 @@ def run_all_shards(
         print(f"MAIN_TEST_SHARDS_FAILED shards={failing_shards}", file=sys.stderr)
         return 1
 
+    coverage_timeout = coverage_timeout_seconds(base_env)
     coverage_files = [*extra_coverage_files, *[shard.coverage_file for shard in shards]]
-    combine_status = run_coverage_command(repo_root, ["combine", *coverage_files])
+    combine_status = run_coverage_phase(
+        repo_root,
+        "combine",
+        ["combine", *coverage_files],
+        coverage_timeout,
+    )
     if combine_status != 0:
-        _log_coverage_failure("combine", combine_status)
         return combine_status
-    xml_status = run_coverage_command(repo_root, ["xml"])
+    xml_status = run_coverage_phase(repo_root, "xml", ["xml"], coverage_timeout)
     if xml_status != 0:
-        _log_coverage_failure("xml", xml_status)
         return xml_status
     if htmlcov:
-        html_status = run_coverage_command(repo_root, ["html"])
+        html_status = run_coverage_phase(repo_root, "html", ["html"], coverage_timeout)
         if html_status != 0:
-            _log_coverage_failure("html", html_status)
             return html_status
-    report_status = run_coverage_command(repo_root, ["report", "-m", "--fail-under=97"])
-    if report_status != 0:
-        _log_coverage_failure("report", report_status)
-    return report_status
+    return run_coverage_phase(
+        repo_root,
+        "report",
+        ["report", "-m", "--fail-under=97"],
+        coverage_timeout,
+    )
 
 
 def run_serial_shards(

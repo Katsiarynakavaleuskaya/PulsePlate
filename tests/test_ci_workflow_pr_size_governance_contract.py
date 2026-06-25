@@ -577,6 +577,7 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     assert env["MAIN_TEST_SHARDS"] == "16"
     assert env["MAIN_TEST_MAX_PARALLEL"] == "4"
     assert env["MAIN_TEST_SHARD_TIMEOUT_SECONDS"] == "4800"
+    assert env["MAIN_TEST_COVERAGE_TIMEOUT_SECONDS"] == "1200"
 
     assert "set -euo pipefail" in run_script
     assert "python scripts/ci/run_main_test_shards.py" in run_script
@@ -588,6 +589,7 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     assert '--report-chars "fEsxXw"' in run_script
     assert "--htmlcov" in run_script
     assert "TEST_STEP_STARTED_AT=" in run_script
+    assert "MAIN_TEST_COVERAGE_TIMEOUT_SECONDS=" in run_script
     assert "TEST_STEP_FINISHED_AT=" in run_script
     assert "set +e" in run_script
     assert "test_exit_code=$?" in run_script

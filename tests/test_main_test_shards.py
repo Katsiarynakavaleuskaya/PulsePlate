@@ -437,6 +437,19 @@ def test_shard_timeout_seconds_validates_env(capsys: pytest.CaptureFixture[str])
     assert "MAIN_TEST_SHARD_TIMEOUT_TOO_LOW" in capsys.readouterr().err
 
 
+def test_coverage_timeout_seconds_validates_env(capsys: pytest.CaptureFixture[str]) -> None:
+    assert runner.coverage_timeout_seconds({}) == runner.DEFAULT_COVERAGE_TIMEOUT_SECONDS
+    assert runner.coverage_timeout_seconds({"MAIN_TEST_COVERAGE_TIMEOUT_SECONDS": "120"}) == 120
+    assert runner.coverage_timeout_seconds({"MAIN_TEST_COVERAGE_TIMEOUT_SECONDS": "bad"}) == (
+        runner.DEFAULT_COVERAGE_TIMEOUT_SECONDS
+    )
+    assert "MAIN_TEST_COVERAGE_TIMEOUT_INVALID" in capsys.readouterr().err
+    assert runner.coverage_timeout_seconds({"MAIN_TEST_COVERAGE_TIMEOUT_SECONDS": "10"}) == (
+        runner.DEFAULT_COVERAGE_TIMEOUT_SECONDS
+    )
+    assert "MAIN_TEST_COVERAGE_TIMEOUT_TOO_LOW" in capsys.readouterr().err
+
+
 def test_run_shard_invokes_explicit_child_interpreter(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -779,7 +792,8 @@ def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
     }
     coverage_calls: list[list[str]] = []
 
-    def fake_coverage(repo_root: Path, args: list[str]) -> int:
+    def fake_coverage(repo_root: Path, args: list[str], **kwargs: object) -> int:
+        del kwargs
         assert repo_root == tmp_path
         coverage_calls.append(list(args))
         return 0
@@ -815,8 +829,8 @@ def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
             del kwargs
 
         def shutdown(self, *, wait: bool, cancel_futures: bool = False) -> None:
-            assert wait is True
-            assert cancel_futures is False
+            assert wait is False
+            assert cancel_futures is True
 
         def submit(
             self,
@@ -842,7 +856,8 @@ def test_run_all_shards_combines_serial_coverage_before_parallel_shards(
         assert return_when is runner.concurrent.futures.FIRST_COMPLETED
         return set(futures), set()
 
-    def fake_coverage(repo_root: Path, args: list[str]) -> int:
+    def fake_coverage(repo_root: Path, args: list[str], **kwargs: object) -> int:
+        del kwargs
         assert repo_root == tmp_path
         coverage_calls.append(list(args))
         return 0
@@ -886,8 +901,8 @@ def test_run_all_shards_generates_htmlcov_when_requested(
             del kwargs
 
         def shutdown(self, *, wait: bool, cancel_futures: bool = False) -> None:
-            assert wait is True
-            assert cancel_futures is False
+            assert wait is False
+            assert cancel_futures is True
 
         def submit(
             self,
@@ -910,7 +925,8 @@ def test_run_all_shards_generates_htmlcov_when_requested(
         assert return_when is runner.concurrent.futures.FIRST_COMPLETED
         return set(futures), set()
 
-    def fake_coverage(repo_root: Path, args: list[str]) -> int:
+    def fake_coverage(repo_root: Path, args: list[str], **kwargs: object) -> int:
+        del kwargs
         assert repo_root == tmp_path
         coverage_calls.append(list(args))
         return 0
@@ -1145,7 +1161,8 @@ def test_run_all_shards_logs_coverage_phase_failures(
 
     pending_calls = list(coverage_calls)
 
-    def fake_coverage(repo_root: Path, args: list[str]) -> int:
+    def fake_coverage(repo_root: Path, args: list[str], **kwargs: object) -> int:
+        del kwargs
         assert repo_root == tmp_path
         expected_args, status = pending_calls.pop(0)
         assert args == expected_args
@@ -1164,9 +1181,9 @@ def test_run_all_shards_logs_coverage_phase_failures(
         == expected_status
     )
     assert pending_calls == []
-    assert f"MAIN_TEST_COVERAGE_{phase.upper()}_FAILED exit_code={expected_status}" in (
-        capsys.readouterr().err
-    )
+    stderr = capsys.readouterr().err
+    assert f"MAIN_TEST_COVERAGE_{phase.upper()}_STARTED" in stderr
+    assert f"MAIN_TEST_COVERAGE_{phase.upper()}_FAILED exit_code={expected_status}" in stderr
 
 
 def test_run_coverage_command_uses_coverage_api(
@@ -1193,3 +1210,62 @@ def test_run_coverage_command_uses_coverage_api(
     }
     assert os.environ["COVERAGE_FILE"] == "outside-coverage"
     assert os.environ["COV_CORE_DATAFILE"] == "outside-cov-core"
+
+
+def test_run_coverage_command_uses_current_interpreter_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setenv("COVERAGE_FILE", "outside-coverage")
+    monkeypatch.setenv("COV_CORE_DATAFILE", "outside-cov-core")
+
+    class FakeCompletedProcess:
+        returncode = 7
+
+    def fake_run(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        check: bool,
+        timeout: int,
+    ) -> FakeCompletedProcess:
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["coverage_file"] = env.get("COVERAGE_FILE")
+        captured["cov_core_datafile"] = env.get("COV_CORE_DATAFILE")
+        captured["check"] = check
+        captured["timeout"] = timeout
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert runner.run_coverage_command(tmp_path, ["xml"], timeout_seconds=123) == 7
+    assert captured == {
+        "command": [sys.executable, "-m", "coverage", "xml"],
+        "cwd": tmp_path,
+        "coverage_file": None,
+        "cov_core_datafile": None,
+        "check": False,
+        "timeout": 123,
+    }
+    assert os.environ["COVERAGE_FILE"] == "outside-coverage"
+    assert os.environ["COV_CORE_DATAFILE"] == "outside-cov-core"
+
+
+def test_run_coverage_command_reports_timeout(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args, kwargs
+        raise subprocess.TimeoutExpired(cmd="coverage", timeout=60)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert runner.run_coverage_command(tmp_path, ["combine"], timeout_seconds=60) == 124
+    assert "MAIN_TEST_COVERAGE_COMMAND_TIMEOUT phase=combine timeout_seconds=60" in (
+        capsys.readouterr().err
+    )
