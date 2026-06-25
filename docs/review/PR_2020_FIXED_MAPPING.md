@@ -102,7 +102,7 @@ Passed locally:
 - Pre-push hooks: YAML, formatting, lint, changed-file mypy, pip-audit,
   backend pre-push pytest, full-repo Bandit, and Docker build test passed.
 - PASS after bug-hunter hardening fix:
-  `.venv/bin/python -m pytest -q tests/test_main_test_shards.py::test_remove_previous_outputs_deletes_stale_shard_files tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py::test_remove_previous_outputs_deletes_stale_shard_files tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
 - PASS after bug-hunter hardening fix: `make validate-changed`
 - PASS during commit `9352af82`: formatting, lint, changed-file backend tests,
   and conventional commit checks passed.
