@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 from typing import Any
 
 import pytest
@@ -926,6 +927,76 @@ def test_emergency_artifacts_requested_by_surfaces_uses_target_python_tags(
 
     assert [artifact["filename"] for artifact in artifacts] == [cp313_filename]
     assert observed_python_executables == ["/opt/python/3.13/bin/python"]
+
+
+def test_supported_wheel_tags_normalizes_current_python_alias_without_path_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_commands: list[list[str]] = []
+
+    def fake_subprocess_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        observed_commands.append(command)
+        payload = {
+            "tags": ["py3-none-any"],
+            "major": sys.version_info.major,
+            "minor": sys.version_info.minor,
+            "implementation_name": "cpython",
+            "platform_name": "linux",
+            "sysconfig_platform": "linux-x86_64",
+            "machine_name": "x86_64",
+        }
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
+
+    assert installer._supported_wheel_tags_for_python("python") == {"py3-none-any"}
+    assert observed_commands[0][0] == sys.executable
+
+
+def test_supported_wheel_tags_rejects_unknown_bare_target_python_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_subprocess_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError(
+            "unknown bare Python executable must be rejected before subprocess.run"
+        )
+
+    monkeypatch.setattr(installer.subprocess, "run", fail_subprocess_run)
+
+    with pytest.raises(RuntimeError, match="path-qualified"):
+        installer._supported_wheel_tags_for_python("python9.99")
+
+
+def test_supported_wheel_tags_normalizes_path_qualified_relative_python(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed_commands: list[list[str]] = []
+
+    def fake_subprocess_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        observed_commands.append(command)
+        payload = {
+            "tags": ["py3-none-any"],
+            "major": 3,
+            "minor": 13,
+            "implementation_name": "cpython",
+            "platform_name": "linux",
+            "sysconfig_platform": "linux-x86_64",
+            "machine_name": "x86_64",
+        }
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
+
+    assert installer._supported_wheel_tags_for_python(".venv/bin/python") == {"py3-none-any"}
+    assert observed_commands[0][0] == str(tmp_path / ".venv/bin/python")
 
 
 def test_stage_emergency_artifacts_skips_incompatible_parseable_wheels(

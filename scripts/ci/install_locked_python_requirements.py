@@ -609,8 +609,34 @@ def _current_supported_wheel_tags() -> set[str]:
     return {str(tag) for tag in packaging_tags.sys_tags()}
 
 
+def _path_qualified_python_executable_for_probe(python_executable: str) -> str:
+    """Return a non-PATH-resolved Python executable for wheel-tag probing."""
+    candidate = python_executable.strip()
+    if not candidate:
+        raise RuntimeError("Target Python executable for wheel-tag probe is empty")
+    candidate_path = Path(candidate)
+    if candidate_path.is_absolute():
+        return candidate
+    has_path_separator = os.sep in candidate or (os.altsep is not None and os.altsep in candidate)
+    if has_path_separator:
+        return str(candidate_path.resolve())
+    current_interpreter_aliases = {
+        "python",
+        f"python{sys.version_info.major}",
+        f"python{sys.version_info.major}.{sys.version_info.minor}",
+        Path(sys.executable).name,
+    }
+    if candidate in current_interpreter_aliases:
+        return sys.executable
+    raise RuntimeError(
+        "Target Python executable for wheel-tag probe must be absolute or "
+        f"path-qualified; refusing to resolve through PATH: {python_executable}"
+    )
+
+
 def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object]:
     """Probe wheel-tag data from the requested target interpreter."""
+    probe_python = _path_qualified_python_executable_for_probe(python_executable)
     probe = "\n".join(
         (
             "import json",
@@ -635,22 +661,20 @@ def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object
         )
     )
     result = subprocess.run(  # nosec B603: argv starts with the selected target Python interpreter and a fixed metadata probe (remove-by: 2026-07-31, ref: PR-2017)
-        [python_executable, "-c", probe],
+        [probe_python, "-c", probe],
         check=False,
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
         detail = _redact_url_credentials_in_text((result.stderr or result.stdout).strip())
-        raise RuntimeError(
-            f"Unable to probe supported wheel tags for {python_executable}: {detail}"
-        )
+        raise RuntimeError(f"Unable to probe supported wheel tags for {probe_python}: {detail}")
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Invalid wheel-tag probe output from {python_executable}") from exc
+        raise RuntimeError(f"Invalid wheel-tag probe output from {probe_python}") from exc
     if not isinstance(payload, dict):
-        raise RuntimeError(f"Invalid wheel-tag probe payload from {python_executable}")
+        raise RuntimeError(f"Invalid wheel-tag probe payload from {probe_python}")
     return payload
 
 
