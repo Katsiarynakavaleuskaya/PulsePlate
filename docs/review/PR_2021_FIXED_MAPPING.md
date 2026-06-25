@@ -47,6 +47,8 @@ frontend runtime, iOS, or migration changes.
 - `87a931b92` - fixes current-head CodeRabbit actionables: typed hidden/direct
   bodyfat response metadata, remaining dynamic-import guard bypasses, review
   artifact command/checklist hygiene, and JSON content-type test clarity.
+- `73ada8d42` - closes the merge-ready bug-hunter nested dynamic router
+  composition bypass.
 
 ## Lane Start Provenance
 
@@ -155,6 +157,28 @@ the same helper to satisfy changed-file mypy; behavior remains covered by
 `tests/test_legacy_growth_guard.py` (`68 passed`),
 `python3 scripts/ci/check_legacy_growth_guard.py`, and
 `pre-commit run --hook-stage pre-push mypy --files scripts/ci/check_legacy_growth_guard.py`.
+
+Role: `bug-hunter` merge-ready pass
+
+Disposition: FIXED
+
+Finding: `scripts/ci/check_legacy_growth_guard.py` still allowed an already
+allowlisted legacy router variable to compose a dynamically imported bodyfat
+router before the final `app.include_router(business_router)` call, for example
+`business_router.include_router(importlib.import_module("app.routers.bodyfat").router)`.
+
+Commit: `73ada8d421688917c0b2eebfcf630eb2b96de70e`
+
+Evidence: `scripts/ci/check_legacy_growth_guard.py` now records dynamic
+`app.routers.*` imports nested inside route/router registration call subtrees.
+`tests/test_legacy_growth_guard.py` covers both direct
+`app.include_router(importlib.import_module(...).router)` and composed
+`business_router.include_router(importlib.import_module(...).router)` bodyfat
+regressions. Validation passed: focused nested regression pytest, full
+`tests/test_legacy_growth_guard.py` (`76 passed`), focused
+bodyfat/bootstrap/API/legacy-guard suite (`43 passed`),
+`python3 scripts/ci/check_legacy_growth_guard.py`, `make validate-changed`,
+`pre-commit run --all-files`, and `git diff --check`.
 
 Role: Codex Security diff scan
 
@@ -310,6 +334,18 @@ passed. The post-commit run selected `tests/test_api.py`,
 - PASS after CodeRabbit fix: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS after CodeRabbit fix: `pre-commit run --all-files`
 - PASS after CodeRabbit fix: `git diff --check`
+- PASS after merge-ready bug-hunter fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py::test_legacy_growth_guard_rejects_nested_dynamic_bodyfat_router_registration tests/test_legacy_growth_guard.py::test_legacy_growth_guard_rejects_nested_dynamic_bodyfat_router_composition tests/test_legacy_growth_guard.py::test_current_legacy_app_passes_growth_guard`
+- PASS after merge-ready bug-hunter fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_legacy_growth_guard.py`
+  (`76 passed`).
+- PASS after merge-ready bug-hunter fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_paywall_bootstrap.py -k bodyfat tests/test_api.py::test_v1_bodyfat tests/test_api.py::test_v1_bodyfat_missing_hip tests/test_api.py::test_bodyfat_router_export_uses_canonical_package_path tests/test_app_bodyfat_v1.py tests/test_bodyfat_labels_coverage.py tests/edges/test_bodyfat_edges.py tests/test_bodyfat_shim.py tests/test_docker_workflow_build_path_contract.py::test_docker_entrypoint_keeps_bodyfat_hidden_but_routable tests/test_app_public_surface.py::test_app_public_surface_smoke tests/test_legacy_growth_guard.py`
+  (`43 passed`).
+- PASS after merge-ready bug-hunter fix: `python3 scripts/ci/check_legacy_growth_guard.py`
+- PASS after merge-ready bug-hunter fix: `make validate-changed`
+- PASS after merge-ready bug-hunter fix: `pre-commit run --all-files`
+- PASS after merge-ready bug-hunter fix: `git diff --check`
 
 Full local `make verify` was not run per operator CPU constraint. This PR does
 not claim merge readiness from local gates alone.
