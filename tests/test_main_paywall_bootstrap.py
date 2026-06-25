@@ -274,6 +274,70 @@ def _bmi_compat_stub_router(
     return router
 
 
+def _bodyfat_stub_router(
+    *,
+    omit: frozenset[str] = frozenset(),
+    method_overrides: dict[str, str] | None = None,
+    include_overrides: dict[str, bool] | None = None,
+) -> APIRouter:
+    router = APIRouter()
+    method_override_map = method_overrides or {}
+    include_override_map = include_overrides or {}
+
+    for path, method, include_in_schema in app_main._BODYFAT_ROUTE_SPECS:
+        if path in omit:
+            continue
+        route_method = method_override_map.get(path, method).lower()
+        route_include = include_override_map.get(path, include_in_schema)
+
+        async def _bodyfat_handler(path: str = path) -> dict[str, str]:
+            return {"status": path}
+
+        getattr(router, route_method)(path, include_in_schema=route_include)(_bodyfat_handler)
+
+    return router
+
+
+def _duplicate_bodyfat_stub_router() -> APIRouter:
+    router = _bodyfat_stub_router()
+    duplicate_path, duplicate_method, duplicate_include = app_main._BODYFAT_ROUTE_SPECS[0]
+
+    async def _second_bodyfat_handler() -> dict[str, str]:
+        return {"status": "duplicate"}
+
+    getattr(router, duplicate_method.lower())(
+        duplicate_path,
+        include_in_schema=duplicate_include,
+    )(_second_bodyfat_handler)
+    return router
+
+
+def _bodyfat_stub_router_with_combined_methods() -> APIRouter:
+    router = APIRouter()
+    path, method, include_in_schema = app_main._BODYFAT_ROUTE_SPECS[0]
+
+    async def _bodyfat_handler() -> dict[str, str]:
+        return {"status": path}
+
+    router.add_api_route(
+        path,
+        _bodyfat_handler,
+        methods=[method, "GET" if method == "POST" else "POST"],
+        include_in_schema=include_in_schema,
+    )
+    return router
+
+
+def _bodyfat_stub_router_with_unrelated_path() -> APIRouter:
+    router = _bodyfat_stub_router()
+
+    async def _unrelated_handler() -> dict[str, str]:
+        return {"status": "unrelated"}
+
+    router.get("/api/v1/unrelated-bodyfat-probe")(_unrelated_handler)
+    return router
+
+
 def _legacy_export_alias_stub_router(
     *,
     omit: frozenset[str] = frozenset(),
@@ -605,6 +669,25 @@ def _app_with_bmi_compat_routes_and_extra_method(*, combined_route: bool) -> Fas
         app.add_api_route(
             path, _bmi_compat_handler, methods=[method], include_in_schema=include_in_schema
         )
+
+    async def _extra_method_handler() -> dict[str, str]:
+        return {"status": "extra-method"}
+
+    opposite_method = "POST" if extra_method == "GET" else "GET"
+    extra_methods = [extra_method, opposite_method] if combined_route else [opposite_method]
+    app.add_api_route(
+        extra_path,
+        _extra_method_handler,
+        methods=extra_methods,
+        include_in_schema=extra_include,
+    )
+    return app
+
+
+def _app_with_bodyfat_routes_and_extra_method(*, combined_route: bool) -> FastAPI:
+    app = FastAPI()
+    extra_path, extra_method, extra_include = app_main._BODYFAT_ROUTE_SPECS[0]
+    app.include_router(app_main.bodyfat_router)
 
     async def _extra_method_handler() -> dict[str, str]:
         return {"status": "extra-method"}
@@ -2048,6 +2131,214 @@ def test_bmi_compat_route_registration_rejects_duplicate_canonical_router_paths(
         match="BMI compatibility router does not define the expected route family",
     ):
         _bootstrap_temp_app(FastAPI())
+
+
+def test_bodyfat_route_registration_is_idempotent() -> None:
+    app = FastAPI()
+
+    app_main._include_bodyfat_router_if_needed(app)
+    app_main._include_bodyfat_router_if_needed(app)
+
+    for path, method, include_in_schema in app_main._BODYFAT_ROUTE_SPECS:
+        matching_routes = [
+            route
+            for route in app.routes
+            if getattr(route, "path", None) == path
+            and method in (getattr(route, "methods", None) or set())
+        ]
+        assert len(matching_routes) == 1
+        matching_route = matching_routes[0]
+        assert getattr(matching_route, "include_in_schema", True) is include_in_schema
+        assert getattr(matching_route.endpoint, "__module__", "") == "app.routers.bodyfat"
+        assert not matching_route.dependant.dependencies
+        assert 429 not in (matching_route.responses or {})
+
+    assert not any(
+        getattr(route, "path", None) == "/bodyfat"
+        and "POST" in (getattr(route, "methods", None) or set())
+        for route in app.routes
+    )
+
+
+def test_bodyfat_route_registration_rejects_wrong_method() -> None:
+    app = FastAPI()
+    path, method, include_in_schema = app_main._BODYFAT_ROUTE_SPECS[0]
+
+    async def _wrong_method_bodyfat_route() -> dict[str, str]:
+        return {"status": "wrong-method"}
+
+    wrong_method = "GET" if method == "POST" else "POST"
+    getattr(app, wrong_method.lower())(path, include_in_schema=include_in_schema)(
+        _wrong_method_bodyfat_route
+    )
+
+    with pytest.raises(RuntimeError, match="Partial bodyfat route registration detected"):
+        app_main._include_bodyfat_router_if_needed(app)
+
+
+def test_bodyfat_route_registration_rejects_wrong_method_in_canonical_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path, method, _include_in_schema = app_main._BODYFAT_ROUTE_SPECS[0]
+    wrong_method = "GET" if method == "POST" else "POST"
+    monkeypatch.setattr(
+        app_main,
+        "bodyfat_router",
+        _bodyfat_stub_router(method_overrides={path: wrong_method}),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Bodyfat router does not define the expected route family",
+    ):
+        app_main._include_bodyfat_router_if_needed(FastAPI())
+
+
+def test_bodyfat_route_registration_rejects_combined_methods_in_canonical_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_main,
+        "bodyfat_router",
+        _bodyfat_stub_router_with_combined_methods(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Bodyfat router does not define the expected route family",
+    ):
+        app_main._include_bodyfat_router_if_needed(FastAPI())
+
+
+def test_bodyfat_route_registration_rejects_existing_wrong_method_after_full_family() -> None:
+    with pytest.raises(RuntimeError, match="Partial bodyfat route registration detected"):
+        app_main._include_bodyfat_router_if_needed(
+            _app_with_bodyfat_routes_and_extra_method(combined_route=False)
+        )
+
+
+def test_bodyfat_route_registration_rejects_existing_combined_methods() -> None:
+    with pytest.raises(RuntimeError, match="Partial bodyfat route registration detected"):
+        app_main._include_bodyfat_router_if_needed(
+            _app_with_bodyfat_routes_and_extra_method(combined_route=True)
+        )
+
+
+def test_bodyfat_route_registration_rejects_foreign_handlers() -> None:
+    app = FastAPI()
+    path, method, include_in_schema = app_main._BODYFAT_ROUTE_SPECS[0]
+
+    async def _foreign_bodyfat_route() -> dict[str, str]:
+        return {"status": "foreign"}
+
+    getattr(app, method.lower())(path, include_in_schema=include_in_schema)(_foreign_bodyfat_route)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate .* route detected with a different bodyfat handler",
+    ):
+        app_main._include_bodyfat_router_if_needed(app)
+
+
+def test_bodyfat_route_registration_rejects_openapi_visibility_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path, _method, include_in_schema = app_main._BODYFAT_ROUTE_SPECS[0]
+    monkeypatch.setattr(
+        app_main,
+        "bodyfat_router",
+        _bodyfat_stub_router(include_overrides={path: not include_in_schema}),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Bodyfat router does not preserve OpenAPI visibility",
+    ):
+        app_main._include_bodyfat_router_if_needed(FastAPI())
+
+
+def test_bodyfat_route_registration_rejects_existing_openapi_visibility_drift() -> None:
+    app = FastAPI()
+    app.include_router(app_main.bodyfat_router)
+    path, method, include_in_schema = app_main._BODYFAT_ROUTE_SPECS[0]
+    matching_route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == path
+        and method in (getattr(route, "methods", None) or set())
+    )
+    matching_route.include_in_schema = not include_in_schema
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing .* route does not preserve bodyfat OpenAPI visibility",
+    ):
+        app_main._include_bodyfat_router_if_needed(app)
+
+
+def test_bodyfat_route_registration_rejects_unrelated_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_main,
+        "bodyfat_router",
+        _bodyfat_stub_router_with_unrelated_path(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Bodyfat router does not define the expected route family",
+    ):
+        app_main._include_bodyfat_router_if_needed(FastAPI())
+
+
+def test_bodyfat_route_registration_rejects_duplicate_canonical_router_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_main, "bodyfat_router", _duplicate_bodyfat_stub_router())
+
+    with pytest.raises(
+        RuntimeError,
+        match="Bodyfat router does not define the expected route family",
+    ):
+        app_main._include_bodyfat_router_if_needed(FastAPI())
+
+
+def test_bodyfat_direct_router_remains_unprefixed_compatibility() -> None:
+    from app.routers.bodyfat import get_router
+
+    app = FastAPI()
+    app.include_router(get_router())
+    client = TestClient(app)
+    payload = {
+        "height_m": 1.75,
+        "weight_kg": 75,
+        "age": 30,
+        "gender": "male",
+        "neck_cm": 38,
+        "waist_cm": 80,
+        "language": "en",
+    }
+
+    response = client.post("/bodyfat", json=payload)
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert {"labels", "lang", "median", "methods"} <= response.json().keys()
+    assert client.post("/api/v1/bodyfat", json=payload).status_code == 404
+
+
+def test_bodyfat_final_openapi_hides_path() -> None:
+    app_main.app.openapi_schema = None
+    route_matches = [
+        route
+        for route in app_main.app.routes
+        if getattr(route, "path", None) == "/api/v1/bodyfat"
+        and "POST" in (getattr(route, "methods", None) or set())
+    ]
+
+    assert len(route_matches) == 1
+    assert "/api/v1/bodyfat" not in app_main.app.openapi()["paths"]
+    assert "/bodyfat" not in app_main.app.openapi()["paths"]
 
 
 def test_plan_export_route_registration_is_idempotent(

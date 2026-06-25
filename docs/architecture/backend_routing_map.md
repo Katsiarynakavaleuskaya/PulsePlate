@@ -181,7 +181,7 @@ Evidence:
   - `responses=RATE_LIMIT_429_RESPONSES`
   - `@limit_if_available(RATE_LIMIT_EXPORTS)`
 
-### Conditional routers: Bodyfat / BMI Pro / Business
+### Conditional routers: BMI Pro / Business
 
 Anchor (stable): `app/main.py -> app/routers/bmi_registration.py` owns BMI route registration; `legacy_app.py` remains a compatibility seam for direct-call shims and mirrored attrs.
 
@@ -189,12 +189,36 @@ Evidence:
 - `app/main.py -> ensure_canonical_app_bootstrap()`
 - `app/routers/bmi_registration.py -> register_bmi_routes()`
 
-- Bodyfat: included if router factory is available (`get_bodyfat_router`)
 - BMI Free: canonical `/api/v1/bmi/calculate` is registered by `app/main.py` via `app/routers/bmi_registration.py`
 - BMI Pro: registered by `app/main.py` via `app/routers/bmi_registration.py`, included only if `FEATURE_BMI_PRO_ENABLED` is truthy
   - canonical: `/api/v1/pro/bmi`
   - legacy alias: `/api/v1/bmi/pro`
 - Business: included only if `BUSINESS_MODULE_ENABLED` is truthy
+
+### Bodyfat route family (canonical-owned bootstrap)
+
+Anchor (stable): `app/main.py -> _include_bodyfat_router_if_needed(app)` owns
+`app/routers/bodyfat.py`.
+
+Evidence:
+- `app/routers/bodyfat.py` defines `BODYFAT_ROUTE_SPECS`, a module-level
+  canonical router for `POST /api/v1/bodyfat`, and a stable direct-inclusion
+  `get_router()` adapter for old `/bodyfat` compatibility tests/utilities.
+- `app/main.py -> _include_bodyfat_router_if_needed(app)` registers the
+  canonical bodyfat family through `ensure_route_family_registered(...)` and
+  `RouteMemberContract`.
+- `legacy_app.py` does not import or include `app.routers.bodyfat`; legacy
+  growth guard tests reject direct, aliased, module-qualified, and factory-based
+  bodyfat re-registration in `legacy_app.py`.
+
+Runtime effect:
+- In normal runtime: `POST /api/v1/bodyfat` is routable exactly once through
+  canonical bootstrap.
+- Direct compatibility: including `app.routers.bodyfat.get_router()` still
+  provides unprefixed `POST /bodyfat` for old direct-router inclusion callers.
+- OpenAPI: the source route keeps `include_in_schema=True`, but the final
+  canonical OpenAPI builder still filters `/api/v1/bodyfat` out of published
+  `/openapi.json`; generated client/OpenAPI artifacts are unchanged.
 
 ### Test router (non-production env)
 

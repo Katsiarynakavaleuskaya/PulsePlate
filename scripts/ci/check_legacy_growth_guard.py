@@ -109,7 +109,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("registration", "include_router", "bayes_adherence.router", ""),
         LegacyFact("registration", "include_router", "nutrition_log.router", ""),
         LegacyFact("registration", "include_router", "legacy_nutrition_alias_router", ""),
-        LegacyFact("registration", "include_router", "get_bodyfat_router()", ""),
         LegacyFact("registration", "include_router", "business_router", ""),
         LegacyFact("registration", "include_router", "test_router.router", ""),
     }
@@ -123,7 +122,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
         LegacyFact("router_import", "app.routers", "vip", "_vip_mod"),
         LegacyFact("router_import", "app.routers.api_key", "api_key_header", ""),
         LegacyFact("router_import", "app.routers.bmi", "bmi_calculate_handler", ""),
-        LegacyFact("router_import", "app.routers.bodyfat", "get_router", "get_bodyfat_router"),
         LegacyFact("router_import", "app.routers.business", "router", "business_router"),
         LegacyFact("router_import", "app.routers.catalog", "router", "catalog_router"),
         LegacyFact("router_import", "app.routers.foods", "router", "foods_router"),
@@ -139,6 +137,7 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
             "router",
             "nutrition_recommendations_router",
         ),
+        LegacyFact("router_import", "dynamic", "app.routers.plan_export", "_plan_mod"),
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_plate", ""
         ),
@@ -326,6 +325,7 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
         return set()
 
     facts: set[LegacyFact] = set()
+    dynamic_import_names = _collect_dynamic_import_function_names(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module is not None:
             if node.module != "app.routers" and not node.module.startswith("app.routers."):
@@ -336,7 +336,183 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
             for alias in node.names:
                 if alias.name == "app.routers" or alias.name.startswith("app.routers."):
                     facts.add(LegacyFact("router_import", "import", alias.name, alias.asname or ""))
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value = node.value
+            if value is None:
+                continue
+            targets = list(node.targets) if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                for module_name, target_name in _dynamic_app_router_import_assignments(
+                    value,
+                    target,
+                    import_func_names=dynamic_import_names,
+                ):
+                    facts.add(LegacyFact("router_import", "dynamic", module_name, target_name))
+        elif isinstance(node, ast.NamedExpr):
+            for module_name, target_name in _dynamic_app_router_import_assignments(
+                node.value,
+                node.target,
+                import_func_names=dynamic_import_names,
+            ):
+                facts.add(LegacyFact("router_import", "dynamic", module_name, target_name))
+        elif isinstance(node, ast.Call):
+            if not _is_router_registration_call(node):
+                continue
+            for module_name in _dynamic_app_router_import_modules(
+                node,
+                import_func_names=dynamic_import_names,
+            ):
+                facts.add(
+                    LegacyFact(
+                        "router_import",
+                        "dynamic",
+                        module_name,
+                        _safe_unparse(node.func),
+                    )
+                )
     return facts
+
+
+def _collect_dynamic_import_function_names(tree: ast.Module) -> frozenset[str]:
+    """Return names that may call Python's dynamic import helpers."""
+
+    names: set[str] = {"__import__", "import_module"}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module in {"builtins", "importlib"}:
+                for alias in node.names:
+                    if (node.module, alias.name) not in {
+                        ("builtins", "__import__"),
+                        ("importlib", "import_module"),
+                    }:
+                        continue
+                    imported_name = alias.asname or alias.name
+                    if imported_name not in names:
+                        names.add(imported_name)
+                        changed = True
+                continue
+
+            value: ast.AST | None = None
+            targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = list(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = [node.target]
+            elif isinstance(node, ast.NamedExpr):
+                value = node.value
+                targets = [node.target]
+            if value is None or not _is_dynamic_import_function_reference(
+                value,
+                import_func_names=frozenset(names),
+            ):
+                continue
+
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    if target_name not in names:
+                        names.add(target_name)
+                        changed = True
+    return frozenset(names)
+
+
+def _is_dynamic_import_function_reference(
+    node: ast.AST,
+    *,
+    import_func_names: frozenset[str],
+) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id in import_func_names
+    return isinstance(node, ast.Attribute) and node.attr == "import_module"
+
+
+def _is_router_registration_call(call: ast.Call) -> bool:
+    return isinstance(call.func, ast.Attribute) and call.func.attr in APP_REGISTRATION_METHODS
+
+
+def _assignment_target_names(node: ast.AST) -> tuple[str, ...]:
+    if isinstance(node, ast.Name):
+        return (node.id,)
+    if isinstance(node, (ast.Tuple, ast.List)):
+        names: list[str] = []
+        for element in node.elts:
+            names.extend(_assignment_target_names(element))
+        return tuple(names)
+    return ()
+
+
+def _dynamic_app_router_import_assignments(
+    value: ast.AST,
+    target: ast.AST,
+    *,
+    import_func_names: frozenset[str],
+) -> tuple[tuple[str, str], ...]:
+    """Return dynamic app.routers imports paired with the assigned target name."""
+
+    if isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)):
+        destructured_pairs: list[tuple[str, str]] = []
+        for value_item, target_item in zip(value.elts, target.elts, strict=False):
+            destructured_pairs.extend(
+                _dynamic_app_router_import_assignments(
+                    value_item,
+                    target_item,
+                    import_func_names=import_func_names,
+                )
+            )
+        return tuple(destructured_pairs)
+
+    target_names = _assignment_target_names(target)
+    if not target_names:
+        return ()
+
+    pairs: list[tuple[str, str]] = []
+    for module_name in _dynamic_app_router_import_modules(
+        value, import_func_names=import_func_names
+    ):
+        for target_name in target_names:
+            pairs.append((module_name, target_name))
+    return tuple(pairs)
+
+
+def _dynamic_app_router_import_modules(
+    node: ast.AST,
+    *,
+    import_func_names: frozenset[str],
+) -> frozenset[str]:
+    """Return dynamic app.routers module imports embedded in an AST node."""
+
+    modules: set[str] = set()
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Call):
+            continue
+        module_name = _dynamic_import_module_name(child, import_func_names=import_func_names)
+        if module_name is None:
+            continue
+        if module_name == "app.routers" or module_name.startswith("app.routers."):
+            modules.add(module_name)
+    return frozenset(modules)
+
+
+def _dynamic_import_module_name(
+    call: ast.Call,
+    *,
+    import_func_names: frozenset[str],
+) -> str | None:
+    if not call.args:
+        return None
+    first_arg = call.args[0]
+    if not isinstance(first_arg, ast.Constant) or not isinstance(first_arg.value, str):
+        return None
+
+    func = call.func
+    if isinstance(func, ast.Name) and func.id in import_func_names:
+        return first_arg.value
+    if isinstance(func, ast.Attribute) and func.attr == "import_module":
+        return first_arg.value
+    return None
 
 
 def collect_sensitive_call_counts(

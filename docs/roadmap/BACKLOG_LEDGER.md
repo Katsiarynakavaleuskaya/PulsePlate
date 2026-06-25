@@ -24,6 +24,28 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-bodyfat-bmi-engine-delegation"></a>
+- [ ] P1: Delegate bodyfat missing-BMI derivation to canonical BMI engine
+  - Owner: @katsiaryna_kavaleuskaya (Backend / Nutrition)
+  - Priority: P1
+  - Target PR: TBD after bodyfat route ownership cleanup
+  - Status: Open
+  - Area: backend routing / nutrition calculation semantics
+  - Reason (EN): `app/routers/bodyfat.py` currently derives BMI locally when
+    the request omits `bmi`, while canonical BMI calculation and rounding
+    semantics live in the BMI engine. This PR keeps bodyfat math unchanged while
+    moving route ownership; the derivation seam needs a separate parity-reviewed
+    PR so formula and rounding behavior do not drift accidentally.
+  - Links: `app/routers/bodyfat.py`, `core/bmi/engine.py`,
+    `tests/test_api.py::test_v1_bodyfat`,
+    `tests/edges/test_bodyfat_edges.py`
+  - DoD: Missing-BMI bodyfat requests delegate through the canonical BMI
+    calculation seam or record an explicit semantics decision; supplied-BMI
+    requests remain unchanged; deterministic parity tests cover supplied BMI,
+    derived BMI, Deurenberg output, and rounding behavior; generated
+    OpenAPI/client artifacts remain unchanged unless a separately reviewed
+    contract change requires it.
+
 <a id="ledger-p1-first-class-auth-principal-mapping"></a>
 - [ ] P1: First-class authenticated principal mapping for API-key-derived subjects
   - Owner: @katsiaryna_kavaleuskaya (Backend / Security)
