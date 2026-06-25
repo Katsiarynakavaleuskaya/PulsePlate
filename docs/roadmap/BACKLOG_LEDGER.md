@@ -10933,7 +10933,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
   - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 -> PR-3 -> PR-4 -> PR-5 -> PR-6
-  - Status: PR-0 merged baseline; PR-1 active/current as a repo-only specification-bundle control-plane layer; PR-2 through PR-6 remain gated future work
+  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 active as a local sandboxed candidate-patch builder; PR-3 through PR-6 remain gated future work
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
@@ -10946,15 +10946,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md`
     - `docs/orchestration/contracts/creative_code_specification.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_specification.v1.json`
+    - `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`
+    - `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`
     - `scripts/orchestration/creative_code_contract.py`
     - `scripts/orchestration/creative_code_specification.py`
     - `scripts/orchestration/creative_code_spec_pipeline.py`
     - `scripts/orchestration/creative_code_rejection_index.py`
+    - `scripts/orchestration/creative_code_patch_contract.py`
+    - `scripts/orchestration/creative_code_patch_workspace.py`
+    - `scripts/orchestration/creative_code_patch_executor.py`
+    - `scripts/orchestration/creative_code_patch_builder.py`
     - `tests/test_creative_code_contract.py`
+    - `tests/test_creative_code_patch_builder.py`
   - PR train:
     - PR-0: closed authority contract, schema, reference packet, validator, and tests; no model calls, patches, workflows, Slack/GitHub settings, or `experiment_runner.py` changes.
     - PR-1: emit deterministic implementation specification bundles from promoted creative research, with skeptic reviews, synthesis, telemetry summary, safe local artifact I/O, and fingerprint-only rejection indexes; no candidate patches, provider calls, repo writes, runtime truth, review-thread disposition authority, or merge-readiness evidence.
-    - PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces.
+    - PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces with exact PR-1 bundle fingerprint binding, exact `origin/main` base SHA, human admission, fixed Codex CLI argv/env, strict patch policy validation, direct Experiment Runner candidate-mode evaluation, and sanitized result metadata.
     - PR-3: allow human-approved draft PR promotion under a separate operator exception.
     - PR-4: add candidate evaluation telemetry and rejection taxonomy.
     - PR-5: add review-disposition integration without review-thread resolution authority.
@@ -10971,6 +10979,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - PR-0 keeps `gate_status=closed` and all repository-write/promotion authority flags false
     - PR-1 emits only validated `CreativeCodeSpecificationBundle` artifacts from validated PR-0 packets, with complete skeptic-review coverage and deterministic synthesis
+    - PR-2 emits only validated local `CreativeCodePatchBuildRequest`, local `candidate.patch`, and sanitized `CreativeCodePatchResult` artifacts; it does not write the shared repo, open PRs, resolve review threads, promote candidates, or store raw Codex/prompt/oracle output in sanitized results
     - Creative-code packets require promoted `creative_research` provenance, sandboxing, human review, fallback, repo-relative paths, and disjoint mutable/oracle surfaces
     - Future PRs cannot emit telemetry, generate patches, open PRs, or expand Slack/GitHub authority until their separate gates land
     - No PR in the train treats creative-code output as canonical product truth, scientific verified discovery, merge-readiness evidence, or review-thread disposition authority

@@ -36,6 +36,14 @@
   reviewed allowlist, forbidden-surface tests, identity checks, and rollback
   notes.
 - Result artifacts stay local under `artifacts/orchestration/experiments/results/` and are evidence only, not merge-ready or promotion-ready output.
+- PR-2 creative-code patch-builder artifacts stay local under
+  `artifacts/orchestration/creative_code/patch_runs/`. The builder CLI
+  `creative_code_patch_builder.py` is not role dispatch, PR lifecycle
+  automation, merge governance, or promotion authority. Its `evaluate` command
+  may call Experiment Runner candidate-patch mode for local candidate evaluation,
+  but that result is not the mandatory PR oracle-only governance evidence and
+  must not be used as fixed-mapping, review-disposition, or merge-readiness
+  proof.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output
   is the default, SMTP email and Slack delivery are explicit opt-in only, and no

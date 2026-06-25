@@ -135,9 +135,25 @@ The index must not store raw prompts, raw source packets, raw candidate prose,
 generated code, patches, provider payloads, oracle stdout/stderr, local absolute
 paths, secrets, or token values.
 
+## PR-2 Handoff
+
+PR-2 may consume a valid `CreativeCodeSpecificationBundle` only through
+`CreativeCodePatchBuildRequest`. The request must bind the full source bundle
+fingerprint, selected variant ID/fingerprint, exact `origin/main` base SHA, and
+explicit human admission. PR-1 does not infer patch authority by itself.
+
+The PR-2 builder may generate local `candidate.patch` artifacts only inside an
+isolated no-remote checkout and may evaluate them only through Experiment Runner
+candidate-patch mode. It must not mutate the shared worktree, call promotion or
+notification wrappers, open branches/PRs, resolve review threads, or store raw
+patches/prompts/output in sanitized results.
+
+Contract: `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`.
+
 ## Boundary
 
 This contract is not fixed-mapping evidence, bot-review disposition evidence,
 merge-readiness evidence, public scientific proof, product runtime truth, or a
-release signal. PR-2+ authority remains closed until a later operator-approved
-gate lands.
+release signal. PR-2 opens only the local sandboxed candidate-patch builder
+described above; repository-write and promotion authority remain closed until a
+later operator-approved gate lands.
