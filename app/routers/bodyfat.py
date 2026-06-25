@@ -39,6 +39,19 @@ class BodyFatRequest(BaseModel):
         )
 
 
+class BodyFatLabels(BaseModel):
+    methods: str
+    median: str
+    units: str
+
+
+class BodyFatResponse(BaseModel):
+    methods: dict[str, float]
+    median: float | None
+    lang: str
+    labels: BodyFatLabels
+
+
 async def calc_bodyfat(req: BodyFatRequest) -> dict[str, object]:
     lang = normalize_lang(req.language)
     data: dict[str, object] = dict(req.model_dump(exclude_none=True))
@@ -67,10 +80,10 @@ async def calc_bodyfat(req: BodyFatRequest) -> dict[str, object]:
 
 
 router = APIRouter()
-router.post("/api/v1/bodyfat")(calc_bodyfat)
+router.post("/api/v1/bodyfat", response_model=BodyFatResponse)(calc_bodyfat)
 
 
 def get_router() -> APIRouter:
     compat_router = APIRouter()
-    compat_router.post("/bodyfat")(calc_bodyfat)
+    compat_router.post("/bodyfat", response_model=BodyFatResponse)(calc_bodyfat)
     return compat_router

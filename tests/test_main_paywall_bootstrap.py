@@ -2322,6 +2322,7 @@ def test_bodyfat_direct_router_remains_unprefixed_compatibility() -> None:
 
     response = client.post("/bodyfat", json=payload)
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert {"labels", "lang", "median", "methods"} <= response.json().keys()
     assert client.post("/api/v1/bodyfat", json=payload).status_code == 404
 

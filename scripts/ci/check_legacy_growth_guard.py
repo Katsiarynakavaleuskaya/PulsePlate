@@ -366,13 +366,17 @@ def _collect_dynamic_import_function_names(tree: ast.Module) -> frozenset[str]:
     while changed:
         changed = False
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            if isinstance(node, ast.ImportFrom) and node.module in {"builtins", "importlib"}:
                 for alias in node.names:
-                    if alias.name == "import_module":
-                        imported_name = alias.asname or alias.name
-                        if imported_name not in names:
-                            names.add(imported_name)
-                            changed = True
+                    if (node.module, alias.name) not in {
+                        ("builtins", "__import__"),
+                        ("importlib", "import_module"),
+                    }:
+                        continue
+                    imported_name = alias.asname or alias.name
+                    if imported_name not in names:
+                        names.add(imported_name)
+                        changed = True
                 continue
 
             value: ast.AST | None = None
@@ -381,6 +385,9 @@ def _collect_dynamic_import_function_names(tree: ast.Module) -> frozenset[str]:
                 value = node.value
                 targets = list(node.targets)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = [node.target]
+            elif isinstance(node, ast.NamedExpr):
                 value = node.value
                 targets = [node.target]
             if value is None or not _is_dynamic_import_function_reference(

@@ -210,7 +210,7 @@ Commit: `d8c2313fc157ca39109268e262af7644056e028b`
 
 Evidence: `tests/test_main_paywall_bootstrap.py` covers source/final OpenAPI
 visibility behavior, and
-`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" make openapi-check DEV_PYTHON="$VENV_PYTHON"`
+`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`
 passed with no generated artifact diff.
 
 Disposition: FIXED
@@ -260,7 +260,7 @@ passed. The post-commit run selected `tests/test_api.py`,
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_api.py::test_v1_bodyfat tests/test_api.py::test_v1_bodyfat_missing_hip tests/test_api.py::test_bodyfat_router_export_uses_canonical_package_path tests/test_app_bodyfat_v1.py tests/test_bodyfat_labels_coverage.py tests/edges/test_bodyfat_edges.py tests/test_bodyfat_shim.py tests/test_docker_workflow_build_path_contract.py::test_docker_entrypoint_keeps_bodyfat_hidden_but_routable tests/test_app_public_surface.py::test_app_public_surface_smoke`
 - PASS: `python3 scripts/ci/check_legacy_growth_guard.py`
 - PASS:
-  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" make openapi-check DEV_PYTHON="$VENV_PYTHON"`
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`
 - PASS: `pre-commit run --all-files`
 - PASS: `make validate-changed`
 - PASS: `git show --check --oneline HEAD`
@@ -321,10 +321,10 @@ Not merge-ready.
 Required before merge:
 
 - [ ] Current-head CI passes.
-- [x] Post-open role passes completed:
+- [ ] Post-open role passes completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [x] Codex Security diff scan / finding discovery run.
-- [x] `pulseplate-pr-review` completed.
+- [ ] Codex Security diff scan / finding discovery run.
+- [ ] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit/Sourcery/Cubic comments inspected and dispositioned on final
   current head.
 - [ ] PR body mirrors this fixed-mapping artifact after artifact commit lands.

@@ -701,6 +701,22 @@ def test_legacy_growth_guard_rejects_aliased_import_module_bodyfat_router() -> N
     ]
 
 
+def test_legacy_growth_guard_rejects_aliased_builtin_import_bodyfat_router() -> None:
+    source = textwrap.dedent("""
+        from builtins import __import__ as load_router_module
+
+        business_router = load_router_module("app.routers.bodyfat", fromlist=["router"]).router
+        app.include_router(business_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> business_router",
+    ]
+
+
 def test_legacy_growth_guard_rejects_simple_import_module_alias_bodyfat_router() -> None:
     source = textwrap.dedent("""
         import importlib
@@ -754,6 +770,23 @@ def test_legacy_growth_guard_rejects_walrus_dynamic_bodyfat_router() -> None:
         import importlib
 
         if (business_router := importlib.import_module("app.routers.bodyfat").router):
+            app.include_router(business_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> business_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_walrus_import_function_alias_bodyfat_router() -> None:
+    source = textwrap.dedent("""
+        import importlib
+
+        if (load_router_module := importlib.import_module):
+            business_router = load_router_module("app.routers.bodyfat").router
             app.include_router(business_router)
         """)
 
