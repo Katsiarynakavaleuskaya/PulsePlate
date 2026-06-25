@@ -427,16 +427,16 @@ def _dynamic_app_router_import_assignments(
     """Return dynamic app.routers imports paired with the assigned target name."""
 
     if isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)):
-        pairs: list[tuple[str, str]] = []
+        destructured_pairs: list[tuple[str, str]] = []
         for value_item, target_item in zip(value.elts, target.elts, strict=False):
-            pairs.extend(
+            destructured_pairs.extend(
                 _dynamic_app_router_import_assignments(
                     value_item,
                     target_item,
                     import_func_names=import_func_names,
                 )
             )
-        return tuple(pairs)
+        return tuple(destructured_pairs)
 
     target_names = _assignment_target_names(target)
     if not target_names:
