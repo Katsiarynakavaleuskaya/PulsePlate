@@ -1,0 +1,70 @@
+{
+  "allowed_existing_paths": [
+    "core/rag/orchestration.py"
+  ],
+  "allowed_new_paths": [],
+  "authority": {
+    "call_arbitrary_network": false,
+    "call_local_codex_exec": true,
+    "call_product_runtime_models": false,
+    "create_branch": false,
+    "evaluate_candidate_patch": true,
+    "generate_candidate_patch": true,
+    "mark_ready_for_review": false,
+    "merge": false,
+    "modify_openapi_or_clients": false,
+    "open_draft_pr": false,
+    "open_pull_request": false,
+    "public_multi_tenant_use": false,
+    "push_branch": false,
+    "read_secrets": false,
+    "release": false,
+    "resolve_review_threads": false,
+    "slack_github_authority_expansion": false,
+    "use_semantic_cache": false,
+    "write_isolated_workspace": true,
+    "write_repository": false,
+    "write_shared_worktree": false
+  },
+  "base_commit_sha": "8a637a9ad2ab618ec2e7e550132f5a615146d968",
+  "budgets": {
+    "evaluation_timeout_seconds": 300,
+    "generation_attempts": 1,
+    "generation_timeout_seconds": 300,
+    "max_changed_files": 3,
+    "max_diff_lines": 400,
+    "max_patch_bytes": 262144
+  },
+  "executor": {
+    "approval_policy": "never",
+    "apps_enabled": false,
+    "command_network_access": false,
+    "command_profile": "codex-cli-0.141.0-fixed-argv",
+    "ephemeral": true,
+    "ignore_user_config": true,
+    "json_events": true,
+    "kind": "codex_exec",
+    "sandbox": "workspace-write",
+    "web_search": "disabled"
+  },
+  "human_admission": {
+    "approval_ref": "operator-pr2-reference",
+    "decision": "approved_for_sandbox_generation"
+  },
+  "idempotency_key": "idem:60794d9e71ed27751d0ae82921c703db8286fa25c195064bb4d78c82c712f69b",
+  "metrics": [
+    "creative_code_patch_validity"
+  ],
+  "oracle_commands": [
+    "pytest -q tests/test_creative_code_patch_builder.py"
+  ],
+  "policy_version": "creative-code-patch-builder-pr2",
+  "request_id": "evidence:creative_code_patch_build_request:control_plane:1.0:60794d9e71ed27751d0ae829",
+  "request_type": "creative_code_patch_build_request",
+  "schema_version": "1.0",
+  "selected_variant_fingerprint": "sha256:84f52e4a1e51c6f551191a555463c8abcb0c0249e1cf2eb41c4204f6c491e62a",
+  "selected_variant_id": "creative-code-pr0-reference:spec-1",
+  "source_bundle_fingerprint": "sha256:bfcf7a9d80c74a01581c2135509b8dfab473b6457cc7adafe350b9a8a4c2a8b8",
+  "source_bundle_id": "evidence:creative_code_specification_bundle:control_plane:1.0:07ddcf6a9ea0fc2616cc6c68",
+  "source_packet_id": "creative-code-pr0-reference"
+}

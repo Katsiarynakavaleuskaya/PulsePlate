@@ -165,15 +165,20 @@ Rules:
 - Slack identity is not a cryptographic Git identity. A Slack bot/display
   identity remains a separate security-governed follow-up, not part of this
   experimentation protocol.
-- Creative-code candidates are specification-only unless a separate gate opens.
+- Creative-code candidates are specification-only until the PR-2 patch-builder
+  gate. PR-2 opens only local sandboxed candidate-patch generation/evaluation;
+  repository-write, PR, review-thread, merge, promotion, product runtime, and
+  Slack/GitHub authority remain closed.
   `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md` and
   `docs/orchestration/contracts/CREATIVE_CODE_CANDIDATE_CONTRACT.md` define the
   closed PR-0 handoff from promoted `creative_research` output to future code
   candidates. `docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md`
-  defines the PR-1 local specification bundle layer. These artifacts do not
-  authorize model calls, generated patches, repository writes, branch/push/PR
-  creation, ready-for-review, review-thread resolution, merge, release, public
-  multi-tenant use, semantic-cache use, or Slack/GitHub authority expansion.
+  defines the PR-1 local specification bundle layer.
+  `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`
+  defines the PR-2 local patch-builder layer. These artifacts do not authorize
+  shared repository writes, branch/push/PR creation, ready-for-review,
+  review-thread resolution, merge, release, public multi-tenant use,
+  semantic-cache use, or Slack/GitHub authority expansion.
 
 ---
 

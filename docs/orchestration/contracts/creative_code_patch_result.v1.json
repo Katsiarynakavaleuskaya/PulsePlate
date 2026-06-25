@@ -1,0 +1,54 @@
+{
+  "authority": {
+    "candidate_patch_evaluated": true,
+    "candidate_patch_generated": true,
+    "merge": false,
+    "open_pull_request": false,
+    "promotion": false,
+    "resolve_review_threads": false,
+    "write_repository": false
+  },
+  "base_commit_sha": "8a637a9ad2ab618ec2e7e550132f5a615146d968",
+  "changed_paths": [
+    "core/rag/orchestration.py"
+  ],
+  "failure_class": "unchanged_result",
+  "idempotency_key": "idem:735a4f8c96d0fc4a4b39e2a4ad7f046fba1570ca69a2b8d7a7ae469610fb4a66",
+  "patch_summary": {
+    "diff_lines": 42,
+    "patch_bytes": 1234,
+    "patch_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "policy_version": "creative-code-patch-builder-pr2",
+  "promotion_ready": false,
+  "request_id": "evidence:creative_code_patch_build_request:control_plane:1.0:60794d9e71ed27751d0ae829",
+  "result_id": "evidence:creative_code_patch_result:control_plane:1.0:735a4f8c96d0fc4a4b39e2a4",
+  "result_type": "creative_code_patch_result",
+  "runner_summary": {
+    "attempts": 1,
+    "experiment_id": "exp-creative-code-pr2-reference",
+    "failure_class": "unchanged_result",
+    "mutated_path_count": 1,
+    "oracle_commands_configured": 1,
+    "oracle_commands_executed": 0,
+    "retries_consumed": 0,
+    "runner_error_fingerprint": null,
+    "runner_error_present": false,
+    "runner_result_fingerprint": "sha256:356fc611423cdca3066eb3992d0ae3e93f3d326068454a7643aa4781b5fe3f1e",
+    "shared_tree_untouched": true,
+    "status": "rejected"
+  },
+  "sanitized": true,
+  "schema_version": "1.0",
+  "selected_variant_fingerprint": "sha256:84f52e4a1e51c6f551191a555463c8abcb0c0249e1cf2eb41c4204f6c491e62a",
+  "selected_variant_id": "creative-code-pr0-reference:spec-1",
+  "source_bundle_fingerprint": "sha256:bfcf7a9d80c74a01581c2135509b8dfab473b6457cc7adafe350b9a8a4c2a8b8",
+  "source_bundle_id": "evidence:creative_code_specification_bundle:control_plane:1.0:07ddcf6a9ea0fc2616cc6c68",
+  "status": "rejected",
+  "workspace_summary": {
+    "checkout_destroyed": true,
+    "detached_base_sha": "8a637a9ad2ab618ec2e7e550132f5a615146d968",
+    "origin_removed": true,
+    "shared_tree_untouched": true
+  }
+}

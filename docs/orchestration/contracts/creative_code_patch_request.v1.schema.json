@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_patch_request.v1.schema.json",
+  "title": "CreativeCodePatchBuildRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_type",
+    "request_id",
+    "idempotency_key",
+    "policy_version",
+    "source_bundle_id",
+    "source_bundle_fingerprint",
+    "source_packet_id",
+    "selected_variant_id",
+    "selected_variant_fingerprint",
+    "base_commit_sha",
+    "human_admission",
+    "authority",
+    "executor",
+    "allowed_existing_paths",
+    "allowed_new_paths",
+    "oracle_commands",
+    "metrics",
+    "budgets"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "request_type": { "const": "creative_code_patch_build_request" },
+    "request_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "policy_version": { "const": "creative-code-patch-builder-pr2" },
+    "source_bundle_id": { "$ref": "#/$defs/safe_id" },
+    "source_bundle_fingerprint": { "$ref": "#/$defs/sha256" },
+    "source_packet_id": { "$ref": "#/$defs/safe_id" },
+    "selected_variant_id": { "$ref": "#/$defs/safe_id" },
+    "selected_variant_fingerprint": { "$ref": "#/$defs/sha256" },
+    "base_commit_sha": { "$ref": "#/$defs/git_sha" },
+    "human_admission": { "$ref": "#/$defs/human_admission" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "executor": { "$ref": "#/$defs/executor" },
+    "allowed_existing_paths": { "$ref": "#/$defs/path_array" },
+    "allowed_new_paths": { "$ref": "#/$defs/path_array_allow_empty" },
+    "oracle_commands": { "$ref": "#/$defs/non_empty_string_array" },
+    "metrics": { "$ref": "#/$defs/non_empty_string_array" },
+    "budgets": { "$ref": "#/$defs/budgets" }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "repo_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!\\.git(?:/|$))(?!\\.github(?:/|$))(?!artifacts(?:/|$))(?!worktrees(?:/|$))(?!tests(?:/|$))(?!docs/orchestration(?:/|$))(?!docs/review(?:/|$))(?!scripts/ci(?:/|$))(?!frontend(?:/|$))(?!ios(?:/|$))(?!node_modules(?:/|$)).+"
+    },
+    "path_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repo_path" }
+    },
+    "path_array_allow_empty": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repo_path" }
+    },
+    "non_empty_string_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "not": {
+          "pattern": "(diff --git|raw[_ -]?(prompt|response|context)|chain[_ -]?of[_ -]?thought|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-)"
+        }
+      }
+    },
+    "human_admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "approval_ref"],
+      "properties": {
+        "decision": { "const": "approved_for_sandbox_generation" },
+        "approval_ref": { "$ref": "#/$defs/safe_id" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_arbitrary_network",
+        "call_local_codex_exec",
+        "call_product_runtime_models",
+        "create_branch",
+        "evaluate_candidate_patch",
+        "generate_candidate_patch",
+        "mark_ready_for_review",
+        "merge",
+        "modify_openapi_or_clients",
+        "open_draft_pr",
+        "open_pull_request",
+        "public_multi_tenant_use",
+        "push_branch",
+        "read_secrets",
+        "release",
+        "resolve_review_threads",
+        "slack_github_authority_expansion",
+        "use_semantic_cache",
+        "write_isolated_workspace",
+        "write_repository",
+        "write_shared_worktree"
+      ],
+      "properties": {
+        "generate_candidate_patch": { "const": true },
+        "write_isolated_workspace": { "const": true },
+        "evaluate_candidate_patch": { "const": true },
+        "call_local_codex_exec": { "const": true },
+        "write_repository": { "const": false },
+        "write_shared_worktree": { "const": false },
+        "create_branch": { "const": false },
+        "push_branch": { "const": false },
+        "open_pull_request": { "const": false },
+        "open_draft_pr": { "const": false },
+        "mark_ready_for_review": { "const": false },
+        "resolve_review_threads": { "const": false },
+        "merge": { "const": false },
+        "release": { "const": false },
+        "call_product_runtime_models": { "const": false },
+        "call_arbitrary_network": { "const": false },
+        "read_secrets": { "const": false },
+        "modify_openapi_or_clients": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "public_multi_tenant_use": { "const": false },
+        "slack_github_authority_expansion": { "const": false }
+      }
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "command_profile",
+        "approval_policy",
+        "sandbox",
+        "command_network_access",
+        "web_search",
+        "apps_enabled",
+        "ignore_user_config",
+        "ephemeral",
+        "json_events"
+      ],
+      "properties": {
+        "kind": { "const": "codex_exec" },
+        "command_profile": { "const": "codex-cli-0.141.0-fixed-argv" },
+        "approval_policy": { "const": "never" },
+        "sandbox": { "const": "workspace-write" },
+        "command_network_access": { "const": false },
+        "web_search": { "const": "disabled" },
+        "apps_enabled": { "const": false },
+        "ignore_user_config": { "const": true },
+        "ephemeral": { "const": true },
+        "json_events": { "const": true }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_attempts",
+        "generation_timeout_seconds",
+        "evaluation_timeout_seconds",
+        "max_changed_files",
+        "max_diff_lines",
+        "max_patch_bytes"
+      ],
+      "properties": {
+        "generation_attempts": { "const": 1 },
+        "generation_timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "evaluation_timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "max_changed_files": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 },
+        "max_diff_lines": { "type": "integer", "minimum": 1, "maximum": 800 },
+        "max_patch_bytes": { "type": "integer", "minimum": 1, "maximum": 524288 }
+      }
+    }
+  }
+}

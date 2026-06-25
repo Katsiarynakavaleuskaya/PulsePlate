@@ -2,9 +2,15 @@
 
 <!-- markdownlint-disable MD013 -->
 
-**Status:** PR-1 specification-bundle layer. Repo-only governance contract. No runtime impact.
+**Status:** PR-2 sandboxed candidate-patch builder layer. Repo-only governance contract. No runtime impact.
 
-**Scope:** Define the closed authority boundary between a promoted `creative_research` output and any future implementation candidate. This document does not authorize model calls, patch generation, shared worktree writes, branch creation, push, PR creation, review-thread resolution, merge, release, public multi-tenant use, or Slack/GitHub authority expansion.
+**Scope:** Define the authority boundary between a promoted `creative_research`
+output, a PR-1 implementation specification, and PR-2 local candidate-patch
+generation. This document authorizes only isolated local candidate-patch
+generation/evaluation through the PR-2 contract. It does not authorize shared
+worktree writes, branch creation, push, PR creation, review-thread resolution,
+merge, release, product runtime AI, OpenAPI/client changes, public multi-tenant
+use, or Slack/GitHub authority expansion.
 
 ---
 
@@ -14,7 +20,7 @@
 |---|---|---|
 | `research` | Produces hypotheses, scorecards, falsifiers, and promote/defer/discard decisions inside `creative_research`. | Existing governed source only. |
 | `code-specification` | Converts a promoted research output into a typed future implementation specification. | Allowed as the closed PR-0 `CreativeCodeCandidatePacket` plus PR-1 `CreativeCodeSpecificationBundle`. |
-| `candidate-patch` | Produces isolated candidate patches for evaluation. | Forbidden. Future PR-2 only after a separate gate. |
+| `candidate-patch` | Produces isolated candidate patches for local evaluation. | Allowed only through PR-2 `CreativeCodePatchBuildRequest` and `CreativeCodePatchResult` artifacts in sandboxed workspaces. |
 | `repository-write` | Writes to shared worktrees, creates branches, pushes, opens PRs, marks ready for review, resolves review threads, or merges. | Forbidden. |
 | `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | Forbidden. Future promotion requires a separate operator-approved gate. |
 
@@ -28,9 +34,10 @@ repository_write_allowed=false
 promotion_allowed=false
 ```
 
-PR-1 adds only a local specification-bundle layer. It preserves the same closed
-candidate-patch, repository-write, promotion, provider, runtime, OpenAPI/client,
-semantic-cache, review-thread, merge, release, and Slack/GitHub authority flags.
+PR-1 adds only a local specification-bundle layer. PR-2 opens only local
+sandboxed candidate-patch generation/evaluation. Repository-write, promotion,
+product runtime, OpenAPI/client, semantic-cache, review-thread, merge, release,
+and Slack/GitHub authority flags remain closed.
 
 ---
 
@@ -51,10 +58,21 @@ The PR-1 executable handoff artifact is a valid `CreativeCodeSpecificationBundle
 - `scripts/orchestration/creative_code_spec_pipeline.py`
 - `scripts/orchestration/creative_code_rejection_index.py`
 
-The packet may describe a future implementation candidate, but it is not:
+The PR-2 local candidate-patch handoff artifacts are:
 
-- executable code;
-- a generated patch;
+- `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`
+- `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_patch_request.v1.json`
+- `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_patch_result.v1.json`
+- `scripts/orchestration/creative_code_patch_contract.py`
+- `scripts/orchestration/creative_code_patch_workspace.py`
+- `scripts/orchestration/creative_code_patch_executor.py`
+- `scripts/orchestration/creative_code_patch_builder.py`
+
+The packet, bundle, request, result, and local `candidate.patch` may describe or
+contain an implementation candidate, but they are not:
+
 - a repo-write instruction;
 - merge-readiness evidence;
 - review-thread disposition evidence;
@@ -89,7 +107,10 @@ PR-0 is a contract-only start point.
 - PR-1: emit deterministic implementation specification bundles from promoted
   creative research; no patches, provider calls, repo writes, runtime truth,
   review disposition authority, or merge-readiness evidence.
-- PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces.
+- PR-2: generate isolated candidate patches only in sandboxed evaluation
+  workspaces with exact source-bundle fingerprint binding, exact `origin/main`
+  base SHA, fixed Codex CLI argv/env, strict patch policy validation, direct
+  Experiment Runner candidate-mode evaluation, and sanitized result metadata.
 - PR-3: allow human-approved draft PR promotion under a separate operator exception.
 - PR-4: add candidate evaluation telemetry and rejection taxonomy.
 - PR-5: add review-disposition integration without review-thread resolution authority.
@@ -110,9 +131,9 @@ Minimum future telemetry fields are defined now for the later train and must not
 
 ## Rollback
 
-Rollback is removal of the PR-1 specification files and references, plus the
-existing PR-0 contract files if the whole train is being reverted. Because PR-1
-does not add runtime behavior, providers, workflows, external app settings,
-OpenAPI/client changes, semantic-cache activation, or repository-write
+Rollback is removal of the PR-2 patch-builder files and references, plus the
+existing PR-1/PR-0 contract files if the whole train is being reverted. Because
+PR-2 does not add runtime behavior, providers, workflows, external app settings,
+OpenAPI/client changes, semantic-cache activation, or shared repository-write
 automation, rollback does not require data migration, OpenAPI regeneration,
 Slack/GitHub App changes, or release coordination.
