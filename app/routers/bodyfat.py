@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, field_validator
 from core.bodyfat import estimate_all
 from core.i18n import normalize_lang, t
 
+BODYFAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (("/api/v1/bodyfat", "POST", True),)
+
 
 class BodyFatRequest(BaseModel):
     height_m: Optional[float] = Field(None, gt=0, description="Height in meters, must be positive")
@@ -37,34 +39,38 @@ class BodyFatRequest(BaseModel):
         )
 
 
+async def calc_bodyfat(req: BodyFatRequest) -> dict[str, object]:
+    lang = normalize_lang(req.language)
+    data: dict[str, object] = dict(req.model_dump(exclude_none=True))
+
+    # Convert meters to centimeters for core.bodyfat US Navy compatibility.
+    if req.height_m is not None:
+        data.setdefault("height_cm", req.height_m * 100.0)
+
+    if req.bmi is None and req.weight_kg is not None and req.height_m is not None:
+        data["bmi"] = req.weight_kg / (req.height_m**2)
+
+    result = estimate_all(data)
+
+    labels = {
+        "methods": t(lang, "bodyfat_methods"),
+        "median": t(lang, "bodyfat_median"),
+        "units": t(lang, "bodyfat_units_percent"),
+    }
+
+    return {
+        "methods": result["methods"],
+        "median": result["median"],
+        "lang": str(lang),
+        "labels": labels,
+    }
+
+
+router = APIRouter()
+router.post("/api/v1/bodyfat")(calc_bodyfat)
+
+
 def get_router() -> APIRouter:
-    router = APIRouter()
-
-    @router.post("/bodyfat")
-    async def calc_bodyfat(req: BodyFatRequest) -> dict[str, object]:
-        lang = normalize_lang(req.language)
-        data: dict[str, object] = dict(req.model_dump(exclude_none=True))
-
-        # Convert meters to centimeters for core.bodyfat US Navy compatibility.
-        if req.height_m is not None:
-            data.setdefault("height_cm", req.height_m * 100.0)
-
-        if req.bmi is None and req.weight_kg is not None and req.height_m is not None:
-            data["bmi"] = req.weight_kg / (req.height_m**2)
-
-        result = estimate_all(data)
-
-        labels = {
-            "methods": t(lang, "bodyfat_methods"),
-            "median": t(lang, "bodyfat_median"),
-            "units": t(lang, "bodyfat_units_percent"),
-        }
-
-        return {
-            "methods": result["methods"],
-            "median": result["median"],
-            "lang": str(lang),
-            "labels": labels,
-        }
-
-    return router
+    compat_router = APIRouter()
+    compat_router.post("/bodyfat")(calc_bodyfat)
+    return compat_router

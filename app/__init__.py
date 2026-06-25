@@ -43,6 +43,7 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     "bmi_router": ("app.main", "bmi_router"),
     "bmi_pro_router": ("app.main", "bmi_pro_router"),
     "bmi_pro_legacy_alias_router": ("app.main", "bmi_pro_legacy_alias_router"),
+    "get_bodyfat_router": ("app.routers.bodyfat", "get_router"),
 }
 
 
@@ -138,6 +139,7 @@ __all__ = [
     "bmi_router",
     "bmi_pro_router",
     "bmi_pro_legacy_alias_router",
+    "get_bodyfat_router",
     "MATPLOTLIB_AVAILABLE",
     "generate_bmi_visualization",
 ]

@@ -38,6 +38,7 @@ from app.routers.admin_operations import (
     ADMIN_OPERATION_ROUTE_SPECS,
     router as admin_operations_router,
 )
+from app.routers.bodyfat import BODYFAT_ROUTE_SPECS, router as bodyfat_router
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router as bmi_compat_router
 from app.routers.bmi_registration import BmiRouteRegistration, register_bmi_routes
 from app.routers.billing import register_billing_routes
@@ -110,6 +111,10 @@ _ADMIN_OPERATION_ROUTE_SPECS: tuple[tuple[str, str], ...] = tuple(
 _BMI_COMPAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in BMI_COMPAT_ROUTE_SPECS
+)
+_BODYFAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in BODYFAT_ROUTE_SPECS
 )
 _LEGACY_EXPORT_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
@@ -245,6 +250,17 @@ def _restaurant_moderation_route_members(
             required_dependencies=(api_key_dependency,),
         )
         for path, method, include_in_schema in _RESTAURANT_MODERATION_ROUTE_SPECS
+    )
+
+
+def _bodyfat_route_members() -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+        )
+        for path, method, include_in_schema in _BODYFAT_ROUTE_SPECS
     )
 
 
@@ -756,6 +772,17 @@ def _include_shoplist_export_router_if_needed(target_app: FastAPI) -> None:
     )
 
 
+def _include_bodyfat_router_if_needed(target_app: FastAPI) -> None:
+    """Register public bodyfat route as one canonical static family."""
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Bodyfat",
+        routers=(bodyfat_router,),
+        members=_bodyfat_route_members(),
+    )
+
+
 def _include_restaurant_moderation_router_if_needed(target_app: FastAPI) -> None:
     """Register restaurant moderation route as one protected atomic family."""
 
@@ -924,6 +951,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_admin_operations_router_if_needed(app)
     _register_bmi_routes(app)
     _include_bmi_compat_router_if_needed(app)
+    _include_bodyfat_router_if_needed(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)

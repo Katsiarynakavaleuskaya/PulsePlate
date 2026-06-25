@@ -383,13 +383,6 @@ def stop_background_updates() -> None:
     return None
 
 
-GetRouterCallable = Callable[[], APIRouter]
-get_bodyfat_router: Optional[GetRouterCallable]
-try:
-    from app.routers.bodyfat import get_router as get_bodyfat_router
-except ImportError:
-    get_bodyfat_router = None
-
 # Only load the local .env automatically for explicit local/dev environments.
 _env_was_sanitized = "PATH" not in os.environ
 _app_env = get_runtime_env_name()
@@ -4316,11 +4309,7 @@ if EXPORTS_ENABLED:
             raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
 
-# Include bodyfat router if available
-if get_bodyfat_router is not None:
-    app.include_router(get_bodyfat_router(), prefix="/api/v1")
-
-# BMI and BMI Pro route registration is owned by app.main canonical bootstrap.
+# Bodyfat, BMI, and BMI Pro route registration is owned by app.main canonical bootstrap.
 
 # Include Business router (with feature flag). Defaults to disabled for safety.
 

@@ -588,6 +588,73 @@ def test_legacy_growth_guard_rejects_reintroduced_aliased_shoplist_export_regist
     ]
 
 
+def test_legacy_growth_guard_rejects_reintroduced_bodyfat_factory_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.bodyfat import get_router as get_bodyfat_router
+
+        app.include_router(get_bodyfat_router(), prefix="/api/v1")
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:get_bodyfat_router()",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.bodyfat:get_router -> get_bodyfat_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_direct_bodyfat_router_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.bodyfat import router
+
+        app.include_router(router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: registration:include_router:router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.bodyfat:router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_aliased_bodyfat_router_registration() -> None:
+    source = textwrap.dedent("""
+        from app.routers.bodyfat import router as canonical_bodyfat_router
+
+        app.include_router(canonical_bodyfat_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:canonical_bodyfat_router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:app.routers.bodyfat:router -> canonical_bodyfat_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_module_qualified_bodyfat_router_registration() -> None:
+    source = textwrap.dedent("""
+        import app.routers.bodyfat as bodyfat_routes
+
+        app.include_router(bodyfat_routes.router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:bodyfat_routes.router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:import:app.routers.bodyfat -> bodyfat_routes",
+    ]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_restaurant_moderation_registration() -> None:
     source = textwrap.dedent("""
         from app.routers.restaurants import moderation_router as restaurant_moderation_router
