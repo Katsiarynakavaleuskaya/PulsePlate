@@ -11,12 +11,10 @@ OpenAPI/client changes, Slack/GitHub authority, or public multi-tenant use.
 
 - Request schema:
   `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`
-- Request reference:
-  `docs/orchestration/contracts/creative_code_patch_request.v1.json`
 - Result schema:
   `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`
-- Result reference:
-  `docs/orchestration/contracts/creative_code_patch_result.v1.json`
+- Request/result reference contract:
+  this document plus the strict schemas above
 - Request/result validator:
   `python -m scripts.orchestration.creative_code_patch_contract`
 - Local builder CLI:

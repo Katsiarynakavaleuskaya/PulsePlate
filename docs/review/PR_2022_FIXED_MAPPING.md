@@ -10,8 +10,9 @@ DB, dependency, Slack, or GitHub authority.
 
 ## Implementation Commits
 
-- `34fa5e73c` - update `.secrets.baseline` with hashed false positives for the
-  real `origin/main` SHA stored in PR-2 reference JSON contracts.
+- `34fa5e73c` - initial generated detect-secrets baseline update for reference
+  JSON examples; superseded by the scope-cap fix so no final `.secrets.baseline`
+  delta remains.
 - `7837abd5f` - add PR-2 patch-builder contracts, local workspace/executor/
   builder CLIs, strict patch validation, sanitized Experiment Runner candidate
   evaluation, docs, ledger, premortem, and focused tests.
@@ -96,11 +97,10 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - PASS: `python scripts/orchestration/check_preflight.py`
 - PASS: `python scripts/orchestration/check_agent_consistency.py`
 - PASS:
-  `python -m scripts.orchestration.creative_code_patch_contract --validate-request docs/orchestration/contracts/creative_code_patch_request.v1.json --source-bundle docs/orchestration/contracts/creative_code_specification.v1.json`
-- PASS:
-  `python -m scripts.orchestration.creative_code_patch_contract --validate-result docs/orchestration/contracts/creative_code_patch_result.v1.json`
-- PASS:
   `python -m pytest -q tests/test_creative_code_patch_builder.py tests/test_creative_code_specification.py tests/test_experiment_bootstrap.py tests/test_experiment_runner.py tests/test_codex_ollama_operator_doctor.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/guards/test_nosec_policy_guard.py tests/test_repo_policy_guards.py`
+- PASS: PR-2 request/result contract validation and `additionalProperties:
+  false` schema guards are covered by
+  `tests/test_creative_code_patch_builder.py::test_reference_patch_contracts_validate_and_schema_is_closed`.
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS during push: changed-file mypy, pip-audit, backend tests, bandit full,

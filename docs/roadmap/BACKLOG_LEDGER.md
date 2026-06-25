@@ -10926,9 +10926,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/creative_code_specification.v1.json`
     - `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`
     - `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`
-    - `docs/orchestration/contracts/creative_code_patch_request.v1.json`
     - `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`
-    - `docs/orchestration/contracts/creative_code_patch_result.v1.json`
     - `scripts/orchestration/creative_code_contract.py`
     - `scripts/orchestration/creative_code_specification.py`
     - `scripts/orchestration/creative_code_spec_pipeline.py`

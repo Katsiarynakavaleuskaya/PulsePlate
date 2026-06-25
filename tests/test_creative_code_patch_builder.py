@@ -18,8 +18,8 @@ from scripts.orchestration.creative_code_patch_builder import CreativeCodePatchB
 from scripts.orchestration.creative_code_patch_contract import (
     CreativeCodePatchContractError,
     build_creative_code_patch_build_request,
+    build_creative_code_patch_result,
     read_creative_code_patch_build_request,
-    read_creative_code_patch_result,
     validate_creative_code_patch_build_request,
     validate_creative_code_patch_result,
 )
@@ -29,8 +29,6 @@ from scripts.orchestration.creative_code_specification import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_BUNDLE = REPO_ROOT / "docs/orchestration/contracts/creative_code_specification.v1.json"
-REFERENCE_REQUEST = REPO_ROOT / "docs/orchestration/contracts/creative_code_patch_request.v1.json"
-REFERENCE_RESULT = REPO_ROOT / "docs/orchestration/contracts/creative_code_patch_result.v1.json"
 REQUEST_SCHEMA = (
     REPO_ROOT / "docs/orchestration/contracts/creative_code_patch_request.v1.schema.json"
 )
@@ -95,7 +93,33 @@ def _reference_bundle() -> dict[str, Any]:
 
 
 def _reference_request() -> dict[str, Any]:
-    return read_creative_code_patch_build_request(str(REFERENCE_REQUEST))
+    return _request_for_base("a" * 40)
+
+
+def _reference_result() -> dict[str, Any]:
+    return build_creative_code_patch_result(
+        request=_reference_request(),
+        changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint="sha256:" + ("b" * 64),
+        patch_bytes=128,
+        diff_lines=8,
+        runner_result={
+            "experiment_id": "exp-pr2-reference",
+            "status": "accepted",
+            "failure_class": None,
+            "mutated_paths": ["core/rag/orchestration.py"],
+            "budget_observations": {
+                "oracle_commands_configured": 1,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "oracle_results": [{"status": "passed"}],
+            "shared_tree_untouched": True,
+        },
+        checkout_destroyed=True,
+        origin_removed=True,
+        shared_tree_untouched=True,
+    )
 
 
 def _request_for_base(base_sha: str) -> dict[str, Any]:
@@ -123,7 +147,7 @@ def _request_for_base(base_sha: str) -> dict[str, Any]:
 
 def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     request = _reference_request()
-    result = read_creative_code_patch_result(str(REFERENCE_RESULT))
+    result = _reference_result()
     bundle = _reference_bundle()
     request_schema = json.loads(REQUEST_SCHEMA.read_text(encoding="utf-8"))
     result_schema = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
@@ -164,13 +188,13 @@ def test_patch_request_requires_human_admission_and_bundle_fingerprint() -> None
 
 
 def test_patch_result_rejects_truthy_strings_and_invalid_runner_fingerprint() -> None:
-    result = read_creative_code_patch_result(str(REFERENCE_RESULT))
+    result = _reference_result()
     result["workspace_summary"]["origin_removed"] = "true"
 
     with pytest.raises(CreativeCodePatchContractError, match="origin_removed"):
         validate_creative_code_patch_result(result)
 
-    result = read_creative_code_patch_result(str(REFERENCE_RESULT))
+    result = _reference_result()
     result["runner_summary"]["runner_error_present"] = True
     result["runner_summary"]["runner_error_fingerprint"] = "raw runner error"
 

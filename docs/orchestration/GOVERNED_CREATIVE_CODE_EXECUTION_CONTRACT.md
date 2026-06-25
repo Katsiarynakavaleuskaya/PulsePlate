@@ -62,9 +62,7 @@ The PR-2 local candidate-patch handoff artifacts are:
 
 - `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`
 - `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`
-- `docs/orchestration/contracts/creative_code_patch_request.v1.json`
 - `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`
-- `docs/orchestration/contracts/creative_code_patch_result.v1.json`
 - `scripts/orchestration/creative_code_patch_contract.py`
 - `scripts/orchestration/creative_code_patch_workspace.py`
 - `scripts/orchestration/creative_code_patch_executor.py`
