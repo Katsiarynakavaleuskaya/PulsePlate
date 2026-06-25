@@ -127,7 +127,7 @@ passed. The post-commit run selected `tests/test_api.py`,
 
 - Packet:
   `artifacts/orchestration/experiments/bodyfat-canonical-bootstrap-oracle-packet.json`
-- Result:
+- Artifact:
   `artifacts/orchestration/experiments/results/bodyfat-canonical-bootstrap-oracle-result.json`
 - Experiment id: `exp-7c4838ebc835`
 - Status: accepted
