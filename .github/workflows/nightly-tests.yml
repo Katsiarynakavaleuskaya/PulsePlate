@@ -25,6 +25,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -72,13 +75,31 @@ jobs:
           MC_SEED: '2025'
           MC_SAMPLES: '40'
           MC_SAMPLES_FEW: '15'
+          MAIN_TEST_SHARDS: '16'
+          MAIN_TEST_MAX_PARALLEL: '4'
+          MAIN_TEST_SHARD_TIMEOUT_SECONDS: '4800'
+          MAIN_TEST_COVERAGE_TIMEOUT_SECONDS: '1200'
         run: |
-          pytest -c pyproject.toml -m "not demo" -n auto --dist=loadgroup -q \
-            --durations=25 --durations-min=1.0 \
-            -r fEsxXw \
-            -o faulthandler_timeout=300 \
-            --cov=. --cov-report=term-missing --cov-report=xml --cov-report=html \
-            --cov-fail-under=97
+          set -euo pipefail
+          echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python -c "import sys; print('PY', sys.version)"
+          echo "MAIN_TEST_SHARDS=${MAIN_TEST_SHARDS}"
+          echo "MAIN_TEST_MAX_PARALLEL=${MAIN_TEST_MAX_PARALLEL}"
+          echo "MAIN_TEST_SHARD_TIMEOUT_SECONDS=${MAIN_TEST_SHARD_TIMEOUT_SECONDS}"
+          echo "MAIN_TEST_COVERAGE_TIMEOUT_SECONDS=${MAIN_TEST_COVERAGE_TIMEOUT_SECONDS}"
+          set +e
+          time python scripts/ci/run_main_test_shards.py \
+            --python-version "3.13" \
+            --shard-count "${MAIN_TEST_SHARDS}" \
+            --max-parallel "${MAIN_TEST_MAX_PARALLEL}" \
+            --marker-expression "not demo" \
+            --durations-min "1.0" \
+            --report-chars "fEsxXw" \
+            --htmlcov
+          test_exit_code=$?
+          set -e
+          echo "TEST_STEP_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          exit "$test_exit_code"
 
       - name: Upload coverage artifact
         if: always()
