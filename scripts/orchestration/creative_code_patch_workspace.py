@@ -16,6 +16,32 @@ ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "p
 CHECKOUT_DIRNAME = "generation_checkout"
 
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
+SAFE_GIT_ENV_KEYS = frozenset(
+    {
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LOGNAME",
+        "PATH",
+        "TERM",
+        "TMPDIR",
+        "TZ",
+        "USER",
+    }
+)
+SECRET_ENV_SUBSTRINGS = (
+    "KEY",
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "PASS",
+    "SALT",
+    "COOKIE",
+    "CREDENTIAL",
+    "DATABASE_URL",
+    "DSN",
+)
 
 
 class CreativeCodePatchWorkspaceError(ValueError):
@@ -153,14 +179,35 @@ def resolve_git_binary() -> str:
     return str(resolved)
 
 
+def _absolute_path_env(raw_path: str | None) -> str:
+    if not raw_path:
+        return ""
+    entries: list[str] = []
+    for entry in raw_path.split(os.pathsep):
+        if not entry:
+            continue
+        candidate = Path(entry).expanduser()
+        if not candidate.is_absolute():
+            candidate = candidate.resolve()
+        entries.append(str(candidate))
+    return os.pathsep.join(entries)
+
+
 def git_env_without_parent_state() -> dict[str, str]:
     """Return a stable env for git subprocesses."""
 
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith("GIT_") and key not in {"PYTHONPATH"}
-    }
+    sanitized: dict[str, str] = {}
+    for key, value in os.environ.items():
+        upper_key = key.upper()
+        if key not in SAFE_GIT_ENV_KEYS:
+            continue
+        if upper_key.startswith("GIT_") or upper_key in {"PYTHONPATH", "CODEX_HOME"}:
+            continue
+        if any(fragment in upper_key for fragment in SECRET_ENV_SUBSTRINGS):
+            continue
+        sanitized[key] = value
+    sanitized["PATH"] = _absolute_path_env(os.environ.get("PATH"))
+    return sanitized
 
 
 def run_git(

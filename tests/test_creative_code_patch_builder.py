@@ -383,6 +383,43 @@ def test_binary_resolvers_return_absolute_executables_for_relative_path(
     assert creative_code_patch_workspace.resolve_git_binary() == str(git.resolve())
 
 
+def test_git_env_strips_secret_and_parent_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", "tools")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("LANG", "C.UTF-8")
+    monkeypatch.setenv("GH_TOKEN", "redacted")
+    monkeypatch.setenv("GITHUB_TOKEN", "redacted")
+    monkeypatch.setenv("OPENAI_API_KEY", "redacted")
+    monkeypatch.setenv("CODEX_HOME", "/tmp/codex")
+    monkeypatch.setenv("PYTHONPATH", "/tmp/python")
+    monkeypatch.setenv("DATABASE_URL", "postgres://example")
+    monkeypatch.setenv("SESSION_COOKIE", "redacted")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/tmp/gitconfig")
+
+    env = creative_code_patch_workspace.git_env_without_parent_state()
+
+    assert env["HOME"] == str(tmp_path)
+    assert env["LANG"] == "C.UTF-8"
+    assert env["PATH"] == str(tools.resolve())
+    for forbidden in (
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        "CODEX_HOME",
+        "PYTHONPATH",
+        "DATABASE_URL",
+        "SESSION_COOKIE",
+        "GIT_CONFIG_GLOBAL",
+    ):
+        assert forbidden not in env
+
+
 def test_workspace_creates_detached_no_remote_checkout_and_cleanup(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
