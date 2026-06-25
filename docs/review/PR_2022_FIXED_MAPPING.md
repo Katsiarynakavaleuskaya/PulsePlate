@@ -42,6 +42,12 @@ DB, dependency, Slack, or GitHub authority.
   security-auditor PASS evidence.
 - `e1887584a` - record exact-base Codex Security scan evidence and replace the
   earlier wrong-base scan attempt.
+- `a1a014858` - record `pulseplate-pr-review` dry-run disposition for the
+  advisory large-diff planning note.
+- `dd497f16c` - fix all six CodeRabbit review findings: schema leak-pattern
+  parity, sanitized runner exception fallback, unused import, strict
+  runner-summary type validation, result workspace/base SHA invariant, and
+  explicit empty Codex env handling.
 
 ## Discussion Thread Pass
 
@@ -54,14 +60,23 @@ DB, dependency, Slack, or GitHub authority.
   with no reportable findings.
 - [x] `pulseplate-pr-review` dry-run completed; advisory large-diff planning
   note is dispositioned below.
-- [ ] CodeRabbit, Sourcery, Cubic, and human review comments must be fixed or
-  dispositioned before merge readiness.
+- [x] CodeRabbit review comments are fixed and mapped below.
+- [ ] Sourcery, Cubic, and human review comments must be fixed or dispositioned
+  before merge readiness.
 - [ ] Current-head CI and strict merge-readiness wrapper evidence are still
   required before any merge-readiness claim.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Evidence: CodeRabbit PR-2 comments fixed in `dd497f16c` with focused regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474702983 -> dd497f16c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474702987 -> dd497f16c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474703006 -> dd497f16c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474703015 -> dd497f16c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474703020 -> dd497f16c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2022#discussion_r3474703032 -> dd497f16c
 
 ## Post-open Role Findings
 
@@ -122,6 +137,33 @@ DB, dependency, Slack, or GitHub authority.
   PR body records the split rationale, `make validate-changed` passed on the
   selected builder/runner tests, and the report marks the note non-postable
   review-planning evidence rather than a merge-readiness claim.
+- CodeRabbit `discussion_r3474702983`: request schema leak filter missed
+  forbidden phrases already rejected by the Python validator. Disposition:
+  FIXED. Commit: `dd497f16c`. Evidence:
+  `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`
+  and
+  `tests/test_creative_code_patch_builder.py::test_reference_patch_contracts_validate_and_schema_is_closed`.
+- CodeRabbit `discussion_r3474702987`: fallback runner exception handling
+  persisted raw exception text. Disposition: FIXED. Commit: `dd497f16c`.
+  Evidence: `scripts/orchestration/creative_code_patch_builder.py` and
+  `tests/test_creative_code_patch_builder.py::test_evaluate_fallback_stores_error_class_not_raw_exception`.
+- CodeRabbit `discussion_r3474703006`: unused `validate_negative_controls`
+  import triggered lint risk. Disposition: FIXED. Commit: `dd497f16c`.
+  Evidence: `scripts/orchestration/creative_code_patch_contract.py`.
+- CodeRabbit `discussion_r3474703015`: `_safe_runner_summary()` coerced
+  malformed runner data into valid-looking metadata. Disposition: FIXED.
+  Commit: `dd497f16c`. Evidence:
+  `scripts/orchestration/creative_code_patch_contract.py` and
+  `tests/test_creative_code_patch_builder.py::test_build_result_rejects_malformed_runner_summary_inputs`.
+- CodeRabbit `discussion_r3474703020`: result validator did not enforce
+  `workspace_summary.detached_base_sha == base_commit_sha`. Disposition:
+  FIXED. Commit: `dd497f16c`. Evidence:
+  `scripts/orchestration/creative_code_patch_contract.py` and
+  `tests/test_creative_code_patch_builder.py::test_patch_result_rejects_workspace_base_sha_mismatch`.
+- CodeRabbit `discussion_r3474703032`: `sanitized_codex_env({})` re-inherited
+  parent environment state. Disposition: FIXED. Commit: `dd497f16c`.
+  Evidence: `scripts/orchestration/creative_code_patch_executor.py` and
+  `tests/test_creative_code_patch_builder.py::test_executor_honors_explicitly_empty_env`.
 
 ## Premortem Closure
 
@@ -223,6 +265,8 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - PASS: `pulseplate-pr-review` dry-run report; only advisory large-diff
   planning note, dispositioned as NOT-A-BUG above with split rationale and
   targeted-gate evidence.
+- PASS: focused PR-2 builder test after CodeRabbit fixes:
+  `python -m pytest -q tests/test_creative_code_patch_builder.py` (25 tests).
 - PASS during push: changed-file mypy, pip-audit, backend tests, bandit full,
   and docker build test.
 
@@ -234,6 +278,6 @@ current-head CI parity before any merge-readiness claim.
 
 ## Merge Readiness
 
-Not claimed. PR #2022 still requires current-head CI, bot review disposition,
-fixed mapping sync for any later comments, and strict
+Not claimed. PR #2022 still requires current-head CI, review-thread
+resolution, fixed mapping sync for any later comments, and strict
 `check_merge_ready.py --require-auth` evidence before any merge-readiness claim.
