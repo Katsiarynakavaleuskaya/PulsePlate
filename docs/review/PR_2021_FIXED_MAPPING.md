@@ -7,9 +7,9 @@ Branch: `codex/move-bodyfat-registration-to-canonical-bootstrap`
 ## Summary
 
 This PR moves `POST /api/v1/bodyfat` route ownership from `legacy_app.py` to
-canonical `app.main` bootstrap without changing formulas, schemas, response
-shape, auth/tier policy, rate limiting, generated OpenAPI, or generated client
-artifacts.
+canonical `app.main` bootstrap without changing formulas, request validation,
+response payload shape, auth/tier policy, rate limiting, generated OpenAPI, or
+generated client artifacts.
 
 ## Scope
 
@@ -22,14 +22,16 @@ artifacts.
 - Remove bodyfat import/include ownership from `legacy_app.py`.
 - Shrink the legacy growth guard allowlist and add bodyfat-specific negative
   tests for factory, direct, aliased, and module-qualified re-registration.
+- Add typed bodyfat response-model metadata on hidden/direct route declarations
+  without changing the returned payload shape or generated client artifacts.
 - Update backend routing documentation and backlog a P1 follow-up for future
   BMI-engine derivation delegation.
 
 ## Out Of Scope
 
-No bodyfat math, BMI derivation semantics, schema, response-shape, auth/tier,
-rate-limit, generated OpenAPI/client, DB, frontend runtime, iOS, or migration
-changes.
+No bodyfat math, BMI derivation semantics, request-validation behavior,
+response-payload shape, auth/tier, rate-limit, generated OpenAPI/client, DB,
+frontend runtime, iOS, or migration changes.
 
 ## Implementation Commits
 
@@ -42,6 +44,9 @@ changes.
   destructuring, and walrus assignment shapes.
 - `bf5436342` - preserves the security-auditor guard fix while satisfying the
   changed-file mypy pre-push hook.
+- `87a931b92` - fixes current-head CodeRabbit actionables: typed hidden/direct
+  bodyfat response metadata, remaining dynamic-import guard bypasses, review
+  artifact command/checklist hygiene, and JSON content-type test clarity.
 
 ## Lane Start Provenance
 
@@ -75,7 +80,25 @@ changes.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2021#discussion_r3473407568 -> 87a931b921098fb2da1de486753a988ad99b9ff2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2021#discussion_r3473407580 -> 87a931b921098fb2da1de486753a988ad99b9ff2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2021#discussion_r3473407588 -> 87a931b921098fb2da1de486753a988ad99b9ff2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2021#discussion_r3473407591 -> 87a931b921098fb2da1de486753a988ad99b9ff2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2021#discussion_r3473407623 -> 87a931b921098fb2da1de486753a988ad99b9ff2
+
+Disposition: FIXED
+
+Evidence: commit `87a931b921098fb2da1de486753a988ad99b9ff2` adds typed
+bodyfat response-model metadata for both hidden/direct registrations, closes
+`builtins.__import__` alias and walrus import-function alias bypasses in
+`scripts/ci/check_legacy_growth_guard.py`, adds matching guard regressions,
+fixes the review artifact `openapi-check` command/checklist state, and asserts
+JSON content type before parsing the direct bodyfat compatibility response.
+Validation passed: focused bodyfat/bootstrap/API/legacy-guard pytest suite
+(`41 passed`), `python3 scripts/ci/check_legacy_growth_guard.py`,
+`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`,
+`make validate-changed`, `python3 scripts/orchestration/check_agent_consistency.py`,
+`pre-commit run --all-files`, and `git diff --check`.
 
 ## Mapping Notes
 
@@ -287,6 +310,16 @@ passed. The post-commit run selected `tests/test_api.py`,
   `large-diff-risk` note, dispositioned above.
 - PASS on push hook: changed-files mypy, pre-push backend pytest, full-repo
   Bandit, and Docker build test.
+- PASS after CodeRabbit fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_paywall_bootstrap.py -k bodyfat tests/test_api.py::test_v1_bodyfat tests/test_api.py::test_v1_bodyfat_missing_hip tests/test_api.py::test_bodyfat_router_export_uses_canonical_package_path tests/test_app_bodyfat_v1.py tests/test_bodyfat_labels_coverage.py tests/edges/test_bodyfat_edges.py tests/test_bodyfat_shim.py tests/test_docker_workflow_build_path_contract.py::test_docker_entrypoint_keeps_bodyfat_hidden_but_routable tests/test_app_public_surface.py::test_app_public_surface_smoke tests/test_legacy_growth_guard.py`
+  (`41 passed`).
+- PASS after CodeRabbit fix: `python3 scripts/ci/check_legacy_growth_guard.py`
+- PASS after CodeRabbit fix:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; make openapi-check DEV_PYTHON="$VENV_PYTHON"`
+- PASS after CodeRabbit fix: `make validate-changed`
+- PASS after CodeRabbit fix: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS after CodeRabbit fix: `pre-commit run --all-files`
+- PASS after CodeRabbit fix: `git diff --check`
 
 Full local `make verify` was not run per operator CPU constraint. This PR does
 not claim merge readiness from local gates alone.
