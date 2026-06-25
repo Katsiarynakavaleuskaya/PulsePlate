@@ -50,6 +50,8 @@ Out of scope:
   `fix(ci): bound nightly shard cleanup and coverage phases`
 - `8a610447a8a4b13113090d208f65ec9f4c2709a9` -
   `test(ci): guard nightly fail-closed controls`
+- `f36164b0a5dca55546675befa2358fdf78d7fc40` -
+  `fix(ci): avoid nightly shard pool shutdown hang`
 
 Artifact-only mapping commits may be the latest PR head while carrying no
 code/test behavior. They are not used as self-referential FIXED proof; this
@@ -167,6 +169,20 @@ Passed locally:
   `pre-commit run --all-files`
 - PASS during commit `8a610447`: formatting, lint, changed-file backend
   tests, and conventional commit checks passed.
+- PASS after current-head nightly parent-hang fix:
+  `VENV_PYTHON="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python"; "$VENV_PYTHON" -m pytest tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py -q`
+- PASS after current-head nightly parent-hang fix:
+  `VENV_PYTHON="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python"; MYPYPATH=. "$VENV_PYTHON" -m mypy --explicit-package-bases --no-incremental --cache-dir=/dev/null scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py`
+- PASS after current-head nightly parent-hang fix:
+  `VENV_PYTHON="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python"; "$VENV_PYTHON" scripts/ci/run_main_test_shards.py --python-version 3.13 --shard-count 16 --max-parallel 4 --marker-expression 'not demo' --durations-min 1.0 --report-chars fEsxXw --htmlcov --list-shards`
+- PASS after current-head nightly parent-hang fix: `make validate-changed`
+  - This selected
+    `tests/test_ci_workflow_pr_size_governance_contract.py` and
+    `tests/test_main_test_shards.py` and passed.
+- PASS after current-head nightly parent-hang fix:
+  `pre-commit run --all-files`
+- PASS during commit `f36164b0`: formatting, lint, changed-file backend tests,
+  Bandit, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
 machine-heavy CI/tooling exception. Current-head CI is the required heavy
@@ -257,23 +273,30 @@ locally with
 `tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only`.
 
 Finding: manual `Nightly Full Tests` dispatch `28163474872` on head
-`f359d81c084aab519de84667ae6bf00ce63fc7c1` was canceled by the 90 minute job
-timeout after all 16 process shards had already reported `exit_code=0`; no
-post-shard `coverage combine/xml/html/report` diagnostics or coverage artifacts
-were emitted.
+`f359d81c084aab519de84667ae6bf00ce63fc7c1` and current-head dispatch
+`28178861034` on head `906d50cec85ea2392fdf5672b63dd6c5cfefcd87` were canceled
+by the 90 minute job timeout after all 16 process shards had already reported
+`exit_code=0`; no post-shard `coverage combine/xml/html/report` diagnostics or
+coverage artifacts were emitted. The `28178861034` log proved the prior
+process-pool cleanup patch was insufficient: shard 16 finished at
+`2026-06-25T15:33:00Z`, but the parent runner did not reach coverage before the
+job canceled at `2026-06-25T16:20:38Z`.
 
 Disposition: FIXED
-Commit: `68b20f9e714673e877d1284bcc0ae7311f48cf99`
-Evidence: `scripts/ci/run_main_test_shards.py` now terminates known shard
-workers after shard results are collected, shuts down the process pool with
-`wait=False, cancel_futures=True`, runs each post-shard coverage phase through
-the current interpreter as a bounded subprocess, and emits start/success/failure
-or timeout diagnostics for `combine`, `xml`, `html`, and `report`.
-`.github/workflows/nightly-tests.yml` sets and logs
-`MAIN_TEST_COVERAGE_TIMEOUT_SECONDS=1200`, and
-`tests/test_main_test_shards.py` plus
-`tests/test_ci_workflow_pr_size_governance_contract.py` cover the timeout,
-subprocess, shutdown, and workflow contract behavior.
+Commit: `f36164b0a5dca55546675befa2358fdf78d7fc40`
+Evidence: `scripts/ci/run_main_test_shards.py` no longer wraps shard
+subprocesses in `ProcessPoolExecutor`. The parent runner now owns the shard
+process groups directly, starts up to `--max-parallel`, polls child exit codes,
+terminates running process groups on shard timeout, fail-fast cancellation, or
+SIGTERM/SIGINT, and proceeds directly to the bounded coverage phases after all
+child processes exit successfully. The prior coverage subprocess diagnostics
+from `68b20f9e714673e877d1284bcc0ae7311f48cf99` remain in place. Regression
+coverage:
+`tests/test_main_test_shards.py::test_run_all_shards_stops_refilling_after_first_failure`,
+`tests/test_main_test_shards.py::test_run_all_shards_times_out_and_reports_selected_files`,
+`tests/test_main_test_shards.py::test_run_all_shards_combines_serial_coverage_before_parallel_shards`,
+and
+`tests/test_main_test_shards.py::test_run_all_shards_generates_htmlcov_when_requested`.
 
 Finding: Codex Security current-head file review noted that the nightly
 workflow contract test observed the current fail-closed workflow, but did not
@@ -322,6 +345,8 @@ proof quality.
   private-index env flow.
 - No public PyPI fallback, no dependency upgrade, no `continue-on-error`, and no
   `|| true` masking were added.
+- The shard runner no longer uses a process pool around subprocess shards; the
+  parent process owns and terminates child process groups directly.
 - The new post-shard coverage subprocess is bounded by
   `MAIN_TEST_COVERAGE_TIMEOUT_SECONDS`, uses argv-list execution with
   `sys.executable -m coverage`, does not invoke a shell, and includes a scoped
