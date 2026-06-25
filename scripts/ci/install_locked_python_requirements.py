@@ -531,11 +531,17 @@ def _wheel_filename_tags(filename: str) -> set[str] | None:
     }
 
 
-def _fallback_supported_wheel_tags() -> set[str]:
-    """Return conservative stdlib-only wheel tags for the current interpreter."""
-    major = sys.version_info.major
-    minor = sys.version_info.minor
-    if sys.implementation.name == "cpython":
+def _fallback_supported_wheel_tags_for_runtime(
+    *,
+    major: int,
+    minor: int,
+    implementation_name: str,
+    platform_name: str,
+    sysconfig_platform: str,
+    machine_name: str,
+) -> set[str]:
+    """Return conservative stdlib-only wheel tags for one interpreter/platform."""
+    if implementation_name == "cpython":
         current_python_tag = f"cp{major}{minor}"
         python_abi_tags = {f"{current_python_tag}-{current_python_tag}"}
         python_abi_tags.update(f"cp{major}{abi_minor}-abi3" for abi_minor in range(2, minor + 1))
@@ -544,17 +550,17 @@ def _fallback_supported_wheel_tags() -> set[str]:
         python_abi_tags = {f"{current_python_tag}-none"}
 
     platform_tags = {"any"}
-    normalized_platform = sysconfig.get_platform().replace("-", "_").replace(".", "_")
+    normalized_platform = sysconfig_platform.replace("-", "_").replace(".", "_")
     if normalized_platform:
         platform_tags.add(normalized_platform)
 
-    machine = platform.machine().lower().replace("-", "_")
+    machine = machine_name.lower().replace("-", "_")
     if machine in {"amd64", "x86_64"}:
         machine = "x86_64"
     elif machine in {"aarch64", "arm64"}:
         machine = "aarch64"
 
-    if sys.platform.startswith("linux") and machine:
+    if platform_name.startswith("linux") and machine:
         platform_tags.add(f"linux_{machine}")
         if machine == "x86_64":
             platform_tags.update(
@@ -563,14 +569,14 @@ def _fallback_supported_wheel_tags() -> set[str]:
             platform_tags.update(
                 f"manylinux_2_{glibc_minor}_x86_64" for glibc_minor in range(17, 40)
             )
-    elif sys.platform == "darwin":
+    elif platform_name == "darwin":
         if "arm64" in normalized_platform:
             platform_tags.add("macosx_11_0_arm64")
             platform_tags.add("macosx_11_0_universal2")
         elif "x86_64" in normalized_platform:
             platform_tags.add("macosx_10_9_x86_64")
             platform_tags.add("macosx_10_9_universal2")
-    elif sys.platform.startswith("win"):
+    elif platform_name.startswith("win"):
         platform_tags.add("win_amd64" if machine == "x86_64" else f"win_{machine}")
 
     supported_tags = {"py3-none-any", f"py{major}-none-any"}
@@ -582,6 +588,18 @@ def _fallback_supported_wheel_tags() -> set[str]:
     return supported_tags
 
 
+def _fallback_supported_wheel_tags() -> set[str]:
+    """Return conservative stdlib-only wheel tags for the current interpreter."""
+    return _fallback_supported_wheel_tags_for_runtime(
+        major=sys.version_info.major,
+        minor=sys.version_info.minor,
+        implementation_name=sys.implementation.name,
+        platform_name=sys.platform,
+        sysconfig_platform=sysconfig.get_platform(),
+        machine_name=platform.machine(),
+    )
+
+
 def _current_supported_wheel_tags() -> set[str]:
     """Return supported wheel tags without making packaging a hard dependency."""
     try:
@@ -591,22 +609,96 @@ def _current_supported_wheel_tags() -> set[str]:
     return {str(tag) for tag in packaging_tags.sys_tags()}
 
 
-def _emergency_artifact_matches_runtime(artifact: dict[str, str]) -> bool:
+def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object]:
+    """Probe wheel-tag data from the requested target interpreter."""
+    probe = "\n".join(
+        (
+            "import json",
+            "import platform",
+            "import sys",
+            "import sysconfig",
+            "try:",
+            "    from packaging import tags as packaging_tags",
+            "except Exception:",
+            "    wheel_tags = []",
+            "else:",
+            "    wheel_tags = [str(tag) for tag in packaging_tags.sys_tags()]",
+            "print(json.dumps({",
+            "    'tags': wheel_tags,",
+            "    'major': sys.version_info.major,",
+            "    'minor': sys.version_info.minor,",
+            "    'implementation_name': sys.implementation.name,",
+            "    'platform_name': sys.platform,",
+            "    'sysconfig_platform': sysconfig.get_platform(),",
+            "    'machine_name': platform.machine(),",
+            "}))",
+        )
+    )
+    result = subprocess.run(  # nosec B603: argv starts with the selected target Python interpreter and a fixed metadata probe (remove-by: 2026-07-31, ref: PR-2017)
+        [python_executable, "-c", probe],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = _redact_url_credentials_in_text((result.stderr or result.stdout).strip())
+        raise RuntimeError(
+            f"Unable to probe supported wheel tags for {python_executable}: {detail}"
+        )
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Invalid wheel-tag probe output from {python_executable}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Invalid wheel-tag probe payload from {python_executable}")
+    return payload
+
+
+def _supported_wheel_tags_for_python(python_executable: str | None) -> set[str]:
+    """Return wheel tags for the target interpreter, defaulting to the current process."""
+    if python_executable is None or python_executable == sys.executable:
+        return _current_supported_wheel_tags()
+
+    payload = _target_python_wheel_tag_payload(python_executable)
+    tags = payload.get("tags")
+    if isinstance(tags, list) and all(isinstance(tag, str) for tag in tags) and tags:
+        return set(tags)
+    try:
+        return _fallback_supported_wheel_tags_for_runtime(
+            major=int(payload["major"]),
+            minor=int(payload["minor"]),
+            implementation_name=str(payload["implementation_name"]),
+            platform_name=str(payload["platform_name"]),
+            sysconfig_platform=str(payload["sysconfig_platform"]),
+            machine_name=str(payload["machine_name"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"Invalid wheel-tag probe payload from {python_executable}") from exc
+
+
+def _emergency_artifact_matches_runtime(
+    artifact: dict[str, str],
+    *,
+    supported_tags: set[str],
+) -> bool:
     """Return True when an emergency wheel can be installed by this runtime."""
     wheel_tags = _wheel_filename_tags(artifact["filename"])
     if wheel_tags is None:
         return True
-    return bool(wheel_tags & _current_supported_wheel_tags())
+    return bool(wheel_tags & supported_tags)
 
 
 def _filter_runtime_compatible_artifacts(
     artifacts: Sequence[dict[str, str]],
+    *,
+    python_executable: str | None = None,
 ) -> list[dict[str, str]]:
     """Drop incompatible wheels and collapse duplicate exact emergency artifacts."""
     compatible_artifacts: list[dict[str, str]] = []
     seen_artifact_digests_by_filename: dict[str, str] = {}
+    supported_tags = _supported_wheel_tags_for_python(python_executable)
     for artifact in artifacts:
-        if not _emergency_artifact_matches_runtime(artifact):
+        if not _emergency_artifact_matches_runtime(artifact, supported_tags=supported_tags):
             continue
         filename = artifact["filename"]
         digest = _emergency_artifact_sha256(artifact)
@@ -625,6 +717,7 @@ def emergency_artifacts_requested_by_surfaces(
     requirement_files: Sequence[Path],
     constraints_file: Path | None,
     manifest_path: Path | None,
+    python_executable: str | None = None,
 ) -> list[dict[str, str]]:
     """Return active emergency artifacts requested by selected requirement surfaces."""
     requested_requirement_pins: set[str] = set()
@@ -647,7 +740,10 @@ def emergency_artifacts_requested_by_surfaces(
         ):
             continue
         requested_artifacts.append(artifact)
-    return _filter_runtime_compatible_artifacts(requested_artifacts)
+    return _filter_runtime_compatible_artifacts(
+        requested_artifacts,
+        python_executable=python_executable,
+    )
 
 
 def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
@@ -704,16 +800,19 @@ def stage_emergency_wheels(
     constraints_file: Path | None,
     wheelhouse_dir: Path,
     manifest_path: Path | None,
+    python_executable: str | None = None,
 ) -> list[Path]:
     """Download exact emergency wheels requested by the selected requirement files."""
     requested_artifacts = emergency_artifacts_requested_by_surfaces(
         requirement_files=requirement_files,
         constraints_file=constraints_file,
         manifest_path=manifest_path,
+        python_executable=python_executable,
     )
     return _stage_emergency_artifacts(
         artifacts=requested_artifacts,
         wheelhouse_dir=wheelhouse_dir,
+        python_executable=python_executable,
     )
 
 
@@ -721,10 +820,14 @@ def _stage_emergency_artifacts(
     *,
     artifacts: Sequence[dict[str, str]],
     wheelhouse_dir: Path,
+    python_executable: str | None = None,
 ) -> list[Path]:
     """Download selected exact emergency artifacts into a wheelhouse."""
     staged_paths: list[Path] = []
-    for artifact in _filter_runtime_compatible_artifacts(artifacts):
+    for artifact in _filter_runtime_compatible_artifacts(
+        artifacts,
+        python_executable=python_executable,
+    ):
         wheelhouse_dir.mkdir(parents=True, exist_ok=True)
         destination = wheelhouse_dir / artifact["filename"]
         if destination.exists():
@@ -1112,7 +1215,7 @@ def _simple_project_page_has_version(*, package: str, version: str, body: bytes)
     """Return True when a PEP 503 project page advertises the exact package version."""
     normalized_package = re.sub(r"[-_.]+", "-", package).lower()
     text = body[:100_000].decode("utf-8", errors="ignore").lower()
-    version_boundary = r"(?=[-_.]|(?:\.tar\.gz|\.zip|\.whl)|[\"'#<])"
+    version_boundary = r"(?=(?:-|\.tar\.gz|\.zip|\.whl|[\"'#<]))"
     patterns = (
         rf"{re.escape(normalized_package)}-{re.escape(version)}{version_boundary}",
         rf"{re.escape(normalized_package.replace('-', '_'))}-{re.escape(version)}{version_boundary}",
@@ -1359,6 +1462,7 @@ def _select_pip_emergency_artifact(
     *,
     manifest_path: Path | None,
     pip_spec: str,
+    python_executable: str | None = None,
 ) -> dict[str, str]:
     """Select the highest active emergency pip artifact allowed by the Docker range."""
     candidates = [
@@ -1367,7 +1471,10 @@ def _select_pip_emergency_artifact(
         if artifact["package"].lower() == "pip"
         and _pip_spec_allows_version(pip_spec, artifact["version"])
     ]
-    candidates = _filter_runtime_compatible_artifacts(candidates)
+    candidates = _filter_runtime_compatible_artifacts(
+        candidates,
+        python_executable=python_executable,
+    )
     if not candidates:
         raise RuntimeError(f"No active emergency pip artifact satisfies upgrade spec {pip_spec!r}.")
     return max(candidates, key=lambda artifact: _parse_simple_version(artifact["version"]))
@@ -1378,11 +1485,13 @@ def _stage_pip_upgrade_emergency_wheel(
     wheelhouse_dir: Path,
     manifest_path: Path | None,
     pip_spec: str,
+    python_executable: str | None = None,
 ) -> Path:
     """Download the exact emergency pip wheel selected for the upgrade range."""
     artifact = _select_pip_emergency_artifact(
         manifest_path=manifest_path,
         pip_spec=pip_spec,
+        python_executable=python_executable,
     )
     destination = wheelhouse_dir / artifact["filename"]
     if destination.exists():
@@ -1403,6 +1512,7 @@ def verify_emergency_artifact_for_floor(
     manifest_path: Path | None,
     package: str,
     version: str,
+    python_executable: str | None = None,
 ) -> bool:
     """Return True when exact emergency fallback artifact exists and verifies."""
     artifacts = [
@@ -1410,7 +1520,10 @@ def verify_emergency_artifact_for_floor(
         for artifact in load_emergency_wheel_manifest(manifest_path)
         if artifact["package"].lower() == package.lower() and artifact["version"] == version
     ]
-    artifacts = _filter_runtime_compatible_artifacts(artifacts)
+    artifacts = _filter_runtime_compatible_artifacts(
+        artifacts,
+        python_executable=python_executable,
+    )
     if not artifacts:
         return False
     with tempfile.TemporaryDirectory(prefix="pulseplate-floor-emergency-") as temp_dir:
@@ -1432,7 +1545,6 @@ def run_dependency_floor_preflight(
     emergency_wheel_manifest: Path | None,
 ) -> None:
     """Fail fast when dependency floors are unavailable through the approved proxy."""
-    del python_executable
     floors = load_dependency_security_floors()
     for package, version in sorted(floors.items()):
         proxy_error: RuntimeError | None = None
@@ -1450,6 +1562,7 @@ def run_dependency_floor_preflight(
             manifest_path=emergency_wheel_manifest,
             package=package,
             version=version,
+            python_executable=python_executable,
         ):
             if proxy_error is None:
                 print(
@@ -1566,6 +1679,7 @@ def upgrade_pip(
             wheelhouse_dir=wheelhouse_dir,
             manifest_path=emergency_wheel_manifest,
             pip_spec=pip_spec,
+            python_executable=python_executable,
         )
         fallback_command = [
             python_executable,
@@ -1770,6 +1884,7 @@ def build_wheelhouse_with_emergency_fallback(
                     requirement_files=requirement_files,
                     constraints_file=constraints_file,
                     manifest_path=emergency_wheel_manifest,
+                    python_executable=python_executable,
                 )
             remaining_artifacts = [
                 artifact
@@ -1791,6 +1906,7 @@ def build_wheelhouse_with_emergency_fallback(
             staged_wheels = _stage_emergency_artifacts(
                 artifacts=resolver_miss_artifacts,
                 wheelhouse_dir=wheelhouse_dir,
+                python_executable=python_executable,
             )
             if not staged_wheels:
                 raise
@@ -1831,6 +1947,7 @@ def install_from_proxy_with_emergency_fallback(
                     requirement_files=requirement_files,
                     constraints_file=constraints_file,
                     manifest_path=emergency_wheel_manifest,
+                    python_executable=python_executable,
                 )
             remaining_artifacts = [
                 artifact
@@ -1852,6 +1969,7 @@ def install_from_proxy_with_emergency_fallback(
             staged_wheels = _stage_emergency_artifacts(
                 artifacts=resolver_miss_artifacts,
                 wheelhouse_dir=emergency_wheelhouse_dir,
+                python_executable=python_executable,
             )
             if not staged_wheels:
                 raise

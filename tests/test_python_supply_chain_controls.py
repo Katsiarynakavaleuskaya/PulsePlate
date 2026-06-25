@@ -51,7 +51,7 @@ PR_TRIGGERED_PROXY_WORKFLOWS = frozenset(
 )
 PIP_INSTALL_PATTERN = re.compile(r"\b\S*python\S*\s+-m\s+pip\s+install\b")
 PIP_INSTALL_INVOCATION_PATTERN = re.compile(
-    r"(?:^|[;&|]\s*)(?:\S*python\S*\s+-m\s+)?pip\s+install\b",
+    r"(?:^|[;&|]\s*)(?:\S*python\S*\s+-m\s+)?(?:\S*/)?pip(?:\d+(?:\.\d+)?)?\s+install\b",
 )
 PIP_REQUIREMENT_DIRECTIVE_PREFIXES = (
     "-i ",
@@ -152,6 +152,12 @@ def _workflow_events(path: str) -> dict[str, object]:
     events = workflow.get("on", workflow.get(True))
     assert isinstance(events, dict), f"Missing workflow events block for {path}"
     return events
+
+
+def test_pip_install_invocation_pattern_catches_path_and_versioned_pip() -> None:
+    assert PIP_INSTALL_INVOCATION_PATTERN.search("/opt/venv/bin/pip install safety")
+    assert PIP_INSTALL_INVOCATION_PATTERN.search("pip3 install safety")
+    assert PIP_INSTALL_INVOCATION_PATTERN.search("python -m pip install safety")
 
 
 def _workflow_steps(path: str, job_name: str) -> list[dict[str, object]]:
@@ -1332,10 +1338,18 @@ def test_build_workflow_passes_netrc_secret_file_to_private_index_docker_builds(
             job_name,
             build_step_name,
         )
+        cleanup_step = _workflow_step_by_name(
+            ".github/workflows/build.yml",
+            job_name,
+            "Remove private Python index Docker authentication",
+        )
 
         assert step_names.index(
             "Prepare private Python index Docker authentication"
         ) < step_names.index(build_step_name)
+        assert step_names.index(build_step_name) < step_names.index(
+            "Remove private Python index Docker authentication"
+        )
 
         auth_env = auth_step["env"]
         assert auth_env["DEVPI_CI_USER"] == (
@@ -1354,6 +1368,9 @@ def test_build_workflow_passes_netrc_secret_file_to_private_index_docker_builds(
 
         build_with = build_step["with"]
         assert "pp_netrc=${{ runner.temp }}/pulseplate-docker-netrc" in build_with["secret-files"]
+        assert cleanup_step["if"] == "${{ always() }}"
+        assert cleanup_step["shell"] == "bash"
+        assert 'rm -f "$RUNNER_TEMP/pulseplate-docker-netrc"' in cleanup_step["run"]
 
 
 def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:

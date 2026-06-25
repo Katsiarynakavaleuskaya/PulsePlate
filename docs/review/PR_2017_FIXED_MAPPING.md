@@ -43,7 +43,7 @@ frontend runtime contracts, iOS, DB migrations, billing, or entitlements.
 - [x] Post-open role pass completed.
 - [x] Codex Security diff scan / finding discovery completed.
 - [x] `pulseplate-pr-review` completed.
-- [x] Later bot/human review comments are fixed or dispositioned before merge
+- [ ] Later bot/human review comments are fixed or dispositioned before merge
   readiness.
 - [ ] Current-head CI is complete before merge readiness.
 - [ ] Strict merge-readiness check runs after the final review/check cycle.

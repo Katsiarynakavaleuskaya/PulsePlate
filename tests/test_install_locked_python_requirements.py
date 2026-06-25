@@ -199,6 +199,16 @@ def test_simple_project_page_has_version_requires_exact_version_boundary() -> No
         version="26.1.1",
         body=b'<a href="pip-26.1.10-py3-none-any.whl">pip</a>',
     )
+    assert not installer._simple_project_page_has_version(
+        package="pip",
+        version="26.1.1",
+        body=b'<a href="pip-26.1.1.post1-py3-none-any.whl">pip</a>',
+    )
+    assert not installer._simple_project_page_has_version(
+        package="pydantic-core",
+        version="2.41.5",
+        body=b'<a href="pydantic_core-2.41.5_rc1-cp313-cp313-manylinux.whl">pydantic</a>',
+    )
 
 
 def _allow_private_index_project_health(
@@ -779,7 +789,11 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
         destination.write_bytes(b"wheel-bytes")
 
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
-    monkeypatch.setattr(installer, "_current_supported_wheel_tags", _ci_linux_cp313_tags)
+    monkeypatch.setattr(
+        installer,
+        "_supported_wheel_tags_for_python",
+        lambda _python_executable: _ci_linux_cp313_tags(),
+    )
     expected_artifacts = {
         artifact["filename"]: (artifact["url"], artifact["sha256"])
         for artifact in installer.emergency_artifacts_requested_by_surfaces(
@@ -857,6 +871,61 @@ def test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_ta
     )
 
     assert [artifact["filename"] for artifact in artifacts] == [compatible_filename]
+
+
+def test_emergency_artifacts_requested_by_surfaces_uses_target_python_tags(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements-ci-lite.txt"
+    requirements.write_text("jiter==0.12.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    cp313_filename = "jiter-0.12.0-cp313-cp313-manylinux2014_x86_64.whl"
+    cp312_filename = "jiter-0.12.0-cp312-cp312-manylinux2014_x86_64.whl"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "jiter",
+                        "version": "0.12.0",
+                        "filename": cp312_filename,
+                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp312.whl",
+                        "sha256": "a" * 64,
+                    },
+                    {
+                        "package": "jiter",
+                        "version": "0.12.0",
+                        "filename": cp313_filename,
+                        "url": "https://files.pythonhosted.org/packages/example/jiter-cp313.whl",
+                        "sha256": "b" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_python_executables: list[str | None] = []
+
+    def fake_supported_tags(python_executable: str | None) -> set[str]:
+        observed_python_executables.append(python_executable)
+        if python_executable == "/opt/python/3.13/bin/python":
+            return {"cp313-cp313-manylinux2014_x86_64"}
+        return {"cp312-cp312-manylinux2014_x86_64"}
+
+    monkeypatch.setattr(installer, "_supported_wheel_tags_for_python", fake_supported_tags)
+
+    artifacts = installer.emergency_artifacts_requested_by_surfaces(
+        requirement_files=[requirements],
+        constraints_file=None,
+        manifest_path=manifest,
+        python_executable="/opt/python/3.13/bin/python",
+    )
+
+    assert [artifact["filename"] for artifact in artifacts] == [cp313_filename]
+    assert observed_python_executables == ["/opt/python/3.13/bin/python"]
 
 
 def test_stage_emergency_artifacts_skips_incompatible_parseable_wheels(
@@ -3248,7 +3317,11 @@ def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
     monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
     monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
-    monkeypatch.setattr(installer, "_current_supported_wheel_tags", _ci_linux_cp313_tags)
+    monkeypatch.setattr(
+        installer,
+        "_supported_wheel_tags_for_python",
+        lambda _python_executable: _ci_linux_cp313_tags(),
+    )
 
     installer.install_from_proxy_with_emergency_fallback(
         python_executable="python",

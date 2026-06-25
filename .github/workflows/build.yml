@@ -117,6 +117,15 @@ jobs:
           provenance: false
           target: production
 
+      - name: Remove private Python index Docker authentication
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${RUNNER_TEMP:-}" ]; then
+            rm -f "$RUNNER_TEMP/pulseplate-docker-netrc"
+          fi
+
       - name: Check Docker runtime dependency surface
         run: |
           set -euo pipefail
@@ -525,6 +534,15 @@ jobs:
           # image is pushed and its registry digest is known.
           provenance: false
           target: production
+
+      - name: Remove private Python index Docker authentication
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${RUNNER_TEMP:-}" ]; then
+            rm -f "$RUNNER_TEMP/pulseplate-docker-netrc"
+          fi
 
       - name: Set image ref for SBOM and image scan
         id: image-ref
