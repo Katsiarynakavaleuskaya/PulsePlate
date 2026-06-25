@@ -38,6 +38,8 @@ Out of scope:
   `test(ci): cover stale nightly html coverage cleanup`
 - `0dfb47a6929c266e8378e80d55d656f32f8f10af` -
   `fix(ci): isolate nightly shard history artifacts`
+- `fb6b651078fc1779a0f100bf40a345a26b515c28` -
+  `docs(review): record PR 2020 post-open fixes`
 
 ## Lane Start Provenance
 
@@ -153,6 +155,16 @@ Evidence: `scripts/ci/run_main_test_shards.py::shard_bayesian_history_path`
 scopes enabled Bayesian history persistence per shard, and
 `tests/test_main_test_shards.py::test_build_shard_env_scopes_bayesian_history_when_persisting`
 locks the nightly `/tmp/test_execution_history-py313-shard-3.json` shape.
+
+Finding: post-open `cursor-specialist-agent` noted the validation commands in
+this artifact were not directly replayable from the isolated worktree because
+they used `.venv/bin/python` while the shared repo virtualenv is resolved by
+`scripts/hooks/repo_python.sh`.
+
+Disposition: FIXED
+Commit: `fb6b651078fc1779a0f100bf40a345a26b515c28`
+Evidence: local validation commands in this artifact now use
+`VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" ...`.
 
 Finding: Codex Security diff-scan worker candidate `CAND-PR2020-01` noted that
 the workflow was fail-closed, but the workflow contract test did not assert
