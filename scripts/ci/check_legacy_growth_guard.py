@@ -355,6 +355,21 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
                 import_func_names=dynamic_import_names,
             ):
                 facts.add(LegacyFact("router_import", "dynamic", module_name, target_name))
+        elif isinstance(node, ast.Call):
+            if not _is_router_registration_call(node):
+                continue
+            for module_name in _dynamic_app_router_import_modules(
+                node,
+                import_func_names=dynamic_import_names,
+            ):
+                facts.add(
+                    LegacyFact(
+                        "router_import",
+                        "dynamic",
+                        module_name,
+                        _safe_unparse(node.func),
+                    )
+                )
     return facts
 
 
@@ -412,6 +427,10 @@ def _is_dynamic_import_function_reference(
     if isinstance(node, ast.Name):
         return node.id in import_func_names
     return isinstance(node, ast.Attribute) and node.attr == "import_module"
+
+
+def _is_router_registration_call(call: ast.Call) -> bool:
+    return isinstance(call.func, ast.Attribute) and call.func.attr in APP_REGISTRATION_METHODS
 
 
 def _assignment_target_names(node: ast.AST) -> tuple[str, ...]:

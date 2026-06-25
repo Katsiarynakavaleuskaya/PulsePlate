@@ -798,6 +798,41 @@ def test_legacy_growth_guard_rejects_walrus_import_function_alias_bodyfat_router
     ]
 
 
+def test_legacy_growth_guard_rejects_nested_dynamic_bodyfat_router_registration() -> None:
+    source = textwrap.dedent("""
+        import importlib
+
+        app.include_router(importlib.import_module("app.routers.bodyfat").router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:importlib.import_module('app.routers.bodyfat').router",
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> app.include_router",
+    ]
+
+
+def test_legacy_growth_guard_rejects_nested_dynamic_bodyfat_router_composition() -> None:
+    source = textwrap.dedent("""
+        from fastapi import APIRouter
+        import importlib
+
+        business_router = APIRouter()
+        business_router.include_router(importlib.import_module("app.routers.bodyfat").router)
+        app.include_router(business_router)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.bodyfat -> business_router.include_router",
+    ]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_restaurant_moderation_registration() -> None:
     source = textwrap.dedent("""
         from app.routers.restaurants import moderation_router as restaurant_moderation_router
