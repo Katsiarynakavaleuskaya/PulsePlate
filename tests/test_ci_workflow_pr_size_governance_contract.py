@@ -23,6 +23,7 @@ CODECOV_UPLOAD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codecov-up
 CODEQL_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codeql.yml"
 GREENLIGHT_IOS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "greenlight-ios.yml"
 IOS_APPSTORE_ASSETS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ios-appstore-assets.yml"
+NIGHTLY_FULL_TESTS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly-tests.yml"
 NIGHTLY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly.yml"
 PR_AUTOMATION_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "pr-automation.yml"
 SECURITY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "security.yml"
@@ -548,6 +549,60 @@ def _extract_shell_conditional_block(
     branch_tail = script_text.split(start_anchor, maxsplit=1)[1]
     assert end_anchor in branch_tail, f"Missing shell branch boundary after {branch_marker}"
     return branch_tail.split(end_anchor, maxsplit=1)[0]
+
+
+def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
+    """Nightly full coverage keeps slow tests but avoids xdist worker shutdown hangs."""
+
+    workflow = _load_workflow(NIGHTLY_FULL_TESTS_WORKFLOW_PATH)
+    test_step = _job_step_by_name(
+        workflow,
+        job_id="tests",
+        step_name="Run full test suite with coverage (include slow/MC)",
+    )
+    run_script = test_step["run"]
+    assert isinstance(run_script, str)
+    env = test_step["env"]
+    assert isinstance(env, dict)
+
+    assert env["BAYESIAN_PERSIST"] == "1"
+    assert env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history.json"
+    assert env["MC_SEED"] == "2025"
+    assert env["MC_SAMPLES"] == "40"
+    assert env["MC_SAMPLES_FEW"] == "15"
+    assert env["MAIN_TEST_SHARDS"] == "16"
+    assert env["MAIN_TEST_MAX_PARALLEL"] == "4"
+    assert env["MAIN_TEST_SHARD_TIMEOUT_SECONDS"] == "4800"
+
+    assert "set -euo pipefail" in run_script
+    assert "python scripts/ci/run_main_test_shards.py" in run_script
+    assert '--python-version "3.13"' in run_script
+    assert '--shard-count "${MAIN_TEST_SHARDS}"' in run_script
+    assert '--max-parallel "${MAIN_TEST_MAX_PARALLEL}"' in run_script
+    assert '--marker-expression "not demo"' in run_script
+    assert '--durations-min "1.0"' in run_script
+    assert '--report-chars "fEsxXw"' in run_script
+    assert "--htmlcov" in run_script
+    assert "TEST_STEP_STARTED_AT=" in run_script
+    assert "TEST_STEP_FINISHED_AT=" in run_script
+
+    assert "pytest -c pyproject.toml" not in run_script
+    assert "-n auto" not in run_script
+    assert "--dist=loadgroup" not in run_script
+    assert "--cov-fail-under=97" not in run_script
+
+    coverage_upload = _job_step_by_name(
+        workflow,
+        job_id="tests",
+        step_name="Upload coverage artifact",
+    )
+    html_upload = _job_step_by_name(
+        workflow,
+        job_id="tests",
+        step_name="Upload HTML coverage artifact",
+    )
+    assert coverage_upload["with"] == {"name": "coverage-xml", "path": "coverage.xml"}
+    assert html_upload["with"] == {"name": "htmlcov", "path": "htmlcov"}
 
 
 def test_pr_size_governance_reruns_when_trusted_approval_labels_change() -> None:
