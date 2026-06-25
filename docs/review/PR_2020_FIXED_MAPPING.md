@@ -36,6 +36,8 @@ Out of scope:
   `fix(ci): shard nightly full tests without xdist`
 - `9352af82dc191193824ca7880170e8b9c67f21d7` -
   `test(ci): cover stale nightly html coverage cleanup`
+- `0dfb47a6929c266e8378e80d55d656f32f8f10af` -
+  `fix(ci): isolate nightly shard history artifacts`
 
 ## Lane Start Provenance
 
@@ -83,10 +85,10 @@ Passed locally:
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/37eacb8df716.json --mode runtime --implementation-owner security-auditor --pretty`
-- `.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
-- `.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py`
-- `.venv/bin/python scripts/ci/run_main_test_shards.py --python-version "3.13" --shard-count "16" --max-parallel "4" --marker-expression "not demo" --durations-min "1.0" --report-chars "fEsxXw" --htmlcov --list-shards`
-- `.venv/bin/python -m mypy scripts/ci/run_main_test_shards.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_python_supply_chain_controls.py tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" scripts/ci/run_main_test_shards.py --python-version "3.13" --shard-count "16" --max-parallel "4" --marker-expression "not demo" --durations-min "1.0" --report-chars "fEsxXw" --htmlcov --list-shards`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m mypy scripts/ci/run_main_test_shards.py`
 - `git diff --check`
 - `make validate-changed`
   - After commit, this selected
@@ -104,6 +106,14 @@ Passed locally:
   and conventional commit checks passed.
 - PASS during push after `9352af82`: pip-audit, backend pre-push pytest, and
   full-repo Bandit passed.
+- PASS after post-open cursor and Codex Security hardening fixes:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py`
+- PASS after post-open cursor and Codex Security hardening fixes:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m mypy scripts/ci/run_main_test_shards.py`
+- PASS after post-open cursor and Codex Security hardening fixes:
+  `make validate-changed`
+- PASS during commit `0dfb47a`: formatting, lint, changed-file backend tests,
+  Bandit, and conventional commit checks passed.
 
 Full local `make verify` was not run under the operator-approved
 machine-heavy CI/tooling exception. Current-head CI is the required heavy
@@ -132,6 +142,28 @@ Commit: `9352af82dc191193824ca7880170e8b9c67f21d7`
 Evidence: `tests/test_main_test_shards.py::test_remove_previous_outputs_deletes_stale_shard_files`
 now creates `htmlcov/index.html` and asserts `remove_previous_outputs(...)`
 removes the stale `htmlcov` directory before a new run.
+
+Finding: post-open `cursor-specialist-agent` noted that process-level nightly
+parallelism could make every shard write to the same `BAYESIAN_HISTORY_PATH`
+when `BAYESIAN_PERSIST=1`.
+
+Disposition: FIXED
+Commit: `0dfb47a6929c266e8378e80d55d656f32f8f10af`
+Evidence: `scripts/ci/run_main_test_shards.py::shard_bayesian_history_path`
+scopes enabled Bayesian history persistence per shard, and
+`tests/test_main_test_shards.py::test_build_shard_env_scopes_bayesian_history_when_persisting`
+locks the nightly `/tmp/test_execution_history-py313-shard-3.json` shape.
+
+Finding: Codex Security diff-scan worker candidate `CAND-PR2020-01` noted that
+the workflow was fail-closed, but the workflow contract test did not assert
+`test_exit_code=$?` and `exit "$test_exit_code"`.
+
+Disposition: FIXED
+Commit: `0dfb47a6929c266e8378e80d55d656f32f8f10af`
+Evidence:
+`tests/test_ci_workflow_pr_size_governance_contract.py::test_nightly_full_tests_uses_process_shards_without_xdist`
+now asserts the `set +e` runner invocation, captured exit code, restored
+`set -e`, and explicit `exit "$test_exit_code"` propagation.
 
 ## Security Notes
 
