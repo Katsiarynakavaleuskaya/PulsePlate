@@ -83,11 +83,12 @@ Artifact: `artifacts/orchestration/experiments/results/pr2-creative-code-patch-b
 
 Mode: `oracle_only_governance_reviewer`
 
-Result: accepted, `exp-9e4b3e234ab7`, `source_diff_paths_count=17`,
+Result: accepted, `exp-4561b190580c`, `source_diff_paths_count=15`,
 `shared_tree_untouched=true`, `coauthor_required=true`.
 
 The accepted oracle-only result shaped the PR-2 validation and commit decision;
-commit `7837abd5f` includes the canonical co-author trailer.
+commit `7837abd5f` includes the canonical co-author trailer. The refreshed
+final-diff oracle result also shaped the post-scope-cap mapping/PR-body sync.
 
 ## Lane Start Provenance
 
