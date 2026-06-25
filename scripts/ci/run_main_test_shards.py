@@ -26,6 +26,7 @@ JUNIT_FAMILY = "legacy"
 SLOW_MARK_EXPRESSION = "not slow"
 DEFAULT_MARK_EXPRESSION = SLOW_MARK_EXPRESSION
 DEFAULT_DURATIONS_MIN_SECONDS = "10.0"
+BAYESIAN_PERSIST_TRUTHY = {"1", "true", "yes", "on"}
 PYTEST_BASETEMP_ROOT_NAME = "pulseplate-main-test-shards"
 PYTEST_BASETEMP_FALLBACK_ROOT_NAME = "pulseplate-main-test-shards-external"
 POSIX_TEMP_ROOT = Path(os.sep) / "tmp"
@@ -287,6 +288,22 @@ def build_pytest_args(
     return pytest_args
 
 
+def bayesian_persist_enabled(base_env: Mapping[str, str]) -> bool:
+    """Return whether Bayesian history persistence is enabled for a shard run."""
+
+    return base_env.get("BAYESIAN_PERSIST", "").strip().lower() in BAYESIAN_PERSIST_TRUTHY
+
+
+def shard_bayesian_history_path(base_env: Mapping[str, str], shard: TestShard) -> str:
+    """Return a shard-local Bayesian history path to avoid process write races."""
+
+    raw_path = base_env.get("BAYESIAN_HISTORY_PATH", "test_execution_history.json").strip()
+    history_path = Path(raw_path or "test_execution_history.json")
+    shard_suffix = f"{shard.artifact_label}-shard-{shard.index}"
+    scoped_name = f"{history_path.stem}-{shard_suffix}{history_path.suffix}"
+    return str(history_path.with_name(scoped_name))
+
+
 def build_shard_env(base_env: dict[str, str], shard: TestShard, repo_root: Path) -> dict[str, str]:
     """Return an isolated environment for one pytest shard."""
 
@@ -297,6 +314,8 @@ def build_shard_env(base_env: dict[str, str], shard: TestShard, repo_root: Path)
     env["COVERAGE_FILE"] = str(repo_root / shard.coverage_file)
     env["COV_CORE_DATAFILE"] = str(repo_root / shard.coverage_file)
     env.setdefault("PYTEST_FAULTHANDLER_TIMEOUT_S", str(DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS))
+    if bayesian_persist_enabled(base_env):
+        env["BAYESIAN_HISTORY_PATH"] = shard_bayesian_history_path(base_env, shard)
     return env
 
 

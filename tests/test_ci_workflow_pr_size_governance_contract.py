@@ -585,6 +585,10 @@ def test_nightly_full_tests_uses_process_shards_without_xdist() -> None:
     assert "--htmlcov" in run_script
     assert "TEST_STEP_STARTED_AT=" in run_script
     assert "TEST_STEP_FINISHED_AT=" in run_script
+    assert "set +e" in run_script
+    assert "test_exit_code=$?" in run_script
+    assert "set -e" in run_script
+    assert 'exit "$test_exit_code"' in run_script
 
     assert "pytest -c pyproject.toml" not in run_script
     assert "-n auto" not in run_script

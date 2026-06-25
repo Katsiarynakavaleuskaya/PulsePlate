@@ -381,6 +381,31 @@ def test_build_shard_env_isolates_database_and_coverage(tmp_path: Path) -> None:
     assert env["PYTEST_FAULTHANDLER_TIMEOUT_S"] == "300"
 
 
+def test_build_shard_env_scopes_bayesian_history_when_persisting(tmp_path: Path) -> None:
+    shard = runner.TestShard(index=3, artifact_label="py313")
+    env = runner.build_shard_env(
+        {
+            "BAYESIAN_PERSIST": "1",
+            "BAYESIAN_HISTORY_PATH": "/tmp/test_execution_history.json",
+        },
+        shard,
+        tmp_path,
+    )
+
+    assert env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history-py313-shard-3.json"
+
+
+def test_build_shard_env_leaves_bayesian_history_alone_when_not_persisting(tmp_path: Path) -> None:
+    shard = runner.TestShard(index=3, artifact_label="py313")
+    env = runner.build_shard_env(
+        {"BAYESIAN_HISTORY_PATH": "/tmp/test_execution_history.json"},
+        shard,
+        tmp_path,
+    )
+
+    assert env["BAYESIAN_HISTORY_PATH"] == "/tmp/test_execution_history.json"
+
+
 def test_shard_timeout_seconds_validates_env(capsys: pytest.CaptureFixture[str]) -> None:
     assert runner.shard_timeout_seconds({}) == runner.DEFAULT_SHARD_TIMEOUT_SECONDS
     assert runner.shard_timeout_seconds({"MAIN_TEST_SHARD_TIMEOUT_SECONDS": "120"}) == 120
