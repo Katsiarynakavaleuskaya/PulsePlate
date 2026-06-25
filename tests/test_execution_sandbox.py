@@ -68,6 +68,40 @@ def test_parse_allowed_binaries_rejects_paths() -> None:
         sandbox.parse_allowed_binaries("/usr/bin/python3")
 
 
+def test_sanitize_sandbox_env_allows_network_disable_flag() -> None:
+    env = sandbox.sanitize_sandbox_env({sandbox.SANDBOX_DISABLE_NETWORK_ENV: "true"})
+
+    assert env[sandbox.SANDBOX_DISABLE_NETWORK_ENV] == "true"
+
+
+def test_network_isolation_argv_wraps_command_with_unshare(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sandbox.os, "name", "posix")
+    monkeypatch.setattr(sandbox.shutil, "which", lambda binary: f"/usr/bin/{binary}")
+
+    argv = sandbox._network_isolation_argv("/usr/bin/python3", ("/usr/bin/python3", "-c", "0"))
+
+    assert argv == (
+        "/usr/bin/unshare",
+        "--net",
+        "--map-root-user",
+        "/usr/bin/python3",
+        "-c",
+        "0",
+    )
+
+
+def test_network_isolation_argv_fails_closed_without_unshare(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sandbox.os, "name", "posix")
+    monkeypatch.setattr(sandbox.shutil, "which", lambda _binary: None)
+
+    with pytest.raises(RuntimeError, match="requires the unshare binary"):
+        sandbox._network_isolation_argv("/usr/bin/python3", ("/usr/bin/python3",))
+
+
 def test_require_sandbox_timeout_seconds_rejects_non_integer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

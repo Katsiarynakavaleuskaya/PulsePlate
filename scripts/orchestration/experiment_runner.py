@@ -478,7 +478,17 @@ def _has_effective_diff(checkout_root: Path) -> bool:
     return bool(process.stdout.strip())
 
 
-def _command_to_request(command: str) -> SandboxRequest:
+def _network_sandbox_env(packet: dict[str, Any]) -> dict[str, str] | None:
+    """Return sandbox env overrides required by the packet budgets."""
+
+    if int(packet["budgets"].get("network_budget", 0)) == 0:
+        return {sandbox.SANDBOX_DISABLE_NETWORK_ENV: "true"}
+    return None
+
+
+def _command_to_request(
+    command: str, *, sandbox_env: dict[str, str] | None = None
+) -> SandboxRequest:
     """Convert a packet oracle command string into a sandbox request."""
 
     try:
@@ -494,7 +504,7 @@ def _command_to_request(command: str) -> SandboxRequest:
             f"Oracle binary {binary!r} is not allowlisted for experiment runner. "
             f"Allowed: {allowed}"
         )
-    return SandboxRequest(binary=binary, args=tuple(argv[1:]), cwd=".")
+    return SandboxRequest(binary=binary, args=tuple(argv[1:]), cwd=".", env=sandbox_env)
 
 
 def _classify_oracle_failure(result: sandbox.SandboxResult) -> str:
@@ -515,7 +525,11 @@ def _run_oracles(
 
     oracle_results: list[dict[str, Any]] = []
     failure_class: str | None = None
-    requests = [_command_to_request(oracle["command"]) for oracle in packet["immutable_oracles"]]
+    sandbox_env = _network_sandbox_env(packet)
+    requests = [
+        _command_to_request(oracle["command"], sandbox_env=sandbox_env)
+        for oracle in packet["immutable_oracles"]
+    ]
     allowed_binaries = tuple(sorted({request.binary for request in requests}))
     path_prefix = _python_oracle_path_prefix(requests)
     total_wall_clock_seconds = int(packet["budgets"]["wall_clock_seconds"])

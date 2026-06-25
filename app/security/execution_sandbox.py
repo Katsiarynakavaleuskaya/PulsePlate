@@ -31,6 +31,7 @@ SANDBOX_ROOT_ENV = "AGENT_EXECUTION_SANDBOX_ROOT"
 SANDBOX_TIMEOUT_ENV = "AGENT_EXECUTION_SANDBOX_TIMEOUT_SECONDS"
 SANDBOX_MAX_OUTPUT_ENV = "AGENT_EXECUTION_SANDBOX_MAX_OUTPUT_BYTES"
 SANDBOX_ALLOWED_BINARIES_ENV = "AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES"
+SANDBOX_DISABLE_NETWORK_ENV = "AGENT_EXECUTION_SANDBOX_DISABLE_NETWORK"
 
 DEFAULT_SANDBOX_TIMEOUT_SECONDS = 30
 DEFAULT_SANDBOX_MAX_OUTPUT_BYTES = 32_768
@@ -246,6 +247,14 @@ def resolve_allowed_binary(binary: str, *, allowed_binaries: tuple[str, ...] | N
     return resolved
 
 
+def _env_flag_enabled(name: str, *, env: Mapping[str, str] | None = None) -> bool:
+    """Return whether an environment flag is enabled."""
+
+    source = env if env is not None else os.environ
+    raw = (source.get(name) or "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 def sanitize_sandbox_env(extra_env: Mapping[str, str] | None = None) -> dict[str, str]:
     """Return sanitized environment for sandbox subprocess."""
 
@@ -264,6 +273,9 @@ def sanitize_sandbox_env(extra_env: Mapping[str, str] | None = None) -> dict[str
             raise PermissionError(f"Loader env key is not allowed in sandbox: {key}")
         if any(token in upper for token in _SENSITIVE_ENV_TOKENS):
             raise PermissionError(f"Sensitive env key is not allowed in sandbox: {key}")
+        if key == SANDBOX_DISABLE_NETWORK_ENV:
+            sanitized[key] = value
+            continue
         if upper not in _ALLOWED_EXTRA_ENV_KEYS and not any(
             upper.startswith(prefix) for prefix in _ALLOWED_EXTRA_ENV_PREFIXES
         ):
@@ -393,6 +405,17 @@ def _join_drain_thread(
     thread.join(timeout=_STREAM_JOIN_GRACE_SECONDS)
 
 
+def _network_isolation_argv(binary_path: str, argv: tuple[str, ...]) -> tuple[str, ...]:
+    """Wrap argv with OS network isolation or fail closed when unavailable."""
+
+    if os.name != "posix":
+        raise RuntimeError("Sandbox network isolation requires a POSIX host.")
+    unshare_path = shutil.which("unshare")
+    if not unshare_path:
+        raise RuntimeError("Sandbox network isolation requires the unshare binary.")
+    return (unshare_path, "--net", "--map-root-user", binary_path, *argv[1:])
+
+
 def run_local_sandbox(
     request: SandboxRequest,
     *,
@@ -411,6 +434,8 @@ def run_local_sandbox(
     max_output_bytes = require_sandbox_max_output_bytes()
     env = sanitize_sandbox_env(request.env)
     argv = (binary_path, *request.args)
+    if _env_flag_enabled(SANDBOX_DISABLE_NETWORK_ENV, env=env):
+        argv = _network_isolation_argv(binary_path, argv)
     output_budget = _SharedOutputBudget(max_bytes=max_output_bytes)
     stdout_collector = _StreamingOutputBuffer(budget=output_budget)
     stderr_collector = _StreamingOutputBuffer(budget=output_budget)

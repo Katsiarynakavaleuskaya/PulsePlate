@@ -1141,6 +1141,22 @@ def test_classify_oracle_failure_matches_only_standalone_oom_markers() -> None:
     assert experiment_runner._classify_oracle_failure(oom_result) == "oom"
 
 
+def test_zero_network_budget_marks_oracle_sandbox_network_disabled() -> None:
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
+        )
+    )
+
+    request = experiment_runner._command_to_request(
+        packet["immutable_oracles"][0]["command"],
+        sandbox_env=experiment_runner._network_sandbox_env(packet),
+    )
+
+    assert request.env == {experiment_runner.sandbox.SANDBOX_DISABLE_NETWORK_ENV: "true"}
+
+
 def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
