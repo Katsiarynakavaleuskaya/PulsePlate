@@ -66,8 +66,10 @@ flow.
   `e9f9b419a`.
 - [x] CodeRabbit review completed; actionable/nitpick findings fixed or
   dispositioned below.
-- [ ] Codex Security diff scan / finding discovery is pending.
-- [ ] `pulseplate-pr-review` is pending.
+- [x] Codex Security diff scan / finding discovery completed: 28/28 coverage
+  rows, 0 findings.
+- [x] `pulseplate-pr-review` completed; one large-diff advisory note
+  dispositioned below.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
@@ -155,6 +157,35 @@ scripts/ci/check_docs_phase1_gates.py --files
 docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md
 docs/review/PR_2027_FIXED_MAPPING.md`.
 
+Review: Codex Security diff scan
+
+Disposition: NOT-A-BUG
+
+Evidence: Codex Security scan `785fdb1f-d562-42d8-9326-01af581220d6`
+completed with 28/28 coverage rows and 0 reportable findings. Canonical scan
+artifacts were finalized under
+`/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-4Rry6v/replace-torch-vector-backend/a02505e8a6b94df8ae9137099fc17a13acf50bfd_20260626T105636Z_pg_au0ka/`,
+including `scan-manifest.json`, `findings.json`, `coverage.json`, and
+`report.md`. The scan target was the PR diff at `a02505e8a`; later commits
+changed only dependency docs, RAG contract documentation, provider docstring,
+and review mapping.
+
+Review: `pulseplate-pr-review`
+
+Disposition: NOT-A-BUG
+
+Evidence: Dry-run report `/tmp/pulseplate_pr_review_2027.md` produced one
+advisory `note` for large diff risk only. The PR body already records the
+operator-approved privileged scope exception and split justification, and local
+focused gates plus `make validate-changed` are recorded below. Calibration tests
+passed via `python -m pytest tests/test_pr_review_report.py
+tests/test_pr_review_context.py -q`.
+
+Reason: The advisory is a planning/governance risk, not a new code defect. This
+PR intentionally keeps runtime backend removal, optional lock regeneration,
+waiver removal, guards, and security docs atomic so the PyTorch/TorchScript
+alert is closed by removal without leaving an inconsistent security state.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` PASS.
@@ -172,6 +203,10 @@ docs/review/PR_2027_FIXED_MAPPING.md`.
 - `pre-commit run --all-files` PASS.
 - Push hooks PASS: changed-file mypy, pip-audit, backend pre-push pytest,
   full-repo Bandit, and docker build test.
+- `python -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`
+  PASS.
+- `python scripts/orchestration/check_review_threads_disposition.py --pr-number
+  2027` PASS after resolving the CodeRabbit thread.
 
 ## Machine-Heavy Deferral
 
