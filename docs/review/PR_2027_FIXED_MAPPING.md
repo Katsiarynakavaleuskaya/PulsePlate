@@ -37,6 +37,9 @@ flow.
 - `ab70cdec3` - replace the optional vector backend with FastEmbed/ONNX, refresh
   vector locks, retire the PyTorch CVE waiver, add model acknowledgement guards,
   and update tests/docs/security evidence.
+- `e9f9b419a` - fix post-open diff review findings by aligning vector lock
+  package pins, adding a lock parity guard, and correcting PyTorch advisory
+  evidence anchors.
 
 ## Lane Start Provenance
 
@@ -57,6 +60,8 @@ flow.
 - [x] Post-open `qa-engineer-agent` pass completed: no actionable findings.
 - [x] Post-open `bug-hunter` pass completed: no actionable findings.
 - [x] Post-open `security-auditor` pass completed: no actionable findings.
+- [x] Post-open broad diff review completed; two P2 findings fixed in
+  `e9f9b419a`.
 - [ ] Codex Security diff scan / finding discovery is pending.
 - [ ] CodeRabbit review is pending.
 - [ ] `pulseplate-pr-review` is pending.
@@ -97,6 +102,33 @@ pass confirmed the PR removes the PyTorch waiver, keeps vector locks
 torch/SentenceTransformers/Transformers-free, preserves lazy FastEmbed loading,
 and adds fail-closed embedding/model-ack guards without weakening audit
 coverage.
+
+Review: broad post-open diff review
+
+Disposition: FIXED
+
+Commit: `e9f9b419a`
+
+Evidence: The review found that `requirements-rag-vector.txt` and
+`requirements-rag-vector-cpu.txt` had drifted transitive pins despite equivalent
+FastEmbed/ONNX profiles. Commit `e9f9b419a` regenerates both locks with a fresh
+resolution and adds
+`tests/test_python_supply_chain_controls.py::test_rag_vector_lock_profiles_keep_matching_package_pins`.
+Validation passed via focused supply-chain/security pytest, `python
+verify_requirements.py`, `PATH=".venv/bin:$PATH" bash scripts/ci_pip_audit.sh`,
+and locked-install preflights for both vector lockfiles.
+
+Disposition: FIXED
+
+Commit: `e9f9b419a`
+
+Evidence: The review found stale line anchors in
+`docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md`. Commit `e9f9b419a`
+updates those anchors to the current provider, pip-audit, supply-chain guard,
+and security guard lines. Validation passed via `python
+scripts/ci/check_docs_phase1_gates.py --files
+docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md
+docs/review/PR_2027_FIXED_MAPPING.md`.
 
 ## Local Validation Evidence
 
