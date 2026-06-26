@@ -40,6 +40,8 @@ flow.
 - `e9f9b419a` - fix post-open diff review findings by aligning vector lock
   package pins, adding a lock parity guard, and correcting PyTorch advisory
   evidence anchors.
+- `5d7bc2b55` - fix CodeRabbit dependency-doc guidance and document FastEmbed
+  first-call cold-start behavior without adding eager model initialization.
 
 ## Lane Start Provenance
 
@@ -62,15 +64,38 @@ flow.
 - [x] Post-open `security-auditor` pass completed: no actionable findings.
 - [x] Post-open broad diff review completed; two P2 findings fixed in
   `e9f9b419a`.
+- [x] CodeRabbit review completed; actionable/nitpick findings fixed or
+  dispositioned below.
 - [ ] Codex Security diff scan / finding discovery is pending.
-- [ ] CodeRabbit review is pending.
 - [ ] `pulseplate-pr-review` is pending.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Review: CodeRabbit review
+Disposition: FIXED
+Commit: 5d7bc2b55
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2027#pullrequestreview-4578675524
+Evidence: `docs/DEPENDENCY_MANAGEMENT.md:27` now names both optional vector
+runtime profiles, and `providers/embeddings.py:4` plus
+`docs/contracts/RAG_CONTRACT.md:229` document the intentional first-call
+FastEmbed/ONNX model load and cache pre-population expectation without changing
+the lazy-loading runtime contract.
+
+Review: CodeRabbit inline thread
+Disposition: NOT-A-BUG
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2027#discussion_r3480719625
+Evidence: `requirements-test.txt:27` intentionally contains `pgvector==0.4.2`
+for postgres-vector test coverage, `docs/DEPENDENCY_MANAGEMENT.md:27` documents
+that test-profile exception, and
+`tests/test_python_supply_chain_controls.py:1135` still blocks FastEmbed,
+SentenceTransformers, Transformers, Torch, and every
+`OPTIONAL_VECTOR_FORBIDDEN_PACKAGES` entry from `requirements-test.txt`.
+Reason: `pgvector` is the PostgreSQL vector adapter used by tests, not the
+FastEmbed/ONNX runtime or retired PyTorch/SentenceTransformers/Transformers ML
+stack. Adding `pgvector` to the `requirements-test.txt` disallowed package set
+would contradict the documented test-profile contract and fail the current lock.
 
 ## Post-Open Role Findings
 
