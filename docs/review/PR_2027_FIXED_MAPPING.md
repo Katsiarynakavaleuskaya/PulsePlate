@@ -75,29 +75,15 @@ flow.
 
 ## Fixed in Commit Mapping
 
-Review: CodeRabbit review
 Disposition: FIXED
 Commit: 5d7bc2b55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2027#pullrequestreview-4578675524
-Evidence: `docs/DEPENDENCY_MANAGEMENT.md:27` now names both optional vector
-runtime profiles, and `providers/embeddings.py:4` plus
-`docs/contracts/RAG_CONTRACT.md:229` document the intentional first-call
-FastEmbed/ONNX model load and cache pre-population expectation without changing
-the lazy-loading runtime contract.
+Evidence: `docs/DEPENDENCY_MANAGEMENT.md:27` names both optional vector runtime profiles; `providers/embeddings.py:4` and `docs/contracts/RAG_CONTRACT.md:229` document first-call FastEmbed/ONNX model load and cache pre-population expectation.
 
-Review: CodeRabbit inline thread
 Disposition: NOT-A-BUG
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2027#discussion_r3480719625
-Evidence: `requirements-test.txt:27` intentionally contains `pgvector==0.4.2`
-for postgres-vector test coverage, `docs/DEPENDENCY_MANAGEMENT.md:27` documents
-that test-profile exception, and
-`tests/test_python_supply_chain_controls.py:1135` still blocks FastEmbed,
-SentenceTransformers, Transformers, Torch, and every
-`OPTIONAL_VECTOR_FORBIDDEN_PACKAGES` entry from `requirements-test.txt`.
-Reason: `pgvector` is the PostgreSQL vector adapter used by tests, not the
-FastEmbed/ONNX runtime or retired PyTorch/SentenceTransformers/Transformers ML
-stack. Adding `pgvector` to the `requirements-test.txt` disallowed package set
-would contradict the documented test-profile contract and fail the current lock.
+Evidence: `requirements-test.txt:27` intentionally contains `pgvector==0.4.2`; `docs/DEPENDENCY_MANAGEMENT.md:27` documents the test-profile exception; `tests/test_python_supply_chain_controls.py:1135` still blocks the retired ML/runtime stack and forbidden packages.
+Reason: `pgvector` is the PostgreSQL vector adapter used by tests, not the FastEmbed/ONNX runtime or retired PyTorch/SentenceTransformers/Transformers ML stack.
 
 ## Post-Open Role Findings
 
