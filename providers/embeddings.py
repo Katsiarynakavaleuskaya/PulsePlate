@@ -2,7 +2,11 @@
 
 Thin adapter around FastEmbed/ONNX following the existing ProviderBase pattern.
 Model is loaded lazily on the first ``.encode()`` call to avoid import-time
-side effects (OpenAPI generation safety, feature-flag gating).
+side effects (OpenAPI generation safety, feature-flag gating). When the model
+is not already present in the FastEmbed cache, that first call may pay the ONNX
+download/initialization cost; operators enabling vector mode should pre-populate
+the cache or accept one cold retrieval falling back through the existing RAG
+degradation path if provider loading fails.
 
 Usage::
 

@@ -24,7 +24,7 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements-evals.txt` - Compiled offline eval dependencies with exact versions (auto-generated, local/manual)
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
 
-`requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the FastEmbed/ONNX runtime packages remain isolated in `requirements-rag-vector.txt`.
+`requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the FastEmbed/ONNX runtime packages remain isolated in the optional vector runtime profiles (`requirements-rag-vector.txt` and `requirements-rag-vector-cpu.txt`).
 `requirements-docker-runtime.txt` is the backend image contract for production-target Docker builds and excludes CI-only tooling.
 `requirements-data.txt` and `requirements-evals.txt` are local/manual offline
 profiles only. They are not shared GitHub Actions `requirements-profile` values
