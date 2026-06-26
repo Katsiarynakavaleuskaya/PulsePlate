@@ -30,8 +30,10 @@ CVE.
 - `scripts/ci_pip_audit.sh`: scans optional vector manifests without any
   `CVE-2025-3000` ignore.
 - Evidence anchors: `providers/embeddings.py:46`,
-  `scripts/ci_pip_audit.sh:21`, `tests/test_python_supply_chain_controls.py:204`,
-  and `tests/guards/test_security_devtooling_regression_guards.py:32`.
+  `scripts/ci_pip_audit.sh:21`,
+  `tests/test_python_supply_chain_controls.py:1104`,
+  `tests/test_python_supply_chain_controls.py:1510`, and
+  `tests/guards/test_security_devtooling_regression_guards.py:423`.
 
 ## Exposure Assessment
 

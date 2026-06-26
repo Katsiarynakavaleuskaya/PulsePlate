@@ -54,8 +54,9 @@ flow.
 - [x] Fixed in commit mapping completed
 - [x] Fixed mapping artifact created after GitHub assigned PR number `#2027`.
 - [x] Initial PR open: no GitHub review threads existed at artifact creation.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass is in
-  progress.
+- [x] Post-open `qa-engineer-agent` pass completed: no actionable findings.
+- [x] Post-open `bug-hunter` pass completed: no actionable findings.
+- [x] Post-open `security-auditor` pass completed: no actionable findings.
 - [ ] Codex Security diff scan / finding discovery is pending.
 - [ ] CodeRabbit review is pending.
 - [ ] `pulseplate-pr-review` is pending.
@@ -65,6 +66,37 @@ flow.
 ## Fixed in Commit Mapping
 
 - No actionable review comments
+
+## Post-Open Role Findings
+
+Role: `qa-engineer-agent`
+
+Disposition: NOT-A-BUG
+
+Evidence: Post-open QA pass found no actionable findings. The pass confirmed
+focused pytest coverage for FastEmbed/vector fallback and torch-free dependency
+guards, and confirmed the vector requirements sweep had no retired
+PyTorch/SentenceTransformers/Transformers hits.
+
+Role: `bug-hunter`
+
+Disposition: NOT-A-BUG
+
+Evidence: Post-open bug-hunter pass found no actionable findings. The pass
+confirmed FastEmbed normalization fails closed, model acknowledgement gating
+blocks stale vector retrieval before provider/DB work, fallback preserves
+degraded reasons, and supply-chain guards cover retired
+torch/SentenceTransformers/Transformers surfaces.
+
+Role: `security-auditor`
+
+Disposition: NOT-A-BUG
+
+Evidence: Post-open security-auditor pass found no actionable findings. The
+pass confirmed the PR removes the PyTorch waiver, keeps vector locks
+torch/SentenceTransformers/Transformers-free, preserves lazy FastEmbed loading,
+and adds fail-closed embedding/model-ack guards without weakening audit
+coverage.
 
 ## Local Validation Evidence
 

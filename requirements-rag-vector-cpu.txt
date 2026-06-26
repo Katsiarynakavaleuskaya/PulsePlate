@@ -22,23 +22,19 @@ charset-normalizer==3.4.4
     # via
     #   -c requirements.txt
     #   requests
-click==8.3.1
-    # via
-    #   -c requirements.txt
-    #   typer
 fastembed==0.8.0
     # via -r requirements-rag-vector-cpu.in
-filelock==3.29.0
+filelock==3.29.4
     # via huggingface-hub
 flatbuffers==25.12.19
     # via onnxruntime
-fsspec==2026.4.0
+fsspec==2026.6.0
     # via huggingface-hub
 h11==0.16.0
     # via
     #   -c requirements.txt
     #   httpcore
-hf-xet==1.4.3
+hf-xet==1.5.1
     # via huggingface-hub
 httpcore==1.0.9
     # via
@@ -48,7 +44,7 @@ httpx==0.28.1
     # via
     #   -c requirements.txt
     #   huggingface-hub
-huggingface-hub==1.13.0
+huggingface-hub==1.16.1
     # via
     #   fastembed
     #   tokenizers
@@ -60,7 +56,7 @@ idna==3.15
     #   requests
 loguru==0.7.3
     # via fastembed
-markdown-it-py==4.0.0
+markdown-it-py==4.2.0
     # via rich
 mdurl==0.1.2
     # via markdown-it-py
@@ -105,14 +101,14 @@ rich==15.0.0
     # via typer
 shellingham==1.5.4
     # via typer
-tokenizers==0.22.2
+tokenizers==0.23.1
     # via fastembed
 tqdm==4.67.1
     # via
     #   -c requirements.txt
     #   fastembed
     #   huggingface-hub
-typer==0.25.1
+typer==0.26.8
     # via huggingface-hub
 typing-extensions==4.15.0
     # via

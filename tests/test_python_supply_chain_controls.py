@@ -302,6 +302,15 @@ def _requirement_entries(path: Path) -> list[Requirement]:
     return requirements
 
 
+def _requirement_pin_pairs(path: Path) -> tuple[tuple[str, str], ...]:
+    """Return canonical package/specifier pairs for lockfile parity checks."""
+
+    return tuple(
+        (canonicalize_name(requirement.name), str(requirement.specifier))
+        for requirement in _requirement_entries(path)
+    )
+
+
 def _requirement_is_exact_pin(requirement: Requirement) -> bool:
     """Return True when a requirement entry uses a concrete package==version pin."""
 
@@ -1111,6 +1120,13 @@ def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> N
     for package in OPTIONAL_VECTOR_FORBIDDEN_PACKAGES:
         assert f"{package}==" not in requirements_rag_vector
     assert "nvidia-" not in requirements_rag_vector
+
+
+def test_rag_vector_lock_profiles_keep_matching_package_pins() -> None:
+    vector_pairs = _requirement_pin_pairs(REPO_ROOT / "requirements-rag-vector.txt")
+    vector_cpu_pairs = _requirement_pin_pairs(REPO_ROOT / "requirements-rag-vector-cpu.txt")
+
+    assert vector_pairs == vector_cpu_pairs
 
 
 def test_torch_and_vector_stack_stay_optional_to_rag_vector_profiles() -> None:
