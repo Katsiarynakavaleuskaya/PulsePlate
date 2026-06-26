@@ -43,6 +43,7 @@ class RAGDegradedReason(str, Enum):
     VECTOR_FALLBACK_NO_RESULTS = "vector_fallback_no_results"
     VECTOR_FALLBACK_EXCEPTION = "vector_fallback_exception"
     VECTOR_FALLBACK_SUBJECT_MISSING = "vector_fallback_subject_missing"
+    VECTOR_FALLBACK_MODEL_UNACKNOWLEDGED = "vector_fallback_model_unacknowledged"
     RETRIEVAL_EMPTY = "retrieval_empty"
     ALL_CHUNKS_FILTERED = "all_chunks_filtered"
     FORMATTED_CONTEXT_EMPTY = "formatted_context_empty"

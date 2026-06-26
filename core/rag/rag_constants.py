@@ -18,6 +18,7 @@ MIN_CONFIDENCE_GAIN_PER_HOP: float = 0.02
 MAX_HOP_VECTOR_CACHE_ENTRIES: int = 32
 
 # Vector retrieval constants (P2)
-EMBEDDING_MODEL_NAME: str = "all-mpnet-base-v2"
+EMBEDDING_MODEL_NAME: str = "BAAI/bge-base-en-v1.5"
 EMBEDDING_DIMENSIONS: int = 768
+RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV: str = "RAG_VECTOR_EMBEDDING_MODEL_ACK"
 MIN_VECTOR_SCORE: float = 0.3  # cosine similarity threshold (higher bar than Jaccard's 0.1)

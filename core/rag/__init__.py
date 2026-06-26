@@ -26,6 +26,7 @@ from core.rag.rag_constants import (
     MIN_CHUNK_SCORE,
     MIN_CONFIDENCE_GAIN_PER_HOP,
     MIN_VECTOR_SCORE,
+    RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV,
     RAG_PIPELINE_TIMEOUT_SEC,
 )
 
@@ -48,6 +49,7 @@ __all__ = [
     "MIN_CHUNK_SCORE",
     "MIN_CONFIDENCE_GAIN_PER_HOP",
     "MIN_VECTOR_SCORE",
+    "RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV",
     "RAG_PIPELINE_TIMEOUT_SEC",
     "simple_rag",
 ]

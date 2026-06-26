@@ -72,6 +72,14 @@ def _patch_embedding_provider(
     monkeypatch.setattr(vector_rag, "_embedding_provider", provider)
 
 
+def _ack_vector_embedding_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Acknowledge that persisted embeddings were reset for the active model."""
+
+    from core.rag import vector_rag
+
+    monkeypatch.setattr(vector_rag, "_is_vector_embedding_model_acknowledged", lambda: True)
+
+
 class TestCosineSimilarity:
     """Unit tests for _cosine_similarity helper."""
 
@@ -205,6 +213,23 @@ class TestNormalizationHelpers:
 class TestVectorRetrievalFallback:
     """Vector retrieval falls back to Jaccard when disabled or on failure."""
 
+    def test_model_ack_requires_current_embedding_model(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Acknowledgement must match the current embedding model exactly."""
+        from core.rag import vector_rag
+
+        monkeypatch.delenv(vector_rag.RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV, raising=False)
+        assert vector_rag._is_vector_embedding_model_acknowledged() is False
+
+        monkeypatch.setenv(vector_rag.RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV, "all-mpnet-base-v2")
+        assert vector_rag._is_vector_embedding_model_acknowledged() is False
+
+        monkeypatch.setenv(
+            vector_rag.RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV, vector_rag.EMBEDDING_MODEL_NAME
+        )
+        assert vector_rag._is_vector_embedding_model_acknowledged() is True
+
     def test_flag_off_uses_jaccard(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """FEATURE_RAG_VECTOR=false must use Jaccard retrieval."""
         monkeypatch.setenv("FEATURE_RAG_VECTOR", "false")
@@ -228,6 +253,7 @@ class TestVectorRetrievalFallback:
         import core.rag.vector_rag as vector_rag
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        _ack_vector_embedding_model(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag._retrieve_vector_from_db",
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("DB down")),
@@ -252,6 +278,7 @@ class TestVectorRetrievalFallback:
         )
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        _ack_vector_embedding_model(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag._retrieve_vector_from_db",
             lambda *a, **k: empty_ctx,
@@ -271,6 +298,7 @@ class TestVectorRetrievalFallback:
         import core.rag.vector_rag as vector_rag
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        _ack_vector_embedding_model(monkeypatch)
         monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _fake_jaccard)
 
         ctx = vector_rag.retrieve_context_structured("test query", subject_id=None)
@@ -293,6 +321,7 @@ class TestVectorRetrievalFallback:
             return _fake_jaccard(*args, **kwargs)
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        _ack_vector_embedding_model(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag._retrieve_vector_from_db",
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("DB down")),
@@ -313,6 +342,36 @@ class TestVectorRetrievalFallback:
         assert captured["kwargs"]["user_tier"] == "PRO"
         assert "subject_id" not in captured["kwargs"]
         assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
+
+    def test_flag_on_without_model_ack_falls_back_without_vector_work(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A model-family swap must not serve stale stored embeddings implicitly."""
+        import core.rag.vector_rag as vector_rag
+
+        monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag._is_vector_embedding_model_acknowledged",
+            lambda: False,
+        )
+        retrieve_called = False
+
+        def _unexpected_vector_retrieve(*_args: Any, **_kwargs: Any) -> RAGContext:
+            nonlocal retrieve_called
+            retrieve_called = True
+            raise AssertionError("vector retrieval must stay disabled without model ack")
+
+        monkeypatch.setattr(
+            "core.rag.vector_rag._retrieve_vector_from_db",
+            _unexpected_vector_retrieve,
+        )
+        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _fake_jaccard)
+
+        ctx = vector_rag.retrieve_context_structured("test query", subject_id=21)
+
+        assert isinstance(ctx, _FakeContext)
+        assert not retrieve_called
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_MODEL_UNACKNOWLEDGED
 
 
 class TestVectorRetrievalSQLite:
@@ -494,7 +553,7 @@ class TestGetEmbeddingProvider:
     """Test _get_embedding_provider singleton with lazy loading."""
 
     def test_creates_provider_on_first_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Singleton should create SentenceTransformerEmbeddings on first call."""
+        """Singleton should create FastEmbedTextEmbeddings on first call."""
         from core.rag import vector_rag
 
         _patch_embedding_provider(monkeypatch, None)
@@ -504,7 +563,7 @@ class TestGetEmbeddingProvider:
         fake_cls.return_value = fake_instance
 
         monkeypatch.setattr(
-            "providers.embeddings.SentenceTransformerEmbeddings",
+            "providers.embeddings.FastEmbedTextEmbeddings",
             fake_cls,
         )
 
@@ -695,6 +754,7 @@ class TestRetrieveVectorFromDb:
         )
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        _ack_vector_embedding_model(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag._retrieve_vector_from_db",
             lambda *a, **k: empty_ctx,
@@ -726,6 +786,7 @@ class TestRetrieveVectorFromDb:
         )
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        _ack_vector_embedding_model(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag._retrieve_vector_from_db",
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("vector boom")),
@@ -927,6 +988,7 @@ class TestRetrieveContextStructuredVectorSuccess:
         )
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        _ack_vector_embedding_model(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag._retrieve_vector_from_db",
             lambda *a, **k: vector_ctx,

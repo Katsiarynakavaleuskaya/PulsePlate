@@ -9,13 +9,13 @@
 - Used in production deployments
 - Updated by Dependabot
 
-**`requirements-rag-vector.txt`** - Optional vector/ML runtime profile
-- Exact versions for the opt-in RAG vector stack
+**`requirements-rag-vector.txt`** - Optional vector runtime profile
+- Exact versions for the opt-in FastEmbed/ONNX RAG vector stack
 - Installed only when a job or runtime explicitly selects the `rag-vector` profile
 
 **`requirements-test.txt`** - Test-only dependency profile
 - Keeps pytest/coverage tooling plus `pgvector` for postgres-vector contract tests
-- Does not pull the heavy vector/ML runtime stack (`sentence-transformers`, `transformers`, `torch`)
+- Does not pull the optional FastEmbed/ONNX vector runtime stack
 
 ### Development Dependencies
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import threading
 import time
 from collections.abc import Sequence
@@ -27,9 +28,11 @@ from core.db_rls import apply_user_rls_context
 from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext, RAGDegradedReason
 from core.rag.rag_constants import (
     EMBEDDING_DIMENSIONS,
+    EMBEDDING_MODEL_NAME,
     MAX_CHUNK_SIZE_CHARS,
     MAX_SOURCES_IN_RESPONSE,
     MIN_VECTOR_SCORE,
+    RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV,
 )
 
 if TYPE_CHECKING:
@@ -52,9 +55,9 @@ def _get_embedding_provider() -> EmbeddingProvider:
     if _embedding_provider is None:
         with _embedding_provider_lock:
             if _embedding_provider is None:
-                from providers.embeddings import SentenceTransformerEmbeddings
+                from providers.embeddings import FastEmbedTextEmbeddings
 
-                _embedding_provider = SentenceTransformerEmbeddings()
+                _embedding_provider = FastEmbedTextEmbeddings()
     return _embedding_provider
 
 
@@ -115,6 +118,19 @@ def _has_expected_embedding_dimensions(query_embedding: list[float]) -> bool:
         )
         return False
     return True
+
+
+def _is_vector_embedding_model_acknowledged() -> bool:
+    """Return whether stored vectors have been reset for the current model.
+
+    FastEmbed's BGE vectors are dimension-compatible with the existing
+    ``VECTOR(768)`` schema, but they are not semantically compatible with
+    previously stored MPNet vectors. Operators must rebuild or reset rows and
+    set the acknowledgement to the current model name before vector retrieval
+    serves persisted embeddings.
+    """
+
+    return os.getenv(RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV, "").strip() == EMBEDDING_MODEL_NAME
 
 
 def _normalize_embedding_vector(values: object) -> list[float] | None:
@@ -491,26 +507,36 @@ def retrieve_context_structured(
     """
     fallback_reason: RAGDegradedReason | None = None
     if is_rag_vector_enabled():
-        try:
-            ctx = _retrieve_vector_from_db(
-                query,
-                max_chunks,
-                agent_id,
-                user_tier,
-                subject_id,
-            )
-            # If vector found results, return them
-            if ctx.chunks:
-                return ctx
-            # No vector results — fall through to Jaccard
-            fallback_reason = ctx.degraded_reason or RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
-            logger.debug("Vector retrieval returned no chunks; falling back to Jaccard")
-        except Exception:
-            fallback_reason = RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
+        if not _is_vector_embedding_model_acknowledged():
+            fallback_reason = RAGDegradedReason.VECTOR_FALLBACK_MODEL_UNACKNOWLEDGED
             logger.warning(
-                "Vector retrieval failed; falling back to Jaccard",
-                exc_info=True,
+                "Vector retrieval disabled until %s=%s confirms embeddings were reset",
+                RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV,
+                EMBEDDING_MODEL_NAME,
             )
+        else:
+            try:
+                ctx = _retrieve_vector_from_db(
+                    query,
+                    max_chunks,
+                    agent_id,
+                    user_tier,
+                    subject_id,
+                )
+                # If vector found results, return them
+                if ctx.chunks:
+                    return ctx
+                # No vector results — fall through to Jaccard
+                fallback_reason = (
+                    ctx.degraded_reason or RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
+                )
+                logger.debug("Vector retrieval returned no chunks; falling back to Jaccard")
+            except Exception:
+                fallback_reason = RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
+                logger.warning(
+                    "Vector retrieval failed; falling back to Jaccard",
+                    exc_info=True,
+                )
 
     # Fallback to Jaccard
     from core.rag.simple_rag import retrieve_context_structured as _jaccard_retrieve
