@@ -2,67 +2,58 @@
 
 ## Summary
 
-`pip-audit` flags `torch` in the optional RAG/vector manifests for
-`CVE-2025-3000` / `GHSA-rrmf-rvhw-rf47`. The advisory concerns
-`torch.jit.script` memory corruption. PulsePlate keeps `torch` out of the
-default production, CI-lite, Docker runtime, and full lock manifests; the
-finding is limited to the optional vector profile.
+`CVE-2025-3000` / `GHSA-rrmf-rvhw-rf47` previously applied to `torch` in the
+optional RAG/vector manifests. This PR resolves the repo-owned exposure by
+removing the PyTorch/SentenceTransformers backend from the tracked optional
+vector profiles and replacing it with FastEmbed/ONNX.
+
+This is resolved by removal. PulsePlate now has no pip-audit waiver for this
+CVE.
 
 ## Governance
 
 - **Owner:** @katsiaryna_kavaleuskaya
-- **Remove-by:** 2026-07-17
 - **Backlog:** `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
-- **pip-audit waiver:** `scripts/ci_pip_audit.sh`
-- **Last checked:** 2026-06-24
+- **pip-audit waiver:** removed from `scripts/ci_pip_audit.sh`
+- **Last checked:** 2026-06-26
 
 ## Current Repo State
 
 - `requirements.txt`: no direct `torch` pin.
-- `requirements-ci-lite.txt`: no direct `torch` pin; any GitHub alert on this
-  file is treated as dependency-graph lag unless a future diff reintroduces
-  torch here.
+- `requirements-ci-lite.txt`: no direct `torch` pin.
 - `requirements-docker-runtime.txt`: no direct `torch` pin.
 - `requirements-lock.txt`: no direct `torch` pin.
-- `requirements-rag-vector.txt`: `pip-audit` flags `torch==2.11.0`.
-- `requirements-rag-vector-cpu.txt`: `torch==2.11.0+cpu` remains in the optional
-  Linux CPU lock.
-- GitHub Advisory `GHSA-rrmf-rvhw-rf47`: affected `torch <= 2.12.0`.
-  Patched versions: none.
-- PyPI latest `torch` release observed on 2026-06-18: `2.12.1`, but the
-  GitHub Advisory Database still reports patched versions as none for
-  `GHSA-rrmf-rvhw-rf47`. Do not treat a newer release as fixed until advisory
-  and private-index evidence agree.
-- `pip-audit` reports `CVE-2025-3000` with no `fix_versions`.
-
-## Evidence Anchors
-
-- `requirements-rag-vector.txt:162`
-- `requirements-rag-vector-cpu.txt:119`
-- `scripts/ci_pip_audit.sh:40`
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile`
+- `requirements-rag-vector.txt`: FastEmbed/ONNX + `pgvector`, no direct `torch`
+  pin and no PyTorch index.
+- `requirements-rag-vector-cpu.txt`: FastEmbed/ONNX + `pgvector`, no direct
+  `torch` pin and no PyTorch index.
+- `scripts/ci_pip_audit.sh`: scans optional vector manifests without any
+  `CVE-2025-3000` ignore.
 
 ## Exposure Assessment
 
-The vulnerable surface is tied to PyTorch TorchScript (`torch.jit.script`) in an
-optional vector/RAG dependency profile. It is not installed by the default
-production or Docker runtime manifests. Reassess immediately if product runtime
-starts loading the vector profile by default, accepts untrusted TorchScript
-artifacts, or routes user-controlled data into TorchScript compilation.
+The vulnerable surface was tied to PyTorch TorchScript (`torch.jit.script`) in
+the optional RAG/vector dependency profile. The active local embedding backend is
+now FastEmbed/ONNX, and the tracked vector lockfiles do not contain `torch`,
+`sentence-transformers`, `transformers`, CUDA/NVIDIA packages, Triton, or the
+PyTorch wheel index.
 
-## Remediation
+The backend model changed from MPNet to `BAAI/bge-base-en-v1.5`. The schema
+remains `VECTOR(768)`, but the vector spaces are not semantically compatible.
+Vector retrieval therefore requires `RAG_VECTOR_EMBEDDING_MODEL_ACK` to match the
+current model after stored `user_knowledge` embeddings have been rebuilt or
+reset; otherwise runtime falls back to Jaccard retrieval.
 
-1. Prefer a fixed `torch` release when OSV, GitHub Advisory Database, pip-audit, or
-   PyTorch upstream publishes one that satisfies the private package index.
-2. If no fixed release exists by the remove-by date, decide between extending
-   this waiver with fresh evidence, replacing the vector backend, or removing
-   TorchScript-dependent capability from the optional profile.
-3. Remove the `CVE-2025-3000` pip-audit waiver from `scripts/ci_pip_audit.sh` in
-   the same PR that closes the backlog item.
+## Remaining Follow-Up
+
+GitHub Dependabot alerts may remain visible until the dependency graph refreshes
+after this PR lands. Treat any remaining `torch` alert against the optional
+RAG/vector manifests as dependency-graph lag unless a future diff reintroduces a
+tracked PyTorch dependency.
 
 ## References
 
 - CVE: `https://www.cve.org/CVERecord?id=CVE-2025-3000`
 - NVD: `https://nvd.nist.gov/vuln/detail/CVE-2025-3000`
 - GitHub Advisory Database: `https://github.com/advisories/GHSA-rrmf-rvhw-rf47`
-- PyPI torch: `https://pypi.org/project/torch/`
+- OSV: `https://osv.dev/vulnerability/GHSA-rrmf-rvhw-rf47`

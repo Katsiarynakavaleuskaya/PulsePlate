@@ -66,8 +66,14 @@ PIP_REQUIREMENT_DIRECTIVE_PREFIXES = (
 )
 PINNED_CHECKOUT_ACTION = "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
 OPTIONAL_VECTOR_STACK_PACKAGES = (
+    "fastembed",
     "pgvector",
+)
+OPTIONAL_VECTOR_FORBIDDEN_PACKAGES = (
+    "cuda-bindings",
+    "cuda-toolkit",
     "sentence-transformers",
+    "triton",
     "torch",
     "transformers",
 )
@@ -1100,10 +1106,11 @@ def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> N
         encoding="utf-8"
     )
 
-    assert "sentence-transformers==" in requirements_rag_vector
-    assert "transformers==" in requirements_rag_vector
-    assert "torch==" in requirements_rag_vector
+    assert "fastembed==" in requirements_rag_vector
     assert "pgvector==" in requirements_rag_vector
+    for package in OPTIONAL_VECTOR_FORBIDDEN_PACKAGES:
+        assert f"{package}==" not in requirements_rag_vector
+    assert "nvidia-" not in requirements_rag_vector
 
 
 def test_torch_and_vector_stack_stay_optional_to_rag_vector_profiles() -> None:
@@ -1112,20 +1119,22 @@ def test_torch_and_vector_stack_stay_optional_to_rag_vector_profiles() -> None:
         disallowed_packages = (
             OPTIONAL_VECTOR_STACK_PACKAGES
             if requirement_file != "requirements-test.txt"
-            else ("sentence-transformers", "torch", "transformers")
+            else ("fastembed", "sentence-transformers", "torch", "transformers")
         )
         for package in disallowed_packages:
             assert canonicalize_name(package) not in package_names
+        for package in OPTIONAL_VECTOR_FORBIDDEN_PACKAGES:
+            assert canonicalize_name(package) not in package_names
 
-    observed_torch_versions: set[str] = set()
     for requirement_file in OPTIONAL_VECTOR_REQUIREMENT_FILES:
         requirement_path = REPO_ROOT / requirement_file
         package_names = _requirement_package_names(requirement_path)
         for package in OPTIONAL_VECTOR_STACK_PACKAGES:
             assert canonicalize_name(package) in package_names
-        observed_torch_versions.update(_requirement_package_versions(requirement_path, "torch"))
-
-    assert observed_torch_versions == {"2.11.0", "2.11.0+cpu"}
+        for package in OPTIONAL_VECTOR_FORBIDDEN_PACKAGES:
+            assert canonicalize_name(package) not in package_names
+        requirement_text = requirement_path.read_text(encoding="utf-8")
+        assert "nvidia-" not in requirement_text
 
 
 def test_eval_and_data_dependency_profiles_are_compiled_and_pinned() -> None:
@@ -1498,7 +1507,8 @@ def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
     assert "|| true" not in ci_pip_audit_text
     assert "--no-deps" in ci_pip_audit_text
     assert "--disable-pip" in ci_pip_audit_text
-    assert '--ignore-vuln "${PYTORCH_JIT_CVE_ID}"' in ci_pip_audit_text
+    assert "--ignore-vuln" not in ci_pip_audit_text
+    assert "CVE-2025-3000" not in ci_pip_audit_text
 
 
 def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(
@@ -1558,9 +1568,10 @@ fi
     assert result.returncode == 0
     assert (
         "-r requirements-rag-vector-cpu.txt --no-deps --disable-pip -f json "
-        "-o pip-audit-requirements-rag-vector-cpu.json --ignore-vuln CVE-2025-3000"
-        in log_path.read_text(encoding="utf-8")
+        "-o pip-audit-requirements-rag-vector-cpu.json" in log_path.read_text(encoding="utf-8")
     )
+    assert "--ignore-vuln" not in log_path.read_text(encoding="utf-8")
+    assert "CVE-2025-3000" not in log_path.read_text(encoding="utf-8")
     assert (
         "-r requirements-data.txt --no-deps --disable-pip -f json "
         "-o pip-audit-requirements-data.json" in log_path.read_text(encoding="utf-8")

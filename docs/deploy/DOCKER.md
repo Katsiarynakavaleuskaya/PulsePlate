@@ -7,7 +7,7 @@ Docker runtime contract.
 
 - Backend runtime image uses `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`.
 - CI-only tooling stays in `requirements-ci-lite.txt`.
-- Optional vector / ML dependencies stay in `requirements-rag-vector.txt`.
+- Optional vector runtime dependencies stay in `requirements-rag-vector.txt`.
 - Production target remains the split backend image that serves `app.main:app`.
 - Production target removes Debian package-manager tooling (`apt`, `gpgv`) and
   `libgnutls30`; runtime-base and development stages keep package-manager
@@ -36,15 +36,14 @@ Rules:
 - keep only dependencies required for `app.main` imports and current production
   backend endpoints
 - do not add CI-only tooling
-- do not add the optional vector / ML stack
+- do not add the optional vector runtime stack
 - keep the install path on the approved private proxy + constraints +
   emergency-wheel manifest contract
 
 Blocked package classes for the default backend runtime:
 
 - CI / dev tooling: `pytest`, `pre-commit`, `bandit`, `diff-cover`
-- optional vector / ML stack: `sentence-transformers`, `transformers`, `torch`,
-  `pgvector`
+- optional vector runtime stack: `fastembed`, `onnxruntime`, `pgvector`
 - GPU / CUDA packages: `nvidia-*`, `cuda-*`, `triton`
 - production-only Debian package-manager / GnuTLS alert surface: `apt`,
   `gpgv`, `libgnutls30`

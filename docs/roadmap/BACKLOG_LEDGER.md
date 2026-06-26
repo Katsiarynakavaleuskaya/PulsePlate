@@ -739,40 +739,38 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
 
 <a id="ledger-p1-pytorch-jit-cve-2025-3000-vector-profile"></a>
-- [ ] P1: Retire PyTorch TorchScript CVE-2025-3000 pip-audit waiver for optional vector profile
+- [x] P1: Retire PyTorch TorchScript CVE-2025-3000 pip-audit waiver for optional vector profile
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain / optional RAG-vector profile)
-  - Target PR: PR2 security-alert sequence (land by 2026-07-17 or earlier if fixed torch builds are available)
+  - Target PR: this PR (`codex/replace-torch-vector-backend`)
   - Area: security / CI / dependencies / RAG-vector
   - Reason (EN): Recheck on 2026-06-24 found GitHub Advisory
     `GHSA-rrmf-rvhw-rf47` and `pip-audit` / OSV still marking
     `torch <=2.12.0` as affected by `CVE-2025-3000`, with no patched torch
-    release listed in advisory metadata. Do not treat a newer upstream release
-    as fixed until advisory and approved private-index evidence agree.
-    PulsePlate pins `torch==2.11.0` / `torch==2.11.0+cpu` only in optional
-    RAG/vector manifests.
-    `requirements.txt`, `requirements-ci-lite.txt`,
-    `requirements-docker-runtime.txt`, and `requirements-lock.txt` have no
-    direct `torch` pin, so any CI-lite Dependabot alert is dependency graph lag
-    unless a future diff reintroduces torch there. The waiver remains scoped to
-    optional RAG/vector and must be retired when a fixed build, upstream
-    advisory correction, or vector-profile replacement is available.
+    release listed in advisory metadata. This PR resolves the repo-owned
+    optional RAG/vector surface by replacing the PyTorch/SentenceTransformers
+    backend with FastEmbed/ONNX and removing the `CVE-2025-3000` pip-audit
+    waiver. This is resolved by removal. `requirements.txt`,
+    `requirements-ci-lite.txt`, `requirements-docker-runtime.txt`,
+    `requirements-lock.txt`, `requirements-rag-vector.txt`, and
+    `requirements-rag-vector-cpu.txt` now have no direct `torch` pin. Remaining
+    GitHub Dependabot alert closure waits for dependency graph refresh after
+    merge.
   - Links:
     - `docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md:1`
     - `scripts/ci_pip_audit.sh`
-    - `requirements-rag-vector.txt:162`
-    - `requirements-rag-vector-cpu.txt:119`
+    - `requirements-rag-vector.txt`
+    - `requirements-rag-vector-cpu.txt`
     - `requirements-ci-lite.txt`: no direct `torch` pin
   - DoD:
-    - Re-check OSV, GitHub Advisory Database, pip-audit, and PyTorch upstream for
-      fixed-version truth before changing pins.
-    - If fixed torch builds exist and the approved index serves them, bump
-      `requirements-rag-vector.txt` and `requirements-rag-vector-cpu.txt`.
-    - If no fixed build exists, replace or disable the TorchScript-dependent
-      optional vector capability, or extend the waiver with fresh evidence and a
-      new remove-by date.
-    - Remove the `CVE-2025-3000` waiver from `scripts/ci_pip_audit.sh` and close
-      this ledger item in the same PR.
+    - [x] Replace the optional vector backend with FastEmbed/ONNX.
+    - [x] Remove `torch`, `sentence-transformers`, `transformers`, the PyTorch
+      index, and the `CVE-2025-3000` waiver from tracked optional vector
+      manifests/audit helpers.
+    - [x] Keep vector retrieval fail-closed until stored embeddings are rebuilt
+      or reset for `BAAI/bge-base-en-v1.5`.
+    - [x] Update advisory and Dependabot inventory; GitHub alert state refresh
+      remains post-merge external evidence.
 
 <a id="ledger-p1-msgpack-ci-lite-alert-recheck"></a>
 - [ ] P1: Recheck msgpack Dependabot alert #225 after dev/full-lock remediation

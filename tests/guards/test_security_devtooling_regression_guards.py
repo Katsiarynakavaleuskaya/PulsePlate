@@ -48,7 +48,6 @@ SECURITY_DEPENDENCY_LOCKFILES: tuple[str, ...] = tuple(
 )
 PYTORCH_JIT_CVE_ID = "CVE-2025-3000"
 PYTORCH_JIT_GHSA_ID = "GHSA-rrmf-rvhw-rf47"
-PYTORCH_JIT_WAIVER_REMOVE_BY = "2026-07-17"
 BANDIT_SUMMARY_HELPER = "python3 scripts/ci/summarize_bandit_report.py"
 PRODUCTION_RUNTIME_INVARIANT_HELPER = (
     "python3 scripts/ci/check_production_runtime_invariants.py --synthetic-production"
@@ -421,13 +420,12 @@ def test_dependency_profiles_are_covered_by_all_security_surfaces() -> None:
         assert profile.run_security is True
 
 
-def test_pytorch_jit_cve_pip_audit_waiver_evidence_is_scoped_and_current() -> None:
+def test_pytorch_jit_cve_pip_audit_waiver_is_retired_by_vector_backend_removal() -> None:
     pip_audit_text = PIP_AUDIT_HELPER.read_text(encoding="utf-8")
 
-    assert 'readonly PYTORCH_JIT_CVE_ID="CVE-2025-3000"' in pip_audit_text
-    assert "requirements-rag-vector.txt | requirements-rag-vector-cpu.txt" in pip_audit_text
-    assert '--ignore-vuln "${PYTORCH_JIT_CVE_ID}"' in pip_audit_text
-    assert "requirements.txt | requirements-ci-lite.txt" not in pip_audit_text
+    assert "PYTORCH_JIT_CVE_ID" not in pip_audit_text
+    assert PYTORCH_JIT_CVE_ID not in pip_audit_text
+    assert "--ignore-vuln" not in pip_audit_text
 
     advisory_text = (REPO_ROOT / "docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md").read_text(
         encoding="utf-8"
@@ -437,15 +435,17 @@ def test_pytorch_jit_cve_pip_audit_waiver_evidence_is_scoped_and_current() -> No
     for evidence_text in (advisory_text, backlog_text):
         assert PYTORCH_JIT_CVE_ID in evidence_text
         assert PYTORCH_JIT_GHSA_ID in evidence_text
-        assert PYTORCH_JIT_WAIVER_REMOVE_BY in evidence_text
         assert "optional RAG/vector" in evidence_text
+        assert "FastEmbed/ONNX" in evidence_text
+        assert "resolved by removal" in evidence_text
 
     for stable_marker in (
         "requirements-ci-lite.txt",
         "requirements-lock.txt",
         "no direct `torch` pin",
-        "Patched versions",
-        "none",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
+        "no pip-audit waiver",
     ):
         assert stable_marker in advisory_text
 

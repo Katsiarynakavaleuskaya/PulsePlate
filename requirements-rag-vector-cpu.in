@@ -1,19 +1,7 @@
 -c requirements.txt
---extra-index-url https://download.pytorch.org/whl/cpu
 
-# Optional vector/ML runtime profile for RAG embeddings + pgvector search.
-# CPU-only local profile: opt-in via CI/environment argument.
+# Optional vector runtime profile for RAG embeddings + pgvector search.
+# CPU/local profile via FastEmbed's ONNXRuntime backend.
 # Keep feature-flagged via FEATURE_RAG_VECTOR and deterministic with fixed pins.
-#
-# NOTE: --extra-index-url above adds the PyTorch CPU-only wheel index as a
-# secondary source so pip-compile can prefer CPU-only wheels.  The compiled
-# .txt lockfile is the actual deterministic contract.  Without the extra index,
-# `torch==2.11.0` from the default PyPI index may resolve to CUDA-enabled
-# builds on Linux.
-# Dependency refresh lanes update only the direct RAG/vector pins; the full ML
-# resolver closure remains unchanged because it is platform-sensitive on local
-# macOS hosts.
-sentence-transformers==5.6.0
-transformers==5.12.1
-torch==2.11.0
+fastembed==0.8.0
 pgvector==0.4.2

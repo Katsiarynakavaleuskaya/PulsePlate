@@ -1,13 +1,7 @@
 -c requirements.txt
 
-# Optional vector/ML runtime profile for RAG embeddings + pgvector search.
+# Optional vector runtime profile for RAG embeddings + pgvector search.
 # Feature-flagged via FEATURE_RAG_VECTOR; keep opt-in only.
-# Pin the currently proven runtime closure so this profile split does not widen
-# the fallback/index lane into an unrelated dependency-upgrade PR.
-# Dependency refresh lanes update only the direct RAG/vector pins; the full ML
-# resolver closure remains unchanged because it is platform-sensitive on local
-# macOS hosts.
-sentence-transformers==5.6.0
-transformers==5.12.1
-torch==2.11.0
+# FastEmbed uses ONNXRuntime for local embeddings.
+fastembed==0.8.0
 pgvector==0.4.2

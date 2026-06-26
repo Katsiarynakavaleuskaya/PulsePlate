@@ -73,6 +73,11 @@ Stores user-specific content for personalized RAG retrieval. VIP-only feature.
 - **pgvector**: For production Postgres, consider `ALTER COLUMN embedding TYPE VECTOR(768)` after enabling pgvector extension
 - **SQLite**: Embeddings stored as JSON text (not searchable)
 - **Vector index**: IVFFlat/HNSW index should be added when embedding pipeline is implemented
+- **Embedding model fence**: Runtime vector retrieval uses `BAAI/bge-base-en-v1.5`
+  through FastEmbed/ONNX. Existing rows from earlier embedding model families are
+  not semantically compatible even when they are 768-dimensional, so
+  `RAG_VECTOR_EMBEDDING_MODEL_ACK` must match the active model after rows are
+  rebuilt or reset; otherwise retrieval falls back to Jaccard.
 
 ---
 

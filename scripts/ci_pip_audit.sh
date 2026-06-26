@@ -6,7 +6,6 @@ if ! command -v pip-audit >/dev/null 2>&1; then
   exit 1
 fi
 
-readonly PYTORCH_JIT_CVE_ID="CVE-2025-3000"
 overall_status=0
 
 manifests=("requirements.txt")
@@ -37,11 +36,6 @@ for manifest in "${manifests[@]}"; do
     -f json
     -o "${output}"
   )
-  case "${manifest}" in
-    requirements-rag-vector.txt | requirements-rag-vector-cpu.txt)
-      audit_args+=(--ignore-vuln "${PYTORCH_JIT_CVE_ID}")
-      ;;
-  esac
   if pip-audit "${audit_args[@]}"; then
     :
   else

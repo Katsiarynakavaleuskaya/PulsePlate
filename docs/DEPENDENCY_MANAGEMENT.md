@@ -9,8 +9,8 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements-test.in` - Test-only dependencies (high-level)
 - `requirements-ci-lite.in` - Lightweight CI/control-plane dependencies (high-level)
 - `requirements-docker-runtime.in` - Docker production runtime dependencies (high-level)
-- `requirements-rag-vector.in` - Optional vector/ML runtime dependencies (high-level)
-- `requirements-rag-vector-cpu.in` - Optional vector/ML runtime dependencies without CUDA (local-only, high-level)
+- `requirements-rag-vector.in` - Optional vector runtime dependencies (high-level)
+- `requirements-rag-vector-cpu.in` - Optional vector runtime dependencies (local-only, high-level)
 - `requirements-data.in` - Offline data-build dependencies (local/manual, high-level)
 - `requirements-evals.in` - Offline eval dependencies (local/manual, high-level)
 - `requirements.txt` - Compiled production dependencies with exact versions (auto-generated)
@@ -18,13 +18,13 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements-dev.txt` - Compiled development dependencies with exact versions (auto-generated)
 - `requirements-test.txt` - Compiled test-only dependencies with exact versions (auto-generated)
 - `requirements-ci-lite.txt` - Compiled lightweight CI/control-plane dependencies (auto-generated)
-- `requirements-rag-vector.txt` - Compiled optional vector/ML runtime dependencies (auto-generated)
-- `requirements-rag-vector-cpu.txt` - Compiled optional vector/ML runtime dependencies without CUDA (auto-generated, local-only)
+- `requirements-rag-vector.txt` - Compiled optional vector runtime dependencies (auto-generated)
+- `requirements-rag-vector-cpu.txt` - Compiled optional vector runtime dependencies (auto-generated, local-only)
 - `requirements-data.txt` - Compiled offline data-build dependencies with exact versions (auto-generated, local/manual)
 - `requirements-evals.txt` - Compiled offline eval dependencies with exact versions (auto-generated, local/manual)
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
 
-`requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the heavy vector/ML runtime packages remain isolated in `requirements-rag-vector.txt`.
+`requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the FastEmbed/ONNX runtime packages remain isolated in `requirements-rag-vector.txt`.
 `requirements-docker-runtime.txt` is the backend image contract for production-target Docker builds and excludes CI-only tooling.
 `requirements-data.txt` and `requirements-evals.txt` are local/manual offline
 profiles only. They are not shared GitHub Actions `requirements-profile` values
@@ -42,18 +42,17 @@ need:
   for canonical test lanes such as `test-pr`, `test-feature`, and `test-main`.
 - `runtime` and `runtime-test` keep app-runtime installs separate from CI
   tooling and are not the default for generic CI feedback.
-- `rag-vector` is the explicit optional vector/ML runtime profile and is the
-  only canonical profile that carries the heavy ML runtime stack such as
-  `sentence-transformers`, `transformers`, and `torch`.
+- `rag-vector` is the explicit optional vector runtime profile and is the only
+  canonical profile that carries the local FastEmbed/ONNX embedding backend.
 
 Generic feature/fix feedback must stay on `ci-test` or `ci-lite` unless the job
-explicitly proves it needs optional vector/ML runtime behavior. That proof must
+explicitly proves it needs optional vector runtime behavior. That proof must
 be a workflow/risk-profile change backed by deterministic tests, for example
 updates to `tests/test_python_supply_chain_controls.py` and
 `tests/test_ci_workflow_pr_size_governance_contract.py`, showing why `ci-test`
 cannot cover the selected target without the `rag-vector` profile. Postgres
 vector test coverage remains in `requirements-test.txt` via `pgvector`; that is
-test tooling, not permission to install the optional ML runtime stack in generic
+test tooling, not permission to install the optional vector runtime stack in generic
 CI lanes.
 
 ## Local Manual Eval/Data Profiles
@@ -136,19 +135,12 @@ This installer now follows a two-step flow:
 
 ### Local CPU profile (без CUDA, для разработчиков)
 
-`rag-vector-cpu` is a **local/developer-only** profile for the same ML stack
-without CUDA bindings.  It is derived from `requirements-rag-vector-cpu.txt` and
+`rag-vector-cpu` is a **local/developer-only** sibling profile for the same
+FastEmbed/ONNX runtime. It is derived from `requirements-rag-vector-cpu.txt` and
 is intentionally excluded from canonical CI lanes and the shared
-`requirements-profile` action values.
+`requirements-profile` action values. It does not add a secondary package index.
 
-The `.in` file adds `--extra-index-url https://download.pytorch.org/whl/cpu` so
-that `pip-compile` can prefer CPU-only PyTorch wheels.  Note that
-`--extra-index-url` adds a secondary index rather than replacing the default one,
-so the compiled `.txt` lockfile is the actual deterministic contract.  Without the
-extra index, `torch==2.11.0` from the default PyPI index may resolve to
-CUDA-enabled builds on Linux.
-
-If you need vector/ML runtime tooling on a machine without CUDA support, use the local CPU lockfile:
+If you need vector runtime tooling on a local machine, use the local CPU lockfile:
 
 ```bash
 pip-sync requirements-rag-vector-cpu.txt
@@ -246,7 +238,7 @@ pip-compile --allow-unsafe --no-emit-index-url requirements-dev.in --upgrade -o 
 pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-test.txt requirements-test.in
 pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-ci-lite.txt requirements-ci-lite.in
 
-# Update optional vector/ML runtime dependencies
+# Update optional vector runtime dependencies
 pip-compile --allow-unsafe --no-emit-index-url requirements-rag-vector.in --upgrade -o requirements-rag-vector.txt
 pip-compile --allow-unsafe --no-emit-index-url requirements-rag-vector-cpu.in --upgrade -o requirements-rag-vector-cpu.txt
 

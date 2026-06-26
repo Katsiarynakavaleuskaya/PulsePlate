@@ -1,14 +1,14 @@
 """Embedding provider for RAG vector retrieval.
 
-Thin adapter around sentence-transformers following the existing ProviderBase
-pattern.  Model is loaded lazily on the first ``.encode()`` call to avoid
-import-time side effects (OpenAPI generation safety, feature-flag gating).
+Thin adapter around FastEmbed/ONNX following the existing ProviderBase pattern.
+Model is loaded lazily on the first ``.encode()`` call to avoid import-time
+side effects (OpenAPI generation safety, feature-flag gating).
 
 Usage::
 
-    from providers.embeddings import SentenceTransformerEmbeddings
+    from providers.embeddings import FastEmbedTextEmbeddings
 
-    provider = SentenceTransformerEmbeddings()  # no model load yet
+    provider = FastEmbedTextEmbeddings()        # no model load yet
     vectors = provider.encode(["hello world"])   # loads model on first call
 
 Feature-gated via ``FEATURE_RAG_VECTOR``; callers should check the flag
@@ -18,6 +18,7 @@ before instantiating.
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from typing import Any, Protocol, runtime_checkable
 
@@ -42,8 +43,8 @@ class EmbeddingProvider(Protocol):
         ...  # pragma: no cover
 
 
-class SentenceTransformerEmbeddings:
-    """Thin adapter around sentence-transformers.
+class FastEmbedTextEmbeddings:
+    """Thin adapter around FastEmbed's ONNX text embedding runtime.
 
     Thread-safe: model loading is guarded by a lock.
     Lazy: model is not loaded until the first ``.encode()`` call.
@@ -60,13 +61,13 @@ class SentenceTransformerEmbeddings:
         self._lock = threading.Lock()
 
     def _load_model(self) -> Any:
-        """Lazy-load the sentence-transformers model (thread-safe)."""
+        """Lazy-load the FastEmbed text embedding model (thread-safe)."""
         if self._model is None:
             with self._lock:
                 if self._model is None:
-                    from sentence_transformers import SentenceTransformer
+                    from fastembed import TextEmbedding
 
-                    self._model = SentenceTransformer(self.model_name)
+                    self._model = TextEmbedding(model_name=self.model_name)
                     logger.info(
                         "Loaded embedding model %s (dim=%d)",
                         self.model_name,
@@ -86,8 +87,20 @@ class SentenceTransformerEmbeddings:
         if not texts:
             return []
         model = self._load_model()
-        embeddings = model.encode(texts, convert_to_numpy=True)
-        return [row.tolist() for row in embeddings]
+        embeddings = model.embed(texts)
+        return [self._normalize_embedding_row(row) for row in embeddings]
+
+    def _normalize_embedding_row(self, row: Any) -> list[float]:
+        """Return a finite Python float vector with the configured dimensions."""
+        values = row.tolist() if hasattr(row, "tolist") else list(row)
+        vector = [float(value) for value in values]
+        if len(vector) != self.dimensions:
+            raise ValueError(
+                f"embedding dimension mismatch: got {len(vector)}, expected {self.dimensions}"
+            )
+        if not all(math.isfinite(value) for value in vector):
+            raise ValueError("embedding contains non-finite values")
+        return vector
 
 
-__all__ = ["EmbeddingProvider", "SentenceTransformerEmbeddings"]
+__all__ = ["EmbeddingProvider", "FastEmbedTextEmbeddings"]

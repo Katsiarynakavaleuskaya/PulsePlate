@@ -31,8 +31,7 @@ IDNA_DEPENDABOT_ALERT_REQUIREMENT_FILES = (
     "requirements-rag-vector.txt",
     "requirements-rag-vector-cpu.txt",
 )
-RAG_VECTOR_EXPECTED_SENTENCE_TRANSFORMERS_VERSION = "5.6.0"
-RAG_VECTOR_EXPECTED_TRANSFORMERS_VERSION = "5.12.1"
+RAG_VECTOR_EXPECTED_FASTEMBED_VERSION = "0.8.0"
 MAIN_PREFLIGHT_TESTS = {
     "test_main_preflight_only_skips_requirements_file_resolution",
 }
@@ -1236,15 +1235,21 @@ def _pip26_no_candidate_runtimeerror_like_run_command(package: str, version: str
     )
 
 
-def test_repo_transformers_emergency_fallback_is_retired_after_proxy_sync() -> None:
-    fallback_versions = [
-        item["version"].strip()
-        for item in _repo_active_emergency_artifacts()
-        if item["package"] == "transformers"
-    ]
-    assert not fallback_versions
+def test_repo_rag_vector_profiles_use_fastembed_without_torch_backend() -> None:
+    retired_packages = {
+        "sentence-transformers",
+        "torch",
+        "transformers",
+    }
+    for package in retired_packages | {"fastembed"}:
+        fallback_versions = [
+            item["version"].strip()
+            for item in _repo_active_emergency_artifacts()
+            if item["package"] == package
+        ]
+        assert not fallback_versions
 
-    observed_versions: set[str] = set()
+    observed_fastembed_versions: set[str] = set()
     for requirement_path in (
         "requirements-rag-vector.in",
         "requirements-rag-vector.txt",
@@ -1252,43 +1257,16 @@ def test_repo_transformers_emergency_fallback_is_retired_after_proxy_sync() -> N
         "requirements-rag-vector-cpu.txt",
     ):
         requirement_text = (REPO_ROOT / requirement_path).read_text(encoding="utf-8")
-        requirement_versions = {
-            version
-            for package, version in _exact_requirement_pairs(requirement_text)
-            if package == "transformers"
-        }
-        assert len(requirement_versions) == 1
-        observed_versions.update(requirement_versions)
+        requirement_pairs = _exact_requirement_pairs(requirement_text)
+        observed_fastembed_versions.update(
+            version for package, version in requirement_pairs if package == "fastembed"
+        )
+        assert any(package == "pgvector" for package, _version in requirement_pairs)
+        for package in retired_packages:
+            assert package not in {name for name, _version in requirement_pairs}
+        assert "download.pytorch.org" not in requirement_text
 
-    assert observed_versions == {RAG_VECTOR_EXPECTED_TRANSFORMERS_VERSION}
-
-
-def test_repo_sentence_transformers_emergency_fallback_is_retired_after_proxy_sync() -> None:
-    fallback_versions = [
-        item["version"].strip()
-        for item in _repo_active_emergency_artifacts()
-        if item["package"] == "sentence-transformers"
-    ]
-    assert not fallback_versions
-
-    observed_versions: set[str] = set()
-
-    for requirement_path in (
-        "requirements-rag-vector.in",
-        "requirements-rag-vector.txt",
-        "requirements-rag-vector-cpu.in",
-        "requirements-rag-vector-cpu.txt",
-    ):
-        requirement_text = (REPO_ROOT / requirement_path).read_text(encoding="utf-8")
-        requirement_versions = {
-            version
-            for package, version in _exact_requirement_pairs(requirement_text)
-            if package == "sentence-transformers"
-        }
-        assert len(requirement_versions) == 1
-        observed_versions.update(requirement_versions)
-
-    assert observed_versions == {RAG_VECTOR_EXPECTED_SENTENCE_TRANSFORMERS_VERSION}
+    assert observed_fastembed_versions == {RAG_VECTOR_EXPECTED_FASTEMBED_VERSION}
 
 
 def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
