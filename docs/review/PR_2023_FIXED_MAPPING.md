@@ -29,10 +29,13 @@
 - [x] Experiment Runner oracle-only governance evidence recorded.
 - [x] Local focused gates, `make validate-changed`, and
   `pre-commit run --all-files` passed before the implementation commit.
-- [ ] Post-push current-head CI inspection is still required.
+- [ ] Post-push current-head CI inspection is still required after the latest
+  remediation push.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor`, Codex
   Security diff scan / finding discovery, and `pulseplate-pr-review` remain
-  required before any readiness claim.
+  required before any readiness claim. Codex Security has run once for this
+  lane; the reported finding is fixed below, and the scan must not be rerun
+  unless the operator explicitly asks for a fresh scan.
 - [ ] CodeRabbit, Sourcery, and Cubic current-head actionables must be
   rechecked after push.
 - [ ] Strict merge-readiness wrapper with auth and the mandatory wait-window
@@ -60,6 +63,22 @@ Evidence: `tests/test_verify_requirements.py` annotates `monkeypatch`; `scripts/
 Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3485610173 -> 2026a39107dd670408cba17e23b5f3a22ced684e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#pullrequestreview-4584612071 -> 2026a39107dd670408cba17e23b5f3a22ced684e
+
+Disposition: FIXED
+Commit: cbb5f5e1b488dfc107a2bdca6c89071ef3fdd48d
+Evidence: `.github/workflows/python-dependency-submission.yml` now includes
+`requirements-test.in` and `requirements-test.txt` in both `push.paths` and
+`pull_request.paths`; `scripts/ci/check_python_dependency_surfaces.py` now
+validates source-file and lockfile trigger coverage for every
+`dependency_submission_required` surface; `tests/test_python_dependency_surfaces.py`
+covers the missing-trigger negative case. Focused pytest, validator CLI,
+`make validate-changed`, and `pre-commit run --all-files` passed.
+Reason: Fixes Codex Security scan
+`d0f24776-6356-4570-85e8-1c06ebebcc14` finding
+`Dependency-submission trigger filters omit requirements-test files`.
+- Codex Security finding
+  `dependency-submission-trigger-coverage/requirements-test-surface` ->
+  cbb5f5e1b488dfc107a2bdca6c89071ef3fdd48d
 
 ## Premortem Closure
 
@@ -111,6 +130,20 @@ Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
     `cp` entries; `tests/test_python_dependency_surfaces.py` covers comment-only
     and trigger-only filename mentions; focused pytest, validator/wrapper,
     `make validate-changed`, and `pre-commit run --all-files` passed.
+- Codex Security finding: dependency-submission trigger filters omitted
+  `requirements-test.in` and `requirements-test.txt`, while the validator only
+  proved the lockfile was copied when the workflow ran.
+  - Disposition: FIXED
+  - Commit: `cbb5f5e1b488dfc107a2bdca6c89071ef3fdd48d`
+  - Evidence:
+    `.github/workflows/python-dependency-submission.yml` includes both
+    `requirements-test.*` files in `push.paths` and `pull_request.paths`;
+    `scripts/ci/check_python_dependency_surfaces.py` validates source and lock
+    trigger filters; `tests/test_python_dependency_surfaces.py` covers the
+    missing-trigger negative case; focused pytest, validator CLI,
+    `make validate-changed`, and `pre-commit run --all-files` passed.
+  - Scan policy: Codex Security was intentionally run once for this lane; no
+    repeat scan is required unless the operator explicitly requests one.
 
 ## Experiment Runner Evidence
 
@@ -153,6 +186,10 @@ Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
 - PASS:
   `python -m pytest -q tests/test_install_locked_python_requirements.py -k 'install_from_proxy_preserves_floor_constraint_for_exact_pin or main_runs_download_install_and_static_guard_without_pip_self_upgrade or main_runs_direct_proxy_install_and_static_guard or effective_constraints_file_for_requirement'`
 - PASS:
+  `python -m pytest -q tests/test_python_dependency_surfaces.py tests/test_install_locked_python_requirements.py tests/test_verify_requirements.py tests/test_python_supply_chain_controls.py`
+- PASS:
+  `python scripts/ci/check_python_dependency_surfaces.py`
+- PASS:
   `VENV_PYTHON=<repo>/.venv/bin/python make validate-changed`
 - PASS:
   `python -m black --check scripts/ci/check_python_dependency_surfaces.py verify_requirements.py tests/test_python_dependency_surfaces.py tests/test_verify_requirements.py tests/test_install_locked_python_requirements.py`
@@ -184,10 +221,13 @@ the mandatory wait-window.
 
 ## Merge Readiness
 
-- [ ] Current-head CI inspected and passing for the pushed head SHA.
+- [ ] Current-head CI inspected and passing for the latest pushed head SHA.
 - [ ] CodeRabbit PASS / no actionables confirmed for current head.
 - [ ] Sourcery PASS / no actionables confirmed for current head.
 - [ ] Cubic PASS / no actionables confirmed for current head.
 - [ ] All review threads resolved only after disposition evidence is present.
+- [x] Codex Security diff scan / finding discovery completed once for this
+  lane; the reported finding is fixed in
+  `cbb5f5e1b488dfc107a2bdca6c89071ef3fdd48d`.
 - [ ] Strict merge-readiness wrapper with auth passes.
 - [ ] Mandatory wait-window satisfied.
