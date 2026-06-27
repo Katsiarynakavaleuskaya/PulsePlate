@@ -56,6 +56,12 @@ Evidence: `ios/Gemfile.lock`, `trivy/ignore-policy.rego`, `requirements*.in`, `r
 Reason: Implements PR2 dependency cleanup by remediating Faraday to `1.10.6`, refreshing FastAPI/Pydantic/Ruff drift narrowly, removing duplicate Pillow source declarations, updating resolver-owned `pydantic-core` fallback metadata, and preserving FastAPI lazy-router route contracts.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> 97bba456fbda8fb26c878b9b439145b41b4f6b52
 
+Disposition: FIXED
+Commit: ddfb847d31e09991170c15363b1d3dcda3e81675
+Evidence: `app/effective_routes.py`, `app/bootstrap/pro_contracts.py`, `app/routers/billing.py`, `app/routers/vip_registration.py`, `tests/test_main_paywall_bootstrap.py`, `tests/test_python_supply_chain_controls.py`, `tests/test_trivy_ignore_policy_expiry.py`, full `tests/test_main_paywall_bootstrap.py`, focused bug-hunter regression tests, `pre-commit run --all-files`, `make validate-changed`, dependency-surface validators, and fail-closed local Trivy `ios` scan all passed.
+Reason: Closes post-open bug-hunter findings by rejecting foreign existing route owners for PRO contract, billing, and FitChef insight routes; asserting exact runtime dependency pins instead of accepting compatible ranges; and slicing the Faraday Trivy policy block to the specific CVE section.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> ddfb847d31e09991170c15363b1d3dcda3e81675
+
 Disposition: DEFERRED
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
 Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testclient` still uses the deprecated `httpx` backend when `httpx2` is absent; this PR tracks the migration decision instead of suppressing the warning broadly.
@@ -82,8 +88,46 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
 
 ## Post-Open Role Dispositions
 
-- Post-open `qa-engineer-agent` pass: pending.
-- Post-open `bug-hunter` pass: pending.
+- Post-open `qa-engineer-agent` pass: completed.
+  - Disposition: FIXED
+  - Evidence: PR body carries the exact operator/emergency exception text,
+    trusted labels `scope/operator-approved` and `scope/emergency-approved`
+    are applied, local PR size governance passed, Phase 1 docs gate passed,
+    Phase 2 PR body gate passed, and mapping validator passed.
+- Post-open `bug-hunter` pass: completed.
+  - Finding BH-2032-001 PRO contract route-owner false green:
+    - Disposition: FIXED
+    - Commit: ddfb847d31e09991170c15363b1d3dcda3e81675
+    - Evidence: `app/bootstrap/pro_contracts.py` rejects foreign or duplicate
+      owners and
+      `tests/test_main_paywall_bootstrap.py::test_pro_contract_registration_rejects_foreign_existing_handlers`
+      passed.
+  - Finding BH-2032-002 billing route-owner false green:
+    - Disposition: FIXED
+    - Commit: ddfb847d31e09991170c15363b1d3dcda3e81675
+    - Evidence: `app/routers/billing.py` rejects foreign or duplicate owners
+      and
+      `tests/test_main_paywall_bootstrap.py::test_billing_registration_rejects_foreign_existing_handlers`
+      passed.
+  - Finding BH-2032-003 FitChef insight route-owner false green:
+    - Disposition: FIXED
+    - Commit: ddfb847d31e09991170c15363b1d3dcda3e81675
+    - Evidence: `app/routers/vip_registration.py` rejects foreign or duplicate
+      owners and
+      `tests/test_main_paywall_bootstrap.py::test_vip_route_registration_rejects_foreign_existing_fitchef_insight_route`
+      passed.
+  - Finding BH-2032-004 runtime pin exactness:
+    - Disposition: FIXED
+    - Commit: ddfb847d31e09991170c15363b1d3dcda3e81675
+    - Evidence:
+      `tests/test_python_supply_chain_controls.py::test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh`
+      now asserts exact `==` pins and passed.
+  - Finding BH-2032-005 Faraday policy block fragility:
+    - Disposition: FIXED
+    - Commit: ddfb847d31e09991170c15363b1d3dcda3e81675
+    - Evidence:
+      `tests/test_trivy_ignore_policy_expiry.py::test_faraday_fastlane_suppression_tracks_1_10_6_scanner_lag`
+      uses the specific `# CVE-2026-54297` policy block and passed.
 - Post-open `security-auditor` pass: pending.
 - Codex Security diff scan / finding discovery: pending; run once for the
   material PR head and do not rerun unless the head changes materially or the
@@ -131,6 +175,16 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
   `faraday (1.10.5)`, and `fastlane (2.235.0)`.
 - PASS: `pre-commit run --all-files`.
 - PASS:
+  `VENV_PYTHON=<repo>/.venv/bin/python DEV_PYTHON=<repo>/.venv/bin/python make validate-changed`.
+- PASS: post-bug-hunter full `tests/test_main_paywall_bootstrap.py`
+  (`154 passed`, one known Starlette/httpx2 warning).
+- PASS: post-bug-hunter focused route-owner, runtime pin exactness, and
+  Faraday policy block regression tests.
+- PASS: fail-closed local Trivy scan for `ios` high/critical vulnerabilities
+  (`0` findings in `Gemfile.lock`, `Package.resolved`, and Xcode workspace
+  `Package.resolved`; scanner-lag suppression still reported as suppressed).
+- PASS: post-bug-hunter `pre-commit run --all-files`.
+- PASS: post-bug-hunter
   `VENV_PYTHON=<repo>/.venv/bin/python DEV_PYTHON=<repo>/.venv/bin/python make validate-changed`.
 - PASS: pre-push hooks during `git push`, including `mypy`, `pip-audit`,
   backend pre-push pytest, full-repo Bandit, and docker build test.
