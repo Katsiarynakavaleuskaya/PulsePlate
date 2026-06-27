@@ -38,8 +38,8 @@ _FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:/")
 _URI_SCHEME_PATH_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 _SENSITIVE_RE = re.compile(
-    r"(?i)(github_pat_[a-z0-9_]+|gh[opsru]_[a-z0-9_]+|ghp_[a-z0-9_]+|"
-    r"ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
+    r"(?i)(github_pat_[a-z0-9_]+|ghs_[a-z0-9_.-]+|gh[opsru]_[a-z0-9_]+|"
+    r"ghp_[a-z0-9_]+|sk-[a-z0-9_-]+|"
     r"\b(?:token|secret|password|api[_-]?key)\b\s*[:=]\s*[^\s]+)"
 )
 

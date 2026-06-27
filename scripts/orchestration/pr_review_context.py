@@ -395,6 +395,7 @@ def collect_review_context(
     if pr_number is None:
         fixed_mapping = {
             "path": str(repo_root / "docs" / "review" / "PR_<N>_FIXED_MAPPING.md"),
+            "repo_path": "docs/review/PR_<N>_FIXED_MAPPING.md",
             "exists": False,
             "errors": ["No PR number provided for fixed-mapping lookup."],
         }
@@ -406,24 +407,26 @@ def collect_review_context(
         local_head_sha, local_head_warnings = collect_local_head_sha(repo_root)
         warnings.extend(local_head_warnings)
         fixed_mapping_degraded_reason = ""
-        if fixed_mapping.get("exists") and pr_metadata_head and local_head_sha:
-            fixed_mapping["local_head_sha"] = local_head_sha
-            fixed_mapping["pr_head_sha"] = pr_metadata_head
+        if fixed_mapping.get("exists"):
             repo_path = str(fixed_mapping.get("repo_path") or "")
-            present_in_pr_diff = repo_path in changed_files
-            fixed_mapping["present_in_pr_diff"] = present_in_pr_diff
             degraded_reasons: list[str] = []
-            if local_head_sha != pr_metadata_head:
+            if pr_metadata_head and local_head_sha:
+                fixed_mapping["local_head_sha"] = local_head_sha
+                fixed_mapping["pr_head_sha"] = pr_metadata_head
+            if pr_metadata_head and local_head_sha and local_head_sha != pr_metadata_head:
                 degraded_reasons.append(
                     "Fixed-mapping artifact was read from local HEAD "
                     f"{local_head_sha[:12]}, but GitHub PR metadata/diff is at head "
                     f"{pr_metadata_head[:12]}; push local commits or run from a matching "
                     "checkout before treating mapping evidence as current PR truth."
                 )
-            if repo_path and not present_in_pr_diff:
-                degraded_reasons.append(
-                    f"Artifact `{repo_path}` is not present in the PR head diff."
-                )
+            if repo_path and not diff_warnings:
+                present_in_pr_diff = repo_path in changed_files
+                fixed_mapping["present_in_pr_diff"] = present_in_pr_diff
+                if not present_in_pr_diff:
+                    degraded_reasons.append(
+                        f"Artifact `{repo_path}` is not present in the PR head diff."
+                    )
             if degraded_reasons:
                 fixed_mapping_degraded_reason = " ".join(degraded_reasons)
                 fixed_mapping_errors = fixed_mapping.get("errors")
@@ -456,7 +459,7 @@ def collect_review_context(
                 if fixed_mapping_degraded_reason
                 else "" if fixed_mapping.get("exists") else "Fixed-mapping artifact unavailable"
             ),
-            evidence=str(fixed_mapping.get("path") or ""),
+            evidence=str(fixed_mapping.get("repo_path") or ""),
         ),
     ]
 

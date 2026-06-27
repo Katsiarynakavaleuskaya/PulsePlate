@@ -204,12 +204,14 @@ they must not post GitHub comments, resolve threads, update fixed mapping,
 claim merge readiness, mutate product runtime, or become canonical learning
 without a reviewed repo diff.
 
-Canonical contracts:
+Machine-consumed JSON contracts:
 
-- `docs/orchestration/REVIEW_PATTERN_ORACLES.md`
-- `docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md`
-- `docs/orchestration/SCOPED_VALIDATION_POLICY.md`
-- `docs/orchestration/AGENT_LEARNING_LOOP.md`
+- `docs/orchestration/contracts/review_pattern_oracles.v1.json`
+- `docs/orchestration/contracts/review_source_status.v1.json`
+- `docs/orchestration/contracts/agent_learning_record.v1.json`
+
+Scoped validation policy is narrative-only and advisory:
+`docs/orchestration/SCOPED_VALIDATION_POLICY.md`.
 
 ---
 

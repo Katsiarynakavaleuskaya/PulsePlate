@@ -9,9 +9,12 @@ import sys
 
 import pytest
 
-from scripts.orchestration.agent_learning_loop import build_learning_loop_proposal
+from scripts.orchestration.agent_learning_loop import (
+    build_learning_loop_proposal,
+    redact_learning_text,
+)
 from scripts.orchestration.agent_lesson_extractor import extract_agent_lesson_record
-from scripts.orchestration.agent_lesson_promoter import promote_agent_lesson_record
+from scripts.orchestration.agent_lesson_promoter import _load_record, promote_agent_lesson_record
 from scripts.orchestration.review_pattern_oracles import REVIEW_PATTERN_ORACLE_IDS
 
 
@@ -29,6 +32,10 @@ def test_learning_loop_proposal_redacts_and_stays_non_runtime() -> None:
     assert proposal["canonical_until_promoted_by_repo_diff"] is False
     assert proposal["redacted_lessons"] == ["<redacted> promote validator parity lesson"]
     assert str(proposal["proposal_fingerprint"]).startswith("sha256:")
+
+
+def test_learning_loop_redacts_ghs_tokens_with_dots_and_hyphens() -> None:
+    assert redact_learning_text("review ghs_abc-def.ghi evidence") == "review <redacted> evidence"
 
 
 def test_learning_loop_proposal_dedupes_targets_deterministically() -> None:
@@ -232,6 +239,74 @@ def test_agent_lesson_promoter_cli_rejects_malformed_records() -> None:
 
     assert result.returncode != 0
     assert "Invalid learning record input: severity must be one of" in result.stderr
+
+
+def test_agent_lesson_promoter_loads_record_file_with_full_contract_validation(
+    tmp_path: Path,
+) -> None:
+    record = extract_agent_lesson_record(
+        source="review",
+        pattern="degraded review source",
+        severity="medium",
+        affected_surfaces=["docs/orchestration"],
+        root_cause="source unavailable",
+        required_oracle="review_source_degraded",
+        promotion_target="docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    )
+    path = tmp_path / "record.json"
+    path.write_text(json.dumps(record), encoding="utf-8")
+
+    assert _load_record(str(path)) == record
+
+    record["unexpected"] = "drift"
+    path.write_text(json.dumps(record), encoding="utf-8")
+    with pytest.raises(ValueError, match="unexpected fields unexpected"):
+        _load_record(str(path))
+
+
+def test_agent_lesson_promoter_cli_emits_proposal_from_stdin() -> None:
+    record = extract_agent_lesson_record(
+        source="review",
+        pattern="degraded review source",
+        severity="medium",
+        affected_surfaces=["docs/orchestration"],
+        root_cause="source unavailable",
+        required_oracle="review_source_degraded",
+        promotion_target="docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    )
+
+    result = subprocess.run(
+        [sys.executable, "scripts/orchestration/agent_lesson_promoter.py"],
+        input=json.dumps(record),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    proposal = json.loads(result.stdout)
+    assert proposal["schema_version"] == "agent_learning_promotion_proposal.v1"
+    assert proposal["human_review_required"] is True
+
+
+def test_agent_lesson_promoter_cli_reports_unreadable_record_file(tmp_path: Path) -> None:
+    missing = tmp_path / "missing-record.json"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/orchestration/agent_lesson_promoter.py",
+            "--record",
+            str(missing),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Invalid learning record input:" in result.stderr
+    assert str(missing) in result.stderr
 
 
 def test_agent_learning_record_schema_matches_extractor_shape() -> None:

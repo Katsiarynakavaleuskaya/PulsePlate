@@ -235,6 +235,86 @@ def test_collect_review_context_degrades_mapping_absent_from_pr_diff_even_when_h
     assert by_source["fixed_mapping_artifact"]["source_degraded"] is True
 
 
+def test_collect_review_context_uses_repo_relative_mapping_evidence_without_pr_number(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(review_ctx, "infer_repo_name", lambda repo_root: None)
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_scope_diff",
+        lambda **kwargs: (
+            [
+                review_ctx.DiffStats(
+                    path="scripts/orchestration/pr_review_context.py", additions=1, deletions=0
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        ),
+    )
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=None,
+        repo=None,
+        base_ref="base",
+        head_ref="head",
+    )
+
+    by_source = {item["source"]: item for item in context["review_source_status"]}
+    assert by_source["fixed_mapping_artifact"]["evidence"] == "docs/review/PR_<N>_FIXED_MAPPING.md"
+    assert str(tmp_path) not in by_source["fixed_mapping_artifact"]["evidence"]
+
+
+def test_collect_review_context_degrades_mapping_absent_from_pr_diff_without_sha_parity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping = tmp_path / "docs" / "review" / "PR_2028_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(
+        "\n".join(
+            [
+                "# PR 2028 - Fixed in Commit Mapping",
+                "",
+                "## Fixed in Commit Mapping",
+                "- No actionable review comments",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_pr_metadata",
+        lambda **kwargs: ({"number": 2028, "base_sha": "base-sha", "head_sha": ""}, []),
+    )
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_scope_diff",
+        lambda **kwargs: (
+            [
+                review_ctx.DiffStats(
+                    path="scripts/orchestration/pr_review_context.py", additions=1, deletions=0
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        ),
+    )
+    monkeypatch.setattr(review_ctx, "collect_local_head_sha", lambda repo_root: ("", []))
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=2028,
+        repo="owner/repo",
+    )
+
+    assert context["fixed_mapping"]["present_in_pr_diff"] is False
+    assert any("not present in the PR head diff" in warning for warning in context["warnings"])
+
+
 def test_main_writes_json_to_stdout_and_warnings_to_stderr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

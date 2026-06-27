@@ -257,7 +257,6 @@ SEMANTIC_LEXEME_GROUPS: tuple[SemanticLexemeGroup, ...] = (
         keywords=(
             "review pattern oracle",
             "review-pattern oracle",
-            "oracle",
             "recurring review pattern",
             "validator parity",
             "fixed mapping hygiene",

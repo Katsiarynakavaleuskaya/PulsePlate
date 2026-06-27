@@ -1563,6 +1563,24 @@ def test_skill_router_routes_review_oracle_and_learning_loop_skills() -> None:
     )
 
 
+def test_skill_router_does_not_route_review_oracles_from_generic_oracle_text() -> None:
+    """Generic experiment-runner oracle wording must not boost review-pattern helpers."""
+
+    decision = route_skills(
+        goal="Run Experiment Runner oracle-only evidence for this orchestration lane",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/experiment_runner.py"],
+        domain="orchestration",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-review-pattern-oracles" not in recommended
+    assert not any(
+        item["group_id"] == "orchestration.review_pattern_oracles"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+
+
 def test_match_lexeme_terms_requires_token_boundaries() -> None:
     """Lexeme matching should not trigger on connector names embedded in larger tokens."""
 
