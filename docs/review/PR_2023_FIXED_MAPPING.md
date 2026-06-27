@@ -64,22 +64,6 @@ Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3485610173 -> 2026a39107dd670408cba17e23b5f3a22ced684e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#pullrequestreview-4584612071 -> 2026a39107dd670408cba17e23b5f3a22ced684e
 
-Disposition: FIXED
-Commit: cbb5f5e1b488dfc107a2bdca6c89071ef3fdd48d
-Evidence: `.github/workflows/python-dependency-submission.yml` now includes
-`requirements-test.in` and `requirements-test.txt` in both `push.paths` and
-`pull_request.paths`; `scripts/ci/check_python_dependency_surfaces.py` now
-validates source-file and lockfile trigger coverage for every
-`dependency_submission_required` surface; `tests/test_python_dependency_surfaces.py`
-covers the missing-trigger negative case. Focused pytest, validator CLI,
-`make validate-changed`, and `pre-commit run --all-files` passed.
-Reason: Fixes Codex Security scan
-`d0f24776-6356-4570-85e8-1c06ebebcc14` finding
-`Dependency-submission trigger filters omit requirements-test files`.
-- Codex Security finding
-  `dependency-submission-trigger-coverage/requirements-test-surface` ->
-  cbb5f5e1b488dfc107a2bdca6c89071ef3fdd48d
-
 ## Premortem Closure
 
 - Artifact: `docs/review/PR_2023_PREMORTEM.md`
