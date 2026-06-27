@@ -4,17 +4,22 @@ Additional comprehensive tests for main.py to achieve 97% coverage.
 Tests lifespan events, API endpoints, error handling, and edge cases.
 """
 
+import asyncio
 import os
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from fastapi import FastAPI, Response
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 # Import the canonical FastAPI app (registers metrics, etc.)
+import app.main as app_main
 from app.main import app
 from app.middleware.api_tiers import TEST_KEY_VIP
+from app.routers import test as test_router
 from tests import test_restaurant_postgres_read as restaurant_pg_tests
 from tests import test_restaurant_shadow_parity as restaurant_parity_tests
 from tests import test_restaurants_router as restaurant_router_tests
@@ -172,6 +177,32 @@ class TestAPIEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
+
+
+def test_test_route_registration_disabled_in_production_for_ci_diff_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
+    target_app = FastAPI()
+
+    app_main._include_test_router_if_enabled(target_app)
+
+    assert not any(
+        isinstance(route, APIRoute) and str(route.path).startswith("/api/v1/test/")
+        for route in target_app.routes
+    )
+
+
+def test_test_echo_handler_returns_typed_response_for_ci_diff_coverage() -> None:
+    response = Response()
+
+    payload = asyncio.run(test_router.test_echo({"hello": "world"}, response))
+
+    assert payload.echo == {"hello": "world"}
+    assert payload.metadata.endpoint == "echo"
+    assert response.headers["X-Test-Timestamp"] == payload.metadata.timestamp
 
 
 class TestBMIEndpoints:
