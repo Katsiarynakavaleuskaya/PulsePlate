@@ -6,6 +6,7 @@ Keep imports deterministic: do NOT use importlib exec_module, do NOT mutate sys.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Awaitable, Callable, cast
 
@@ -78,6 +79,8 @@ from app.routers.test import (
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
 from app.utils.feature_flags import is_vip_module_enabled
+
+logger = logging.getLogger(__name__)
 
 app: FastAPI = _legacy_app
 VIP_MODULE_ENABLED: bool = bool(getattr(_legacy_module, "VIP_MODULE_ENABLED", False))
@@ -819,6 +822,13 @@ def _include_test_router_if_enabled(target_app: FastAPI) -> None:
     if not _test_routes_enabled_for_registration():
         return
 
+    logger.info(
+        "Test routes enabled for registration",
+        extra={
+            "runtime_env": get_runtime_env_name(),
+            "enable_test_routes": os.getenv("ENABLE_TEST_ROUTES"),
+        },
+    )
     ensure_route_family_registered(
         target_app,
         family_name="Test",

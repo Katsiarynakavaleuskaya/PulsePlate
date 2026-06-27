@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import Counter
 
 import pytest
@@ -134,6 +135,27 @@ def test_test_route_registration_is_idempotent_in_unset_local_env() -> None:
     app_main._include_test_router_if_enabled(target_app)
     app_main._include_test_router_if_enabled(target_app)
 
+    _assert_test_routes_registered_once(target_app)
+
+
+def test_staging_test_route_registration_logs_enabled_state(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _set_runtime_env(monkeypatch, app_env="staging", enable_test_routes="1")
+    target_app = FastAPI()
+
+    with caplog.at_level(logging.INFO, logger=app_main.logger.name):
+        app_main._include_test_router_if_enabled(target_app)
+
+    matching_records = [
+        record
+        for record in caplog.records
+        if record.message == "Test routes enabled for registration"
+    ]
+    assert len(matching_records) == 1
+    assert matching_records[0].runtime_env == "staging"
+    assert matching_records[0].enable_test_routes == "1"
     _assert_test_routes_registered_once(target_app)
 
 
