@@ -486,6 +486,27 @@ def _load_patch_run(
     return run_dir, request, bundle, result, patch_text, selected_variant, metadata
 
 
+def _patch_changed_paths(patch_text: str) -> list[str]:
+    paths: set[str] = set()
+    for line in patch_text.splitlines():
+        if not line.startswith("diff --git "):
+            continue
+        parts = line.split()
+        if len(parts) != 4 or not parts[2].startswith("a/") or not parts[3].startswith("b/"):
+            raise CreativeCodePRPromotionError("candidate.patch contains unsupported diff header.")
+        old_path = parts[2][2:]
+        new_path = parts[3][2:]
+        if old_path != new_path:
+            raise CreativeCodePRPromotionError("candidate.patch renames are not supported.")
+        path = Path(new_path)
+        if path.is_absolute() or ".." in path.parts or "\\" in new_path or new_path in {"", "."}:
+            raise CreativeCodePRPromotionError("candidate.patch contains unsafe changed path.")
+        paths.add(new_path)
+    if not paths:
+        raise CreativeCodePRPromotionError("candidate.patch must contain at least one diff header.")
+    return sorted(paths)
+
+
 def _require_accepted_pr2_artifacts(
     *,
     request: dict[str, Any],
@@ -546,6 +567,9 @@ def _require_accepted_pr2_artifacts(
         raise CreativeCodePRPromotionError("candidate.patch diff line count mismatch.")
     if not result["changed_paths"]:
         raise CreativeCodePRPromotionError("PR-2 result must include changed paths.")
+    patch_changed_paths = _patch_changed_paths(patch_text)
+    if patch_changed_paths != sorted(result["changed_paths"]):
+        raise CreativeCodePRPromotionError("candidate.patch changed paths mismatch.")
     if patch_metadata.get("changed_paths") != result["changed_paths"]:
         raise CreativeCodePRPromotionError("patch_metadata changed paths mismatch.")
     for key, expected in (
@@ -696,6 +720,67 @@ def _load_approval(promotion_dir: Path) -> dict[str, Any]:
             read_json_object(resolve_promotion_file(promotion_dir, APPROVAL_FILE))
         ),
     )
+
+
+def _require_validation_matches_plan(
+    *,
+    validation_artifact: dict[str, Any],
+    plan_artifact: dict[str, Any],
+) -> str:
+    plan_fp = promotion_plan_fingerprint(plan_artifact)
+    if validation_artifact["promotion_id"] != plan_artifact["promotion_id"]:
+        raise CreativeCodePRPromotionError("validation artifact promotion_id mismatch.")
+    if validation_artifact["plan_fingerprint"] != plan_fp:
+        raise CreativeCodePRPromotionError("validation artifact does not match current plan.")
+    if validation_artifact["patch_fingerprint"] != plan_artifact["patch_fingerprint"]:
+        raise CreativeCodePRPromotionError("validation patch fingerprint does not match plan.")
+    if validation_artifact["base_commit_sha"] != plan_artifact["base_commit_sha"]:
+        raise CreativeCodePRPromotionError("validation base commit does not match plan.")
+    return cast(str, plan_fp)
+
+
+def _require_approval_matches_plan_and_validation(
+    *,
+    approval_artifact: dict[str, Any],
+    plan_artifact: dict[str, Any],
+    validation_artifact: dict[str, Any],
+) -> None:
+    plan_fp = _require_validation_matches_plan(
+        validation_artifact=validation_artifact,
+        plan_artifact=plan_artifact,
+    )
+    if approval_artifact["promotion_id"] != plan_artifact["promotion_id"]:
+        raise CreativeCodePRPromotionError("approval artifact promotion_id mismatch.")
+    if approval_artifact["plan_fingerprint"] != plan_fp:
+        raise CreativeCodePRPromotionError("approval artifact does not match current plan.")
+    if approval_artifact["validation_fingerprint"] != validation_artifact["validation_fingerprint"]:
+        raise CreativeCodePRPromotionError("approval artifact does not match current validation.")
+    if approval_artifact["confirmed_patch_fingerprint"] != plan_artifact["patch_fingerprint"]:
+        raise CreativeCodePRPromotionError("approval patch fingerprint does not match plan.")
+    if approval_artifact["confirmed_base_commit_sha"] != plan_artifact["base_commit_sha"]:
+        raise CreativeCodePRPromotionError("approval base commit does not match plan.")
+    if approval_artifact["confirmed_target_branch"] != plan_artifact["target_head_branch"]:
+        raise CreativeCodePRPromotionError("approval target branch does not match plan.")
+
+
+def _load_current_patch_text_for_plan(
+    *,
+    promotion_dir: Path,
+    plan_artifact: dict[str, Any],
+) -> str:
+    state = _load_state(promotion_dir)
+    if state["source_result_id"] != plan_artifact["source_result_id"]:
+        raise CreativeCodePRPromotionError("promotion state does not match current plan.")
+    if state["patch_fingerprint"] != plan_artifact["patch_fingerprint"]:
+        raise CreativeCodePRPromotionError("promotion state patch fingerprint mismatch.")
+    run_dir = resolve_patch_run_dir(state["patch_run"], create=False)
+    patch_text = resolve_patch_run_file(run_dir, CANDIDATE_PATCH_FILE).read_text(encoding="utf-8")
+    current_patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
+    if current_patch_fingerprint != plan_artifact["patch_fingerprint"]:
+        raise CreativeCodePRPromotionError("candidate.patch changed after plan validation.")
+    if _patch_changed_paths(patch_text) != sorted(plan_artifact["changed_paths"]):
+        raise CreativeCodePRPromotionError("candidate.patch changed paths mismatch.")
+    return cast(str, patch_text)
 
 
 def plan(
@@ -874,12 +959,13 @@ def validate(
         raise CreativeCodePRPromotionError("shared worktree must be clean before validation.")
 
     state = _load_state(promotion_dir)
-    if state["source_result_id"] != plan_artifact["source_result_id"]:
-        raise CreativeCodePRPromotionError("promotion state does not match current plan.")
     run_dir = resolve_patch_run_dir(state["patch_run"], create=False)
     patch_path = resolve_patch_run_file(run_dir, CANDIDATE_PATCH_FILE)
     experiment_packet = resolve_patch_run_file(run_dir, EXPERIMENT_PACKET_FILE)
-    patch_text = patch_path.read_text(encoding="utf-8")
+    patch_text = _load_current_patch_text_for_plan(
+        promotion_dir=promotion_dir,
+        plan_artifact=plan_artifact,
+    )
     checkout_created = False
     try:
         checkout = _prepare_checkout(
@@ -966,9 +1052,10 @@ def approve(
     promotion_dir = resolve_promotion_dir(promotion_id, create=False)
     plan_artifact = _load_plan(promotion_dir)
     validation_artifact = _load_validation(promotion_dir)
-    plan_fp = promotion_plan_fingerprint(plan_artifact)
-    if validation_artifact["plan_fingerprint"] != plan_fp:
-        raise CreativeCodePRPromotionError("validation artifact does not match current plan.")
+    plan_fp = _require_validation_matches_plan(
+        validation_artifact=validation_artifact,
+        plan_artifact=plan_artifact,
+    )
     if not stdin.isatty() or not getattr(stdout, "isatty", lambda: False)():
         raise CreativeCodePRPromotionError("approval requires an interactive TTY.")
     current_login = github.current_login()
@@ -1024,12 +1111,11 @@ def promote(
     validation_artifact = _load_validation(promotion_dir)
     approval_artifact = _load_approval(promotion_dir)
     plan_fp = promotion_plan_fingerprint(plan_artifact)
-    if validation_artifact["plan_fingerprint"] != plan_fp:
-        raise CreativeCodePRPromotionError("validation artifact does not match current plan.")
-    if approval_artifact["plan_fingerprint"] != plan_fp:
-        raise CreativeCodePRPromotionError("approval artifact does not match current plan.")
-    if approval_artifact["validation_fingerprint"] != validation_artifact["validation_fingerprint"]:
-        raise CreativeCodePRPromotionError("approval artifact does not match current validation.")
+    _require_approval_matches_plan_and_validation(
+        approval_artifact=approval_artifact,
+        plan_artifact=plan_artifact,
+        validation_artifact=validation_artifact,
+    )
     if approval_artifact["approved_by_login"] != github.current_login():
         raise CreativeCodePRPromotionError("current gh actor does not match approval.")
     if git.rev_parse_origin_main() != plan_artifact["base_commit_sha"]:
@@ -1038,11 +1124,10 @@ def promote(
     if git.remote_branch_exists(branch) or git.local_branch_exists(branch):
         raise CreativeCodePRPromotionError("target experiment branch already exists.")
 
-    state = _load_state(promotion_dir)
-    if state["source_result_id"] != plan_artifact["source_result_id"]:
-        raise CreativeCodePRPromotionError("promotion state does not match current plan.")
-    run_dir = resolve_patch_run_dir(state["patch_run"], create=False)
-    patch_text = resolve_patch_run_file(run_dir, CANDIDATE_PATCH_FILE).read_text(encoding="utf-8")
+    patch_text = _load_current_patch_text_for_plan(
+        promotion_dir=promotion_dir,
+        plan_artifact=plan_artifact,
+    )
     pr_url = ""
     commit_sha = "0" * 40
     partial_failure: str | None = None
