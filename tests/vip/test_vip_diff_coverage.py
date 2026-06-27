@@ -16,6 +16,12 @@ from fastapi import FastAPI
 
 import pytest
 
+from app.effective_routes import iter_effective_route_candidates, route_path
+
+
+def _registered_paths(app: FastAPI) -> list[str]:
+    return [route_path(route) for route in iter_effective_route_candidates(app.routes)]
+
 
 @pytest.fixture(autouse=True)
 def vip_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -39,7 +45,7 @@ class TestVIPRegistrationIdempotent:
         register_vip_routes(app)
 
         # Verify VIP routes are registered (covers lines 53-57: hasattr check and include_router)
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = _registered_paths(app)
         assert any("/api/v1/vip" in path for path in paths), "VIP routes should be registered"
         assert "/api/v1/vip/fitchef/insight" in paths
         assert "/api/v1/insight/fitchef" in paths
@@ -56,9 +62,9 @@ class TestVIPRegistrationIdempotent:
         app = FastAPI()
 
         register_vip_routes(app)
-        first_paths = sorted(route.path for route in app.routes if hasattr(route, "path"))
+        first_paths = sorted(_registered_paths(app))
         register_vip_routes(app)
-        second_paths = sorted(route.path for route in app.routes if hasattr(route, "path"))
+        second_paths = sorted(_registered_paths(app))
 
         assert second_paths == first_paths
         assert second_paths.count("/api/v1/vip/fitchef/insight") == 1
@@ -76,7 +82,7 @@ class TestVIPRegistrationIdempotent:
 
         register_vip_routes(app)
 
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = _registered_paths(app)
         assert not any(
             "/api/v1/vip" in path for path in paths
         ), "VIP routes should not be registered"

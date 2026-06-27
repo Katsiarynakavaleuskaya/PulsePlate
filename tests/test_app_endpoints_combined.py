@@ -17,11 +17,18 @@ from xml.etree import ElementTree
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import HTTPException
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import app as apppkg
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+)
 from app.routers import health as health_router
 from app.routers.admin_operations import ADMIN_OPERATION_ROUTE_SPECS
 from app.services import admin_operations as admin_operations_service
@@ -31,14 +38,14 @@ from core.compliance import build_privacy_endpoint_payload
 import pytest
 
 
-def _find_route(client: TestClient, path: str, method: str = "GET") -> APIRoute:
+def _find_route(client: TestClient, path: str, method: str = "GET") -> object:
     app = cast(FastAPI, client.app)
     matches = [
         route
-        for route in app.routes
-        if isinstance(route, APIRoute)
-        and route.path == path
-        and method.upper() in (route.methods or set())
+        for route in iter_effective_route_candidates(app.routes)
+        if is_api_route_candidate(route)
+        and route_path(route) == path
+        and method.upper() in route_methods(route)
     ]
     assert len(matches) == 1
     return matches[0]
@@ -69,7 +76,7 @@ class TestHealthAndMonitoringEndpoints:
         """Operational health/readiness routes are served by app.routers.health."""
         for path in ("/health", "/api/v1/health", "/health/db", "/ready"):
             route = _find_route(client, path)
-            assert route.endpoint.__module__ == "app.routers.health"
+            assert getattr(route_endpoint(route), "__module__", None) == "app.routers.health"
 
     def test_health_routes_stay_hidden_from_public_openapi(self, client: TestClient) -> None:
         """Health/readiness routes remain runtime-only, not public OpenAPI paths."""
@@ -204,10 +211,12 @@ class TestHealthAndMonitoringEndpoints:
     def test_favicon_endpoint(self, client: TestClient) -> None:
         """Runtime favicon is canonical, empty, and hidden from public OpenAPI."""
         route = _find_route(client, "/favicon.ico")
-        assert route.endpoint.__module__ == "app.routers.favicon"
-        assert route.endpoint.__name__ == "favicon"
-        assert route.include_in_schema is False
-        assert not route.dependant.dependencies
+        endpoint = route_endpoint(route)
+        assert getattr(endpoint, "__module__", None) == "app.routers.favicon"
+        assert getattr(endpoint, "__name__", None) == "favicon"
+        assert route_include_in_schema(route) is False
+        dependant = getattr(route, "dependant", None)
+        assert not getattr(dependant, "dependencies", ())
 
         response = client.get("/favicon.ico")
         assert response.status_code == 204
@@ -236,7 +245,7 @@ class TestHealthAndMonitoringEndpoints:
         """/privacy and /terms are served by app.routers.legal, not legacy_app."""
         for path in ("/privacy", "/terms"):
             route = _find_route(client, path)
-            assert route.endpoint.__module__ == "app.routers.legal"
+            assert getattr(route_endpoint(route), "__module__", None) == "app.routers.legal"
 
     def test_legal_routes_stay_hidden_from_public_openapi(self, client: TestClient) -> None:
         """Legal publication routes remain runtime-only, not public OpenAPI paths."""
@@ -259,8 +268,8 @@ class TestDebugEndpoint:
         monkeypatch.setenv("ENABLE_DEBUG_ENDPOINT", "true")
 
         route = _find_route(client, "/debug_env")
-        assert route.endpoint.__module__ == "app.routers.admin_operations"
-        assert getattr(route, "include_in_schema", True) is False
+        assert getattr(route_endpoint(route), "__module__", None) == "app.routers.admin_operations"
+        assert route_include_in_schema(route) is False
 
         response = client.get("/debug_env")
         assert response.status_code == 200
@@ -293,8 +302,10 @@ class TestDebugEndpoint:
     ) -> None:
         for path, method in ADMIN_OPERATION_ROUTE_SPECS:
             route = _find_route(client, path, method)
-            assert route.endpoint.__module__ == "app.routers.admin_operations"
-            assert getattr(route, "include_in_schema", True) is False
+            assert (
+                getattr(route_endpoint(route), "__module__", None) == "app.routers.admin_operations"
+            )
+            assert route_include_in_schema(route) is False
 
     def test_admin_debug_operational_routes_stay_hidden_from_public_openapi(
         self,

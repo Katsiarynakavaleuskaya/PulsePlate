@@ -8,6 +8,11 @@ import pytest
 from sqlalchemy import delete, select
 from starlette.requests import Request
 
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_include_in_schema,
+    route_path,
+)
 from app.models import PaywallExposureLedger
 from app.middleware.api_tiers import derive_subject_id_from_api_key
 from app.routers import paywall_analytics
@@ -103,8 +108,8 @@ def test_paywall_event_hidden_route_is_registered_but_not_in_openapi(client: Tes
     from app.main import app
 
     runtime_routes = {
-        str(getattr(route, "path", "")): getattr(route, "include_in_schema", True)
-        for route in app.routes
+        route_path(route): route_include_in_schema(route)
+        for route in iter_effective_route_candidates(app.routes)
     }
 
     assert ROUTE_PATH in runtime_routes

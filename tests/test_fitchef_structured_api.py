@@ -16,6 +16,7 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from httpx import Response
 
+from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
 from app.schemas.fitchef import (
     FitChefDistortionSimulatorInput,
     FitChefDistortionSimulatorResult,
@@ -829,9 +830,8 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
     def _register_vip_routes(target_app: FastAPI) -> None:
         vip_registration_calls.append(target_app)
         if not any(
-            getattr(route, "path", None) == "/api/v1/vip/fitchef/insight"
-            and "POST" in (getattr(route, "methods", None) or set())
-            for route in target_app.routes
+            route_path(route) == "/api/v1/vip/fitchef/insight" and "POST" in route_methods(route)
+            for route in iter_effective_route_candidates(target_app.routes)
         ):
             target_app.include_router(_make_router("/api/v1/vip/fitchef/insight"))
 
@@ -843,15 +843,13 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
 
     structured_routes = [
         route
-        for route in app.routes
-        if getattr(route, "path", None) == "/api/v1/pro/fitchef/explain"
-        and "POST" in (getattr(route, "methods", None) or set())
+        for route in iter_effective_route_candidates(app.routes)
+        if route_path(route) == "/api/v1/pro/fitchef/explain" and "POST" in route_methods(route)
     ]
     vip_structured_routes = [
         route
-        for route in app.routes
-        if getattr(route, "path", None) == "/api/v1/vip/fitchef/insight"
-        and "POST" in (getattr(route, "methods", None) or set())
+        for route in iter_effective_route_candidates(app.routes)
+        if route_path(route) == "/api/v1/vip/fitchef/insight" and "POST" in route_methods(route)
     ]
     assert len(structured_routes) == 1
     assert len(vip_structured_routes) == 1

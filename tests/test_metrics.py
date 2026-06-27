@@ -6,6 +6,7 @@ EN: Tests for Prometheus metrics endpoint and middleware.
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 import pytest
@@ -489,8 +490,7 @@ def test_metrics_route_template_normalizes_trailing_slash_before_cache() -> None
     assert _route_template(request) == "/api/v1/slash"
 
 
-@pytest.mark.asyncio
-async def test_metrics_middleware_noop_when_metrics_unavailable(
+def test_metrics_middleware_noop_when_metrics_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test middleware becomes no-op when metrics are unavailable.
@@ -525,13 +525,12 @@ async def test_metrics_middleware_noop_when_metrics_unavailable(
         "app": app.app,
     }
     request = Request(scope)
-    resp = await metrics_mod.metrics_middleware(request, call_next)
+    resp = asyncio.run(metrics_mod.metrics_middleware(request, call_next))
     assert called is True
     assert resp.status_code == 204
 
 
-@pytest.mark.asyncio
-async def test_metrics_middleware_swallows_metrics_recording_errors(
+def test_metrics_middleware_swallows_metrics_recording_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that metrics recording errors never affect request handling.
@@ -576,7 +575,7 @@ async def test_metrics_middleware_swallows_metrics_recording_errors(
         "app": app.app,
     }
     request = Request(scope)
-    resp = await metrics_mod.metrics_middleware(request, call_next)
+    resp = asyncio.run(metrics_mod.metrics_middleware(request, call_next))
     assert resp.status_code == 204
 
 

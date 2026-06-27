@@ -11,6 +11,13 @@ import pytest
 from pydantic import ValidationError
 
 import app.main as app_main
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+)
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
 import app.services.bmi_compat as bmi_compat_service
@@ -19,9 +26,8 @@ import app.services.bmi_compat as bmi_compat_service
 def _post_routes_for(path: str) -> list[Any]:
     return [
         route
-        for route in app_main.app.routes
-        if getattr(route, "path", None) == path
-        and "POST" in (getattr(route, "methods", None) or set())
+        for route in iter_effective_route_candidates(app_main.app.routes)
+        if route_path(route) == path and "POST" in route_methods(route)
     ]
 
 
@@ -53,9 +59,10 @@ def test_bmi_compat_routes_have_canonical_owner_and_no_duplicates() -> None:
         matching_routes = _post_routes_for(path)
         assert len(matching_routes) == 1
         route = matching_routes[0]
-        assert route.endpoint.__module__ == "app.routers.bmi_compat"
-        assert route.endpoint.__name__ == expected_name
-        assert getattr(route, "include_in_schema", True) is expected_visibility[path]
+        endpoint = route_endpoint(route)
+        assert getattr(endpoint, "__module__", None) == "app.routers.bmi_compat"
+        assert getattr(endpoint, "__name__", None) == expected_name
+        assert route_include_in_schema(route) is expected_visibility[path]
 
 
 def test_bmi_compat_openapi_visibility_is_stable(client: TestClient) -> None:
