@@ -185,7 +185,8 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     # which causes "Table already defined" cascade failures in subsequent tests.
     # See: tests/conftest.py for metadata.clear() strategy for xdist workers.
     fastapi_app = sys.modules.get("app")
-    if fastapi_app is not None and hasattr(fastapi_app, "app"):
+    app_instance = vars(fastapi_app).get("app") if fastapi_app is not None else None
+    if app_instance is not None:
         # Simple pass-through that accepts any non-empty API key
         def mock_get_api_key(api_key: str = "") -> str:
             if not api_key or len(api_key.strip()) < 3:
@@ -195,10 +196,10 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
             return api_key
 
         # Override the dependency
-        if hasattr(fastapi_app.app, "dependency_overrides"):
-            get_api_key = getattr(fastapi_app, "get_api_key", None)
+        if hasattr(app_instance, "dependency_overrides"):
+            get_api_key = vars(fastapi_app).get("get_api_key")
             if get_api_key is not None:
-                fastapi_app.app.dependency_overrides[get_api_key] = mock_get_api_key
+                app_instance.dependency_overrides[get_api_key] = mock_get_api_key
 
     yield
 
@@ -208,12 +209,11 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
 
     # Clear dependency overrides (use sys.modules.get to avoid re-import)
     fastapi_app = sys.modules.get("app")
-    if (
-        fastapi_app is not None
-        and hasattr(fastapi_app, "app")
-        and hasattr(fastapi_app.app, "dependency_overrides")
-    ):
-        fastapi_app.app.dependency_overrides.clear()
+    app_instance = (
+        getattr(fastapi_app, "__dict__", {}).get("app") if fastapi_app is not None else None
+    )
+    if app_instance is not None and hasattr(app_instance, "dependency_overrides"):
+        app_instance.dependency_overrides.clear()
 
     # CRITICAL: Do NOT delete modules from sys.modules
     # This causes dual-Base issues, module identity chaos, and unpredictable test failures.

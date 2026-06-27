@@ -681,6 +681,49 @@ def test_backend_hook_maps_staged_frontend_package_rename_to_governance_tests(
     assert "Backend tests passed" in output
 
 
+def test_backend_hook_maps_authz_contract_helper_to_static_contract_test(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "tests" / "security").mkdir(parents=True)
+    (repo / "tests" / "security" / "_api_authz_contracts.py").write_text(
+        "AUTHZ = 1\n", encoding="utf-8"
+    )
+    (repo / "tests" / "security" / "test_api_authz_contract_static.py").write_text(
+        "def test_static_contract():\n    assert True\n", encoding="utf-8"
+    )
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    (repo / "tests" / "security" / "_api_authz_contracts.py").write_text(
+        "AUTHZ = 2\n", encoding="utf-8"
+    )
+    _git(repo, "add", "tests/security/_api_authz_contracts.py")
+    calls_file = tmp_path / "pytest-authz-contract-args.txt"
+    fake_python = tmp_path / "fake-python-authz-contract"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/security/test_api_authz_contract_static.py" in called_args
+    assert "tests/security/_api_authz_contracts.py" not in called_args
+    assert "Backend tests passed" in output
+
+
 def test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests() -> None:
     config_text = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
 

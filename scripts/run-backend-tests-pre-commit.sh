@@ -213,8 +213,12 @@ if [ -n "$PYTHON_CHANGES" ]; then
         # Per-file test discovery
         declare -a FOUND_FOR_FILE=()
 
+        # Helper modules under tests/ need an executable test target, not direct
+        # pytest collection of the helper itself.
+        if [[ $file == tests/security/_api_authz_contracts.py ]]; then
+            [ -f "tests/security/test_api_authz_contract_static.py" ] && FOUND_FOR_FILE+=("tests/security/test_api_authz_contract_static.py")
         # If the file is in tests/ directory, add it directly (but exclude conftest.py)
-        if [[ $file == tests/* ]] && [[ $file == *.py ]] && [[ ! $(basename "$file") == conftest.py ]]; then
+        elif [[ $file == tests/* ]] && [[ $file == *.py ]] && [[ ! $(basename "$file") == conftest.py ]]; then
             [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
         # Otherwise, check if corresponding test file exists
         elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]] && [[ ! $file == tests/* ]]; then

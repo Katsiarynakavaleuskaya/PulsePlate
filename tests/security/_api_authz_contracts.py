@@ -20,6 +20,7 @@ from app.routers.billing import (
 )
 from app.routers.feedback import get_feedback_user
 from app.routers.plan_export import _require_valid_token
+from app.routers.test import _ensure_non_production
 from app.routers.users import _require_users_api_key
 from legacy_app import _get_api_key_dynamic
 
@@ -42,6 +43,7 @@ class AuthClass(str, Enum):
     METRICS_CREDENTIAL = "metrics_credential"
     EXPORT_TOKEN = "export_token"
     OPTIONAL_PRO_CONTEXT = "optional_pro_context"
+    NON_PRODUCTION_TEST_GUARD = "non_production_test_guard"
 
 
 class MinimumTier(str, Enum):
@@ -324,6 +326,24 @@ API_AUTHZ_CONTRACTS: tuple[ApiAuthzContract, ...] = (
         "POST",
         "/api/v1/internal/paywall/events",
         AuthClass.OPTIONAL_PRO_CONTEXT,
+        MinimumTier.NONE,
+        PrincipalSource.INTERNAL_OPTIONAL,
+        OwnershipPolicy.INTERNAL_OPTIONAL,
+        ApiExposure.HIDDEN_RUNTIME,
+    ),
+    _contract(
+        "POST",
+        "/api/v1/test/rate-limit",
+        AuthClass.NON_PRODUCTION_TEST_GUARD,
+        MinimumTier.NONE,
+        PrincipalSource.INTERNAL_OPTIONAL,
+        OwnershipPolicy.INTERNAL_OPTIONAL,
+        ApiExposure.HIDDEN_RUNTIME,
+    ),
+    _contract(
+        "POST",
+        "/api/v1/test/echo",
+        AuthClass.NON_PRODUCTION_TEST_GUARD,
         MinimumTier.NONE,
         PrincipalSource.INTERNAL_OPTIONAL,
         OwnershipPolicy.INTERNAL_OPTIONAL,
@@ -828,4 +848,5 @@ EXPECTED_DEPENDENCY_BY_AUTH_CLASS: dict[AuthClass, Callable[..., Any] | None] = 
     AuthClass.METRICS_CREDENTIAL: _metrics_api_key_guard,
     AuthClass.EXPORT_TOKEN: _require_valid_token,
     AuthClass.OPTIONAL_PRO_CONTEXT: None,
+    AuthClass.NON_PRODUCTION_TEST_GUARD: _ensure_non_production,
 }
