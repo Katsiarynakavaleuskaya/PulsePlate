@@ -44,6 +44,16 @@ blocker.
   change and no reason to classify `GET /api/v1/test/health`.
 - Security pass: confirmed the classification does not weaken production auth
   because the routes remain hidden and non-production guarded.
+- Post-open security-auditor pass: no P0/P1/P2 security findings at head
+  `d395b3d164ad9`; confirmed runtime route code is unchanged, test routes remain
+  hidden/non-production guarded, and the separate main segfault is not a
+  PR #2033 security defect.
+- Codex Security diff scan completed for
+  `9814a011d3b1f823cdd45ab829936ca8a78d0e9d..d395b3d164ad9c83cf97b79f71bfda9c48e9d6ae`
+  with 0 findings.
+  - Scan ID: `c1612fa5-f515-4e2c-ae53-1f32c4fd419b`
+  - Report:
+    `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-SSrjdu/main-ci-authz-test-route-contracts/d395b3d164ad9c83cf97b79f71bfda9c48e9d6ae_20260627T193427Z_i2tbf0z2/report.md`
 - Premortem decision: `proceed with changes`.
   - Most likely failure: this narrow PR is mistaken for the broader
     segfault/FastAPI route-compat stabilization lane.
@@ -77,8 +87,11 @@ blocker.
 - [x] Initial PR open: no human review threads existed before PR creation.
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2033`.
-- [ ] Post-open role reviews, bot comments, and security findings are fixed or
-  dispositioned before merge readiness.
+- [x] Post-open Sourcery review was fixed and mapped.
+- [x] Post-open QA, bug-hunter, and security-auditor role passes completed.
+- [x] Codex Security diff scan completed with 0 findings.
+- [ ] Current-head bot comments and CI are fixed or dispositioned before merge
+  readiness.
 - [ ] Current-head CI is complete and inspected before merge readiness.
 - [ ] Strict merge-readiness check runs after the final review/check cycle.
 
@@ -152,6 +165,9 @@ Evidence:
   `VENV_PYTHON=.venv/bin/python make validate-changed`
   selected 23 tests in `tests/security/test_api_authz_contract_static.py` and
   `tests/test_pre_commit_hook_python_resolver.py`.
+- PASS: Codex Security diff scan
+  `c1612fa5-f515-4e2c-ae53-1f32c4fd419b` completed with 0 findings for head
+  `d395b3d164ad9c83cf97b79f71bfda9c48e9d6ae`.
 - PASS during push: pre-push backend tests, full-repo Bandit, and docker build
   test.
 - DEFERRED: full `make verify` under the operator-approved machine-heavy
@@ -164,7 +180,9 @@ Evidence:
 - [ ] Current-head CI complete and inspected.
 - [ ] Required checks pass.
 - [ ] CodeRabbit, Sourcery, Cubic, post-open role reviews, and Codex Security
-  actionables are fixed or dispositioned.
+  actionables are fixed or dispositioned. Current status: Sourcery mapped,
+  post-open role/security passes clear, Codex Security scan found 0 findings,
+  CodeRabbit was rate-limited and not approval evidence.
 - [ ] Separate operator-confirmed `main` segfault/stability blocker is not
   conflated with this authz-contract fix.
 - [ ] Strict merge-readiness wrapper passes after final review/check cycle.
