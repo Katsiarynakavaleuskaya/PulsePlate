@@ -22,10 +22,9 @@
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed for currently visible inline Sourcery
-  comments.
-- [x] Fixed in commit mapping completed for the two actionable Sourcery
-  comments.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- Currently visible inline Sourcery comments are classified below.
 - [x] Premortem findings dispositioned.
 - [x] Experiment Runner oracle-only governance evidence recorded.
 - [x] Local focused gates, `make validate-changed`, and
@@ -43,28 +42,15 @@
 
 Disposition: FIXED
 Commit: b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
-Evidence:
-`tests/test_install_locked_python_requirements.py` now asserts the returned
-effective constraints file content for duplicate exact-pin removal and
-security-floor preservation, and focused pytest plus `make validate-changed`
-passed with those assertions.
-Reason: Sourcery requested assertions for the effective constraints file
-contents in the two new regression tests; the implementation commit adds those
-content checks and preserves the intended installer security-floor behavior.
+Evidence: `tests/test_install_locked_python_requirements.py` content assertions; focused pytest and `make validate-changed` passed.
+Reason: Sourcery requested returned constraints-file content assertions in the new regression tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3476956759 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3476956764 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 
 Disposition: FIXED
 Commit: b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
-Evidence:
-`scripts/ci/check_python_dependency_surfaces.py`,
-`verify_requirements.py`, `tests/test_python_dependency_surfaces.py`,
-`tests/test_verify_requirements.py`,
-`docs/contracts/PYTHON_DEPENDENCY_SURFACES.md`, `REQUIREMENTS.md`,
-`docs/DEPENDENCY_MANAGEMENT.md`, and
-`docs/roadmap/BACKLOG_LEDGER.md`.
-Reason: Adds the PR-1 Python dependency surface contract and validator while
-leaving dependency versions and lockfiles unchanged.
+Evidence: `scripts/ci/check_python_dependency_surfaces.py`, `verify_requirements.py`, dependency-surface tests, and dependency docs.
+Reason: Adds the PR-1 Python dependency surface contract and validator without changing package versions or lockfiles.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 
 ## Premortem Closure
@@ -96,8 +82,7 @@ leaving dependency versions and lockfiles unchanged.
 
 - Packet:
   `artifacts/orchestration/experiments/pr2023-dependency-surface-contract-oracle-v2.json`
-- Result:
-  `artifacts/orchestration/experiments/results/pr2023-dependency-surface-contract-oracle-result-v2.json`
+- Artifact: `artifacts/orchestration/experiments/results/pr2023-dependency-surface-contract-oracle-result-v2.json`
 - Status: accepted.
 - Runner mode: `oracle_only_governance_reviewer`.
 - Shared tree untouched: `true`.
