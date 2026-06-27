@@ -20,6 +20,7 @@ from app.bootstrap.route_family import (
 from app.effective_routes import (
     is_api_route_candidate,
     iter_effective_route_candidates,
+    route_endpoint_for_path_method,
     route_methods,
     route_path,
 )
@@ -1028,6 +1029,25 @@ def _has_route_path(app: FastAPI, path: str) -> bool:
     return any(route_path(route) == path for route in iter_effective_route_candidates(app.routes))
 
 
+def test_route_endpoint_for_path_method_rejects_duplicate_source_routes() -> None:
+    router = APIRouter()
+
+    async def _first() -> dict[str, str]:
+        return {"status": "first"}
+
+    async def _second() -> dict[str, str]:
+        return {"status": "second"}
+
+    router.post("/api/v1/source/duplicate")(_first)
+    router.post("/api/v1/source/duplicate")(_second)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate source route detected for POST /api/v1/source/duplicate",
+    ):
+        route_endpoint_for_path_method(router.routes, "/api/v1/source/duplicate", "POST")
+
+
 def test_bmi_registration_defaults_to_free_route_only_and_caches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1537,6 +1557,32 @@ def test_billing_registration_rejects_foreign_existing_handlers() -> None:
         match="Duplicate .* route detected with a different billing handler",
     ):
         register_billing_routes(app)
+
+
+def test_billing_registration_rejects_partial_existing_canonical_state() -> None:
+    from app.routers import billing as billing_module
+
+    app = FastAPI()
+    app.include_router(billing_module.billing_router)
+
+    with pytest.raises(RuntimeError, match="Partial billing routes detected"):
+        billing_module.register_billing_routes(app)
+
+
+def test_vip_route_registration_rejects_missing_fitchef_insight_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.routers.fitchef_insight as fitchef_insight_module
+    from app.routers.vip_registration import register_vip_routes
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setattr(fitchef_insight_module, "router", APIRouter())
+
+    with pytest.raises(
+        RuntimeError,
+        match="FitChef insight router does not define the expected POST route",
+    ):
+        register_vip_routes(FastAPI())
 
 
 def test_paywall_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:

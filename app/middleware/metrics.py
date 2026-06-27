@@ -401,7 +401,7 @@ def _route_template(request: Request) -> str:
             continue
         # Match by endpoint function identity (most reliable for nested routers)
         if route_endpoint(route) is endpoint:
-            path = route_path(route)
+            path = route_path(route).rstrip("/") or "/"
             if isinstance(path, str) and path and path.startswith("/"):
                 candidates.append(path)
 

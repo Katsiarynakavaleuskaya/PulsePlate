@@ -69,10 +69,14 @@ def route_endpoint_for_path_method(
     path: str,
     method: str,
 ) -> object | None:
+    resolved_endpoint: object | None = None
     for route in iter_effective_route_candidates(routes):
-        if route_matches_path_method(route, path, method):
-            return route_endpoint(route)
-    return None
+        if not route_matches_path_method(route, path, method):
+            continue
+        if resolved_endpoint is not None:
+            raise RuntimeError(f"Duplicate source route detected for {method.upper()} {path}.")
+        resolved_endpoint = route_endpoint(route)
+    return resolved_endpoint
 
 
 def route_ownership_counts(

@@ -62,6 +62,15 @@ Evidence: `app/effective_routes.py`, `app/bootstrap/pro_contracts.py`, `app/rout
 Reason: Closes post-open bug-hunter findings by rejecting foreign existing route owners for PRO contract, billing, and FitChef insight routes; asserting exact runtime dependency pins instead of accepting compatible ranges; and slicing the Faraday Trivy policy block to the specific CVE section.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> ddfb847d31e09991170c15363b1d3dcda3e81675
 
+Disposition: FIXED
+Commit: c829f79d72b2d7bdf3e8e35217dbc42bcdd813d5
+Evidence: `app/effective_routes.py`, `app/middleware/metrics.py`, `app/routers/billing.py`, `app/routers/vip_registration.py`, `tests/test_main_paywall_bootstrap.py`, `tests/test_metrics.py`, focused CodeRabbit regression tests, full `tests/test_main_paywall_bootstrap.py tests/test_metrics.py`, `ruff`, `mypy`, `pre-commit run --all-files`, and `make validate-changed` all passed.
+Reason: Closes CodeRabbit actionables by rejecting duplicate source route owners, failing closed on missing FitChef insight POST routes, rejecting partial preexisting billing route state, and normalizing metrics route labels before caching.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486513876 -> c829f79d72b2d7bdf3e8e35217dbc42bcdd813d5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486601869 -> c829f79d72b2d7bdf3e8e35217dbc42bcdd813d5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486601870 -> c829f79d72b2d7bdf3e8e35217dbc42bcdd813d5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#pullrequestreview-4585986171 -> c829f79d72b2d7bdf3e8e35217dbc42bcdd813d5
+
 Disposition: DEFERRED
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
 Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testclient` still uses the deprecated `httpx` backend when `httpx2` is absent; this PR tracks the migration decision instead of suppressing the warning broadly.
@@ -185,6 +194,17 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
   `Package.resolved`; scanner-lag suppression still reported as suppressed).
 - PASS: post-bug-hunter `pre-commit run --all-files`.
 - PASS: post-bug-hunter
+  `VENV_PYTHON=<repo>/.venv/bin/python DEV_PYTHON=<repo>/.venv/bin/python make validate-changed`.
+- PASS: CodeRabbit follow-up focused regression tests for duplicate source
+  route lookup, partial billing state, missing FitChef insight route, and
+  metrics trailing-slash normalization (`7 passed`, one known
+  Starlette/httpx2 warning).
+- PASS: full impacted `tests/test_main_paywall_bootstrap.py tests/test_metrics.py`
+  (`196 passed`, one known Starlette/httpx2 warning).
+- PASS: CodeRabbit follow-up `ruff check` and changed app-module
+  `mypy --no-incremental --cache-dir=/dev/null`.
+- PASS: CodeRabbit follow-up `pre-commit run --all-files`.
+- PASS: CodeRabbit follow-up
   `VENV_PYTHON=<repo>/.venv/bin/python DEV_PYTHON=<repo>/.venv/bin/python make validate-changed`.
 - PASS: pre-push hooks during `git push`, including `mypy`, `pip-audit`,
   backend pre-push pytest, full-repo Bandit, and docker build test.

@@ -127,6 +127,14 @@ def register_billing_routes(app: "FastAPI") -> APIRouter:
         path=_MANUAL_INTENT_ROUTE_PATH,
         endpoint=manual_intent_endpoint,
     )
+    if has_canonical_apple_verify and has_legacy_manual_intent:
+        return router
+    if has_canonical_apple_verify != has_legacy_manual_intent:
+        raise RuntimeError(
+            "Partial billing routes detected: "
+            f"has_apple_verify={has_canonical_apple_verify}, "
+            f"has_manual_intent={has_legacy_manual_intent}"
+        )
     if not has_canonical_apple_verify:
         app.include_router(billing_router)
     if not has_legacy_manual_intent:

@@ -130,14 +130,15 @@ def register_vip_routes(app: FastAPI) -> None:
         _FITCHEF_INSIGHT_ROUTE_PATH,
         "POST",
     )
-    if fitchef_insight_endpoint is not None:
-        if not _canonical_route_present(
-            app,
-            _FITCHEF_INSIGHT_ROUTE_PATH,
-            "POST",
-            fitchef_insight_endpoint,
-        ):
-            app.include_router(fitchef_insight_router)
+    if fitchef_insight_endpoint is None:
+        raise RuntimeError("FitChef insight router does not define the expected POST route.")
+    if not _canonical_route_present(
+        app,
+        _FITCHEF_INSIGHT_ROUTE_PATH,
+        "POST",
+        fitchef_insight_endpoint,
+    ):
+        app.include_router(fitchef_insight_router)
 
     from app.routers import vip as vip_module
     from app.routers.api_key import api_key_header

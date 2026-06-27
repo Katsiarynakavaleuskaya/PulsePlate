@@ -458,6 +458,37 @@ def test_metrics_route_template_unknown_without_router() -> None:
     assert _route_template(request_no_router) == "unknown"
 
 
+def test_metrics_route_template_normalizes_trailing_slash_before_cache() -> None:
+    from starlette.requests import Request
+
+    from app.middleware.metrics import _route_template
+
+    app_instance = FastAPI()
+
+    @app_instance.get("/api/v1/slash/")
+    async def _slash_route() -> dict[str, str]:
+        return {"status": "ok"}
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/slash/",
+        "raw_path": b"/api/v1/slash/",
+        "query_string": b"",
+        "headers": [],
+        "client": ("testclient", 123),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "http_version": "1.1",
+        "app": app_instance,
+        "endpoint": _slash_route,
+    }
+    request = Request(scope)
+
+    assert _route_template(request) == "/api/v1/slash"
+    assert _route_template(request) == "/api/v1/slash"
+
+
 @pytest.mark.asyncio
 async def test_metrics_middleware_noop_when_metrics_unavailable(
     monkeypatch: pytest.MonkeyPatch,
