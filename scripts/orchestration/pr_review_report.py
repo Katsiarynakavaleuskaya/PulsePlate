@@ -10,8 +10,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = "1.0.0"
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.review_source_status import summarize_degraded_sources
+
+SCHEMA_VERSION = "1.0.0"
 DEFAULT_ROLE_ORDER = [
     "agent-coordinator",
     "architecture-specialist",
@@ -28,6 +33,7 @@ FALSE_POSITIVE_CONTROLS = (
     "clean context must produce zero findings",
     "benign fixed-mapping presence must not become a governance finding",
     "warnings are advisory NEEDS-HUMAN findings, not auto-postable comments",
+    "review-source degradation is status/warning only unless an explicit blocking source finding exists",
     "large diff risk is review-planning evidence, not a merge-readiness claim",
 )
 
@@ -156,6 +162,30 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
             )
         )
 
+    review_sources = [
+        item for item in _as_list(context.get("review_source_status")) if isinstance(item, dict)
+    ]
+    for blocking_source in [item for item in review_sources if bool(item.get("blocking"))]:
+        findings.append(
+            Finding(
+                severity="note",
+                role_agent="agent-coordinator",
+                category="governance",
+                file="scripts/orchestration/review_source_status.py",
+                line=None,
+                evidence=(
+                    "Review source has explicit blocking status: "
+                    f"{blocking_source.get('source')}={blocking_source.get('status')}"
+                ),
+                suggested_fix=(
+                    "Fix or disposition the underlying fallback finding, failed required check, "
+                    "unresolved thread, or actionable bot comment before readiness claims."
+                ),
+                gate_to_run="python3 scripts/orchestration/pr_review_context.py --pr <PR_NUMBER>",
+                disposition_candidate="NEEDS-HUMAN",
+            )
+        )
+
     agents_discovery = context.get("agents_discovery")
     scoped_agents = []
     if isinstance(agents_discovery, dict):
@@ -257,6 +287,9 @@ def _build_gate_plan(context: dict[str, Any], findings: list[Finding]) -> list[s
 
 def _build_calibration(context: dict[str, Any], findings: list[Finding]) -> dict[str, Any]:
     warnings = _dedupe_strings(_as_list(context.get("warnings")))
+    degraded_sources = summarize_degraded_sources(
+        [item for item in _as_list(context.get("review_source_status")) if isinstance(item, dict)]
+    )
     categories = {finding.category for finding in findings}
     case_labels: list[str] = []
     has_large_diff_risk = any(
@@ -271,6 +304,8 @@ def _build_calibration(context: dict[str, Any], findings: list[Finding]) -> dict
         case_labels.append("clean-context")
     if warnings:
         case_labels.append("warning-bearing-context")
+    if degraded_sources:
+        case_labels.append("review-source-degraded")
     if "governance" in categories:
         case_labels.append("governance-finding")
     if has_large_diff_risk:
@@ -302,6 +337,7 @@ def build_report(
             "role_order": DEFAULT_ROLE_ORDER,
         },
         "scope_reviewed": _build_scope(context),
+        "review_source_status": _as_list(context.get("review_source_status")),
         "findings_count": len(findings),
         "findings": [asdict(finding) for finding in findings],
         "calibration": _build_calibration(context, findings),
@@ -365,6 +401,25 @@ def render_markdown(report: dict[str, Any]) -> str:
                 f"  - Disposition candidate: `{_format_value(finding.get('disposition_candidate'))}`",
             ]
         )
+    lines.extend(["", "## Review Source Status"])
+    source_status = report.get("review_source_status") or []
+    if source_status:
+        for source in source_status:
+            if not isinstance(source, dict):
+                continue
+            lines.append(
+                "- "
+                f"`{_format_value(source.get('source'))}`: "
+                f"`{_format_value(source.get('status'))}`; "
+                f"source-degraded `{str(bool(source.get('source_degraded'))).lower()}`; "
+                f"fallback-required `{str(bool(source.get('fallback_required'))).lower()}`; "
+                f"blocking `{str(bool(source.get('blocking'))).lower()}`"
+            )
+            reason = _format_value(source.get("reason"))
+            if reason:
+                lines.append(f"  - Reason: {reason}")
+    else:
+        lines.append("- No review-source status supplied.")
     lines.extend(["", "## Calibration"])
     calibration = report["calibration"]
     lines.append(f"- Rubric version: `{calibration['rubric_version']}`")

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PulsePlate Review Pattern Oracles",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "authority_boundary",
+    "side_effects_allowed",
+    "posting_allowed",
+    "thread_resolution_allowed",
+    "merge_readiness_authority",
+    "oracle_ids",
+    "input_fingerprint",
+    "matches"
+  ],
+  "properties": {
+    "schema_version": { "const": "review_pattern_oracles.v1" },
+    "authority_boundary": { "const": "proposal_only_non_canonical" },
+    "side_effects_allowed": { "const": false },
+    "posting_allowed": { "const": false },
+    "thread_resolution_allowed": { "const": false },
+    "merge_readiness_authority": { "const": false },
+    "oracle_ids": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "schema_validator_parity",
+          "fail_closed_security_edge",
+          "deterministic_content_oracle",
+          "canonical_route_ownership_guard",
+          "evidence_hygiene_mapping_timing",
+          "review_source_degraded"
+        ]
+      },
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "input_fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["oracle_id", "title", "matched_terms", "required_evidence"],
+        "properties": {
+          "oracle_id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "matched_terms": { "type": "array", "items": { "type": "string" } },
+          "required_evidence": { "type": "array", "items": { "type": "string" } },
+          "authority_boundary": { "const": "proposal_only_non_canonical" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

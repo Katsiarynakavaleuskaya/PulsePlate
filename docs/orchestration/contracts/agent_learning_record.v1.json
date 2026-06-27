@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PulsePlate Agent Learning Record",
+  "type": "object",
+  "required": [
+    "lesson_id",
+    "source",
+    "pattern",
+    "severity",
+    "affected_surfaces",
+    "root_cause",
+    "required_oracle",
+    "promotion_target",
+    "dedupe_fingerprint",
+    "redaction_status",
+    "human_review_required"
+  ],
+  "properties": {
+    "lesson_id": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "pattern": { "type": "string", "minLength": 1 },
+    "severity": { "enum": ["low", "medium", "high", "critical"] },
+    "affected_surfaces": { "type": "array", "items": { "type": "string" } },
+    "root_cause": { "type": "string", "minLength": 1 },
+    "required_oracle": { "type": "string", "minLength": 1 },
+    "promotion_target": { "type": "string", "minLength": 1 },
+    "dedupe_fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "redaction_status": { "enum": ["clean", "redacted"] },
+    "human_review_required": { "const": true }
+  },
+  "additionalProperties": false
+}

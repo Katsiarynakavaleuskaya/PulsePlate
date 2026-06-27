@@ -47,6 +47,17 @@ def _base_context() -> dict[str, object]:
             "no_actionable": True,
             "errors": [],
         },
+        "review_source_status": [
+            {
+                "source": "github_pr_metadata",
+                "status": "available",
+                "source_degraded": False,
+                "fallback_required": False,
+                "blocking": False,
+                "reason": "",
+                "evidence": "gh api repos/<repo>/pulls/<pr>",
+            }
+        ],
         "test_suggestions": ["python3 scripts/orchestration/check_preflight.py"],
         "warnings": [],
     }
@@ -68,6 +79,7 @@ def test_build_report_has_no_findings_for_complete_context() -> None:
     assert report["calibration"]["posting_eligible"] is False
     assert report["coordinator_packet"]["task_packet_id"] == "packet-1"
     assert report["coordinator_packet"]["role_order"] == report_runner.DEFAULT_ROLE_ORDER
+    assert report["review_source_status"][0]["source_degraded"] is False
     assert "GitHub posting" in report["scope_reviewed"]["omitted_surfaces"]
 
 
@@ -77,6 +89,17 @@ def test_build_report_flags_missing_metadata_mapping_and_agents() -> None:
     context["fixed_mapping"] = {"exists": False}
     context["agents_discovery"] = {"scoped_agents_md": [], "files_seen": []}
     context["warnings"] = ["Cannot read PR metadata: repository slug unavailable."]
+    context["review_source_status"] = [
+        {
+            "source": "github_pr_metadata",
+            "status": "unavailable",
+            "source_degraded": True,
+            "fallback_required": True,
+            "blocking": False,
+            "reason": "PR metadata unavailable",
+            "evidence": "",
+        }
+    ]
 
     report = report_runner.build_report(context)
     findings = report["findings"]
@@ -90,8 +113,52 @@ def test_build_report_flags_missing_metadata_mapping_and_agents() -> None:
     assert all(finding["disposition_candidate"] == "NEEDS-HUMAN" for finding in findings)
     assert report["calibration"]["case_labels"] == [
         "warning-bearing-context",
+        "review-source-degraded",
         "governance-finding",
     ]
+
+
+def test_degraded_review_source_status_is_not_a_finding_by_itself() -> None:
+    context = _base_context()
+    context["review_source_status"] = [
+        {
+            "source": "coderabbit",
+            "status": "rate_limited",
+            "source_degraded": True,
+            "fallback_required": True,
+            "blocking": False,
+            "reason": "usage limit reached",
+            "evidence": "local dry-run fallback",
+        }
+    ]
+
+    report = report_runner.build_report(context)
+
+    assert report["findings"] == []
+    assert report["calibration"]["case_labels"] == [
+        "clean-context",
+        "review-source-degraded",
+    ]
+
+
+def test_blocking_review_source_status_becomes_governance_finding() -> None:
+    context = _base_context()
+    context["review_source_status"] = [
+        {
+            "source": "coderabbit",
+            "status": "actionable_bot_comments",
+            "source_degraded": False,
+            "fallback_required": True,
+            "blocking": True,
+            "reason": "bot reported actionable comments",
+            "evidence": "review source summary",
+        }
+    ]
+
+    report = report_runner.build_report(context)
+
+    assert report["findings_count"] == 1
+    assert report["findings"][0]["file"] == "scripts/orchestration/review_source_status.py"
 
 
 def test_build_report_keeps_false_positive_controls_for_benign_context() -> None:
@@ -184,6 +251,7 @@ def test_render_markdown_contains_required_sections() -> None:
     assert "## Coordinator Packet" in markdown
     assert "## Scope Reviewed" in markdown
     assert "## Findings" in markdown
+    assert "## Review Source Status" in markdown
     assert "## Calibration" in markdown
     assert "## Deferred / Follow-ups" in markdown
     assert "## Warnings" in markdown
@@ -192,6 +260,7 @@ def test_render_markdown_contains_required_sections() -> None:
     assert "Posting gate: GitHub posting remains out of scope" in markdown
     assert "False-positive controls:" in markdown
     assert "clean context must produce zero findings" in markdown
+    assert "source-degraded `false`; fallback-required `false`; blocking `false`" in markdown
     assert "agent-coordinator -> architecture-specialist" in markdown
 
 

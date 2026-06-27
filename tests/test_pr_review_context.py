@@ -96,3 +96,9 @@ def test_collect_review_context_missing_pr_metadata_and_mapping(
     assert any("Cannot read PR metadata" in warning for warning in context["warnings"])
     assert any("Fixed-mapping artifact is missing" in warning for warning in context["warnings"])
     assert context["fixed_mapping"]["exists"] is False
+    by_source = {item["source"]: item for item in context["review_source_status"]}
+    assert by_source["github_pr_metadata"]["status"] == "unavailable"
+    assert by_source["github_pr_metadata"]["source_degraded"] is True
+    assert by_source["github_pr_metadata"]["fallback_required"] is True
+    assert by_source["github_pr_metadata"]["blocking"] is False
+    assert by_source["fixed_mapping_artifact"]["blocking"] is False

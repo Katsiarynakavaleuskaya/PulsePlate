@@ -155,7 +155,7 @@ metadata, screenshot-pack, App Privacy, or release-evidence intent.
 
 | Lane | Default Skills | Conditional Skills |
 |------|----------------|--------------------|
-| Orchestration / agent workflow | `pulseplate-workflow`, `docs-sync`, `agents-md`, `pulseplate-gates` | `pulseplate-guards`, `pulseplate-pr-review`, `pulseplate-premortem-risk-review`, `pulseplate-agent-product`, `code-review-expert`, `create-pr` |
+| Orchestration / agent workflow | `pulseplate-workflow`, `docs-sync`, `agents-md`, `pulseplate-gates` | `pulseplate-guards`, `pulseplate-pr-review`, `pulseplate-review-pattern-oracles`, `pulseplate-agent-learning-loop`, `pulseplate-premortem-risk-review`, `pulseplate-agent-product`, `code-review-expert`, `create-pr` |
 | Experimentation / eval / optimization | `pulseplate-workflow`, `docs-sync`, `pulseplate-gates` | `bug-triage`, `code-review-expert`, `pulseplate-premortem-risk-review`, `openai-docs` |
 | Backend / API / contracts | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` | `bug-triage`, `security-best-practices`, `openai-docs` |
 | Frontend / web UX | `pulseplate-frontend-ui`, `pulseplate-gates`, `build-web-apps:frontend-skill` | `pulseplate-web-launch-site`, `pulseplate-playwright-e2e`, `playwright`, `figma`, `figma-implement-design`, `vercel-react-best-practices`, `build-web-apps:web-design-guidelines`, `build-web-apps:react-best-practices` |
@@ -195,6 +195,21 @@ Companion note:
 - `cybersecurity-skills` is intentionally companion/manual-only guidance for `security-auditor`.
 - It must not be emitted as a deterministic `recommended_skills` slug by `scripts/orchestration/skill_router.py`.
 - If a security review needs one of those specialized playbooks, the coordinator or reviewer may invoke it deliberately after routing resolves.
+
+### 3b. Review Oracles and Learning Loop Skills
+
+`pulseplate-review-pattern-oracles` and `pulseplate-agent-learning-loop` are
+repo-tracked, offline, deterministic helpers. They are advisory by design:
+they must not post GitHub comments, resolve threads, update fixed mapping,
+claim merge readiness, mutate product runtime, or become canonical learning
+without a reviewed repo diff.
+
+Canonical contracts:
+
+- `docs/orchestration/REVIEW_PATTERN_ORACLES.md`
+- `docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md`
+- `docs/orchestration/SCOPED_VALIDATION_POLICY.md`
+- `docs/orchestration/AGENT_LEARNING_LOOP.md`
 
 ---
 

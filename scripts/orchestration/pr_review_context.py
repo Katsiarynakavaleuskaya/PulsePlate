@@ -10,12 +10,18 @@ import os
 import shutil
 import shlex
 import subprocess  # nosec B404: fixed command execution only, bounded to internal helper paths (remove-by: 2026-12-31, ref: ledger-p2-pulseplate-pr-review-context-collector)
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.review_source_status import build_review_source_status
+
 SCHEMA_VERSION = "1.0.0"
 
 AGENTS_BASENAME = "AGENTS.md"
@@ -379,6 +385,28 @@ def collect_review_context(
         if not fixed_mapping.get("exists"):
             warnings.append("Fixed-mapping artifact is missing for this PR.")
 
+    review_source_status = [
+        build_review_source_status(
+            source="github_pr_metadata",
+            available=pr_metadata is not None,
+            reason="" if pr_metadata is not None else "PR metadata unavailable",
+            evidence="gh api repos/<repo>/pulls/<pr>",
+        ),
+        build_review_source_status(
+            source="git_diff",
+            available=bool(changed_file_stats) or not diff_warnings,
+            degraded=bool(diff_warnings),
+            reason="; ".join(diff_warnings),
+            evidence=f"{diff_base}..{diff_head}" if diff_base and diff_head else "",
+        ),
+        build_review_source_status(
+            source="fixed_mapping_artifact",
+            available=bool(fixed_mapping.get("exists")),
+            reason="" if fixed_mapping.get("exists") else "Fixed-mapping artifact unavailable",
+            evidence=str(fixed_mapping.get("path") or ""),
+        ),
+    ]
+
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -398,6 +426,7 @@ def collect_review_context(
             "files_seen": changed_files,
         },
         "fixed_mapping": fixed_mapping,
+        "review_source_status": review_source_status,
         "test_suggestions": _suggest_tests(
             changed_files=changed_files,
             fixed_mapping_exists=bool(fixed_mapping.get("exists")),

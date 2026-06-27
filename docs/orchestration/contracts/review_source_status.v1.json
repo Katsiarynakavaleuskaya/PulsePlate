@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PulsePlate Review Source Status",
+  "type": "object",
+  "required": [
+    "source",
+    "status",
+    "source_degraded",
+    "fallback_required",
+    "blocking",
+    "reason",
+    "evidence"
+  ],
+  "properties": {
+    "source": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "minLength": 1 },
+    "source_degraded": { "type": "boolean" },
+    "fallback_required": { "type": "boolean" },
+    "blocking": { "type": "boolean" },
+    "reason": { "type": "string" },
+    "evidence": { "type": "string" }
+  },
+  "additionalProperties": false
+}
