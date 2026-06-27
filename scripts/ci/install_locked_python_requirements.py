@@ -443,6 +443,53 @@ def _collect_exact_requirement_pins(lines: Sequence[str]) -> set[str]:
     return exact_pins
 
 
+def _collect_unmarked_exact_requirement_pin_versions(
+    lines: Sequence[str],
+) -> dict[str, set[str]]:
+    """Return package -> exact versions for unmarked requirement pins."""
+    exact_versions: dict[str, set[str]] = {}
+    for line in lines:
+        stripped = line.split("#", 1)[0].strip().lower()
+        if (
+            not stripped
+            or ";" in stripped
+            or stripped.startswith(("-r ", "--requirement ", "-c ", "--constraint "))
+        ):
+            continue
+        match = re.fullmatch(
+            r"([a-z0-9][a-z0-9._-]*)(?:\[[^]]+\])?\s*==\s*([^,;\s]+)",
+            stripped,
+        )
+        if match is None:
+            continue
+        package = re.sub(r"[-_.]+", "-", match.group(1))
+        exact_versions.setdefault(package, set()).add(match.group(2))
+    return exact_versions
+
+
+def _constraint_line_repeats_exact_min_floor(
+    line: str,
+    *,
+    exact_versions_by_package: dict[str, set[str]],
+) -> bool:
+    """Return True for package>=version constraints already enforced by package==version."""
+    stripped = line.split("#", 1)[0].strip().lower()
+    if (
+        not stripped
+        or ";" in stripped
+        or stripped.startswith(("-r ", "--requirement ", "-c ", "--constraint "))
+    ):
+        return False
+    match = re.fullmatch(
+        r"([a-z0-9][a-z0-9._-]*)(?:\[[^]]+\])?\s*>=\s*([^,;\s]+)",
+        stripped,
+    )
+    if match is None:
+        return False
+    package = re.sub(r"[-_.]+", "-", match.group(1))
+    return match.group(2) in exact_versions_by_package.get(package, set())
+
+
 def _requirement_line_package_name(line: str) -> str | None:
     """Return the normalized package name requested by a requirement-like line."""
     stripped = line.split("#", 1)[0].strip().lower()
@@ -1006,6 +1053,7 @@ def effective_constraints_file_for_requirement(
 
     requirement_lines = requirement_file.read_text(encoding="utf-8").splitlines()
     requirement_exact_pins = _collect_exact_requirement_pins(requirement_lines)
+    exact_versions_by_package = _collect_unmarked_exact_requirement_pin_versions(requirement_lines)
     if not requirement_exact_pins:
         yield validated_constraints_file
         return
@@ -1017,7 +1065,12 @@ def effective_constraints_file_for_requirement(
     removed_redundant_constraint = False
     for line in constraint_lines:
         normalized_line = line.split("#", 1)[0].strip().lower()
-        if normalized_line and normalized_line in requirement_exact_pins:
+        if (normalized_line and normalized_line in requirement_exact_pins) or (
+            _constraint_line_repeats_exact_min_floor(
+                line,
+                exact_versions_by_package=exact_versions_by_package,
+            )
+        ):
             removed_redundant_constraint = True
             continue
         filtered_constraint_lines.append(line)

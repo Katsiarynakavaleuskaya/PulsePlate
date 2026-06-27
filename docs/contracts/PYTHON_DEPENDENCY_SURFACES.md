@@ -57,6 +57,11 @@ Shared GitHub Actions install profiles are limited to:
 They are local/manual surfaces only, even though they are audited and submitted
 for dependency graph visibility.
 
+The locked installer may elide an equal minimum floor, such as
+`package>=1.2.3`, only when the same selected requirement surface already pins
+`package==1.2.3` without markers. Lower or stricter security floors must remain
+in the effective constraints file so unsafe exact pins fail closed.
+
 ## Validation Rules
 
 The validator fails when:

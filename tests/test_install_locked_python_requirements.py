@@ -1705,6 +1705,26 @@ def test_effective_constraints_file_for_requirement_keeps_floor_for_exact_pin(
         )
 
 
+def test_effective_constraints_file_for_requirement_drops_equal_min_floor_for_exact_pin(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text(
+        "aiosqlite>=0.22.1\nmako>=1.3.12\n",
+        encoding="utf-8",
+    )
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints is not None
+        assert effective_constraints != constraints
+        assert effective_constraints.read_text(encoding="utf-8") == "mako>=1.3.12\n"
+
+
 def test_effective_constraints_file_for_requirement_keeps_security_floor_for_lower_exact_pin(
     tmp_path: Path,
 ) -> None:
@@ -1835,6 +1855,41 @@ def test_install_from_proxy_preserves_floor_constraint_for_exact_pin(
     constraint_path = Path(observed_commands[0][observed_commands[0].index("--constraint") + 1])
     assert constraint_path == constraints
     assert constraint_path.read_text(encoding="utf-8") == "openai>=2.8.1\n"
+
+
+def test_install_from_proxy_omits_equal_min_floor_for_exact_pin(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text("aiosqlite>=0.22.1\nmako>=1.3.12\n", encoding="utf-8")
+    observed_commands: list[list[str]] = []
+    observed_constraint_texts: list[str] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+        if "--constraint" not in command:
+            return
+        constraint_path = Path(command[command.index("--constraint") + 1])
+        observed_constraint_texts.append(constraint_path.read_text(encoding="utf-8"))
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+
+    installer.install_from_proxy(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=constraints,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host="packages.example.internal",
+    )
+
+    assert len(observed_commands) == 1
+    assert "--constraint" in observed_commands[0]
+    constraint_path = Path(observed_commands[0][observed_commands[0].index("--constraint") + 1])
+    assert constraint_path != constraints
+    assert observed_constraint_texts == ["mako>=1.3.12\n"]
 
 
 def test_build_wheelhouse_preserves_non_duplicate_constraints(
