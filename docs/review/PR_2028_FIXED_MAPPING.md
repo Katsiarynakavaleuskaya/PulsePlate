@@ -34,7 +34,9 @@
 - Focused pytest for review oracles, review-source status, PR review context/reporting, skill routing, task bootstrap, skill install/mirror, and symlink integrity
 - `make validate-changed`
 - `pre-commit run --all-files`
+- `pre-commit run mypy --hook-stage pre-push --files scripts/orchestration/pr_review_context.py`
 - `git diff --check`
+- Pre-push hooks from `git push origin feat/orchestration-review-fallback-learning-loop`
 - Full `make verify` was attempted but stopped at `verify-env` because this isolated worktree has no local `.venv`; this PR does not claim merge readiness from local gates alone.
 
 ## Post-Open Review Evidence
@@ -42,8 +44,10 @@
 - `qa-engineer-agent`: PASS after fixing review-source/fixed-mapping governance validation in `d3fd0fdec`.
 - `bug-hunter`: PASS after fixing JSON stdout hygiene, stale fixed-mapping degradation, schema enum/path constraints, and local-path rejection in `4d6deb2b3`.
 - `security-auditor`: PASS after fixing GitHub token-family redaction and URI/path rejection in `f8dcd8740`.
-- Codex Security diff scan / finding discovery: PASS, scan `881032b6-844f-4109-b5d1-236837c8f551`, 9/9 coverage rows closed, 0 reportable findings, report `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-Hmdu7f/orchestration-review-fallback-learning-loop/f8dcd8740b609894e47418a90a99b1ea3a502b7d_20260627T090451Z_uug73qnj/report.md`.
-- `pulseplate-pr-review`: pending final rerun after this mapping evidence is committed and pushed so the PR head matches local post-open evidence.
+- Codex Security diff scan / finding discovery: PASS on current head `34d2f2cf`, scan `2392ac75-a730-4d2a-94a2-4cc281de9c07`, 9/9 coverage rows closed, 0 reportable findings, report `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-Hmdu7f/orchestration-review-fallback-learning-loop/34d2f2cf86ecba74d3fbdf1b79c38d3101f9e145_20260627T092340Z_rmh8spid/report.md`.
+- `pulseplate-pr-review`: completed on current head `34d2f2cf`; review-source status clean, no blocking findings.
+- `pulseplate-pr-review` note disposition: NOT-A-BUG.
+  Evidence: PR plan explicitly locks the four governance blocks into one intentional PR, and local scoped gates (`make validate-changed`, `pre-commit run --all-files`, pre-push hooks) passed. The note is a review-planning signal for large diff size, not a defect in the current implementation.
 
 ## Merge Readiness
 - Not claimed.
