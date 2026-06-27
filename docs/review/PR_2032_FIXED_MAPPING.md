@@ -61,6 +61,9 @@ Commit: ddfb847d31e09991170c15363b1d3dcda3e81675
 Evidence: `app/effective_routes.py`, `app/bootstrap/pro_contracts.py`, `app/routers/billing.py`, `app/routers/vip_registration.py`, `tests/test_main_paywall_bootstrap.py`, `tests/test_python_supply_chain_controls.py`, `tests/test_trivy_ignore_policy_expiry.py`, full `tests/test_main_paywall_bootstrap.py`, focused bug-hunter regression tests, `pre-commit run --all-files`, `make validate-changed`, dependency-surface validators, and fail-closed local Trivy `ios` scan all passed.
 Reason: Closes post-open bug-hunter findings by rejecting foreign existing route owners for PRO contract, billing, and FitChef insight routes; asserting exact runtime dependency pins instead of accepting compatible ranges; and slicing the Faraday Trivy policy block to the specific CVE section.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> ddfb847d31e09991170c15363b1d3dcda3e81675
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486513877 -> ddfb847d31e09991170c15363b1d3dcda3e81675
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486513878 -> ddfb847d31e09991170c15363b1d3dcda3e81675
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486513879 -> ddfb847d31e09991170c15363b1d3dcda3e81675
 
 Disposition: FIXED
 Commit: bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
