@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_include_in_schema,
+    route_path,
+)
 from app.main import app
 from app.routers.test import TEST_ROUTE_SPECS
 from app.routers.admin_operations import ADMIN_OPERATION_ROUTE_SPECS
@@ -30,7 +35,7 @@ def _openapi_paths() -> list[str]:
 
 
 def _runtime_paths() -> set[str]:
-    return {str(getattr(route, "path", "")) for route in app.routes}
+    return {route_path(route) for route in iter_effective_route_candidates(app.routes)}
 
 
 def _is_allowed_path(path: str) -> bool:
@@ -81,28 +86,30 @@ def test_admin_debug_runtime_routes_stay_hidden_from_openapi_schema() -> None:
     runtime_paths = _runtime_paths()
     paths = set(_openapi_paths())
 
-    for route_path, _method in ADMIN_OPERATION_ROUTE_SPECS:
-        assert route_path in runtime_paths
-        assert route_path not in paths
+    for admin_route_path, _method in ADMIN_OPERATION_ROUTE_SPECS:
+        assert admin_route_path in runtime_paths
+        assert admin_route_path not in paths
 
 
 def test_test_runtime_routes_stay_hidden_from_openapi_schema() -> None:
     runtime_paths = _runtime_paths()
     paths = set(_openapi_paths())
 
-    for route_path, _method, _include_in_schema in TEST_ROUTE_SPECS:
-        assert route_path in runtime_paths
-        assert route_path not in paths
+    for test_route_path, _method, _include_in_schema in TEST_ROUTE_SPECS:
+        assert test_route_path in runtime_paths
+        assert test_route_path not in paths
 
 
 def test_users_routes_are_hidden_from_schema_at_registration_level() -> None:
     users_routes = [
-        route for route in app.routes if str(getattr(route, "path", "")).startswith("/api/v1/users")
+        route
+        for route in iter_effective_route_candidates(app.routes)
+        if route_path(route).startswith("/api/v1/users")
     ]
 
     assert users_routes, "users routes should remain registered at runtime"
     assert all(
-        getattr(route, "include_in_schema", True) is False for route in users_routes
+        route_include_in_schema(route) is False for route in users_routes
     ), "users routes must stay hidden from public schema"
 
 

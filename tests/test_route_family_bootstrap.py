@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, FastAPI, WebSocket
 from app.bootstrap.route_family import (
     RouteMemberContract,
     ensure_route_family_registered,
+    route_member_contracts_from_router,
     route_has_dependency_call,
     same_callable_by_module_and_qualname,
 )
@@ -110,9 +111,15 @@ def _ensure(
 
 
 def _matching_routes(app: FastAPI, member: RouteMemberContract) -> list[object]:
+    candidates: list[object] = []
+    for route in app.routes:
+        if type(route).__name__ == "_IncludedRouter":
+            candidates.extend(route.effective_route_contexts())
+        else:
+            candidates.append(route)
     return [
         route
-        for route in app.routes
+        for route in candidates
         if getattr(route, "path", None) == member.path
         and member.method in (getattr(route, "methods", None) or set())
     ]
@@ -175,6 +182,27 @@ def test_static_route_family_rejects_non_http_source_routes() -> None:
         match="Static family router does not define the expected route family",
     ):
         _ensure(FastAPI(), _family_routers(include_websocket=True))
+
+
+def test_static_route_family_contract_builder_ignores_fastapi_included_router_marker() -> None:
+    child_router = APIRouter()
+
+    async def _child_handler() -> dict[str, str]:
+        return {"status": "ok"}
+
+    child_router.get("/api/v1/static-family/child")(_child_handler)
+    parent_router = APIRouter()
+    parent_router.include_router(child_router)
+
+    assert any(type(route).__name__ == "_IncludedRouter" for route in parent_router.routes)
+
+    assert route_member_contracts_from_router("Static family", parent_router) == (
+        RouteMemberContract(
+            path="/api/v1/static-family/child",
+            method="GET",
+            include_in_schema=True,
+        ),
+    )
 
 
 def test_static_route_family_registration_is_idempotent() -> None:

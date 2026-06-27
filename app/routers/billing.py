@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
+from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
 from app.routers.api_key import api_key_header
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
@@ -83,15 +84,15 @@ _RESPONSE_422_VALIDATION_OR_PAYMENT = {
 
 def register_billing_routes(app: "FastAPI") -> APIRouter:
     """Register canonical billing routes idempotently on the provided app."""
-    routes = getattr(app, "routes", None) or []
+    routes = tuple(iter_effective_route_candidates(getattr(app, "routes", None) or []))
     has_canonical_apple_verify = any(
-        getattr(route, "path", None) == "/api/v1/billing/apple/verify-receipt"
-        and "POST" in (getattr(route, "methods", None) or set())
+        route_path(route) == "/api/v1/billing/apple/verify-receipt"
+        and "POST" in route_methods(route)
         for route in routes
     )
     has_legacy_manual_intent = any(
-        getattr(route, "path", None) == "/api/v1/pro/payments/ru-by/manual-intent"
-        and "POST" in (getattr(route, "methods", None) or set())
+        route_path(route) == "/api/v1/pro/payments/ru-by/manual-intent"
+        and "POST" in route_methods(route)
         for route in routes
     )
     if not has_canonical_apple_verify:

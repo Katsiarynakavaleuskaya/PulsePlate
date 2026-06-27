@@ -21,9 +21,15 @@ from time import monotonic, perf_counter
 from typing import Any, Callable, Protocol, cast
 
 from fastapi import Request
-from fastapi.routing import APIRoute
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
+
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -390,12 +396,12 @@ def _route_template(request: Request) -> str:
 
     # Collect all candidate routes for this endpoint
     candidates: list[str] = []
-    for r in routes:
-        if not isinstance(r, APIRoute):
+    for route in iter_effective_route_candidates(routes):
+        if not is_api_route_candidate(route):
             continue
         # Match by endpoint function identity (most reliable for nested routers)
-        if getattr(r, "endpoint", None) is endpoint:
-            path = getattr(r, "path", None)
+        if route_endpoint(route) is endpoint:
+            path = route_path(route)
             if isinstance(path, str) and path and path.startswith("/"):
                 candidates.append(path)
 

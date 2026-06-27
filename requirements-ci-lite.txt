@@ -93,7 +93,7 @@ email-validator==2.3.0
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
-fastapi==0.136.1
+fastapi==0.138.1
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
@@ -283,13 +283,13 @@ pycparser==2.23
     # via
     #   -c requirements.txt
     #   cffi
-pydantic==2.12.5
+pydantic==2.13.4
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
     #   fastapi
     #   openai
-pydantic-core==2.41.5
+pydantic-core==2.46.4
     # via
     #   -c requirements.txt
     #   pydantic

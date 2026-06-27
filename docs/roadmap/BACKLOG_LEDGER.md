@@ -871,7 +871,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: `PR-TBD` (follow-up after main Docker/CD proxy unblock)
   - Status: Active as of `16 June 2026`; PR-TBD hotfix rotates `cryptography` and `python-multipart` fallback artifacts after Safety `SFTY-20260615-*` findings.
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the runtime-effective emergency wheel fallback set still covers multiple active bootstrap/runtime dependency surfaces (including `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `requests 2.33.0`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `pydantic-core 2.41.5`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `jiter 0.12.0`, `mypy 2.1.0`, and `types-pyyaml 6.0.12.20260408`). `PR #1378`, `PR #1418`, the main Docker/CD proxy unblock, the main CI protobuf/wrapt mirror-lag hotfix, the approved RAG/vector dependency consolidation, and the June 2026 Safety hotfix extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every runtime-effective fallback entry natively. `transformers` was retired from the emergency fallback set after the approved private proxy served `transformers==5.12.0`; `sentence-transformers` was retired after the approved private proxy served `sentence-transformers==5.6.0`. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и runtime-effective emergency wheel fallback set всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces, включая `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `pydantic-core 2.41.5`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `jiter 0.12.0`, `mypy 2.1.0` и `types-pyyaml 6.0.12.20260408`. Удалять manifest можно только после того, как одобренное приватное зеркало начнёт отдавать всё ещё активные fallback-entry нативно. `transformers` удалён из emergency fallback set после подтверждения, что одобренное приватное зеркало отдаёт `transformers==5.12.0`; `sentence-transformers` удалён после подтверждения, что одобренное приватное зеркало отдаёт `sentence-transformers==5.6.0`.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the runtime-effective emergency wheel fallback set still covers multiple active bootstrap/runtime dependency surfaces (including `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `requests 2.33.0`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `pydantic-core 2.46.4`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `jiter 0.12.0`, `mypy 2.1.0`, and `types-pyyaml 6.0.12.20260408`). `PR #1378`, `PR #1418`, the main Docker/CD proxy unblock, the main CI protobuf/wrapt mirror-lag hotfix, the approved RAG/vector dependency consolidation, and the June 2026 Safety hotfix extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every runtime-effective fallback entry natively. `transformers` was retired from the emergency fallback set after the approved private proxy served `transformers==5.12.0`; `sentence-transformers` was retired after the approved private proxy served `sentence-transformers==5.6.0`. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и runtime-effective emergency wheel fallback set всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces, включая `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `pydantic-core 2.46.4`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `jiter 0.12.0`, `mypy 2.1.0` и `types-pyyaml 6.0.12.20260408`. Удалять manifest можно только после того, как одобренное приватное зеркало начнёт отдавать всё ещё активные fallback-entry нативно. `transformers` удалён из emergency fallback set после подтверждения, что одобренное приватное зеркало отдаёт `transformers==5.12.0`; `sentence-transformers` удалён после подтверждения, что одобренное приватное зеркало отдаёт `sentence-transformers==5.6.0`.)
   - Links:
     - `docs/security/SFTY-20260615-python-runtime-floors.md:1`
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
@@ -886,7 +886,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`,
       `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`,
       `certifi 2026.1.4`, `jiter 0.12.0`, `requests 2.33.0`, `protobuf 6.33.5`,
-      `pydantic-core 2.41.5`, `wrapt 2.0.1`,
+      `pydantic-core 2.46.4`, `wrapt 2.0.1`,
       `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `faker 40.15.0`,
       `hypothesis 6.152.4`, `mypy 2.1.0`, `ruff 0.15.13`,
       and `types-pyyaml 6.0.12.20260408`.
@@ -2313,7 +2313,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: 📋 Planned
   - Area: backend / CI / contracts
   - Finding Type: dependency-compatibility gap
-  - Reason (EN): The repo already depends on FastAPI, Pydantic v2, and Starlette/httpx behavior, but it has no canonical CI bundle that explicitly guards strict JSON content-type handling, OpenAPI/root_path drift, nullable-required schema semantics, and TestClient behavior changes during dependency bumps.
+  - Reason (EN): The repo already depends on FastAPI, Pydantic v2, and Starlette/httpx behavior, but it has no canonical CI bundle that explicitly guards strict JSON content-type handling, OpenAPI/root_path drift, nullable-required schema semantics, and TestClient behavior changes during dependency bumps. PR2 dependency refresh surfaced `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated; install httpx2 instead`, so the follow-up must decide and test the repo's TestClient/httpx2 migration path instead of suppressing the warning broadly.
   - Links:
     - `README.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
@@ -2322,6 +2322,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Deterministic CI smoke/tests exist for strict content-type behavior, OpenAPI snapshot stability, and representative TestClient/runtime request paths
     - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
+    - Test runtime explicitly validates the Starlette TestClient backend policy, including either an `httpx2` migration or documented compatibility decision with no blanket warning suppression
     - Dependency upgrade/runbook docs link to the same compatibility gate source
 
 <a id="ledger-p1-starlette-fastapi-compatibility-pr"></a>
@@ -5247,25 +5248,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove Trivy suppression for Ruby Faraday CVE-2026-54297
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FARADAY-FASTLANE-UNBLOCK
-  - Status: Opened by PR #1999 because Fastlane `2.236.1` still constrains `faraday (~> 1.0)` while Trivy reports fixed version `>= 2.14.3`.
+  - Target PR: codex/dependency-cleanup-faraday-runtime-drift for the lock remediation; follow-up TBD for scanner-lag suppression removal
+  - Status: PR2 updates `ios/Gemfile.lock` from `faraday@1.10.5` to `faraday@1.10.6` while keeping Fastlane `2.235.0`. The remaining open work is the exact temporary scanner-lag suppression for `faraday@1.10.6`, because Trivy `v0.71.2` / `ruby-advisory-db` still reports `FixedVersion >= 2.14.3` even though the finding description says the vulnerability is fixed in 1.10.6 and 2.14.3.
   - Area: security / iOS release tooling / code-scanning
-  - Finding Type: release-tooling dependency vulnerability
-  - Reason: Trivy `v0.71.2` reports Ruby gem `faraday` `CVE-2026-54297` at `1.10.5` from `ios/Gemfile.lock`, with fixed version `>= 2.14.3`. Bundler resolver evidence on 2026-06-20 shows current Fastlane `2.235.0` and latest checked Fastlane `2.236.1` both require `faraday (~> 1.0)`, so there is no clean lockfile update path yet.
+  - Finding Type: scanner-lag follow-up for release-tooling dependency vulnerability
+  - Reason: `bundle lock --update faraday` resolves `faraday 1.10.6` without changing Fastlane `2.235.0`, which removes the old `faraday 1.10.5` lock. Local Trivy `v0.71.2` still reports `CVE-2026-54297` for `faraday@1.10.6` from `ios/Gemfile.lock` with fixed version `>= 2.14.3`, while the same advisory text says the vulnerability is fixed in 1.10.6 and 2.14.3.
   - Links:
     - docs/security/CVE-2026-54297-faraday-fastlane.md
     - trivy/ignore-policy.rego
     - scripts/ci/check_trivy_ignore_policy_expiry.py
     - https://avd.aquasec.com/nvd/cve-2026-54297
+    - https://rubygems.org/gems/faraday/versions/1.10.6
     - https://rubygems.org/gems/fastlane/versions/2.235.0
-    - https://rubygems.org/gems/fastlane/versions/2.236.1
     - https://rubygems.org/gems/faraday/versions/2.14.3
   - DoD:
-    - Fastlane publishes a compatible release that permits `faraday >= 2.14.3`, or iOS release tooling no longer depends on Fastlane's Faraday 1.x graph
-    - Update `ios/Gemfile.lock` to remove the vulnerable `faraday` resolution
-    - Remove suppression rule from `trivy/ignore-policy.rego`
-    - Mark `docs/security/CVE-2026-54297-faraday-fastlane.md` resolved or update with remediation evidence
-    - Trivy Code Scanning no longer reports `CVE-2026-54297` for `ios/Gemfile.lock` on `main`
+    - Keep `ios/Gemfile.lock` on `faraday 1.10.6` or newer without broad Fastlane/release-tooling churn
+    - Remove the old `faraday@1.10.5` suppression rule from `trivy/ignore-policy.rego`
+    - Keep only the exact temporary scanner-lag suppression for `faraday@1.10.6`
+    - Remove the scanner-lag suppression when Trivy/Ruby Advisory DB/GitHub Code Scanning stops reporting `CVE-2026-54297` for `faraday@1.10.6`, Fastlane permits `faraday >= 2.14.3`, or release tooling no longer depends on the Faraday graph
+    - Mark `docs/security/CVE-2026-54297-faraday-fastlane.md` resolved or update with final scanner-lag removal evidence
 
 <a id="ledger-p1-reconcile-open-dependabot-alerts"></a>
 - [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes

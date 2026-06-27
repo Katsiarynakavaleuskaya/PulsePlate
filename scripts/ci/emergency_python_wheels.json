@@ -204,19 +204,19 @@
         },
         {
             "package": "pydantic-core",
-            "version": "2.41.5",
+            "version": "2.46.4",
             "expires_at": "2026-06-30",
-            "filename": "pydantic_core-2.41.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-            "url": "https://files.pythonhosted.org/packages/cf/4e/35a80cae583a37cf15604b44240e45c05e04e86f9cfd766623149297e971/pydantic_core-2.41.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "filename": "pydantic_core-2.46.4-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/07/f8/41db9de19d7987d6b04715a02b3b40aea467000275d9d758ffaa31af7d50/pydantic_core-2.46.4-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
             "sha256_parts": [
-                "406bf18d",
-                "345822d6",
-                "c2136603",
-                "1003612b",
-                "9c77b3e2",
-                "9ffdb0f6",
-                "12367352",
-                "aab7d586"
+                "95511873",
+                "63ffc0de",
+                "2a00b2e4",
+                "7c25aeae",
+                "b1020b69",
+                "b6687629",
+                "66df15fc",
+                "5659dd5a"
             ]
         },
         {

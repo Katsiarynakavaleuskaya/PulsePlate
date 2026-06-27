@@ -297,7 +297,7 @@ def test_gpgv_docs_and_backlog_record_production_package_removal() -> None:
     assert "do not suppress CVE-2026-24883" in ledger_entry
 
 
-def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
+def test_faraday_fastlane_suppression_tracks_1_10_6_scanner_lag() -> None:
     policy = _policy_text()
     faraday_policy = policy[policy.index("# CVE-2026-54297") :]
     doc_text = SECURITY_DOC_FARADAY_PATH.read_text(encoding="utf-8")
@@ -305,42 +305,47 @@ def test_faraday_fastlane_suppression_is_exact_and_tracked() -> None:
 
     assert 'input.VulnerabilityID == "CVE-2026-54297"' in faraday_policy
     assert "input.Fingerprint" not in faraday_policy
-    assert 'input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.5"' in faraday_policy
+    assert "faraday@1.10.5" not in faraday_policy
+    assert 'input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.6"' in faraday_policy
     assert 'input.FixedVersion == ">= 2.14.3"' in faraday_policy
+    assert 'input.FixedVersion == "2.14.3"' not in faraday_policy
     assert 'input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"' in faraday_policy
     assert 'input.Severity == "HIGH"' in faraday_policy
     assert 'input.Status == "fixed"' in faraday_policy
     assert 'input.DataSource.ID == "ghsa"' not in faraday_policy
     assert 'input.PkgName == "faraday"' in faraday_policy
-    assert 'input.InstalledVersion == "1.10.5"' in faraday_policy
-    assert 'input.PkgID == "faraday@1.10.5"' in faraday_policy
+    assert 'input.InstalledVersion == "1.10.6"' in faraday_policy
+    assert 'input.PkgID == "faraday@1.10.6"' in faraday_policy
     assert "docs/security/CVE-2026-54297-faraday-fastlane.md" in faraday_policy
-    assert "# Review-by: 2026-06-27 (manual removal)" in faraday_policy
+    assert "# Review-by: 2026-07-04 (manual removal)" in faraday_policy
 
-    assert "Temporary Trivy Rego suppression" in doc_text
-    assert "fastlane (2.236.1)" in doc_text
-    assert "faraday (~> 1.0)" in doc_text
-    assert "SARIF/GitHub Code Scanning alerts" in doc_text
+    assert "scanner-lag suppression" in doc_text
+    assert "faraday@1.10.6" in doc_text
+    assert "old vulnerable `1.10.5` lock" in doc_text
+    assert "fastlane (2.235.0)" in doc_text
+    assert "fixed in 1.10.6 and 2.14.3" in doc_text
+    assert "ruby-advisory-db" in doc_text
     assert 'input.FixedVersion == ">= 2.14.3"' in doc_text
     assert "`DataSource.ID` can vary by advisory feed" in doc_text
     assert "Trivy's ignore-policy Rego input" in doc_text
     assert "Trivy `Fingerprint`\nchanges between synthetic PR merge refs" in doc_text
     assert "skip-dirs: trivy" in doc_text
     assert "transient upstream `trivy/go.mod`" in doc_text
-    assert "`trivy/ignore-policy.rego:136`" in doc_text
-    assert "`trivy/ignore-policy.rego:112`" in doc_text
+    assert "`trivy/ignore-policy.rego`" in doc_text
     assert (
         "`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-faraday-cve-2026-54297`"
         in doc_text
     )
 
     assert "Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
-    assert "PR-TBD-FARADAY-FASTLANE-UNBLOCK" in ledger_entry
+    assert "codex/dependency-cleanup-faraday-runtime-drift" in ledger_entry
+    assert "faraday@1.10.6" in ledger_entry
+    assert "old `faraday 1.10.5` lock" in ledger_entry
     assert "faraday >= 2.14.3" in ledger_entry
-    assert "Remove suppression rule from `trivy/ignore-policy.rego`" in ledger_entry
+    assert "scanner-lag suppression" in ledger_entry
 
 
-def test_faraday_1_10_5_is_only_locked_in_ios_fastlane_lockfile() -> None:
+def test_faraday_1_10_6_is_only_locked_in_ios_fastlane_lockfile() -> None:
     ignored_dirs = {".git", ".venv", "node_modules", "worktrees"}
     matching_lockfiles = []
 
@@ -348,7 +353,9 @@ def test_faraday_1_10_5_is_only_locked_in_ios_fastlane_lockfile() -> None:
         relative = lockfile.relative_to(REPO_ROOT)
         if ignored_dirs.intersection(relative.parts):
             continue
-        if "    faraday (1.10.5)" in lockfile.read_text(encoding="utf-8"):
+        lockfile_text = lockfile.read_text(encoding="utf-8")
+        assert "    faraday (1.10.5)" not in lockfile_text
+        if "    faraday (1.10.6)" in lockfile_text:
             matching_lockfiles.append(relative.as_posix())
 
     assert matching_lockfiles == ["ios/Gemfile.lock"]

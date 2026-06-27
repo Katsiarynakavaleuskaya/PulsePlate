@@ -16,7 +16,7 @@ black>=26.5.1
 # mypy 1.13.x adds support for typing.ReadOnly (PEP 742).
 # Type-parameter defaults are available only when using the legacy TypeVar-like syntax.
 mypy>=2.1.0,<3.0.0
-ruff>=0.15.18  # Fast local/pre-commit lint companion.
+ruff>=0.15.19  # Fast local/pre-commit lint companion.
 
 # Security - allow patch updates for vulnerability fixes
 bandit>=1.8.6
@@ -28,12 +28,12 @@ sourcery>=2.0.0
 diff-cover>=10.3.0  # Updated to match requirements-dev.txt
 
 # Production runtime packages (mirror requirements.txt minimums)
-fastapi>=0.122.0
+fastapi>=0.138.1
 # Starlette 1.3.1 clears the June 2026 SFTY-20260615 advisory cluster.
-# FastAPI 0.136.1 metadata allows Starlette >=0.46.0 with no upper cap.
+# FastAPI 0.138.1 metadata allows Starlette >=0.46.0 with no upper cap.
 starlette>=1.3.1
 uvicorn>=0.38.0
-pydantic>=2.12.5
+pydantic>=2.13.4
 openai>=2.8.1
 httpx>=0.28.1
 requests>=2.33.0  # GHSA-gc5v-m9x4-r6x2 security floor

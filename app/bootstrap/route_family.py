@@ -7,7 +7,16 @@ from dataclasses import dataclass, field
 
 from fastapi import APIRouter, FastAPI
 from fastapi.params import Depends as DependsParam
-from fastapi.routing import APIRoute
+
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+    route_responses,
+)
 
 EndpointMatcher = Callable[[object, object], bool]
 RouteKey = tuple[str, str]
@@ -93,27 +102,28 @@ def route_member_contracts_from_router(
     """Build static route-family contracts from an APIRouter source."""
 
     members: list[RouteMemberContract] = []
-    for route in router.routes:
-        if not isinstance(route, APIRoute):
+    for route in iter_effective_route_candidates(router.routes):
+        if not is_api_route_candidate(route):
             raise RuntimeError(f"{family_name} router does not define the expected route family.")
 
         route_dependencies: list[Callable[..., object]] = []
-        for call in _iter_dependency_calls(getattr(route.dependant, "dependencies", None)):
+        dependant = getattr(route, "dependant", None)
+        for call in _iter_dependency_calls(getattr(dependant, "dependencies", None)):
             if callable(call):
                 route_dependencies.append(call)
         required_dependencies = tuple(extra_required_dependencies) + tuple(route_dependencies)
-        methods = _route_methods(route) - _FRAMEWORK_METHODS
+        methods = route_methods(route) - _FRAMEWORK_METHODS
         if not methods:
             raise RuntimeError(f"{family_name} router does not define the expected route family.")
         for method in sorted(methods):
             members.append(
                 RouteMemberContract(
-                    path=str(route.path),
+                    path=route_path(route),
                     method=method,
-                    include_in_schema=route.include_in_schema,
+                    include_in_schema=route_include_in_schema(route),
                     required_status_codes=frozenset(
                         status_code
-                        for status_code in (route.responses or {})
+                        for status_code in route_responses(route)
                         if isinstance(status_code, int)
                     ),
                     required_dependencies=required_dependencies,
@@ -203,12 +213,12 @@ def _source_endpoints(
     route_counts: dict[RouteKey, int] = {key: 0 for key in members_by_key}
 
     for router in routers:
-        for route in router.routes:
-            if not isinstance(route, APIRoute):
+        for route in iter_effective_route_candidates(router.routes):
+            if not is_api_route_candidate(route):
                 raise RuntimeError(
                     f"{family_name} router does not define the expected route family."
                 )
-            path = str(route.path)
+            path = route_path(route)
             if path not in expected_paths:
                 raise RuntimeError(
                     f"{family_name} router does not define the expected route family."
@@ -217,18 +227,18 @@ def _source_endpoints(
             method = _single_expected_method(
                 family_name=family_name,
                 path=path,
-                methods=_route_methods(route),
+                methods=route_methods(route),
                 expected_methods_by_path=expected_methods_by_path,
             )
             key = (path, method)
             member = members_by_key[key]
             route_counts[key] += 1
-            endpoints[key] = route.endpoint
+            endpoints[key] = route_endpoint(route)
 
-            if route.include_in_schema is not member.include_in_schema:
+            if route_include_in_schema(route) is not member.include_in_schema:
                 raise RuntimeError(f"{family_name} router does not preserve OpenAPI visibility.")
             for status_code in member.required_status_codes:
-                if status_code not in (route.responses or {}):
+                if status_code not in route_responses(route):
                     raise RuntimeError(
                         f"{family_name} router does not preserve {status_code} response metadata."
                     )
@@ -237,10 +247,6 @@ def _source_endpoints(
         raise RuntimeError(f"{family_name} router does not define the expected route family.")
 
     return endpoints
-
-
-def _route_methods(route: APIRoute) -> frozenset[str]:
-    return frozenset(str(method).upper() for method in (route.methods or set()))
 
 
 def _single_expected_method(
@@ -259,18 +265,18 @@ def _single_expected_method(
     return next(iter(matching_methods))
 
 
-def _family_routes(target_app: FastAPI, expected_paths: set[str]) -> list[APIRoute]:
+def _family_routes(target_app: FastAPI, expected_paths: set[str]) -> list[object]:
     return [
         route
-        for route in target_app.routes
-        if isinstance(route, APIRoute) and str(route.path) in expected_paths
+        for route in iter_effective_route_candidates(target_app.routes)
+        if is_api_route_candidate(route) and route_path(route) in expected_paths
     ]
 
 
 def _validate_existing_routes(
     *,
     family_name: str,
-    family_routes: Sequence[APIRoute],
+    family_routes: Sequence[object],
     members_by_key: dict[RouteKey, RouteMemberContract],
     expected_paths: set[str],
     expected_methods_by_path: dict[str, frozenset[str]],
@@ -280,8 +286,8 @@ def _validate_existing_routes(
     present_keys: set[RouteKey] = set()
 
     for route in family_routes:
-        path = str(route.path)
-        methods = _route_methods(route)
+        path = route_path(route)
+        methods = route_methods(route)
         matching_methods = methods & expected_methods_by_path[path]
         if len(matching_methods) != 1:
             raise RuntimeError(f"Partial {family_name.lower()} route registration detected.")
@@ -305,10 +311,10 @@ def _validate_existing_routes(
         matching_routes = [
             route
             for route in family_routes
-            if str(route.path) == path and method in _route_methods(route)
+            if route_path(route) == path and method in route_methods(route)
         ]
         if len(matching_routes) != 1 or not endpoint_matcher(
-            matching_routes[0].endpoint,
+            route_endpoint(matching_routes[0]),
             source_endpoints[key],
         ):
             raise RuntimeError(
@@ -317,13 +323,13 @@ def _validate_existing_routes(
             )
 
         route = matching_routes[0]
-        if route.include_in_schema is not member.include_in_schema:
+        if route_include_in_schema(route) is not member.include_in_schema:
             raise RuntimeError(
                 f"Existing {path} route does not preserve "
                 f"{family_name.lower()} OpenAPI visibility."
             )
         for status_code in member.required_status_codes:
-            if status_code not in (route.responses or {}):
+            if status_code not in route_responses(route):
                 raise RuntimeError(
                     f"Existing {path} route does not preserve " f"{status_code} response metadata."
                 )

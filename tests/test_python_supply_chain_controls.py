@@ -1081,6 +1081,45 @@ def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
     assert "nvidia-cublas-cu12==" not in requirements_ci_lite
 
 
+def test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh() -> None:
+    expected_runtime_pins = {
+        "fastapi": "0.138.1",
+        "pydantic": "2.13.4",
+        "pydantic-core": "2.46.4",
+        "starlette": "1.3.1",
+    }
+
+    for lockfile in (
+        "requirements.txt",
+        "requirements-ci-lite.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-lock.txt",
+    ):
+        lock_path = REPO_ROOT / lockfile
+        for package_name, expected_version in expected_runtime_pins.items():
+            assert _requirement_package_versions(lock_path, package_name) == {expected_version}
+
+
+def test_runtime_source_profiles_keep_single_pillow_floor() -> None:
+    for source_file in (
+        "requirements.in",
+        "requirements-ci-lite.in",
+        "requirements-docker-runtime.in",
+    ):
+        source_path = REPO_ROOT / source_file
+        pillow_requirements = [
+            requirement
+            for requirement in _requirement_entries(source_path)
+            if canonicalize_name(requirement.name) == "pillow"
+        ]
+
+        assert len(pillow_requirements) == 1
+        assert {
+            (specifier.operator, specifier.version)
+            for specifier in pillow_requirements[0].specifier
+        } == {(">=", "12.2.0"), ("<", "13.0.0")}
+
+
 def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
     requirements_runtime = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
 

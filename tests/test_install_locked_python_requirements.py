@@ -191,8 +191,8 @@ def test_simple_project_page_has_version_requires_exact_version_boundary() -> No
     )
     assert installer._simple_project_page_has_version(
         package="pydantic-core",
-        version="2.41.5",
-        body=b'<a href="pydantic_core-2.41.5-cp313-cp313-manylinux.whl">pydantic</a>',
+        version="2.46.4",
+        body=b'<a href="pydantic_core-2.46.4-cp313-cp313-manylinux.whl">pydantic</a>',
     )
     assert not installer._simple_project_page_has_version(
         package="pip",
@@ -206,8 +206,8 @@ def test_simple_project_page_has_version_requires_exact_version_boundary() -> No
     )
     assert not installer._simple_project_page_has_version(
         package="pydantic-core",
-        version="2.41.5",
-        body=b'<a href="pydantic_core-2.41.5_rc1-cp313-cp313-manylinux.whl">pydantic</a>',
+        version="2.46.4",
+        body=b'<a href="pydantic_core-2.46.4_rc1-cp313-cp313-manylinux.whl">pydantic</a>',
     )
 
 
