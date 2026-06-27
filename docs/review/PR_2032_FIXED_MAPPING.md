@@ -45,8 +45,8 @@
 - [x] Codex Security diff scan for head
   `f28857f55e010c85d94dc4bdea8869239f69a362` completed; one finding was
   fixed in `e1531a004f`.
-- [ ] Fresh Codex Security diff scan for the new material head after
-  `e1531a004f` remains required before any readiness claim.
+- [x] Fresh Codex Security diff scan for current head
+  `89eac881f07996ca56c36f161134c8bdd906f716` completed with no findings.
 - [ ] `pulseplate-pr-review` remains required before any readiness claim.
 - [ ] CodeRabbit, Sourcery, and Cubic current-head actionables must be
   checked and dispositioned after bot review completes.
@@ -181,8 +181,21 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
       for `require_pro_tier`; `tests/test_pro_contracts_bootstrap.py`
       reproduces and rejects same-endpoint direct routes without the
       router-level PRO dependency.
-  - New material head after `e1531a004f` requires one fresh current-head
-    Codex Security diff scan before readiness.
+  - New material head after `e1531a004f` was covered by the current-head
+    follow-up scan below.
+  - Current-head follow-up scan:
+    - Scan: `99c1b779-1407-4f52-b799-280e56d5bc41`
+    - Scanned head: `89eac881f07996ca56c36f161134c8bdd906f716`
+    - Report:
+      `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/89eac881f07996ca56c36f161134c8bdd906f716_20260627T201257Z_ajo9b77e/report.md`
+    - Manifest:
+      `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/89eac881f07996ca56c36f161134c8bdd906f716_20260627T201257Z_ajo9b77e/scan-manifest.json`
+    - Findings:
+      `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/89eac881f07996ca56c36f161134c8bdd906f716_20260627T201257Z_ajo9b77e/findings.json`
+    - Coverage:
+      `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/89eac881f07996ca56c36f161134c8bdd906f716_20260627T201257Z_ajo9b77e/coverage.json`
+    - Result: no reportable findings; previous PRO contract route dependency
+      finding no longer reproduces.
 - `pulseplate-pr-review`: pending.
 
 ## Experiment Runner Evidence
@@ -256,6 +269,9 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
 - PASS: Codex Security finding fix `ruff check app/bootstrap/pro_contracts.py tests/test_pro_contracts_bootstrap.py`.
 - PASS: Codex Security finding fix
   `mypy app/bootstrap/pro_contracts.py --no-incremental --cache-dir=/dev/null`.
+- PASS: post-fix current-head Codex Security diff scan
+  `99c1b779-1407-4f52-b799-280e56d5bc41`
+  (`0` findings, `7/7` reviewed surfaces).
 
 ## Machine-Heavy Verification Deferral
 
@@ -284,7 +300,7 @@ the mandatory wait-window.
 - [ ] Sourcery PASS / no actionables confirmed.
 - [ ] Cubic PASS / no actionables confirmed.
 - [ ] Post-open role passes complete.
-- [ ] Codex Security diff scan / finding discovery complete once for the
+- [x] Codex Security diff scan / finding discovery complete once for the
   material PR head.
 - [ ] `pulseplate-pr-review` complete.
 - [ ] Strict merge-readiness wrapper with auth passes.
