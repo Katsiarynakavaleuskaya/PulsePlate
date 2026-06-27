@@ -1740,6 +1740,7 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane(
     assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
     assert "tests/test_bmi_compat_router.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_legacy_bmi_shims.py" in test_pr_groups["route_contract_safety"]
+    assert "tests/test_route_family_bootstrap.py" in test_pr_groups["route_contract_safety"]
 
 
 def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
