@@ -681,6 +681,107 @@ def test_backend_hook_maps_staged_frontend_package_rename_to_governance_tests(
     assert "Backend tests passed" in output
 
 
+def test_backend_hook_maps_authz_contract_helper_to_static_contract_test(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "tests" / "security").mkdir(parents=True)
+    (repo / "tests" / "security" / "_api_authz_contracts.py").write_text(
+        "AUTHZ = 1\n", encoding="utf-8"
+    )
+    (repo / "tests" / "security" / "test_api_authz_contract_static.py").write_text(
+        "def test_static_contract():\n    assert True\n", encoding="utf-8"
+    )
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    (repo / "tests" / "security" / "_api_authz_contracts.py").write_text(
+        "AUTHZ = 2\n", encoding="utf-8"
+    )
+    _git(repo, "add", "tests/security/_api_authz_contracts.py")
+    calls_file = tmp_path / "pytest-authz-contract-args.txt"
+    fake_python = tmp_path / "fake-python-authz-contract"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/security/test_api_authz_contract_static.py" in called_args
+    assert "tests/security/_api_authz_contracts.py" not in called_args
+    assert "Backend tests passed" in output
+
+
+def test_backend_hook_fails_closed_for_missing_helper_test_target(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "tests" / "security").mkdir(parents=True)
+    (repo / "tests" / "security" / "_api_authz_contracts.py").write_text(
+        "AUTHZ = 1\n", encoding="utf-8"
+    )
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    (repo / "tests" / "security" / "_api_authz_contracts.py").write_text(
+        "AUTHZ = 2\n", encoding="utf-8"
+    )
+    _git(repo, "add", "tests/security/_api_authz_contracts.py")
+    calls_file = tmp_path / "pytest-authz-contract-missing-target-args.txt"
+    fake_python = tmp_path / "fake-python-authz-contract-missing-target"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    completed = _bash_failure(
+        "bash scripts/run-backend-tests-pre-commit.sh",
+        cwd=repo,
+        env=env,
+    )
+
+    assert completed.returncode == 1
+    assert (
+        "Missing mapped pytest target for helper file "
+        "'tests/security/_api_authz_contracts.py': "
+        "tests/security/test_api_authz_contract_static.py"
+    ) in completed.stderr
+    assert not calls_file.exists()
+
+
+def test_backend_hook_uses_helper_test_mapping_table() -> None:
+    hook_text = (REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PYTHON_HELPER_SOURCE_FILES" in hook_text
+    assert "PYTHON_HELPER_TEST_TARGETS" in hook_text
+    assert '"tests/security/_api_authz_contracts.py"' in hook_text
+    assert '"tests/security/test_api_authz_contract_static.py"' in hook_text
+
+
 def test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests() -> None:
     config_text = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
 
