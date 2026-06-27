@@ -211,7 +211,7 @@ the mandatory wait-window.
 - [ ] Sourcery PASS / no actionables confirmed for current head.
 - [ ] Cubic PASS / no actionables confirmed for current head.
 - [ ] All review threads resolved only after disposition evidence is present.
-- [x] Codex Security diff scan / finding discovery completed once for this
+- [ ] Codex Security diff scan / finding discovery completed once for this
   lane; the reported finding is fixed in
   `cbb5f5e1b488dfc107a2bdca6c89071ef3fdd48d`.
 - [ ] Strict merge-readiness wrapper with auth passes.

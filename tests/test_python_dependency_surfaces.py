@@ -83,6 +83,7 @@ def _write_valid_contract_repo(root: Path) -> None:
         )
 
     _write_python_setup_action(root)
+    _write_installer_profiles(root)
     _write_pip_audit_helper(root)
     _write_dependency_submission_workflow(root)
 
@@ -110,6 +111,25 @@ def _write_python_setup_action(root: Path, extra_case_labels: tuple[str, ...] = 
     )
 
 
+def _write_installer_profiles(
+    root: Path,
+    *,
+    profiles: tuple[str, ...] = (
+        "runtime",
+        "runtime-dev",
+        "runtime-test",
+        "ci-test",
+        "ci-lite",
+        "rag-vector",
+    ),
+) -> None:
+    quoted_profiles = ", ".join(f'"{profile}"' for profile in profiles)
+    (root / surfaces.INSTALLER_PATH).write_text(
+        f"REQUIREMENTS_PROFILES: tuple[str, ...] = ({quoted_profiles},)\n",
+        encoding="utf-8",
+    )
+
+
 def _write_pip_audit_helper(
     root: Path,
     *,
@@ -125,13 +145,16 @@ def _write_pip_audit_helper(
         "#!/usr/bin/env bash",
         "# Comments are not audit coverage.",
         *(f"# {comment}" for comment in comments),
-        'manifests=("requirements.txt")',
-        *(
-            f'manifests+=("{lockfile}")'
-            for lockfile in audited_lockfiles
-            if lockfile != "requirements.txt"
-        ),
     ]
+    if "requirements.txt" in audited_lockfiles:
+        lines.append('manifests=("requirements.txt")')
+    else:
+        lines.append("manifests=()")
+    lines.extend(
+        f'manifests+=("{lockfile}")'
+        for lockfile in audited_lockfiles
+        if lockfile != "requirements.txt"
+    )
     (root / surfaces.PIP_AUDIT_HELPER).write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -223,6 +246,20 @@ def test_dependency_surface_contract_rejects_local_manual_shared_profile(
     assert any("'rag-vector-cpu'" in error for error in errors)
 
 
+def test_dependency_surface_contract_loads_installer_profiles_from_repo_root(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _write_installer_profiles(
+        tmp_path,
+        profiles=("runtime", "runtime-dev", "runtime-test", "ci-test", "rag-vector"),
+    )
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert "Registry names unsupported installer profiles: ['ci-lite']." in errors
+
+
 def test_dependency_surface_contract_ignores_local_manual_names_outside_profile_cases(
     tmp_path: Path,
 ) -> None:
@@ -258,6 +295,19 @@ def test_dependency_surface_contract_rejects_missing_pip_audit_coverage(
 
     assert errors == [
         f"{surfaces.PIP_AUDIT_HELPER}: missing pip-audit coverage for requirements-data.txt."
+    ]
+
+
+def test_dependency_surface_contract_rejects_missing_runtime_pip_audit_coverage(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _write_pip_audit_helper(tmp_path, omitted=("requirements.txt",))
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert errors == [
+        f"{surfaces.PIP_AUDIT_HELPER}: missing pip-audit coverage for requirements.txt."
     ]
 
 

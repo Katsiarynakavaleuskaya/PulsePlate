@@ -8,6 +8,7 @@ the validator must stay offline and must not resolve packages.
 from __future__ import annotations
 
 import argparse
+import ast
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -27,6 +28,7 @@ PYTHON_SETUP_ACTION = Path(".github/actions/python-setup/action.yml")
 PIP_AUDIT_HELPER = Path("scripts/ci_pip_audit.sh")
 DEPENDENCY_SUBMISSION_WORKFLOW = Path(".github/workflows/python-dependency-submission.yml")
 INSTALLER_MODULE = "scripts.ci.install_locked_python_requirements"
+INSTALLER_PATH = Path(*INSTALLER_MODULE.split(".")).with_suffix(".py")
 
 FORBIDDEN_LOCK_TOKENS = (
     "PULSEPLATE_PYTHON_INDEX_URL",
@@ -217,10 +219,39 @@ def _known_requirement_surfaces() -> set[str]:
     return known
 
 
-def _load_installer_profiles() -> tuple[str, ...]:
-    from scripts.ci.install_locked_python_requirements import REQUIREMENTS_PROFILES
+def _literal_str_tuple(value: ast.AST) -> tuple[str, ...] | None:
+    try:
+        literal = ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        return None
+    if not isinstance(literal, tuple):
+        return None
+    if not all(isinstance(item, str) for item in literal):
+        return None
+    return tuple(literal)
 
-    return tuple(REQUIREMENTS_PROFILES)
+
+def _load_installer_profiles(repo_root: Path) -> tuple[str, ...]:
+    installer_tree = ast.parse(
+        _read_text(repo_root, INSTALLER_PATH),
+        filename=str(INSTALLER_PATH),
+    )
+    for node in installer_tree.body:
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "REQUIREMENTS_PROFILES"
+            and node.value is not None
+        ):
+            profiles = _literal_str_tuple(node.value)
+            return profiles or ()
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "REQUIREMENTS_PROFILES"
+            for target in node.targets
+        ):
+            profiles = _literal_str_tuple(node.value)
+            return profiles or ()
+    return ()
 
 
 def _shared_profile_case_labels(action_text: str) -> set[str]:
@@ -372,7 +403,7 @@ def _require_exact_lock_entries(
 
 
 def _validate_shared_profiles(repo_root: Path, errors: list[str]) -> None:
-    supported_profiles = set(_load_installer_profiles())
+    supported_profiles = set(_load_installer_profiles(repo_root))
     registry_profiles = {
         profile for surface in DEPENDENCY_SURFACES for profile in surface.shared_profiles
     }
