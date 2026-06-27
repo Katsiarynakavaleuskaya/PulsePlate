@@ -45,6 +45,9 @@ lifespan, frontend, iOS, macOS, or feature-flag redesign.
 - `430c99da1` - fixes CodeRabbit feedback by documenting the complete test-route
   matrix and adding a typed hidden response model for `/api/v1/test/echo`
   while preserving the JSON response shape.
+- `0807d2093` - fixes CodeRabbit feedback by adding explicit `-> None`
+  annotations to the selected lifespan coverage test methods touched by the
+  CI selected-test compatibility fix.
 
 ## Lane Start Provenance
 
@@ -82,6 +85,11 @@ Commit: 430c99da1
 Evidence: `docs/architecture/backend_routing_map.md` now documents unset-env registration and walrus reintroduction coverage; `app/routers/test.py` now uses a typed hidden `TestEchoResponse` response model for `/api/v1/test/echo` while preserving the response JSON shape.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#pullrequestreview-4584957003 -> 430c99da1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#discussion_r3485844708 -> 430c99da1
+
+Disposition: FIXED
+Commit: 0807d2093
+Evidence: `tests/test_app_extended_coverage.py` now has explicit `-> None` return annotations on the four modified lifespan coverage test methods while preserving test behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#pullrequestreview-4585679535 -> 0807d2093
 
 ## Sourcery Review Closure
 
@@ -233,6 +241,9 @@ merge-readiness remain mandatory before readiness claims.
 - PASS: `make validate-changed` after commit; selected changed backend tests passed.
 - PASS: `pre-commit run --all-files`
 - PASS: `git diff --check`
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_app_extended_coverage.py::TestLifespanEvents tests/test_app_extended_coverage.py::test_test_route_registration_disabled_in_production_for_ci_diff_coverage tests/test_app_extended_coverage.py::test_test_echo_handler_returns_typed_response_for_ci_diff_coverage` after the CodeRabbit type-annotation fix.
+- PASS: `make validate-changed` after the CodeRabbit type-annotation fix.
+- PASS: `pre-commit run --all-files` after the CodeRabbit type-annotation fix.
 - PASS: pre-push hooks, including changed-file mypy, full-repo Bandit
   pre-push, backend pre-push tests, and Docker build test.
 - PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2029`
