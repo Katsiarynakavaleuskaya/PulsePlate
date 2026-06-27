@@ -111,17 +111,10 @@ def _ensure(
 
 
 def _matching_routes(app: FastAPI, member: RouteMemberContract) -> list[object]:
-    candidates: list[object] = []
-    for route in app.routes:
-        if type(route).__name__ == "_IncludedRouter":
-            candidates.extend(route.effective_route_contexts())
-        else:
-            candidates.append(route)
     return [
         route
-        for route in candidates
-        if getattr(route, "path", None) == member.path
-        and member.method in (getattr(route, "methods", None) or set())
+        for route in _family_routes(app, {member.path})
+        if member.method in (getattr(route, "methods", None) or set())
     ]
 
 
