@@ -171,7 +171,11 @@ add_helper_tests_for_python_change() {
             continue
         fi
         target="${PYTHON_HELPER_TEST_TARGETS[$index]}"
-        [ -f "$target" ] && FOUND_FOR_FILE+=("$target")
+        if [ ! -f "$target" ]; then
+            echo "Missing mapped pytest target for helper file '$file': $target" >&2
+            exit 1
+        fi
+        FOUND_FOR_FILE+=("$target")
         return 0
     done
     return 1

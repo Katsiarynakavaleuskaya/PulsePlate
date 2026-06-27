@@ -175,8 +175,8 @@ Evidence:
 
 ## Merge Readiness
 
-- [x] PR opened non-draft.
-- [x] PR-numbered fixed mapping artifact exists.
+- [ ] PR opened non-draft.
+- [ ] PR-numbered fixed mapping artifact exists.
 - [ ] Current-head CI complete and inspected.
 - [ ] Required checks pass.
 - [ ] CodeRabbit, Sourcery, Cubic, post-open role reviews, and Codex Security

@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-CONTRACT_PATH = Path("tests/security/_api_authz_contracts.py")
+CONTRACT_PATH = Path(__file__).with_name("_api_authz_contracts.py")
 CONTRACT_TREE = ast.parse(CONTRACT_PATH.read_text(encoding="utf-8"))
 
 
