@@ -46,12 +46,20 @@ Evidence: `tests/test_install_locked_python_requirements.py` content assertions;
 Reason: Sourcery requested returned constraints-file content assertions in the new regression tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3476956759 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3476956764 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#pullrequestreview-4574132318 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 
 Disposition: FIXED
 Commit: b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 Evidence: `scripts/ci/check_python_dependency_surfaces.py`, `verify_requirements.py`, dependency-surface tests, and dependency docs.
 Reason: Adds the PR-1 Python dependency surface contract and validator without changing package versions or lockfiles.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
+
+Disposition: FIXED
+Commit: 2026a39107dd670408cba17e23b5f3a22ced684e
+Evidence: `tests/test_verify_requirements.py` annotates `monkeypatch`; `scripts/ci/check_python_dependency_surfaces.py` parses exact action case labels.
+Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3485610173 -> 2026a39107dd670408cba17e23b5f3a22ced684e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#pullrequestreview-4584612071 -> 2026a39107dd670408cba17e23b5f3a22ced684e
 
 ## Premortem Closure
 
