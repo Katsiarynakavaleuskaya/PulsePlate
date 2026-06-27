@@ -7,7 +7,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -24,7 +24,7 @@ def _load_record(path: str | None) -> dict[str, Any]:
     payload = json.loads(raw)
     if not isinstance(payload, dict):
         raise ValueError("expected JSON object.")
-    return validate_agent_learning_record(payload)
+    return cast(dict[str, Any], validate_agent_learning_record(payload))
 
 
 def promote_agent_lesson_record(record: dict[str, Any]) -> dict[str, Any]:
