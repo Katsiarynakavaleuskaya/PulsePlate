@@ -47,6 +47,20 @@ CHECKOUT_NODE24_SHA = "".join(
         "83dd",
     )
 )
+SETUP_NODE_NODE24_SHA = "".join(
+    (
+        "53b8",
+        "3947",
+        "a5a9",
+        "8c8d",
+        "1131",
+        "30e5",
+        "6537",
+        "7fae",
+        "1a50",
+        "d02f",
+    )
+)
 PATHS_FILTER_NODE24_SHA = "".join(
     (
         "fbd0",
@@ -1899,6 +1913,22 @@ def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
         step_name="Pre-commit (lint/format/security quick checks)",
     )
     assert "pre-commit run --all-files" in pre_commit_step["run"]
+
+
+def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
+    workflow = _load_ci_workflow()
+
+    setup_node_step = _job_step_by_name(workflow, job_id="lint", step_name="Setup Node.js")
+    assert setup_node_step["uses"] == f"actions/setup-node@{SETUP_NODE_NODE24_SHA}"
+    assert setup_node_step["with"]["node-version-file"] == "${{ env.FRONTEND_NODE_VERSION_FILE }}"
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    lint_steps = jobs["lint"]["steps"]
+    step_names = [step.get("name") for step in lint_steps]
+    assert step_names.index("Setup Node.js") < step_names.index(
+        "Pre-commit (lint/format/security quick checks)"
+    )
 
 
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:
