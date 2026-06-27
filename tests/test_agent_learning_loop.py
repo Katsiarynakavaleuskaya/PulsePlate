@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
 from scripts.orchestration.agent_learning_loop import build_learning_loop_proposal
 from scripts.orchestration.agent_lesson_extractor import extract_agent_lesson_record
 from scripts.orchestration.agent_lesson_promoter import promote_agent_lesson_record
+from scripts.orchestration.review_pattern_oracles import REVIEW_PATTERN_ORACLE_IDS
 
 
 def test_learning_loop_proposal_redacts_and_stays_non_runtime() -> None:
@@ -100,6 +103,17 @@ def test_agent_lesson_extractor_rejects_invalid_schema_values() -> None:
             promotion_target="/Users/example/AGENT_LEARNING_LOOP.md",
         )
 
+    with pytest.raises(ValueError, match="required_oracle must be one of"):
+        extract_agent_lesson_record(
+            source="review",
+            pattern="schema validator drift",
+            severity="high",
+            affected_surfaces=["scripts/orchestration"],
+            root_cause="stale schema",
+            required_oracle="not_a_real_oracle",
+            promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+        )
+
 
 def test_agent_lesson_promoter_is_proposal_only() -> None:
     record = extract_agent_lesson_record(
@@ -118,6 +132,62 @@ def test_agent_lesson_promoter_is_proposal_only() -> None:
     assert proposal["runtime_authority"] is False
     assert proposal["canonical_until_promoted_by_repo_diff"] is False
     assert proposal["human_review_required"] is True
+
+
+def test_agent_lesson_promoter_rejects_malformed_records() -> None:
+    record = extract_agent_lesson_record(
+        source="review",
+        pattern="degraded review source",
+        severity="medium",
+        affected_surfaces=["docs/orchestration"],
+        root_cause="source unavailable",
+        required_oracle="review_source_degraded",
+        promotion_target="docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    )
+    record.update(
+        {
+            "severity": "urgent",
+            "promotion_target": "/Users/example/AGENTS.md",
+            "required_oracle": "not_a_real_oracle",
+            "dedupe_fingerprint": "notsha",
+            "human_review_required": False,
+        }
+    )
+
+    with pytest.raises(ValueError, match="severity must be one of"):
+        promote_agent_lesson_record(record)
+
+
+def test_agent_lesson_promoter_cli_rejects_malformed_records() -> None:
+    record = extract_agent_lesson_record(
+        source="review",
+        pattern="degraded review source",
+        severity="medium",
+        affected_surfaces=["docs/orchestration"],
+        root_cause="source unavailable",
+        required_oracle="review_source_degraded",
+        promotion_target="docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    )
+    record.update(
+        {
+            "severity": "urgent",
+            "promotion_target": "/Users/example/AGENTS.md",
+            "required_oracle": "not_a_real_oracle",
+            "dedupe_fingerprint": "notsha",
+            "human_review_required": False,
+        }
+    )
+
+    result = subprocess.run(
+        [sys.executable, "scripts/orchestration/agent_lesson_promoter.py"],
+        input=json.dumps(record),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Invalid learning record input: severity must be one of" in result.stderr
 
 
 def test_agent_learning_record_schema_matches_extractor_shape() -> None:
@@ -139,3 +209,4 @@ def test_agent_learning_record_schema_matches_extractor_shape() -> None:
     assert set(schema["required"]) == set(record)
     assert schema["properties"]["human_review_required"]["const"] is True
     assert record["severity"] in schema["properties"]["severity"]["enum"]
+    assert schema["properties"]["required_oracle"]["enum"] == list(REVIEW_PATTERN_ORACLE_IDS)

@@ -140,10 +140,12 @@ def _parse_mapping_entry(line: str) -> tuple[str, str] | tuple[str, None] | None
 
 
 def collect_fixed_mapping_state(repo_root: Path, pr_number: int) -> dict[str, Any]:
+    rel_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     path = repo_root / "docs" / "review" / f"PR_{pr_number}_FIXED_MAPPING.md"
     if not path.exists():
         return {
             "path": str(path),
+            "repo_path": rel_path,
             "exists": False,
             "entries": {},
             "no_actionable": False,
@@ -176,6 +178,7 @@ def collect_fixed_mapping_state(repo_root: Path, pr_number: int) -> dict[str, An
 
     return {
         "path": str(path),
+        "repo_path": rel_path,
         "exists": True,
         "entries": entries,
         "no_actionable": no_actionable,
@@ -274,6 +277,20 @@ def collect_scope_diff(
         },
         [],
     )
+
+
+def collect_local_head_sha(repo_root: Path) -> tuple[str, list[str]]:
+    """Return local HEAD SHA, with advisory warnings when unavailable."""
+
+    git_binary = _binary("git")
+    try:
+        completed = _run_command(
+            [git_binary, "-C", str(repo_root), "rev-parse", "HEAD"],
+            cwd=repo_root,
+        )
+    except RuntimeError as exc:
+        return "", [f"Unable to read local HEAD for review-source parity: {exc}"]
+    return completed.stdout.strip(), []
 
 
 def discover_scoped_agents(repo_root: Path, changed_files: list[str]) -> list[str]:
@@ -380,10 +397,32 @@ def collect_review_context(
             "exists": False,
             "errors": ["No PR number provided for fixed-mapping lookup."],
         }
+        fixed_mapping_degraded_reason = ""
     else:
         fixed_mapping = collect_fixed_mapping_state(repo_root=repo_root, pr_number=pr_number)
         if not fixed_mapping.get("exists"):
             warnings.append("Fixed-mapping artifact is missing for this PR.")
+        local_head_sha, local_head_warnings = collect_local_head_sha(repo_root)
+        warnings.extend(local_head_warnings)
+        fixed_mapping_degraded_reason = ""
+        if fixed_mapping.get("exists") and pr_metadata_head and local_head_sha:
+            fixed_mapping["local_head_sha"] = local_head_sha
+            fixed_mapping["pr_head_sha"] = pr_metadata_head
+            repo_path = str(fixed_mapping.get("repo_path") or "")
+            fixed_mapping["present_in_pr_diff"] = repo_path in changed_files
+            if local_head_sha != pr_metadata_head:
+                fixed_mapping_degraded_reason = (
+                    "Fixed-mapping artifact was read from local HEAD "
+                    f"{local_head_sha[:12]}, but GitHub PR metadata/diff is at head "
+                    f"{pr_metadata_head[:12]}; push local commits or run from a matching "
+                    "checkout before treating mapping evidence as current PR truth."
+                )
+                if repo_path and repo_path not in changed_files:
+                    fixed_mapping_degraded_reason += (
+                        f" Artifact `{repo_path}` is not present in the PR head diff."
+                    )
+                fixed_mapping.setdefault("errors", []).append(fixed_mapping_degraded_reason)
+                warnings.append(fixed_mapping_degraded_reason)
 
     review_source_status = [
         build_review_source_status(
@@ -402,7 +441,12 @@ def collect_review_context(
         build_review_source_status(
             source="fixed_mapping_artifact",
             available=bool(fixed_mapping.get("exists")),
-            reason="" if fixed_mapping.get("exists") else "Fixed-mapping artifact unavailable",
+            degraded=bool(fixed_mapping_degraded_reason),
+            reason=(
+                fixed_mapping_degraded_reason
+                if fixed_mapping_degraded_reason
+                else "" if fixed_mapping.get("exists") else "Fixed-mapping artifact unavailable"
+            ),
             evidence=str(fixed_mapping.get("path") or ""),
         ),
     ]

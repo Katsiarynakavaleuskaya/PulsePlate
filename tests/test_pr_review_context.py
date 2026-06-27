@@ -102,3 +102,73 @@ def test_collect_review_context_missing_pr_metadata_and_mapping(
     assert by_source["github_pr_metadata"]["fallback_required"] is True
     assert by_source["github_pr_metadata"]["blocking"] is False
     assert by_source["fixed_mapping_artifact"]["blocking"] is False
+
+
+def test_collect_review_context_degrades_local_only_fixed_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping = tmp_path / "docs" / "review" / "PR_2028_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(
+        "\n".join(
+            [
+                "# PR 2028 - Fixed in Commit Mapping",
+                "",
+                "## Fixed in Commit Mapping",
+                "- No actionable review comments",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_pr_metadata(
+        *, repo: str, pr_number: int, repo_root: Path
+    ) -> tuple[dict[str, object], list[str]]:
+        del repo, pr_number, repo_root
+        return {
+            "number": 2028,
+            "base_sha": "base-sha",
+            "head_sha": "remote-head-sha",
+        }, []
+
+    def fake_scope_diff(
+        *, repo_root: Path, base_sha: str | None, head_sha: str | None
+    ) -> tuple[list[review_ctx.DiffStats], dict[str, int], list[str]]:
+        del repo_root, base_sha, head_sha
+        return (
+            [
+                review_ctx.DiffStats(
+                    path="scripts/orchestration/pr_review_context.py", additions=1, deletions=0
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        )
+
+    monkeypatch.setattr(review_ctx, "collect_pr_metadata", fake_pr_metadata)
+    monkeypatch.setattr(review_ctx, "collect_scope_diff", fake_scope_diff)
+    monkeypatch.setattr(
+        review_ctx, "collect_local_head_sha", lambda repo_root: ("local-head-sha", [])
+    )
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=2028,
+        repo="owner/repo",
+    )
+
+    assert any(
+        "Fixed-mapping artifact was read from local HEAD" in warning
+        for warning in context["warnings"]
+    )
+    assert context["fixed_mapping"]["local_head_sha"] == "local-head-sha"
+    assert context["fixed_mapping"]["pr_head_sha"] == "remote-head-sha"
+    assert context["fixed_mapping"]["present_in_pr_diff"] is False
+    assert any(
+        "not present in the PR head diff" in error for error in context["fixed_mapping"]["errors"]
+    )
+    by_source = {item["source"]: item for item in context["review_source_status"]}
+    assert by_source["fixed_mapping_artifact"]["source_degraded"] is True
+    assert by_source["fixed_mapping_artifact"]["fallback_required"] is True
+    assert by_source["fixed_mapping_artifact"]["blocking"] is False

@@ -22,7 +22,16 @@
     "severity": { "enum": ["low", "medium", "high", "critical"] },
     "affected_surfaces": { "type": "array", "items": { "type": "string" } },
     "root_cause": { "type": "string", "minLength": 1 },
-    "required_oracle": { "type": "string", "minLength": 1 },
+    "required_oracle": {
+      "enum": [
+        "schema_validator_parity",
+        "fail_closed_security_edge",
+        "deterministic_content_oracle",
+        "canonical_route_ownership_guard",
+        "evidence_hygiene_mapping_timing",
+        "review_source_degraded"
+      ]
+    },
     "promotion_target": { "type": "string", "minLength": 1 },
     "dedupe_fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "redaction_status": { "enum": ["clean", "redacted"] },

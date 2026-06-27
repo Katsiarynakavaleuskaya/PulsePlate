@@ -11,10 +11,30 @@ from pathlib import PurePosixPath
 import re
 from typing import Any
 
+from scripts.orchestration.review_pattern_oracles import REVIEW_PATTERN_ORACLE_IDS
+
 LEARNING_LOOP_SCHEMA_VERSION = "agent-learning-loop.v1"
 LEARNING_RECORD_SCHEMA_VERSION = "agent_learning_record.v1"
 AUTHORITY_BOUNDARY = "proposal_only_non_runtime"
 VALID_LEARNING_SEVERITIES = frozenset({"low", "medium", "high", "critical"})
+VALID_REQUIRED_ORACLES = frozenset(REVIEW_PATTERN_ORACLE_IDS)
+VALID_REDACTION_STATUSES = frozenset({"clean", "redacted"})
+LEARNING_RECORD_REQUIRED_FIELDS = frozenset(
+    {
+        "lesson_id",
+        "source",
+        "pattern",
+        "severity",
+        "affected_surfaces",
+        "root_cause",
+        "required_oracle",
+        "promotion_target",
+        "dedupe_fingerprint",
+        "redaction_status",
+        "human_review_required",
+    }
+)
+_FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _SENSITIVE_RE = re.compile(
     r"(?i)(ghp_[a-z0-9_]+|ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
     r"\b(?:token|secret|password|api[_-]?key)\b\s*[:=]\s*[^\s]+)"
@@ -45,6 +65,14 @@ def _normalize_severity(value: str) -> str:
         allowed = ", ".join(sorted(VALID_LEARNING_SEVERITIES))
         raise ValueError(f"severity must be one of: {allowed}.")
     return severity
+
+
+def _normalize_required_oracle(value: str) -> str:
+    oracle = value.strip()
+    if oracle not in VALID_REQUIRED_ORACLES:
+        allowed = ", ".join(REVIEW_PATTERN_ORACLE_IDS)
+        raise ValueError(f"required_oracle must be one of: {allowed}.")
+    return oracle
 
 
 def _dedupe_ordered(values: list[str]) -> list[str]:
@@ -85,6 +113,7 @@ def build_agent_learning_record(
         promotion_target,
         field_name="promotion_target",
     )
+    normalized_required_oracle = _normalize_required_oracle(required_oracle)
     normalized = "\n".join(
         [
             redacted_source,
@@ -92,7 +121,7 @@ def build_agent_learning_record(
             normalized_severity,
             *redacted_surfaces,
             redacted_root_cause,
-            required_oracle.strip(),
+            normalized_required_oracle,
             normalized_promotion_target,
         ]
     )
@@ -117,8 +146,67 @@ def build_agent_learning_record(
         "severity": normalized_severity,
         "affected_surfaces": redacted_surfaces,
         "root_cause": redacted_root_cause,
-        "required_oracle": required_oracle.strip(),
+        "required_oracle": normalized_required_oracle,
         "promotion_target": normalized_promotion_target,
+        "dedupe_fingerprint": fingerprint,
+        "redaction_status": redaction_status,
+        "human_review_required": True,
+    }
+
+
+def validate_agent_learning_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Validate a stored learning record before emitting promotion proposals."""
+
+    missing = sorted(LEARNING_RECORD_REQUIRED_FIELDS.difference(record))
+    if missing:
+        raise ValueError(f"missing fields {', '.join(missing)}.")
+    extra = sorted(set(record).difference(LEARNING_RECORD_REQUIRED_FIELDS))
+    if extra:
+        raise ValueError(f"unexpected fields {', '.join(extra)}.")
+
+    def _required_text(field: str) -> str:
+        value = record.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field} must be a non-empty string.")
+        return value.strip()
+
+    affected_surfaces_raw = record.get("affected_surfaces")
+    if not isinstance(affected_surfaces_raw, list) or not all(
+        isinstance(item, str) for item in affected_surfaces_raw
+    ):
+        raise ValueError("affected_surfaces must be an array of repo-relative paths.")
+    severity = _normalize_severity(_required_text("severity"))
+    affected_surfaces = [
+        _require_repo_relative_path(item, field_name="affected_surfaces")
+        for item in affected_surfaces_raw
+    ]
+    required_oracle = _normalize_required_oracle(_required_text("required_oracle"))
+    promotion_target = _require_repo_relative_path(
+        _required_text("promotion_target"),
+        field_name="promotion_target",
+    )
+
+    redaction_status = _required_text("redaction_status")
+    if redaction_status not in VALID_REDACTION_STATUSES:
+        allowed = ", ".join(sorted(VALID_REDACTION_STATUSES))
+        raise ValueError(f"redaction_status must be one of: {allowed}.")
+
+    fingerprint = _required_text("dedupe_fingerprint")
+    if not _FINGERPRINT_RE.match(fingerprint):
+        raise ValueError("dedupe_fingerprint must match sha256:<64 lowercase hex chars>.")
+
+    if record.get("human_review_required") is not True:
+        raise ValueError("human_review_required must be true.")
+
+    return {
+        "lesson_id": _required_text("lesson_id"),
+        "source": _required_text("source"),
+        "pattern": _required_text("pattern"),
+        "severity": severity,
+        "affected_surfaces": affected_surfaces,
+        "root_cause": _required_text("root_cause"),
+        "required_oracle": required_oracle,
+        "promotion_target": promotion_target,
         "dedupe_fingerprint": fingerprint,
         "redaction_status": redaction_status,
         "human_review_required": True,
@@ -128,8 +216,9 @@ def build_agent_learning_record(
 def build_learning_promotion_proposal(record: dict[str, Any]) -> dict[str, Any]:
     """Wrap a learning record as a non-mutating promotion proposal."""
 
-    lesson_id = str(record.get("lesson_id") or "")
-    fingerprint = str(record.get("dedupe_fingerprint") or "")
+    validated = validate_agent_learning_record(record)
+    lesson_id = validated["lesson_id"]
+    fingerprint = validated["dedupe_fingerprint"]
     return {
         "schema_version": "agent_learning_promotion_proposal.v1",
         "authority_boundary": AUTHORITY_BOUNDARY,
@@ -138,8 +227,8 @@ def build_learning_promotion_proposal(record: dict[str, Any]) -> dict[str, Any]:
         "canonical_until_promoted_by_repo_diff": False,
         "lesson_id": lesson_id,
         "dedupe_fingerprint": fingerprint,
-        "promotion_target": str(record.get("promotion_target") or ""),
-        "required_oracle": str(record.get("required_oracle") or ""),
+        "promotion_target": validated["promotion_target"],
+        "required_oracle": validated["required_oracle"],
         "human_review_required": True,
         "promotion_requirements": [
             "reviewed repo diff",

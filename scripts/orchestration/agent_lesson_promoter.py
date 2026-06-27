@@ -54,9 +54,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--record", help="Path to an agent_learning_record.v1 JSON object.")
     args = parser.parse_args(argv)
-    print(
-        json.dumps(promote_agent_lesson_record(_load_record(args.record)), indent=2, sort_keys=True)
-    )
+    try:
+        proposal = promote_agent_lesson_record(_load_record(args.record))
+    except ValueError as exc:
+        raise SystemExit(f"Invalid learning record input: {exc}") from exc
+    print(json.dumps(proposal, indent=2, sort_keys=True))
     return 0
 
 
