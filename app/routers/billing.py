@@ -17,7 +17,11 @@ from fastapi.responses import JSONResponse
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint_for_path_method,
+    route_ownership_counts,
+)
 from app.routers.api_key import api_key_header
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
@@ -81,19 +85,47 @@ _RESPONSE_422_VALIDATION_OR_PAYMENT = {
     },
 }
 
+_APPLE_VERIFY_ROUTE_PATH = "/api/v1/billing/apple/verify-receipt"
+_MANUAL_INTENT_ROUTE_PATH = "/api/v1/pro/payments/ru-by/manual-intent"
+
+
+def _canonical_billing_route_present(
+    routes: tuple[object, ...],
+    *,
+    path: str,
+    endpoint: object,
+) -> bool:
+    expected_count, foreign_count = route_ownership_counts(routes, path, "POST", endpoint)
+    if foreign_count or expected_count > 1:
+        raise RuntimeError(f"Duplicate {path} route detected with a different billing handler.")
+    return expected_count == 1
+
 
 def register_billing_routes(app: "FastAPI") -> APIRouter:
     """Register canonical billing routes idempotently on the provided app."""
-    routes = tuple(iter_effective_route_candidates(getattr(app, "routes", None) or []))
-    has_canonical_apple_verify = any(
-        route_path(route) == "/api/v1/billing/apple/verify-receipt"
-        and "POST" in route_methods(route)
-        for route in routes
+    apple_verify_endpoint = route_endpoint_for_path_method(
+        billing_router.routes,
+        _APPLE_VERIFY_ROUTE_PATH,
+        "POST",
     )
-    has_legacy_manual_intent = any(
-        route_path(route) == "/api/v1/pro/payments/ru-by/manual-intent"
-        and "POST" in route_methods(route)
-        for route in routes
+    manual_intent_endpoint = route_endpoint_for_path_method(
+        router.routes,
+        _MANUAL_INTENT_ROUTE_PATH,
+        "POST",
+    )
+    if apple_verify_endpoint is None or manual_intent_endpoint is None:
+        raise RuntimeError("Billing router does not define the expected route family.")
+
+    routes = tuple(iter_effective_route_candidates(getattr(app, "routes", None) or []))
+    has_canonical_apple_verify = _canonical_billing_route_present(
+        routes,
+        path=_APPLE_VERIFY_ROUTE_PATH,
+        endpoint=apple_verify_endpoint,
+    )
+    has_legacy_manual_intent = _canonical_billing_route_present(
+        routes,
+        path=_MANUAL_INTENT_ROUTE_PATH,
+        endpoint=manual_intent_endpoint,
     )
     if not has_canonical_apple_verify:
         app.include_router(billing_router)

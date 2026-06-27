@@ -54,6 +54,14 @@ def _policy_text() -> str:
     return POLICY_PATH.read_text(encoding="utf-8")
 
 
+def _policy_block(header: str) -> str:
+    policy = _policy_text()
+    block_start = policy.index(header)
+    next_header = policy.find("\n# CVE-", block_start + 1)
+    block_end = next_header if next_header != -1 else len(policy)
+    return policy[block_start:block_end]
+
+
 def _ledger_perl_entry() -> str:
     backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
     ledger_start = backlog_text.index('<a id="ledger-p1-container-perl-cve-remediation"></a>')
@@ -298,8 +306,7 @@ def test_gpgv_docs_and_backlog_record_production_package_removal() -> None:
 
 
 def test_faraday_fastlane_suppression_tracks_1_10_6_scanner_lag() -> None:
-    policy = _policy_text()
-    faraday_policy = policy[policy.index("# CVE-2026-54297") :]
+    faraday_policy = _policy_block("# CVE-2026-54297")
     doc_text = SECURITY_DOC_FARADAY_PATH.read_text(encoding="utf-8")
     ledger_entry = _ledger_faraday_entry()
 

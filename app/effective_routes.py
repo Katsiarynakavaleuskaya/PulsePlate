@@ -40,7 +40,11 @@ def route_path(route: object) -> str:
 
 
 def route_endpoint(route: object) -> object:
-    return getattr(route, "endpoint", None)
+    endpoint = getattr(route, "endpoint", None)
+    if endpoint is not None:
+        return endpoint
+    original_route = getattr(route, "original_route", None)
+    return getattr(original_route, "endpoint", None)
 
 
 def route_include_in_schema(route: object) -> bool:
@@ -54,3 +58,36 @@ def route_responses(route: object) -> dict[object, object]:
 
 def route_methods(route: object) -> frozenset[str]:
     return frozenset(str(method).upper() for method in (getattr(route, "methods", None) or set()))
+
+
+def route_matches_path_method(route: object, path: str, method: str) -> bool:
+    return route_path(route) == path and method.upper() in route_methods(route)
+
+
+def route_endpoint_for_path_method(
+    routes: Iterable[object],
+    path: str,
+    method: str,
+) -> object | None:
+    for route in iter_effective_route_candidates(routes):
+        if route_matches_path_method(route, path, method):
+            return route_endpoint(route)
+    return None
+
+
+def route_ownership_counts(
+    routes: Iterable[object],
+    path: str,
+    method: str,
+    expected_endpoint: object,
+) -> tuple[int, int]:
+    expected_count = 0
+    foreign_count = 0
+    for route in iter_effective_route_candidates(routes):
+        if not route_matches_path_method(route, path, method):
+            continue
+        if route_endpoint(route) is expected_endpoint:
+            expected_count += 1
+        else:
+            foreign_count += 1
+    return expected_count, foreign_count

@@ -17,6 +17,12 @@ from app.bootstrap.route_family import (
     route_has_dependency_call,
     same_callable_by_module_and_qualname,
 )
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_methods,
+    route_path,
+)
 from app.routers.bmi_registration import BmiRouteRegistration, register_bmi_routes
 
 
@@ -1000,13 +1006,26 @@ def test_bmi_registration_runs_and_mirrors_legacy_attrs(
 
 def _bmi_route_counts(app: FastAPI) -> dict[tuple[str, str], int]:
     counts: dict[tuple[str, str], int] = {}
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
+    for route in iter_effective_route_candidates(app.routes):
+        if not is_api_route_candidate(route):
             continue
-        for method in sorted((route.methods or set()) - {"HEAD", "OPTIONS"}):
-            key = (method, route.path)
+        for method in sorted(route_methods(route) - {"HEAD", "OPTIONS"}):
+            key = (method, route_path(route))
             counts[key] = counts.get(key, 0) + 1
     return counts
+
+
+def _routes_for_path_method(app: FastAPI, path: str, method: str) -> list[object]:
+    method_name = method.upper()
+    return [
+        route
+        for route in iter_effective_route_candidates(app.routes)
+        if route_path(route) == path and method_name in route_methods(route)
+    ]
+
+
+def _has_route_path(app: FastAPI, path: str) -> bool:
+    return any(route_path(route) == path for route in iter_effective_route_candidates(app.routes))
 
 
 def test_bmi_registration_defaults_to_free_route_only_and_caches(
@@ -1428,6 +1447,26 @@ def test_vip_route_registration_rejects_foreign_existing_paid_tier_route(
         register_vip_routes(app)
 
 
+def test_vip_route_registration_rejects_foreign_existing_fitchef_insight_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.vip_registration import register_vip_routes
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    app = FastAPI()
+
+    async def _shadow_fitchef_insight() -> dict[str, str]:
+        return {"status": "shadow"}
+
+    app.add_api_route("/api/v1/insight/fitchef", _shadow_fitchef_insight, methods=["POST"])
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate /api/v1/insight/fitchef route detected with a different handler",
+    ):
+        register_vip_routes(app)
+
+
 def test_pro_route_registration_rejects_foreign_existing_paid_tier_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1448,6 +1487,58 @@ def test_pro_route_registration_rejects_foreign_existing_paid_tier_route(
         register_pro_routes(app)
 
 
+def test_pro_contract_registration_rejects_foreign_existing_handlers() -> None:
+    from app.bootstrap.pro_contracts import register_pro_contract_routes
+
+    app = FastAPI()
+
+    async def _shadow_pro_contract() -> dict[str, str]:
+        return {"status": "shadow"}
+
+    app.add_api_route(
+        "/api/v1/pro/nutrition/targets",
+        _shadow_pro_contract,
+        methods=["POST"],
+    )
+    app.add_api_route(
+        "/api/v1/pro/nutrition/plate",
+        _shadow_pro_contract,
+        methods=["POST"],
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate .* route detected with a different PRO contract handler",
+    ):
+        register_pro_contract_routes(app)
+
+
+def test_billing_registration_rejects_foreign_existing_handlers() -> None:
+    from app.routers.billing import register_billing_routes
+
+    app = FastAPI()
+
+    async def _shadow_billing() -> dict[str, str]:
+        return {"status": "shadow"}
+
+    app.add_api_route(
+        "/api/v1/billing/apple/verify-receipt",
+        _shadow_billing,
+        methods=["POST"],
+    )
+    app.add_api_route(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        _shadow_billing,
+        methods=["POST"],
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate .* route detected with a different billing handler",
+    ):
+        register_billing_routes(app)
+
+
 def test_paywall_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
 
@@ -1456,12 +1547,7 @@ def test_paywall_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatc
     _bootstrap_temp_app(app)
     _bootstrap_temp_app(app)
 
-    paywall_routes = [
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == app_main._PAYWALL_EVENTS_ROUTE_PATH
-        and "POST" in (getattr(route, "methods", None) or set())
-    ]
+    paywall_routes = _routes_for_path_method(app, app_main._PAYWALL_EVENTS_ROUTE_PATH, "POST")
     assert len(paywall_routes) == 1
 
 
@@ -1489,12 +1575,7 @@ def test_health_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatch
     _bootstrap_temp_app(app)
 
     for path in app_main._HEALTH_ROUTE_PATHS:
-        health_routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and "GET" in (getattr(route, "methods", None) or set())
-        ]
+        health_routes = _routes_for_path_method(app, path, "GET")
         assert len(health_routes) == 1
 
 
@@ -1617,12 +1698,7 @@ def test_favicon_route_registration_is_idempotent(monkeypatch: pytest.MonkeyPatc
     _bootstrap_temp_app(app)
     _bootstrap_temp_app(app)
 
-    favicon_routes = [
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == app_main.FAVICON_ROUTE_PATH
-        and "GET" in (getattr(route, "methods", None) or set())
-    ]
+    favicon_routes = _routes_for_path_method(app, app_main.FAVICON_ROUTE_PATH, "GET")
     assert len(favicon_routes) == 1
     assert getattr(favicon_routes[0], "include_in_schema", True) is False
 
@@ -1728,12 +1804,7 @@ def test_admin_operations_route_registration_is_idempotent(
     _bootstrap_temp_app(app)
 
     for path, method in app_main._ADMIN_OPERATION_ROUTE_SPECS:
-        admin_routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        ]
+        admin_routes = _routes_for_path_method(app, path, method)
         assert len(admin_routes) == 1
         assert getattr(admin_routes[0], "include_in_schema", True) is False
 
@@ -1848,9 +1919,7 @@ def test_admin_operations_route_registration_allows_router_with_unrelated_path(
 
     app = _bootstrap_temp_app(FastAPI())
 
-    assert any(
-        getattr(route, "path", None) == "/api/v1/unrelated-admin-probe" for route in app.routes
-    )
+    assert _has_route_path(app, "/api/v1/unrelated-admin-probe")
 
 
 def test_admin_operations_route_registration_rejects_router_wrong_method(
@@ -1943,12 +2012,7 @@ def test_bmi_compat_route_registration_is_idempotent(
     _bootstrap_temp_app(app)
 
     for path, method, include_in_schema in app_main._BMI_COMPAT_ROUTE_SPECS:
-        matching_routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        ]
+        matching_routes = _routes_for_path_method(app, path, method)
         assert len(matching_routes) == 1
         assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
 
@@ -2021,9 +2085,7 @@ def test_bmi_compat_route_registration_allows_unrelated_canonical_router_paths(
 
     app = _bootstrap_temp_app(FastAPI())
 
-    assert any(
-        getattr(route, "path", None) == "/api/v1/unrelated-bmi-compat-probe" for route in app.routes
-    )
+    assert _has_route_path(app, "/api/v1/unrelated-bmi-compat-probe")
 
 
 def test_bmi_compat_route_registration_rejects_combined_methods_in_canonical_router(
@@ -2065,12 +2127,7 @@ def test_bmi_compat_route_registration_rejects_existing_openapi_visibility_drift
     app = FastAPI()
     app.include_router(app_main.bmi_compat_router)
     path, method, include_in_schema = app_main._BMI_COMPAT_ROUTE_SPECS[0]
-    matching_route = next(
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
-    )
+    matching_route = _routes_for_path_method(app, path, method)[0]
     matching_route.include_in_schema = not include_in_schema
 
     with pytest.raises(
@@ -2140,12 +2197,7 @@ def test_bodyfat_route_registration_is_idempotent() -> None:
     app_main._include_bodyfat_router_if_needed(app)
 
     for path, method, include_in_schema in app_main._BODYFAT_ROUTE_SPECS:
-        matching_routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        ]
+        matching_routes = _routes_for_path_method(app, path, method)
         assert len(matching_routes) == 1
         matching_route = matching_routes[0]
         assert getattr(matching_route, "include_in_schema", True) is include_in_schema
@@ -2153,11 +2205,7 @@ def test_bodyfat_route_registration_is_idempotent() -> None:
         assert not matching_route.dependant.dependencies
         assert 429 not in (matching_route.responses or {})
 
-    assert not any(
-        getattr(route, "path", None) == "/bodyfat"
-        and "POST" in (getattr(route, "methods", None) or set())
-        for route in app.routes
-    )
+    assert not _routes_for_path_method(app, "/bodyfat", "POST")
 
 
 def test_bodyfat_route_registration_rejects_wrong_method() -> None:
@@ -2261,12 +2309,7 @@ def test_bodyfat_route_registration_rejects_existing_openapi_visibility_drift() 
     app = FastAPI()
     app.include_router(app_main.bodyfat_router)
     path, method, include_in_schema = app_main._BODYFAT_ROUTE_SPECS[0]
-    matching_route = next(
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
-    )
+    matching_route = _routes_for_path_method(app, path, method)[0]
     matching_route.include_in_schema = not include_in_schema
 
     with pytest.raises(
@@ -2329,12 +2372,7 @@ def test_bodyfat_direct_router_remains_unprefixed_compatibility() -> None:
 
 def test_bodyfat_final_openapi_hides_path() -> None:
     app_main.app.openapi_schema = None
-    route_matches = [
-        route
-        for route in app_main.app.routes
-        if getattr(route, "path", None) == "/api/v1/bodyfat"
-        and "POST" in (getattr(route, "methods", None) or set())
-    ]
+    route_matches = _routes_for_path_method(app_main.app, "/api/v1/bodyfat", "POST")
 
     assert len(route_matches) == 1
     assert "/api/v1/bodyfat" not in app_main.app.openapi()["paths"]
@@ -2352,12 +2390,7 @@ def test_plan_export_route_registration_is_idempotent(
     _bootstrap_temp_app(app)
 
     for path, method, include_in_schema in app_main._PLAN_EXPORT_ROUTE_SPECS:
-        matching_routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        ]
+        matching_routes = _routes_for_path_method(app, path, method)
         assert len(matching_routes) == 1
         assert getattr(matching_routes[0], "endpoint").__module__ == "app.routers.plan_export"
         assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
@@ -2574,12 +2607,7 @@ def test_plan_export_route_registration_rejects_existing_openapi_visibility_drif
         dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
     )
     path, method, include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
-    matching_route = next(
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
-    )
+    matching_route = _routes_for_path_method(app, path, method)[0]
     matching_route.include_in_schema = not include_in_schema
 
     with pytest.raises(
@@ -2607,11 +2635,7 @@ def test_plan_export_dependency_detection_walks_nested_dependencies() -> None:
         dependencies=[Depends(_outer_dependency)],
     )
 
-    route = next(
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == "/api/v1/nested-plan-export-dependency-probe"
-    )
+    route = _routes_for_path_method(app, "/api/v1/nested-plan-export-dependency-probe", "GET")[0]
 
     assert route_has_dependency_call(
         route,
@@ -2630,12 +2654,7 @@ def test_plan_export_route_registration_rejects_existing_429_metadata_drift() ->
         dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
     )
     path, method, _include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
-    matching_route = next(
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
-    )
+    matching_route = _routes_for_path_method(app, path, method)[0]
     matching_route.responses.pop(429, None)
 
     with pytest.raises(
@@ -2686,12 +2705,7 @@ def test_shoplist_export_route_registration_is_idempotent(
     _bootstrap_temp_app(app)
 
     for path, method, include_in_schema in app_main._SHOPLIST_ROUTE_SPECS:
-        matching_routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        ]
+        matching_routes = _routes_for_path_method(app, path, method)
         assert len(matching_routes) == 1
         assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
         assert 429 in (getattr(matching_routes[0], "responses", None) or {})
@@ -2922,12 +2936,7 @@ def test_shoplist_export_route_registration_rejects_existing_openapi_visibility_
         dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
     )
     path, method, include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
-    matching_route = next(
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
-    )
+    matching_route = _routes_for_path_method(app, path, method)[0]
     matching_route.include_in_schema = not include_in_schema
 
     with pytest.raises(
@@ -2947,12 +2956,7 @@ def test_shoplist_export_route_registration_rejects_existing_429_metadata_drift(
         dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
     )
     path, method, _include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
-    matching_route = next(
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
-    )
+    matching_route = _routes_for_path_method(app, path, method)[0]
     matching_route.responses.pop(429, None)
 
     with pytest.raises(
@@ -3007,12 +3011,7 @@ def test_legacy_export_alias_route_registration_is_idempotent(
     _bootstrap_temp_app(app)
 
     for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-        matching_routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        ]
+        matching_routes = _routes_for_path_method(app, path, method)
         assert len(matching_routes) == 1
         assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
 
@@ -3026,12 +3025,7 @@ def test_legacy_export_alias_route_registration_skips_when_disabled(
     app = _bootstrap_temp_app(FastAPI())
 
     for path, method, _include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-        assert not [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        ]
+        assert not _routes_for_path_method(app, path, method)
 
 
 def test_build_legacy_export_aliases_router_returns_empty_router_when_disabled(
@@ -3194,10 +3188,7 @@ def test_legacy_export_alias_route_registration_allows_unrelated_router_paths(
 
     app = _bootstrap_temp_app(FastAPI())
 
-    assert any(
-        getattr(route, "path", None) == "/api/v1/unrelated-legacy-export-probe"
-        for route in app.routes
-    )
+    assert _has_route_path(app, "/api/v1/unrelated-legacy-export-probe")
 
 
 def test_legacy_export_alias_route_registration_allows_reloaded_canonical_handlers(
@@ -3215,12 +3206,7 @@ def test_legacy_export_alias_route_registration_allows_reloaded_canonical_handle
     app_main._include_legacy_export_alias_router_if_needed(app)
 
     for path, method, _include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-        matching_routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        ]
+        matching_routes = _routes_for_path_method(app, path, method)
         assert len(matching_routes) == 1
 
 
@@ -3279,12 +3265,7 @@ def test_legacy_export_alias_route_registration_rejects_existing_openapi_visibil
     app = FastAPI()
     app.include_router(app_main.legacy_export_aliases_router)
     path, method, include_in_schema = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0]
-    matching_route = next(
-        route
-        for route in app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
-    )
+    matching_route = _routes_for_path_method(app, path, method)[0]
     matching_route.include_in_schema = not include_in_schema
 
     with pytest.raises(

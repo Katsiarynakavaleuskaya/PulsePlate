@@ -17,7 +17,9 @@ from typing import TYPE_CHECKING, Any
 from app.effective_routes import (
     iter_effective_route_candidates,
     route_endpoint,
+    route_endpoint_for_path_method,
     route_methods,
+    route_ownership_counts,
     route_path,
 )
 
@@ -27,6 +29,7 @@ if TYPE_CHECKING:
 __all__ = ["register_vip_routes"]
 
 _FITCHEF_STRUCTURED_VIP_ROUTE_PATH = "/api/v1/vip/fitchef/insight"
+_FITCHEF_INSIGHT_ROUTE_PATH = "/api/v1/insight/fitchef"
 
 
 def _has_route(app: FastAPI, path: str, method: str) -> bool:
@@ -49,6 +52,18 @@ def _route_has_endpoint(app: FastAPI, path: str, method: str, endpoint: object) 
         and route_endpoint(route) is endpoint
         for route in iter_effective_route_candidates(app.routes)
     )
+
+
+def _canonical_route_present(app: FastAPI, path: str, method: str, endpoint: object) -> bool:
+    expected_count, foreign_count = route_ownership_counts(
+        app.routes,
+        path,
+        method,
+        endpoint,
+    )
+    if foreign_count or expected_count > 1:
+        raise RuntimeError(f"Duplicate {path} route detected with a different handler.")
+    return expected_count == 1
 
 
 def _router_endpoint(router: Any, path: str, method: str) -> object | None:
@@ -90,7 +105,6 @@ def register_vip_routes(app: FastAPI) -> None:
     if not is_vip_module_enabled():
         return
 
-    existing_paths = {route_path(route) for route in iter_effective_route_candidates(app.routes)}
     fitchef_structured_endpoint = _router_endpoint(
         fitchef_structured_vip_router,
         _FITCHEF_STRUCTURED_VIP_ROUTE_PATH,
@@ -110,18 +124,20 @@ def register_vip_routes(app: FastAPI) -> None:
             )
         else:
             app.include_router(fitchef_structured_vip_router)
-            existing_paths = {
-                route_path(route) for route in iter_effective_route_candidates(app.routes)
-            }
 
-    if (
-        hasattr(fitchef_insight_router, "routes")
-        and "/api/v1/insight/fitchef" not in existing_paths
-    ):
-        app.include_router(fitchef_insight_router)
-        existing_paths = {
-            route_path(route) for route in iter_effective_route_candidates(app.routes)
-        }
+    fitchef_insight_endpoint = route_endpoint_for_path_method(
+        getattr(fitchef_insight_router, "routes", []) or [],
+        _FITCHEF_INSIGHT_ROUTE_PATH,
+        "POST",
+    )
+    if fitchef_insight_endpoint is not None:
+        if not _canonical_route_present(
+            app,
+            _FITCHEF_INSIGHT_ROUTE_PATH,
+            "POST",
+            fitchef_insight_endpoint,
+        ):
+            app.include_router(fitchef_insight_router)
 
     from app.routers import vip as vip_module
     from app.routers.api_key import api_key_header

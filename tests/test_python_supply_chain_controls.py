@@ -271,6 +271,27 @@ def _requirement_package_versions(path: Path, package_name: str) -> set[str]:
     return versions
 
 
+def _requirement_package_specifiers(path: Path, package_name: str) -> set[tuple[str, str]]:
+    """Return package specifier tuples declared in a requirement surface."""
+
+    canonical_package_name = canonicalize_name(package_name)
+    specifiers: set[tuple[str, str]] = set()
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line or line.startswith(PIP_REQUIREMENT_DIRECTIVE_PREFIXES):
+            continue
+        try:
+            requirement = Requirement(line)
+        except InvalidRequirement:
+            continue
+        if canonicalize_name(requirement.name) != canonical_package_name:
+            continue
+        specifiers.update(
+            (specifier.operator, specifier.version) for specifier in requirement.specifier
+        )
+    return specifiers
+
+
 def _requirement_package_names(path: Path) -> set[str]:
     """Return canonical package names declared in a requirement surface."""
 
@@ -1097,7 +1118,9 @@ def test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh() -> None:
     ):
         lock_path = REPO_ROOT / lockfile
         for package_name, expected_version in expected_runtime_pins.items():
-            assert _requirement_package_versions(lock_path, package_name) == {expected_version}
+            assert _requirement_package_specifiers(lock_path, package_name) == {
+                ("==", expected_version)
+            }
 
 
 def test_runtime_source_profiles_keep_single_pillow_floor() -> None:
