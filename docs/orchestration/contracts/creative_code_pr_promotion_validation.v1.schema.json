@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_pr_promotion_validation.v1.schema.json",
+  "title": "CreativeCodePRPromotionValidation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "promotion_id",
+    "plan_fingerprint",
+    "patch_fingerprint",
+    "base_commit_sha",
+    "fresh_oracle",
+    "preopen_gates",
+    "validation_checkout",
+    "validation_fingerprint"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_pr_promotion_validation" },
+    "policy_version": { "const": "creative-code-pr-promotion-pr3" },
+    "promotion_id": { "$ref": "#/$defs/promotion_id" },
+    "plan_fingerprint": { "$ref": "#/$defs/sha256" },
+    "patch_fingerprint": { "$ref": "#/$defs/sha256" },
+    "base_commit_sha": { "$ref": "#/$defs/git_sha" },
+    "fresh_oracle": { "$ref": "#/$defs/fresh_oracle" },
+    "preopen_gates": { "$ref": "#/$defs/preopen_gates" },
+    "validation_checkout": { "$ref": "#/$defs/validation_checkout" },
+    "validation_fingerprint": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "promotion_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$"
+    },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "git_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "fresh_oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "changed_paths_match",
+        "shared_tree_untouched",
+        "oracle_commands_configured",
+        "oracle_commands_executed"
+      ],
+      "properties": {
+        "status": { "const": "accepted" },
+        "changed_paths_match": { "const": true },
+        "shared_tree_untouched": { "const": true },
+        "oracle_commands_configured": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "oracle_commands_executed": { "type": "integer", "minimum": 1, "maximum": 20 }
+      }
+    },
+    "preopen_gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pre_commit", "validate_changed", "patch_unchanged_after_gates"],
+      "properties": {
+        "pre_commit": { "const": "passed" },
+        "validate_changed": { "const": "passed" },
+        "patch_unchanged_after_gates": { "const": true }
+      }
+    },
+    "validation_checkout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["created", "destroyed", "used_throwaway_commit"],
+      "properties": {
+        "created": { "const": true },
+        "destroyed": { "const": true },
+        "used_throwaway_commit": { "const": true }
+      }
+    }
+  }
+}
