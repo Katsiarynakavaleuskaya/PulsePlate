@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, FastAPI, WebSocket
 
 from app.bootstrap.route_family import (
     RouteMemberContract,
+    _family_routes,
     ensure_route_family_registered,
     route_member_contracts_from_router,
     route_has_dependency_call,
