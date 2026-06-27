@@ -64,9 +64,9 @@ def test_review_source_status_redacts_reason_and_evidence() -> None:
     status = build_review_source_status(
         source="coderabbit",
         status="rate_limited",
-        reason="raw fine grained token github_pat_FAKE1234567890abcdef",
-        evidence="oauth token gho_FAKE1234567890abcdef",
+        reason="raw fine grained token github_pat_FAKE1234567890abcdef at /Users/example/run",
+        evidence="oauth token gho_FAKE1234567890abcdef in file:///private/tmp/evidence.json",
     )
 
-    assert status["reason"] == "raw fine grained token <redacted>"
-    assert status["evidence"] == "oauth token <redacted>"
+    assert status["reason"] == "raw fine grained token <redacted> at <redacted-path>"
+    assert status["evidence"] == "oauth token <redacted> in <redacted-path>"

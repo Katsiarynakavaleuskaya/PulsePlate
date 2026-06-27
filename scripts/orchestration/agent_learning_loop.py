@@ -42,12 +42,20 @@ _SENSITIVE_RE = re.compile(
     r"ghp_[a-z0-9_]+|sk-[a-z0-9_-]+|"
     r"\b(?:token|secret|password|api[_-]?key)\b\s*[:=]\s*[^\s]+)"
 )
+_LOCAL_PATH_RE = re.compile(
+    r"(?i)(file://)?("
+    r"/(?:Users|private|var|tmp|Volumes)/[^\s,;]+|"
+    r"~[\\/][^\s,;]+|"
+    r"[A-Za-z]:[\\/][^\s,;]+"
+    r")"
+)
 
 
 def redact_learning_text(value: str) -> str:
     """Redact common token/secret shapes before proposal generation."""
 
-    return _SENSITIVE_RE.sub("<redacted>", value)
+    redacted = _SENSITIVE_RE.sub("<redacted>", value)
+    return _LOCAL_PATH_RE.sub("<redacted-path>", redacted)
 
 
 def _require_repo_relative_path(value: str, *, field_name: str) -> str:

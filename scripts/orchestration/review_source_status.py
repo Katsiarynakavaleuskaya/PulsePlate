@@ -22,6 +22,13 @@ _SECRETISH_RE = re.compile(
     r"ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
     r"\b(?:token|secret|password|api[_-]?key|github_token|gh_token)\b\s*[:=]\s*[^\s]+)"
 )
+_LOCAL_PATH_RE = re.compile(
+    r"(?i)(file://)?("
+    r"/(?:Users|private|var|tmp|Volumes)/[^\s,;]+|"
+    r"~[\\/][^\s,;]+|"
+    r"[A-Za-z]:[\\/][^\s,;]+"
+    r")"
+)
 
 
 @dataclass(frozen=True)
@@ -38,7 +45,8 @@ class ReviewSourceStatus:
 def redact_review_source_text(value: str) -> str:
     """Redact token-like values from advisory review-source metadata."""
 
-    return _SECRETISH_RE.sub("<redacted>", value)
+    redacted = _SECRETISH_RE.sub("<redacted>", value)
+    return _LOCAL_PATH_RE.sub("<redacted-path>", redacted)
 
 
 def build_review_source_status(

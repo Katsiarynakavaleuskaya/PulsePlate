@@ -38,6 +38,17 @@ def test_learning_loop_redacts_ghs_tokens_with_dots_and_hyphens() -> None:
     assert redact_learning_text("review ghs_abc-def.ghi evidence") == "review <redacted> evidence"
 
 
+def test_learning_loop_redacts_local_paths_in_free_text() -> None:
+    assert (
+        redact_learning_text("see /Users/example/project/.env and file:///private/tmp/log.txt")
+        == "see <redacted-path> and <redacted-path>"
+    )
+    assert (
+        redact_learning_text(r"windows C:\Users\example\secret.txt path")
+        == "windows <redacted-path> path"
+    )
+
+
 def test_learning_loop_proposal_dedupes_targets_deterministically() -> None:
     proposal = build_learning_loop_proposal(
         source="review",
@@ -59,11 +70,11 @@ def test_learning_loop_rejects_absolute_target_paths() -> None:
 
 def test_agent_lesson_extractor_emits_requested_record_shape() -> None:
     record = extract_agent_lesson_record(
-        source="review secret=abc",
+        source="review secret=abc /Users/example/worktree",
         pattern="schema validator drift",
         severity="HIGH",
         affected_surfaces=["scripts/orchestration", "scripts/orchestration"],
-        root_cause="token=abc reused stale schema",
+        root_cause="token=abc reused stale schema from file:///private/tmp/trace.log",
         required_oracle="schema_validator_parity",
         promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
     )
@@ -82,7 +93,9 @@ def test_agent_lesson_extractor_emits_requested_record_shape() -> None:
         "human_review_required",
     }
     assert record["severity"] == "high"
+    assert record["source"] == "review <redacted> <redacted-path>"
     assert record["affected_surfaces"] == ["scripts/orchestration"]
+    assert record["root_cause"] == "<redacted> reused stale schema from <redacted-path>"
     assert record["redaction_status"] == "redacted"
     assert record["human_review_required"] is True
 
