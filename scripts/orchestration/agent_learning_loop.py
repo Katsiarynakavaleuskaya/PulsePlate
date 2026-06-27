@@ -35,6 +35,7 @@ LEARNING_RECORD_REQUIRED_FIELDS = frozenset(
     }
 )
 _FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:/")
 _SENSITIVE_RE = re.compile(
     r"(?i)(ghp_[a-z0-9_]+|ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
     r"\b(?:token|secret|password|api[_-]?key)\b\s*[:=]\s*[^\s]+)"
@@ -52,7 +53,7 @@ def _require_repo_relative_path(value: str, *, field_name: str) -> str:
     if not item:
         raise ValueError(f"{field_name} must be a non-empty repo-relative path.")
     path = PurePosixPath(item.replace("\\", "/"))
-    if path.is_absolute() or ".." in path.parts:
+    if path.is_absolute() or _WINDOWS_DRIVE_PATH_RE.match(path.as_posix()) or ".." in path.parts:
         raise ValueError(f"{field_name} must be a repo-relative path.")
     if path.parts and path.parts[0] in {"~", "tmp", "var", "Users", "Volumes", "private"}:
         raise ValueError(f"{field_name} must not point at a local machine path.")

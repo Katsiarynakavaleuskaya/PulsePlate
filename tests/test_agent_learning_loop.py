@@ -103,6 +103,28 @@ def test_agent_lesson_extractor_rejects_invalid_schema_values() -> None:
             promotion_target="/Users/example/AGENT_LEARNING_LOOP.md",
         )
 
+    with pytest.raises(ValueError, match="promotion_target must be a repo-relative path"):
+        extract_agent_lesson_record(
+            source="review",
+            pattern="schema validator drift",
+            severity="high",
+            affected_surfaces=["scripts/orchestration"],
+            root_cause="stale schema",
+            required_oracle="schema_validator_parity",
+            promotion_target="C:\\Users\\example\\AGENT_LEARNING_LOOP.md",
+        )
+
+    with pytest.raises(ValueError, match="affected_surfaces must be a repo-relative path"):
+        extract_agent_lesson_record(
+            source="review",
+            pattern="schema validator drift",
+            severity="high",
+            affected_surfaces=["C:\\Users\\example\\AGENTS.md"],
+            root_cause="stale schema",
+            required_oracle="schema_validator_parity",
+            promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+        )
+
     with pytest.raises(ValueError, match="required_oracle must be one of"):
         extract_agent_lesson_record(
             source="review",
@@ -212,3 +234,5 @@ def test_agent_learning_record_schema_matches_extractor_shape() -> None:
     assert schema["properties"]["required_oracle"]["enum"] == list(REVIEW_PATTERN_ORACLE_IDS)
     assert "pattern" in schema["properties"]["affected_surfaces"]["items"]
     assert "pattern" in schema["properties"]["promotion_target"]
+    assert "(?![A-Za-z]:[\\\\/])" in schema["properties"]["promotion_target"]["pattern"]
+    assert "(?![A-Za-z]:[\\\\/])" in schema["properties"]["affected_surfaces"]["items"]["pattern"]
