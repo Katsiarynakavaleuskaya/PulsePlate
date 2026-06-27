@@ -22,6 +22,16 @@ def _reload_legacy_app() -> ModuleType:
     return importlib.reload(legacy_app)
 
 
+def _reload_canonical_main() -> ModuleType:
+    """Reload canonical bootstrap after env changes."""
+
+    import app.main as app_main
+    import legacy_app
+
+    importlib.reload(legacy_app)
+    return importlib.reload(app_main)
+
+
 @pytest.fixture(autouse=True)
 def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep env-based legacy app tests deterministic.
@@ -57,19 +67,19 @@ def test_legacy_app_skips_local_dotenv_in_env_production(
     assert calls == []
 
 
-def test_legacy_app_staging_test_router_respects_environment_flag(
+def test_canonical_bootstrap_staging_test_router_respects_environment_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "staging")
 
-    app_module = _reload_legacy_app()
+    app_module = _reload_canonical_main()
     assert not any(
         getattr(route, "path", "") == "/api/v1/test/health"
         for route in getattr(app_module.app, "routes", [])
     )
 
     monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
-    app_module = _reload_legacy_app()
+    app_module = _reload_canonical_main()
     assert any(
         getattr(route, "path", "") == "/api/v1/test/health"
         for route in getattr(app_module.app, "routes", [])

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from app.main import app
+from app.routers.test import TEST_ROUTE_SPECS
 from app.routers.admin_operations import ADMIN_OPERATION_ROUTE_SPECS
 
 ALLOWED_PREFIXES: tuple[str, ...] = (
@@ -81,6 +82,15 @@ def test_admin_debug_runtime_routes_stay_hidden_from_openapi_schema() -> None:
     paths = set(_openapi_paths())
 
     for route_path, _method in ADMIN_OPERATION_ROUTE_SPECS:
+        assert route_path in runtime_paths
+        assert route_path not in paths
+
+
+def test_test_runtime_routes_stay_hidden_from_openapi_schema() -> None:
+    runtime_paths = _runtime_paths()
+    paths = set(_openapi_paths())
+
+    for route_path, _method, _include_in_schema in TEST_ROUTE_SPECS:
         assert route_path in runtime_paths
         assert route_path not in paths
 

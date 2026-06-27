@@ -13,6 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from settings import get_runtime_env_name
 
+TEST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/test/rate-limit", "POST", False),
+    ("/api/v1/test/health", "GET", False),
+    ("/api/v1/test/echo", "POST", False),
+)
+
 
 def _ensure_non_production() -> None:
     """
@@ -34,6 +40,7 @@ router = APIRouter(
     prefix="/api/v1/test",
     tags=["test"],
     dependencies=[Depends(_ensure_non_production)],
+    include_in_schema=False,
 )
 
 
@@ -46,7 +53,7 @@ class TestResponse(BaseModel):
     request_id: str | None = None
 
 
-@router.post("/rate-limit", response_model=TestResponse)
+@router.post("/rate-limit", response_model=TestResponse, include_in_schema=False)
 async def test_rate_limit(request: Request, response: Response) -> TestResponse:
     """
     Test endpoint for rate limiting without authentication.
@@ -71,7 +78,7 @@ async def test_rate_limit(request: Request, response: Response) -> TestResponse:
     )
 
 
-@router.get("/health", response_model=TestResponse)
+@router.get("/health", response_model=TestResponse, include_in_schema=False)
 async def test_health(response: Response) -> TestResponse:
     """
     Simple health check endpoint for testing.
@@ -90,7 +97,7 @@ async def test_health(response: Response) -> TestResponse:
     )
 
 
-@router.post("/echo")
+@router.post("/echo", include_in_schema=False)
 async def test_echo(data: Dict[str, Any], response: Response) -> Dict[str, Any]:
     """
     Echo endpoint that returns the received data.

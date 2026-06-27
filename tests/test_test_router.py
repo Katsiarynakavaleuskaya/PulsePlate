@@ -12,20 +12,22 @@ import settings as app_settings
 def _import_fresh_app() -> FastAPI:
     """Import FastAPI app after ensuring env-based wiring is re-evaluated.
 
-    RU: Перезагружаем legacy_app, чтобы он перечитал env и заново настроил wiring.
-    EN: Reload legacy_app so it re-reads env and rebuilds router wiring.
+    RU: Перезагружаем legacy_app и canonical bootstrap после изменения env.
+    EN: Reload legacy_app and canonical bootstrap after env changes.
     """
     # IMPORTANT:
-    # `legacy_app` decides whether to include the test router at import time, based on env.
+    # `app.main` decides whether to include the test router during canonical bootstrap.
     # In CI, it may already be imported under a different APP_ENV/ENABLE_TEST_ROUTES state.
     # Reloading re-reads env and re-wires routers without mutating sys.modules.
     import importlib
 
+    import app.main as app_main
     import legacy_app
 
     importlib.reload(legacy_app)
+    app_main = importlib.reload(app_main)
 
-    app = legacy_app.app  # canonical app instance after env-driven wiring
+    app = app_main.app  # canonical app instance after env-driven wiring
 
     # Fail fast with a clear message if staging claims test routes should exist but doesn't.
     runtime_env = app_settings.get_runtime_env_name()
