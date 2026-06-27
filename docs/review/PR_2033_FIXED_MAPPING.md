@@ -68,6 +68,8 @@ blocker.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Initial PR open: no human review threads existed before PR creation.
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2033`.
@@ -78,9 +80,14 @@ blocker.
 
 ## Fixed in Commit Mapping
 
-- Initial `main` CI failure in run
-  `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28296225948`
-  -> `a149ff7e1`
+- No actionable review comments
+
+## Additional Fixed Findings
+
+Initial `main` CI failure in run
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28296225948`
+failed because hidden mutating test routes were not classified in
+`tests/security/_api_authz_contracts.py`.
 
 Disposition: FIXED
 
