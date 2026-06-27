@@ -86,6 +86,21 @@ Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
   - Evidence: direct
     `python scripts/ci/check_python_dependency_surfaces.py` passed.
 
+## Post-Open Role Dispositions
+
+- QA finding: missing negative tests for dependency-surface security coverage
+  failure branches.
+  - Disposition: FIXED
+  - Commit: `428b41ff02bdc949768b805af63771f35e299d16`
+  - Evidence:
+    `tests/test_python_dependency_surfaces.py` now covers missing pip-audit
+    coverage and missing dependency-submission coverage; focused pytest,
+    `make validate-changed`, and `pre-commit run --all-files` passed.
+- QA finding: current-head CI was incomplete during the first post-open QA pass.
+  - Disposition: gate-pending, not a code defect.
+  - Evidence: current-head CI and strict merge-readiness wrapper remain required
+    below before any readiness claim.
+
 ## Experiment Runner Evidence
 
 - Packet:
@@ -107,11 +122,15 @@ Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
 ## Local Validation Evidence
 
 - PASS:
-  `python3 scripts/orchestration/check_preflight.py --mode analyze --path .`
+  `python3 scripts/orchestration/check_preflight.py --mode analyze --path REQUIREMENTS.md --path docs/DEPENDENCY_MANAGEMENT.md --path docs/contracts/PYTHON_DEPENDENCY_SURFACES.md --path docs/review/PR_2023_FIXED_MAPPING.md --path docs/review/PR_2023_PREMORTEM.md --path docs/roadmap/BACKLOG_LEDGER.md --path scripts/ci/check_python_dependency_surfaces.py --path scripts/ci/install_locked_python_requirements.py --path tests/test_install_locked_python_requirements.py --path tests/test_python_dependency_surfaces.py --path tests/test_verify_requirements.py --path verify_requirements.py`
+- PASS:
+  `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS:
   `python scripts/ci/check_python_dependency_surfaces.py`
 - PASS:
   `python verify_requirements.py`
+- PASS:
+  `python -m pytest -q tests/test_python_dependency_surfaces.py -p no:cacheprovider`
 - PASS:
   `python -m py_compile scripts/ci/check_python_dependency_surfaces.py verify_requirements.py tests/test_python_dependency_surfaces.py tests/test_verify_requirements.py`
 - PASS:
