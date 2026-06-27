@@ -2,6 +2,11 @@
 
 This project uses `pip-tools` to manage dependencies with deterministic builds.
 
+Canonical dependency-surface ownership lives in
+`docs/contracts/PYTHON_DEPENDENCY_SURFACES.md`. The executable contract check is
+`scripts/ci/check_python_dependency_surfaces.py`; `verify_requirements.py`
+remains as a compatibility wrapper for that validator.
+
 ## Files
 
 - `requirements.in` - Production dependencies (high-level)
@@ -44,6 +49,12 @@ need:
   tooling and are not the default for generic CI feedback.
 - `rag-vector` is the explicit optional vector runtime profile and is the only
   canonical profile that carries the local FastEmbed/ONNX embedding backend.
+
+`requirements-all.txt` and `requirements-lock.txt` are noncanonical aggregate
+install surfaces. `requirements-lock.txt` exists for dependency graph
+reconciliation and scanner attribution; `requirements-all.txt` is a legacy
+flexible local convenience file. Neither file is a shared CI/Docker/runtime
+install authority.
 
 Generic feature/fix feedback must stay on `ci-test` or `ci-lite` unless the job
 explicitly proves it needs optional vector runtime behavior. That proof must

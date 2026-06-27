@@ -443,6 +443,53 @@ def _collect_exact_requirement_pins(lines: Sequence[str]) -> set[str]:
     return exact_pins
 
 
+def _collect_unmarked_exact_requirement_pin_versions(
+    lines: Sequence[str],
+) -> dict[str, set[str]]:
+    """Return package -> exact versions for unmarked requirement pins."""
+    exact_versions: dict[str, set[str]] = {}
+    for line in lines:
+        stripped = line.split("#", 1)[0].strip().lower()
+        if (
+            not stripped
+            or ";" in stripped
+            or stripped.startswith(("-r ", "--requirement ", "-c ", "--constraint "))
+        ):
+            continue
+        match = re.fullmatch(
+            r"([a-z0-9][a-z0-9._-]*)(?:\[[^]]+\])?\s*==\s*([^,;\s]+)",
+            stripped,
+        )
+        if match is None:
+            continue
+        package = re.sub(r"[-_.]+", "-", match.group(1))
+        exact_versions.setdefault(package, set()).add(match.group(2))
+    return exact_versions
+
+
+def _constraint_line_repeats_exact_min_floor(
+    line: str,
+    *,
+    exact_versions_by_package: dict[str, set[str]],
+) -> bool:
+    """Return True for package>=version constraints already enforced by package==version."""
+    stripped = line.split("#", 1)[0].strip().lower()
+    if (
+        not stripped
+        or ";" in stripped
+        or stripped.startswith(("-r ", "--requirement ", "-c ", "--constraint "))
+    ):
+        return False
+    match = re.fullmatch(
+        r"([a-z0-9][a-z0-9._-]*)(?:\[[^]]+\])?\s*>=\s*([^,;\s]+)",
+        stripped,
+    )
+    if match is None:
+        return False
+    package = re.sub(r"[-_.]+", "-", match.group(1))
+    return match.group(2) in exact_versions_by_package.get(package, set())
+
+
 def _requirement_line_package_name(line: str) -> str | None:
     """Return the normalized package name requested by a requirement-like line."""
     stripped = line.split("#", 1)[0].strip().lower()
@@ -452,19 +499,6 @@ def _requirement_line_package_name(line: str) -> str | None:
     if match is None:
         return None
     return re.sub(r"[-_.]+", "-", match.group(1))
-
-
-def _collect_exact_requirement_pin_names(lines: Sequence[str]) -> set[str]:
-    """Return normalized package names for exact pins from requirement-like lines."""
-    exact_pin_names: set[str] = set()
-    for line in lines:
-        stripped = line.split("#", 1)[0].strip().lower()
-        if "==" not in stripped or "===" in stripped or ";" in stripped:
-            continue
-        package_name = _requirement_line_package_name(stripped)
-        if package_name is not None:
-            exact_pin_names.add(package_name)
-    return exact_pin_names
 
 
 def _load_exact_requirement_pins(requirement_file: Path) -> set[str]:
@@ -1011,7 +1045,7 @@ def effective_constraints_file_for_requirement(
     requirement_file: Path,
     constraints_file: Path | None,
 ) -> Iterator[Path | None]:
-    """Yield constraints with entries removed for exact-pinned requirement packages."""
+    """Yield constraints with duplicate exact pins removed for one requirement file."""
     validated_constraints_file = validate_constraints_file(constraints_file)
     if validated_constraints_file is None:
         yield None
@@ -1019,8 +1053,8 @@ def effective_constraints_file_for_requirement(
 
     requirement_lines = requirement_file.read_text(encoding="utf-8").splitlines()
     requirement_exact_pins = _collect_exact_requirement_pins(requirement_lines)
-    requirement_exact_pin_names = _collect_exact_requirement_pin_names(requirement_lines)
-    if not requirement_exact_pin_names:
+    exact_versions_by_package = _collect_unmarked_exact_requirement_pin_versions(requirement_lines)
+    if not requirement_exact_pins:
         yield validated_constraints_file
         return
 
@@ -1031,11 +1065,12 @@ def effective_constraints_file_for_requirement(
     removed_redundant_constraint = False
     for line in constraint_lines:
         normalized_line = line.split("#", 1)[0].strip().lower()
-        if normalized_line and normalized_line in requirement_exact_pins:
-            removed_redundant_constraint = True
-            continue
-        constraint_package_name = _requirement_line_package_name(line)
-        if constraint_package_name in requirement_exact_pin_names:
+        if (normalized_line and normalized_line in requirement_exact_pins) or (
+            _constraint_line_repeats_exact_min_floor(
+                line,
+                exact_versions_by_package=exact_versions_by_package,
+            )
+        ):
             removed_redundant_constraint = True
             continue
         filtered_constraint_lines.append(line)

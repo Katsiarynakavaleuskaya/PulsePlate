@@ -805,7 +805,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Add Python dependency surface contract and retire stale requirements guidance
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain / dependency architecture)
-  - Target PR: PR-TBD-DEPENDENCY-SURFACE-CONTRACT
+  - Target PR: PR #2023
+  - Status: In progress in PR #2023 as the Python dependency surface contract
+    and security-floor preservation lane.
   - Area: security / CI / dependencies / docs
   - Reason (EN): The operator-linked requirements cleanup epic identifies a
     broader architecture debt train: every dependency profile needs an explicit
@@ -821,6 +823,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `requirements-evals.in`
     - `requirements-data.in`
     - `verify_requirements.py`
+    - `docs/contracts/PYTHON_DEPENDENCY_SURFACES.md`
+    - `scripts/ci/check_python_dependency_surfaces.py`
   - DoD:
     - Document each Python dependency profile owner, purpose, install authority,
       and scan coverage in a canonical dependency-surface contract.
