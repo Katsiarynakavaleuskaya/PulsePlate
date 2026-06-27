@@ -32,17 +32,18 @@
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `python3 -m py_compile` for changed orchestration CLIs/helpers
 - Focused pytest for review oracles, review-source status, PR review context/reporting, skill routing, task bootstrap, skill install/mirror, and symlink integrity
-- Focused flake8/mypy checks for changed orchestration wrapper surfaces
 - `make validate-changed`
 - `pre-commit run --all-files`
 - `git diff --check`
-- Commit hooks and pre-push hooks
 - Full `make verify` was attempted but stopped at `verify-env` because this isolated worktree has no local `.venv`; this PR does not claim merge readiness from local gates alone.
 
 ## Post-Open Review Evidence
-- Pending: post-open bootstrap and role passes `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Pending: Codex Security diff scan / finding discovery.
-- Pending: `pulseplate-pr-review`.
+- Post-open packet: `artifacts/orchestration/task_packets/f25b8bd19ce4.json`
+- `qa-engineer-agent`: PASS after fixing review-source/fixed-mapping governance validation in `d3fd0fdec`.
+- `bug-hunter`: PASS after fixing JSON stdout hygiene, stale fixed-mapping degradation, schema enum/path constraints, and local-path rejection in `4d6deb2b3`.
+- `security-auditor`: PASS after fixing GitHub token-family redaction and URI/path rejection in `f8dcd8740`.
+- Codex Security diff scan / finding discovery: PASS, scan `881032b6-844f-4109-b5d1-236837c8f551`, 9/9 coverage rows closed, 0 reportable findings, report `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-Hmdu7f/orchestration-review-fallback-learning-loop/f8dcd8740b609894e47418a90a99b1ea3a502b7d_20260627T090451Z_uug73qnj/report.md`.
+- `pulseplate-pr-review`: pending final rerun after this mapping evidence is committed and pushed so the PR head matches local post-open evidence.
 
 ## Merge Readiness
 - Not claimed.
