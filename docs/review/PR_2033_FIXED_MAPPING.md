@@ -19,6 +19,10 @@ blocker.
   contracts; add a static hook-safe regression target; keep pre-commit from
   collecting the authz helper module directly; avoid lazy `app.main` bootstrap
   from `reset_environment` when only the `app` package exists in `sys.modules`.
+- `33d1a3a1d2` - address Sourcery review feedback by making the static authz
+  contract test AST-structured instead of regex-based, centralizing safe loaded
+  module attribute lookup in `conftest.py`, and replacing the one-off shell
+  branch with a portable helper-to-test mapping table.
 
 ## Lane Start Provenance
 
@@ -80,7 +84,20 @@ blocker.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2033#pullrequestreview-4585941852 -> 33d1a3a1d2
+Disposition: FIXED
+Commit: 33d1a3a1d2
+Evidence: `tests/security/test_api_authz_contract_static.py` now parses `tests/security/_api_authz_contracts.py` with `ast` and verifies the hidden POST contracts plus `_ensure_non_production` mapping without importing app/bootstrap code.
+Evidence: `conftest.py` now uses `_loaded_module_attr(...)` for setup and teardown so fixture cleanup reads already-loaded module attributes without invoking module-level `__getattr__`.
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now keeps helper module routing in `PYTHON_HELPER_SOURCE_FILES` / `PYTHON_HELPER_TEST_TARGETS`, avoiding a one-off inline branch while remaining portable to macOS bash.
+Evidence: focused validation passed with `.venv/bin/python -m pytest -q tests/security/test_api_authz_contract_static.py tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_authz_contract_helper_to_static_contract_test tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_uses_helper_test_mapping_table`.
+
+## Review Tool Status
+
+- CodeRabbit emitted a rate-limit notice, not a review finding; it is not used
+  as approval evidence.
+- ChatGPT Codex connector emitted a usage-limit notice, not a review finding;
+  it is not used as approval evidence.
 
 ## Additional Fixed Findings
 
@@ -118,9 +135,9 @@ Evidence:
   `python3 scripts/orchestration/check_preflight.py --path conftest.py --path scripts/run-backend-tests-pre-commit.sh --path tests/security/_api_authz_contracts.py --path tests/security/test_api_authz_contract_static.py --path tests/test_pre_commit_hook_python_resolver.py`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/security/test_api_authz_contract_static.py tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_authz_contract_helper_to_static_contract_test`
+  `.venv/bin/python -m pytest -q tests/security/test_api_authz_contract_static.py tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_authz_contract_helper_to_static_contract_test tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_uses_helper_test_mapping_table`
 - BLOCKED locally, not counted as fix evidence:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/security/test_api_auth_tier_contract_pack.py`
+  `.venv/bin/python -m pytest -q tests/security/test_api_auth_tier_contract_pack.py`
   fails in app fixture setup with
   `RuntimeError: VIP router does not define the expected route family` at
   `app/bootstrap/route_family.py:98` via
@@ -132,8 +149,8 @@ Evidence:
   accepted with `mutated_paths=[]` and `shared_tree_untouched=true`.
 - PASS: `pre-commit run --all-files`
 - PASS:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
-  selected 22 tests in `tests/security/test_api_authz_contract_static.py` and
+  `VENV_PYTHON=.venv/bin/python make validate-changed`
+  selected 23 tests in `tests/security/test_api_authz_contract_static.py` and
   `tests/test_pre_commit_hook_python_resolver.py`.
 - PASS during push: pre-push backend tests, full-repo Bandit, and docker build
   test.
