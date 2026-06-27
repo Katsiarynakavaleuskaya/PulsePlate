@@ -139,14 +139,24 @@ def _write_dependency_submission_workflow(
     root: Path,
     *,
     omitted: tuple[str, ...] = (),
+    trigger_omitted: tuple[str, ...] = (),
     trigger_paths: tuple[str, ...] = (),
 ) -> None:
-    submitted_lockfiles = [
-        surface.lockfile
+    submitted_surfaces = [
+        surface
         for surface in surfaces.DEPENDENCY_SURFACES
-        if surface.dependency_submission_required and surface.lockfile not in omitted
+        if surface.dependency_submission_required
     ]
-    path_filters = [*trigger_paths, *submitted_lockfiles]
+    submitted_lockfiles = [
+        surface.lockfile for surface in submitted_surfaces if surface.lockfile not in omitted
+    ]
+    canonical_path_filters = [
+        path
+        for surface in submitted_surfaces
+        for path in (surface.source_file, surface.lockfile)
+        if path is not None and path not in trigger_omitted
+    ]
+    path_filters = [*trigger_paths, *canonical_path_filters]
     path_filter_lines = "\n".join(f'      - "{path}"' for path in sorted(set(path_filters)))
     copied_lockfiles = "\n".join(f"            {lockfile} \\" for lockfile in submitted_lockfiles)
     (root / surfaces.DEPENDENCY_SUBMISSION_WORKFLOW).write_text(
@@ -154,6 +164,9 @@ def _write_dependency_submission_workflow(
             (
                 "name: Python Dependency Submission",
                 "on:",
+                "  push:",
+                "    paths:",
+                path_filter_lines,
                 "  pull_request:",
                 "    paths:",
                 path_filter_lines,
@@ -294,6 +307,29 @@ def test_dependency_surface_contract_ignores_dependency_submission_trigger_only_
     assert errors == [
         f"{surfaces.DEPENDENCY_SUBMISSION_WORKFLOW}: missing dependency submission coverage "
         "for requirements-dev.txt."
+    ]
+
+
+def test_dependency_surface_contract_rejects_missing_dependency_submission_trigger_paths(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _write_dependency_submission_workflow(
+        tmp_path,
+        trigger_omitted=("requirements-test.in", "requirements-test.txt"),
+    )
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert errors == [
+        f"{surfaces.DEPENDENCY_SUBMISSION_WORKFLOW}: push.paths missing dependency "
+        "submission trigger for requirements-test.in.",
+        f"{surfaces.DEPENDENCY_SUBMISSION_WORKFLOW}: push.paths missing dependency "
+        "submission trigger for requirements-test.txt.",
+        f"{surfaces.DEPENDENCY_SUBMISSION_WORKFLOW}: pull_request.paths missing dependency "
+        "submission trigger for requirements-test.in.",
+        f"{surfaces.DEPENDENCY_SUBMISSION_WORKFLOW}: pull_request.paths missing dependency "
+        "submission trigger for requirements-test.txt.",
     ]
 
 

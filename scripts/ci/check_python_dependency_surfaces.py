@@ -52,6 +52,10 @@ PIP_AUDIT_MANIFEST_RE = re.compile(r"^\s*manifests(?:\+)?=\((?P<body>.*)\)\s*(?:
 SHELL_QUOTED_LOCKFILE_RE = re.compile(
     r"(?P<quote>['\"])(?P<value>requirements[-A-Za-z0-9_]*\.txt)(?P=quote)"
 )
+WORKFLOW_PATH_ENTRY_RE = re.compile(
+    r"^\s*-\s*[\"']?(?P<path>requirements[-A-Za-z0-9_]*\.(?:in|txt))[\"']?\s*$"
+)
+DEPENDENCY_SUBMISSION_TRIGGER_EVENTS = ("push", "pull_request")
 
 
 @dataclass(frozen=True)
@@ -273,6 +277,48 @@ def _dependency_submission_cp_entries(workflow_text: str) -> set[str]:
     return entries
 
 
+def _dependency_submission_trigger_paths(workflow_text: str) -> dict[str, set[str]]:
+    """Return dependency-submission workflow path-filter entries by trigger event."""
+    paths_by_event = {event: set() for event in DEPENDENCY_SUBMISSION_TRIGGER_EVENTS}
+    in_on_section = False
+    current_event: str | None = None
+    in_paths = False
+
+    for raw_line in workflow_text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(raw_line) - len(raw_line.lstrip(" "))
+
+        if indent == 0:
+            in_on_section = stripped == "on:"
+            current_event = None
+            in_paths = False
+            continue
+        if not in_on_section:
+            continue
+
+        if indent == 2:
+            key = stripped.split(":", 1)[0]
+            current_event = key if key in paths_by_event else None
+            in_paths = False
+            continue
+        if current_event is None:
+            continue
+
+        if indent == 4:
+            in_paths = stripped == "paths:"
+            continue
+        if not in_paths or indent < 6:
+            continue
+
+        match = WORKFLOW_PATH_ENTRY_RE.match(raw_line)
+        if match is not None:
+            paths_by_event[current_event].add(match.group("path"))
+
+    return paths_by_event
+
+
 def _require_exact_lock_entries(
     *,
     repo_root: Path,
@@ -352,6 +398,7 @@ def _validate_security_coverage(repo_root: Path, errors: list[str]) -> None:
     dependency_submission_text = _read_text(repo_root, DEPENDENCY_SUBMISSION_WORKFLOW)
     audited_lockfiles = _pip_audit_manifest_entries(audit_text)
     submitted_lockfiles = _dependency_submission_cp_entries(dependency_submission_text)
+    submission_trigger_paths = _dependency_submission_trigger_paths(dependency_submission_text)
     for surface in DEPENDENCY_SURFACES:
         if surface.pip_audit_required and surface.lockfile not in audited_lockfiles:
             errors.append(f"{PIP_AUDIT_HELPER}: missing pip-audit coverage for {surface.lockfile}.")
@@ -360,6 +407,15 @@ def _validate_security_coverage(repo_root: Path, errors: list[str]) -> None:
                 f"{DEPENDENCY_SUBMISSION_WORKFLOW}: missing dependency submission coverage for "
                 f"{surface.lockfile}."
             )
+        if surface.dependency_submission_required:
+            trigger_files = (surface.source_file, surface.lockfile)
+            for event, trigger_paths in submission_trigger_paths.items():
+                for trigger_file in trigger_files:
+                    if trigger_file is not None and trigger_file not in trigger_paths:
+                        errors.append(
+                            f"{DEPENDENCY_SUBMISSION_WORKFLOW}: {event}.paths missing "
+                            f"dependency submission trigger for {trigger_file}."
+                        )
 
 
 def _validate_docs(repo_root: Path, errors: list[str]) -> None:
