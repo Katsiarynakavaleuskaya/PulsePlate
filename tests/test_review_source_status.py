@@ -64,9 +64,9 @@ def test_review_source_status_redacts_reason_and_evidence() -> None:
     status = build_review_source_status(
         source="coderabbit",
         status="rate_limited",
-        reason="GH_TOKEN=ghs_abc.def",
-        evidence="api_key=secret123",
+        reason="raw fine grained token github_pat_FAKE1234567890abcdef",
+        evidence="oauth token gho_FAKE1234567890abcdef",
     )
 
-    assert status["reason"] == "<redacted>"
-    assert status["evidence"] == "<redacted>"
+    assert status["reason"] == "raw fine grained token <redacted>"
+    assert status["evidence"] == "oauth token <redacted>"

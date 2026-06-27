@@ -18,7 +18,8 @@ BLOCKING_STATUSES = frozenset(
     {"fallback_finding", "failed_required_check", "unresolved_threads", "actionable_bot_comments"}
 )
 _SECRETISH_RE = re.compile(
-    r"(?i)(ghp_[a-z0-9_]+|ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
+    r"(?i)(github_pat_[a-z0-9_]+|gh[opsru]_[a-z0-9_]+|ghp_[a-z0-9_]+|"
+    r"ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
     r"\b(?:token|secret|password|api[_-]?key|github_token|gh_token)\b\s*[:=]\s*[^\s]+)"
 )
 

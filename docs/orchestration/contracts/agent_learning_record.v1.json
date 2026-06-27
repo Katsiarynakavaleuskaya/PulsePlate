@@ -24,7 +24,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!~(?:/|$))(?!(?:tmp|var|Users|Volumes|private)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!/)(?![A-Za-z]:[\\\\/])(?!~(?:/|$))(?!(?:tmp|var|Users|Volumes|private)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
       }
     },
     "root_cause": { "type": "string", "minLength": 1 },
@@ -40,7 +40,7 @@
     },
     "promotion_target": {
       "type": "string",
-      "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!~(?:/|$))(?!(?:tmp|var|Users|Volumes|private)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!/)(?![A-Za-z]:[\\\\/])(?!~(?:/|$))(?!(?:tmp|var|Users|Volumes|private)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
     },
     "dedupe_fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "redaction_status": { "enum": ["clean", "redacted"] },

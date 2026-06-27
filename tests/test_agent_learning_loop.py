@@ -17,8 +17,8 @@ from scripts.orchestration.review_pattern_oracles import REVIEW_PATTERN_ORACLE_I
 
 def test_learning_loop_proposal_redacts_and_stays_non_runtime() -> None:
     proposal = build_learning_loop_proposal(
-        source="review token=source-secret",
-        lessons=["secret=abc123 promote validator parity lesson"],
+        source="review github_pat_FAKE1234567890abcdef",
+        lessons=["gho_FAKE1234567890abcdef promote validator parity lesson"],
         target_paths=["docs/orchestration/AGENT_LEARNING_LOOP.md"],
     )
 
@@ -120,6 +120,28 @@ def test_agent_lesson_extractor_rejects_invalid_schema_values() -> None:
             pattern="schema validator drift",
             severity="high",
             affected_surfaces=["C:\\Users\\example\\AGENTS.md"],
+            root_cause="stale schema",
+            required_oracle="schema_validator_parity",
+            promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+        )
+
+    with pytest.raises(ValueError, match="promotion_target must be a repo-relative path"):
+        extract_agent_lesson_record(
+            source="review",
+            pattern="schema validator drift",
+            severity="high",
+            affected_surfaces=["scripts/orchestration"],
+            root_cause="stale schema",
+            required_oracle="schema_validator_parity",
+            promotion_target="file:///Users/example/AGENT_LEARNING_LOOP.md",
+        )
+
+    with pytest.raises(ValueError, match="affected_surfaces must be a repo-relative path"):
+        extract_agent_lesson_record(
+            source="review",
+            pattern="schema validator drift",
+            severity="high",
+            affected_surfaces=["file:///Users/example/AGENTS.md"],
             root_cause="stale schema",
             required_oracle="schema_validator_parity",
             promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
@@ -235,4 +257,9 @@ def test_agent_learning_record_schema_matches_extractor_shape() -> None:
     assert "pattern" in schema["properties"]["affected_surfaces"]["items"]
     assert "pattern" in schema["properties"]["promotion_target"]
     assert "(?![A-Za-z]:[\\\\/])" in schema["properties"]["promotion_target"]["pattern"]
+    assert "(?![A-Za-z][A-Za-z0-9+.-]*:)" in schema["properties"]["promotion_target"]["pattern"]
     assert "(?![A-Za-z]:[\\\\/])" in schema["properties"]["affected_surfaces"]["items"]["pattern"]
+    assert (
+        "(?![A-Za-z][A-Za-z0-9+.-]*:)"
+        in schema["properties"]["affected_surfaces"]["items"]["pattern"]
+    )
