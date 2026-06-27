@@ -5,8 +5,9 @@ Status: PR-3 human-approved non-draft PR promotion tooling. No product runtime i
 PR-3 adds a local, fail-closed handoff from one accepted PR-2
 `CreativeCodePatchResult` plus exact `candidate.patch` into the normal
 PulsePlate pull-request lifecycle. It may create a new `experiment/*` branch,
-push that new branch without force, and open a non-draft PR only after isolated
-pre-open validation and explicit TTY human approval.
+push that new branch with create-only remote-ref semantics, and open a
+non-draft PR only after isolated pre-open validation and explicit TTY human
+approval.
 
 It does not authorize draft PRs, branch updates, force push, default-branch
 writes, review requests, review submissions, review-thread resolution,
@@ -49,7 +50,7 @@ accepted PR-2 patch result
 -> exact patch application
 -> new experiment/* branch
 -> one human-authored commit
--> push without force
+-> create-only remote branch push
 -> gh pr create non-draft
 -> readback verification
 -> sanitized local receipt
@@ -173,7 +174,8 @@ Rules:
 - lowercase ASCII after the `experiment/` prefix;
 - maximum length 80;
 - existing branch blocks;
-- no force push;
+- create-only remote-ref lease must fail if the branch appears before push;
+- no unconditional force push;
 - no update to an existing branch;
 - no auto-rebase.
 

@@ -244,6 +244,13 @@ def _sanitized_command_env(*, allow_github_auth: bool = False) -> dict[str, str]
     return env
 
 
+def _sanitized_git_identity_env() -> dict[str, str]:
+    env = _sanitized_command_env()
+    env.pop("GIT_CONFIG_GLOBAL", None)
+    env.pop("GIT_CONFIG_NOSYSTEM", None)
+    return env
+
+
 def _run_process(
     argv: list[str],
     *,
@@ -267,6 +274,27 @@ def _run_process(
         stderr = process.stderr.strip() or process.stdout.strip() or "unknown command failure"
         raise CreativeCodePRPromotionError(f"{Path(argv[0]).name} command failed: {stderr}")
     return process
+
+
+def _reject_non_human_git_identity(*, name: str, email: str) -> None:
+    normalized_name = name.strip()
+    normalized_email = email.strip()
+    lower_name = normalized_name.lower()
+    lower_email = normalized_email.lower()
+    if (
+        not normalized_name
+        or not normalized_email
+        or "@" not in normalized_email
+        or "\n" in normalized_name
+        or "\n" in normalized_email
+    ):
+        raise CreativeCodePRPromotionError("human git identity is not configured.")
+    if (
+        "experiment runner" in lower_name
+        or lower_email in {"pulseplate@pm.me", "runner@example.com"}
+        or lower_email.endswith("@example.com")
+    ):
+        raise CreativeCodePRPromotionError("promotion commit requires a human git identity.")
 
 
 class GitTransport:
@@ -324,6 +352,63 @@ class GitTransport:
     def local_branch_exists(self, branch: str, *, cwd: Path = REPO_ROOT) -> bool:
         process = self.run(["show-ref", "--verify", f"refs/heads/{branch}"], cwd=cwd, check=False)
         return process.returncode == 0
+
+    def human_identity(self) -> tuple[str, str]:
+        name = _run_process(
+            [self.git_binary, "config", "--get", "user.name"],
+            cwd=REPO_ROOT,
+            env=_sanitized_git_identity_env(),
+            check=False,
+            timeout_seconds=60,
+        ).stdout.strip()
+        email = _run_process(
+            [self.git_binary, "config", "--get", "user.email"],
+            cwd=REPO_ROOT,
+            env=_sanitized_git_identity_env(),
+            check=False,
+            timeout_seconds=60,
+        ).stdout.strip()
+        _reject_non_human_git_identity(name=name, email=email)
+        return name, email
+
+    def verify_commit_identity(self, *, cwd: Path, expected_name: str, expected_email: str) -> None:
+        output = self.run(
+            ["show", "-s", "--format=%an%x00%ae%x00%cn%x00%ce", "HEAD"],
+            cwd=cwd,
+            timeout_seconds=60,
+        ).stdout.rstrip("\n")
+        parts = output.split("\x00")
+        if len(parts) != 4:
+            raise CreativeCodePRPromotionError("promotion commit identity could not be read.")
+        author_name, author_email, committer_name, committer_email = parts
+        for name, email in (
+            (author_name, author_email),
+            (committer_name, committer_email),
+        ):
+            _reject_non_human_git_identity(name=name, email=email)
+        if (
+            author_name != expected_name
+            or author_email != expected_email
+            or committer_name != expected_name
+            or committer_email != expected_email
+        ):
+            raise CreativeCodePRPromotionError("promotion commit identity mismatch.")
+
+    def push_new_branch(self, *, cwd: Path, branch: str) -> None:
+        process = self.run(
+            [
+                "push",
+                "--porcelain",
+                f"--force-with-lease=refs/heads/{branch}:",
+                "origin",
+                f"HEAD:refs/heads/{branch}",
+            ],
+            cwd=cwd,
+            timeout_seconds=600,
+        )
+        push_output = f"{process.stdout}\n{process.stderr}"
+        if "[new branch]" not in push_output:
+            raise CreativeCodePRPromotionError("push did not create a new branch.")
 
 
 def _reject_forbidden_gh_args(args: list[str]) -> None:
@@ -763,6 +848,29 @@ def _require_approval_matches_plan_and_validation(
         raise CreativeCodePRPromotionError("approval target branch does not match plan.")
 
 
+def _require_receipt_matches_plan_validation_approval(
+    *,
+    receipt: dict[str, Any],
+    plan_artifact: dict[str, Any],
+    validation_artifact: dict[str, Any],
+    approval_artifact: dict[str, Any],
+) -> None:
+    plan_fp = promotion_plan_fingerprint(plan_artifact)
+    expected_pairs = (
+        ("promotion_id", plan_artifact["promotion_id"]),
+        ("plan_fingerprint", plan_fp),
+        ("validation_fingerprint", validation_artifact["validation_fingerprint"]),
+        ("approval_id", approval_artifact["approval_id"]),
+        ("source_result_id", plan_artifact["source_result_id"]),
+        ("patch_fingerprint", plan_artifact["patch_fingerprint"]),
+        ("head_branch", plan_artifact["target_head_branch"]),
+        ("approved_by_login", approval_artifact["approved_by_login"]),
+    )
+    for key, expected in expected_pairs:
+        if receipt[key] != expected:
+            raise CreativeCodePRPromotionError(f"existing receipt {key} mismatch.")
+
+
 def _load_current_patch_text_for_plan(
     *,
     promotion_dir: Path,
@@ -1102,11 +1210,6 @@ def promote(
     github = github or GitHubTransport()
     promotion_dir = resolve_promotion_dir(promotion_id, create=False)
     receipt_path = resolve_promotion_file(promotion_dir, RECEIPT_FILE, for_write=True)
-    if receipt_path.exists():
-        return cast(
-            dict[str, Any],
-            validate_creative_code_pr_promotion_receipt(read_json_object(receipt_path)),
-        )
     plan_artifact = _load_plan(promotion_dir)
     validation_artifact = _load_validation(promotion_dir)
     approval_artifact = _load_approval(promotion_dir)
@@ -1116,6 +1219,18 @@ def promote(
         plan_artifact=plan_artifact,
         validation_artifact=validation_artifact,
     )
+    if receipt_path.exists():
+        receipt = cast(
+            dict[str, Any],
+            validate_creative_code_pr_promotion_receipt(read_json_object(receipt_path)),
+        )
+        _require_receipt_matches_plan_validation_approval(
+            receipt=receipt,
+            plan_artifact=plan_artifact,
+            validation_artifact=validation_artifact,
+            approval_artifact=approval_artifact,
+        )
+        return receipt
     if approval_artifact["approved_by_login"] != github.current_login():
         raise CreativeCodePRPromotionError("current gh actor does not match approval.")
     if git.rev_parse_origin_main() != plan_artifact["base_commit_sha"]:
@@ -1123,6 +1238,7 @@ def promote(
     branch = plan_artifact["target_head_branch"]
     if git.remote_branch_exists(branch) or git.local_branch_exists(branch):
         raise CreativeCodePRPromotionError("target experiment branch already exists.")
+    human_name, human_email = git.human_identity()
 
     patch_text = _load_current_patch_text_for_plan(
         promotion_dir=promotion_dir,
@@ -1148,6 +1264,10 @@ def promote(
         )
         git.run(
             [
+                "-c",
+                f"user.name={human_name}",
+                "-c",
+                f"user.email={human_email}",
                 "commit",
                 "--no-gpg-sign",
                 "-m",
@@ -1156,7 +1276,14 @@ def promote(
             cwd=checkout,
         )
         commit_sha = git.run(["rev-parse", "HEAD"], cwd=checkout).stdout.strip()
-        git.run(["push", "origin", f"HEAD:refs/heads/{branch}"], cwd=checkout)
+        git.verify_commit_identity(
+            cwd=checkout,
+            expected_name=human_name,
+            expected_email=human_email,
+        )
+        if git.remote_branch_exists(branch):
+            raise CreativeCodePRPromotionError("target experiment branch appeared before push.")
+        git.push_new_branch(cwd=checkout, branch=branch)
         body = _render_pr_body(
             promotion_id=promotion_id,
             result={
@@ -1185,7 +1312,7 @@ def promote(
         ):
             partial_failure = "created PR failed non-draft readback verification"
             raise CreativeCodePRPromotionError(partial_failure)
-        receipt: dict[str, Any] = build_creative_code_pr_promotion_receipt(
+        success_receipt: dict[str, Any] = build_creative_code_pr_promotion_receipt(
             promotion_id=promotion_id,
             plan_fingerprint=plan_fp,
             validation_fingerprint=validation_artifact["validation_fingerprint"],
@@ -1198,8 +1325,8 @@ def promote(
             pull_request_url=str(readback["url"]),
             approved_by_login=approval_artifact["approved_by_login"],
         )
-        write_json_atomic(receipt_path, receipt)
-        return receipt
+        write_json_atomic(receipt_path, success_receipt)
+        return success_receipt
     except Exception as exc:
         if partial_failure is None:
             partial_failure = exc.__class__.__name__

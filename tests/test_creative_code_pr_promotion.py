@@ -191,9 +191,18 @@ def _make_patch_run(
 
 
 class FakeGit:
-    def __init__(self, base_sha: str = "a" * 40, *, remote_exists: bool = False) -> None:
+    def __init__(
+        self,
+        base_sha: str = "a" * 40,
+        *,
+        remote_exists: bool = False,
+        remote_exists_sequence: list[bool] | None = None,
+        identity: tuple[str, str] | None = ("Katsiarynakavaleuskaya", "human@example.test"),
+    ) -> None:
         self.base_sha = base_sha
         self.remote_exists = remote_exists
+        self.remote_exists_sequence = list(remote_exists_sequence or [])
+        self.identity = identity
         self.committed = False
         self.calls: list[list[str]] = []
 
@@ -205,6 +214,8 @@ class FakeGit:
 
     def remote_branch_exists(self, branch: str) -> bool:
         self.calls.append(["remote_branch_exists", branch])
+        if self.remote_exists_sequence:
+            return self.remote_exists_sequence.pop(0)
         return self.remote_exists
 
     def local_branch_exists(self, branch: str, *, cwd: Path = REPO_ROOT) -> bool:
@@ -213,6 +224,32 @@ class FakeGit:
 
     def remote_url(self) -> str:
         return "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git"
+
+    def human_identity(self) -> tuple[str, str]:
+        self.calls.append(["human_identity"])
+        if self.identity is None:
+            raise CreativeCodePRPromotionError("human git identity is not configured.")
+        creative_code_pr_promotion._reject_non_human_git_identity(
+            name=self.identity[0],
+            email=self.identity[1],
+        )
+        return self.identity
+
+    def verify_commit_identity(
+        self,
+        *,
+        cwd: Path,
+        expected_name: str,
+        expected_email: str,
+    ) -> None:
+        self.calls.append(["verify_commit_identity", expected_name, expected_email])
+        if self.identity != (expected_name, expected_email):
+            raise CreativeCodePRPromotionError("promotion commit identity mismatch.")
+
+    def push_new_branch(self, *, cwd: Path, branch: str) -> None:
+        self.calls.append(["push_new_branch", branch])
+        if self.remote_exists:
+            raise CreativeCodePRPromotionError("target experiment branch already exists.")
 
     def run(
         self,
@@ -796,6 +833,108 @@ def test_promotion_readback_requires_non_draft(
     )
 
 
+def test_promote_rejects_non_human_git_identity_before_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-runner-identity",
+        git=FakeGit(),
+    )
+    plan = planned["plan"]
+    validation = build_creative_code_pr_promotion_validation(
+        promotion_id="promotion-pr3-runner-identity",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        patch_fingerprint=plan["patch_fingerprint"],
+        base_commit_sha=plan["base_commit_sha"],
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+    )
+    approval = build_creative_code_pr_promotion_approval(
+        promotion_id="promotion-pr3-runner-identity",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approved_by_login="Katsiarynakavaleuskaya",
+        confirmed_patch_fingerprint=plan["patch_fingerprint"],
+        confirmed_base_commit_sha=plan["base_commit_sha"],
+        confirmed_target_branch=plan["target_head_branch"],
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
+    _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
+
+    git = FakeGit(identity=("PulsePlate Experiment Runner", "pulseplate@pm.me"))
+    github = FakeGitHub()
+    with pytest.raises(CreativeCodePRPromotionError, match="human git identity"):
+        creative_code_pr_promotion.promote(
+            promotion_id="promotion-pr3-runner-identity",
+            git=git,
+            github=github,
+        )
+
+    assert not any("commit" in call or "push_new_branch" in call for call in git.calls)
+    assert not any(call[:2] == ["pr", "create"] for call in github.calls)
+
+
+def test_promote_rejects_stale_receipt_replay(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-stale-receipt",
+        git=FakeGit(),
+    )
+    plan = planned["plan"]
+    validation = build_creative_code_pr_promotion_validation(
+        promotion_id="promotion-pr3-stale-receipt",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        patch_fingerprint=plan["patch_fingerprint"],
+        base_commit_sha=plan["base_commit_sha"],
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+    )
+    approval = build_creative_code_pr_promotion_approval(
+        promotion_id="promotion-pr3-stale-receipt",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approved_by_login="Katsiarynakavaleuskaya",
+        confirmed_patch_fingerprint=plan["patch_fingerprint"],
+        confirmed_base_commit_sha=plan["base_commit_sha"],
+        confirmed_target_branch=plan["target_head_branch"],
+    )
+    stale_receipt = build_creative_code_pr_promotion_receipt(
+        promotion_id="promotion-pr3-stale-receipt",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approval_id="evidence:stale-approval",
+        source_result_id=plan["source_result_id"],
+        patch_fingerprint=plan["patch_fingerprint"],
+        head_branch=plan["target_head_branch"],
+        commit_sha="b" * 40,
+        pull_request_number=9999,
+        pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/9999",
+        approved_by_login="Katsiarynakavaleuskaya",
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
+    _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
+    _write_json(promotion_dir / creative_code_pr_promotion.RECEIPT_FILE, stale_receipt)
+
+    github = FakeGitHub()
+    with pytest.raises(CreativeCodePRPromotionError, match="receipt approval_id"):
+        creative_code_pr_promotion.promote(
+            promotion_id="promotion-pr3-stale-receipt",
+            git=FakeGit(),
+            github=github,
+        )
+
+    assert github.calls == []
+
+
 def test_promote_rejects_stale_patch_file_before_mutation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -848,6 +987,60 @@ def test_promote_rejects_stale_patch_file_before_mutation(
         )
 
     assert not any("commit" in call or "push" in call for call in git.calls)
+    assert not any(call[:2] == ["pr", "create"] for call in github.calls)
+
+
+def test_promote_rejects_branch_that_appears_before_push(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-branch-race",
+        git=FakeGit(),
+    )
+    plan = planned["plan"]
+    validation = build_creative_code_pr_promotion_validation(
+        promotion_id="promotion-pr3-branch-race",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        patch_fingerprint=plan["patch_fingerprint"],
+        base_commit_sha=plan["base_commit_sha"],
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+    )
+    approval = build_creative_code_pr_promotion_approval(
+        promotion_id="promotion-pr3-branch-race",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approved_by_login="Katsiarynakavaleuskaya",
+        confirmed_patch_fingerprint=plan["patch_fingerprint"],
+        confirmed_base_commit_sha=plan["base_commit_sha"],
+        confirmed_target_branch=plan["target_head_branch"],
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
+    _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
+
+    def fake_prepare(**kwargs: Any) -> Path:
+        checkout = promotion_dir / kwargs["dirname"]
+        checkout.mkdir(exist_ok=True)
+        return checkout
+
+    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fake_prepare)
+    monkeypatch.setattr(creative_code_pr_promotion, "_apply_patch_and_verify", lambda **_: None)
+    monkeypatch.setattr(creative_code_pr_promotion, "_destroy_checkout", lambda *_: True)
+
+    git = FakeGit(remote_exists_sequence=[False, True])
+    github = FakeGitHub()
+    with pytest.raises(CreativeCodePRPromotionError, match="appeared before push"):
+        creative_code_pr_promotion.promote(
+            promotion_id="promotion-pr3-branch-race",
+            git=git,
+            github=github,
+        )
+
+    assert not any(call[:1] == ["push_new_branch"] for call in git.calls)
     assert not any(call[:2] == ["pr", "create"] for call in github.calls)
 
 
