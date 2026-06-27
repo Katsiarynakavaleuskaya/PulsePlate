@@ -11,6 +11,21 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4584656910
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/AGENT_LEARNING_LOOP.md` and `docs/orchestration/REVIEW_PATTERN_ORACLES.md` define proposal-only, no-runtime-authority boundaries for the new helpers. The Sourcery review is an advisory maintainability suggestion to consolidate helper import/authority-boundary wording later, not a correctness, security, runtime-authority, or merge-readiness defect in this scoped governance contract.
+Reason: The PR intentionally keeps the new contracts and helper metadata self-contained so advisory artifacts remain reviewable without introducing a broader package/import refactor or a hidden single source of runtime authority.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4584666854 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: This CodeRabbit aggregate review listed the first review batch; its inline/out-of-diff findings are mapped below and fixed by schema-contract references, full promoter record validation, narrower skill-router oracle matching, and branch-focused promoter CLI tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4584826178 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: This CodeRabbit aggregate review listed the second review batch; its inline findings are mapped below and fixed by complete `ghs_` redaction, clean unreadable-file CLI errors, repo-relative fixed-mapping evidence, and SHA-independent fixed-mapping diff membership checks.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646667 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
 Disposition: FIXED
 Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
