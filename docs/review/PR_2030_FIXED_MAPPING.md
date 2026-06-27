@@ -53,6 +53,7 @@ dependency changes are authorized.
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed for local role-agent findings.
+- [x] Fixed in commit mapping completed
 - [x] Fixed in commit mapping created after GitHub assigned PR number `#2030`.
 - [x] Initial PR open: no GitHub review threads were resolved by this PR.
 - [x] Post-open `qa-engineer-agent` pass completed; actionable findings fixed
@@ -73,7 +74,7 @@ dependency changes are authorized.
 
 ## Fixed in Commit Mapping
 
-No GitHub review threads have been resolved by this PR at artifact creation.
+- No actionable review comments
 
 ## Post-Open Role Findings
 
