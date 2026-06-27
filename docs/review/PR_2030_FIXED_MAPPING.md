@@ -251,6 +251,7 @@ Commit `1a93ca062` includes the canonical co-author trailer.
   pytest, full-repo Bandit, and docker build test.
 - PASS: `python3 scripts/orchestration/pr_review_context.py --pr 2030 --output /tmp/pulseplate_pr_2030_review_context.json`
 - PASS: `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2030_review_context.json --format json`
+- PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --event-path /tmp/pr2030_event.json` after refreshing the live PR body mirror.
 
 ## Machine-Heavy Deferral
 
