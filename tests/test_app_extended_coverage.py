@@ -35,7 +35,7 @@ class TestLifespanEvents:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_lifespan_startup_success(self, monkeypatch: pytest.MonkeyPatch):
+    def test_lifespan_startup_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test successful lifespan startup."""
         from app import lifespan
         import legacy_app
@@ -58,7 +58,7 @@ class TestLifespanEvents:
         # Verify startup was called
         mock_start.assert_called_once_with(update_interval_hours=24)
 
-    def test_lifespan_startup_failure(self, monkeypatch: pytest.MonkeyPatch):
+    def test_lifespan_startup_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test lifespan startup with failure."""
         from app import lifespan
         import legacy_app
@@ -81,7 +81,7 @@ class TestLifespanEvents:
 
         mock_start.assert_called_once_with(update_interval_hours=24)
 
-    def test_lifespan_shutdown_success(self, monkeypatch: pytest.MonkeyPatch):
+    def test_lifespan_shutdown_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test successful lifespan shutdown."""
         from app import lifespan
         import legacy_app
@@ -106,7 +106,7 @@ class TestLifespanEvents:
         # Verify shutdown was called
         mock_stop.assert_called_once()
 
-    def test_lifespan_shutdown_failure(self, monkeypatch: pytest.MonkeyPatch):
+    def test_lifespan_shutdown_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test lifespan shutdown with failure."""
         from app import lifespan
         import legacy_app
