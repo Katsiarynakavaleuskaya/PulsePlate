@@ -187,6 +187,41 @@ def test_dependency_surface_contract_rejects_missing_doc_mirror(tmp_path: Path) 
     ]
 
 
+def test_dependency_surface_contract_rejects_missing_pip_audit_coverage(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    audit_helper = tmp_path / surfaces.PIP_AUDIT_HELPER
+    audit_helper.write_text(
+        audit_helper.read_text(encoding="utf-8").replace("requirements-data.txt\n", ""),
+        encoding="utf-8",
+    )
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert errors == [
+        f"{surfaces.PIP_AUDIT_HELPER}: missing pip-audit coverage for requirements-data.txt."
+    ]
+
+
+def test_dependency_surface_contract_rejects_missing_dependency_submission_coverage(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    submission_workflow = tmp_path / surfaces.DEPENDENCY_SUBMISSION_WORKFLOW
+    submission_workflow.write_text(
+        submission_workflow.read_text(encoding="utf-8").replace("requirements-dev.txt\n", ""),
+        encoding="utf-8",
+    )
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert errors == [
+        f"{surfaces.DEPENDENCY_SUBMISSION_WORKFLOW}: missing dependency submission coverage "
+        "for requirements-dev.txt."
+    ]
+
+
 def test_dependency_surface_contract_rejects_non_exact_compiled_entry(tmp_path: Path) -> None:
     _write_valid_contract_repo(tmp_path)
     (tmp_path / "requirements.txt").write_text(
